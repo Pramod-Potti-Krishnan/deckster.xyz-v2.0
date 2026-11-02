@@ -884,7 +884,7 @@ function sourceSuite(sources, { base = null } = {}) {
   for (const needle of ['routeStudioBulkEditUndoFrame(parsedMessage', 'if (!isKnownDirectorMessageType(parsedMessage.type))', "if (parsedMessage.type === 'deck_mutation') {"]) ok(ws.indexOf(tap) < ws.indexOf(needle), `ws: the tap is ahead of ${needle.slice(0, 40)}`)
   ok(ws.indexOf(tap) > ws.indexOf('flowBus.phase?.(parsedMessage.payload)'), 'ws: ...and after the flow control taps (a frame carries on exactly as before)')
   ok(!/voiceCallBus\.frame\?\.\(parsedMessage\);[^\n]*\n\s*(return|continue)/.test(ws.slice(ws.indexOf(tap), ws.indexOf(tap) + 400)), 'ws: the tap never consumes a frame')
-  const fields = lineOf(ws, 'if (STUDIO_VOICE_CALL_UI_ENABLED) addVoiceCallFields(message.data as unknown as Record<string, unknown>, text); // VOICE-CALL')
+  const fields = lineOf(ws, "if (typeof STUDIO_VOICE_CALL_UI_ENABLED !== 'undefined' && STUDIO_VOICE_CALL_UI_ENABLED) addVoiceCallFields(message.data as unknown as Record<string, unknown>, text); // VOICE-CALL")
   ok(ws.indexOf(fields) > ws.indexOf('if (CHAT_PARITY_CAPS.length > 0) addChatParityCaps(') && ws.indexOf(fields) < ws.indexOf('      return message;\n    };'), 'ws: the voice fields come last, after every other cap, inside buildUserMessage')
   const sentTap = lineOf(ws, 'voiceCallBus.sent?.(text); // VOICE-CALL')
   ok(sentTap.includes("if (STUDIO_VOICE_CALL_UI_ENABLED && (message.data as unknown as Record<string, unknown>).mode === 'voice')"), 'ws: the sent tap is gated and for a voice turn only')
@@ -928,10 +928,11 @@ function sourceSuite(sources, { base = null } = {}) {
       ok(reg.stripLaterChanges(rel, sources[rel] ?? read(rel)) === reg.stripLaterChanges(rel, base.__pins[rel]), `${rel}: read through the registry it is the base's file (older proofs read it like that)`)
       ok(strip.stripVoiceCall(rel, sources[rel] ?? read(rel)).split('\n').every(line => !MARK.test(line)), `${rel}: the strip takes every marked line out`)
     }
-    eq(['scripts/test-theme-font-selection.mjs', 'scripts/test-studio-stage-open-gate.mjs'].map(rel => lines(read(rel)).filter(line => MARK.test(line)).length), [1, 2], 'pins: the sandbox gets one constant, the stage open gate an import and one replaced line (a real later change in the page)')
+    eq(['scripts/test-studio-stage-open-gate.mjs'].map(rel => lines(read(rel)).filter(line => MARK.test(line)).length), [2], 'pins: the stage open gate gets an import and one replaced line (a real later change in the page)')
+    eq(lines(read('scripts/test-theme-font-selection.mjs')).filter(line => MARK.test(line)).length, 0, 'pins: the font-selection sandbox is not touched (the socket hook\'s voice line guards the flag with typeof: nothing to define there)')
     eq(lines(read('scripts/test-studio-chat-theme-export.mjs')).filter(line => MARK.test(line)).length, 0, 'pins: the chat theme export proof is not touched here (it is the voice core\'s to teach: the model catalog and narration router proofs police its added lines)')
     eq(['Voice call: the lib', 'Voice core: x', 'Chat element edit: x', 'Voice caller: x'].map(coreMod.isVoiceCoreCommitSubject), [true, true, false, false], 'subjects: the voice core\'s subject helper (read by the scope proofs that were taught it) also leaves out "Voice call:" commits, and nothing else')
-    eq(strip.VOICE_CALL_PUT_BACK_FILES.map(rel => lines(read(rel)).filter(line => MARK.test(line)).length), [0, 0, 0], 'pins: the three proofs one commit taught and a later one put back carry nothing of this change now')
+    eq(strip.VOICE_CALL_PUT_BACK_FILES.map(rel => lines(read(rel)).filter(line => MARK.test(line)).length), [0, 0, 0, 0], 'pins: the four proofs one commit taught and a later one put back carry nothing of this change now')
     eq(lines(core_text()).filter(line => MARK.test(line)).length, 1, 'core strip: one marked line (the helper\'s return), nothing else of the core\'s file is touched here')
     ok(!strip.VOICE_CALL_FILES.includes('scripts/studio-voice-core-strip.mjs') && !strip.VOICE_CALL_PIN_FILES.includes('scripts/studio-voice-core-strip.mjs') && strip.VOICE_CALL_SCOPE_FILES.has('scripts/studio-voice-core-strip.mjs'), 'core strip: it is a scope file of this change, and the strip does not take its marked line out (that line is an edit, not an insertion)')
     const registryText = read('scripts/studio-later-changes.mjs')
@@ -1158,7 +1159,8 @@ const mutants = [
   // the sources
   [WS, 'the frame tap is not gated by the flag', 'if (STUDIO_VOICE_CALL_UI_ENABLED && isVoiceCallFrameType(parsedMessage.type)', 'if (isVoiceCallFrameType(parsedMessage.type)'],
   [WS, 'the frame tap shows another session\'s frames', "isVoiceCallFrameType(parsedMessage.type) && parsedMessage.session_id === socketSessionId && isCurrentSocket()) voiceCallBus", "isVoiceCallFrameType(parsedMessage.type) && isCurrentSocket()) voiceCallBus"],
-  [WS, 'the voice fields are not gated', 'if (STUDIO_VOICE_CALL_UI_ENABLED) addVoiceCallFields(', 'if (true) addVoiceCallFields('],
+  [WS, 'the voice fields are not gated', "if (typeof STUDIO_VOICE_CALL_UI_ENABLED !== 'undefined' && STUDIO_VOICE_CALL_UI_ENABLED) addVoiceCallFields(", 'if (true) addVoiceCallFields('],
+  [WS, 'the voice fields are gated by typeof alone', "typeof STUDIO_VOICE_CALL_UI_ENABLED !== 'undefined' && STUDIO_VOICE_CALL_UI_ENABLED) addVoiceCallFields(", "typeof STUDIO_VOICE_CALL_UI_ENABLED !== 'undefined') addVoiceCallFields("],
   [WS, 'the voice fields are written by hand', 'addVoiceCallFields(message.data as unknown as Record<string, unknown>, text); // VOICE-CALL', "(message.data as unknown as Record<string, unknown>).mode = 'voice'; // VOICE-CALL"],
   [WS, 'the sent tap is for every message', "(message.data as unknown as Record<string, unknown>).mode === 'voice')", 'true)'],
   [PAGE, 'the hook is called with the flag only', 'enabled: studioShell,', 'enabled: true,'],
