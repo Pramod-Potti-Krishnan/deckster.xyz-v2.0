@@ -14,6 +14,7 @@ import {
   isProgressSpoken, matchSpokenAnswer, signalFromFrame, spokenLineFromFrame, type CallControls, type CallNotice, type CallPhase, type ChipLabel, type CompanionScene, type DirectorTrack, type SpeechProblem, type VoiceAction,
 } from '@/lib/studio-voice-call-ui'
 import { VoiceRouterError, type VoiceRouterPort } from '@/lib/studio-voice-call-router'
+import { askAnswerKey } from '@/lib/director-ask-identity'
 
 export interface VoiceRecording {
   /** Stop and return what was heard: the audio, how long, and the loudest the microphone got (0..1). */
@@ -75,8 +76,12 @@ export interface VoiceCallOptions {
   port: VoiceRouterPort
   /** The page's ordinary send of typed words (handleSendMessage(undefined, text)); the socket hook makes it a voice turn because the controller armed it. */
   sendTurn(text: string): Promise<unknown> | unknown
-  /** The page's own click on a button of a card (handleActionClick): a spoken "yes" to the plan is that button's text and value with mode "voice". The card is the Director's action_request message `messageId`. */
-  sendAction(action: VoiceAction, messageId: string): Promise<unknown> | unknown
+  /**
+   * The page's own click on a button of a card (handleActionClick(action, messageId, answerKey)): a spoken "yes" to the plan is that button, sent exactly as a click sends it (the button's text, action_value and action_label) with mode "voice" and
+   * voice1 in that message's own client_caps (without them Director would count it as a click and end voice mode). `messageId` is the Director's action_request message; `answerKey` is the key the click path marks the card answered by
+   * (askAnswerKey of the card: its bare id, or with the ask-card-identity flag its id and timestamp), so the card shows answered with the flag on or off.
+   */
+  sendAction(action: VoiceAction, messageId: string, answerKey: string): Promise<unknown> | unknown
   /** The socket is open (the talk button is off while it is not). */
   isConnected(): boolean
 }
@@ -151,7 +156,7 @@ export class VoiceCallController {
   /** When it last was quiet: the call began, the user spoke, a line was said or a reply arrived. */
   private quietSince = 0
   /** The buttons of the card Director has open (its action_request), until it moves on or the user answers. */
-  private openAction: { messageId: string; actions: VoiceAction[] } | null = null
+  private openAction: { messageId: string; timestamp: unknown; actions: VoiceAction[] } | null = null
 
   constructor(options: VoiceCallOptions) {
     this.env = options.env
@@ -370,7 +375,7 @@ export class VoiceCallController {
     this.awaiting.text = words
     armVoiceTurn(words)
     try {
-      await (action && open ? this.sendAction(action, open.messageId) : this.sendTurn(text))
+      await (action && open ? this.sendAction(action, open.messageId, askAnswerKey({ message_id: open.messageId, timestamp: open.timestamp })) : this.sendTurn(text))
     } catch {
       /* the page toasts a failed send itself; below, a turn the socket never saw is told to the user */
     }
@@ -433,7 +438,7 @@ export class VoiceCallController {
     // a card with buttons is open until Director moves on; a new turn of Director's closes it
     if (closesOpenAction(frame)) this.openAction = null
     const buttons = actionsFromFrame(frame)
-    if (buttons && typeof id === 'string' && id) this.openAction = { messageId: id, actions: buttons }
+    if (buttons && typeof id === 'string' && id) this.openAction = { messageId: id, timestamp: (frame as { timestamp?: unknown }).timestamp, actions: buttons }
     if ((type === 'chat_message' && signal?.kind === 'reporting') || (type === 'action_request' && signal?.kind === 'waiting')) this.heardReply(frame)
     else if (isProgressSpoken(frame)) this.heardProgress(spokenLineFromFrame(frame)!)
     this.emit()

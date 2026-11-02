@@ -360,8 +360,8 @@ class Clock {
     await settle()
   }
 }
-function makeCall({ over = {}, mic = {}, reduced = false, connected = true, sendObserved = true, takes = true, transcripts = ['make the title shorter'], speakFails = null, transcribeFails = null, costs = {} } = {}) {
-  const host = makeHost({ env: ENV_ON, over })
+function makeCall({ over = {}, mic = {}, reduced = false, connected = true, sendObserved = true, takes = true, transcripts = ['make the title shorter'], speakFails = null, transcribeFails = null, costs = {}, identity = false } = {}) {
+  const host = makeHost({ env: identity ? { ...ENV_ON, NEXT_PUBLIC_STUDIO_ASK_CARD_IDENTITY_ENABLED: 'true' } : ENV_ON, over })
   const ctlMod = host.load(CTL), ui = host.load(UI), router = host.load(ROUTER), core = host.load('lib/studio/voice/index.ts')
   const clock = new Clock()
   const log = { primed: [], micOpened: 0, micClosed: 0, recordings: [], cancelled: 0, plays: [], stops: 0, transcribed: [], spoken: [], sent: [], wire: [], actions: [], aborted: 0, errors: [] }
@@ -393,11 +393,11 @@ function makeCall({ over = {}, mic = {}, reduced = false, connected = true, send
     log.sent.push(text)
     if (sendObserved && data.mode === 'voice') ctl.onSent(text)
   }
-  const sendAction = async (action, messageId) => {
+  const sendAction = async (action, messageId, answerKey) => {
     // The page's own click on a card's button (handleActionClick) with the armed words: the button's label and value, and the voice fields from the socket hook.
     const data = { text: action.label, action_value: action.value, action_label: action.label, client_caps: ['mdc1'] }
     if (takes) ui.addVoiceCallFields(data, action.label)
-    log.wire.push(data); log.actions.push({ action, messageId })
+    log.wire.push(data); log.actions.push({ action, messageId, answerKey })
     if (sendObserved && data.mode === 'voice') ctl.onSent(action.label)
   }
   ctl = new ctlMod.VoiceCallController({ env, port, sendTurn, sendAction, isConnected: () => state.connected })
@@ -406,7 +406,7 @@ function makeCall({ over = {}, mic = {}, reduced = false, connected = true, send
     snap: () => ctl.getSnapshot(),
     start: async () => { await ctl.startCall(); await settle() },
     talk: async (ms = 1250) => { ctl.pttDown(); await settle(); await clock.advance(ms); await ctl.pttUp(); await settle() },
-    frame: async (type, payload = {}, id = null) => { ctl.onFrame(frame(type, payload, id)); await settle() },
+    frame: async (type, payload = {}, id = null, extra = {}) => { ctl.onFrame({ ...frame(type, payload, id), ...extra }); await settle() },
     // the reply's first line is held REPLY_LEAD_MS so the gesture is seen first: by default the clock runs past it
     reply: async (spoken, text = 'Done. The title is shorter.', extra = {}, lead = true) => { await world.frame('chat_message', { text, ephemeral: false, ...(spoken === undefined ? {} : { spoken }), ...extra }); if (lead) await clock.advance(750) },
     // the speaker: start the n-th clip, finish it
@@ -673,6 +673,29 @@ async function controllerSuite(over = {}) {
     await w.reply(undefined); w.ctl.pttDown(); await settle(); await w.clock.advance(1000); await w.ctl.pttUp(); await settle()
     eq(w.log.actions.length, 1, 'card: the card is answered once: a second "yes" is not a click')
   }
+  // the spoken yes is a click in everything but its mode: the button's value AND label, voice + voice1 in that message's own caps, marked answered by the click path's own key (askAnswerKey)
+  {
+    const PLAN = [{ label: "Yes, let's build it!", value: 'accept_plan', primary: true, requires_input: false }, { label: "I'd like to make changes", value: 'reject_plan', primary: false, requires_input: false }]
+    const WHEN = '2026-11-02T01:23:45.000Z'
+    for (const [identity, key] of [[false, 'plan-card'], [true, `plan-card\u0000${WHEN}`]]) {
+      const w = makeCall({ over, identity, transcripts: ['yes'] }); await w.start(); await w.frame('action_request', { actions: PLAN, prompt_text: 'Does this structure work for you?' }, 'plan-card', { timestamp: WHEN }); await w.talk()
+      eq([w.log.actions.length, w.log.actions[0]?.action.value, w.log.actions[0]?.action.label, w.log.actions[0]?.messageId, w.log.actions[0]?.answerKey], [1, 'accept_plan', "Yes, let's build it!", 'plan-card', key], `card: the spoken yes is marked answered by askAnswerKey of the card (identity flag ${identity ? 'on: id and timestamp' : 'off: the bare id'})`)
+      const sent = w.log.wire[0]
+      eq([sent.text, sent.action_value, sent.action_label, sent.mode, sent.client_caps.includes('voice1')], ["Yes, let's build it!", 'accept_plan', "Yes, let's build it!", 'voice', true], 'card: the message carries the button\'s value AND label (as a click does), mode "voice" and voice1 in its own client_caps (else Director counts a click and ends voice mode)')
+    }
+    const bare = { text: "Yes, let's build it!", action_value: 'accept_plan', action_label: "Yes, let's build it!" }
+    const armed = makeCall({ over }); armed.ui.armVoiceTurn(bare.text)
+    eq(armed.ui.addVoiceCallFields({ ...bare }, bare.text), { ...bare, mode: 'voice', client_caps: ['voice1'] }, 'card: even a message with no caps of its own gets voice1 and the mode (they are not read from the session\'s last list)')
+    const noStamp = makeCall({ over, identity: true, transcripts: ['yes'] }); await noStamp.start(); await noStamp.frame('action_request', { actions: PLAN, prompt_text: 'x' }, 'plan-card'); await noStamp.talk()
+    eq(noStamp.log.actions[0]?.answerKey, 'plan-card\u0000', 'card: a card with no timestamp is keyed as the click path keys it (id and an empty stamp)')
+  }
+  // a typed message in the middle of a call: the call stays open and that reply is not said (no payload.spoken arrives: Director's voice mode ends with it)
+  {
+    const w = makeCall({ over }); await w.start()
+    await w.frame('status_update', { status: 'thinking', text: 'Thinking…' }); await w.frame('chat_message', { text: 'I changed the title as you typed.' }, 'typed-reply'); await w.clock.advance(5000)
+    eq([w.log.spoken, w.snap().active, w.snap().phase, w.log.micClosed], [[], true, 'idle', 0], 'typed: a reply to a typed message (no spoken line) says nothing and the call stays open, the microphone held')
+    await w.talk(); eq(w.log.sent, ['make the title shorter'], 'typed: ...and the next voice turn is a voice turn again')
+  }
   {
     const PLAN = [{ label: "Yes, let's build it!", value: 'accept_plan', primary: true, requires_input: false }, { label: "I'd like to make changes", value: 'reject_plan', primary: false, requires_input: false }]
     for (const [words, why] of [['yes but make it ten slides', 'more than a yes'], ['', 'nothing heard']]) {
@@ -876,6 +899,8 @@ function sourceSuite(sources, { base = null } = {}) {
   const importLine = lineOf(page, "import { useStudioVoiceCall } from '@/hooks/use-studio-voice-call' // VOICE-CALL")
   ok(page.indexOf(importLine) > page.indexOf("import { useStudioFlowControl } from '@/hooks/use-studio-flow-control' // FLOW-CONTROL") && page.indexOf(importLine) > page.indexOf('function AuthenticatedBuilderContent('), 'page: the import sits after the Builder content, beside the flow import (older proofs slice the page by position)')
   ok(!page.includes('getUserMedia') && !page.includes('MediaRecorder') && !page.includes('voice-call-controller') && !page.includes('STUDIO_VOICE_CALL_UI_ENABLED'), 'page: it knows the hook and nothing of the microphone, the controller or the flag')
+  const click = page.slice(page.indexOf('const handleActionClick = useCallback('), page.indexOf('const handleActionClick = useCallback(') + 6000)
+  ok(/sendMessageWhenConnected\(action\.label, undefined, undefined, \{[\s\S]*?actionValue: action\.value,\s*actionLabel: action\.label,/.test(click) && click.includes('const handleActionClick = useCallback(async (action: ActionRequest[\'payload\'][\'actions\'][0], actionRequestMessageId: string, answerKey: string = actionRequestMessageId)'), 'page: a card\'s click (which the spoken yes is handed to) sends the button\'s label as the text with action_value and action_label, and marks the card answered under the answerKey it is given')
   // the socket hook
   eq(lines(ws).filter(line => MARK.test(line)).length, 5, 'ws: five marked lines (the import, the comment, the frame tap, the voice fields, the sent tap)')
   lineOf(ws, "import { STUDIO_VOICE_CALL_UI_ENABLED, addVoiceCallFields, isVoiceCallFrameType, voiceCallBus } from '@/lib/studio-voice-call-ui'; // VOICE-CALL")
@@ -1104,6 +1129,9 @@ const mutants = [
   [CTL, 'a card stays open after it is answered', 'this.openAction = null\n    const words = action', 'const words = action'],
   [CTL, 'a card is never closed', 'if (closesOpenAction(frame)) this.openAction = null', ''],
   [CTL, 'a card is not tracked', "if (buttons && typeof id === 'string' && id) this.openAction = { messageId: id, actions: buttons }", ''],
+  [CTL, 'the card is marked answered by its bare id', 'askAnswerKey({ message_id: open.messageId, timestamp: open.timestamp })', 'open.messageId'],
+  [CTL, 'the card\'s timestamp is not kept', 'timestamp: (frame as { timestamp?: unknown }).timestamp, actions: buttons }', 'timestamp: undefined, actions: buttons }'],
+  [CTL, 'the answer key is not handed on', 'this.sendAction(action, open.messageId, askAnswerKey({ message_id: open.messageId, timestamp: open.timestamp }))', "this.sendAction(action, open.messageId, '')"],
   [CTL, 'a card is pressed by the typed path', 'await (action && open ? this.sendAction(action, open.messageId) : this.sendTurn(text))', 'await this.sendTurn(text)'],
   [CTL, 'the armed words are the transcript, not the label', 'armVoiceTurn(words)', 'armVoiceTurn(text)'],
   [CTL, 'a card is not a reply', "(type === 'action_request' && signal?.kind === 'waiting')) this.heardReply(frame)", "false) this.heardReply(frame)"],
