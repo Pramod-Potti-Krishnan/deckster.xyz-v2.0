@@ -1,18 +1,21 @@
 /* W6 P4-20 voice call (NEXT_PUBLIC_STUDIO_VOICE_CALL): the two call buttons beside Send, and the call itself (a stage that fills the chat column, or the whole screen on a phone). Studio tokens only (--ss-*, --sv4-*, --scc-*), light and dark with the shell. Nothing here applies with the flag off: no element carries these attributes. */
 
-/* ---- the two buttons beside Send: Send's size and colour; the chat-clean composer's 24 px square; on a phone larger, with a word on each ---- */
+/* ---- the two buttons beside Send: Send's size and colour; the chat-clean composer's 24 px square; on a phone their own row at the bottom of the composer, large, with a word on each ----
+   Studio's toolbar rule colours every toolbar button muted ([data-studio-v4-composer-toolbar] button[type="button"]); these selectors carry the toolbar and one more attribute so they win it, hover included. */
 [data-studio-voice-call="buttons"] { flex: none; }
-[data-studio-v4-chrome="true"] [data-studio-voice-call="button"] { background-color: var(--sv4-accent); color: var(--sv4-on-accent); }
-[data-studio-v4-chrome="true"] [data-studio-voice-call="button"]:hover:not(:disabled) { filter: brightness(1.1); }
-[data-studio-v4-chrome="true"] [data-studio-voice-call="button"]:focus-visible { outline: 2px solid var(--sv4-accent); outline-offset: 2px; }
+[data-studio-v4-chrome="true"] [data-studio-v4-composer-toolbar] button[data-studio-voice-call="button"][data-voice-mode] { background-color: var(--sv4-accent); color: var(--sv4-on-accent); }
+[data-studio-v4-chrome="true"] [data-studio-v4-composer-toolbar] button[data-studio-voice-call="button"][data-voice-mode]:hover:not(:disabled) { background-color: var(--sv4-accent); filter: brightness(1.12); }
+[data-studio-v4-chrome="true"] [data-studio-v4-composer-toolbar] button[data-studio-voice-call="button"][data-voice-mode]:focus-visible { outline: 2px solid var(--sv4-accent); outline-offset: 2px; }
 [data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-voice-call="buttons"] { order: 12; margin-left: 0; margin-right: 4px; }
-[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-voice-call="button"] { width: 24px; height: 24px; border-radius: 4px; background: var(--scc-accent); color: var(--scc-on-accent); transition: none; }
-[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-voice-call="button"] svg { width: 14px; height: 14px; }
-[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-voice-call="button"]:focus-visible { outline: 2px solid var(--scc-ink); outline-offset: 2px; filter: none; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-v4-composer-toolbar] button[data-studio-voice-call="button"][data-voice-mode] { width: 24px; height: 24px; border-radius: 4px; background-color: var(--scc-accent); color: var(--scc-on-accent); transition: none; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-v4-composer-toolbar] button[data-studio-voice-call="button"][data-voice-mode]:hover:not(:disabled) { background-color: var(--scc-accent); color: var(--scc-on-accent); filter: brightness(1.15); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-v4-composer-toolbar] button[data-studio-voice-call="button"][data-voice-mode] svg { width: 14px; height: 14px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-v4-composer-toolbar] button[data-studio-voice-call="button"][data-voice-mode]:focus-visible { outline: 2px solid var(--scc-ink); outline-offset: 2px; filter: none; }
 @media (max-width: 767px) {
-  [data-studio-voice-call="buttons"] { gap: 8px; }
-  [data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-voice-call="button"], [data-studio-v4-chrome="true"] [data-studio-voice-call="button"] { width: auto; min-width: 44px; height: 44px; padding: 0 16px; border-radius: 9999px; gap: 7px; font-size: 14px; font-weight: 600; line-height: 1; }
-  [data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-voice-call="button"] svg, [data-studio-v4-chrome="true"] [data-studio-voice-call="button"] svg { width: 18px; height: 18px; }
+  [data-studio-v4-composer-toolbar]:has(> [data-studio-voice-call="buttons"]) { flex-wrap: wrap; row-gap: 10px; }
+  [data-studio-v4-chrome="true"] [data-studio-voice-call="buttons"], [data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-voice-call="buttons"] { order: 20; flex: 1 0 100%; margin: 0; gap: 10px; }
+  [data-studio-v4-chrome="true"] [data-studio-v4-composer-toolbar] button[data-studio-voice-call="button"][data-voice-mode], [data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-v4-composer-toolbar] button[data-studio-voice-call="button"][data-voice-mode] { flex: 1 1 0; width: auto; min-width: 0; height: 48px; padding: 0 16px; border-radius: 9999px; gap: 8px; font-size: 15px; font-weight: 600; line-height: 1; }
+  [data-studio-v4-chrome="true"] [data-studio-v4-composer-toolbar] button[data-studio-voice-call="button"][data-voice-mode] svg, [data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-v4-composer-toolbar] button[data-studio-voice-call="button"][data-voice-mode] svg { width: 20px; height: 20px; }
   [data-studio-voice-call="button"] .studio-voice-start-word { display: inline; }
 }
 

@@ -25,6 +25,7 @@ export function VoiceCallButtons({ busy, disabled, onStart, studio }: VoiceCallC
               disabled={disabled || busy}
               aria-label={label}
               title={studio ? undefined : label}
+              onMouseDown={event => event.preventDefault()}
               onClick={() => onStart(mode)}
             >
               {mode === 'video' ? <Video aria-hidden className="h-4 w-4" /> : <Phone aria-hidden className="h-4 w-4" />}

@@ -1009,7 +1009,9 @@ async function stageSuiteBody(over = {}) {
   {
     const rootNode = new Root(); rootNode.setElement(React.createElement(buttons.VoiceCallButtons, { active: false, busy: false, disabled: false, onStart: mode => starts.push(mode), studio: true })); await settleRoot(rootNode)
     starts.length = 0; for (const node of hostNodes(rootNode.tree, n => n.type === 'button')) node.props.onClick()
-    eq(starts, ['audio', 'video'], 'buttons: Audio starts an audio call, Video a video call'); rootNode.unmount()
+    eq(starts, ['audio', 'video'], 'buttons: Audio starts an audio call, Video a video call')
+    let kept = 0; for (const node of hostNodes(rootNode.tree, n => n.type === 'button')) node.props.onMouseDown({ preventDefault: () => { kept++ } })
+    eq(kept, 2, 'buttons: pressing one does not take focus (or the keyboard) from the draft: the layout cannot move under the tap'); rootNode.unmount()
   }
   // the player without a pack
   const player = makeHost({ env: ENV_ON, over }).load(PLAYER)
@@ -1192,10 +1194,10 @@ function sourceSuite(sources, { base = null } = {}) {
   ok(sources[PLAYER].includes('const width = framedWidth(framing, size, rect)'), 'player: its width is the lib\'s (the disc is a square, the chest as wide as its crop)')
   // the stylesheet: nothing global, nothing that reaches an element without the call's own attributes
   const css = sources[CSS]
-  const keyed = line => /^\[data-studio-voice-call="(stage|notice|buttons|button)"\]/.test(line) || /^\[data-studio-v4-shell="true"\] \[data-studio-voice-call="(stage|notice|buttons|button)"\]/.test(line) || /^\[data-studio-v4-chrome="true"\] \[data-studio-voice-call="button"\]/.test(line) || /^\[data-studio-v4-shell="true"\] \[data-studio-chat-clean\] \[data-studio-voice-call="(buttons|button)"\]/.test(line)
+  const keyed = line => line.slice(0, line.indexOf('{')).split(',').every(part => part.includes('[data-studio-voice-call="'))
   ok(lines(css).filter(line => /^[^\s@/}]/.test(line) && !keyed(line)).length === 0, 'css: every rule is keyed to the call\'s own attribute')
   ok(!/\[data-studio-v4-send\]/.test(css) && !/(^|\n)(html|body|button|\*)\b/.test(css), 'css: nothing reaches Send or any element the call does not own')
-  ok(/@media \(max-width: 767px\)[\s\S]*position: fixed; inset: 0/.test(css) && /studio-voice-start-word \{ display: inline; \}/.test(css) && /\[data-studio-chat-clean\] \[data-studio-voice-call="button"\] \{ width: 24px; height: 24px/.test(css) && /flex: 0 0 20%/.test(css), 'css: the stage is the whole screen on a phone, the buttons are the chat-clean 24 px square beside Send (a word on each on a phone), the transcript is a fifth')
+  ok(/@media \(max-width: 767px\)[\s\S]*position: fixed; inset: 0/.test(css) && /studio-voice-start-word \{ display: inline; \}/.test(css) && /\[data-studio-chat-clean\] \[data-studio-v4-composer-toolbar\] button\[data-studio-voice-call="button"\]\[data-voice-mode\] \{ width: 24px; height: 24px/.test(css) && /flex: 0 0 20%/.test(css), 'css: the stage is the whole screen on a phone, the buttons are the chat-clean 24 px square beside Send (a word on each on a phone), the transcript is a fifth')
   ok(/prefers-reduced-motion: reduce/.test(css) && /max-width: 767px/.test(css), 'css: reduced motion and the phone layout are there')
 }
 
@@ -1457,6 +1459,7 @@ const mutants = [
   [BUTTONS, 'both buttons say the same', 'const label = callButtonLabel(mode)', "const label = callButtonLabel('audio')"],
   [BUTTONS, 'both buttons start the same call', 'onClick={() => onStart(mode)}', "onClick={() => onStart('audio')}"],
   [BUTTONS, 'the buttons stay on while the mic is asked for', 'disabled={disabled || busy}', 'disabled={disabled}'],
+  [BUTTONS, 'a press takes the draft\'s focus', 'onMouseDown={event => event.preventDefault()}', 'onMouseDown={() => {}}'],
   [BUTTONS, 'only one button', 'CALL_MODES.map(mode', "CALL_MODES.slice(0, 1).map(mode"],
   [BUTTONS, 'the word shows on a desktop', 'studio-voice-start-word hidden', 'studio-voice-start-word'],
   [PLAYER, 'a pack that fails shows nothing', "{!ready ? <span className=\"studio-voice-initials\" aria-hidden>{initialsFor(pack)}</span> : null}", ''],
