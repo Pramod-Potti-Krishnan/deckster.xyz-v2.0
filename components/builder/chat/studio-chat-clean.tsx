@@ -33,6 +33,7 @@ import {
   type ChatCleanNote,
   type ChatCleanThreadProps,
 } from '@/lib/studio-chat-clean'
+import { STUDIO_STRAWMAN_CHAT_ENABLED } from '@/lib/studio-strawman-chat' // STRAWMAN-CHAT
 
 // ---------------------------------------------------------------------------------------------------------------------
 // The notes, kept by the page (one hook call, inert with the flag off)
@@ -184,6 +185,7 @@ export function StudioChatCleanJob({ narration, notes, composer, currentStatus }
         </div>
       )}
       {narration.active ? (
+        STUDIO_STRAWMAN_CHAT_ENABLED ? null : ( // STRAWMAN-CHAT: no Plan / Outline / Build / Check / Package card in the chat (F-09); the page draws the one quiet status line
         <section data-studio-chat-clean-job={model.halted ? 'held' : narration.phase} aria-label={model.title} role="status" aria-live="polite">
           <div data-studio-chat-clean-job-part="head">
             <h3><JobIcon icon={model.icon} />{model.title}</h3>
@@ -196,6 +198,7 @@ export function StudioChatCleanJob({ narration, notes, composer, currentStatus }
           </div>
           <p data-studio-chat-clean-job-part="line">{model.line}</p>
         </section>
+        ) // STRAWMAN-CHAT
       ) : status ? (
         <p data-studio-chat-clean-status="true" role="status" aria-live="polite"><span aria-hidden="true" /><span aria-hidden="true" /><span aria-hidden="true" />{status}</p>
       ) : null}
