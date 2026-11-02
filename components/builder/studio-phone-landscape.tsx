@@ -1,21 +1,17 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Download, FilePlus2, FolderOpen, Menu, MessageSquare, PanelLeft, PanelLeftClose, PanelLeftOpen, PencilLine, Plus, Shapes, StickyNote, UserRound, X } from "lucide-react"
+import { Download, FilePlus2, FolderOpen, MessageSquare, PanelLeft, PanelLeftClose, PanelLeftOpen, PencilLine, Plus, Shapes, StickyNote, UserRound, X } from "lucide-react"
 import { STUDIO_PHONE_DECK_MENU_TARGETS, studioDirectorDot } from "@/lib/studio-phone-builder-top"
 import {
-  STUDIO_PHONE_BAR_ATTRIBUTE,
   STUDIO_PHONE_FAN_ATTRIBUTE,
   STUDIO_PHONE_FAN_OPENS_MENU,
   STUDIO_PHONE_LANDSCAPE_QUERY,
-  STUDIO_PHONE_PORTRAIT_QUERY,
   STUDIO_PHONE_STAGE_ATTRIBUTE,
   STUDIO_PHONE_STRIP_ATTRIBUTE,
   STUDIO_PHONE_STRIP_DEFAULT,
-  studioPhoneBarState,
   studioPhoneFanItems,
   studioPhoneLandscapeStage,
-  studioPhonePortraitSlideView,
   studioPhoneStripToggle,
   type StudioPhoneFanKey,
   type StudioPhoneFanProbe,
@@ -55,7 +51,7 @@ const probe = (key: StudioPhoneFanKey): StudioPhoneFanProbe | null => {
 /**
  * STUDIO PHONE LANDSCAPE (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE, default off, with the phone shell; F-13 PR 1): what a phone gets when the slide is on screen. Sideways, the page is a viewing stage (components/builder/studio-phone-landscape.css,
  * keyed to attributes this sets on <html> while it is mounted): the slide fills the screen, the thumbnails are a collapsible strip on the left, a Chat button is the way back to the Director (the page's own pane switch), and one
- * floating button opens an overlay fan: Add slide, Add element and the deck actions the phone "..." menu has, each of which uses the page's own control (nothing is re-implemented). In portrait the bottom bar folds to one Menu button.
+ * floating button opens an overlay fan: Add slide, Add element and the deck actions the phone "..." menu has, each of which uses the page's own control (nothing is re-implemented). In portrait this draws nothing: the phone shell's bottom tab bar stays.
  * The page passes where the user is (a deck on the stage, the stage on screen); the decisions are lib/studio-phone-landscape.ts and the strip's state is the viewer's rail's while the stage is on (hooks/use-studio-phone-landscape.ts).
  */
 export function StudioPhoneLandscape({ deckOnStage, stageVisible, slideNumber, connectionState, reconnectStatus, onChat }: {
@@ -67,38 +63,32 @@ export function StudioPhoneLandscape({ deckOnStage, stageVisible, slideNumber, c
   onChat: () => void
 }) {
   const landscape = useStudioPhoneQuery(STUDIO_PHONE_LANDSCAPE_QUERY)
-  const portrait = useStudioPhoneQuery(STUDIO_PHONE_PORTRAIT_QUERY)
   const [strip, setStrip] = useState<StudioPhoneStripState>(STUDIO_PHONE_STRIP_DEFAULT)
   const toggleStudioPhoneStrip = useCallback(() => setStrip(studioPhoneStripToggle), [])
   const stage = studioPhoneLandscapeStage({ enabled: true, landscape, deckOnStage, stageVisible })
-  const slideView = studioPhonePortraitSlideView({ enabled: true, portrait, deckOnStage, stageVisible })
   const [fanOpen, setFanOpen] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
   const [items, setItems] = useState<ReturnType<typeof studioPhoneFanItems>>([])
   const fab = useRef<HTMLButtonElement>(null)
   const fan = useRef<HTMLDivElement>(null)
-  const bar = studioPhoneBarState(slideView, menuOpen)
 
   // The viewer's own rail follows the strip while the stage is on (through the viewer's own toggle), and goes back to the portrait value after.
   useStudioPhoneRailSync(stage, strip)
 
-  // The stage, the bar and the strip are attributes of the page the stylesheet reads; they are taken off again when this goes (a page that leaves, the flag's own component unmounting).
+  // The stage and the strip are attributes of the page the stylesheet reads; they are taken off again when this goes (a page that leaves, the flag's own component unmounting).
   useEffect(() => {
     const root = document.documentElement
     const set = (name: string, value: string | null) => { if (value === null) root.removeAttribute(name); else root.setAttribute(name, value) }
     set(STUDIO_PHONE_STAGE_ATTRIBUTE, stage ? "stage" : null)
     set(STUDIO_PHONE_STRIP_ATTRIBUTE, stage ? strip : null)
-    set(STUDIO_PHONE_BAR_ATTRIBUTE, bar)
     set(STUDIO_PHONE_FAN_ATTRIBUTE, stage && fanOpen ? "open" : null)
-  }, [stage, strip, bar, fanOpen])
+  }, [stage, strip, fanOpen])
   useEffect(() => () => {
     const root = document.documentElement
-    for (const name of [STUDIO_PHONE_STAGE_ATTRIBUTE, STUDIO_PHONE_STRIP_ATTRIBUTE, STUDIO_PHONE_BAR_ATTRIBUTE, STUDIO_PHONE_FAN_ATTRIBUTE]) root.removeAttribute(name)
+    for (const name of [STUDIO_PHONE_STAGE_ATTRIBUTE, STUDIO_PHONE_STRIP_ATTRIBUTE, STUDIO_PHONE_FAN_ATTRIBUTE]) root.removeAttribute(name)
   }, [])
 
-  // The fan and the Menu card belong to their own view: turning the phone, or leaving the slide, closes them.
+  // The fan belongs to the stage: turning the phone, or leaving the slide, closes it.
   useEffect(() => { if (!stage) setFanOpen(false) }, [stage])
-  useEffect(() => { if (!slideView) setMenuOpen(false) }, [slideView])
 
   // The strip's header band is as wide as the rail the viewer draws (its width is the viewer's own, and can be changed there).
   useEffect(() => {
@@ -127,12 +117,6 @@ export function StudioPhoneLandscape({ deckOnStage, stageVisible, slideNumber, c
     document.addEventListener("keydown", onKey, true)
     return () => document.removeEventListener("keydown", onKey, true)
   }, [fanOpen, closeFan])
-  useEffect(() => {
-    if (bar !== "open") return
-    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setMenuOpen(false) }
-    document.addEventListener("keydown", onKey)
-    return () => document.removeEventListener("keydown", onKey)
-  }, [bar])
 
   const toggleFan = () => {
     if (fanOpen) { closeFan(); return }
@@ -186,9 +170,6 @@ export function StudioPhoneLandscape({ deckOnStage, stageVisible, slideNumber, c
           )}
           <button ref={fab} type="button" data-studio-phone-fab="true" aria-label="Actions" aria-haspopup="menu" aria-expanded={fanOpen} onClick={toggleFan}>{fanOpen ? <X aria-hidden="true" /> : <Plus aria-hidden="true" />}</button>
         </div>
-      )}
-      {slideView && (
-        <button type="button" data-studio-phone-menu="true" aria-label={menuOpen ? "Close menu" : "Menu"} aria-expanded={menuOpen} onClick={() => setMenuOpen(open => !open)}>{menuOpen ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}</button>
       )}
     </>
   )

@@ -1,7 +1,7 @@
 // FRONTEND-1 (F-13 phone orientation, PR 1 of 2; PK's answers of 1 Nov). Flag NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE (exact "true", build-time, default off), only active with the phone shell (NEXT_PUBLIC_STUDIO_PHONE_SHELL and NEXT_PUBLIC_STUDIO_V4_SHELL):
 // a phone turned sideways (the query (orientation: landscape) and (max-height: 500px) and (pointer: coarse), and its CSS twin) with a deck on the stage becomes a viewing stage: the slide fills the screen (the viewer's fit padding is zeroed), the thumbnails are a
 // collapsible strip on the LEFT (the viewer's own rail, in a state of its own so it never leaks into portrait), the rail, top bar, switch, toolbar, pull tabs and the tab bar go, a "Chat" button is a full-screen pane switch back to the Director, and ONE floating
-// button opens an overlay fan (Add slide, Add element and the deck actions the phone "..." menu has, each through the page's own control). In portrait the slide view folds the bottom bar to one Menu button.
+// button opens an overlay fan (Add slide, Add element and the deck actions the phone "..." menu has, each through the page's own control). In portrait nothing changes: the phone shell's bottom tab bar stays in the slide view (PK, 2 Nov).
 // Every line this change adds to an EXISTING app file is a pure insertion that carries the marker PHONE-LANDSCAPE (a whole token); no existing line is rewritten, and the viewer is not touched (its own rail toggle is clicked, its own fit is fed a slide space 32 px larger by
 // CSS). Strip the marked lines and app/builder/page.tsx is its base, byte for byte (three imports, the workspace-width clamp's call and one line of JSX at the shell root). The decisions live in lib/studio-phone-landscape.ts (pure); the hooks in
 // hooks/use-studio-phone-landscape.ts; the drawing in components/builder/studio-phone-landscape.tsx and .css.
@@ -67,7 +67,7 @@ export const PHONE_LANDSCAPE_SCOPE_FILES = new Set([...PHONE_LANDSCAPE_FILES, ..
 export const PHONE_LANDSCAPE_ENV_BLOCK = `# STUDIO PHONE LANDSCAPE (FRONTEND-1; F-13 phone orientation, PR 1; PK's answers of 1 Nov). On for the exact value "true" AND only together with NEXT_PUBLIC_STUDIO_PHONE_SHELL and NEXT_PUBLIC_STUDIO_V4_SHELL (both exact "true"); default off, and then nothing changes. Build-time value: change it on Vercel and redeploy.
 # On, a phone turned sideways (a short, coarse-pointer landscape window: (orientation: landscape) and (max-height: 500px) and (pointer: coarse); a narrow desktop window is not one) with a deck on the stage becomes a viewing stage: the slide fills the screen, the thumbnails are a collapsible strip on the left
 # (a state of its own, never the portrait rail's), the rail, top bar, Slides | Director switch, toolbar, pull tabs and tab bar go, a "Chat" button switches the whole screen back to the Director, and ONE floating button opens an overlay fan over the slide: Add slide, Add element and the deck
-# actions the phone "..." menu has (each uses the page's own control). Editing is a secondary action: a panel it opens covers the stage, as today. In portrait the slide view folds the bottom bar to one Menu button (Menu brings the bar back as a floating card). The screen is never locked to an orientation.
+# actions the phone "..." menu has (each uses the page's own control). Editing is a secondary action: a panel it opens covers the stage, as today. In portrait nothing changes: the phone shell's bottom tab bar stays in the slide view. The screen is never locked to an orientation.
 NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE="false"
 `
 

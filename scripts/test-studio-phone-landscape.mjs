@@ -1,7 +1,7 @@
-// FRONTEND-1 (F-13 phone orientation, PR 1 of 2; PK's answers of 1 Nov): proof of the sideways viewing stage and the portrait Menu fold. Flag NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE (exact "true", build-time, default off), only active with the phone
+// FRONTEND-1 (F-13 phone orientation, PR 1 of 2; PK's answers of 1 Nov, amended 2 Nov): proof of the sideways viewing stage (and that portrait is left to the phone shell's own bottom tab bar). Flag NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE (exact "true", build-time, default off), only active with the phone
 // shell (NEXT_PUBLIC_STUDIO_PHONE_SHELL and NEXT_PUBLIC_STUDIO_V4_SHELL). A phone turned sideways (the query (orientation: landscape) and (max-height: 500px) and (pointer: coarse), and its CSS twin) with a deck on the stage: the slide fills the screen
 // (the viewer's own fit fed a slide space 32 px larger by CSS: the viewer is not edited), the thumbnails are a collapsible strip on the LEFT with a state of its own, the rail, top bar, switch, toolbar, pull tabs and tab bar go, a Chat button is a pane switch back to the Director, and ONE floating button opens an
-// overlay fan (Add slide, Add element and the phone "..." menu's deck actions, through the page's own controls). In portrait the slide view folds the bottom bar to one Menu button. The screen is never locked to an orientation.
+// overlay fan (Add slide, Add element and the phone "..." menu's deck actions, through the page's own controls). In portrait nothing is drawn and no rule applies: the bottom tab bar stays on screen in the slide view too (PK, 2 Nov). The screen is never locked to an orientation.
 //
 //   node scripts/test-studio-phone-landscape.mjs        (plain node: transpile + vm of the REAL lib, hook and component, postcss over the REAL stylesheets, no network, no browser; the real page is driven by the harness shots)
 //
@@ -9,8 +9,8 @@
 //  1. the flag is the exact string "true" AND the phone shell AND the Studio shell (every other spelling of each is off); nothing is listened to and nothing is drawn with it off;
 //  2. the decisions (lib): the stage needs all four of flag, landscape, a deck on the stage and the stage on screen; the page's width on a phone turned sideways; the strip's own state and what the stage does to the viewer's own rail toggle; the fan's entries;
 //  3. the hooks: the media query is read once and followed on `change` (and never touched with the flag off); the stage store tells its subscribers; the viewer's rail is the strip's while the stage is on and the portrait value comes back (no leak into portrait);
-//  4. the component: its markup in the stage (Chat with the connection dot, the one floating button, the strip's collapse button or its 30 px handle), in the portrait slide view (one Menu button) and nowhere else; no orientation lock anywhere;
-//  5. the stylesheet (postcss, the REAL file): every rule is inside one of the two media queries, every selector is keyed to an <html> attribute this change sets or to one of its own elements, no !important; the queries are the lib's; the stage hides what it must and keeps the controls
+//  4. the component: its markup in the stage (Chat with the connection dot, the one floating button, the strip's collapse button or its 30 px handle) and nowhere else (portrait draws nothing); no orientation lock anywhere;
+//  5. the stylesheet (postcss, the REAL file): every rule is inside the one landscape media query (portrait has none), every selector is keyed to an <html> attribute this change sets or to one of its own elements, no !important; the queries are the lib's; the stage hides what it must and keeps the controls
 //     the fan uses laid out (never display: none: their menus anchor there); every rule it needs to beat in the phone shell's own sheet is beaten on specificity;
 //  6. the insertions: page and viewer without the marked lines are the base's files byte for byte (also through the registry; no existing line is rewritten); the marked lines are where they should be and gated on the constant;
 //  7. scope over the COMMITTED diff, GATE-SAFE (subject across `rev-list --no-merges BASE..head`, HEAD^2 on the gate's merge, registry / .env.example / strip reads past a synthetic later change, no hash-object --stdin);  8. mutants are caught.
@@ -163,9 +163,9 @@ function specificity(selector) {
   return [a, b, c]
 }
 const cmp = (x, y) => x[0] - y[0] || x[1] - y[1] || x[2] - y[2]
-const LANDSCAPE_MEDIA = '(orientation: landscape) and (max-height: 500px) and (pointer: coarse)', PORTRAIT_MEDIA = '(max-width: 640px) and (orientation: portrait)'
-const STAGE = 'html[data-studio-phone-landscape="stage"]', OWN_ELEMENTS = ['[data-studio-phone-strip-head', '[data-studio-phone-strip-handle', '[data-studio-phone-controls', '[data-studio-phone-chat', '[data-studio-phone-fab', '[data-studio-phone-fan', '[data-studio-phone-menu']
-const keyed = selector => selector.includes('html[data-studio-phone-landscape=') || selector.includes('html[data-studio-phone-bar') || OWN_ELEMENTS.some(own => selector.includes(own))
+const LANDSCAPE_MEDIA = '(orientation: landscape) and (max-height: 500px) and (pointer: coarse)'
+const STAGE = 'html[data-studio-phone-landscape="stage"]', OWN_ELEMENTS = ['[data-studio-phone-strip-head', '[data-studio-phone-strip-handle', '[data-studio-phone-controls', '[data-studio-phone-chat', '[data-studio-phone-fab', '[data-studio-phone-fan']
+const keyed = selector => selector.includes('html[data-studio-phone-landscape=') || OWN_ELEMENTS.some(own => selector.includes(own))
 
 // ===== 1. the flag =============================================================================================================================================
 await check('the flag is the exact string "true" AND the phone shell AND the Studio shell: every other spelling of any of the three is off, and the constant follows the three env values', () => {
@@ -199,23 +199,22 @@ await check('with the flag off nothing is listened to and nothing is drawn: the 
 })
 
 // ===== 2. the decisions ======================================================================================================================================
-await check('the queries: the landscape query is height-based and needs a coarse pointer (667x375, 844x390 and 932x430 are in, a short desktop window is out), the portrait query is the phone shell\'s own 640 px plus portrait; both are the exact text of the stylesheet\'s media queries', () => {
-  assert.equal(lib.STUDIO_PHONE_LANDSCAPE_QUERY, LANDSCAPE_MEDIA); assert.equal(lib.STUDIO_PHONE_PORTRAIT_QUERY, PORTRAIT_MEDIA)
-  const medias = new Set(mine().map(rule => rule.media)); assert.deepEqual([...medias].sort(), [LANDSCAPE_MEDIA, PORTRAIT_MEDIA].sort(), 'the sheet has exactly these two queries')
+await check('the queries: the landscape query is height-based and needs a coarse pointer (667x375, 844x390 and 932x430 are in, a short desktop window is out), and is the exact text of the stylesheet\'s one media query (portrait has none: the phone shell\'s own 640 px sheet owns the bottom bar there)', () => {
+  assert.equal(lib.STUDIO_PHONE_LANDSCAPE_QUERY, LANDSCAPE_MEDIA)
+  const medias = new Set(mine().map(rule => rule.media)); assert.deepEqual([...medias], [LANDSCAPE_MEDIA], 'the sheet has exactly this one query')
+  assert.ok(Object.keys(lib).every(name => !/portrait/i.test(name)), 'the lib has no portrait query or decision'); assert.ok(!mine().some(rule => /portrait/i.test(String(rule.media)) || rule.selectors.some(selector => /portrait/i.test(selector))), 'the sheet has no portrait rule')
   assert.match(shellCssText, /@media \(max-width: 640px\)/, 'the phone shell\'s own width')
   // evaluate the query text on viewports (width, height, coarse pointer, orientation): the same words the browser reads
   const matchesLandscape = (w, h, coarse) => w > h && h <= 500 && coarse
   for (const [w, h] of [[667, 375], [844, 390], [932, 430], [568, 320]]) assert.ok(matchesLandscape(w, h, true), `${w}x${h}`)
   assert.ok(!matchesLandscape(1280, 720, false), 'a desktop window'); assert.ok(!matchesLandscape(900, 480, false), 'a short desktop window (fine pointer)'); assert.ok(!matchesLandscape(390, 844, true), 'portrait')
 })
-await check('the stage needs all four (the flag, a phone turned sideways, a deck on the stage, the stage on screen); the portrait slide view needs its four; the bar is folded in the slide view, open when Menu was tapped, and not this change\'s otherwise', () => {
+await check('the stage needs all four (the flag, a phone turned sideways, a deck on the stage, the stage on screen)', () => {
   for (let mask = 0; mask < 16; mask++) {
     const [enabled, landscape, deckOnStage, stageVisible] = [0, 1, 2, 3].map(bit => Boolean(mask & (1 << bit)))
     assert.equal(lib.studioPhoneLandscapeStage({ enabled, landscape, deckOnStage, stageVisible }), mask === 15, `stage ${mask}`)
-    assert.equal(lib.studioPhonePortraitSlideView({ enabled, portrait: landscape, deckOnStage, stageVisible }), mask === 15, `slide view ${mask}`)
   }
   assert.equal(lib.studioPhoneLandscapeStage({ enabled: 1, landscape: true, deckOnStage: true, stageVisible: true }), false, 'a truthy non-boolean is not true')
-  assert.equal(lib.studioPhoneBarState(true, false), 'folded'); assert.equal(lib.studioPhoneBarState(true, true), 'open'); assert.equal(lib.studioPhoneBarState(false, true), null); assert.equal(lib.studioPhoneBarState(false, false), null)
 })
 await check('the page\'s width is never over its own 880 px threshold on a phone turned sideways (and untouched otherwise); the strip toggles between open and collapsed and starts open; what the stage does to the viewer\'s own rail toggle: one click to make it the strip\'s, the portrait value remembered and put back', () => {
   assert.equal(lib.STUDIO_PHONE_OVERLAY_MAX_WIDTH, 880); assert.match(read(PAGE), /const studioOverlayWorkspace = studioShell && workspaceWidth <= 880/, 'the page\'s own threshold is 880')
@@ -254,7 +253,7 @@ await check('the media-query hook (flag on): the answer is the browser\'s, read 
   const seen = []
   const impl = { ...React, useSyncExternalStore: (subscribe, snapshot, server) => { seen.push({ subscribe, snapshot, server }); return snapshot() } }
   setFlags({ flag: 'true' }); const hook = makeLoader({ reactImpl: impl, globals: { window: w } }).load(HOOK); setFlags({})
-  assert.equal(hook.useStudioPhoneQuery(lib.STUDIO_PHONE_LANDSCAPE_QUERY), true); assert.equal(hook.useStudioPhoneQuery(lib.STUDIO_PHONE_PORTRAIT_QUERY), false)
+  assert.equal(hook.useStudioPhoneQuery(lib.STUDIO_PHONE_LANDSCAPE_QUERY), true); assert.equal(hook.useStudioPhoneQuery('(max-width: 640px) and (orientation: portrait)'), false, 'a query that does not match answers false')
   const { subscribe, server } = seen[0]
   let fired = 0; const unsubscribe = subscribe(() => { fired++ })
   assert.deepEqual(w.added, [[lib.STUDIO_PHONE_LANDSCAPE_QUERY, 'change']]); assert.equal(w.listeners.length, 1)
@@ -295,9 +294,9 @@ await check('the workspace clamp (flag on): on a phone turned sideways the page 
 })
 
 // ===== 4. the component ========================================================================================================================================
-const stubFor = ({ landscape = false, portrait = false }) => ({
+const stubFor = ({ landscape = false }) => ({
   '@/hooks/use-studio-phone-landscape': {
-    useStudioPhoneQuery: query => query === lib.STUDIO_PHONE_LANDSCAPE_QUERY ? landscape : query === lib.STUDIO_PHONE_PORTRAIT_QUERY ? portrait : false,
+    useStudioPhoneQuery: query => query === lib.STUDIO_PHONE_LANDSCAPE_QUERY ? landscape : false,
     useStudioPhoneRailSync() {},
   },
 })
@@ -309,25 +308,27 @@ await check('the component draws the stage only in a phone turned sideways with 
   const stage = markup({ landscape: true })
   assert.match(stage, /data-studio-phone-landscape-layer="stage"/); assert.equal(count(stage, /data-studio-phone-fab="true"/g), 1, 'ONE floating button')
   assert.match(stage, /<button[^>]*data-studio-phone-chat="true"[^>]*>.*Chat.*<\/button>/); assert.match(stage, /data-studio-phone-chat-dot="green"/); assert.match(stage, /<span class="sr-only"> connected<\/span>/)
-  assert.match(stage, /aria-label="Collapse thumbnails" aria-expanded="true"/); assert.ok(!/data-studio-phone-menu/.test(stage), 'no Menu button in the stage'); assert.ok(!/data-studio-phone-fan-card/.test(stage), 'the fan is closed until the button is tapped')
+  assert.match(stage, /aria-label="Collapse thumbnails" aria-expanded="true"/); assert.ok(!/data-studio-phone-menu/.test(stage), 'no Menu button (the bottom bar is not folded)'); assert.ok(!/data-studio-phone-fan-card/.test(stage), 'the fan is closed until the button is tapped')
   assert.match(stage, /aria-label="Actions" aria-haspopup="menu" aria-expanded="false"/)
   const collapsed = markup({ landscape: true }, { slideNumber: 4 }, COLLAPSED)
   assert.match(collapsed, /data-studio-phone-strip-handle="true"/); assert.match(collapsed, /aria-label="Expand thumbnails" aria-expanded="false"/); assert.match(collapsed, /data-studio-phone-strip-current="true"[^>]*>4</); assert.ok(!/strip-head/.test(collapsed))
   for (const [state, tone] of [['connecting', 'amber'], ['error', 'red'], ['disconnected', 'red']]) assert.match(markup({ landscape: true }, { connectionState: state }), new RegExp(`data-studio-phone-chat-dot="${tone}"`), state)
   assert.match(markup({ landscape: true }, { connectionState: 'disconnected', reconnectStatus: 'scheduled' }), /data-studio-phone-chat-dot="amber"/)
   assert.equal(markup({ landscape: true }, { deckOnStage: false }), '', 'no deck on the stage (the welcome, a loading session): nothing'); assert.equal(markup({ landscape: true }, { stageVisible: false }), '', 'the chat or a panel is on screen: nothing (the page is as it is today)')
-  assert.equal(markup({}), '', 'neither query matches (a desktop window): nothing'); assert.equal(markup({ landscape: false, portrait: false }), '')
+  assert.equal(markup({}), '', 'the query does not match (a desktop window, a portrait phone): nothing')
 })
-await check('the portrait slide view is one Menu button (named "Menu"; the bar returns from it as a floating card) and nothing else; with the chat on screen or no deck, nothing', () => {
-  const portrait = markup({ portrait: true })
-  assert.match(portrait, /^<button type="button" data-studio-phone-menu="true" aria-label="Menu" aria-expanded="false">/); assert.equal(count(portrait, /<button/g), 1)
-  assert.ok(!/data-studio-phone-landscape-layer/.test(portrait))
-  assert.equal(markup({ portrait: true }, { stageVisible: false }), ''); assert.equal(markup({ portrait: true }, { deckOnStage: false }), '')
+await check('portrait draws nothing and styles nothing: the component asks only the landscape query, so with it false (a portrait phone, with or without a deck on the stage) it renders no element; the sheet has no rule that touches the bottom tab bar outside the landscape query', () => {
+  const source = read(COMPONENT)
+  assert.ok(!/portrait/i.test(source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')), 'no portrait query, state or element in the component')
+  assert.equal(count(source, /useStudioPhoneQuery\(/g), 1, 'one query is asked: the landscape one')
+  for (const props of [{}, { stageVisible: false }, { deckOnStage: false }]) assert.equal(markup({ landscape: false }, props), '', JSON.stringify(props))
+  assert.ok(!mine().some(rule => rule.media !== LANDSCAPE_MEDIA), 'every rule is in the landscape query')
+  assert.ok(!/studio-phone-bar|data-studio-phone-menu/.test(cssText + source + read(LIB)), 'the folded bar\'s attribute and Menu button are gone')
 })
 await check('every attribute the markup and the effects use is one the stylesheet is keyed to; the <html> attributes are the lib\'s constants; the fan opens from the button with the page\'s own controls (click, or the Enter key a menu trigger opens on), never re-implemented; no orientation lock anywhere', () => {
   const source = read(COMPONENT)
-  for (const attr of ['STUDIO_PHONE_STAGE_ATTRIBUTE', 'STUDIO_PHONE_BAR_ATTRIBUTE', 'STUDIO_PHONE_STRIP_ATTRIBUTE', 'STUDIO_PHONE_FAN_ATTRIBUTE']) assert.ok(source.includes(attr), attr)
-  assert.deepEqual([lib.STUDIO_PHONE_STAGE_ATTRIBUTE, lib.STUDIO_PHONE_BAR_ATTRIBUTE, lib.STUDIO_PHONE_STRIP_ATTRIBUTE, lib.STUDIO_PHONE_FAN_ATTRIBUTE].map(String), ['data-studio-phone-landscape', 'data-studio-phone-bar', 'data-studio-phone-strip', 'data-studio-phone-fan'])
+  for (const attr of ['STUDIO_PHONE_STAGE_ATTRIBUTE', 'STUDIO_PHONE_STRIP_ATTRIBUTE', 'STUDIO_PHONE_FAN_ATTRIBUTE']) assert.ok(source.includes(attr), attr)
+  assert.deepEqual([lib.STUDIO_PHONE_STAGE_ATTRIBUTE, lib.STUDIO_PHONE_STRIP_ATTRIBUTE, lib.STUDIO_PHONE_FAN_ATTRIBUTE].map(String), ['data-studio-phone-landscape', 'data-studio-phone-strip', 'data-studio-phone-fan'])
   for (const own of source.match(/data-studio-phone-[a-z-]+/g)) assert.ok(cssText.includes(own) || /data-studio-phone-(fan-item|landscape-layer|chat-dot|strip-current|strip-label|fan-backdrop|fan-card)/.test(own), `${own} is in the stylesheet`)
   assert.match(source, /control\.dispatchEvent\(new KeyboardEvent\("keydown", \{ key: "Enter"/); assert.match(source, /control\.click\(\)/)
   for (const rel of [LIB, HOOK, COMPONENT, CSS]) assert.ok(!/orientation\s*\.\s*lock|screen\.orientation|lockOrientation|\.lock\(/.test(read(rel)), `${rel}: no orientation lock`)
@@ -336,14 +337,11 @@ await check('every attribute the markup and the effects use is one the styleshee
 })
 
 // ===== 5. the stylesheet =========================================================================================================================================
-await check('every rule is inside one of the two media queries (the landscape phone, the portrait phone), every selector is keyed to an <html> attribute this change sets or to one of its own elements, and no !important is used', () => {
+await check('every rule is inside the one media query (the landscape phone), every selector is keyed to an <html> attribute this change sets or to one of its own elements, and no !important is used', () => {
   const rules = mine(); assert.ok(rules.length >= 30)
   for (const rule of rules) {
-    assert.ok(rule.media === LANDSCAPE_MEDIA || rule.media === PORTRAIT_MEDIA, `a rule outside the two queries: ${rule.selectors[0].slice(0, 80)}`)
-    for (const selector of rule.selectors) {
-      assert.ok(keyed(selector), `keyed: ${selector.slice(0, 100)}`)
-      if (rule.media === PORTRAIT_MEDIA) assert.ok(selector.includes('html[data-studio-phone-bar') || selector.includes('[data-studio-phone-menu'), `a portrait rule is about the bar or the Menu: ${selector.slice(0, 90)}`)
-    }
+    assert.equal(rule.media, LANDSCAPE_MEDIA, `a rule outside the landscape query: ${rule.selectors[0].slice(0, 80)}`)
+    for (const selector of rule.selectors) assert.ok(keyed(selector), `keyed: ${selector.slice(0, 100)}`)
     for (const decl of rule.decls) assert.ok(!decl.important, `${decl.prop} is not !important`)
   }
   assert.ok(!/!important/.test(cssText))
@@ -368,14 +366,6 @@ await check('the top bar and the authoring row are NOT display: none in the stag
   assert.equal(value('position'), 'fixed'); assert.equal(value('visibility'), 'hidden'); assert.equal(value('pointer-events'), 'none'); assert.ok(!rule.decls.some(decl => decl.prop === 'display'), 'no display at all')
   assert.ok(!mine().some(r => r.selectors.some(s => /\[data-studio-v4-shell-header\]|\[data-studio-authoring-slot\]/.test(s) && !s.includes(',')) && r.decls.some(decl => decl.prop === 'display' && decl.value === 'none')), 'nowhere else is either one display: none')
 })
-await check('the portrait fold: the bar is gone in the slide view and its bottom padding with it; Menu brings the SAME bar back as a floating card above the button; the Menu button is the one new element', () => {
-  const portrait = mine().filter(rule => rule.media === PORTRAIT_MEDIA)
-  const find = (test, prop) => portrait.find(rule => rule.selectors.some(test) && rule.decls.some(decl => decl.prop === prop))?.decls.find(decl => decl.prop === prop)?.value
-  assert.equal(find(s => s.startsWith('html[data-studio-phone-bar] ') && s.endsWith('> [data-studio-phone-tabbar="true"]'), 'display'), 'none')
-  assert.equal(find(s => s.startsWith('html[data-studio-phone-bar] ') && s.includes(':has('), 'padding-bottom'), '0')
-  assert.equal(find(s => s.startsWith('html[data-studio-phone-bar="open"]') && s.endsWith('[data-studio-phone-tabbar="true"]'), 'display'), 'flex'); assert.equal(find(s => s.startsWith('html[data-studio-phone-bar="open"]'), 'position'), undefined, 'position is the phone shell\'s own (fixed)')
-  assert.match(find(s => s.startsWith('html[data-studio-phone-bar="open"]'), 'bottom'), /^74px$/); assert.equal(find(s => s === '[data-studio-phone-menu="true"]', 'position'), 'fixed')
-})
 const cascadeOf = text => {
   const theirs = ruleList(shellCssText).flatMap(rule => rule.selectors.map(selector => ({ selector, decls: rule.decls }))), ours = ruleList(text).flatMap(rule => rule.selectors.map(selector => ({ selector, decls: rule.decls, media: rule.media })))
   const pairs = [
@@ -389,9 +379,9 @@ const cascadeOf = text => {
     assert.ok(mineRules.length >= 1 && others.length >= 1, `${label}: rules on both sides`)
     for (const a of mineRules) for (const b of others) { assert.ok(cmp(specificity(a.selector), specificity(b.selector)) > 0, `${label}: ours ${specificity(a.selector)} beats ${specificity(b.selector)}`); compared++ }
   }
-  assert.ok(compared >= 4, `compared ${compared}`)
+  assert.ok(compared >= 3, `compared ${compared}`)
 }
-await check('cascade: every rule of this change that overrides a rule of the phone shell\'s own sheet (the bar\'s display and position, the shell\'s bottom padding) is MORE specific, so it wins whatever the order, with no !important', () => cascadeOf(cssText))
+await check('cascade: every rule of this change that overrides a rule of the phone shell\'s own sheet (the bar\'s display, the shell\'s bottom padding, the workspace\'s left margin) is MORE specific, so it wins whatever the order, with no !important', () => cascadeOf(cssText))
 
 // ===== 6. the insertions ================================================================================================================================================
 await check('the Builder page and the viewer without this change\'s lines are the base commit\'s files byte for byte (no existing line is rewritten), also through the registry, and twice changes nothing more; a file it does not own comes back as it is', () => {
@@ -610,8 +600,8 @@ await mutant('the flag no longer needs the phone shell', () => assert.equal(libW
 await mutant('the flag no longer needs the Studio shell', () => assert.equal(libWith({ flag: 'true', shell: 'false' }, { [LIB]: swap(libSrc, " && studioShell === 'true'", '') }).STUDIO_PHONE_LANDSCAPE_ENABLED, false))
 await mutant('the landscape query loses its coarse-pointer term (a short desktop window would match)', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, ' and (pointer: coarse)', '') }).STUDIO_PHONE_LANDSCAPE_QUERY, LANDSCAPE_MEDIA))
 await mutant('the landscape query is width-based (a narrow desktop window would match)', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, '(max-height: 500px)', '(max-width: 932px)') }).STUDIO_PHONE_LANDSCAPE_QUERY, LANDSCAPE_MEDIA))
-await mutant('the stage no longer needs the stage on screen (the chat would be hidden behind the chrome-less stage)', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, ' && input.stageVisible === true\n}\n\n/** The portrait slide view', '\n}\n\n/** The portrait slide view') }).studioPhoneLandscapeStage({ enabled: true, landscape: true, deckOnStage: true, stageVisible: false }), false))
-await mutant('the stage is on without a deck (the welcome would lose its chrome)', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, ' && input.deckOnStage === true && input.stageVisible === true\n}\n\n/** The portrait slide view', ' && input.stageVisible === true\n}\n\n/** The portrait slide view') }).studioPhoneLandscapeStage({ enabled: true, landscape: true, deckOnStage: false, stageVisible: true }), false))
+await mutant('the stage no longer needs the stage on screen (the chat would be hidden behind the chrome-less stage)', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, ' && input.stageVisible === true\n}\n\n/** The page\'s own test', '\n}\n\n/** The page\'s own test') }).studioPhoneLandscapeStage({ enabled: true, landscape: true, deckOnStage: true, stageVisible: false }), false))
+await mutant('the stage is on without a deck (the welcome would lose its chrome)', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, ' && input.deckOnStage === true && input.stageVisible === true\n}\n\n/** The page\'s own test', ' && input.stageVisible === true\n}\n\n/** The page\'s own test') }).studioPhoneLandscapeStage({ enabled: true, landscape: true, deckOnStage: false, stageVisible: true }), false))
 await mutant('the workspace is clamped off a phone turned sideways too (a desktop window would be told 880)', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, 'return landscape === true && width > STUDIO_PHONE_OVERLAY_MAX_WIDTH ? STUDIO_PHONE_OVERLAY_MAX_WIDTH : width', 'return width > STUDIO_PHONE_OVERLAY_MAX_WIDTH ? STUDIO_PHONE_OVERLAY_MAX_WIDTH : width') }).studioPhoneWorkspaceWidth(false, 1440), 1440))
 await mutant('the workspace clamp\'s threshold drifts from the page\'s own 880', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, 'export const STUDIO_PHONE_OVERLAY_MAX_WIDTH = 880', 'export const STUDIO_PHONE_OVERLAY_MAX_WIDTH = 900') }).STUDIO_PHONE_OVERLAY_MAX_WIDTH, 880))
 await mutant('the workspace clamp is called after the page decides by the width', () => { const bad = pageSrc.replace(/^.*useStudioPhoneWorkspaceClamp\(workspaceWidth[^\n]*\n/m, '').replace('  const studioOverlayWorkspace = studioShell && workspaceWidth <= 880\n', '  const studioOverlayWorkspace = studioShell && workspaceWidth <= 880\n  useStudioPhoneWorkspaceClamp(workspaceWidth, setWorkspaceWidth) // PHONE-LANDSCAPE\n'); assert.ok(bad.indexOf('useStudioPhoneWorkspaceClamp(workspaceWidth') < bad.indexOf('const studioOverlayWorkspace =')) })
@@ -633,16 +623,15 @@ await mutant('the component draws two floating buttons', () => assert.equal(coun
 await mutant('the component draws in the stage without a deck on it', () => { setFlags({ flag: 'true' }); try { const C = makeLoader({ stubs: stubFor({ landscape: true }), sourceOverrides: { [COMPONENT]: swap(componentSrc, 'studioPhoneLandscapeStage({ enabled: true, landscape, deckOnStage, stageVisible })', 'studioPhoneLandscapeStage({ enabled: true, landscape, deckOnStage: true, stageVisible })') } }).load(COMPONENT).StudioPhoneLandscape; assert.equal(renderToStaticMarkup(React.createElement(C, { deckOnStage: false, stageVisible: true, slideNumber: 1, connectionState: 'connected', onChat() {} })), '') } finally { setFlags({}) } })
 await mutant('Chat names no connection state (the dot would say nothing to a screen reader)', () => { setFlags({ flag: 'true' }); try { const C = makeLoader({ stubs: stubFor({ landscape: true }), sourceOverrides: { [COMPONENT]: swap(componentSrc, 'Chat<span className="sr-only">{` ${dot.state}`}</span>', 'Chat') } }).load(COMPONENT).StudioPhoneLandscape; assert.match(renderToStaticMarkup(React.createElement(C, { deckOnStage: true, stageVisible: true, slideNumber: 1, connectionState: 'connected', onChat() {} })), /sr-only/) } finally { setFlags({}) } })
 await mutant('a rule loses its <html> key (it would match with the flag off)', () => notKeyed(swap(cssText, `  ${STAGE} [data-studio-v4-shell="true"] > [data-studio-v4-rail] { display: none; }`, '  [data-studio-v4-shell="true"] > [data-studio-v4-rail] { display: none; }')))
-await mutant('a rule sits outside the media queries', () => { const text = cssText + '\nhtml[data-studio-phone-landscape="stage"] [data-studio-v4-shell="true"] { color: red; }\n'; for (const rule of sheet(text)) assert.ok(rule.media === LANDSCAPE_MEDIA || rule.media === PORTRAIT_MEDIA) })
+await mutant('a rule sits outside the media query', () => { const text = cssText + '\nhtml[data-studio-phone-landscape="stage"] [data-studio-v4-shell="true"] { color: red; }\n'; for (const rule of sheet(text)) assert.equal(rule.media, LANDSCAPE_MEDIA) })
+await mutant('a portrait rule is added (the bar would be hidden or folded in the slide view again)', () => { const text = cssText + '\n@media (max-width: 640px) and (orientation: portrait) {\n  html[data-studio-phone-landscape] [data-studio-v4-shell="true"] > [data-studio-phone-tabbar="true"] { display: none; }\n}\n'; for (const rule of sheet(text)) assert.equal(rule.media, LANDSCAPE_MEDIA) })
 await mutant('a rule uses !important', () => assert.ok(!/!important/.test(swap(cssText, '[data-studio-slide-space] { margin: -16px; }', '[data-studio-slide-space] { margin: -16px !important; }'))))
-await mutant('the stage query drops the coarse pointer in the stylesheet only (the lib and the sheet would disagree)', () => assert.deepEqual([...new Set(ruleList(cssText.replace('@media (orientation: landscape) and (max-height: 500px) and (pointer: coarse)', '@media (orientation: landscape) and (max-height: 500px)')).map(rule => rule.media))].sort(), [LANDSCAPE_MEDIA, PORTRAIT_MEDIA].sort()))
+await mutant('the stage query drops the coarse pointer in the stylesheet only (the lib and the sheet would disagree)', () => assert.deepEqual([...new Set(ruleList(cssText.replace('@media (orientation: landscape) and (max-height: 500px) and (pointer: coarse)', '@media (orientation: landscape) and (max-height: 500px)')).map(rule => rule.media))], [LANDSCAPE_MEDIA]))
 await mutant('the top bar is hidden with display: none (the fan\'s menus would anchor at the corner)', () => { const text = swap(cssText, 'visibility: hidden; pointer-events: none;', 'display: none;'); const rule = ruleList(text).find(r => r.selectors.some(s => s.includes('[data-studio-v4-shell-header]')) && r.selectors.some(s => s.includes('[data-studio-authoring-slot]'))); assert.ok(!rule.decls.some(decl => decl.prop === 'display')) })
 await mutant('the slide space loses its negative margin (the viewer\'s own fit would leave 16 px a side)', () => assert.equal(ruleList(swap(cssText, '[data-studio-slide-space] { margin: -16px; }', '[data-studio-slide-space] { color: inherit; }')).find(rule => rule.media === LANDSCAPE_MEDIA && rule.selectors.some(s => s.endsWith('[data-studio-slide-space]')))?.decls.find(decl => decl.prop === 'margin')?.value, '-16px'))
 await mutant('the slide space\'s padding is zeroed as well (the fit would then measure 32 px too little)', () => assert.ok(!ruleList(swap(cssText, '[data-studio-slide-space] { margin: -16px; }', '[data-studio-slide-space] { margin: -16px; padding: 0; }')).some(rule => rule.media === LANDSCAPE_MEDIA && rule.selectors.some(s => s.endsWith('[data-studio-slide-space]')) && rule.decls.some(decl => decl.prop === 'padding'))))
 await mutant('the rail stays on the right (no row-reverse)', () => assert.ok(ruleList(swap(cssText, 'flex-direction: row-reverse;', 'flex-direction: row;')).some(rule => rule.decls.some(decl => decl.value === 'row-reverse'))))
 await mutant('the shell is 100vh in the stage (iOS counts the address bar)', () => assert.ok(ruleList(swap(cssText, 'height: 100dvh;', 'height: 100vh;')).some(rule => rule.decls.some(decl => decl.value === '100dvh'))))
-await mutant('the folded bar keeps its bottom padding (the page would keep 56 px of nothing)', () => assert.equal(ruleList(swap(cssText, `  html[data-studio-phone-bar] [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) { padding-bottom: 0; }`, '')).find(rule => rule.media === PORTRAIT_MEDIA && rule.selectors.some(s => s.startsWith('html[data-studio-phone-bar] ') && s.includes(':has(')))?.decls.find(decl => decl.prop === 'padding-bottom')?.value, '0'))
-await mutant('the folded bar loses its <html> key (it would tie with the phone shell\'s own bar rule and lose to it by order)', () => cascadeOf(swap(cssText, 'html[data-studio-phone-bar] [data-studio-v4-shell="true"] > [data-studio-phone-tabbar="true"] { display: none; }', '[data-studio-v4-shell="true"] > [data-studio-phone-tabbar="true"] { display: none; }')))
 await mutant('the stage rule for the workspace\'s left margin is gone (a 568 px phone would keep the phone shell\'s 10 px band)', () => cascadeOf(swap(cssText, `  html[data-studio-phone-landscape="stage"] [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) > [data-studio-v4-shell-column] > [data-studio-v4-shell-workspace] { margin-left: 0; }\n`, '')))
 await mutant('the stage rule for the workspace\'s left margin loses its <html> key (it would tie with the phone shell\'s own rule and lose by order)', () => cascadeOf(swap(cssText, `${STAGE} [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) > [data-studio-v4-shell-column] > [data-studio-v4-shell-workspace] { margin-left: 0; }`, `[data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) > [data-studio-v4-shell-column] > [data-studio-v4-shell-workspace] { margin-left: 0; }`)))
 await mutant('the stage rule for the shell\'s bottom padding loses a step of specificity', () => cascadeOf(swap(cssText, `${STAGE} [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) { padding-bottom: 0; }`, '[data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) { padding-bottom: 0; }')))
