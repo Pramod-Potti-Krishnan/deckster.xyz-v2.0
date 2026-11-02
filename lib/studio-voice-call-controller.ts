@@ -6,7 +6,7 @@
 //   Director's frames -> the character's scene (payload.companion_state, else the frame's type); its payload.spoken (a chat_message's line, a progress frame's line, and nothing else) -> router speak, sentence by sentence -> speaking -> idle
 //   talking over Director, or Stop -> the speech and the pending turn are cancelled (the core's barge-in)
 import {
-  canTalk, cleanForSpeech, describeMicError, initialCallState, pickFiller, PROGRESS_AFTER_MS, PROGRESS_EVERY_MS, reduceCall, shouldPlayFiller, splitSentences, worthSending,
+  CallCostMeter, canTalk, cleanForSpeech, describeMicError, initialCallState, pickFiller, PROGRESS_AFTER_MS, PROGRESS_EVERY_MS, reduceCall, shouldPlayFiller, splitSentences, worthSending,
   type CallEffect, type CallEvent, type CallState,
 } from '@/lib/studio/voice'
 import {
@@ -139,6 +139,8 @@ export class VoiceCallController {
   private startToken = 0
   /** Replies Director still owes for turns the user cancelled: the next report for each is not said (it is in the chat). */
   private owedReplies = 0
+  /** What this call has cost so far: every hearing and every sentence adds its cost, or null when the answer did not say (never zero). The per-call cap is P4-22's. */
+  private meter = new CallCostMeter()
   /** The first line of a reply is not played before this moment (REPLY_LEAD_MS after its text arrived). */
   private replyLeadUntil = 0
   /** A gesture beat (pleased, concerned, sorry ...) came while speech hid it: it is shown, in full, when the speech ends. */
@@ -169,6 +171,9 @@ export class VoiceCallController {
     this.listeners.add(listener)
     return () => { this.listeners.delete(listener) }
   }
+
+  /** The running cost of this call (the core's meter): the known total, how many answers did not say, and the words for them. */
+  getCost = (): { totalUsd: number; unknownCount: number; label: string } => ({ totalUsd: this.meter.totalUsd, unknownCount: this.meter.unknownCount, label: this.meter.label })
 
   /** What is coming out of the speaker now (0..1), read by the character every animation frame. It is not in the snapshot: it changes sixty times a second. */
   getLevel = (): number => (this.speakingNow ? this.player.level() : 0)
@@ -228,6 +233,7 @@ export class VoiceCallController {
     this.openAction = null
     this.beatHidden = false
     this.replyLeadUntil = 0
+    this.meter = new CallCostMeter()
     this.quietSince = this.env.now()
     this.armTick()
     this.emit()
@@ -342,7 +348,9 @@ export class VoiceCallController {
   private async runTurn(turn: number, audio: Blob, ctl: AbortController): Promise<void> {
     let text: string
     try {
-      text = (await this.port.transcribe(audio, { signal: ctl.signal })).text.trim()
+      const heard = await this.port.transcribe(audio, { signal: ctl.signal })
+      this.meter.add(heard.costUsd)
+      text = heard.text.trim()
     } catch (error) {
       this.turnFailed(turn, error)
       return
@@ -495,9 +503,10 @@ export class VoiceCallController {
   private enqueue(text: string, kind: SpeechItem['kind'], turn: number, phased: boolean): void {
     const cached = kind === 'filler' ? this.fillerCache.get(text) : undefined
     const ctl = (this.speechCtl ??= new AbortController())
-    const audio = cached ? Promise.resolve<Blob | null>(cached) : this.port.speak(text, { signal: ctl.signal }).then(blob => {
-      if (kind === 'filler') this.fillerCache.set(text, blob)
-      return blob
+    const audio = cached ? Promise.resolve<Blob | null>(cached) : this.port.speak(text, { signal: ctl.signal }).then(spoken => {
+      this.meter.add(spoken.costUsd)
+      if (kind === 'filler') this.fillerCache.set(text, spoken.audio)
+      return spoken.audio
     }, (error: unknown) => {
       if (error instanceof VoiceRouterError && error.kind === 'aborted') return null
       if (!this.speechOff) {

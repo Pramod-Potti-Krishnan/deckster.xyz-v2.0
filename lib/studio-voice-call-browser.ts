@@ -2,6 +2,7 @@
 // when a call starts does anything here touch the microphone: openMic is called by the call button and nothing else. No provider is contacted from here; speech in and out is the same-origin router port.
 import { pickRecorderMime, rmsByteTimeDomain } from '@/lib/studio/voice'
 import { createVoiceRouterPort, type VoiceRouterPort } from '@/lib/studio-voice-call-router'
+import { VOICE_WAV_RATE, encodeWavPcm16, mixToMono, resampleLinear } from '@/lib/studio-voice-call-ui'
 import type { VoiceCallEnv, VoiceMic, VoicePlayer, VoiceRecording } from '@/lib/studio-voice-call-controller'
 
 type AudioContextCtor = typeof AudioContext
@@ -9,6 +10,25 @@ type AudioContextCtor = typeof AudioContext
 function audioContextCtor(): AudioContextCtor | null {
   if (typeof window === 'undefined') return null
   return window.AudioContext ?? (window as unknown as { webkitAudioContext?: AudioContextCtor }).webkitAudioContext ?? null
+}
+
+/**
+ * The capture layer's conversion (ROUTER-1: hearing takes base64 WAV): whatever the recorder produced (webm/opus, mp4/aac ...) is decoded by the browser, mixed to one channel, brought to 16 kHz and written as 16-bit WAV.
+ * The decoding uses the microphone's own audio context when it has one.
+ */
+async function toWav(recorded: Blob, context: AudioContext | null): Promise<Blob> {
+  const Ctx = audioContextCtor()
+  const decoder = context ?? (Ctx ? new Ctx() : null)
+  if (!decoder) throw new Error('This browser cannot decode a recording')
+  try {
+    const decoded = await decoder.decodeAudioData(await recorded.arrayBuffer())
+    const channels: Float32Array[] = []
+    for (let i = 0; i < decoded.numberOfChannels; i++) channels.push(decoded.getChannelData(i))
+    const wav = encodeWavPcm16(resampleLinear(mixToMono(channels), decoded.sampleRate, VOICE_WAV_RATE), VOICE_WAV_RATE)
+    return new Blob([wav as BlobPart], { type: 'audio/wav' })
+  } finally {
+    if (!context) void decoder.close().catch(() => {})
+  }
 }
 
 /** The same-origin router port, over the page's own fetch. */
@@ -53,7 +73,9 @@ function openMic(): Promise<VoiceMic> {
             if (recorder.state !== 'inactive') recorder.stop()
             await stopped
             if (cancelled) throw new Error('cancelled')
-            return { blob: new Blob(chunks, { type: recorder.mimeType || mime || 'audio/webm' }), durationMs: performance.now() - startedAt, peak }
+            const durationMs = performance.now() - startedAt
+            const heard = new Blob(chunks, { type: recorder.mimeType || mime || 'audio/webm' })
+            return { blob: await toWav(heard, context), durationMs, peak }
           },
           cancel() {
             cancelled = true

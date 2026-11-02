@@ -264,6 +264,17 @@ function uiSuite(ui, over = {}) {
   eq(ui.mouthShapeIndex(0.1, 0.1, 10), 1, 'mouth: a quiet level varies with the syllable clock'); eq(ui.mouthShapeIndex(NaN, 3, 10), 0, 'mouth: a bad level is closed')
   eq(new Set([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8].map(t => ui.mouthShapeIndex(0.3, t, 10))).size > 1, true, 'mouth: an open mouth does not hold one shape')
 
+  // -- the recording as the router wants it: WAV, mono, 16-bit, 16 kHz ---------------------------------------------------------------------------------------
+  eq(ui.VOICE_WAV_RATE, 16000, 'wav: 16 kHz')
+  const wav = ui.encodeWavPcm16([0, 0.5, -0.5, 1, -1, 2, -2, NaN], 16000), v = new DataView(wav.buffer), tag = at => String.fromCharCode(...wav.slice(at, at + 4))
+  eq([wav.length, tag(0), tag(8), tag(12), tag(36), v.getUint32(4, true), v.getUint32(16, true), v.getUint16(20, true), v.getUint16(22, true), v.getUint32(24, true), v.getUint32(28, true), v.getUint16(32, true), v.getUint16(34, true), v.getUint32(40, true)], [44 + 16, 'RIFF', 'WAVE', 'fmt ', 'data', 36 + 16, 16, 1, 1, 16000, 32000, 2, 16, 16], 'wav: the header of a 16-bit mono PCM file at 16 kHz')
+  eq([0, 1, 2, 3, 4, 5, 6, 7].map(i => v.getInt16(44 + i * 2, true)), [0, 16384, -16384, 32767, -32768, 32767, -32768, 0], 'wav: samples are 16-bit little-endian, clipped at full scale, and a bad number is silence')
+  eq([ui.encodeWavPcm16([], 8000).length, new DataView(ui.encodeWavPcm16([], 8000).buffer).getUint32(40, true)], [44, 0], 'wav: no samples is a valid empty file')
+  eq(Array.from(ui.mixToMono([[1, 0.5, 0], [0, 0.5, 1]])), [0.5, 0.5, 0.5], 'wav: two channels are averaged'); eq(Array.from(ui.mixToMono([[0.25, -0.25]])), [0.25, -0.25], 'wav: one channel is as it is'); eq([ui.mixToMono([]).length, ui.mixToMono([[1, 2], [1]]).length], [0, 2], 'wav: no channels is empty; the longest channel sets the length')
+  eq(Array.from(ui.resampleLinear([0, 1, 0, -1], 4, 4)), [0, 1, 0, -1], 'wav: the same rate keeps the samples'); eq(Array.from(ui.resampleLinear([0, 1, 2, 3], 4, 2)), [0, 2], 'wav: half the rate takes every second sample')
+  eq(Array.from(ui.resampleLinear([0, 2], 1, 2)).map(x => Math.round(x * 100) / 100), [0, 1, 2, 2], 'wav: double the rate interpolates (and holds the last sample)'); eq([ui.resampleLinear([], 4, 2).length, ui.resampleLinear([1], 0, 2).length, ui.resampleLinear([1, 2, 3], 48000, 16000).length], [0, 0, 1], 'wav: nothing to resample, a bad rate, and 48 kHz to 16 kHz is a third as long')
+  eq(ui.resampleLinear(new Float32Array(48000), 48000, 16000).length, 16000, 'wav: one second stays one second')
+
   // -- framing, controls, words ----------------------------------------------------------------------------------------------------------------
   const full = { size: { width: 768, height: 768 }, bbox: { x: 47, y: 92, width: 655, height: 619 } }, face = { size: { width: 627, height: 627 }, bbox: { x: 0, y: 82, width: 627, height: 545 }, variant: 'face' }
   eq(ui.framingRect(face, 'disc'), { sx: 0, sy: 0, sw: 627, sh: 627 }, 'framing: a Face pack is drawn whole in the disc')
@@ -299,16 +310,18 @@ function uiSuite(ui, over = {}) {
 async function routerSuite(over = {}) {
   const mod = makeHost({ over }).load(ROUTER)
   const calls = []
-  const reply = (status, body, blob) => async (url, init) => { calls.push({ url, init }); return { ok: status >= 200 && status < 300, status, json: async () => body, blob: async () => blob ?? new Blob(['audio']) } }
+  const reply = (status, body, blob, headers = {}) => async (url, init) => { calls.push({ url, init }); return { ok: status >= 200 && status < 300, status, headers: { get: name => headers[name] ?? null }, json: async () => body, blob: async () => blob ?? new Blob(['audio']) } }
   class Form { constructor() { this.fields = [] } append(name, value, filename) { this.fields.push([name, value, filename]) } }
   const port = fetchImpl => mod.createVoiceRouterPort(fetchImpl, Form)
   mod.createVoiceRouterPort(async () => { throw new Error('nothing may be requested by creating the port') }, Form)
-  eq([mod.VOICE_ROUTER_LABELS, mod.VOICE_ROUTER_ENDPOINTS], [{ stt: 'studio.voice_stt', tts: 'studio.voice_tts' }, { transcribe: '/api/studio/voice/transcribe', speak: '/api/studio/voice/speak' }], 'router: the labels and the same-origin routes')
-  eq(await port(reply(200, { text: ' hello there ' })).transcribe(new Blob(['x'])), { text: 'hello there' }, 'router: transcribe answers the words, trimmed')
-  eq([calls[0].url, calls[0].init.method, calls[0].init.credentials, calls[0].init.body.fields.map(f => f[0] + '=' + (typeof f[1] === 'string' ? f[1] : 'blob'))], ['/api/studio/voice/transcribe', 'POST', 'same-origin', ['audio=blob', 'label=studio.voice_stt']], 'router: a multipart POST with the audio and the stt label')
-  eq(await port(reply(200, {})).transcribe(new Blob(['x'])), { text: '' }, 'router: no text is "no words", not an error'); eq(await port(reply(200, null)).transcribe(new Blob(['x'])), { text: '' }, 'router: a null body is "no words"')
-  const spoken = await port(reply(200, null, new Blob(['voice']))).speak('One sentence.')
-  eq([spoken.size, calls.at(-1).url, calls.at(-1).init.method, JSON.parse(calls.at(-1).init.body), calls.at(-1).init.headers], [5, '/api/studio/voice/speak', 'POST', { text: 'One sentence.', label: 'studio.voice_tts' }, { 'Content-Type': 'application/json' }], 'router: speak POSTs the sentence with the tts label and answers the audio')
+  eq([mod.VOICE_ROUTER_LABELS, mod.VOICE_ROUTER_ENDPOINTS, mod.VOICE_COST_HEADER], [{ stt: 'studio.voice_stt', tts: 'studio.voice_tts' }, { transcribe: '/api/studio/voice/transcribe', speak: '/api/studio/voice/speak' }, 'X-Deckster-Cost-Usd'], 'router: the labels, the same-origin routes and the optional cost header')
+  eq(await port(reply(200, { text: ' hello there ' })).transcribe(new Blob(['x'])), { text: 'hello there', costUsd: null }, 'router: transcribe answers the words, trimmed, with no cost when the answer says none')
+  eq([calls[0].url, calls[0].init.method, calls[0].init.credentials, calls[0].init.body.fields.map(f => f[0] + '=' + (typeof f[1] === 'string' ? f[1] : 'blob')), calls[0].init.body.fields[0][2]], ['/api/studio/voice/transcribe', 'POST', 'same-origin', ['audio=blob', 'label=studio.voice_stt'], 'turn.wav'], 'router: a multipart POST with the WAV (turn.wav) and the stt label')
+  eq((await port(reply(200, {})).transcribe(new Blob(['x']))).text, '', 'router: no text is "no words", not an error'); eq((await port(reply(200, null)).transcribe(new Blob(['x']))).text, '', 'router: a null body is "no words"')
+  eq([(await port(reply(200, { text: 'a' }, null, { 'X-Deckster-Cost-Usd': '0.0021' })).transcribe(new Blob(['x']))).costUsd, (await port(reply(200, { text: 'a' }, null, { 'X-Deckster-Cost-Usd': '0' })).transcribe(new Blob(['x']))).costUsd, (await port(reply(200, null, new Blob(['v']), { 'X-Deckster-Cost-Usd': '0.004' })).speak('x')).costUsd], [0.0021, 0, 0.004], 'router: the cost an answer says it had, zero included')
+  eq([null, undefined, '', '  ', 'free', '-1', 'NaN', 'Infinity', '0.5', ' 2 '].map(mod.costFromHeader), [null, null, null, null, null, null, null, null, 0.5, 2], 'router: a missing or bad cost is unknown (null), never zero')
+  const heardBack = await port(reply(200, null, new Blob(['voice']))).speak('One sentence.'), spoken = heardBack.audio
+  eq([heardBack.costUsd, spoken.size, calls.at(-1).url, calls.at(-1).init.method, JSON.parse(calls.at(-1).init.body), calls.at(-1).init.headers], [null, 5, '/api/studio/voice/speak', 'POST', { text: 'One sentence.', label: 'studio.voice_tts' }, { 'Content-Type': 'application/json' }], 'router: speak POSTs the sentence with the tts label and answers the audio')
   for (const [status, kind] of [[404, 'not_connected'], [501, 'not_connected'], [503, 'not_connected'], [402, 'limit'], [429, 'limit'], [500, 'failed'], [400, 'failed'], [401, 'failed']]) {
     eq(mod.routerErrorKind(status), kind, `router: status ${status} is ${kind}`)
     const error = await port(reply(status, {})).transcribe(new Blob(['x'])).catch(e => e)
@@ -345,7 +358,7 @@ class Clock {
     await settle()
   }
 }
-function makeCall({ over = {}, mic = {}, reduced = false, connected = true, sendObserved = true, takes = true, transcripts = ['make the title shorter'], speakFails = null, transcribeFails = null } = {}) {
+function makeCall({ over = {}, mic = {}, reduced = false, connected = true, sendObserved = true, takes = true, transcripts = ['make the title shorter'], speakFails = null, transcribeFails = null, costs = {} } = {}) {
   const host = makeHost({ env: ENV_ON, over })
   const ctlMod = host.load(CTL), ui = host.load(UI), router = host.load(ROUTER), core = host.load('lib/studio/voice/index.ts')
   const clock = new Clock()
@@ -365,8 +378,8 @@ function makeCall({ over = {}, mic = {}, reduced = false, connected = true, send
   }
   const queue = [...transcripts]
   const port = {
-    transcribe: async (blob, opts) => { log.transcribed.push({ size: blob.size, signal: opts?.signal }); if (transcribeFails) throw new router.VoiceRouterError(transcribeFails, 'x'); return { text: queue.length ? queue.shift() : '' } },
-    speak: async (text, opts) => { log.spoken.push(text); if (opts?.signal?.aborted) throw new router.VoiceRouterError('aborted', 'x'); if (speakFails) throw new router.VoiceRouterError(speakFails, 'x'); return new Blob([text]) },
+    transcribe: async (blob, opts) => { log.transcribed.push({ size: blob.size, signal: opts?.signal }); if (transcribeFails) throw new router.VoiceRouterError(transcribeFails, 'x'); return { text: queue.length ? queue.shift() : '', costUsd: costs.stt ?? null } },
+    speak: async (text, opts) => { log.spoken.push(text); if (opts?.signal?.aborted) throw new router.VoiceRouterError('aborted', 'x'); if (speakFails) throw new router.VoiceRouterError(speakFails, 'x'); return { audio: new Blob([text]), costUsd: costs.tts ?? null } },
   }
   const state = { connected }
   let ctl = null
@@ -530,6 +543,17 @@ async function controllerSuite(over = {}) {
     ok(w.log.spoken.length >= 1, 'reply: ...after one attempt'); const asked = w.log.spoken.length
     await w.talk(); await w.reply('Another line.')
     eq(w.log.spoken.length, asked, 'reply: ...and the router is not asked again for the rest of the call')
+  }
+
+  // ---- what the call costs (the core's meter; an answer that does not say is unknown, never zero) -------------------------------------------------------------
+  {
+    const w = makeCall({ over, costs: { stt: 0.002, tts: 0.001 } }); await w.start(); await w.talk(); await w.reply('One short line.')
+    const cost = w.ctl.getCost()
+    eq([Math.round(cost.totalUsd * 1e6), cost.unknownCount], [Math.round((0.002 + 0.001 * w.log.spoken.length) * 1e6), 0], 'cost: the hearing and every sentence add what their answers said')
+    const unknown = makeCall({ over }); await unknown.start(); await unknown.talk(); await unknown.reply('One short line.')
+    eq([unknown.ctl.getCost().totalUsd, unknown.ctl.getCost().unknownCount], [0, 1 + unknown.log.spoken.length], 'cost: answers that do not say are counted as unknown, and the known total stays zero (never a guess)')
+    ok(typeof unknown.ctl.getCost().label === 'string' && unknown.ctl.getCost().label.length > 0, 'cost: the core words it')
+    w.ctl.endCall(); await w.start(); eq([w.ctl.getCost().totalUsd, w.ctl.getCost().unknownCount], [0, 0], 'cost: a new call starts at nothing')
   }
 
   // ---- the gesture is seen before the voice, and again after it -------------------------------------------------------------------------------------
@@ -894,6 +918,7 @@ function sourceSuite(sources, { base = null } = {}) {
   ok(strip.stripVoiceCall('lib/other.ts', 'x // VOICE-CALL\n') === 'x // VOICE-CALL\n', 'strip: a file that is not this change\'s comes back as it is')
   ok(strip.stripVoiceCall(PAGE, 'a\nb // VOICE-CALL-X\nc // X-VOICE-CALL\nd // VOICE-CALL\ne // NEXT_PUBLIC_STUDIO_VOICE_CALL\n') === 'a\nb // VOICE-CALL-X\nc // X-VOICE-CALL\ne // NEXT_PUBLIC_STUDIO_VOICE_CALL\n', 'strip: the marker is a whole token')
   ok(strip.stripVoiceCall(PAGE, 42) === 42, 'strip: not text comes back as it is')
+  ok(sources[BROWSER].includes('blob: await toWav(heard, context)') && sources[BROWSER].includes('encodeWavPcm16(resampleLinear(mixToMono(channels), decoded.sampleRate, VOICE_WAV_RATE), VOICE_WAV_RATE)') && sources[BROWSER].includes("type: 'audio/wav'"), 'browser: what was recorded is decoded, mixed to mono, brought to 16 kHz and sent as WAV (ROUTER-1: hearing takes base64 WAV)')
   ok(sources[PLAYER].includes('const width = framedWidth(framing, size, rect)'), 'player: its width is the lib\'s (the disc is a square, the chest as wide as its crop)')
   // the stylesheet: nothing global, nothing that reaches an element without the call's own attributes
   const css = sources[CSS]
@@ -1010,6 +1035,19 @@ const mutants = [
   [ROUTER, 'the speech goes to another origin', "speak: '/api/studio/voice/speak'", "speak: 'https://speech.example.com/speak'"],
   // the controller
   [CTL, 'the microphone is asked for at construction', "this.snapshot = this.build()\n  }", "this.snapshot = this.build(); void this.env.openMic()\n  }"],
+  [CTL, 'the hearing is not metered', 'this.meter.add(heard.costUsd)', ''],
+  [CTL, 'an unknown cost is zero', 'this.meter.add(spoken.costUsd)', 'this.meter.add(spoken.costUsd ?? 0)'],
+  [CTL, 'the meter outlives the call', 'this.replyLeadUntil = 0\n    this.meter = new CallCostMeter()', 'this.replyLeadUntil = 0'],
+  [ROUTER, 'the recording is named as webm', "form.append('audio', audio, 'turn.wav')", "form.append('audio', audio, 'turn.webm')"],
+  [ROUTER, 'a bad cost is zero', 'return Number.isFinite(usd) && usd >= 0 ? usd : null', 'return Number.isFinite(usd) && usd >= 0 ? usd : 0'],
+  [ROUTER, 'a missing cost is zero', "if (typeof value !== 'string' || !value.trim()) return null", "if (typeof value !== 'string' || !value.trim()) return 0"],
+  [UI, 'the WAV says another rate', 'view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true)', 'view.setUint32(24, 44100, true); view.setUint32(28, sampleRate * 2, true)'],
+  [UI, 'the WAV is stereo', 'view.setUint16(20, 1, true); view.setUint16(22, 1, true)', 'view.setUint16(20, 1, true); view.setUint16(22, 2, true)'],
+  [UI, 'the WAV is not clipped', 'const value = Number.isFinite(samples[i]) ? Math.max(-1, Math.min(1, samples[i]!)) : 0', 'const value = Number.isFinite(samples[i]) ? samples[i]! : 0'],
+  [UI, 'the channels are summed, not averaged', 'if (channels.length > 1) for (let i = 0; i < length; i++) out[i] = out[i]! / channels.length', ''],
+  [UI, 'the rate is not converted', 'const ratio = fromRate / toRate', 'const ratio = 1'],
+  [UI, 'the WAV rate is 8 kHz', 'export const VOICE_WAV_RATE = 16000', 'export const VOICE_WAV_RATE = 8000'],
+  [BROWSER, 'the recording is sent as it was recorded', 'blob: await toWav(heard, context)', 'blob: heard'],
   [CTL, 'the speaker is not unlocked by the click', 'this.player.prime?.() // inside the click: the speaker is unlocked now, not at the first sentence', ''],
   [UI, 'a report covers a failure', 'const outranks = (held: DirectorTrack[\'beat\'], next: BeatScene): boolean => !!held && BEAT_RANK[held.scene] > BEAT_RANK[next]', 'const outranks = (held: DirectorTrack[\'beat\'], next: BeatScene): boolean => false'],
   [UI, 'a plain report covers a decline', 'reporting: 0, pleased: 1, celebrating: 2, sorry: 3, concerned: 4 }', 'reporting: 3, pleased: 1, celebrating: 2, sorry: 3, concerned: 4 }'],

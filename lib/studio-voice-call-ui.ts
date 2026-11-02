@@ -480,6 +480,55 @@ export function mouthShapeIndex(level: number, timeSec: number, fps: number): nu
 }
 
 // ---------------------------------------------------------------------------
+// The recording as the router wants it (ROUTER-1's contract: STT runs server-side through the router's chat/completions with input_audio, base64 WAV)
+// ---------------------------------------------------------------------------
+
+/** What is sent for hearing: WAV, one channel, 16-bit, this many samples a second. The capture layer (the browser adapter) converts what the microphone gave; these three functions are the pure part of that. */
+export const VOICE_WAV_RATE = 16000
+
+/** Every channel of the recording averaged into one (samples may be any ArrayLike of numbers in -1..1). */
+export function mixToMono(channels: readonly ArrayLike<number>[]): Float32Array {
+  const length = channels.reduce((most, channel) => Math.max(most, channel.length), 0)
+  const out = new Float32Array(length)
+  if (channels.length === 0) return out
+  for (const channel of channels) for (let i = 0; i < channel.length; i++) out[i]! += channel[i]!
+  if (channels.length > 1) for (let i = 0; i < length; i++) out[i] = out[i]! / channels.length
+  return out
+}
+
+/** Linear resampling from one rate to another (speech for hearing: no fancier filter is needed). The same rate returns the samples as they are. */
+export function resampleLinear(samples: ArrayLike<number>, fromRate: number, toRate: number): Float32Array {
+  if (!(fromRate > 0) || !(toRate > 0) || samples.length === 0) return new Float32Array(0)
+  if (fromRate === toRate) return Float32Array.from(samples as ArrayLike<number>)
+  const length = Math.max(1, Math.round(samples.length * toRate / fromRate))
+  const out = new Float32Array(length)
+  const ratio = fromRate / toRate
+  for (let i = 0; i < length; i++) {
+    const at = i * ratio
+    const before = Math.floor(at), after = Math.min(samples.length - 1, before + 1)
+    const fraction = at - before
+    out[i] = samples[Math.min(before, samples.length - 1)]! * (1 - fraction) + samples[after]! * fraction
+  }
+  return out
+}
+
+/** A WAV file (RIFF, PCM, mono, 16-bit little-endian) of samples in -1..1; anything outside is clipped and a bad number is silence. */
+export function encodeWavPcm16(samples: ArrayLike<number>, sampleRate: number): Uint8Array {
+  const bytes = new Uint8Array(44 + samples.length * 2)
+  const view = new DataView(bytes.buffer)
+  const text = (at: number, value: string) => { for (let i = 0; i < value.length; i++) view.setUint8(at + i, value.charCodeAt(i)) }
+  text(0, 'RIFF'); view.setUint32(4, 36 + samples.length * 2, true); text(8, 'WAVE')
+  text(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true)
+  view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true)
+  text(36, 'data'); view.setUint32(40, samples.length * 2, true)
+  for (let i = 0; i < samples.length; i++) {
+    const value = Number.isFinite(samples[i]) ? Math.max(-1, Math.min(1, samples[i]!)) : 0
+    view.setInt16(44 + i * 2, value < 0 ? Math.round(value * 32768) : Math.round(value * 32767), true)
+  }
+  return bytes
+}
+
+// ---------------------------------------------------------------------------
 // The pack's framing (where the face and the chest sit in a bird-format frame)
 // ---------------------------------------------------------------------------
 
