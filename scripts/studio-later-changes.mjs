@@ -67,7 +67,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-welcome-trim-strip.mjs')).WELCOME_TRIM_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B51 welcome trim and Director mark trim: the first-run welcome loses its extra copy and Director's greeting, and the old star can go (NEXT_PUBLIC_STUDIO_WELCOME_TRIM / NEXT_PUBLIC_STUDIO_DIRECTOR_MARK_TRIM)
   ...(await import('./studio-chat-column-wide-strip.mjs')).CHAT_COLUMN_WIDE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B51 chat column wide (F-10): the first-run welcome column is about 44% of the window, and the shared column tokens are defined (NEXT_PUBLIC_STUDIO_CHAT_COLUMN_WIDE)
   ...(await import('./studio-stage-open-gate-strip.mjs')).STAGE_OPEN_GATE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B52 stage open gate: the chat stays full-width through Director's clarifying questions; the stage opens on the strawman or build, a ready deck or an explicit ask (NEXT_PUBLIC_STUDIO_STAGE_OPEN_GATE)
-  ...(await import('./studio-phone-landscape-strip.mjs')).PHONE_LANDSCAPE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape (PR 1): a phone turned sideways gets a viewing stage, the portrait slide view folds the bar (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
+  ...(await import('./studio-phone-landscape-strip.mjs')).PHONE_LANDSCAPE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape (PR 1): a phone turned sideways gets a viewing stage with a hamburger and a plus (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   ...(await import('./studio-phone-hints-strip.mjs')).PHONE_HINTS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, F-13 phone hints (PR 2): the portrait rotate card, swipe to change slide, Full screen (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
   // one line per later change, above this comment
 ])
