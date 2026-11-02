@@ -1,19 +1,23 @@
 "use client"
 
 import React, { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, Mic, MicOff, PhoneOff, Square, X } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { ChevronDown, ChevronUp, Mic, MicOff, PhoneOff, Repeat, Square, X } from 'lucide-react'
 import { CompanionPlayer } from './companion-player'
 import './voice-call.css'
 import type { VoiceCallSnapshot } from '@/lib/studio-voice-call-controller'
 import {
   AUDIO_DISC_PX, AUDIO_DISC_PX_PHONE, DEFAULT_SCENE_FILE, MUTED_HINT, MUTE_LABEL, TALK_HINT, TALK_LATCHED_HINT, TRANSCRIPT_EMPTY, TRANSCRIPT_HIDE_LABEL, TRANSCRIPT_SHOW_LABEL, TRANSCRIPT_TITLE, UNMUTE_LABEL,
-  VOICE_PHONE_MEDIA, companionName, ringLevel, sceneFileFrom, sceneUrl, talkLabel, videoCharacterPx,
+  VOICE_PHONE_MEDIA, companionName, nextCompanion, ringLevel, sceneFileFrom, sceneUrl, talkLabel, videoCharacterPx,
 } from '@/lib/studio-voice-call-ui'
 
 export interface VoiceCallStageProps {
   snapshot: VoiceCallSnapshot
   /** The pack's folder under public/companions/. */
   pack: string
+  /** The characters on offer (a switch is shown when there is more than one); one tap on it goes to the next. */
+  choices: readonly string[]
+  onChooseCompanion: () => void
   getLevel: () => number
   /** The talk button goes down / comes up (hold to talk, or tap to latch and tap again to send). */
   onTalkPress: () => void
@@ -26,7 +30,7 @@ export interface VoiceCallStageProps {
 }
 
 function usePhone(): boolean {
-  const [phone, setPhone] = useState(false)
+  const [phone, setPhone] = useState(() => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(VOICE_PHONE_MEDIA).matches) // right from the first render: on a phone the stage is moved under the shell, and that must not remount it
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return
     const query = window.matchMedia(VOICE_PHONE_MEDIA)
@@ -36,6 +40,11 @@ function usePhone(): boolean {
     return () => query.removeEventListener('change', sync)
   }, [])
   return phone
+}
+
+/** On a phone the call is the whole screen, above the shell's own chrome (the tab bar, the logo, the Slides | Director switch): inside the chat column it would sit under them (a stacking context), so it is drawn as a child of the shell itself. */
+function shellRoot(): Element | null {
+  return typeof document === 'undefined' ? null : document.querySelector('[data-studio-v4-shell="true"]')
 }
 
 /** The pack's optional scene image (the character's setting): `scene` in its manifest names a file in the pack's folder, else scene.webp. null when the pack has none (a token gradient is drawn instead). Asked once per pack. */
@@ -96,7 +105,7 @@ function useLevelVariable(ref: React.RefObject<HTMLElement | null>, getLevel: ()
  * Either way the overlays are the same: the state chip, Stop / Mute / End, the talk button, and the live transcript in the bottom fifth (scrollable, can be hidden, shown by default). Presentation only: it holds no call state.
  * Without a call (the microphone was refused, or a start failed) it is just the plain-words notice, docked above the composer.
  */
-export function VoiceCallStage({ snapshot, pack, getLevel, onTalkPress, onTalkRelease, onStop, onMute, onEnd, onRetry, onDismissNotice }: VoiceCallStageProps) {
+export function VoiceCallStage({ snapshot, pack, choices, onChooseCompanion, getLevel, onTalkPress, onTalkRelease, onStop, onMute, onEnd, onRetry, onDismissNotice }: VoiceCallStageProps) {
   const { controls, notice, mode, muted } = snapshot
   const live = snapshot.active || snapshot.starting
   const phone = usePhone()
@@ -138,7 +147,8 @@ export function VoiceCallStage({ snapshot, pack, getLevel, onTalkPress, onTalkRe
   const status = snapshot.starting ? 'Waiting for your microphone…' : muted ? MUTED_HINT : snapshot.progress ?? (snapshot.latched ? TALK_LATCHED_HINT : snapshot.holding || snapshot.transcript.length ? null : TALK_HINT)
   const subtitle = collapsed && !snapshot.starting ? snapshot.caption : null
   const discPx = phone ? AUDIO_DISC_PX_PHONE : AUDIO_DISC_PX
-  return (
+  const portalTo = phone ? shellRoot() : null
+  const body = (
     <section
       ref={rootRef}
       className="studio-voice-stage"
@@ -158,6 +168,11 @@ export function VoiceCallStage({ snapshot, pack, getLevel, onTalkPress, onTalkRe
         <div className="studio-voice-top">
           <span className="studio-voice-chip" data-chip={snapshot.chip} role="status"><i aria-hidden />{snapshot.chip}</span>
           <div className="studio-voice-tools">
+            {choices.length > 1 ? (
+              <button type="button" className="studio-voice-pack" data-studio-voice-character={pack} onClick={onChooseCompanion} aria-label={`Character: ${name}. Switch to ${companionName(nextCompanion(pack, choices))}`} title={`Switch to ${companionName(nextCompanion(pack, choices))}`}>
+                <Repeat aria-hidden className="h-3.5 w-3.5" />{name}
+              </button>
+            ) : null}
             <button type="button" className="studio-voice-icon" disabled={!controls.stop} onClick={onStop} aria-label="Stop" title="Stop">
               <Square aria-hidden className="h-3.5 w-3.5 fill-current" />
             </button>
@@ -212,6 +227,7 @@ export function VoiceCallStage({ snapshot, pack, getLevel, onTalkPress, onTalkRe
       <Transcript snapshot={snapshot} name={name} collapsed={collapsed} onToggle={() => setCollapsed(value => !value)} />
     </section>
   )
+  return portalTo ? createPortal(body, portalTo) : body
 }
 
 /** The live transcript: the bottom fifth of the call, newest line last, kept scrolled to the newest unless you have scrolled up to read; hide it with its toggle. */

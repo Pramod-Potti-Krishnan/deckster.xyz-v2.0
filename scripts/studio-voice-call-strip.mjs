@@ -7,7 +7,9 @@
 // Every line this change adds to an EXISTING file is a pure insertion that carries the marker VOICE-CALL (matched as a whole token): app/builder/page.tsx (the hook call, the call stage, the composer prop, two lines at
 // the end beside the flow-control import), hooks/use-deckster-websocket-v2.ts (one import, the frame tap, the two voice fields on the one armed voice turn, the sent tap) and components/builder/chat-input.tsx (two
 // imports, one prop, its destructuring, the buttons beside Send, the line that hides the composer during a call). Strip the marked lines and each file is its base, byte for byte. No existing line of app code is rewritten.
-// How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
+// How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports but the written-out list of the committed art (studio-voice-call-art-files.mjs), nothing read from disk or git here.
+import { VOICE_CALL_ART_FILES } from './studio-voice-call-art-files.mjs'
+export { VOICE_CALL_ART_FILES }
 
 export const BASE_COMMIT = 'abf52d4d4858b24cdb62549325ae5b9eed36624e' // origin/studio-v4-dev-preparation-code (#554 merged) at the start of this change
 export const VOICE_CALL_FLAGS = ['NEXT_PUBLIC_STUDIO_VOICE_CALL', 'NEXT_PUBLIC_STUDIO_VOICE_COMPANION']
@@ -48,7 +50,7 @@ export const VOICE_CALL_RETIRED_FILES = ['components/builder/voice-call/voice-ca
 export const VOICE_CALL_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', VOICE_CALL_CORE_STRIP_EDIT, ...VOICE_CALL_PUT_BACK_FILES]
 
 /** Every file this change's own commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
-export const VOICE_CALL_SCOPE_FILES = new Set([...VOICE_CALL_FILES, ...VOICE_CALL_NEW_FILES, ...VOICE_CALL_OWN_EDITS, ...VOICE_CALL_RETIRED_FILES])
+export const VOICE_CALL_SCOPE_FILES = new Set([...VOICE_CALL_FILES, ...VOICE_CALL_NEW_FILES, ...VOICE_CALL_OWN_EDITS, ...VOICE_CALL_RETIRED_FILES, ...VOICE_CALL_ART_FILES, 'scripts/studio-voice-call-art-files.mjs'])
 
 /** The whole .env.example block (it follows ELEMENT-3's two lines, which hold NEXT_PUBLIC_STUDIO_VOICE_CALL=false). */
 export const VOICE_CALL_ENV_BLOCK = `# STUDIO VOICE CALL UI (FRONTEND-1, W6 P4-20). The flag is NEXT_PUBLIC_STUDIO_VOICE_CALL, on the line just above (it is ELEMENT-3's P4-19 line): the exact value "true" enables it; anything else, including unset, is off, and then nothing changes: no
@@ -61,9 +63,10 @@ export const VOICE_CALL_ENV_BLOCK = `# STUDIO VOICE CALL UI (FRONTEND-1, W6 P4-2
 # answers with its usual chat text and, in voice mode, payload.spoken and payload.companion_state. Only payload.spoken is said. Reduced motion draws one still per state.
 # Speech in and out is two same-origin routes that call model-router (never a vendor from the browser): POST /api/studio/voice/transcribe (multipart audio, label studio.voice_stt, answers {"text"}) and POST /api/studio/voice/speak
 # (JSON {"text","label":"studio.voice_tts"}, answers audio). Neither route exists yet (ELEMENT-3 / ROUTER-1).
-# STUDIO VOICE COMPANION: the character's pack folder under public/companions/ (bird layout: motion/manifest.json, a Face pack beside it for the audio call's disc, an optional scene image for the video call). Lower-case letters, digits and dashes, up to 32; anything else is the default. A missing or invalid pack
-# leaves a plain disc with initials. Garud delivers the packs; Bob is the first.
-NEXT_PUBLIC_STUDIO_VOICE_COMPANION="bob"
+# STUDIO VOICE COMPANION: the default character, the pack folder under public/companions/ (bird layout: motion/manifest.json, a Face pack beside it for the audio call's disc, an optional scene image for the video call; a pack may keep its
+# companion clips in motion/companion.json, which is merged in). Lower-case letters, digits and dashes, up to 32; anything else is the default. Felix (the default) and Bob are committed, and a person switches between them in the call
+# (one tap on the character's name in its top bar; remembered on that device, localStorage). A missing or invalid pack leaves a plain disc with initials.
+NEXT_PUBLIC_STUDIO_VOICE_COMPANION="felix"
 `
 
 /** A commit of this change: its subject starts "Voice call:" (the older scope proofs that read first-parent subjects leave these out). */

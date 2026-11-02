@@ -3,8 +3,8 @@
 import React, { useEffect, useRef, useState } from 'react'
 import type { BirdMotionManifest } from '@/lib/studio/voice/bird-motion'
 import {
-  BLINK_EVERY_MS, clipsForScene, framedWidth, framingRect, initialsFor, mouthShapeIndex, nextDelayMs, planPoseAt, scenePlan, stepFrameIndex, stillFrameIndex, clipDurationSec,
-  type ClipLike, type CompanionScene, type FramingRect,
+  BLINK_EVERY_MS, clipsForScene, framedWidth, framingRect, initialsFor, mergeCompanionCatalog, mouthShapeIndex, needsCompanionCatalog, nextDelayMs, planPoseAt, scenePlan, stepFrameIndex, stillFrameIndex, clipDurationSec,
+  type ClipLike, type CompanionScene, type FramingRect, type RawCatalog,
 } from '@/lib/studio-voice-call-ui'
 
 /**
@@ -35,6 +35,17 @@ async function fetchJson(url: string): Promise<unknown> {
   return response.json()
 }
 
+/** One manifest, parsed by the core. A pack that keeps its companion clips in a second catalog next to it (companion.json: Bob's) has it merged in; one that has them all (Felix's) is read once. A catalog that cannot be read or does not parse leaves the base, and the core's fallbacks stand in for the clips it lacks. */
+async function loadManifest(core: typeof import('@/lib/studio/voice/bird-motion'), url: string): Promise<BirdMotionManifest> {
+  const raw = (await fetchJson(url)) as RawCatalog
+  if (needsCompanionCatalog(raw)) {
+    try {
+      return core.parseBirdMotionManifest(mergeCompanionCatalog(raw, (await fetchJson(url.replace(/[^/]*$/, 'companion.json'))) as RawCatalog))
+    } catch { /* the base alone */ }
+  }
+  return core.parseBirdMotionManifest(raw)
+}
+
 /** The pack's manifest (the Face pack for the disc when the pack has one and it loads), parsed by the core. null when there is no pack here. */
 function loadPack(pack: string, framing: 'disc' | 'chest'): Promise<LoadedPack | null> {
   const key = `${pack}:${framing}`
@@ -44,14 +55,14 @@ function loadPack(pack: string, framing: 'disc' | 'chest'): Promise<LoadedPack |
       try {
         const core = await import('@/lib/studio/voice/bird-motion')
         const root = `/companions/${pack}/motion/`
-        const main = core.parseBirdMotionManifest(await fetchJson(`${root}manifest.json`))
+        const main = await loadManifest(core, `${root}manifest.json`)
         const make = (manifest: BirdMotionManifest, base: string): LoadedPack => {
           const cache = new Map<string, string>()
           return { manifest, base, resolve: name => { let hit = cache.get(name); if (!hit) { hit = core.resolveCompanionClip(manifest, name); cache.set(name, hit) } return hit } }
         }
         if (framing === 'disc' && main.face) {
           try {
-            const face = core.parseBirdMotionManifest(await fetchJson(`${root}${main.face.manifest}`))
+            const face = await loadManifest(core, `${root}${main.face.manifest}`)
             return make(face, `${root}${main.face.manifest.replace(/[^/]*$/, '')}`)
           } catch { /* the Face pack is optional: the full pack is cropped instead */ }
         }
@@ -173,6 +184,11 @@ export function CompanionPlayer({ pack, scene, dance, framing, size, reducedMoti
       const pose = planPoseAt(plan, clipOf, (now - sceneStart) / 1000)
       const clip = clipOf(pose.clip)
       if (pose.mode === 'talk') {
+        // an emphasis now and then while it speaks (the mouth is still for the moment it takes)
+        if (plan.accent) {
+          if (nextAccent === null) nextAccent = now + nextDelayMs(plan.accent.everyMs, Math.random())
+          else if (now >= nextAccent) { overlay = { clip: plan.accent.clip, reverse: plan.accent.reverse, start: now }; nextAccent = now + nextDelayMs(plan.accent.everyMs, Math.random()) }
+        }
         const index = mouthShapeIndex(live.current.getLevel(), (now - sceneStart) / 1000, clip.fps)
         return { id: clip.frames[Math.min(index, clip.frames.length - 1)]!, clip: clipName(pose.clip) }
       }

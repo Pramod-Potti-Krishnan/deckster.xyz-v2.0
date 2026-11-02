@@ -18,9 +18,35 @@ export function voiceCallFlagOn(value: string | undefined): boolean {
 }
 
 /** A pack name is a folder under public/companions/: lower-case letters, digits and dashes only, so it can never walk out of that folder. Anything else is the default. */
-export const DEFAULT_COMPANION = 'bob'
+export const DEFAULT_COMPANION = 'felix'
 export function companionNameFrom(value: string | undefined): string {
   return typeof value === 'string' && /^[a-z0-9][a-z0-9-]{0,31}$/.test(value) ? value : DEFAULT_COMPANION
+}
+/** The characters a person can switch between (their packs are committed under public/companions/): Felix, the default, and Bob. The build's own default (NEXT_PUBLIC_STUDIO_VOICE_COMPANION) is always one of them. */
+export const COMPANION_CHOICES: readonly string[] = ['felix', 'bob']
+export const COMPANION_STORAGE_KEY = 'deckster.studio.voiceCompanion'
+export function companionChoices(fallback: string): string[] {
+  return [...new Set([fallback, ...COMPANION_CHOICES])]
+}
+/** What a device remembers (localStorage, read inside try/catch: a private window, blocked site data or no storage at all is simply the default). Only a character that is on offer is believed. */
+export interface CompanionStorage { getItem(key: string): string | null; setItem(key: string, value: string): void }
+export function readCompanionChoice(storage: CompanionStorage | null | undefined, fallback: string): string {
+  try {
+    const stored = storage?.getItem(COMPANION_STORAGE_KEY)
+    return typeof stored === 'string' && companionChoices(fallback).includes(stored) ? stored : fallback
+  } catch { return fallback }
+}
+export function writeCompanionChoice(storage: CompanionStorage | null | undefined, name: string, fallback: string): boolean {
+  try {
+    if (!storage || !companionChoices(fallback).includes(name)) return false
+    storage.setItem(COMPANION_STORAGE_KEY, name)
+    return true
+  } catch { return false }
+}
+/** The other character: the one after `current` in the list on offer (back to the first at the end). One tap on the call's character switch. */
+export function nextCompanion(current: string, choices: readonly string[]): string {
+  const at = choices.indexOf(current)
+  return choices.length ? choices[(at + 1) % choices.length]! : current
 }
 
 export const STUDIO_VOICE_CALL_UI_ENABLED = voiceCallFlagOn(process.env.NEXT_PUBLIC_STUDIO_VOICE_CALL)
@@ -387,7 +413,8 @@ export interface ScenePlan {
   still: { clip: string; at: 'first' | 'hold' | 'last' }
 }
 
-const talkPlan: ScenePlan = { steps: [{ clip: 'talk_neutral', mode: 'talk' }], accent: null, blink: false, still: { clip: 'talk_neutral', at: 'first' } }
+/** While it speaks, now and then a small emphasis (the pack's `emphasis`; a pack without it nods): the mouth stops for the moment it takes. */
+const talkPlan: ScenePlan = { steps: [{ clip: 'talk_neutral', mode: 'talk' }], accent: { clip: 'emphasis', reverse: false, everyMs: [7000, 11000] }, blink: false, still: { clip: 'talk_neutral', at: 'first' } }
 
 /** Garud's "Director states -> clips" table. `dance` adds the dance to a celebration (it falls back to nothing when a pack has none). */
 export function scenePlan(scene: CompanionScene, opts: { dance?: boolean } = {}): ScenePlan {
@@ -421,6 +448,22 @@ export function clipsForScene(scene: CompanionScene): string[] {
 }
 
 export const clipDurationSec = (clip: ClipLike): number => (clip.fps > 0 ? clip.frames.length / clip.fps : 0)
+
+/**
+ * A pack may keep its companion clips (lean_in, work_loop, invite, hold, point_*, emphasis, shrug, thank_you ...) in a second catalog, motion/companion.json (Bob does; Felix has all 62 clips in the one manifest).
+ * The base is loaded first and the companion catalog is merged in only when the base lacks `lean_in`: the base's clips and frames win, the catalog adds the ones the base does not have. The sum of the two
+ * over-counts the bytes (they share their frames), and Garud states the combined set is under 8 MiB, so the combined size is capped at the pack's budget. Pure; a catalog that is not an object leaves the base alone.
+ */
+export interface RawCatalog { totalBytes?: number; packBudgetMiB?: number; uniqueFrames?: number; frames?: Record<string, unknown>; clips?: Record<string, unknown> }
+export const needsCompanionCatalog = (raw: RawCatalog | null | undefined): boolean => !!raw && typeof raw === 'object' && !!raw.clips && !raw.clips.lean_in
+export function mergeCompanionCatalog<T extends RawCatalog>(base: T, companion: RawCatalog | null | undefined): T {
+  if (!companion || typeof companion !== 'object' || !companion.frames || !companion.clips || !base.frames || !base.clips) return base
+  const frames = { ...companion.frames, ...base.frames }
+  const clips = { ...companion.clips, ...base.clips }
+  const budget = Number.isInteger(base.packBudgetMiB) ? Math.min(8, Math.max(6, base.packBudgetMiB as number)) : 8
+  const bytes = Math.min(budget * 1024 * 1024, (base.totalBytes ?? 0) + (companion.totalBytes ?? 0))
+  return { ...base, frames, clips, uniqueFrames: Object.keys(frames).length, totalBytes: bytes, packBudgetMiB: budget }
+}
 
 /** The frame of one step `elapsed` seconds in: once runs to its last frame, hold runs to the clip's hold frame (or its last) and stays, loop repeats the clip's loop range (or all of it). */
 export function stepFrameIndex(clip: ClipLike, mode: 'once' | 'loop' | 'hold', elapsedSec: number): number {

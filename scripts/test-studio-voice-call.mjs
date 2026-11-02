@@ -96,11 +96,11 @@ function uiSuite(ui, over = {}) {
     eq(loadUi(over, value === undefined ? {} : { NEXT_PUBLIC_STUDIO_VOICE_CALL: value }).STUDIO_VOICE_CALL_UI_ENABLED, want, `flag: ${label}`)
   }
   eq(ui.voiceCallFlagOn('true'), true, 'flag fn: true'); eq(ui.voiceCallFlagOn(undefined), false, 'flag fn: unset')
-  for (const [value, want] of [[undefined, 'bob'], ['', 'bob'], ['bob', 'bob'], ['deckster-owl', 'deckster-owl'], ['Bob', 'bob'], ['../etc', 'bob'], ['a/b', 'bob'], ['-x', 'bob'], ['x'.repeat(33), 'bob'], ['x'.repeat(32), 'x'.repeat(32)], ['b o b', 'bob'], ['bob.webp', 'bob']]) {
+  for (const [value, want] of [[undefined, 'felix'], ['', 'felix'], ['bob', 'bob'], ['felix', 'felix'], ['deckster-owl', 'deckster-owl'], ['Bob', 'felix'], ['../etc', 'felix'], ['a/b', 'felix'], ['-x', 'felix'], ['x'.repeat(33), 'felix'], ['x'.repeat(32), 'x'.repeat(32)], ['b o b', 'felix'], ['bob.webp', 'felix']]) {
     eq(ui.companionNameFrom(value), want, `companion name: ${String(value).slice(0, 20)}`)
   }
   eq(loadUi(over, { NEXT_PUBLIC_STUDIO_VOICE_COMPANION: 'toy-1' }).STUDIO_VOICE_COMPANION, 'toy-1', 'companion: read from the environment')
-  eq(loadUi(over, {}).STUDIO_VOICE_COMPANION, 'bob', 'companion: default')
+  eq(loadUi(over, {}).STUDIO_VOICE_COMPANION, 'felix', 'companion: default is Felix')
 
   // -- the voice turn on the wire ----------------------------------------------------------------------------------------------------------
   eq([ui.voiceCallBus.frame, ui.voiceCallBus.sent, ui.voiceCallBus.pending], [null, null, null], 'bus: empty at rest')
@@ -332,6 +332,28 @@ function uiSuite(ui, over = {}) {
     eq([ui.ringLevel(0), ui.ringLevel(-1), ui.ringLevel(NaN), ui.ringLevel(0.1), ui.ringLevel(0.2), ui.ringLevel(0.333), ui.ringLevel(0.5), ui.ringLevel(9)], [0, 0, 0, 0.4, 0.8, 1, 1, 1], 'ring: a quiet voice (0.05 to 0.3) is most of the ring, clamped to 0..1, two decimals')
     eq([ui.TAP_TALK_MS, ui.LATCH_MAX_MS], [300, 60000], 'talk: a press under 300 ms is a tap (it latches); a latch left on is sent after a minute')
     eq([ui.MUTE_LABEL, ui.UNMUTE_LABEL], ['Mute microphone', 'Unmute microphone'], 'mute: named')
+    // the character: Felix by default, Bob the alternative, remembered per device
+    eq([ui.DEFAULT_COMPANION, ui.COMPANION_CHOICES, ui.COMPANION_STORAGE_KEY], ['felix', ['felix', 'bob'], 'deckster.studio.voiceCompanion'], 'character: Felix is the default, Bob the alternative')
+    eq([ui.companionChoices('felix'), ui.companionChoices('bob'), ui.companionChoices('deckster-owl')], [['felix', 'bob'], ['bob', 'felix'], ['deckster-owl', 'felix', 'bob']], 'character: the build\'s default is always on offer, then Felix and Bob, none twice')
+    const store = (initial = {}) => { const data = { ...initial }; return { data, getItem: key => (key in data ? data[key] : null), setItem: (key, value) => { data[key] = value } } }
+    eq([ui.readCompanionChoice(store(), 'felix'), ui.readCompanionChoice(store({ 'deckster.studio.voiceCompanion': 'bob' }), 'felix'), ui.readCompanionChoice(store({ 'deckster.studio.voiceCompanion': 'felix' }), 'felix')], ['felix', 'bob', 'felix'], 'character: a device\'s choice is read, else the default')
+    eq([ui.readCompanionChoice(store({ 'deckster.studio.voiceCompanion': '../etc' }), 'felix'), ui.readCompanionChoice(store({ 'deckster.studio.voiceCompanion': 'toy' }), 'felix'), ui.readCompanionChoice(store({ 'deckster.studio.voiceCompanion': 7 }), 'felix'), ui.readCompanionChoice(null, 'felix'), ui.readCompanionChoice(undefined, 'bob')], ['felix', 'felix', 'felix', 'felix', 'bob'], 'character: a stored name that is not on offer is not believed; no storage is the default')
+    eq(ui.readCompanionChoice({ getItem() { throw new Error('blocked') }, setItem() {} }, 'felix'), 'felix', 'character: storage that throws is the default (a private window, blocked site data)')
+    const kept = store(); eq([ui.writeCompanionChoice(kept, 'bob', 'felix'), kept.data], [true, { 'deckster.studio.voiceCompanion': 'bob' }], 'character: the choice is written')
+    eq([ui.writeCompanionChoice(kept, 'toy', 'felix'), ui.writeCompanionChoice(null, 'bob', 'felix'), ui.writeCompanionChoice({ getItem: () => null, setItem() { throw new Error('quota') } }, 'bob', 'felix'), kept.data], [false, false, false, { 'deckster.studio.voiceCompanion': 'bob' }], 'character: only a character on offer is written, and a write that fails is not an error')
+    eq([ui.nextCompanion('felix', ['felix', 'bob']), ui.nextCompanion('bob', ['felix', 'bob']), ui.nextCompanion('owl', ['felix', 'bob']), ui.nextCompanion('x', []), ui.nextCompanion('a', ['a'])], ['bob', 'felix', 'felix', 'x', 'a'], 'character: one tap goes to the next, round the list (one that is not on offer goes to the first)')
+    // a companion catalog (Bob's motion/companion.json) is merged into the base only when the base lacks lean_in
+    const baseCatalog = { version: 1, bird: 'bob', packBudgetMiB: 8, totalBytes: 6000000, uniqueFrames: 2, neutral: 'neutral', frames: { neutral: { src: 'neutral.webp' }, a: { src: 'a.webp' } }, clips: { idle_breathe: { frames: ['neutral'], fps: 4 }, nod: { frames: ['a'], fps: 4 } } }
+    const companionCatalog = { totalBytes: 4700000, frames: { neutral: { src: 'OTHER.webp' }, lean_1: { src: 'lean_1.webp' } }, clips: { idle_breathe: { frames: ['neutral'], fps: 9 }, lean_in: { frames: ['lean_1'], fps: 6 } } }
+    eq([ui.needsCompanionCatalog(baseCatalog), ui.needsCompanionCatalog({ clips: { lean_in: {} } }), ui.needsCompanionCatalog({}), ui.needsCompanionCatalog(null), ui.needsCompanionCatalog(undefined), ui.needsCompanionCatalog('x')], [true, false, false, false, false, false], 'catalog: asked for only when the base has no lean_in (Felix\'s one manifest is never followed by a request)')
+    const merged = ui.mergeCompanionCatalog(baseCatalog, companionCatalog)
+    eq([Object.keys(merged.clips).sort(), Object.keys(merged.frames).sort(), merged.uniqueFrames, merged.frames.neutral.src, merged.clips.idle_breathe.fps], [['idle_breathe', 'lean_in', 'nod'], ['a', 'lean_1', 'neutral'], 3, 'neutral.webp', 4], 'catalog: the companion\'s clips and frames are added and the base\'s win')
+    eq([merged.totalBytes, merged.packBudgetMiB, merged.bird, merged.neutral], [8 * 1024 * 1024, 8, 'bob', 'neutral'], 'catalog: the combined size is capped at the budget (the two share their frames), the rest of the base is kept')
+    eq(ui.mergeCompanionCatalog({ ...baseCatalog, totalBytes: 1000 }, { ...companionCatalog, totalBytes: 2000 }).totalBytes, 3000, 'catalog: below the budget the sizes add')
+    eq([ui.mergeCompanionCatalog(baseCatalog, null) === baseCatalog, ui.mergeCompanionCatalog(baseCatalog, 'x') === baseCatalog, ui.mergeCompanionCatalog(baseCatalog, { clips: {} }) === baseCatalog, ui.mergeCompanionCatalog({ clips: {} }, companionCatalog) !== undefined], [true, true, true, true], 'catalog: one that is missing or not a catalog leaves the base as it is')
+    eq([ui.mergeCompanionCatalog({ ...baseCatalog, packBudgetMiB: 99 }, companionCatalog).packBudgetMiB, ui.mergeCompanionCatalog({ ...baseCatalog, packBudgetMiB: undefined }, companionCatalog).packBudgetMiB, ui.mergeCompanionCatalog({ ...baseCatalog, packBudgetMiB: 6 }, companionCatalog).totalBytes], [8, 8, 6 * 1024 * 1024], 'catalog: the pack\'s budget is 6 to 8 MiB, as the core\'s parser holds it')
+    eq(Object.keys(baseCatalog.clips), ['idle_breathe', 'nod'], 'catalog: the base is not changed')
+    eq(ui.scenePlan('speaking').accent, { clip: 'emphasis', reverse: false, everyMs: [7000, 11000] }, 'clips: while it speaks, an emphasis now and then'); eq(ui.clipsForScene('speaking'), ['talk_neutral', 'emphasis'], 'clips: ...which is asked for early')
   }
 }
 
@@ -888,8 +910,8 @@ async function stageSuiteBody(over = {}) {
   const stage = loadStage()
   const base = { active: true, starting: false, phase: 'idle', scene: 'idle', chip: 'Your turn', dance: false, caption: null, progress: null, notice: null, mode: 'audio', muted: false, reducedMotion: false, holding: false, latched: false, transcript: [], controls: { talk: true, stop: false, mute: true, end: true } }
   const calls = []
-  const props = snapshot => ({ snapshot: { ...base, ...snapshot }, pack: 'bob', getLevel: () => 0, onTalkPress: () => calls.push('press'), onTalkRelease: () => calls.push('release'), onStop: () => calls.push('stop'), onMute: muted => calls.push(`mute:${muted}`), onEnd: () => calls.push('end'), onRetry: () => calls.push('retry'), onDismissNotice: () => calls.push('dismiss') })
-  const html = (snapshot, mod = stage) => renderToStaticMarkup(React.createElement(mod.VoiceCallStage, props(snapshot)))
+  const props = (snapshot, extra = {}) => ({ snapshot: { ...base, ...snapshot }, pack: 'bob', choices: ['felix', 'bob'], onChooseCompanion: () => calls.push('character'), ...extra, getLevel: () => 0, onTalkPress: () => calls.push('press'), onTalkRelease: () => calls.push('release'), onStop: () => calls.push('stop'), onMute: muted => calls.push(`mute:${muted}`), onEnd: () => calls.push('end'), onRetry: () => calls.push('retry'), onDismissNotice: () => calls.push('dismiss') })
+  const html = (snapshot, mod = stage, extra = {}) => renderToStaticMarkup(React.createElement(mod.VoiceCallStage, props(snapshot, extra)))
   const { toElements } = mini
   const hostNodes = (node, pred, out = []) => { if (!node) return out; if (node.t === 'host' && pred(node)) out.push(node); if (node.t === 'comp') hostNodes(node.child, pred, out); else if (node.children) for (const child of node.children) hostNodes(child, pred, out); return out }
   const settleRoot = async rootNode => { for (let i = 0; i < 30; i++) { await macro(); if (!rootNode.flush()) break } }
@@ -903,6 +925,11 @@ async function stageSuiteBody(over = {}) {
   ok(/aria-label="Stop"[^>]*disabled|disabled=""[^>]*aria-label="Stop"/.test(idle) && !/aria-label="Hold to talk"[^>]*disabled/.test(idle) && !/disabled=""[^>]*aria-label="Hold to talk"/.test(idle) && !/disabled=""[^>]*aria-label="Mute microphone"/.test(idle), 'stage: Stop is off in your turn, the talk button and Mute are on')
   ok(idle.includes('data-voice-transcript="open"') && idle.includes('role="log"') && idle.includes('What you and the companion say will appear here.') && idle.includes('aria-expanded="true"'), 'stage: the transcript is shown by default (empty, it says what it is for)')
   ok(!idle.includes('--voice-scene-art') && idle.includes('data-voice-art="gradient"'), 'stage: no scene art: the token gradient')
+  // the character switch: the companion's name in the top bar; one tap goes to the next
+  ok(idle.includes('data-studio-voice-character="bob"') && idle.includes('aria-label="Character: Bob. Switch to Felix"') && idle.includes('title="Switch to Felix"') && />Bob<\/button>/.test(idle), 'character: the top bar names the companion and offers the other one')
+  ok(html({}, stage, { pack: 'felix' }).includes('aria-label="Character: Felix. Switch to Bob"') && html({}, stage, { pack: 'felix' }).includes('data-pack="felix"'), 'character: Felix is switched to Bob, and the player is given Felix\'s pack')
+  ok(!html({}, stage, { choices: ['bob'] }).includes('studio-voice-pack') && !html({}, stage, { choices: [] }).includes('studio-voice-pack'), 'character: with no other character there is no switch')
+  ok(html({}).indexOf('studio-voice-pack') < html({}).indexOf('aria-label="Stop"'), 'character: the switch is first of the top bar\'s tools')
   // a video call
   const video = html({ mode: 'video' })
   ok(video.includes('data-voice-mode="video"') && video.includes('aria-label="Video call"') && video.includes('data-framing="chest"') && video.includes('data-size="240"') && video.includes('studio-voice-actor') && !video.includes('studio-voice-ring') && !video.includes('studio-voice-halo'), 'stage: video: the pack\'s chest view large in its scene, no level ring (the size follows the call\'s measured height: 240 before it is measured)')
@@ -943,11 +970,11 @@ async function stageSuiteBody(over = {}) {
     const rootNode = await mount({ controls: { talk: true, stop: true, mute: true, end: true } })
     const byLabel = label => hostNodes(rootNode.tree, node => node.props?.['aria-label'] === label)[0]
     calls.length = 0
-    byLabel('Stop').props.onClick(); byLabel('Mute microphone').props.onClick(); byLabel('End call').props.onClick()
+    byLabel('Character: Bob. Switch to Felix').props.onClick(); byLabel('Stop').props.onClick(); byLabel('Mute microphone').props.onClick(); byLabel('End call').props.onClick()
     const talkButton = byLabel('Hold to talk')
     const ev = { preventDefault() {}, pointerId: 1, currentTarget: { setPointerCapture() {}, releasePointerCapture() {} } }
     talkButton.props.onPointerDown(ev); talkButton.props.onPointerUp(ev); talkButton.props.onPointerDown(ev); talkButton.props.onPointerCancel()
-    eq(calls, ['stop', 'mute:true', 'end', 'press', 'release', 'press', 'release'], 'controls: Stop, Mute (to muted), End, and the talk button\'s press and release (up or cancelled) reach the call')
+    eq(calls, ['character', 'stop', 'mute:true', 'end', 'press', 'release', 'press', 'release'], 'controls: the character switch, Stop, Mute (to muted), End, and the talk button\'s press and release (up or cancelled) reach the call')
     let prevented = 0; talkButton.props.onKeyDown({ key: ' ', preventDefault: () => { prevented++ } }); talkButton.props.onKeyDown({ key: 'a', preventDefault: () => { prevented++ } }); eq(prevented, 1, 'controls: Space on the talk button does not click it (the page\'s Space handler talks)')
     rootNode.unmount()
     const m = await mount({ muted: true }); calls.length = 0; hostNodes(m.tree, node => node.props?.['aria-label'] === 'Unmute microphone')[0].props.onClick(); eq(calls, ['mute:false'], 'controls: when muted the button unmutes'); m.unmount()
@@ -972,6 +999,20 @@ async function stageSuiteBody(over = {}) {
   }
   const phoneHtml = await phoneStage(true), deskHtml = await phoneStage(false)
   ok(phoneHtml.includes('data-voice-phone="true"') && phoneHtml.includes('data-size="148"') && deskHtml.includes('data-voice-phone="false"') && deskHtml.includes('data-size="176"'), 'stage: a phone gets the 148 px disc, a desktop the 176 px one')
+  // a phone: the stage is drawn as a child of the shell itself, above the shell's own chrome (a desktop keeps it in the chat column)
+  {
+    const portalStage = makeHost({ env: ENV_ON, over, stubs: { './companion-player': { CompanionPlayer: fakePlayer }, 'react-dom': { createPortal: (child, target) => React.createElement('div', { 'data-portal': target.id }, child) } } }).load(STAGE)
+    const withDocument = async (matches, shell) => {
+      const prevWindow = globalThis.window
+      globalThis.window = { matchMedia: () => ({ matches, addEventListener() {}, removeEventListener() {} }) }
+      globalThis.document = { querySelector: selector => (selector === '[data-studio-v4-shell="true"]' ? shell : null) }
+      try { const rootNode = await mount({}, portalStage); const out = markup(rootNode); rootNode.unmount(); return out } finally { globalThis.window = prevWindow; delete globalThis.document }
+    }
+    const onPhone = await withDocument(true, { id: 'the-shell' }), onDesk = await withDocument(false, { id: 'the-shell' }), noShell = await withDocument(true, null)
+    ok(onPhone.includes('data-portal="the-shell"') && onPhone.includes('data-voice-phone="true"') && onPhone.includes('data-studio-voice-call="stage"'), 'phone: the stage is a child of the shell (above its tab bar and logo)')
+    ok(!onDesk.includes('data-portal') && onDesk.includes('data-voice-phone="false"'), 'phone: a desktop keeps the stage in the chat column')
+    ok(!noShell.includes('data-portal') && noShell.includes('data-studio-voice-call="stage"'), 'phone: with no shell found it stays where it is')
+  }
   // the character's scene: the pack's own image when it has one, else the gradient
   const sceneWorld = async (manifest, have, snapshot = { mode: 'video' }) => {
     const asked = []
@@ -1039,6 +1080,8 @@ async function hookSuite(over = {}) {
   }
   const listeners = []
   const win = { addEventListener: (type, fn) => listeners.push(['add', type, fn]), removeEventListener: (type, fn) => listeners.push(['remove', type, fn]) }
+  let deviceStore = null // what window.localStorage is: a store, null (none) or 'throws' (blocked site data)
+  Object.defineProperty(win, 'localStorage', { get() { if (deviceStore === 'throws') throw new Error('SecurityError'); return deviceStore }, configurable: true })
   globalThis.window = win
   const run = async (world, opts) => {
     let latest = null
@@ -1071,7 +1114,19 @@ async function hookSuite(over = {}) {
     // a call is on: the stage is drawn from the snapshot, the composer is told to hide, Space talks
     on.calls.snapshot = { active: true, starting: false, notice: null, mode: 'video', muted: false }; await onRun.set({})
     const live = onRun.latest(), stageEl = live.dock
-    eq([live.composerProps.active, typeof stageEl?.type, stageEl?.props.pack, stageEl?.props.snapshot === on.calls.snapshot], [true, 'function', 'bob', true], 'hook: a call is on: the stage is drawn (the companion\'s pack) and the composer is told to hide')
+    eq([live.composerProps.active, typeof stageEl?.type, stageEl?.props.pack, stageEl?.props.choices, stageEl?.props.snapshot === on.calls.snapshot], [true, 'function', 'felix', ['felix', 'bob'], true], 'hook: a call is on: the stage is drawn (Felix, the default character) and the composer is told to hide')
+    // the character: one tap switches, the device remembers (localStorage), a device that cannot remember still switches for the session
+    {
+      const kept = {}; deviceStore = { getItem: key => (key in kept ? kept[key] : null), setItem: (key, value) => { kept[key] = value } }
+      await onRun.set({}); on.calls.snapshot = { ...on.calls.snapshot }; await onRun.set({})
+      onRun.latest().dock.props.onChooseCompanion(); await onRun.set({})
+      eq([onRun.latest().dock.props.pack, kept['deckster.studio.voiceCompanion']], ['bob', 'bob'], 'hook: one tap on the character switch: Bob, and it is stored on the device')
+      onRun.latest().dock.props.onChooseCompanion(); await onRun.set({})
+      eq([onRun.latest().dock.props.pack, kept['deckster.studio.voiceCompanion']], ['felix', 'felix'], 'hook: ...and one more goes back to Felix')
+      deviceStore = 'throws'; onRun.latest().dock.props.onChooseCompanion(); await onRun.set({})
+      eq(onRun.latest().dock.props.pack, 'bob', 'hook: blocked storage (it throws): the switch still works for the session')
+      deviceStore = null; onRun.latest().dock.props.onChooseCompanion(); await onRun.set({}); eq(onRun.latest().dock.props.pack, 'felix', 'hook: no storage at all: the same')
+    }
     on.calls.did.length = 0
     stageEl.props.onTalkPress(); stageEl.props.onTalkRelease(); stageEl.props.onStop(); stageEl.props.onMute(true); stageEl.props.onEnd(); stageEl.props.onDismissNotice(); stageEl.props.onRetry()
     eq([on.calls.did, on.calls.ended ?? 0], [[['press'], ['release'], ['stop'], ['mute', true], ['dismiss'], ['start', 'video']], 1], 'hook: the stage\'s controls reach the call (Try again starts the same kind of call)')
@@ -1093,6 +1148,14 @@ async function hookSuite(over = {}) {
     await onRun.set({ connected: false }); eq([on.calls.ended, o.isConnected()], [1, false], 'hook: ...and only a change of session ends it (the socket state is read live)')
     onRun.rootNode.unmount()
     eq([on.calls.disposed, on.ui.voiceCallBus.frame, on.ui.voiceCallBus.sent], [true, null, null], 'hook: unmounting disposes the controller and clears the bus')
+    // a device that chose Bob gets Bob at once; a blocked or foreign value is Felix
+    for (const [label, store, want] of [['Bob remembered', { 'deckster.studio.voiceCompanion': 'bob' }, 'bob'], ['a stranger is not believed', { 'deckster.studio.voiceCompanion': '../x' }, 'felix'], ['blocked storage', 'throws', 'felix'], ['no storage', null, 'felix']]) {
+      deviceStore = store && store !== 'throws' ? { getItem: key => (key in store ? store[key] : null), setItem() {} } : store
+      const w = mk(ENV_ON); const r = await run(w, { enabled: true, sendTurn: () => {}, sendAction: () => {}, sessionKey: 's1', connected: true })
+      w.calls.snapshot = { active: true, starting: false, notice: null, mode: 'audio' }; await r.set({})
+      eq(r.latest().dock.props.pack, want, `hook: ${label}: ${want}`); r.rootNode.unmount()
+    }
+    deviceStore = null
   } finally { delete globalThis.window }
 }
 
@@ -1163,8 +1226,8 @@ function sourceSuite(sources, { base = null } = {}) {
   ok(!/^import (?!type )[^\n]*voice-call-buttons/m.test(hook) && /import \{ VoiceCallButtons \}/.test(input), 'hook: the two buttons are the composer\'s own import (a few lines, no stylesheet)')
   // .env.example
   ok(env.endsWith(`\n${strip.VOICE_CALL_ENV_BLOCK}`) && strip.VOICE_CALL_ENV_BLOCK.endsWith('\n'), '.env.example: the block is the last thing in the file, after one blank line')
-  eq(lines(env).filter(line => line === 'NEXT_PUBLIC_STUDIO_VOICE_COMPANION="bob"').length, 1, '.env.example: the companion once, "bob"'); eq(lines(env).filter(line => /^NEXT_PUBLIC_STUDIO_VOICE_CALL=/.test(line)).length, 1, '.env.example: the call flag is on ELEMENT-3\'s one line, not repeated here')
-  ok(lines(strip.VOICE_CALL_ENV_BLOCK).filter(line => line && !line.startsWith('#') && line !== 'NEXT_PUBLIC_STUDIO_VOICE_COMPANION="bob"').length === 0, '.env.example: the block is comments and its one assignment')
+  eq(lines(env).filter(line => line === 'NEXT_PUBLIC_STUDIO_VOICE_COMPANION="felix"').length, 1, '.env.example: the companion once, "felix"'); eq(lines(env).filter(line => /^NEXT_PUBLIC_STUDIO_VOICE_CALL=/.test(line)).length, 1, '.env.example: the call flag is on ELEMENT-3\'s one line, not repeated here')
+  ok(lines(strip.VOICE_CALL_ENV_BLOCK).filter(line => line && !line.startsWith('#') && line !== 'NEXT_PUBLIC_STUDIO_VOICE_COMPANION="felix"').length === 0, '.env.example: the block is comments and its one assignment')
   ok(lines(env.slice(env.indexOf('# STUDIO VOICE CALL UI'))).every(line => !/exact "true" enables it/.test(line)), '.env.example: the block does not use the phrase older proofs read')
   if (base) {
     for (const rel of strip.VOICE_CALL_FILES) {
@@ -1192,12 +1255,15 @@ function sourceSuite(sources, { base = null } = {}) {
   ok(strip.stripVoiceCall(PAGE, 42) === 42, 'strip: not text comes back as it is')
   ok(sources[BROWSER].includes('blob: await toWav(heard, context)') && sources[BROWSER].includes('encodeWavPcm16(resampleLinear(mixToMono(channels), decoded.sampleRate, VOICE_WAV_RATE), VOICE_WAV_RATE)') && sources[BROWSER].includes("type: 'audio/wav'"), 'browser: what was recorded is decoded, mixed to mono, brought to 16 kHz and sent as WAV (ROUTER-1: hearing takes base64 WAV)')
   ok(sources[PLAYER].includes('const width = framedWidth(framing, size, rect)'), 'player: its width is the lib\'s (the disc is a square, the chest as wide as its crop)')
+  ok(sources[PLAYER].includes('const main = await loadManifest(core, `${root}manifest.json`)') && sources[PLAYER].includes('const face = await loadManifest(core, `${root}${main.face.manifest}`)') && sources[PLAYER].includes("url.replace(/[^/]*$/, 'companion.json')") && sources[PLAYER].includes('if (needsCompanionCatalog(raw))') && sources[PLAYER].includes('core.resolveCompanionClip(manifest, name)'), 'player: the whole character and its Face pack both read their companion catalog when the base lacks the companion clips, and every clip is resolved through the core (a pack without one falls back)')
+  ok(/if \(plan\.accent\) \{[\s\S]{0,260}overlay = \{ clip: plan\.accent\.clip[\s\S]{0,400}mouthShapeIndex\(/.test(sources[PLAYER]), 'player: an accent can play while it speaks (before the mouth is drawn)')
   // the stylesheet: nothing global, nothing that reaches an element without the call's own attributes
   const css = sources[CSS]
-  const keyed = line => line.slice(0, line.indexOf('{')).split(',').every(part => part.includes('[data-studio-voice-call="'))
+  const selectorParts = selector => { const out = []; let depth = 0, cur = ''; for (const ch of selector) { if (ch === '(') depth++; if (ch === ')') depth--; if (ch === ',' && depth === 0) { out.push(cur); cur = '' } else cur += ch } out.push(cur); return out }
+  const keyed = line => selectorParts(line.slice(0, line.indexOf('{'))).every(part => part.includes('[data-studio-voice-call="'))
   ok(lines(css).filter(line => /^[^\s@/}]/.test(line) && !keyed(line)).length === 0, 'css: every rule is keyed to the call\'s own attribute')
   ok(!/\[data-studio-v4-send\]/.test(css) && !/(^|\n)(html|body|button|\*)\b/.test(css), 'css: nothing reaches Send or any element the call does not own')
-  ok(/@media \(max-width: 767px\)[\s\S]*position: fixed; inset: 0/.test(css) && /studio-voice-start-word \{ display: inline; \}/.test(css) && /\[data-studio-chat-clean\] \[data-studio-v4-composer-toolbar\] button\[data-studio-voice-call="button"\]\[data-voice-mode\] \{ width: 24px; height: 24px/.test(css) && /flex: 0 0 20%/.test(css), 'css: the stage is the whole screen on a phone, the buttons are the chat-clean 24 px square beside Send (a word on each on a phone), the transcript is a fifth')
+  ok(/@media \(max-width: 767px\)[\s\S]*position: fixed; inset: 0; z-index: 200/.test(css) && /studio-voice-start-word \{ display: inline; \}/.test(css) && /\[data-studio-chat-clean\] \[data-studio-v4-composer-toolbar\] button\[data-studio-voice-call="button"\]\[data-voice-mode\] \{ width: 24px; height: 24px/.test(css) && /flex: 0 0 20%/.test(css), 'css: the stage is the whole screen on a phone, the buttons are the chat-clean 24 px square beside Send (a word on each on a phone), the transcript is a fifth')
   ok(/prefers-reduced-motion: reduce/.test(css) && /max-width: 767px/.test(css), 'css: reduced motion and the phone layout are there')
 }
 
@@ -1229,7 +1295,6 @@ if (baseOk) {
   if (OWN.length > 0) {
     const changed = new Set(OWN.flatMap(sha => git('show', '--name-only', '--format=', sha).split('\n').filter(Boolean)))
     eq([...changed].filter(rel => !strip.VOICE_CALL_SCOPE_FILES.has(rel)).sort(), [], 'scope: every file of this change\'s own commits is this change\'s')
-    ok([...changed].every(rel => !rel.startsWith('public/companions/')), 'scope: no companion art is committed (Garud delivers the packs)')
     for (const rel of strip.VOICE_CALL_FILES) {
       // the lines of the base, read past the other registered changes (the merged core's own marked lines), must all be in the file, in order, and every other line must carry this change's marker
       const was = othersOut(registry, rel, baseSources[rel]).split('\n'), now = othersOut(registry, rel, git('show', `HEAD:${rel}`)).split('\n')
@@ -1249,7 +1314,27 @@ if (baseOk) {
   for (const rel of strip.VOICE_CALL_NEW_FILES) ok(fs.existsSync(path.join(root, rel)), `scope: ${rel} exists`)
   for (const rel of strip.VOICE_CALL_RETIRED_FILES) ok(!fs.existsSync(path.join(root, rel)) && strip.VOICE_CALL_SCOPE_FILES.has(rel) && !strip.VOICE_CALL_NEW_FILES.includes(rel), `scope: ${rel} is gone from the tree (the stage and the two buttons replaced it) and stays named for the history`)
   ok(strip.VOICE_CALL_FILES.every(rel => !strip.VOICE_CALL_NEW_FILES.includes(rel)), 'scope: marked and new files are different lists')
-  ok(!fs.existsSync(path.join(root, 'public/companions')) || !git('ls-files', 'public/companions').trim(), 'scope: no companion art is tracked')
+  // the committed art: Felix and Bob in Garud's bird layout, the runtime files only
+  {
+    const tracked = git('ls-files', 'public/companions').split('\n').filter(Boolean).sort()
+    eq(tracked, [...strip.VOICE_CALL_ART_FILES].sort(), 'art: the written-out list (scripts/studio-voice-call-art-files.mjs) is exactly what is tracked under public/companions')
+    const layout = /^public\/companions\/(felix|bob)\/(portrait-(256|512)\.webp|icon-(20|32|64|96)\.webp|blink-[12]\.webp|talk-[0-3]\.webp|motion\/[A-Za-z0-9_.\/-]+\.(webp|json)|video\/[A-Za-z0-9_.-]+\.webp)$/
+    eq(tracked.filter(rel => !layout.test(rel)), [], 'art: only the bird layout\'s runtime files (portraits, icons, blink and talk stills, motion/ with its Face pack and manifests, video/), no README, no review images, no scene')
+    for (const name of ['felix', 'bob']) for (const file of ['motion/manifest.json', 'motion/face/manifest.json', 'portrait-256.webp', 'icon-96.webp']) ok(tracked.includes(`public/companions/${name}/${file}`), `art: ${name} has ${file}`)
+    ok(tracked.includes('public/companions/bob/motion/companion.json') && tracked.includes('public/companions/bob/motion/face/companion.json') && !tracked.includes('public/companions/felix/motion/companion.json'), 'art: Bob keeps his companion clips in companion.json (the player merges it), Felix has all of his in the manifest')
+    const bytes = tracked.reduce((sum, rel) => sum + fs.statSync(path.join(root, rel)).size, 0)
+    ok(bytes > 20 * 1024 * 1024 && bytes < 30 * 1024 * 1024, `art: about 24 MiB in all (${(bytes / 1048576).toFixed(1)} MiB)`)
+    for (const name of ['felix', 'bob']) { const manifest = JSON.parse(fs.readFileSync(path.join(root, `public/companions/${name}/motion/manifest.json`), 'utf8')); eq([manifest.version, manifest.bird, typeof manifest.clips.idle_breathe, typeof manifest.clips.talk_neutral], [1, name, 'object', 'object'], `art: ${name}'s manifest is the bird layout's`) }
+    const felixManifest = JSON.parse(fs.readFileSync(path.join(root, 'public/companions/felix/motion/manifest.json'), 'utf8'))
+    eq(['lean_in', 'work_loop', 'look_down', 'one_moment', 'invite', 'hold', 'point_left', 'point_right', 'emphasis', 'shrug', 'thank_you', 'count', 'wave_both'].filter(name => !felixManifest.clips[name]), [], 'art: Felix has every companion clip (so the player never falls back for him)')
+    const bobManifest = JSON.parse(fs.readFileSync(path.join(root, 'public/companions/bob/motion/manifest.json'), 'utf8'))
+    ok(!bobManifest.clips.lean_in && !bobManifest.clips.emphasis, 'art: Bob\'s base manifest lacks the companion clips (they are in companion.json)')
+    const bobCatalog = JSON.parse(fs.readFileSync(path.join(root, 'public/companions/bob/motion/companion.json'), 'utf8'))
+    const bobMerged = (makeHost({ over: {} }).load(UI)).mergeCompanionCatalog(bobManifest, bobCatalog)
+    eq(['lean_in', 'work_loop', 'look_down', 'one_moment', 'invite', 'hold', 'point_left', 'point_right', 'emphasis', 'shrug', 'thank_you', 'wave_both'].filter(name => !bobMerged.clips[name]), [], 'art: merged, Bob has the clips he was delivered (only count falls back)')
+    eq([bobMerged.uniqueFrames, Object.keys(bobMerged.frames).length, bobMerged.totalBytes <= 8 * 1024 * 1024], [Object.keys(bobMerged.frames).length, Object.keys(bobMerged.frames).length, true], 'art: ...and the merged catalog\'s counts are the core parser\'s (uniqueFrames, size within the budget)')
+    ok(Object.values(bobMerged.frames).every(frame => fs.existsSync(path.join(root, 'public/companions/bob/motion', frame.src))), 'art: ...every frame of it is a file in the pack')
+  }
 } else console.log(`NOTE D  git has no ${strip.BASE_COMMIT.slice(0, 8)}: the base-identity and scope checks were skipped`)
 console.log(`PASS D  registry, strip identity, scope (${checks} checks)`)
 if (process.env.VOICE_TEST_SKIP_MUTANTS === '1') { release(); console.log(`SKIPPED E  mutants (VOICE_TEST_SKIP_MUTANTS=1); OK so far: ${checks} checks`); process.exit(0) }
@@ -1306,6 +1391,19 @@ const mutants = [
   [UI, 'the transcript never joins', 'if (join && last && last.who === who) return', 'if (false) return'],
   [UI, 'the transcript is unbounded', 'return next.length > max ? next.slice(next.length - max) : next', 'return next'],
   [UI, 'the transcript keeps the oldest', 'next.slice(next.length - max)', 'next.slice(0, max)'],
+  [UI, 'Felix is not the default', "export const DEFAULT_COMPANION = 'felix'", "export const DEFAULT_COMPANION = 'bob'"],
+  [UI, 'a stranger\'s character is believed', "return typeof stored === 'string' && companionChoices(fallback).includes(stored) ? stored : fallback", "return typeof stored === 'string' ? stored : fallback"],
+  [UI, 'blocked storage fails the read', "  } catch { return fallback }\n}\nexport function writeCompanionChoice", "  } catch (e) { throw e }\n}\nexport function writeCompanionChoice"],
+  [UI, 'any name is written', "if (!storage || !companionChoices(fallback).includes(name)) return false", "if (!storage) return false"],
+  [UI, 'a failed write is an error', "  } catch { return false }\n}\n/** The other character", "  } catch (e) { throw e }\n}\n/** The other character"],
+  [UI, 'the switch does not wrap', 'choices[(at + 1) % choices.length]!', 'choices[Math.min(at + 1, choices.length - 1)]!'],
+  [UI, 'the catalog is always asked for', '!!raw.clips && !raw.clips.lean_in', '!!raw.clips'],
+  [UI, 'the companion\'s frames win', 'const frames = { ...companion.frames, ...base.frames }', 'const frames = { ...base.frames, ...companion.frames }'],
+  [UI, 'the companion\'s clips win', 'const clips = { ...companion.clips, ...base.clips }', 'const clips = { ...base.clips, ...companion.clips }'],
+  [UI, 'the merged size is not capped', 'Math.min(budget * 1024 * 1024, (base.totalBytes ?? 0) + (companion.totalBytes ?? 0))', '(base.totalBytes ?? 0) + (companion.totalBytes ?? 0)'],
+  [UI, 'the merged frame count is stale', 'uniqueFrames: Object.keys(frames).length, totalBytes: bytes', 'uniqueFrames: base.uniqueFrames, totalBytes: bytes'],
+  [UI, 'the budget is not held to 6..8', 'Math.min(8, Math.max(6, base.packBudgetMiB as number))', '(base.packBudgetMiB as number)'],
+  [UI, 'the speaking scene has no emphasis', "accent: { clip: 'emphasis', reverse: false, everyMs: [7000, 11000] }, blink: false, still: { clip: 'talk_neutral', at: 'first' } }", "accent: null, blink: false, still: { clip: 'talk_neutral', at: 'first' } }"],
   [UI, 'a tap is a long press', 'export const TAP_TALK_MS = 300', 'export const TAP_TALK_MS = 0'],
   [UI, 'a latch is never sent', 'export const LATCH_MAX_MS = 60000', 'export const LATCH_MAX_MS = 6000000'],
   [UI, 'the talk button does not say Muted', "if (input.muted) return 'Muted'", "if (input.muted) return 'Hold to talk'"],
@@ -1425,6 +1523,10 @@ const mutants = [
   [HOOK, 'Try again starts another kind of call', 'void controller.startCall(controller.getSnapshot().mode)', 'void controller.startCall()'],
   [HOOK, 'the composer stays during a call', 'active: snapshot.active || snapshot.starting, busy', 'active: false, busy'],
   [HOOK, 'the stage is never drawn', 'const showDock = snapshot.active || snapshot.starting || !!snapshot.notice', 'const showDock = false'],
+  [HOOK, 'the choice is not stored', 'writeCompanionChoice(deviceStorage(), next, STUDIO_VOICE_COMPANION); ', ''],
+  [HOOK, 'the choice is not read', 'readCompanionChoice(deviceStorage(), STUDIO_VOICE_COMPANION)', 'STUDIO_VOICE_COMPANION'],
+  [HOOK, 'the switch does not switch', 'setCompanion(next) }', 'void 0 }'],
+  [HOOK, 'blocked storage breaks the page', 'try { return typeof window !== \'undefined\' ? window.localStorage : null } catch { return null }', 'return typeof window !== \'undefined\' ? window.localStorage : null'],
   [HOOK, 'the mute button does nothing', 'onMute: muted => controller.setMuted(muted)', 'onMute: () => {}'],
   [STAGE, 'the chip is not shown', '<span className="studio-voice-chip" data-chip={snapshot.chip} role="status"><i aria-hidden />{snapshot.chip}</span>', ''],
   [STAGE, 'video draws the disc', 'framing="chest" size={videoCharacterPx(height)}', 'framing="disc" size={videoCharacterPx(height)}'],
@@ -1452,6 +1554,12 @@ const mutants = [
   [STAGE, 'the manifest\'s scene is not read', 'file = sceneFileFrom(((await response.json()) as { scene?: unknown } | null)?.scene)', 'file = DEFAULT_SCENE_FILE'],
   [STAGE, 'a missing scene is shown', 'image.onerror = () => resolve(null)', 'image.onerror = () => resolve(url)'],
   [STAGE, 'the notice has no stage-less form', "if (!live) return noticeBlock ?", "if (false) return noticeBlock ?"],
+  [STAGE, 'the phone stage stays under the shell', 'const portalTo = phone ? shellRoot() : null', 'const portalTo = null'],
+  [STAGE, 'the desktop stage leaves the column', 'const portalTo = phone ? shellRoot() : null', 'const portalTo = shellRoot()'],
+  [STAGE, 'the phone is read after the first render', "useState(() => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(VOICE_PHONE_MEDIA).matches)", 'useState(false)'],
+  [STAGE, 'the switch is always shown', '{choices.length > 1 ? (', '{true ? ('],
+  [STAGE, 'the switch goes nowhere', 'onClick={onChooseCompanion}', 'onClick={() => {}}'],
+  [STAGE, 'the switch names the same character', 'Character: ${name}. Switch to ${companionName(nextCompanion(pack, choices))}', 'Character: ${name}. Switch to ${name}'],
   [STAGE, 'the status is always the hint', "snapshot.progress && !muted && !snapshot.starting ? 'studio-voice-progress' : 'studio-voice-hint'", "'studio-voice-hint'"],
   [STAGE, 'the muted status is lost', "muted ? MUTED_HINT : snapshot.progress", "snapshot.progress"],
   [STAGE, 'a notice has no way to retry', '{notice.retry ? <button type="button" onClick={onRetry}>Try again</button> : null}', ''],
@@ -1462,6 +1570,10 @@ const mutants = [
   [BUTTONS, 'a press takes the draft\'s focus', 'onMouseDown={event => event.preventDefault()}', 'onMouseDown={() => {}}'],
   [BUTTONS, 'only one button', 'CALL_MODES.map(mode', "CALL_MODES.slice(0, 1).map(mode"],
   [BUTTONS, 'the word shows on a desktop', 'studio-voice-start-word hidden', 'studio-voice-start-word'],
+  [PLAYER, 'the Face pack does not read its catalog', 'const face = await loadManifest(core, `${root}${main.face.manifest}`)', 'const face = core.parseBirdMotionManifest(await fetchJson(`${root}${main.face.manifest}`))'],
+  [PLAYER, 'the catalog is asked for every time', 'if (needsCompanionCatalog(raw)) {', 'if (true) {'],
+  [PLAYER, 'a catalog that fails fails the pack', '} catch { /* the base alone */ }', '} catch (e) { throw e }'],
+  [PLAYER, 'nothing plays while it speaks', '// an emphasis now and then while it speaks (the mouth is still for the moment it takes)\n        if (plan.accent) {', '// an emphasis now and then while it speaks (the mouth is still for the moment it takes)\n        if (false) {'],
   [PLAYER, 'a pack that fails shows nothing', "{!ready ? <span className=\"studio-voice-initials\" aria-hidden>{initialsFor(pack)}</span> : null}", ''],
   [UI, 'the disc is as wide as its crop', "return rect && framing === 'chest' ? Math.round(size * rect.sw / rect.sh) : size", 'return rect ? Math.round(size * rect.sw / rect.sh) : size'],
   [PLAYER, 'the player sizes itself by hand', 'const width = framedWidth(framing, size, rect)', 'const width = size'],
@@ -1510,7 +1622,7 @@ if (baseSources) {
   ]
   const run = text => {
     const out = ts.transpileModule(text, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
-    const module = { exports: {} }; new Function('module', 'exports', out)(module, module.exports); return module.exports
+    const module = { exports: {} }; new Function('module', 'exports', 'require', out)(module, module.exports, () => ({ VOICE_CALL_ART_FILES: strip.VOICE_CALL_ART_FILES })); return module.exports
   }
   for (const [name, from, to] of stripCases) {
     mutantCount++; stripMutants++

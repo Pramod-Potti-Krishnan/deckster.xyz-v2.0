@@ -51,6 +51,8 @@
 [data-studio-voice-call="stage"] .studio-voice-icon:hover:not(:disabled) { background: var(--ss-active); }
 [data-studio-voice-call="stage"] .studio-voice-icon[aria-pressed="true"] { background: var(--ss-active); color: #b3261e; }
 [data-studio-voice-call="stage"] .studio-voice-end { color: #b3261e; }
+[data-studio-voice-call="stage"] .studio-voice-pack { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 9999px; border: 1px solid var(--ss-line); font-size: 13px; font-weight: 600; color: var(--ss-text); background: color-mix(in srgb, var(--ss-panel) 84%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+[data-studio-voice-call="stage"] .studio-voice-pack:hover { background: var(--ss-active); }
 [data-studio-voice-call="stage"] .studio-voice-small { width: 28px; height: 28px; background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; border-color: transparent; }
 [data-studio-voice-call="stage"] button:disabled, [data-studio-voice-call="notice"] button:disabled { opacity: 0.45; cursor: not-allowed; }
 [data-studio-voice-call="stage"] button:focus-visible, [data-studio-voice-call="stage"] .studio-voice-transcript-list:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; }
@@ -104,9 +106,10 @@
 
 /* a phone: the call is the whole screen (under the status bar and the home indicator), the talk button wide and tall */
 @media (max-width: 767px) {
-  [data-studio-v4-shell="true"] [data-studio-voice-call="stage"] { position: fixed; inset: 0; z-index: 90; padding-top: env(safe-area-inset-top, 0px); }
+  [data-studio-v4-shell="true"] [data-studio-voice-call="stage"] { position: fixed; inset: 0; z-index: 200; padding-top: env(safe-area-inset-top, 0px); }
   [data-studio-voice-call="stage"] .studio-voice-icon { width: 44px; height: 44px; }
   [data-studio-voice-call="stage"] .studio-voice-small { width: 36px; height: 36px; }
+  [data-studio-voice-call="stage"] .studio-voice-pack { height: 44px; }
   [data-studio-voice-call="stage"] .studio-voice-talk { min-height: 60px; width: min(100%, 360px); min-width: 0; font-size: 16px; }
   [data-studio-voice-call="stage"] .studio-voice-transcript { padding-bottom: env(safe-area-inset-bottom, 0px); }
   [data-studio-voice-call="stage"] .studio-voice-transcript-list { font-size: 14px; line-height: 20px; }

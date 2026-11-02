@@ -4,7 +4,7 @@ import { createElement, useEffect, useRef, useState, useSyncExternalStore, type 
 import type { VoiceCallController, VoiceCallSnapshot } from '@/lib/studio-voice-call-controller'
 import type { VoiceCallStageProps } from '@/components/builder/voice-call/voice-call-stage'
 import type { VoiceAction } from '@/lib/studio-voice-call-ui'
-import { STUDIO_VOICE_CALL_UI_ENABLED, STUDIO_VOICE_COMPANION, isTalkKey, spaceBelongsToTarget, voiceCallBus, disarmVoiceTurn, type VoiceCallComposerProps } from '@/lib/studio-voice-call-ui'
+import { STUDIO_VOICE_CALL_UI_ENABLED, STUDIO_VOICE_COMPANION, companionChoices, isTalkKey, nextCompanion, readCompanionChoice, spaceBelongsToTarget, voiceCallBus, disarmVoiceTurn, writeCompanionChoice, type VoiceCallComposerProps } from '@/lib/studio-voice-call-ui'
 
 export interface UseStudioVoiceCallOptions {
   /** The Studio shell (the call needs the flag too, read here). Off: nothing is loaded, listened to, timed or asked for. */
@@ -28,6 +28,11 @@ export interface StudioVoiceCall {
 
 const NONE: StudioVoiceCall = { dock: null, composerProps: null }
 const noopSubscribe = () => () => {}
+const CHOICES = companionChoices(STUDIO_VOICE_COMPANION)
+/** This device's storage, or nothing where it is blocked (the accessor itself can throw). */
+function deviceStorage(): Storage | null {
+  try { return typeof window !== 'undefined' ? window.localStorage : null } catch { return null }
+}
 
 /**
  * NEXT_PUBLIC_STUDIO_VOICE_CALL (default off). With it on, the call's controller, the browser's microphone and speaker adapters and the call stage (with its stylesheet, which the two call buttons use too) are loaded
@@ -41,6 +46,7 @@ export function useStudioVoiceCall(options: UseStudioVoiceCallOptions): StudioVo
   live.current = options
   const [controller, setController] = useState<VoiceCallController | null>(null)
   const [Stage, setStage] = useState<ComponentType<VoiceCallStageProps> | null>(null)
+  const [companion, setCompanion] = useState<string>(() => (STUDIO_VOICE_CALL_UI_ENABLED ? readCompanionChoice(deviceStorage(), STUDIO_VOICE_COMPANION) : STUDIO_VOICE_COMPANION)) // this device's character (Felix unless it chose Bob)
 
   useEffect(() => {
     if (!enabled) return
@@ -110,7 +116,8 @@ export function useStudioVoiceCall(options: UseStudioVoiceCallOptions): StudioVo
   return {
     dock: showDock
       ? createElement(Stage, {
-        snapshot, pack: STUDIO_VOICE_COMPANION, getLevel: controller.getLevel,
+        snapshot, pack: companion, choices: CHOICES, getLevel: controller.getLevel,
+        onChooseCompanion: () => { const next = nextCompanion(companion, CHOICES); writeCompanionChoice(deviceStorage(), next, STUDIO_VOICE_COMPANION); setCompanion(next) },
         onTalkPress: () => controller.talkPress(), onTalkRelease: () => controller.talkRelease(), onStop: () => controller.stop(), onMute: muted => controller.setMuted(muted), onEnd: () => controller.endCall(),
         onRetry: () => { void controller.startCall(controller.getSnapshot().mode) }, onDismissNotice: () => controller.dismissNotice(),
       })
