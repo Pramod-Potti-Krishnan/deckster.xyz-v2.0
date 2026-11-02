@@ -673,7 +673,7 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
   // Stacked on #470: its own test reads the hook and its listed files through this change's strip first and lists this change's files as stacked.
   const STACKED_SIBLING_TESTS = ['scripts/test-studio-chat-element-refine.mjs']
   for (const rel of STACKED_SIBLING_TESTS.filter(rel => changed.includes(rel))) {
-    const added = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\n').filter(line => line.startsWith('+') && !line.startsWith('+++'))
+    const added = voiceCoreProofDiffLines(rel, git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\n')).filter(line => line.startsWith('+') && !line.startsWith('+++'))
     for (const line of added) assert.match(line, /ThemeExport|THEME_EXPORT|chat-theme-export|#472|stacked|stripLaunchWording|STUDIO_LAUNCH_WORDING/i, `${rel}: ${line.slice(0, 160)}`)
   }
   { const scope = stackScope(changed, STACK[472], STACKED_KNOWN); assert.equal(STACK[472].base, BASE_COMMIT); assert.deepEqual(git('diff', '--name-only', STACK[472].base, STACK[472].head).split('\n').filter(Boolean), STACK[472].files, 'the frozen files are #472\'s own diff'); assert.deepEqual({ missing: scope.missing, stray: scope.stray }, { missing: [], stray: [] }, 'every frozen file is changed, no stray in its family'); console.log(scope.line); changed.splice(0, changed.length, ...scope.checked) } // stacked after #475: only this change's files, its family and its declared stack are checked below; a later PR's files are ignored, with a count
