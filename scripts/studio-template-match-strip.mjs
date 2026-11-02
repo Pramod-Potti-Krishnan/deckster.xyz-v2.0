@@ -10,7 +10,7 @@
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines), and teaches the older proofs that read past it (STUDIO_TEMPLATE_MATCH_PIN_EDITS: one registry-read line each).
 // Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '1f7b9fc29537fb85cd166f82ce86eabe70293c62' // origin/studio-v4-dev-preparation-code with #556 merged (2 Nov): the dev tip this change was cut from
+export const BASE_COMMIT = 'dc1540195b58630a345d4ada0f81edd9a31b4673' // origin/studio-v4-dev-preparation-code with #557 merged (2 Nov, 15:04Z): the dev tip this change was last merged with (it was cut from 1f7b9fc2, #556 merged)
 export const STUDIO_TEMPLATE_MATCH_FLAG = 'NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH'
 export const STUDIO_TEMPLATE_MATCH_MARKER = 'STUDIO-TEMPLATE-MATCH'
 /** The marker as a WHOLE token: STUDIO-TEMPLATE-MATCH-X and X-STUDIO-TEMPLATE-MATCH are not it. */
