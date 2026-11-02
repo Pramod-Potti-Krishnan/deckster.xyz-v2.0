@@ -1,0 +1,90 @@
+/* FRONTEND-2 (PK's W2 P4-7/8 rulings, 2 Nov; flag NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH, default off): the badge above the slide, the chip inside each rail thumbnail, the "Use with this deck" group in the Template
+   picker, the phone sheet and the composer's auto-apply check. Every rule is keyed to [data-studio-template-match], which only these pieces carry and only the flag draws, so with the flag off no rule here can
+   match anything. The look is the approved mock's (streams/frontend2/w2/mock): the shell's own tokens (--ss-*), the teal "ready" accent, nothing new. */
+
+/* ---- the badge: one row above the slide (a sibling of the viewer), a pill with Change and Undo ---- */
+[data-studio-v4-shell="true"] [data-studio-template-match="badge-row"] {
+  flex: none; box-sizing: border-box; display: flex; justify-content: center; padding: 8px 16px 6px; background: var(--ss-surface, transparent);
+}
+[data-studio-template-match="badge"] {
+  display: inline-flex; align-items: center; gap: 7px; min-width: 0; max-width: 100%; box-sizing: border-box; padding: 5px 11px 5px 8px;
+  border: 1px solid var(--ss-teal, #1f6f72); border-radius: 999px; background: var(--ss-active, #e8f2f0); color: var(--ss-text); font-size: 12.5px; line-height: 1.35; white-space: nowrap;
+}
+[data-studio-template-match="badge"] > svg { width: 15px; height: 15px; flex: none; color: var(--ss-teal, #1f6f72); }
+[data-studio-template-match="badge-text"] { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+[data-studio-template-match="badge"] > [data-studio-template-match="sep"] { color: var(--ss-muted); flex: none; }
+[data-studio-template-match="badge"] > button {
+  flex: none; display: inline-flex; align-items: center; gap: 2px; padding: 0; border: 0; background: transparent; color: var(--ss-teal, #1f6f72); font: inherit; font-weight: 600; cursor: pointer;
+}
+[data-studio-template-match="badge"] > button:hover { text-decoration: underline; }
+[data-studio-template-match="badge"] > button:focus-visible { outline: 2px solid var(--ss-teal, #1f6f72); outline-offset: 2px; border-radius: 4px; }
+[data-studio-template-match="badge"] > button > svg { width: 12px; height: 12px; }
+/* phone: the badge is one line above the slide, the whole width */
+@media (max-width: 640px) {
+  [data-studio-v4-shell="true"] [data-studio-template-match="badge-row"] { padding: 6px 10px 4px; }
+  [data-studio-template-match="badge"] { display: flex; width: 100%; font-size: 12px; padding: 5px 10px 5px 8px; }
+  [data-studio-template-match="badge"] > [data-studio-template-match="badge-text"] { flex: 1; }
+}
+
+/* ---- the chip: inside each rail thumbnail, bottom-left (never on the slide itself) ---- */
+[data-studio-template-match="chip"] {
+  position: absolute; left: 4px; bottom: 4px; z-index: 1; max-width: calc(100% - 8px); box-sizing: border-box; padding: 3px 5px; overflow: hidden;
+  border: 1px solid #cfdcd8; border-radius: 999px; background: rgb(255 255 255 / 92%); color: #3b4c4a; font-size: 9px; line-height: 1; white-space: nowrap; text-overflow: ellipsis;
+}
+[data-studio-template-match="chip"][data-tone="template"] { border-color: #1f6f72; background: #e3f0ed; color: #1c2a2d; }
+
+/* ---- the choices: "Use with this deck" in the Template picker (popover) and in the phone sheet ---- */
+[data-studio-template-match="group"] { flex: none; padding: 12px 12px 10px; border-bottom: 1px solid var(--ss-line); }
+[data-studio-template-match="group-title"] { margin: 0; font-size: 12.5px; font-weight: 600; }
+[data-studio-template-match="group-help"] { margin: 2px 0 6px; font-size: 10px; color: var(--ss-muted); }
+[data-studio-template-match="rows"] { display: flex; flex-direction: column; gap: 2px; }
+[data-studio-template-match="row"] {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 8px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: inherit; text-align: left; cursor: pointer; font: inherit;
+}
+[data-studio-template-match="row"]:hover { background: var(--ss-active); }
+[data-studio-template-match="row"][aria-checked="true"] { background: color-mix(in srgb, var(--ss-teal, #1f6f72) 9%, var(--ss-panel, #fff)); border-color: color-mix(in srgb, var(--ss-teal, #1f6f72) 40%, var(--ss-line, #dde5e2)); }
+[data-studio-template-match="row"]:focus-visible { outline: 2px solid var(--ss-teal, #1f6f72); outline-offset: 2px; }
+[data-studio-template-match="row-info"] { flex: 1; min-width: 0; }
+[data-studio-template-match="row-name"] { display: flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; white-space: nowrap; overflow: hidden; }
+[data-studio-template-match="row-name"] > span:first-child { overflow: hidden; text-overflow: ellipsis; }
+[data-studio-template-match="pill"] { flex: none; padding: 1px 5px; border: 1px solid var(--ss-line); border-radius: 999px; color: var(--ss-muted); font-size: 8.5px; font-weight: 400; line-height: 1.4; }
+[data-studio-template-match="pill"][data-kind="use"] { border-color: var(--ss-teal, #1f6f72); background: var(--ss-teal, #1f6f72); color: #fff; font-weight: 600; }
+[data-studio-template-match="row-why"] { display: block; margin-top: 2px; font-size: 9.5px; color: var(--ss-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-studio-template-match="row-cov"] { flex: none; font-size: 10px; color: var(--ss-text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+[data-studio-template-match="acts"] { display: flex; align-items: center; gap: 8px; margin: 8px 0 4px; }
+[data-studio-template-match="acts"] > button { height: 28px; padding: 0 12px; border: 1px solid var(--ss-line); border-radius: 7px; background: var(--ss-panel); color: var(--ss-text); font: inherit; font-size: 11.5px; cursor: pointer; }
+[data-studio-template-match="acts"] > button:hover:not(:disabled) { background: var(--ss-active); }
+[data-studio-template-match="acts"] > button[data-primary="true"] { flex: 1 1 auto; border-color: var(--ss-teal, #1f6f72); background: var(--ss-teal, #1f6f72); color: #fff; font-weight: 600; }
+[data-studio-template-match="acts"] > button:disabled { opacity: .45; cursor: not-allowed; }
+[data-studio-template-match="acts"] > button:focus-visible { outline: 2px solid var(--ss-teal, #1f6f72); outline-offset: 2px; }
+[data-studio-template-match="note"] { margin: 0; font-size: 10px; line-height: 1.45; color: var(--ss-muted); }
+
+/* ---- the phone sheet (portalled to the body; its own marker carries the Studio tokens, as the More sheet's does) ---- */
+[data-studio-template-match="overlay"] { position: fixed; inset: 0; z-index: 50; background: rgb(15 23 42 / 40%); }
+[data-studio-v4-shell="true"][data-studio-template-match="sheet"] {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 51; max-height: 80dvh; overflow-y: auto; box-sizing: border-box;
+  padding: 8px 14px calc(18px + env(safe-area-inset-bottom, 0px)); border: 1px solid var(--ss-line); border-bottom: 0; border-radius: 18px 18px 0 0;
+  background: var(--ss-panel); color: var(--ss-text); box-shadow: 0 -8px 24px rgb(15 23 42 / 18%);
+}
+[data-studio-v4-shell="true"][data-studio-template-match="sheet"]:focus-visible { outline: none; }
+[data-studio-template-match="handle"] { width: 40px; height: 4px; margin: 2px auto 10px; border-radius: 2px; background: var(--ss-line); }
+[data-studio-template-match="sheet"] [data-studio-template-match="group"] { padding: 0; border-bottom: 0; }
+[data-studio-template-match="sheet"] [data-studio-template-match="group-title"] { font-size: 15px; }
+[data-studio-template-match="sheet"] [data-studio-template-match="group-help"] { font-size: 12.5px; margin-bottom: 8px; }
+[data-studio-template-match="sheet"] [data-studio-template-match="row"] { min-height: 44px; }
+[data-studio-template-match="sheet"] [data-studio-template-match="row-name"] { font-size: 13px; }
+[data-studio-template-match="sheet"] [data-studio-template-match="row-why"] { font-size: 12px; white-space: normal; }
+[data-studio-template-match="sheet"] [data-studio-template-match="row-cov"] { font-size: 12px; }
+[data-studio-template-match="sheet"] [data-studio-template-match="acts"] { flex-direction: column; align-items: stretch; margin-top: 10px; }
+[data-studio-template-match="sheet"] [data-studio-template-match="acts"] > button { height: 44px; font-size: 14px; border-radius: 10px; }
+[data-studio-template-match="alt"] {
+  display: flex; align-items: center; justify-content: space-between; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--ss-line); color: var(--ss-text); font-size: 13px; text-decoration: none;
+}
+[data-studio-template-match="alt"] > span:last-child { color: var(--ss-teal, #1f6f72); }
+
+/* ---- the composer's check: first thing in the "Reuse a template" pop-up ---- */
+[data-studio-template-match="auto"] { display: grid; grid-template-columns: 18px 1fr; gap: 8px; align-items: start; margin: 0 0 10px; padding: 8px; border-radius: 8px; background: var(--ss-soft, var(--ss-surface)); }
+[data-studio-template-match="auto"] > input { width: 16px; height: 16px; margin: 1px 0 0; accent-color: var(--ss-teal, #1f6f72); cursor: pointer; }
+[data-studio-template-match="auto"] > label { display: block; cursor: pointer; }
+[data-studio-template-match="auto"] > label > b { display: block; font-size: 12.5px; font-weight: 600; }
+[data-studio-template-match="auto"] > label > span { display: block; margin-top: 1px; font-size: 11.5px; line-height: 1.4; color: var(--ss-muted); }

@@ -1,0 +1,6531 @@
+{
+ "about": "REAL frames recorded by DIRECTOR-2 (offline, $0): M0-M5 against Director !605 (seat2/director-p4-7-template-match, head 81f321e3; M0-M4 at its parent 01e6903c), and M1-s11 / M3-s11 against Director !606 (seat2/director-p4-7b-s11, e10eb358, stacked on !605: COMPOSER-2's section 11 passed through: deck[].covered / total / slides and slides[].applied_match), from streams/director2/p4-7-template-match/out/. Extracted mechanically, nothing edited: every frame of direction 'in' (what Studio sends to Director) and every Director frame of type 'template_match', in recorded order, verbatim. Ids and timestamps are masked by the recorder. The proof (scripts/test-studio-template-match.mjs) compares this file with the originals when they are on disk.",
+ "readme_sha256": "e078642399daf2f555e8dc338d811bb9b84df2d65e6c3dda4ad64daecbc3dc2e",
+ "scenarios": {
+  "M0": {
+   "file": "scenario-M0.json",
+   "sha256": "0d65e59c23f08df3676f8f2dcb4ca15315d85bc7647442df481d2e37a38e5272",
+   "bytes": 32009,
+   "scenario": "M0",
+   "base_sha": "01e6903cc07c19c85f601a5b9e49e192df81e80b",
+   "recorded_by": "p47/record.py (offline; real Director code, scripted model, stubbed services); derived from p418/record.py and pk-f03/record.py",
+   "client_caps": [
+    "mdc1",
+    "theme1",
+    "export1",
+    "element_refine1",
+    "element_edit1",
+    "notes1",
+    "bulk_edit1",
+    "mentions2",
+    "commands1",
+    "template_match1"
+   ],
+   "frames": [
+    {
+     "seq": 7,
+     "turn": 1,
+     "direction": "in",
+     "type": "user_message",
+     "frame": {
+      "type": "user_message",
+      "data": {
+       "text": "Help me pitch a new onboarding flow to our leadership team",
+       "extended_generation": true,
+       "deep_research": false,
+       "web_search": false,
+       "file_upload": false,
+       "use_knowledge_graph": false,
+       "store_name": null,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 9,
+     "turn": 2,
+     "direction": "in",
+     "type": "user_message",
+     "frame": {
+      "type": "user_message",
+      "data": {
+       "text": "Leadership team of 8, 10 slides, focus on time-to-productivity and cost",
+       "extended_generation": true,
+       "deep_research": false,
+       "web_search": false,
+       "file_upload": false,
+       "use_knowledge_graph": false,
+       "store_name": null,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    }
+   ]
+  },
+  "M1": {
+   "file": "scenario-M1.json",
+   "sha256": "fe75cb9e52f74b5eaa8c28d1314de3f995366a57a7ab767ebcc77a72a93526fe",
+   "bytes": 43707,
+   "scenario": "M1",
+   "base_sha": "01e6903cc07c19c85f601a5b9e49e192df81e80b",
+   "recorded_by": "p47/record.py (offline; real Director code, scripted model, stubbed services); derived from p418/record.py and pk-f03/record.py",
+   "client_caps": [
+    "mdc1",
+    "theme1",
+    "export1",
+    "element_refine1",
+    "element_edit1",
+    "notes1",
+    "bulk_edit1",
+    "mentions2",
+    "commands1",
+    "template_match1"
+   ],
+   "frames": [
+    {
+     "seq": 7,
+     "turn": 1,
+     "direction": "in",
+     "type": "template_auto_apply",
+     "frame": {
+      "type": "template_auto_apply",
+      "data": {
+       "enabled": true,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 8,
+     "turn": 2,
+     "direction": "in",
+     "type": "user_message",
+     "frame": {
+      "type": "user_message",
+      "data": {
+       "text": "Help me pitch a new onboarding flow to our leadership team",
+       "extended_generation": true,
+       "deep_research": false,
+       "web_search": false,
+       "file_upload": false,
+       "use_knowledge_graph": false,
+       "store_name": null,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 10,
+     "turn": 3,
+     "direction": "in",
+     "type": "user_message",
+     "frame": {
+      "type": "user_message",
+      "data": {
+       "text": "Leadership team of 8, 10 slides, focus on time-to-productivity and cost",
+       "extended_generation": true,
+       "deep_research": false,
+       "web_search": false,
+       "file_upload": false,
+       "use_knowledge_graph": false,
+       "store_name": null,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 14,
+     "turn": 3,
+     "direction": "out",
+     "type": "template_match",
+     "frame": {
+      "message_id": "<id#10>",
+      "session_id": "s_p47_m",
+      "timestamp": "<ts>",
+      "type": "template_match",
+      "role": "assistant",
+      "payload": {
+       "version": 1,
+       "status": "matched",
+       "plan_id": "plan_b26d1b40e51c",
+       "card_message_id": "msg_plan_confirm_s_p47_m",
+       "deck": [
+        {
+         "template_id": "tpl_fake_atlas",
+         "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+         "name": "Atlas Quarterly",
+         "owner": "user",
+         "score": 0.88,
+         "coverage": 0.84,
+         "reason": "Covers 9 of 10 slides: title, KPI grid, timeline, closing",
+         "thumb_ref": null,
+         "decision": "deck"
+        },
+        {
+         "template_id": "tpl_fake_meridian",
+         "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+         "name": "Meridian Roadmap",
+         "owner": "user",
+         "score": 0.71,
+         "coverage": 0.67,
+         "reason": "Covers 6 of 10 slides",
+         "thumb_ref": null,
+         "decision": "slides"
+        }
+       ],
+       "slides": [
+        {
+         "slide_id": "s1",
+         "role": "title",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-1:main-00",
+          "slide_index": 0,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 1"
+         }
+        },
+        {
+         "slide_id": "s2",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-2:main-01",
+          "slide_index": 1,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 2"
+         }
+        },
+        {
+         "slide_id": "s3",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-3:main-02",
+          "slide_index": 2,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 3"
+         }
+        },
+        {
+         "slide_id": "s4",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-4:main-03",
+          "slide_index": 3,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 4"
+         }
+        },
+        {
+         "slide_id": "s5",
+         "role": "body",
+         "count": null,
+         "match": null
+        },
+        {
+         "slide_id": "s6",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-6:main-05",
+          "slide_index": 5,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 6"
+         }
+        },
+        {
+         "slide_id": "s7",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-7:main-06",
+          "slide_index": 6,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 7"
+         }
+        },
+        {
+         "slide_id": "s8",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-8:main-07",
+          "slide_index": 7,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 8"
+         }
+        },
+        {
+         "slide_id": "s9",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-9:main-08",
+          "slide_index": 8,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 9"
+         }
+        },
+        {
+         "slide_id": "s10",
+         "role": "closing",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-10:main-09",
+          "slide_index": 9,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 10"
+         }
+        }
+       ],
+       "misses": [],
+       "ms": 12,
+       "auto_apply": true,
+       "applied": true,
+       "applied_template": {
+        "template_id": "tpl_fake_atlas",
+        "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "name": "Atlas Quarterly",
+        "decision": "deck"
+       },
+       "previous_template_id": null,
+       "built_slide_ids": [],
+       "reason": "match"
+      }
+     }
+    }
+   ]
+  },
+  "M2": {
+   "file": "scenario-M2.json",
+   "sha256": "c32fe6ed2e00283c761afdd205c51846af7e21e67bc71a61a9f9261e5ae04cfb",
+   "bytes": 41898,
+   "scenario": "M2",
+   "base_sha": "01e6903cc07c19c85f601a5b9e49e192df81e80b",
+   "recorded_by": "p47/record.py (offline; real Director code, scripted model, stubbed services); derived from p418/record.py and pk-f03/record.py",
+   "client_caps": [
+    "mdc1",
+    "theme1",
+    "export1",
+    "element_refine1",
+    "element_edit1",
+    "notes1",
+    "bulk_edit1",
+    "mentions2",
+    "commands1",
+    "template_match1"
+   ],
+   "frames": [
+    {
+     "seq": 7,
+     "turn": 1,
+     "direction": "in",
+     "type": "user_message",
+     "frame": {
+      "type": "user_message",
+      "data": {
+       "text": "Help me pitch a new onboarding flow to our leadership team",
+       "extended_generation": true,
+       "deep_research": false,
+       "web_search": false,
+       "file_upload": false,
+       "use_knowledge_graph": false,
+       "store_name": null,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 9,
+     "turn": 2,
+     "direction": "in",
+     "type": "user_message",
+     "frame": {
+      "type": "user_message",
+      "data": {
+       "text": "Leadership team of 8, 10 slides, focus on time-to-productivity and cost",
+       "extended_generation": true,
+       "deep_research": false,
+       "web_search": false,
+       "file_upload": false,
+       "use_knowledge_graph": false,
+       "store_name": null,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 13,
+     "turn": 2,
+     "direction": "out",
+     "type": "template_match",
+     "frame": {
+      "message_id": "<id#10>",
+      "session_id": "s_p47_m",
+      "timestamp": "<ts>",
+      "type": "template_match",
+      "role": "assistant",
+      "payload": {
+       "version": 1,
+       "status": "matched",
+       "plan_id": "plan_b26d1b40e51c",
+       "card_message_id": "msg_plan_confirm_s_p47_m",
+       "deck": [
+        {
+         "template_id": "tpl_fake_meridian",
+         "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+         "name": "Meridian Roadmap",
+         "owner": "user",
+         "score": 0.69,
+         "coverage": 0.65,
+         "reason": "Covers 3 of 10 slides: body",
+         "thumb_ref": null,
+         "decision": "slides"
+        },
+        {
+         "template_id": "tpl_fake_atlas",
+         "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+         "name": "Atlas Quarterly",
+         "owner": "user",
+         "score": 0.62,
+         "coverage": 0.58,
+         "reason": "Covers 2 of 10 slides: title, closing",
+         "thumb_ref": null,
+         "decision": "slides"
+        }
+       ],
+       "slides": [
+        {
+         "slide_id": "s1",
+         "role": "title",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-1:main-00",
+          "slide_index": 0,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 1"
+         }
+        },
+        {
+         "slide_id": "s2",
+         "role": "body",
+         "count": null,
+         "match": null
+        },
+        {
+         "slide_id": "s3",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-3:main-02",
+          "slide_index": 2,
+          "score": 0.86,
+          "chip": "Meridian Roadmap · slide 3"
+         }
+        },
+        {
+         "slide_id": "s4",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-4:main-03",
+          "slide_index": 3,
+          "score": 0.84,
+          "chip": "Meridian Roadmap · slide 4"
+         }
+        },
+        {
+         "slide_id": "s5",
+         "role": "body",
+         "count": null,
+         "match": null
+        },
+        {
+         "slide_id": "s6",
+         "role": "body",
+         "count": null,
+         "match": null
+        },
+        {
+         "slide_id": "s7",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-7:main-06",
+          "slide_index": 6,
+          "score": 0.86,
+          "chip": "Meridian Roadmap · slide 7"
+         }
+        },
+        {
+         "slide_id": "s8",
+         "role": "body",
+         "count": null,
+         "match": null
+        },
+        {
+         "slide_id": "s9",
+         "role": "body",
+         "count": null,
+         "match": null
+        },
+        {
+         "slide_id": "s10",
+         "role": "closing",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-10:main-09",
+          "slide_index": 9,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 10"
+         }
+        }
+       ],
+       "misses": [],
+       "ms": 12,
+       "auto_apply": true,
+       "applied": true,
+       "applied_template": {
+        "template_id": "tpl_fake_meridian",
+        "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+        "name": "Meridian Roadmap",
+        "decision": "slides"
+       },
+       "previous_template_id": null,
+       "built_slide_ids": [],
+       "reason": "match"
+      }
+     }
+    }
+   ]
+  },
+  "M3": {
+   "file": "scenario-M3.json",
+   "sha256": "9059b1a35744d8ccabb8e5ff6061912701a9fdc1b0428ae24dde15b6edc0e58f",
+   "bytes": 79799,
+   "scenario": "M3",
+   "base_sha": "01e6903cc07c19c85f601a5b9e49e192df81e80b",
+   "recorded_by": "p47/record.py (offline; real Director code, scripted model, stubbed services); derived from p418/record.py and pk-f03/record.py",
+   "client_caps": [
+    "mdc1",
+    "theme1",
+    "export1",
+    "element_refine1",
+    "element_edit1",
+    "notes1",
+    "bulk_edit1",
+    "mentions2",
+    "commands1",
+    "template_match1"
+   ],
+   "frames": [
+    {
+     "seq": 7,
+     "turn": 1,
+     "direction": "in",
+     "type": "template_auto_apply",
+     "frame": {
+      "type": "template_auto_apply",
+      "data": {
+       "enabled": true,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 8,
+     "turn": 2,
+     "direction": "in",
+     "type": "user_message",
+     "frame": {
+      "type": "user_message",
+      "data": {
+       "text": "Help me pitch a new onboarding flow to our leadership team",
+       "extended_generation": true,
+       "deep_research": false,
+       "web_search": false,
+       "file_upload": false,
+       "use_knowledge_graph": false,
+       "store_name": null,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 10,
+     "turn": 3,
+     "direction": "in",
+     "type": "user_message",
+     "frame": {
+      "type": "user_message",
+      "data": {
+       "text": "Leadership team of 8, 10 slides, focus on time-to-productivity and cost",
+       "extended_generation": true,
+       "deep_research": false,
+       "web_search": false,
+       "file_upload": false,
+       "use_knowledge_graph": false,
+       "store_name": null,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 14,
+     "turn": 3,
+     "direction": "out",
+     "type": "template_match",
+     "frame": {
+      "message_id": "<id#10>",
+      "session_id": "s_p47_m",
+      "timestamp": "<ts>",
+      "type": "template_match",
+      "role": "assistant",
+      "payload": {
+       "version": 1,
+       "status": "matched",
+       "plan_id": "plan_b26d1b40e51c",
+       "card_message_id": "msg_plan_confirm_s_p47_m",
+       "deck": [
+        {
+         "template_id": "tpl_fake_atlas",
+         "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+         "name": "Atlas Quarterly",
+         "owner": "user",
+         "score": 0.88,
+         "coverage": 0.84,
+         "reason": "Covers 9 of 10 slides: title, KPI grid, timeline, closing",
+         "thumb_ref": null,
+         "decision": "deck"
+        },
+        {
+         "template_id": "tpl_fake_meridian",
+         "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+         "name": "Meridian Roadmap",
+         "owner": "user",
+         "score": 0.71,
+         "coverage": 0.67,
+         "reason": "Covers 6 of 10 slides",
+         "thumb_ref": null,
+         "decision": "slides"
+        }
+       ],
+       "slides": [
+        {
+         "slide_id": "s1",
+         "role": "title",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-1:main-00",
+          "slide_index": 0,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 1"
+         }
+        },
+        {
+         "slide_id": "s2",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-2:main-01",
+          "slide_index": 1,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 2"
+         }
+        },
+        {
+         "slide_id": "s3",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-3:main-02",
+          "slide_index": 2,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 3"
+         }
+        },
+        {
+         "slide_id": "s4",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-4:main-03",
+          "slide_index": 3,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 4"
+         }
+        },
+        {
+         "slide_id": "s5",
+         "role": "body",
+         "count": null,
+         "match": null
+        },
+        {
+         "slide_id": "s6",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-6:main-05",
+          "slide_index": 5,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 6"
+         }
+        },
+        {
+         "slide_id": "s7",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-7:main-06",
+          "slide_index": 6,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 7"
+         }
+        },
+        {
+         "slide_id": "s8",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-8:main-07",
+          "slide_index": 7,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 8"
+         }
+        },
+        {
+         "slide_id": "s9",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-9:main-08",
+          "slide_index": 8,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 9"
+         }
+        },
+        {
+         "slide_id": "s10",
+         "role": "closing",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-10:main-09",
+          "slide_index": 9,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 10"
+         }
+        }
+       ],
+       "misses": [],
+       "ms": 12,
+       "auto_apply": true,
+       "applied": true,
+       "applied_template": {
+        "template_id": "tpl_fake_atlas",
+        "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "name": "Atlas Quarterly",
+        "decision": "deck"
+       },
+       "previous_template_id": null,
+       "built_slide_ids": [],
+       "reason": "match"
+      }
+     }
+    },
+    {
+     "seq": 15,
+     "turn": 4,
+     "direction": "in",
+     "type": "template_switch",
+     "frame": {
+      "type": "template_switch",
+      "data": {
+       "template_id": "tpl_fake_meridian",
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 16,
+     "turn": 4,
+     "direction": "out",
+     "type": "template_match",
+     "frame": {
+      "message_id": "<id#11>",
+      "session_id": "s_p47_m",
+      "timestamp": "<ts>",
+      "type": "template_match",
+      "role": "assistant",
+      "payload": {
+       "version": 1,
+       "status": "matched",
+       "plan_id": "plan_b26d1b40e51c",
+       "card_message_id": "msg_plan_confirm_s_p47_m",
+       "deck": [
+        {
+         "template_id": "tpl_fake_atlas",
+         "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+         "name": "Atlas Quarterly",
+         "owner": "user",
+         "score": 0.88,
+         "coverage": 0.84,
+         "reason": "Covers 9 of 10 slides: title, KPI grid, timeline, closing",
+         "thumb_ref": null,
+         "decision": "deck"
+        },
+        {
+         "template_id": "tpl_fake_meridian",
+         "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+         "name": "Meridian Roadmap",
+         "owner": "user",
+         "score": 0.71,
+         "coverage": 0.67,
+         "reason": "Covers 6 of 10 slides",
+         "thumb_ref": null,
+         "decision": "slides"
+        }
+       ],
+       "slides": [
+        {
+         "slide_id": "s1",
+         "role": "title",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-1:main-00",
+          "slide_index": 0,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 1"
+         }
+        },
+        {
+         "slide_id": "s2",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-2:main-01",
+          "slide_index": 1,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 2"
+         }
+        },
+        {
+         "slide_id": "s3",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-3:main-02",
+          "slide_index": 2,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 3"
+         }
+        },
+        {
+         "slide_id": "s4",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-4:main-03",
+          "slide_index": 3,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 4"
+         }
+        },
+        {
+         "slide_id": "s5",
+         "role": "body",
+         "count": null,
+         "match": null
+        },
+        {
+         "slide_id": "s6",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-6:main-05",
+          "slide_index": 5,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 6"
+         }
+        },
+        {
+         "slide_id": "s7",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-7:main-06",
+          "slide_index": 6,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 7"
+         }
+        },
+        {
+         "slide_id": "s8",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-8:main-07",
+          "slide_index": 7,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 8"
+         }
+        },
+        {
+         "slide_id": "s9",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-9:main-08",
+          "slide_index": 8,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 9"
+         }
+        },
+        {
+         "slide_id": "s10",
+         "role": "closing",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-10:main-09",
+          "slide_index": 9,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 10"
+         }
+        }
+       ],
+       "misses": [],
+       "ms": 12,
+       "auto_apply": true,
+       "applied": true,
+       "applied_template": {
+        "template_id": "tpl_fake_meridian",
+        "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+        "name": "Meridian Roadmap",
+        "decision": "deck"
+       },
+       "previous_template_id": "tpl_fake_atlas",
+       "built_slide_ids": [],
+       "reason": "switch"
+      }
+     }
+    },
+    {
+     "seq": 17,
+     "turn": 5,
+     "direction": "in",
+     "type": "template_switch",
+     "frame": {
+      "type": "template_switch",
+      "data": {
+       "template_id": "tpl_fake_atlas",
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 18,
+     "turn": 5,
+     "direction": "out",
+     "type": "template_match",
+     "frame": {
+      "message_id": "<id#12>",
+      "session_id": "s_p47_m",
+      "timestamp": "<ts>",
+      "type": "template_match",
+      "role": "assistant",
+      "payload": {
+       "version": 1,
+       "status": "matched",
+       "plan_id": "plan_b26d1b40e51c",
+       "card_message_id": "msg_plan_confirm_s_p47_m",
+       "deck": [
+        {
+         "template_id": "tpl_fake_atlas",
+         "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+         "name": "Atlas Quarterly",
+         "owner": "user",
+         "score": 0.88,
+         "coverage": 0.84,
+         "reason": "Covers 9 of 10 slides: title, KPI grid, timeline, closing",
+         "thumb_ref": null,
+         "decision": "deck"
+        },
+        {
+         "template_id": "tpl_fake_meridian",
+         "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+         "name": "Meridian Roadmap",
+         "owner": "user",
+         "score": 0.71,
+         "coverage": 0.67,
+         "reason": "Covers 6 of 10 slides",
+         "thumb_ref": null,
+         "decision": "slides"
+        }
+       ],
+       "slides": [
+        {
+         "slide_id": "s1",
+         "role": "title",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-1:main-00",
+          "slide_index": 0,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 1"
+         }
+        },
+        {
+         "slide_id": "s2",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-2:main-01",
+          "slide_index": 1,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 2"
+         }
+        },
+        {
+         "slide_id": "s3",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-3:main-02",
+          "slide_index": 2,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 3"
+         }
+        },
+        {
+         "slide_id": "s4",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-4:main-03",
+          "slide_index": 3,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 4"
+         }
+        },
+        {
+         "slide_id": "s5",
+         "role": "body",
+         "count": null,
+         "match": null
+        },
+        {
+         "slide_id": "s6",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-6:main-05",
+          "slide_index": 5,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 6"
+         }
+        },
+        {
+         "slide_id": "s7",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-7:main-06",
+          "slide_index": 6,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 7"
+         }
+        },
+        {
+         "slide_id": "s8",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-8:main-07",
+          "slide_index": 7,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 8"
+         }
+        },
+        {
+         "slide_id": "s9",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-9:main-08",
+          "slide_index": 8,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 9"
+         }
+        },
+        {
+         "slide_id": "s10",
+         "role": "closing",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-10:main-09",
+          "slide_index": 9,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 10"
+         }
+        }
+       ],
+       "misses": [],
+       "ms": 12,
+       "auto_apply": true,
+       "applied": true,
+       "applied_template": {
+        "template_id": "tpl_fake_atlas",
+        "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "name": "Atlas Quarterly",
+        "decision": "deck"
+       },
+       "previous_template_id": "tpl_fake_meridian",
+       "built_slide_ids": [],
+       "reason": "undo"
+      }
+     }
+    },
+    {
+     "seq": 19,
+     "turn": 6,
+     "direction": "in",
+     "type": "user_message",
+     "frame": {
+      "type": "user_message",
+      "data": {
+       "text": "use Meridian instead",
+       "extended_generation": true,
+       "deep_research": false,
+       "web_search": false,
+       "file_upload": false,
+       "use_knowledge_graph": false,
+       "store_name": null,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 21,
+     "turn": 6,
+     "direction": "out",
+     "type": "template_match",
+     "frame": {
+      "message_id": "<id#14>",
+      "session_id": "s_p47_m",
+      "timestamp": "<ts>",
+      "type": "template_match",
+      "role": "assistant",
+      "payload": {
+       "version": 1,
+       "status": "matched",
+       "plan_id": "plan_b26d1b40e51c",
+       "card_message_id": "msg_plan_confirm_s_p47_m",
+       "deck": [
+        {
+         "template_id": "tpl_fake_atlas",
+         "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+         "name": "Atlas Quarterly",
+         "owner": "user",
+         "score": 0.88,
+         "coverage": 0.84,
+         "reason": "Covers 9 of 10 slides: title, KPI grid, timeline, closing",
+         "thumb_ref": null,
+         "decision": "deck"
+        },
+        {
+         "template_id": "tpl_fake_meridian",
+         "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+         "name": "Meridian Roadmap",
+         "owner": "user",
+         "score": 0.71,
+         "coverage": 0.67,
+         "reason": "Covers 6 of 10 slides",
+         "thumb_ref": null,
+         "decision": "slides"
+        }
+       ],
+       "slides": [
+        {
+         "slide_id": "s1",
+         "role": "title",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-1:main-00",
+          "slide_index": 0,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 1"
+         }
+        },
+        {
+         "slide_id": "s2",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-2:main-01",
+          "slide_index": 1,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 2"
+         }
+        },
+        {
+         "slide_id": "s3",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-3:main-02",
+          "slide_index": 2,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 3"
+         }
+        },
+        {
+         "slide_id": "s4",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-4:main-03",
+          "slide_index": 3,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 4"
+         }
+        },
+        {
+         "slide_id": "s5",
+         "role": "body",
+         "count": null,
+         "match": null
+        },
+        {
+         "slide_id": "s6",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-6:main-05",
+          "slide_index": 5,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 6"
+         }
+        },
+        {
+         "slide_id": "s7",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-7:main-06",
+          "slide_index": 6,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 7"
+         }
+        },
+        {
+         "slide_id": "s8",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-8:main-07",
+          "slide_index": 7,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 8"
+         }
+        },
+        {
+         "slide_id": "s9",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-9:main-08",
+          "slide_index": 8,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 9"
+         }
+        },
+        {
+         "slide_id": "s10",
+         "role": "closing",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-10:main-09",
+          "slide_index": 9,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 10"
+         }
+        }
+       ],
+       "misses": [],
+       "ms": 12,
+       "auto_apply": true,
+       "applied": true,
+       "applied_template": {
+        "template_id": "tpl_fake_meridian",
+        "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+        "name": "Meridian Roadmap",
+        "decision": "deck"
+       },
+       "previous_template_id": "tpl_fake_atlas",
+       "built_slide_ids": [],
+       "reason": "chat_switch"
+      }
+     }
+    },
+    {
+     "seq": 22,
+     "turn": 7,
+     "direction": "in",
+     "type": "template_switch",
+     "frame": {
+      "type": "template_switch",
+      "data": {
+       "template_id": null,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 23,
+     "turn": 7,
+     "direction": "out",
+     "type": "template_match",
+     "frame": {
+      "message_id": "<id#15>",
+      "session_id": "s_p47_m",
+      "timestamp": "<ts>",
+      "type": "template_match",
+      "role": "assistant",
+      "payload": {
+       "version": 1,
+       "status": "matched",
+       "plan_id": "plan_b26d1b40e51c",
+       "card_message_id": "msg_plan_confirm_s_p47_m",
+       "deck": [
+        {
+         "template_id": "tpl_fake_atlas",
+         "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+         "name": "Atlas Quarterly",
+         "owner": "user",
+         "score": 0.88,
+         "coverage": 0.84,
+         "reason": "Covers 9 of 10 slides: title, KPI grid, timeline, closing",
+         "thumb_ref": null,
+         "decision": "deck"
+        },
+        {
+         "template_id": "tpl_fake_meridian",
+         "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+         "name": "Meridian Roadmap",
+         "owner": "user",
+         "score": 0.71,
+         "coverage": 0.67,
+         "reason": "Covers 6 of 10 slides",
+         "thumb_ref": null,
+         "decision": "slides"
+        }
+       ],
+       "slides": [
+        {
+         "slide_id": "s1",
+         "role": "title",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-1:main-00",
+          "slide_index": 0,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 1"
+         }
+        },
+        {
+         "slide_id": "s2",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-2:main-01",
+          "slide_index": 1,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 2"
+         }
+        },
+        {
+         "slide_id": "s3",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-3:main-02",
+          "slide_index": 2,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 3"
+         }
+        },
+        {
+         "slide_id": "s4",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-4:main-03",
+          "slide_index": 3,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 4"
+         }
+        },
+        {
+         "slide_id": "s5",
+         "role": "body",
+         "count": null,
+         "match": null
+        },
+        {
+         "slide_id": "s6",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-6:main-05",
+          "slide_index": 5,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 6"
+         }
+        },
+        {
+         "slide_id": "s7",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-7:main-06",
+          "slide_index": 6,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 7"
+         }
+        },
+        {
+         "slide_id": "s8",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-8:main-07",
+          "slide_index": 7,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 8"
+         }
+        },
+        {
+         "slide_id": "s9",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-9:main-08",
+          "slide_index": 8,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 9"
+         }
+        },
+        {
+         "slide_id": "s10",
+         "role": "closing",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-10:main-09",
+          "slide_index": 9,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 10"
+         }
+        }
+       ],
+       "misses": [],
+       "ms": 12,
+       "auto_apply": true,
+       "applied": false,
+       "applied_template": null,
+       "previous_template_id": "tpl_fake_meridian",
+       "built_slide_ids": [],
+       "reason": "no_template"
+      }
+     }
+    },
+    {
+     "seq": 24,
+     "turn": 8,
+     "direction": "in",
+     "type": "template_switch",
+     "frame": {
+      "type": "template_switch",
+      "data": {
+       "template_id": "tpl_fake_meridian",
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 25,
+     "turn": 8,
+     "direction": "out",
+     "type": "template_match",
+     "frame": {
+      "message_id": "<id#16>",
+      "session_id": "s_p47_m",
+      "timestamp": "<ts>",
+      "type": "template_match",
+      "role": "assistant",
+      "payload": {
+       "version": 1,
+       "status": "matched",
+       "plan_id": "plan_b26d1b40e51c",
+       "card_message_id": "msg_plan_confirm_s_p47_m",
+       "deck": [
+        {
+         "template_id": "tpl_fake_atlas",
+         "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+         "name": "Atlas Quarterly",
+         "owner": "user",
+         "score": 0.88,
+         "coverage": 0.84,
+         "reason": "Covers 9 of 10 slides: title, KPI grid, timeline, closing",
+         "thumb_ref": null,
+         "decision": "deck"
+        },
+        {
+         "template_id": "tpl_fake_meridian",
+         "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+         "name": "Meridian Roadmap",
+         "owner": "user",
+         "score": 0.71,
+         "coverage": 0.67,
+         "reason": "Covers 6 of 10 slides",
+         "thumb_ref": null,
+         "decision": "slides"
+        }
+       ],
+       "slides": [
+        {
+         "slide_id": "s1",
+         "role": "title",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-1:main-00",
+          "slide_index": 0,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 1"
+         }
+        },
+        {
+         "slide_id": "s2",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-2:main-01",
+          "slide_index": 1,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 2"
+         }
+        },
+        {
+         "slide_id": "s3",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-3:main-02",
+          "slide_index": 2,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 3"
+         }
+        },
+        {
+         "slide_id": "s4",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-4:main-03",
+          "slide_index": 3,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 4"
+         }
+        },
+        {
+         "slide_id": "s5",
+         "role": "body",
+         "count": null,
+         "match": null
+        },
+        {
+         "slide_id": "s6",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-6:main-05",
+          "slide_index": 5,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 6"
+         }
+        },
+        {
+         "slide_id": "s7",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-7:main-06",
+          "slide_index": 6,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 7"
+         }
+        },
+        {
+         "slide_id": "s8",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-8:main-07",
+          "slide_index": 7,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 8"
+         }
+        },
+        {
+         "slide_id": "s9",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-9:main-08",
+          "slide_index": 8,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 9"
+         }
+        },
+        {
+         "slide_id": "s10",
+         "role": "closing",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-10:main-09",
+          "slide_index": 9,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 10"
+         }
+        }
+       ],
+       "misses": [],
+       "ms": 12,
+       "auto_apply": true,
+       "applied": true,
+       "applied_template": {
+        "template_id": "tpl_fake_meridian",
+        "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+        "name": "Meridian Roadmap",
+        "decision": "deck"
+       },
+       "previous_template_id": null,
+       "built_slide_ids": [],
+       "reason": "undo"
+      }
+     }
+    },
+    {
+     "seq": 26,
+     "turn": 9,
+     "direction": "in",
+     "type": "template_switch",
+     "frame": {
+      "type": "template_switch",
+      "data": {
+       "template_id": "tpl_fake_other_user",
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    }
+   ]
+  },
+  "M4": {
+   "file": "scenario-M4.json",
+   "sha256": "dc9e1d89de4d8967b5a925e644f5a856a4971f18113aef29717163510523299a",
+   "bytes": 56577,
+   "scenario": "M4",
+   "base_sha": "01e6903cc07c19c85f601a5b9e49e192df81e80b",
+   "recorded_by": "p47/record.py (offline; real Director code, scripted model, stubbed services); derived from p418/record.py and pk-f03/record.py",
+   "client_caps": [
+    "mdc1",
+    "theme1",
+    "export1",
+    "element_refine1",
+    "element_edit1",
+    "notes1",
+    "bulk_edit1",
+    "mentions2",
+    "commands1",
+    "template_match1"
+   ],
+   "frames": [
+    {
+     "seq": 7,
+     "turn": 1,
+     "direction": "in",
+     "type": "template_auto_apply",
+     "frame": {
+      "type": "template_auto_apply",
+      "data": {
+       "enabled": false,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 8,
+     "turn": 2,
+     "direction": "in",
+     "type": "user_message",
+     "frame": {
+      "type": "user_message",
+      "data": {
+       "text": "Help me pitch a new onboarding flow to our leadership team",
+       "extended_generation": true,
+       "deep_research": false,
+       "web_search": false,
+       "file_upload": false,
+       "use_knowledge_graph": false,
+       "store_name": null,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 10,
+     "turn": 3,
+     "direction": "in",
+     "type": "user_message",
+     "frame": {
+      "type": "user_message",
+      "data": {
+       "text": "Leadership team of 8, 10 slides, focus on time-to-productivity and cost",
+       "extended_generation": true,
+       "deep_research": false,
+       "web_search": false,
+       "file_upload": false,
+       "use_knowledge_graph": false,
+       "store_name": null,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 14,
+     "turn": 3,
+     "direction": "out",
+     "type": "template_match",
+     "frame": {
+      "message_id": "<id#10>",
+      "session_id": "s_p47_m",
+      "timestamp": "<ts>",
+      "type": "template_match",
+      "role": "assistant",
+      "payload": {
+       "version": 1,
+       "status": "matched",
+       "plan_id": "plan_b26d1b40e51c",
+       "card_message_id": "msg_plan_confirm_s_p47_m",
+       "deck": [
+        {
+         "template_id": "tpl_fake_atlas",
+         "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+         "name": "Atlas Quarterly",
+         "owner": "user",
+         "score": 0.88,
+         "coverage": 0.84,
+         "reason": "Covers 9 of 10 slides: title, KPI grid, timeline, closing",
+         "thumb_ref": null,
+         "decision": "deck"
+        },
+        {
+         "template_id": "tpl_fake_meridian",
+         "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+         "name": "Meridian Roadmap",
+         "owner": "user",
+         "score": 0.71,
+         "coverage": 0.67,
+         "reason": "Covers 6 of 10 slides",
+         "thumb_ref": null,
+         "decision": "slides"
+        }
+       ],
+       "slides": [
+        {
+         "slide_id": "s1",
+         "role": "title",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-1:main-00",
+          "slide_index": 0,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 1"
+         }
+        },
+        {
+         "slide_id": "s2",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-2:main-01",
+          "slide_index": 1,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 2"
+         }
+        },
+        {
+         "slide_id": "s3",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-3:main-02",
+          "slide_index": 2,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 3"
+         }
+        },
+        {
+         "slide_id": "s4",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-4:main-03",
+          "slide_index": 3,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 4"
+         }
+        },
+        {
+         "slide_id": "s5",
+         "role": "body",
+         "count": null,
+         "match": null
+        },
+        {
+         "slide_id": "s6",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-6:main-05",
+          "slide_index": 5,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 6"
+         }
+        },
+        {
+         "slide_id": "s7",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-7:main-06",
+          "slide_index": 6,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 7"
+         }
+        },
+        {
+         "slide_id": "s8",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-8:main-07",
+          "slide_index": 7,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 8"
+         }
+        },
+        {
+         "slide_id": "s9",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-9:main-08",
+          "slide_index": 8,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 9"
+         }
+        },
+        {
+         "slide_id": "s10",
+         "role": "closing",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-10:main-09",
+          "slide_index": 9,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 10"
+         }
+        }
+       ],
+       "misses": [],
+       "ms": 12,
+       "auto_apply": false,
+       "applied": false,
+       "applied_template": null,
+       "previous_template_id": null,
+       "built_slide_ids": [],
+       "reason": "match"
+      }
+     }
+    },
+    {
+     "seq": 15,
+     "turn": 4,
+     "direction": "in",
+     "type": "template_auto_apply",
+     "frame": {
+      "type": "template_auto_apply",
+      "data": {
+       "enabled": true,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 16,
+     "turn": 4,
+     "direction": "out",
+     "type": "template_match",
+     "frame": {
+      "message_id": "<id#11>",
+      "session_id": "s_p47_m",
+      "timestamp": "<ts>",
+      "type": "template_match",
+      "role": "assistant",
+      "payload": {
+       "version": 1,
+       "status": "matched",
+       "plan_id": "plan_b26d1b40e51c",
+       "card_message_id": "msg_plan_confirm_s_p47_m",
+       "deck": [
+        {
+         "template_id": "tpl_fake_atlas",
+         "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+         "name": "Atlas Quarterly",
+         "owner": "user",
+         "score": 0.88,
+         "coverage": 0.84,
+         "reason": "Covers 9 of 10 slides: title, KPI grid, timeline, closing",
+         "thumb_ref": null,
+         "decision": "deck"
+        },
+        {
+         "template_id": "tpl_fake_meridian",
+         "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+         "name": "Meridian Roadmap",
+         "owner": "user",
+         "score": 0.71,
+         "coverage": 0.67,
+         "reason": "Covers 6 of 10 slides",
+         "thumb_ref": null,
+         "decision": "slides"
+        }
+       ],
+       "slides": [
+        {
+         "slide_id": "s1",
+         "role": "title",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-1:main-00",
+          "slide_index": 0,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 1"
+         }
+        },
+        {
+         "slide_id": "s2",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-2:main-01",
+          "slide_index": 1,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 2"
+         }
+        },
+        {
+         "slide_id": "s3",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-3:main-02",
+          "slide_index": 2,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 3"
+         }
+        },
+        {
+         "slide_id": "s4",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-4:main-03",
+          "slide_index": 3,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 4"
+         }
+        },
+        {
+         "slide_id": "s5",
+         "role": "body",
+         "count": null,
+         "match": null
+        },
+        {
+         "slide_id": "s6",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-6:main-05",
+          "slide_index": 5,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 6"
+         }
+        },
+        {
+         "slide_id": "s7",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-7:main-06",
+          "slide_index": 6,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 7"
+         }
+        },
+        {
+         "slide_id": "s8",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-8:main-07",
+          "slide_index": 7,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 8"
+         }
+        },
+        {
+         "slide_id": "s9",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-9:main-08",
+          "slide_index": 8,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 9"
+         }
+        },
+        {
+         "slide_id": "s10",
+         "role": "closing",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-10:main-09",
+          "slide_index": 9,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 10"
+         }
+        }
+       ],
+       "misses": [],
+       "ms": 12,
+       "auto_apply": true,
+       "applied": true,
+       "applied_template": {
+        "template_id": "tpl_fake_atlas",
+        "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "name": "Atlas Quarterly",
+        "decision": "deck"
+       },
+       "previous_template_id": null,
+       "built_slide_ids": [],
+       "reason": "match"
+      }
+     }
+    },
+    {
+     "seq": 17,
+     "turn": 5,
+     "direction": "in",
+     "type": "template_auto_apply",
+     "frame": {
+      "type": "template_auto_apply",
+      "data": {
+       "enabled": false,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 18,
+     "turn": 5,
+     "direction": "out",
+     "type": "template_match",
+     "frame": {
+      "message_id": "<id#12>",
+      "session_id": "s_p47_m",
+      "timestamp": "<ts>",
+      "type": "template_match",
+      "role": "assistant",
+      "payload": {
+       "version": 1,
+       "status": "matched",
+       "plan_id": "plan_b26d1b40e51c",
+       "card_message_id": "msg_plan_confirm_s_p47_m",
+       "deck": [
+        {
+         "template_id": "tpl_fake_atlas",
+         "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+         "name": "Atlas Quarterly",
+         "owner": "user",
+         "score": 0.88,
+         "coverage": 0.84,
+         "reason": "Covers 9 of 10 slides: title, KPI grid, timeline, closing",
+         "thumb_ref": null,
+         "decision": "deck"
+        },
+        {
+         "template_id": "tpl_fake_meridian",
+         "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+         "name": "Meridian Roadmap",
+         "owner": "user",
+         "score": 0.71,
+         "coverage": 0.67,
+         "reason": "Covers 6 of 10 slides",
+         "thumb_ref": null,
+         "decision": "slides"
+        }
+       ],
+       "slides": [
+        {
+         "slide_id": "s1",
+         "role": "title",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-1:main-00",
+          "slide_index": 0,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 1"
+         }
+        },
+        {
+         "slide_id": "s2",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-2:main-01",
+          "slide_index": 1,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 2"
+         }
+        },
+        {
+         "slide_id": "s3",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-3:main-02",
+          "slide_index": 2,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 3"
+         }
+        },
+        {
+         "slide_id": "s4",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-4:main-03",
+          "slide_index": 3,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 4"
+         }
+        },
+        {
+         "slide_id": "s5",
+         "role": "body",
+         "count": null,
+         "match": null
+        },
+        {
+         "slide_id": "s6",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-6:main-05",
+          "slide_index": 5,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 6"
+         }
+        },
+        {
+         "slide_id": "s7",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-7:main-06",
+          "slide_index": 6,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 7"
+         }
+        },
+        {
+         "slide_id": "s8",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-8:main-07",
+          "slide_index": 7,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 8"
+         }
+        },
+        {
+         "slide_id": "s9",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-9:main-08",
+          "slide_index": 8,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 9"
+         }
+        },
+        {
+         "slide_id": "s10",
+         "role": "closing",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-10:main-09",
+          "slide_index": 9,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 10"
+         }
+        }
+       ],
+       "misses": [],
+       "ms": 12,
+       "auto_apply": false,
+       "applied": false,
+       "applied_template": null,
+       "previous_template_id": null,
+       "built_slide_ids": [],
+       "reason": "auto_apply_off"
+      }
+     }
+    }
+   ]
+  },
+  "M5": {
+   "file": "scenario-M5.json",
+   "sha256": "bb301e7f8b750a50148c6690867846257a30d5c2787046f3afbd8b16943c4185",
+   "bytes": 110426,
+   "scenario": "M5",
+   "base_sha": "81f321e355fe15e1262d4cad89c1678b7fe3bea1",
+   "recorded_by": "p47/record.py (offline; real Director code, scripted model, stubbed services); derived from p418/record.py and pk-f03/record.py",
+   "client_caps": [
+    "mdc1",
+    "theme1",
+    "export1",
+    "element_refine1",
+    "element_edit1",
+    "notes1",
+    "bulk_edit1",
+    "mentions2",
+    "commands1",
+    "template_match1"
+   ],
+   "frames": [
+    {
+     "seq": 7,
+     "turn": 1,
+     "direction": "in",
+     "type": "template_auto_apply",
+     "frame": {
+      "type": "template_auto_apply",
+      "data": {
+       "enabled": true,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 8,
+     "turn": 2,
+     "direction": "in",
+     "type": "user_message",
+     "frame": {
+      "type": "user_message",
+      "data": {
+       "text": "Help me pitch a new onboarding flow to our leadership team",
+       "extended_generation": true,
+       "deep_research": false,
+       "web_search": false,
+       "file_upload": false,
+       "use_knowledge_graph": false,
+       "store_name": null,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 10,
+     "turn": 3,
+     "direction": "in",
+     "type": "user_message",
+     "frame": {
+      "type": "user_message",
+      "data": {
+       "text": "Leadership team of 8, 10 slides, focus on time-to-productivity and cost",
+       "extended_generation": true,
+       "deep_research": false,
+       "web_search": false,
+       "file_upload": false,
+       "use_knowledge_graph": false,
+       "store_name": null,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 14,
+     "turn": 3,
+     "direction": "out",
+     "type": "template_match",
+     "frame": {
+      "message_id": "<id#10>",
+      "session_id": "s_p47_m",
+      "timestamp": "<ts>",
+      "type": "template_match",
+      "role": "assistant",
+      "payload": {
+       "version": 1,
+       "status": "matched",
+       "plan_id": "plan_b26d1b40e51c",
+       "card_message_id": "msg_plan_confirm_s_p47_m",
+       "deck": [
+        {
+         "template_id": "tpl_fake_atlas",
+         "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+         "name": "Atlas Quarterly",
+         "owner": "user",
+         "score": 0.88,
+         "coverage": 0.84,
+         "reason": "Covers 9 of 10 slides: title, KPI grid, timeline, closing",
+         "thumb_ref": null,
+         "decision": "deck"
+        },
+        {
+         "template_id": "tpl_fake_meridian",
+         "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+         "name": "Meridian Roadmap",
+         "owner": "user",
+         "score": 0.71,
+         "coverage": 0.67,
+         "reason": "Covers 6 of 10 slides",
+         "thumb_ref": null,
+         "decision": "slides"
+        }
+       ],
+       "slides": [
+        {
+         "slide_id": "s1",
+         "role": "title",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-1:main-00",
+          "slide_index": 0,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 1"
+         }
+        },
+        {
+         "slide_id": "s2",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-2:main-01",
+          "slide_index": 1,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 2"
+         }
+        },
+        {
+         "slide_id": "s3",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-3:main-02",
+          "slide_index": 2,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 3"
+         }
+        },
+        {
+         "slide_id": "s4",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-4:main-03",
+          "slide_index": 3,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 4"
+         }
+        },
+        {
+         "slide_id": "s5",
+         "role": "body",
+         "count": null,
+         "match": null
+        },
+        {
+         "slide_id": "s6",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-6:main-05",
+          "slide_index": 5,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 6"
+         }
+        },
+        {
+         "slide_id": "s7",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-7:main-06",
+          "slide_index": 6,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 7"
+         }
+        },
+        {
+         "slide_id": "s8",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-8:main-07",
+          "slide_index": 7,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 8"
+         }
+        },
+        {
+         "slide_id": "s9",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-9:main-08",
+          "slide_index": 8,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 9"
+         }
+        },
+        {
+         "slide_id": "s10",
+         "role": "closing",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-10:main-09",
+          "slide_index": 9,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 10"
+         }
+        }
+       ],
+       "misses": [],
+       "ms": 12,
+       "auto_apply": true,
+       "applied": true,
+       "applied_template": {
+        "template_id": "tpl_fake_atlas",
+        "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "name": "Atlas Quarterly",
+        "decision": "deck"
+       },
+       "previous_template_id": null,
+       "built_slide_ids": [],
+       "reason": "match"
+      }
+     }
+    },
+    {
+     "seq": 15,
+     "turn": 4,
+     "direction": "in",
+     "type": "user_message",
+     "frame": {
+      "type": "user_message",
+      "data": {
+       "text": "Yes, let's build it!",
+       "extended_generation": true,
+       "deep_research": false,
+       "web_search": false,
+       "file_upload": false,
+       "use_knowledge_graph": false,
+       "store_name": null,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ],
+       "action_value": "accept_plan",
+       "action_label": "Yes, let's build it!"
+      }
+     }
+    },
+    {
+     "seq": 75,
+     "turn": 5,
+     "direction": "in",
+     "type": "user_message",
+     "frame": {
+      "type": "user_message",
+      "data": {
+       "text": "use Meridian instead",
+       "extended_generation": true,
+       "deep_research": false,
+       "web_search": false,
+       "file_upload": false,
+       "use_knowledge_graph": false,
+       "store_name": null,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 77,
+     "turn": 5,
+     "direction": "out",
+     "type": "template_match",
+     "frame": {
+      "message_id": "<id#72>",
+      "session_id": "s_p47_m",
+      "timestamp": "<ts>",
+      "type": "template_match",
+      "role": "assistant",
+      "payload": {
+       "version": 1,
+       "status": "matched",
+       "plan_id": "plan_b26d1b40e51c",
+       "card_message_id": "msg_plan_confirm_s_p47_m",
+       "deck": [
+        {
+         "template_id": "tpl_fake_atlas",
+         "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+         "name": "Atlas Quarterly",
+         "owner": "user",
+         "score": 0.88,
+         "coverage": 0.84,
+         "reason": "Covers 9 of 10 slides: title, KPI grid, timeline, closing",
+         "thumb_ref": null,
+         "decision": "deck"
+        },
+        {
+         "template_id": "tpl_fake_meridian",
+         "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+         "name": "Meridian Roadmap",
+         "owner": "user",
+         "score": 0.71,
+         "coverage": 0.67,
+         "reason": "Covers 6 of 10 slides",
+         "thumb_ref": null,
+         "decision": "slides"
+        }
+       ],
+       "slides": [
+        {
+         "slide_id": "s1",
+         "role": "title",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-1:main-00",
+          "slide_index": 0,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 1"
+         }
+        },
+        {
+         "slide_id": "s2",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-2:main-01",
+          "slide_index": 1,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 2"
+         }
+        },
+        {
+         "slide_id": "s3",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-3:main-02",
+          "slide_index": 2,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 3"
+         }
+        },
+        {
+         "slide_id": "s4",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-4:main-03",
+          "slide_index": 3,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 4"
+         }
+        },
+        {
+         "slide_id": "s5",
+         "role": "body",
+         "count": null,
+         "match": null
+        },
+        {
+         "slide_id": "s6",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-6:main-05",
+          "slide_index": 5,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 6"
+         }
+        },
+        {
+         "slide_id": "s7",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-7:main-06",
+          "slide_index": 6,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 7"
+         }
+        },
+        {
+         "slide_id": "s8",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-8:main-07",
+          "slide_index": 7,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 8"
+         }
+        },
+        {
+         "slide_id": "s9",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-9:main-08",
+          "slide_index": 8,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 9"
+         }
+        },
+        {
+         "slide_id": "s10",
+         "role": "closing",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-10:main-09",
+          "slide_index": 9,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 10"
+         }
+        }
+       ],
+       "misses": [],
+       "ms": 12,
+       "auto_apply": true,
+       "applied": true,
+       "applied_template": {
+        "template_id": "tpl_fake_meridian",
+        "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+        "name": "Meridian Roadmap",
+        "decision": "deck"
+       },
+       "previous_template_id": "tpl_fake_atlas",
+       "built_slide_ids": [
+        "s1",
+        "s2",
+        "s3",
+        "s4",
+        "s5",
+        "s6",
+        "s7",
+        "s8",
+        "s9",
+        "s10"
+       ],
+       "reason": "chat_switch"
+      }
+     }
+    }
+   ]
+  },
+  "M1-s11": {
+   "file": "scenario-M1-s11.json",
+   "sha256": "863f16400c3c8503f9466ee82ebf7c6c9c58950c48a92fc4d7d32c06d21300f3",
+   "bytes": 62148,
+   "scenario": "M1",
+   "base_sha": "e10eb3581b879e69a77a5036714187f57a827fc3",
+   "recorded_by": "p47/record.py (offline; real Director code, scripted model, stubbed services); derived from p418/record.py and pk-f03/record.py",
+   "client_caps": [
+    "mdc1",
+    "theme1",
+    "export1",
+    "element_refine1",
+    "element_edit1",
+    "notes1",
+    "bulk_edit1",
+    "mentions2",
+    "commands1",
+    "template_match1"
+   ],
+   "frames": [
+    {
+     "seq": 7,
+     "turn": 1,
+     "direction": "in",
+     "type": "template_auto_apply",
+     "frame": {
+      "type": "template_auto_apply",
+      "data": {
+       "enabled": true,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 8,
+     "turn": 2,
+     "direction": "in",
+     "type": "user_message",
+     "frame": {
+      "type": "user_message",
+      "data": {
+       "text": "Help me pitch a new onboarding flow to our leadership team",
+       "extended_generation": true,
+       "deep_research": false,
+       "web_search": false,
+       "file_upload": false,
+       "use_knowledge_graph": false,
+       "store_name": null,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 10,
+     "turn": 3,
+     "direction": "in",
+     "type": "user_message",
+     "frame": {
+      "type": "user_message",
+      "data": {
+       "text": "Leadership team of 8, 10 slides, focus on time-to-productivity and cost",
+       "extended_generation": true,
+       "deep_research": false,
+       "web_search": false,
+       "file_upload": false,
+       "use_knowledge_graph": false,
+       "store_name": null,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 14,
+     "turn": 3,
+     "direction": "out",
+     "type": "template_match",
+     "frame": {
+      "message_id": "<id#10>",
+      "session_id": "s_p47_m",
+      "timestamp": "<ts>",
+      "type": "template_match",
+      "role": "assistant",
+      "payload": {
+       "version": 1,
+       "status": "matched",
+       "plan_id": "plan_b26d1b40e51c",
+       "card_message_id": "msg_plan_confirm_s_p47_m",
+       "deck": [
+        {
+         "template_id": "tpl_fake_atlas",
+         "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+         "name": "Atlas Quarterly",
+         "owner": "user",
+         "score": 0.88,
+         "coverage": 0.84,
+         "reason": "Covers 9 of 10 slides: title, KPI grid, timeline, closing",
+         "thumb_ref": null,
+         "decision": "deck",
+         "covered": 9,
+         "total": 10,
+         "slides": [
+          {
+           "slide_id": "s1",
+           "role": "title",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-1:main-00",
+            "slide_index": 0,
+            "score": 0.9,
+            "chip": "Atlas Quarterly · slide 1"
+           }
+          },
+          {
+           "slide_id": "s2",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-2:main-01",
+            "slide_index": 1,
+            "score": 0.88,
+            "chip": "Atlas Quarterly · slide 2"
+           }
+          },
+          {
+           "slide_id": "s3",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-3:main-02",
+            "slide_index": 2,
+            "score": 0.86,
+            "chip": "Atlas Quarterly · slide 3"
+           }
+          },
+          {
+           "slide_id": "s4",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-4:main-03",
+            "slide_index": 3,
+            "score": 0.84,
+            "chip": "Atlas Quarterly · slide 4"
+           }
+          },
+          {
+           "slide_id": "s5",
+           "role": "body",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s6",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-6:main-05",
+            "slide_index": 5,
+            "score": 0.88,
+            "chip": "Atlas Quarterly · slide 6"
+           }
+          },
+          {
+           "slide_id": "s7",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-7:main-06",
+            "slide_index": 6,
+            "score": 0.86,
+            "chip": "Atlas Quarterly · slide 7"
+           }
+          },
+          {
+           "slide_id": "s8",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-8:main-07",
+            "slide_index": 7,
+            "score": 0.84,
+            "chip": "Atlas Quarterly · slide 8"
+           }
+          },
+          {
+           "slide_id": "s9",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-9:main-08",
+            "slide_index": 8,
+            "score": 0.9,
+            "chip": "Atlas Quarterly · slide 9"
+           }
+          },
+          {
+           "slide_id": "s10",
+           "role": "closing",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-10:main-09",
+            "slide_index": 9,
+            "score": 0.88,
+            "chip": "Atlas Quarterly · slide 10"
+           }
+          }
+         ]
+        },
+        {
+         "template_id": "tpl_fake_meridian",
+         "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+         "name": "Meridian Roadmap",
+         "owner": "user",
+         "score": 0.71,
+         "coverage": 0.67,
+         "reason": "Covers 6 of 10 slides",
+         "thumb_ref": null,
+         "decision": "slides",
+         "covered": 6,
+         "total": 10,
+         "slides": [
+          {
+           "slide_id": "s1",
+           "role": "title",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s2",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-2:main-01",
+            "slide_index": 1,
+            "score": 0.78,
+            "chip": "Meridian Roadmap · slide 2"
+           }
+          },
+          {
+           "slide_id": "s3",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-3:main-02",
+            "slide_index": 2,
+            "score": 0.76,
+            "chip": "Meridian Roadmap · slide 3"
+           }
+          },
+          {
+           "slide_id": "s4",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-4:main-03",
+            "slide_index": 3,
+            "score": 0.8,
+            "chip": "Meridian Roadmap · slide 4"
+           }
+          },
+          {
+           "slide_id": "s5",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-5:main-04",
+            "slide_index": 4,
+            "score": 0.78,
+            "chip": "Meridian Roadmap · slide 5"
+           }
+          },
+          {
+           "slide_id": "s6",
+           "role": "body",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s7",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-7:main-06",
+            "slide_index": 6,
+            "score": 0.8,
+            "chip": "Meridian Roadmap · slide 7"
+           }
+          },
+          {
+           "slide_id": "s8",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-8:main-07",
+            "slide_index": 7,
+            "score": 0.78,
+            "chip": "Meridian Roadmap · slide 8"
+           }
+          },
+          {
+           "slide_id": "s9",
+           "role": "body",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s10",
+           "role": "closing",
+           "count": null,
+           "match": null
+          }
+         ]
+        }
+       ],
+       "slides": [
+        {
+         "slide_id": "s1",
+         "role": "title",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-1:main-00",
+          "slide_index": 0,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 1"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-1:main-00",
+          "slide_index": 0,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 1"
+         }
+        },
+        {
+         "slide_id": "s2",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-2:main-01",
+          "slide_index": 1,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 2"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-2:main-01",
+          "slide_index": 1,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 2"
+         }
+        },
+        {
+         "slide_id": "s3",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-3:main-02",
+          "slide_index": 2,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 3"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-3:main-02",
+          "slide_index": 2,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 3"
+         }
+        },
+        {
+         "slide_id": "s4",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-4:main-03",
+          "slide_index": 3,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 4"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-4:main-03",
+          "slide_index": 3,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 4"
+         }
+        },
+        {
+         "slide_id": "s5",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-5:main-04",
+          "slide_index": 4,
+          "score": 0.78,
+          "chip": "Meridian Roadmap · slide 5"
+         },
+         "applied_match": null
+        },
+        {
+         "slide_id": "s6",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-6:main-05",
+          "slide_index": 5,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 6"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-6:main-05",
+          "slide_index": 5,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 6"
+         }
+        },
+        {
+         "slide_id": "s7",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-7:main-06",
+          "slide_index": 6,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 7"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-7:main-06",
+          "slide_index": 6,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 7"
+         }
+        },
+        {
+         "slide_id": "s8",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-8:main-07",
+          "slide_index": 7,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 8"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-8:main-07",
+          "slide_index": 7,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 8"
+         }
+        },
+        {
+         "slide_id": "s9",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-9:main-08",
+          "slide_index": 8,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 9"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-9:main-08",
+          "slide_index": 8,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 9"
+         }
+        },
+        {
+         "slide_id": "s10",
+         "role": "closing",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-10:main-09",
+          "slide_index": 9,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 10"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-10:main-09",
+          "slide_index": 9,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 10"
+         }
+        }
+       ],
+       "misses": [],
+       "ms": 12,
+       "auto_apply": true,
+       "applied": true,
+       "applied_template": {
+        "template_id": "tpl_fake_atlas",
+        "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "name": "Atlas Quarterly",
+        "decision": "deck"
+       },
+       "previous_template_id": null,
+       "built_slide_ids": [],
+       "reason": "match"
+      }
+     }
+    }
+   ]
+  },
+  "M3-s11": {
+   "file": "scenario-M3-s11.json",
+   "sha256": "ef201f9b3736674751f48622fa746701fc47b68afd84dfec526b76655a2b27d0",
+   "bytes": 150542,
+   "scenario": "M3",
+   "base_sha": "e10eb3581b879e69a77a5036714187f57a827fc3",
+   "recorded_by": "p47/record.py (offline; real Director code, scripted model, stubbed services); derived from p418/record.py and pk-f03/record.py",
+   "client_caps": [
+    "mdc1",
+    "theme1",
+    "export1",
+    "element_refine1",
+    "element_edit1",
+    "notes1",
+    "bulk_edit1",
+    "mentions2",
+    "commands1",
+    "template_match1"
+   ],
+   "frames": [
+    {
+     "seq": 7,
+     "turn": 1,
+     "direction": "in",
+     "type": "template_auto_apply",
+     "frame": {
+      "type": "template_auto_apply",
+      "data": {
+       "enabled": true,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 8,
+     "turn": 2,
+     "direction": "in",
+     "type": "user_message",
+     "frame": {
+      "type": "user_message",
+      "data": {
+       "text": "Help me pitch a new onboarding flow to our leadership team",
+       "extended_generation": true,
+       "deep_research": false,
+       "web_search": false,
+       "file_upload": false,
+       "use_knowledge_graph": false,
+       "store_name": null,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 10,
+     "turn": 3,
+     "direction": "in",
+     "type": "user_message",
+     "frame": {
+      "type": "user_message",
+      "data": {
+       "text": "Leadership team of 8, 10 slides, focus on time-to-productivity and cost",
+       "extended_generation": true,
+       "deep_research": false,
+       "web_search": false,
+       "file_upload": false,
+       "use_knowledge_graph": false,
+       "store_name": null,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 14,
+     "turn": 3,
+     "direction": "out",
+     "type": "template_match",
+     "frame": {
+      "message_id": "<id#10>",
+      "session_id": "s_p47_m",
+      "timestamp": "<ts>",
+      "type": "template_match",
+      "role": "assistant",
+      "payload": {
+       "version": 1,
+       "status": "matched",
+       "plan_id": "plan_b26d1b40e51c",
+       "card_message_id": "msg_plan_confirm_s_p47_m",
+       "deck": [
+        {
+         "template_id": "tpl_fake_atlas",
+         "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+         "name": "Atlas Quarterly",
+         "owner": "user",
+         "score": 0.88,
+         "coverage": 0.84,
+         "reason": "Covers 9 of 10 slides: title, KPI grid, timeline, closing",
+         "thumb_ref": null,
+         "decision": "deck",
+         "covered": 9,
+         "total": 10,
+         "slides": [
+          {
+           "slide_id": "s1",
+           "role": "title",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-1:main-00",
+            "slide_index": 0,
+            "score": 0.9,
+            "chip": "Atlas Quarterly · slide 1"
+           }
+          },
+          {
+           "slide_id": "s2",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-2:main-01",
+            "slide_index": 1,
+            "score": 0.88,
+            "chip": "Atlas Quarterly · slide 2"
+           }
+          },
+          {
+           "slide_id": "s3",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-3:main-02",
+            "slide_index": 2,
+            "score": 0.86,
+            "chip": "Atlas Quarterly · slide 3"
+           }
+          },
+          {
+           "slide_id": "s4",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-4:main-03",
+            "slide_index": 3,
+            "score": 0.84,
+            "chip": "Atlas Quarterly · slide 4"
+           }
+          },
+          {
+           "slide_id": "s5",
+           "role": "body",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s6",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-6:main-05",
+            "slide_index": 5,
+            "score": 0.88,
+            "chip": "Atlas Quarterly · slide 6"
+           }
+          },
+          {
+           "slide_id": "s7",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-7:main-06",
+            "slide_index": 6,
+            "score": 0.86,
+            "chip": "Atlas Quarterly · slide 7"
+           }
+          },
+          {
+           "slide_id": "s8",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-8:main-07",
+            "slide_index": 7,
+            "score": 0.84,
+            "chip": "Atlas Quarterly · slide 8"
+           }
+          },
+          {
+           "slide_id": "s9",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-9:main-08",
+            "slide_index": 8,
+            "score": 0.9,
+            "chip": "Atlas Quarterly · slide 9"
+           }
+          },
+          {
+           "slide_id": "s10",
+           "role": "closing",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-10:main-09",
+            "slide_index": 9,
+            "score": 0.88,
+            "chip": "Atlas Quarterly · slide 10"
+           }
+          }
+         ]
+        },
+        {
+         "template_id": "tpl_fake_meridian",
+         "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+         "name": "Meridian Roadmap",
+         "owner": "user",
+         "score": 0.71,
+         "coverage": 0.67,
+         "reason": "Covers 6 of 10 slides",
+         "thumb_ref": null,
+         "decision": "slides",
+         "covered": 6,
+         "total": 10,
+         "slides": [
+          {
+           "slide_id": "s1",
+           "role": "title",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s2",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-2:main-01",
+            "slide_index": 1,
+            "score": 0.78,
+            "chip": "Meridian Roadmap · slide 2"
+           }
+          },
+          {
+           "slide_id": "s3",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-3:main-02",
+            "slide_index": 2,
+            "score": 0.76,
+            "chip": "Meridian Roadmap · slide 3"
+           }
+          },
+          {
+           "slide_id": "s4",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-4:main-03",
+            "slide_index": 3,
+            "score": 0.8,
+            "chip": "Meridian Roadmap · slide 4"
+           }
+          },
+          {
+           "slide_id": "s5",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-5:main-04",
+            "slide_index": 4,
+            "score": 0.78,
+            "chip": "Meridian Roadmap · slide 5"
+           }
+          },
+          {
+           "slide_id": "s6",
+           "role": "body",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s7",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-7:main-06",
+            "slide_index": 6,
+            "score": 0.8,
+            "chip": "Meridian Roadmap · slide 7"
+           }
+          },
+          {
+           "slide_id": "s8",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-8:main-07",
+            "slide_index": 7,
+            "score": 0.78,
+            "chip": "Meridian Roadmap · slide 8"
+           }
+          },
+          {
+           "slide_id": "s9",
+           "role": "body",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s10",
+           "role": "closing",
+           "count": null,
+           "match": null
+          }
+         ]
+        }
+       ],
+       "slides": [
+        {
+         "slide_id": "s1",
+         "role": "title",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-1:main-00",
+          "slide_index": 0,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 1"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-1:main-00",
+          "slide_index": 0,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 1"
+         }
+        },
+        {
+         "slide_id": "s2",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-2:main-01",
+          "slide_index": 1,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 2"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-2:main-01",
+          "slide_index": 1,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 2"
+         }
+        },
+        {
+         "slide_id": "s3",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-3:main-02",
+          "slide_index": 2,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 3"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-3:main-02",
+          "slide_index": 2,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 3"
+         }
+        },
+        {
+         "slide_id": "s4",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-4:main-03",
+          "slide_index": 3,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 4"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-4:main-03",
+          "slide_index": 3,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 4"
+         }
+        },
+        {
+         "slide_id": "s5",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-5:main-04",
+          "slide_index": 4,
+          "score": 0.78,
+          "chip": "Meridian Roadmap · slide 5"
+         },
+         "applied_match": null
+        },
+        {
+         "slide_id": "s6",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-6:main-05",
+          "slide_index": 5,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 6"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-6:main-05",
+          "slide_index": 5,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 6"
+         }
+        },
+        {
+         "slide_id": "s7",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-7:main-06",
+          "slide_index": 6,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 7"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-7:main-06",
+          "slide_index": 6,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 7"
+         }
+        },
+        {
+         "slide_id": "s8",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-8:main-07",
+          "slide_index": 7,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 8"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-8:main-07",
+          "slide_index": 7,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 8"
+         }
+        },
+        {
+         "slide_id": "s9",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-9:main-08",
+          "slide_index": 8,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 9"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-9:main-08",
+          "slide_index": 8,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 9"
+         }
+        },
+        {
+         "slide_id": "s10",
+         "role": "closing",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-10:main-09",
+          "slide_index": 9,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 10"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-10:main-09",
+          "slide_index": 9,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 10"
+         }
+        }
+       ],
+       "misses": [],
+       "ms": 12,
+       "auto_apply": true,
+       "applied": true,
+       "applied_template": {
+        "template_id": "tpl_fake_atlas",
+        "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "name": "Atlas Quarterly",
+        "decision": "deck"
+       },
+       "previous_template_id": null,
+       "built_slide_ids": [],
+       "reason": "match"
+      }
+     }
+    },
+    {
+     "seq": 15,
+     "turn": 4,
+     "direction": "in",
+     "type": "template_switch",
+     "frame": {
+      "type": "template_switch",
+      "data": {
+       "template_id": "tpl_fake_meridian",
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 16,
+     "turn": 4,
+     "direction": "out",
+     "type": "template_match",
+     "frame": {
+      "message_id": "<id#11>",
+      "session_id": "s_p47_m",
+      "timestamp": "<ts>",
+      "type": "template_match",
+      "role": "assistant",
+      "payload": {
+       "version": 1,
+       "status": "matched",
+       "plan_id": "plan_b26d1b40e51c",
+       "card_message_id": "msg_plan_confirm_s_p47_m",
+       "deck": [
+        {
+         "template_id": "tpl_fake_atlas",
+         "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+         "name": "Atlas Quarterly",
+         "owner": "user",
+         "score": 0.88,
+         "coverage": 0.84,
+         "reason": "Covers 9 of 10 slides: title, KPI grid, timeline, closing",
+         "thumb_ref": null,
+         "decision": "deck",
+         "covered": 9,
+         "total": 10,
+         "slides": [
+          {
+           "slide_id": "s1",
+           "role": "title",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-1:main-00",
+            "slide_index": 0,
+            "score": 0.9,
+            "chip": "Atlas Quarterly · slide 1"
+           }
+          },
+          {
+           "slide_id": "s2",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-2:main-01",
+            "slide_index": 1,
+            "score": 0.88,
+            "chip": "Atlas Quarterly · slide 2"
+           }
+          },
+          {
+           "slide_id": "s3",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-3:main-02",
+            "slide_index": 2,
+            "score": 0.86,
+            "chip": "Atlas Quarterly · slide 3"
+           }
+          },
+          {
+           "slide_id": "s4",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-4:main-03",
+            "slide_index": 3,
+            "score": 0.84,
+            "chip": "Atlas Quarterly · slide 4"
+           }
+          },
+          {
+           "slide_id": "s5",
+           "role": "body",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s6",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-6:main-05",
+            "slide_index": 5,
+            "score": 0.88,
+            "chip": "Atlas Quarterly · slide 6"
+           }
+          },
+          {
+           "slide_id": "s7",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-7:main-06",
+            "slide_index": 6,
+            "score": 0.86,
+            "chip": "Atlas Quarterly · slide 7"
+           }
+          },
+          {
+           "slide_id": "s8",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-8:main-07",
+            "slide_index": 7,
+            "score": 0.84,
+            "chip": "Atlas Quarterly · slide 8"
+           }
+          },
+          {
+           "slide_id": "s9",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-9:main-08",
+            "slide_index": 8,
+            "score": 0.9,
+            "chip": "Atlas Quarterly · slide 9"
+           }
+          },
+          {
+           "slide_id": "s10",
+           "role": "closing",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-10:main-09",
+            "slide_index": 9,
+            "score": 0.88,
+            "chip": "Atlas Quarterly · slide 10"
+           }
+          }
+         ]
+        },
+        {
+         "template_id": "tpl_fake_meridian",
+         "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+         "name": "Meridian Roadmap",
+         "owner": "user",
+         "score": 0.71,
+         "coverage": 0.67,
+         "reason": "Covers 6 of 10 slides",
+         "thumb_ref": null,
+         "decision": "slides",
+         "covered": 6,
+         "total": 10,
+         "slides": [
+          {
+           "slide_id": "s1",
+           "role": "title",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s2",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-2:main-01",
+            "slide_index": 1,
+            "score": 0.78,
+            "chip": "Meridian Roadmap · slide 2"
+           }
+          },
+          {
+           "slide_id": "s3",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-3:main-02",
+            "slide_index": 2,
+            "score": 0.76,
+            "chip": "Meridian Roadmap · slide 3"
+           }
+          },
+          {
+           "slide_id": "s4",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-4:main-03",
+            "slide_index": 3,
+            "score": 0.8,
+            "chip": "Meridian Roadmap · slide 4"
+           }
+          },
+          {
+           "slide_id": "s5",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-5:main-04",
+            "slide_index": 4,
+            "score": 0.78,
+            "chip": "Meridian Roadmap · slide 5"
+           }
+          },
+          {
+           "slide_id": "s6",
+           "role": "body",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s7",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-7:main-06",
+            "slide_index": 6,
+            "score": 0.8,
+            "chip": "Meridian Roadmap · slide 7"
+           }
+          },
+          {
+           "slide_id": "s8",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-8:main-07",
+            "slide_index": 7,
+            "score": 0.78,
+            "chip": "Meridian Roadmap · slide 8"
+           }
+          },
+          {
+           "slide_id": "s9",
+           "role": "body",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s10",
+           "role": "closing",
+           "count": null,
+           "match": null
+          }
+         ]
+        }
+       ],
+       "slides": [
+        {
+         "slide_id": "s1",
+         "role": "title",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-1:main-00",
+          "slide_index": 0,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 1"
+         },
+         "applied_match": null
+        },
+        {
+         "slide_id": "s2",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-2:main-01",
+          "slide_index": 1,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 2"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-2:main-01",
+          "slide_index": 1,
+          "score": 0.78,
+          "chip": "Meridian Roadmap · slide 2"
+         }
+        },
+        {
+         "slide_id": "s3",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-3:main-02",
+          "slide_index": 2,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 3"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-3:main-02",
+          "slide_index": 2,
+          "score": 0.76,
+          "chip": "Meridian Roadmap · slide 3"
+         }
+        },
+        {
+         "slide_id": "s4",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-4:main-03",
+          "slide_index": 3,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 4"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-4:main-03",
+          "slide_index": 3,
+          "score": 0.8,
+          "chip": "Meridian Roadmap · slide 4"
+         }
+        },
+        {
+         "slide_id": "s5",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-5:main-04",
+          "slide_index": 4,
+          "score": 0.78,
+          "chip": "Meridian Roadmap · slide 5"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-5:main-04",
+          "slide_index": 4,
+          "score": 0.78,
+          "chip": "Meridian Roadmap · slide 5"
+         }
+        },
+        {
+         "slide_id": "s6",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-6:main-05",
+          "slide_index": 5,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 6"
+         },
+         "applied_match": null
+        },
+        {
+         "slide_id": "s7",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-7:main-06",
+          "slide_index": 6,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 7"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-7:main-06",
+          "slide_index": 6,
+          "score": 0.8,
+          "chip": "Meridian Roadmap · slide 7"
+         }
+        },
+        {
+         "slide_id": "s8",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-8:main-07",
+          "slide_index": 7,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 8"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-8:main-07",
+          "slide_index": 7,
+          "score": 0.78,
+          "chip": "Meridian Roadmap · slide 8"
+         }
+        },
+        {
+         "slide_id": "s9",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-9:main-08",
+          "slide_index": 8,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 9"
+         },
+         "applied_match": null
+        },
+        {
+         "slide_id": "s10",
+         "role": "closing",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-10:main-09",
+          "slide_index": 9,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 10"
+         },
+         "applied_match": null
+        }
+       ],
+       "misses": [],
+       "ms": 12,
+       "auto_apply": true,
+       "applied": true,
+       "applied_template": {
+        "template_id": "tpl_fake_meridian",
+        "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+        "name": "Meridian Roadmap",
+        "decision": "slides"
+       },
+       "previous_template_id": "tpl_fake_atlas",
+       "built_slide_ids": [],
+       "reason": "switch"
+      }
+     }
+    },
+    {
+     "seq": 17,
+     "turn": 5,
+     "direction": "in",
+     "type": "template_switch",
+     "frame": {
+      "type": "template_switch",
+      "data": {
+       "template_id": "tpl_fake_atlas",
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 18,
+     "turn": 5,
+     "direction": "out",
+     "type": "template_match",
+     "frame": {
+      "message_id": "<id#12>",
+      "session_id": "s_p47_m",
+      "timestamp": "<ts>",
+      "type": "template_match",
+      "role": "assistant",
+      "payload": {
+       "version": 1,
+       "status": "matched",
+       "plan_id": "plan_b26d1b40e51c",
+       "card_message_id": "msg_plan_confirm_s_p47_m",
+       "deck": [
+        {
+         "template_id": "tpl_fake_atlas",
+         "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+         "name": "Atlas Quarterly",
+         "owner": "user",
+         "score": 0.88,
+         "coverage": 0.84,
+         "reason": "Covers 9 of 10 slides: title, KPI grid, timeline, closing",
+         "thumb_ref": null,
+         "decision": "deck",
+         "covered": 9,
+         "total": 10,
+         "slides": [
+          {
+           "slide_id": "s1",
+           "role": "title",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-1:main-00",
+            "slide_index": 0,
+            "score": 0.9,
+            "chip": "Atlas Quarterly · slide 1"
+           }
+          },
+          {
+           "slide_id": "s2",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-2:main-01",
+            "slide_index": 1,
+            "score": 0.88,
+            "chip": "Atlas Quarterly · slide 2"
+           }
+          },
+          {
+           "slide_id": "s3",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-3:main-02",
+            "slide_index": 2,
+            "score": 0.86,
+            "chip": "Atlas Quarterly · slide 3"
+           }
+          },
+          {
+           "slide_id": "s4",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-4:main-03",
+            "slide_index": 3,
+            "score": 0.84,
+            "chip": "Atlas Quarterly · slide 4"
+           }
+          },
+          {
+           "slide_id": "s5",
+           "role": "body",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s6",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-6:main-05",
+            "slide_index": 5,
+            "score": 0.88,
+            "chip": "Atlas Quarterly · slide 6"
+           }
+          },
+          {
+           "slide_id": "s7",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-7:main-06",
+            "slide_index": 6,
+            "score": 0.86,
+            "chip": "Atlas Quarterly · slide 7"
+           }
+          },
+          {
+           "slide_id": "s8",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-8:main-07",
+            "slide_index": 7,
+            "score": 0.84,
+            "chip": "Atlas Quarterly · slide 8"
+           }
+          },
+          {
+           "slide_id": "s9",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-9:main-08",
+            "slide_index": 8,
+            "score": 0.9,
+            "chip": "Atlas Quarterly · slide 9"
+           }
+          },
+          {
+           "slide_id": "s10",
+           "role": "closing",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-10:main-09",
+            "slide_index": 9,
+            "score": 0.88,
+            "chip": "Atlas Quarterly · slide 10"
+           }
+          }
+         ]
+        },
+        {
+         "template_id": "tpl_fake_meridian",
+         "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+         "name": "Meridian Roadmap",
+         "owner": "user",
+         "score": 0.71,
+         "coverage": 0.67,
+         "reason": "Covers 6 of 10 slides",
+         "thumb_ref": null,
+         "decision": "slides",
+         "covered": 6,
+         "total": 10,
+         "slides": [
+          {
+           "slide_id": "s1",
+           "role": "title",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s2",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-2:main-01",
+            "slide_index": 1,
+            "score": 0.78,
+            "chip": "Meridian Roadmap · slide 2"
+           }
+          },
+          {
+           "slide_id": "s3",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-3:main-02",
+            "slide_index": 2,
+            "score": 0.76,
+            "chip": "Meridian Roadmap · slide 3"
+           }
+          },
+          {
+           "slide_id": "s4",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-4:main-03",
+            "slide_index": 3,
+            "score": 0.8,
+            "chip": "Meridian Roadmap · slide 4"
+           }
+          },
+          {
+           "slide_id": "s5",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-5:main-04",
+            "slide_index": 4,
+            "score": 0.78,
+            "chip": "Meridian Roadmap · slide 5"
+           }
+          },
+          {
+           "slide_id": "s6",
+           "role": "body",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s7",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-7:main-06",
+            "slide_index": 6,
+            "score": 0.8,
+            "chip": "Meridian Roadmap · slide 7"
+           }
+          },
+          {
+           "slide_id": "s8",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-8:main-07",
+            "slide_index": 7,
+            "score": 0.78,
+            "chip": "Meridian Roadmap · slide 8"
+           }
+          },
+          {
+           "slide_id": "s9",
+           "role": "body",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s10",
+           "role": "closing",
+           "count": null,
+           "match": null
+          }
+         ]
+        }
+       ],
+       "slides": [
+        {
+         "slide_id": "s1",
+         "role": "title",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-1:main-00",
+          "slide_index": 0,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 1"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-1:main-00",
+          "slide_index": 0,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 1"
+         }
+        },
+        {
+         "slide_id": "s2",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-2:main-01",
+          "slide_index": 1,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 2"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-2:main-01",
+          "slide_index": 1,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 2"
+         }
+        },
+        {
+         "slide_id": "s3",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-3:main-02",
+          "slide_index": 2,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 3"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-3:main-02",
+          "slide_index": 2,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 3"
+         }
+        },
+        {
+         "slide_id": "s4",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-4:main-03",
+          "slide_index": 3,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 4"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-4:main-03",
+          "slide_index": 3,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 4"
+         }
+        },
+        {
+         "slide_id": "s5",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-5:main-04",
+          "slide_index": 4,
+          "score": 0.78,
+          "chip": "Meridian Roadmap · slide 5"
+         },
+         "applied_match": null
+        },
+        {
+         "slide_id": "s6",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-6:main-05",
+          "slide_index": 5,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 6"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-6:main-05",
+          "slide_index": 5,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 6"
+         }
+        },
+        {
+         "slide_id": "s7",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-7:main-06",
+          "slide_index": 6,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 7"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-7:main-06",
+          "slide_index": 6,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 7"
+         }
+        },
+        {
+         "slide_id": "s8",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-8:main-07",
+          "slide_index": 7,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 8"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-8:main-07",
+          "slide_index": 7,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 8"
+         }
+        },
+        {
+         "slide_id": "s9",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-9:main-08",
+          "slide_index": 8,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 9"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-9:main-08",
+          "slide_index": 8,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 9"
+         }
+        },
+        {
+         "slide_id": "s10",
+         "role": "closing",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-10:main-09",
+          "slide_index": 9,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 10"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-10:main-09",
+          "slide_index": 9,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 10"
+         }
+        }
+       ],
+       "misses": [],
+       "ms": 12,
+       "auto_apply": true,
+       "applied": true,
+       "applied_template": {
+        "template_id": "tpl_fake_atlas",
+        "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "name": "Atlas Quarterly",
+        "decision": "deck"
+       },
+       "previous_template_id": "tpl_fake_meridian",
+       "built_slide_ids": [],
+       "reason": "undo"
+      }
+     }
+    },
+    {
+     "seq": 19,
+     "turn": 6,
+     "direction": "in",
+     "type": "user_message",
+     "frame": {
+      "type": "user_message",
+      "data": {
+       "text": "use Meridian instead",
+       "extended_generation": true,
+       "deep_research": false,
+       "web_search": false,
+       "file_upload": false,
+       "use_knowledge_graph": false,
+       "store_name": null,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 21,
+     "turn": 6,
+     "direction": "out",
+     "type": "template_match",
+     "frame": {
+      "message_id": "<id#14>",
+      "session_id": "s_p47_m",
+      "timestamp": "<ts>",
+      "type": "template_match",
+      "role": "assistant",
+      "payload": {
+       "version": 1,
+       "status": "matched",
+       "plan_id": "plan_b26d1b40e51c",
+       "card_message_id": "msg_plan_confirm_s_p47_m",
+       "deck": [
+        {
+         "template_id": "tpl_fake_atlas",
+         "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+         "name": "Atlas Quarterly",
+         "owner": "user",
+         "score": 0.88,
+         "coverage": 0.84,
+         "reason": "Covers 9 of 10 slides: title, KPI grid, timeline, closing",
+         "thumb_ref": null,
+         "decision": "deck",
+         "covered": 9,
+         "total": 10,
+         "slides": [
+          {
+           "slide_id": "s1",
+           "role": "title",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-1:main-00",
+            "slide_index": 0,
+            "score": 0.9,
+            "chip": "Atlas Quarterly · slide 1"
+           }
+          },
+          {
+           "slide_id": "s2",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-2:main-01",
+            "slide_index": 1,
+            "score": 0.88,
+            "chip": "Atlas Quarterly · slide 2"
+           }
+          },
+          {
+           "slide_id": "s3",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-3:main-02",
+            "slide_index": 2,
+            "score": 0.86,
+            "chip": "Atlas Quarterly · slide 3"
+           }
+          },
+          {
+           "slide_id": "s4",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-4:main-03",
+            "slide_index": 3,
+            "score": 0.84,
+            "chip": "Atlas Quarterly · slide 4"
+           }
+          },
+          {
+           "slide_id": "s5",
+           "role": "body",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s6",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-6:main-05",
+            "slide_index": 5,
+            "score": 0.88,
+            "chip": "Atlas Quarterly · slide 6"
+           }
+          },
+          {
+           "slide_id": "s7",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-7:main-06",
+            "slide_index": 6,
+            "score": 0.86,
+            "chip": "Atlas Quarterly · slide 7"
+           }
+          },
+          {
+           "slide_id": "s8",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-8:main-07",
+            "slide_index": 7,
+            "score": 0.84,
+            "chip": "Atlas Quarterly · slide 8"
+           }
+          },
+          {
+           "slide_id": "s9",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-9:main-08",
+            "slide_index": 8,
+            "score": 0.9,
+            "chip": "Atlas Quarterly · slide 9"
+           }
+          },
+          {
+           "slide_id": "s10",
+           "role": "closing",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-10:main-09",
+            "slide_index": 9,
+            "score": 0.88,
+            "chip": "Atlas Quarterly · slide 10"
+           }
+          }
+         ]
+        },
+        {
+         "template_id": "tpl_fake_meridian",
+         "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+         "name": "Meridian Roadmap",
+         "owner": "user",
+         "score": 0.71,
+         "coverage": 0.67,
+         "reason": "Covers 6 of 10 slides",
+         "thumb_ref": null,
+         "decision": "slides",
+         "covered": 6,
+         "total": 10,
+         "slides": [
+          {
+           "slide_id": "s1",
+           "role": "title",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s2",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-2:main-01",
+            "slide_index": 1,
+            "score": 0.78,
+            "chip": "Meridian Roadmap · slide 2"
+           }
+          },
+          {
+           "slide_id": "s3",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-3:main-02",
+            "slide_index": 2,
+            "score": 0.76,
+            "chip": "Meridian Roadmap · slide 3"
+           }
+          },
+          {
+           "slide_id": "s4",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-4:main-03",
+            "slide_index": 3,
+            "score": 0.8,
+            "chip": "Meridian Roadmap · slide 4"
+           }
+          },
+          {
+           "slide_id": "s5",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-5:main-04",
+            "slide_index": 4,
+            "score": 0.78,
+            "chip": "Meridian Roadmap · slide 5"
+           }
+          },
+          {
+           "slide_id": "s6",
+           "role": "body",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s7",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-7:main-06",
+            "slide_index": 6,
+            "score": 0.8,
+            "chip": "Meridian Roadmap · slide 7"
+           }
+          },
+          {
+           "slide_id": "s8",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-8:main-07",
+            "slide_index": 7,
+            "score": 0.78,
+            "chip": "Meridian Roadmap · slide 8"
+           }
+          },
+          {
+           "slide_id": "s9",
+           "role": "body",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s10",
+           "role": "closing",
+           "count": null,
+           "match": null
+          }
+         ]
+        }
+       ],
+       "slides": [
+        {
+         "slide_id": "s1",
+         "role": "title",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-1:main-00",
+          "slide_index": 0,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 1"
+         },
+         "applied_match": null
+        },
+        {
+         "slide_id": "s2",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-2:main-01",
+          "slide_index": 1,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 2"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-2:main-01",
+          "slide_index": 1,
+          "score": 0.78,
+          "chip": "Meridian Roadmap · slide 2"
+         }
+        },
+        {
+         "slide_id": "s3",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-3:main-02",
+          "slide_index": 2,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 3"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-3:main-02",
+          "slide_index": 2,
+          "score": 0.76,
+          "chip": "Meridian Roadmap · slide 3"
+         }
+        },
+        {
+         "slide_id": "s4",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-4:main-03",
+          "slide_index": 3,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 4"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-4:main-03",
+          "slide_index": 3,
+          "score": 0.8,
+          "chip": "Meridian Roadmap · slide 4"
+         }
+        },
+        {
+         "slide_id": "s5",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-5:main-04",
+          "slide_index": 4,
+          "score": 0.78,
+          "chip": "Meridian Roadmap · slide 5"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-5:main-04",
+          "slide_index": 4,
+          "score": 0.78,
+          "chip": "Meridian Roadmap · slide 5"
+         }
+        },
+        {
+         "slide_id": "s6",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-6:main-05",
+          "slide_index": 5,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 6"
+         },
+         "applied_match": null
+        },
+        {
+         "slide_id": "s7",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-7:main-06",
+          "slide_index": 6,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 7"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-7:main-06",
+          "slide_index": 6,
+          "score": 0.8,
+          "chip": "Meridian Roadmap · slide 7"
+         }
+        },
+        {
+         "slide_id": "s8",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-8:main-07",
+          "slide_index": 7,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 8"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-8:main-07",
+          "slide_index": 7,
+          "score": 0.78,
+          "chip": "Meridian Roadmap · slide 8"
+         }
+        },
+        {
+         "slide_id": "s9",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-9:main-08",
+          "slide_index": 8,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 9"
+         },
+         "applied_match": null
+        },
+        {
+         "slide_id": "s10",
+         "role": "closing",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-10:main-09",
+          "slide_index": 9,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 10"
+         },
+         "applied_match": null
+        }
+       ],
+       "misses": [],
+       "ms": 12,
+       "auto_apply": true,
+       "applied": true,
+       "applied_template": {
+        "template_id": "tpl_fake_meridian",
+        "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+        "name": "Meridian Roadmap",
+        "decision": "slides"
+       },
+       "previous_template_id": "tpl_fake_atlas",
+       "built_slide_ids": [],
+       "reason": "chat_switch"
+      }
+     }
+    },
+    {
+     "seq": 22,
+     "turn": 7,
+     "direction": "in",
+     "type": "template_switch",
+     "frame": {
+      "type": "template_switch",
+      "data": {
+       "template_id": null,
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 23,
+     "turn": 7,
+     "direction": "out",
+     "type": "template_match",
+     "frame": {
+      "message_id": "<id#15>",
+      "session_id": "s_p47_m",
+      "timestamp": "<ts>",
+      "type": "template_match",
+      "role": "assistant",
+      "payload": {
+       "version": 1,
+       "status": "matched",
+       "plan_id": "plan_b26d1b40e51c",
+       "card_message_id": "msg_plan_confirm_s_p47_m",
+       "deck": [
+        {
+         "template_id": "tpl_fake_atlas",
+         "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+         "name": "Atlas Quarterly",
+         "owner": "user",
+         "score": 0.88,
+         "coverage": 0.84,
+         "reason": "Covers 9 of 10 slides: title, KPI grid, timeline, closing",
+         "thumb_ref": null,
+         "decision": "deck",
+         "covered": 9,
+         "total": 10,
+         "slides": [
+          {
+           "slide_id": "s1",
+           "role": "title",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-1:main-00",
+            "slide_index": 0,
+            "score": 0.9,
+            "chip": "Atlas Quarterly · slide 1"
+           }
+          },
+          {
+           "slide_id": "s2",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-2:main-01",
+            "slide_index": 1,
+            "score": 0.88,
+            "chip": "Atlas Quarterly · slide 2"
+           }
+          },
+          {
+           "slide_id": "s3",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-3:main-02",
+            "slide_index": 2,
+            "score": 0.86,
+            "chip": "Atlas Quarterly · slide 3"
+           }
+          },
+          {
+           "slide_id": "s4",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-4:main-03",
+            "slide_index": 3,
+            "score": 0.84,
+            "chip": "Atlas Quarterly · slide 4"
+           }
+          },
+          {
+           "slide_id": "s5",
+           "role": "body",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s6",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-6:main-05",
+            "slide_index": 5,
+            "score": 0.88,
+            "chip": "Atlas Quarterly · slide 6"
+           }
+          },
+          {
+           "slide_id": "s7",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-7:main-06",
+            "slide_index": 6,
+            "score": 0.86,
+            "chip": "Atlas Quarterly · slide 7"
+           }
+          },
+          {
+           "slide_id": "s8",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-8:main-07",
+            "slide_index": 7,
+            "score": 0.84,
+            "chip": "Atlas Quarterly · slide 8"
+           }
+          },
+          {
+           "slide_id": "s9",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-9:main-08",
+            "slide_index": 8,
+            "score": 0.9,
+            "chip": "Atlas Quarterly · slide 9"
+           }
+          },
+          {
+           "slide_id": "s10",
+           "role": "closing",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-10:main-09",
+            "slide_index": 9,
+            "score": 0.88,
+            "chip": "Atlas Quarterly · slide 10"
+           }
+          }
+         ]
+        },
+        {
+         "template_id": "tpl_fake_meridian",
+         "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+         "name": "Meridian Roadmap",
+         "owner": "user",
+         "score": 0.71,
+         "coverage": 0.67,
+         "reason": "Covers 6 of 10 slides",
+         "thumb_ref": null,
+         "decision": "slides",
+         "covered": 6,
+         "total": 10,
+         "slides": [
+          {
+           "slide_id": "s1",
+           "role": "title",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s2",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-2:main-01",
+            "slide_index": 1,
+            "score": 0.78,
+            "chip": "Meridian Roadmap · slide 2"
+           }
+          },
+          {
+           "slide_id": "s3",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-3:main-02",
+            "slide_index": 2,
+            "score": 0.76,
+            "chip": "Meridian Roadmap · slide 3"
+           }
+          },
+          {
+           "slide_id": "s4",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-4:main-03",
+            "slide_index": 3,
+            "score": 0.8,
+            "chip": "Meridian Roadmap · slide 4"
+           }
+          },
+          {
+           "slide_id": "s5",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-5:main-04",
+            "slide_index": 4,
+            "score": 0.78,
+            "chip": "Meridian Roadmap · slide 5"
+           }
+          },
+          {
+           "slide_id": "s6",
+           "role": "body",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s7",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-7:main-06",
+            "slide_index": 6,
+            "score": 0.8,
+            "chip": "Meridian Roadmap · slide 7"
+           }
+          },
+          {
+           "slide_id": "s8",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-8:main-07",
+            "slide_index": 7,
+            "score": 0.78,
+            "chip": "Meridian Roadmap · slide 8"
+           }
+          },
+          {
+           "slide_id": "s9",
+           "role": "body",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s10",
+           "role": "closing",
+           "count": null,
+           "match": null
+          }
+         ]
+        }
+       ],
+       "slides": [
+        {
+         "slide_id": "s1",
+         "role": "title",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-1:main-00",
+          "slide_index": 0,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 1"
+         },
+         "applied_match": null
+        },
+        {
+         "slide_id": "s2",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-2:main-01",
+          "slide_index": 1,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 2"
+         },
+         "applied_match": null
+        },
+        {
+         "slide_id": "s3",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-3:main-02",
+          "slide_index": 2,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 3"
+         },
+         "applied_match": null
+        },
+        {
+         "slide_id": "s4",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-4:main-03",
+          "slide_index": 3,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 4"
+         },
+         "applied_match": null
+        },
+        {
+         "slide_id": "s5",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-5:main-04",
+          "slide_index": 4,
+          "score": 0.78,
+          "chip": "Meridian Roadmap · slide 5"
+         },
+         "applied_match": null
+        },
+        {
+         "slide_id": "s6",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-6:main-05",
+          "slide_index": 5,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 6"
+         },
+         "applied_match": null
+        },
+        {
+         "slide_id": "s7",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-7:main-06",
+          "slide_index": 6,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 7"
+         },
+         "applied_match": null
+        },
+        {
+         "slide_id": "s8",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-8:main-07",
+          "slide_index": 7,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 8"
+         },
+         "applied_match": null
+        },
+        {
+         "slide_id": "s9",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-9:main-08",
+          "slide_index": 8,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 9"
+         },
+         "applied_match": null
+        },
+        {
+         "slide_id": "s10",
+         "role": "closing",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-10:main-09",
+          "slide_index": 9,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 10"
+         },
+         "applied_match": null
+        }
+       ],
+       "misses": [],
+       "ms": 12,
+       "auto_apply": true,
+       "applied": false,
+       "applied_template": null,
+       "previous_template_id": "tpl_fake_meridian",
+       "built_slide_ids": [],
+       "reason": "no_template"
+      }
+     }
+    },
+    {
+     "seq": 24,
+     "turn": 8,
+     "direction": "in",
+     "type": "template_switch",
+     "frame": {
+      "type": "template_switch",
+      "data": {
+       "template_id": "tpl_fake_meridian",
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    },
+    {
+     "seq": 25,
+     "turn": 8,
+     "direction": "out",
+     "type": "template_match",
+     "frame": {
+      "message_id": "<id#16>",
+      "session_id": "s_p47_m",
+      "timestamp": "<ts>",
+      "type": "template_match",
+      "role": "assistant",
+      "payload": {
+       "version": 1,
+       "status": "matched",
+       "plan_id": "plan_b26d1b40e51c",
+       "card_message_id": "msg_plan_confirm_s_p47_m",
+       "deck": [
+        {
+         "template_id": "tpl_fake_atlas",
+         "source_sha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+         "name": "Atlas Quarterly",
+         "owner": "user",
+         "score": 0.88,
+         "coverage": 0.84,
+         "reason": "Covers 9 of 10 slides: title, KPI grid, timeline, closing",
+         "thumb_ref": null,
+         "decision": "deck",
+         "covered": 9,
+         "total": 10,
+         "slides": [
+          {
+           "slide_id": "s1",
+           "role": "title",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-1:main-00",
+            "slide_index": 0,
+            "score": 0.9,
+            "chip": "Atlas Quarterly · slide 1"
+           }
+          },
+          {
+           "slide_id": "s2",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-2:main-01",
+            "slide_index": 1,
+            "score": 0.88,
+            "chip": "Atlas Quarterly · slide 2"
+           }
+          },
+          {
+           "slide_id": "s3",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-3:main-02",
+            "slide_index": 2,
+            "score": 0.86,
+            "chip": "Atlas Quarterly · slide 3"
+           }
+          },
+          {
+           "slide_id": "s4",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-4:main-03",
+            "slide_index": 3,
+            "score": 0.84,
+            "chip": "Atlas Quarterly · slide 4"
+           }
+          },
+          {
+           "slide_id": "s5",
+           "role": "body",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s6",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-6:main-05",
+            "slide_index": 5,
+            "score": 0.88,
+            "chip": "Atlas Quarterly · slide 6"
+           }
+          },
+          {
+           "slide_id": "s7",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-7:main-06",
+            "slide_index": 6,
+            "score": 0.86,
+            "chip": "Atlas Quarterly · slide 7"
+           }
+          },
+          {
+           "slide_id": "s8",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-8:main-07",
+            "slide_index": 7,
+            "score": 0.84,
+            "chip": "Atlas Quarterly · slide 8"
+           }
+          },
+          {
+           "slide_id": "s9",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-9:main-08",
+            "slide_index": 8,
+            "score": 0.9,
+            "chip": "Atlas Quarterly · slide 9"
+           }
+          },
+          {
+           "slide_id": "s10",
+           "role": "closing",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_atlas",
+            "container_id": "slide-10:main-09",
+            "slide_index": 9,
+            "score": 0.88,
+            "chip": "Atlas Quarterly · slide 10"
+           }
+          }
+         ]
+        },
+        {
+         "template_id": "tpl_fake_meridian",
+         "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+         "name": "Meridian Roadmap",
+         "owner": "user",
+         "score": 0.71,
+         "coverage": 0.67,
+         "reason": "Covers 6 of 10 slides",
+         "thumb_ref": null,
+         "decision": "slides",
+         "covered": 6,
+         "total": 10,
+         "slides": [
+          {
+           "slide_id": "s1",
+           "role": "title",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s2",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-2:main-01",
+            "slide_index": 1,
+            "score": 0.78,
+            "chip": "Meridian Roadmap · slide 2"
+           }
+          },
+          {
+           "slide_id": "s3",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-3:main-02",
+            "slide_index": 2,
+            "score": 0.76,
+            "chip": "Meridian Roadmap · slide 3"
+           }
+          },
+          {
+           "slide_id": "s4",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-4:main-03",
+            "slide_index": 3,
+            "score": 0.8,
+            "chip": "Meridian Roadmap · slide 4"
+           }
+          },
+          {
+           "slide_id": "s5",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-5:main-04",
+            "slide_index": 4,
+            "score": 0.78,
+            "chip": "Meridian Roadmap · slide 5"
+           }
+          },
+          {
+           "slide_id": "s6",
+           "role": "body",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s7",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-7:main-06",
+            "slide_index": 6,
+            "score": 0.8,
+            "chip": "Meridian Roadmap · slide 7"
+           }
+          },
+          {
+           "slide_id": "s8",
+           "role": "body",
+           "count": null,
+           "match": {
+            "template_id": "tpl_fake_meridian",
+            "container_id": "slide-8:main-07",
+            "slide_index": 7,
+            "score": 0.78,
+            "chip": "Meridian Roadmap · slide 8"
+           }
+          },
+          {
+           "slide_id": "s9",
+           "role": "body",
+           "count": null,
+           "match": null
+          },
+          {
+           "slide_id": "s10",
+           "role": "closing",
+           "count": null,
+           "match": null
+          }
+         ]
+        }
+       ],
+       "slides": [
+        {
+         "slide_id": "s1",
+         "role": "title",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-1:main-00",
+          "slide_index": 0,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 1"
+         },
+         "applied_match": null
+        },
+        {
+         "slide_id": "s2",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-2:main-01",
+          "slide_index": 1,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 2"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-2:main-01",
+          "slide_index": 1,
+          "score": 0.78,
+          "chip": "Meridian Roadmap · slide 2"
+         }
+        },
+        {
+         "slide_id": "s3",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-3:main-02",
+          "slide_index": 2,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 3"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-3:main-02",
+          "slide_index": 2,
+          "score": 0.76,
+          "chip": "Meridian Roadmap · slide 3"
+         }
+        },
+        {
+         "slide_id": "s4",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-4:main-03",
+          "slide_index": 3,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 4"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-4:main-03",
+          "slide_index": 3,
+          "score": 0.8,
+          "chip": "Meridian Roadmap · slide 4"
+         }
+        },
+        {
+         "slide_id": "s5",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-5:main-04",
+          "slide_index": 4,
+          "score": 0.78,
+          "chip": "Meridian Roadmap · slide 5"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-5:main-04",
+          "slide_index": 4,
+          "score": 0.78,
+          "chip": "Meridian Roadmap · slide 5"
+         }
+        },
+        {
+         "slide_id": "s6",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-6:main-05",
+          "slide_index": 5,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 6"
+         },
+         "applied_match": null
+        },
+        {
+         "slide_id": "s7",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-7:main-06",
+          "slide_index": 6,
+          "score": 0.86,
+          "chip": "Atlas Quarterly · slide 7"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-7:main-06",
+          "slide_index": 6,
+          "score": 0.8,
+          "chip": "Meridian Roadmap · slide 7"
+         }
+        },
+        {
+         "slide_id": "s8",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-8:main-07",
+          "slide_index": 7,
+          "score": 0.84,
+          "chip": "Atlas Quarterly · slide 8"
+         },
+         "applied_match": {
+          "template_id": "tpl_fake_meridian",
+          "container_id": "slide-8:main-07",
+          "slide_index": 7,
+          "score": 0.78,
+          "chip": "Meridian Roadmap · slide 8"
+         }
+        },
+        {
+         "slide_id": "s9",
+         "role": "body",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-9:main-08",
+          "slide_index": 8,
+          "score": 0.9,
+          "chip": "Atlas Quarterly · slide 9"
+         },
+         "applied_match": null
+        },
+        {
+         "slide_id": "s10",
+         "role": "closing",
+         "count": null,
+         "match": {
+          "template_id": "tpl_fake_atlas",
+          "container_id": "slide-10:main-09",
+          "slide_index": 9,
+          "score": 0.88,
+          "chip": "Atlas Quarterly · slide 10"
+         },
+         "applied_match": null
+        }
+       ],
+       "misses": [],
+       "ms": 12,
+       "auto_apply": true,
+       "applied": true,
+       "applied_template": {
+        "template_id": "tpl_fake_meridian",
+        "source_sha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+        "name": "Meridian Roadmap",
+        "decision": "slides"
+       },
+       "previous_template_id": null,
+       "built_slide_ids": [],
+       "reason": "undo"
+      }
+     }
+    },
+    {
+     "seq": 26,
+     "turn": 9,
+     "direction": "in",
+     "type": "template_switch",
+     "frame": {
+      "type": "template_switch",
+      "data": {
+       "template_id": "tpl_fake_other_user",
+       "client_caps": [
+        "mdc1",
+        "theme1",
+        "export1",
+        "element_refine1",
+        "element_edit1",
+        "notes1",
+        "bulk_edit1",
+        "mentions2",
+        "commands1",
+        "template_match1"
+       ]
+      }
+     }
+    }
+   ]
+  }
+ }
+}

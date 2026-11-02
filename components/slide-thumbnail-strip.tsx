@@ -41,6 +41,8 @@ import type { RailBuildPlaceholder } from '@/lib/studio-rail-build-count' // RAI
 import { RailBuildPlaceholderCard } from './studio-rail-build-placeholder' // RAIL-SLIDES-1-MIDBUILD
 import { RailAddSlideButton, type RailAddSlideProps } from './studio-rail-add-slide'
 import './studio-thumbnails.css'
+import { STUDIO_TEMPLATE_MATCH_ENABLED } from '@/lib/studio-template-match' // STUDIO-TEMPLATE-MATCH
+import { StudioTemplateMatchChip } from '@/components/builder/studio-template-match-chip' // STUDIO-TEMPLATE-MATCH
 
 const STUDIO_THUMBNAILS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
 /** PASS2 rail v2 (flag NEXT_PUBLIC_STUDIO_SLIDE_RAIL_V2, default off): Studio shell only; its look is all in studio-thumbnails.css. */
@@ -701,6 +703,7 @@ export function SlideThumbnailStrip({
                 <Loader2 className="h-4 w-4 animate-spin" />
               </div>
             )}
+            {STUDIO_TEMPLATE_MATCH_ENABLED && <StudioTemplateMatchChip slideNumber={visualNumber} />}{/* STUDIO-TEMPLATE-MATCH (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH, default off): the source chip inside the thumbnail, bottom-left; off, never drawn */}
             {/* Canvas v2 P4: no number badge over the image — the preview keeps
                 the slide's exact 16:9; the number lives in the row below. */}
           </div>
