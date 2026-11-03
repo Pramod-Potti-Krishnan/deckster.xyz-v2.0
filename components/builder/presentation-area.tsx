@@ -37,6 +37,8 @@ import type { ThemeSyncState } from '@/lib/theme-sync'
 import type { SlideThumbnailUrlsByPresentation } from '@/lib/stage-f-thumbnails'
 import type { ComposerLibraryRequest } from '@/lib/studio-composer-popups'
 import { STUDIO_RAIL_BUILD_COUNT_ENABLED, railBuildPlanFor } from '@/lib/studio-rail-build-count' // RAIL-SLIDES-1-MIDBUILD
+import { STUDIO_TEMPLATE_MATCH_ENABLED } from '@/lib/studio-template-match' // STUDIO-TEMPLATE-MATCH
+import { StudioTemplateMatchBadge } from '@/components/builder/studio-template-match-badge' // STUDIO-TEMPLATE-MATCH
 
 /** Check if a selected element is a blank placeholder; if so, open generation panel instead of format panel */
 export function handleBlankElementClick(
@@ -414,6 +416,7 @@ export function PresentationArea({
   return (
     <div className="flex-1 flex bg-gray-100 dark:bg-slate-800 min-w-0 min-h-0">
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
+        {STUDIO_TEMPLATE_MATCH_ENABLED && presentationUrl && mountNative && !templateModeOn && <StudioTemplateMatchBadge />}{/* STUDIO-TEMPLATE-MATCH (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH, default off): the one line above the slide that says which template Director applied; a sibling above the viewer, off, never drawn */}
         {presentationUrl && mountNative ? (
           <PresentationViewer
             studioPartialArtifact={studioPartialArtifact}
