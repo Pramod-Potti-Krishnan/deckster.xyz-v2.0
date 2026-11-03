@@ -5,7 +5,7 @@
   "baseHead": "abf52d4d4858b24cdb62549325ae5b9eed36624e",
   "fullBranchHead": "466fc2503463be2213b6f1d267eed30fcc5cf078",
   "latestFocusedHead": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
-  "status": "merged-7ccc857b-light-checks-only-awaiting-seat2-gate",
+  "status": "merged-91bcc908-light-checks-only-frozen-for-seat2-gate",
   "voiceFixtureTests": {
     "files": 11,
     "passed": 225,
@@ -3877,5 +3877,23 @@
       "builds"
     ],
     "gateOwner": "OPS-2 seat2; current Mac hold remains in effect"
+  },
+  "postF13Refresh": {
+    "targetHead": "91bcc9083defa55aafce204be3949fd2ff8e5841",
+    "mergeCodeHead": "9d2b90d36c05bd8cbf0bcc8828ce332ba5ca88b9",
+    "method": "merge-only, preserve both sides of append conflicts",
+    "normalizedViews": {
+      "files": 19,
+      "mismatches": 0
+    },
+    "sourceIdentity": "application trees identical target; core and fixtures identical8d652288",
+    "checks": [
+      "19 exact views",
+      "JavaScript syntax",
+      "git diff --check",
+      "clean merge-tree"
+    ],
+    "suitesTypesBuilds": "not rerun; OPS-2 seat2 gate owns them",
+    "dependencyRuling": "PROGRAM-1 approved option a: retain Vitest5.0.3; OPS-2 one online install on seat2"
   }
 }
