@@ -33,6 +33,8 @@ import {
   type TemplateSelection,
   type TemplateSnapshot,
 } from '@/hooks/use-templates'
+import { STUDIO_TEMPLATE_MATCH_ENABLED } from '@/lib/studio-template-match' // STUDIO-TEMPLATE-MATCH
+import { StudioTemplateAutoApplyCheck } from '@/components/builder/studio-template-auto-apply-check' // STUDIO-TEMPLATE-MATCH
 
 type TemplatePickerMode = 'generation' | 'review'
 const STUDIO_SHELL = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
@@ -449,6 +451,7 @@ export function TemplatePickerContent({
         {refreshButton}
         <button type="button" className="stcd-icon-button" data-studio-template-action="close" aria-label="Close template options" onClick={dropdowns.onClose}><X size={14} aria-hidden="true" /></button>
       </div>
+      {STUDIO_TEMPLATE_MATCH_ENABLED && <StudioTemplateAutoApplyCheck />}{/* STUDIO-TEMPLATE-MATCH (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH, default off): the one check at the top of the pop-up, "Use my best-matching template", ticked by default; off, never drawn */}
       {!composer && dropdowns.savedTemplates && <>
       {dropdowns.locked && <p className="stcd-note">Template selection is locked for this deck.</p>}
       {decksterField}
