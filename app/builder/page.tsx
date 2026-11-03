@@ -18,6 +18,8 @@ import { StudioPhoneBuilderTop } from '@/components/builder/studio-phone-builder
 import { StudioPhoneLandscape } from '@/components/builder/studio-phone-landscape' // PHONE-LANDSCAPE (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE, default off, with the phone shell): a phone turned sideways gets a viewing stage
 import { STUDIO_PHONE_LANDSCAPE_ENABLED } from '@/lib/studio-phone-landscape' // PHONE-LANDSCAPE
 import { useStudioPhoneWorkspaceClamp } from '@/hooks/use-studio-phone-landscape' // PHONE-LANDSCAPE
+import { StudioPhoneHints } from '@/components/builder/studio-phone-hints' // PHONE-HINTS (NEXT_PUBLIC_STUDIO_PHONE_HINTS, default off, needs the landscape flag too): the portrait rotate and swipe hints, Full screen
+import { STUDIO_PHONE_HINTS_ENABLED } from '@/lib/studio-phone-hints' // PHONE-HINTS
 
 import { composerThemeSyncBlocked } from '@/lib/composer-theme-policy'
 
@@ -7337,6 +7339,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       {STUDIO_PHONE_SHELL_ENABLED && <StudioPhoneTabBar sessionUsage={<TokenUsageStrip tokenUsage={tokenUsage} displayMode="counter" />} />}{/* PHONE-SHELL-NAV: NEXT_PUBLIC_STUDIO_PHONE_SHELL (default off), drawn next to the rail; shown at 640 px and narrower only */}
       {STUDIO_PHONE_SHELL_ENABLED && <StudioPhoneBuilderTop connectionState={connectionState} reconnectStatus={reconnectStatus} />}{/* PHONE-SHELL-TOP: NEXT_PUBLIC_STUDIO_PHONE_SHELL (default off); draws nothing here: the "..." menu and the Director dot are portalled into row 1 and row 2 */}
       {STUDIO_PHONE_LANDSCAPE_ENABLED && <StudioPhoneLandscape deckOnStage={Boolean(effectivePresentationUrl) && !studioWelcome && !session.isLoadingSession} stageVisible={studioOverlayWorkspace && !studioCanvasCovered} slideNumber={currentSlideIndex + 1} connectionState={connectionState} reconnectStatus={reconnectStatus} onChat={() => { selectWorkspacePane('chat'); if (!showChat) setShowChat(true) }} />}{/* PHONE-LANDSCAPE: NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE (default off); the sideways viewing stage (hamburger, plus, Chat); Chat is the Director pane of the switch */}
+      {STUDIO_PHONE_HINTS_ENABLED && <StudioPhoneHints deckOnStage={Boolean(effectivePresentationUrl) && !studioWelcome && !session.isLoadingSession} stageVisible={studioOverlayWorkspace && !studioCanvasCovered} editing={studioViewerEditing} slideNumber={currentSlideIndex + 1} slideCount={effectiveSlideCount ?? 0} />}{/* PHONE-HINTS: NEXT_PUBLIC_STUDIO_PHONE_HINTS (default off, needs the landscape flag too); the one-time rotate and swipe hints, Full screen and the swipe's state; drawn in the slide view and the sideways stage only */}
       {studioShell && !effectivePresentationUrl && !session.isLoadingSession && workflowKey !== dismissedWorkflowKey && <>
         <ThemePanel isOpen={workflowAction === 'theme' && !savedThemeWorkflowId} onClose={() => setDismissedWorkflowKey(workflowKey)} presentationId={null} buildThemeSelection={buildThemeSelection} themeSync={themeSync} selectionLocked={generationSelectionsLocked} onBuildThemeChange={handleBuildThemeChange} />
         <Dialog open={workflowAction === 'templates' || workflowAction === 'master'} onOpenChange={open => { if (!open) setDismissedWorkflowKey(workflowKey) }}>
