@@ -332,9 +332,9 @@ function uiSuite(ui, over = {}) {
     eq([ui.ringLevel(0), ui.ringLevel(-1), ui.ringLevel(NaN), ui.ringLevel(0.1), ui.ringLevel(0.2), ui.ringLevel(0.333), ui.ringLevel(0.5), ui.ringLevel(9)], [0, 0, 0, 0.4, 0.8, 1, 1, 1], 'ring: a quiet voice (0.05 to 0.3) is most of the ring, clamped to 0..1, two decimals')
     eq([ui.TAP_TALK_MS, ui.LATCH_MAX_MS], [300, 60000], 'talk: a press under 300 ms is a tap (it latches); a latch left on is sent after a minute')
     eq([ui.MUTE_LABEL, ui.UNMUTE_LABEL], ['Mute microphone', 'Unmute microphone'], 'mute: named')
-    // the character: Felix by default, Bob the alternative, remembered per device
-    eq([ui.DEFAULT_COMPANION, ui.COMPANION_CHOICES, ui.COMPANION_STORAGE_KEY], ['felix', ['felix', 'bob'], 'deckster.studio.voiceCompanion'], 'character: Felix is the default, Bob the alternative')
-    eq([ui.companionChoices('felix'), ui.companionChoices('bob'), ui.companionChoices('deckster-owl')], [['felix', 'bob'], ['bob', 'felix'], ['deckster-owl', 'felix', 'bob']], 'character: the build\'s default is always on offer, then Felix and Bob, none twice')
+    // the character: Felix by default, then Bob and Maya, remembered per device
+    eq([ui.DEFAULT_COMPANION, ui.COMPANION_CHOICES, ui.COMPANION_STORAGE_KEY], ['felix', ['felix', 'bob', 'maya'], 'deckster.studio.voiceCompanion'], 'character: Felix is the default, Bob and Maya the others')
+    eq([ui.companionChoices('felix'), ui.companionChoices('bob'), ui.companionChoices('maya'), ui.companionChoices('deckster-owl')], [['felix', 'bob', 'maya'], ['bob', 'felix', 'maya'], ['maya', 'felix', 'bob'], ['deckster-owl', 'felix', 'bob', 'maya']], 'character: the build\'s default is always on offer, then Felix, Bob and Maya, none twice')
     const store = (initial = {}) => { const data = { ...initial }; return { data, getItem: key => (key in data ? data[key] : null), setItem: (key, value) => { data[key] = value } } }
     eq([ui.readCompanionChoice(store(), 'felix'), ui.readCompanionChoice(store({ 'deckster.studio.voiceCompanion': 'bob' }), 'felix'), ui.readCompanionChoice(store({ 'deckster.studio.voiceCompanion': 'felix' }), 'felix')], ['felix', 'bob', 'felix'], 'character: a device\'s choice is read, else the default')
     eq([ui.readCompanionChoice(store({ 'deckster.studio.voiceCompanion': '../etc' }), 'felix'), ui.readCompanionChoice(store({ 'deckster.studio.voiceCompanion': 'toy' }), 'felix'), ui.readCompanionChoice(store({ 'deckster.studio.voiceCompanion': 7 }), 'felix'), ui.readCompanionChoice(null, 'felix'), ui.readCompanionChoice(undefined, 'bob')], ['felix', 'felix', 'felix', 'felix', 'bob'], 'character: a stored name that is not on offer is not believed; no storage is the default')
@@ -342,6 +342,27 @@ function uiSuite(ui, over = {}) {
     const kept = store(); eq([ui.writeCompanionChoice(kept, 'bob', 'felix'), kept.data], [true, { 'deckster.studio.voiceCompanion': 'bob' }], 'character: the choice is written')
     eq([ui.writeCompanionChoice(kept, 'toy', 'felix'), ui.writeCompanionChoice(null, 'bob', 'felix'), ui.writeCompanionChoice({ getItem: () => null, setItem() { throw new Error('quota') } }, 'bob', 'felix'), kept.data], [false, false, false, { 'deckster.studio.voiceCompanion': 'bob' }], 'character: only a character on offer is written, and a write that fails is not an error')
     eq([ui.nextCompanion('felix', ['felix', 'bob']), ui.nextCompanion('bob', ['felix', 'bob']), ui.nextCompanion('owl', ['felix', 'bob']), ui.nextCompanion('x', []), ui.nextCompanion('a', ['a'])], ['bob', 'felix', 'felix', 'x', 'a'], 'character: one tap goes to the next, round the list (one that is not on offer goes to the first)')
+    // Maya, the third: one tap goes round all three, her choice is remembered like the others
+    eq([ui.nextCompanion('felix', ui.COMPANION_CHOICES), ui.nextCompanion('bob', ui.COMPANION_CHOICES), ui.nextCompanion('maya', ui.COMPANION_CHOICES), ui.nextCompanion('x', ui.COMPANION_CHOICES)], ['bob', 'maya', 'felix', 'felix'], 'character: one tap cycles through all three: Felix, Bob, Maya, Felix')
+    eq([ui.readCompanionChoice(store({ 'deckster.studio.voiceCompanion': 'maya' }), 'felix'), ui.readCompanionChoice(store({ 'deckster.studio.voiceCompanion': 'maya' }), 'bob'), ui.readCompanionChoice(store({ 'deckster.studio.voiceCompanion': 'Maya' }), 'felix')], ['maya', 'maya', 'felix'], 'character: Maya is remembered on a device (her name is the folder\'s: another spelling is not believed)')
+    const mayaKept = store(); eq([ui.writeCompanionChoice(mayaKept, 'maya', 'felix'), mayaKept.data], [true, { 'deckster.studio.voiceCompanion': 'maya' }], 'character: Maya\'s choice is written')
+    eq([ui.companionName('maya'), ui.companionNameFrom('maya'), ui.initialsFor('maya')], ['Maya', 'maya', 'M'], 'character: Maya goes by her name in the top bar and the transcript')
+    // a pack with a layered (v2) face is read in its compatibility view; the section is kept whole for the v2 renderer
+    {
+      const layered = { angles: ['front', 'left', 'right'], pieces: { mouth: { front: { closed: 'layers/mouth_front_closed.webp' } } }, patch: {}, heads: {}, recipes: {} }
+      const v1Pointer = { manifest: 'face/manifest.json', totalBytes: 10 }
+      eq([ui.isLayeredFace(layered), ui.isLayeredFace(v1Pointer), ui.isLayeredFace({ manifest: 'x.json', pieces: {} }), ui.isLayeredFace({ pieces: {} }), ui.isLayeredFace({}), ui.isLayeredFace([]), ui.isLayeredFace(null), ui.isLayeredFace(undefined), ui.isLayeredFace('face'), ui.isLayeredFace(7), ui.isLayeredFace({ pieces: 'x' })],
+        [true, false, false, true, false, false, false, false, false, false, false], 'layered face: an object with its pieces and no pointer is the v2 section; the v1 pointer (a manifest path) and anything else is not')
+      const raw = { version: 1, bird: 'maya', neutral: 'neutral', frames: { neutral: { src: 'neutral.webp' } }, clips: { idle_breathe: { frames: ['neutral'], fps: 2 } }, face: layered }
+      const view = ui.compatCatalog(raw)
+      eq([view.layered === layered, 'face' in view.catalog, Object.keys(view.catalog).sort(), raw.face === layered], [true, false, ['bird', 'clips', 'frames', 'neutral', 'version'], true], 'compat view: the catalog is the manifest without its layered face, the section is kept whole beside it, and the manifest read is not changed')
+      const v1 = { ...raw, face: v1Pointer }
+      eq([ui.compatCatalog(v1).catalog === v1, ui.compatCatalog(v1).layered], [true, null], 'compat view: a v1 pack (a Face pointer) is handed through as it is')
+      const plain = { ...raw }; delete plain.face
+      eq([ui.compatCatalog(plain).catalog === plain, ui.compatCatalog(plain).layered, ui.compatCatalog({ ...raw, face: 'x' }).catalog.face, ui.compatCatalog({ ...raw, face: 'x' }).layered], [true, null, 'x', null], 'compat view: no face, or a face that is neither form, is left for the core\'s parser to refuse')
+      eq([ui.compatCatalog(null), ui.compatCatalog(undefined), ui.compatCatalog('x'), ui.compatCatalog(7), ui.compatCatalog([raw]).layered], [{ catalog: null, layered: null }, { catalog: undefined, layered: null }, { catalog: 'x', layered: null }, { catalog: 7, layered: null }, null], 'compat view: nothing that is not an object is touched (and nothing throws)')
+      eq([ui.portraitUrl('maya'), ui.portraitUrl('bob')], ['/companions/maya/portrait-512.webp', '/companions/bob/portrait-512.webp'], 'portrait: the fallback still is the pack\'s 512 px portrait')
+    }
     // a companion catalog (Bob's motion/companion.json) is merged into the base only when the base lacks lean_in
     const baseCatalog = { version: 1, bird: 'bob', packBudgetMiB: 8, totalBytes: 6000000, uniqueFrames: 2, neutral: 'neutral', frames: { neutral: { src: 'neutral.webp' }, a: { src: 'a.webp' } }, clips: { idle_breathe: { frames: ['neutral'], fps: 4 }, nod: { frames: ['a'], fps: 4 } } }
     const companionCatalog = { totalBytes: 4700000, frames: { neutral: { src: 'OTHER.webp' }, lean_1: { src: 'lean_1.webp' } }, clips: { idle_breathe: { frames: ['neutral'], fps: 9 }, lean_in: { frames: ['lean_1'], fps: 6 } } }
@@ -948,6 +969,17 @@ async function stageSuiteBody(over = {}) {
   ok(html({}, stage, { pack: 'felix' }).includes('aria-label="Character: Felix. Switch to Bob"') && html({}, stage, { pack: 'felix' }).includes('data-pack="felix"'), 'character: Felix is switched to Bob, and the player is given Felix\'s pack')
   ok(!html({}, stage, { choices: ['bob'] }).includes('studio-voice-pack') && !html({}, stage, { choices: [] }).includes('studio-voice-pack'), 'character: with no other character there is no switch')
   ok(html({}).indexOf('studio-voice-pack') < html({}).indexOf('aria-label="Stop"'), 'character: the switch is first of the top bar\'s tools')
+  {
+    // three characters: the same one tap cycles round them, and the switch shows all three (a dot each, the one on screen filled)
+    const three = ['felix', 'bob', 'maya']
+    const dots = out => (out.match(/<i data-choice="[a-z]+" data-on="(true|false)"><\/i>/g) ?? []).map(dot => dot.replace(/<i data-choice="([a-z]+)" data-on="(true|false)"><\/i>/, '$1:$2'))
+    const first = html({}, stage, { pack: 'felix', choices: three }), second = html({}, stage, { pack: 'bob', choices: three }), third = html({}, stage, { pack: 'maya', choices: three })
+    eq([dots(first), dots(second), dots(third)], [['felix:true', 'bob:false', 'maya:false'], ['felix:false', 'bob:true', 'maya:false'], ['felix:false', 'bob:false', 'maya:true']], 'character: three on offer: a dot for each, in order, the one on screen filled')
+    ok(first.includes('aria-label="Character: Felix. Switch to Bob"') && second.includes('aria-label="Character: Bob. Switch to Maya"') && third.includes('aria-label="Character: Maya. Switch to Felix"') && third.includes('title="Switch to Felix"') && third.includes('data-studio-voice-character="maya"') && third.includes('data-pack="maya"') && />Maya<span class="studio-voice-pack-dots"/.test(third), 'character: Felix goes to Bob, Bob to Maya, Maya back to Felix; the button says who is on screen, and the player is given her pack')
+    ok(!html({}, stage, { pack: 'bob', choices: ['felix', 'bob'] }).includes('studio-voice-pack-dots') && html({}, stage, { pack: 'bob', choices: ['felix', 'bob'] }).includes('>Bob</button>') && !html({}, stage, { choices: ['bob'] }).includes('studio-voice-pack-dots'), 'character: with two there is no pager (the name and one tap say it all), with one there is no switch')
+    const mayaVideo = html({ mode: 'video' }, stage, { pack: 'maya', choices: three })
+    ok(mayaVideo.includes('data-pack="maya"') && mayaVideo.includes('data-framing="chest"'), 'character: Maya is drawn in the video call too (the chest view)')
+  }
   // a video call
   const video = html({ mode: 'video' })
   ok(video.includes('data-voice-mode="video"') && video.includes('aria-label="Video call"') && video.includes('data-framing="chest"') && video.includes('data-size="240"') && video.includes('studio-voice-actor') && !video.includes('studio-voice-ring') && !video.includes('studio-voice-halo'), 'stage: video: the pack\'s chest view large in its scene, no level ring (the size follows the call\'s measured height: 240 before it is measured)')
@@ -1034,6 +1066,74 @@ async function stageSuiteBody(over = {}) {
     let rejected = null; try { await run({}) } catch (error) { rejected = error.message } eq(rejected, '404', 'catalog loader: the base failing is a failure (the pack is a plain disc)')
     const nested = await catalogUi.loadCatalog('/companions/b/motion/face/manifest.json', async url => (url.endsWith('companion.json') ? withCompanion : withBase), raw => raw)
     ok(!!nested.clips.lean_in, 'catalog loader: the Face pack\'s companion.json is the one beside its own manifest')
+  }
+  // Maya (a v2 layered-face pack) and the packs that are not: the pack loader, through the real core's parser and the real files
+  {
+    const core = makeHost({ over: {} }).load('lib/studio/voice/bird-motion.ts')
+    const packUi = makeHost({ env: ENV_ON, over }).load(UI)
+    const readDisk = url => { const file = path.join(root, 'public', url); return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : null }
+    const asked = []
+    const disk = async url => { asked.push(url); const hit = readDisk(url); if (hit === null) throw new Error('404'); return hit }
+    const load = (pack, framing, fetchJson = disk) => { asked.length = 0; return packUi.loadCompanionPack(pack, framing, fetchJson, core.parseBirdMotionManifest) }
+    const broken = (match, patch) => async url => { const hit = await disk(url); return url.includes(match) ? { ...hit, ...patch } : hit }
+    const mayaChest = await load('maya', 'chest')
+    eq([mayaChest.base, mayaChest.manifest.bird, [mayaChest.manifest.size.width, mayaChest.manifest.size.height], 'face' in mayaChest.manifest, packUi.isLayeredFace(mayaChest.layered), Object.keys(mayaChest.layered).sort(), asked], ['/companions/maya/motion/', 'maya', [768, 768], false, true, ['angles', 'heads', 'patch', 'pieces', 'recipes'], ['/companions/maya/motion/manifest.json']], 'Maya: the video call reads her 768 catalog in the compatibility view (her face section is kept beside it, not in it) and asks for nothing else (no companion.json, no Face catalog)')
+    const mayaDisc = await load('maya', 'disc')
+    eq([mayaDisc.base, mayaDisc.manifest.variant, [mayaDisc.manifest.size.width, mayaDisc.manifest.size.height], 'face' in mayaDisc.manifest, packUi.isLayeredFace(mayaDisc.layered), asked], ['/companions/maya/face/', 'face', [604, 594], false, true, ['/companions/maya/motion/manifest.json', '/companions/maya/face/manifest.json']], 'Maya: the audio call reads her native Face catalog, which is at the pack\'s root (face/), after the whole character')
+    const noFace = await load('maya', 'disc', broken('/face/', { version: 2 })), missingFace = await load('maya', 'disc', async url => { if (url.includes('/face/')) throw new Error('404'); return disk(url) })
+    eq([noFace.base, noFace.manifest.size.width, missingFace.base, missingFace.manifest.bird], ['/companions/maya/motion/', 768, '/companions/maya/motion/', 'maya'], 'Maya: a Face catalog the parser refuses, or that is not there, leaves her whole character, cropped (the disc is never empty for it)')
+    eq([await load('maya', 'chest', broken('/motion/', { version: 2 })), await load('maya', 'disc', broken('/motion/', { neutral: 'nobody' })), await load('maya', 'chest', broken('/motion/', { clips: {} })), await load('nobody', 'chest'), await load('maya', 'chest', async () => { throw new Error('offline') }), await load('maya', 'chest', async () => null)],
+      [null, null, null, null, null, null], 'Maya: a manifest the parser refuses (even after the compatibility view), one that is missing or unreadable: no catalog, no throw (the caller shows her portrait)')
+    const stripped = { ...JSON.parse(fs.readFileSync(path.join(root, 'public/companions/maya/motion/manifest.json'), 'utf8')) }; delete stripped.face
+    eq(await load('maya', 'chest', async () => stripped).then(found => [found.layered, found.manifest.bird]), [null, 'maya'], 'Maya: with no face section at all she is simply a v1 pack')
+    const felixChest = await load('felix', 'chest'), felixDisc = await load('felix', 'disc'), bobDisc = await load('bob', 'disc')
+    eq([felixChest.base, felixChest.layered, felixChest.manifest.bird], ['/companions/felix/motion/', null, 'felix'], 'v1 packs: Felix\'s video call is his one manifest, no layered face')
+    eq([felixDisc.base, felixDisc.layered, felixDisc.manifest.variant], ['/companions/felix/motion/face/', null, 'face'], 'v1 packs: Felix\'s disc is the Face pack his manifest points at')
+    eq([bobDisc.base, bobDisc.layered, bobDisc.manifest.variant, !!bobDisc.manifest.clips.lean_in, asked], ['/companions/bob/motion/face/', null, 'face', true, ['/companions/bob/motion/manifest.json', '/companions/bob/motion/companion.json', '/companions/bob/motion/face/manifest.json', '/companions/bob/motion/face/companion.json']], 'v1 packs: Bob\'s disc is his Face pack, each catalog with the companion.json beside it merged in (unchanged by the compatibility view)')
+    // her compatibility view, scene by scene: every clip a scene asks for is hers except the dance (a celebration without it falls back to a nod), and every picture is a file
+    for (const [label, catalog] of [['whole character', mayaChest], ['Face catalog', mayaDisc]]) {
+      const manifest = catalog.manifest, fallbacks = [], missing = []
+      for (const scene of packUi.SCENES) for (const clip of packUi.clipsForScene(scene)) {
+        const used = core.resolveCompanionClip(manifest, clip)
+        if (used !== clip) fallbacks.push(`${scene}:${clip}>${used}`)
+        for (const id of manifest.clips[used].frames) if (!fs.existsSync(path.join(root, 'public', catalog.base, manifest.frames[id].src))) missing.push(`${used}:${id}`)
+      }
+      eq([fallbacks, missing, Object.values(manifest.frames).every(frame => fs.existsSync(path.join(root, 'public', catalog.base, frame.src))), manifest.talking, manifest.clips[manifest.talking.neutral].frames.length], [['celebrating:dance_bounce>nod'], [], true, { neutral: 'talk_neutral', left: 'talk_left', right: 'talk_right' }, 9], `Maya's ${label}: all 13 scenes resolve to her own clips (only the dance falls back, to a nod), every picture is in her folder, and the talk slots are the nine mouth places the player reads`)
+    }
+    // the player: her catalogs are used; a pack with no usable catalog shows its portrait, and the initials only when that fails too
+    const withFetch = async (serve, body) => {
+      const was = globalThis.fetch, urls = []
+      globalThis.fetch = async url => { urls.push(url); const hit = await serve(url); return hit === null ? { ok: false, status: 404, json: async () => null } : { ok: true, status: 200, json: async () => hit } }
+      try { return await body(urls) } finally { globalThis.fetch = was }
+    }
+    const playerProps = (pack, framing) => ({ pack, scene: 'speaking', dance: false, framing, size: framing === 'disc' ? 176 : 360, reducedMotion: false, getLevel: () => 0.2 })
+    const mountPlayer = async (mod, pack, framing) => { const rootNode = new Root(); rootNode.setElement(React.createElement(mod.CompanionPlayer, playerProps(pack, framing))); await settleRoot(rootNode); return rootNode }
+    await withFetch(async url => readDisk(url), async urls => {
+      const chest = await mountPlayer(makeHost({ env: ENV_ON, over }).load(PLAYER), 'maya', 'chest'), chestOut = markup(chest); chest.unmount()
+      ok(chestOut.includes('data-studio-voice-companion="loading"') && chestOut.includes('data-companion-pack="maya"') && chestOut.includes('<canvas') && !chestOut.includes('<img') && !chestOut.includes('data-companion-art') && urls.join() === '/companions/maya/motion/manifest.json', 'player: Maya in the video call: her catalog is accepted (a canvas, no portrait, no fallback), one request')
+      urls.length = 0
+      const disc = await mountPlayer(makeHost({ env: ENV_ON, over }).load(PLAYER), 'maya', 'disc'), discOut = markup(disc); disc.unmount()
+      ok(discOut.includes('data-studio-voice-companion="loading"') && discOut.includes('<canvas') && !discOut.includes('<img') && urls.join() === '/companions/maya/motion/manifest.json,/companions/maya/face/manifest.json', 'player: ...and in the audio call (her Face catalog after the whole character)')
+    })
+    for (const [label, pack, framing, serve] of [
+      ['Maya\'s manifest refused by the parser', 'maya', 'chest', async url => { const hit = readDisk(url); return hit && { ...hit, version: 2 } }],
+      ['Maya\'s manifest refused, audio', 'maya', 'disc', async url => { const hit = readDisk(url); return hit && { ...hit, neutral: 'nobody' } }],
+      ['no manifest at all (404)', 'maya', 'chest', async () => null],
+      ['a pack that is not there', 'nobody', 'disc', async () => null],
+      ['Felix, whose manifest is gone', 'felix', 'chest', async () => null],
+    ]) {
+      await withFetch(serve, async urls => {
+        const mod = makeHost({ env: ENV_ON, over }).load(PLAYER)
+        const rootNode = await mountPlayer(mod, pack, framing), out = markup(rootNode)
+        ok(out.includes('data-studio-voice-companion="fallback"') && out.includes('data-companion-art="portrait"') && out.includes(`<img class="studio-voice-portrait" src="/companions/${pack}/portrait-512.webp"`) && !out.includes('<canvas') && !out.includes('studio-voice-initials') && out.includes(`data-companion-framing="${framing}"`), `player: ${label}: the pack's portrait, still, and nothing throws`)
+        hostNodes(rootNode.tree, node => node.type === 'img')[0].props.onError(); await settleRoot(rootNode)
+        const bare = markup(rootNode)
+        ok(bare.includes('data-companion-art="initials"') && !bare.includes('<img') && bare.includes('studio-voice-initials') && bare.includes(`>${packUi.initialsFor(pack)}<`), `player: ${label}: and when the portrait cannot be shown either, the initials`)
+        rootNode.setElement(React.createElement(mod.CompanionPlayer, playerProps(pack === 'felix' ? 'bob' : 'felix', framing))); await settleRoot(rootNode)
+        ok(markup(rootNode).includes('data-companion-art="portrait"'), `player: ${label}: ...and another pack's portrait is tried again (one failure is not remembered for the next)`)
+        rootNode.unmount()
+      })
+    }
   }
   // a phone: the stage is drawn as a child of the shell itself, above the shell's own chrome (a desktop keeps it in the chat column)
   {
@@ -1153,7 +1253,7 @@ async function hookSuite(over = {}) {
     // a call is on: the stage is drawn from the snapshot, the composer is told to hide, Space talks
     on.calls.snapshot = { active: true, starting: false, notice: null, mode: 'video', muted: false }; await onRun.set({})
     const live = onRun.latest(), stageEl = live.dock
-    eq([live.composerProps.active, typeof stageEl?.type, stageEl?.props.pack, stageEl?.props.choices, stageEl?.props.snapshot === on.calls.snapshot], [true, 'function', 'felix', ['felix', 'bob'], true], 'hook: a call is on: the stage is drawn (Felix, the default character) and the composer is told to hide')
+    eq([live.composerProps.active, typeof stageEl?.type, stageEl?.props.pack, stageEl?.props.choices, stageEl?.props.snapshot === on.calls.snapshot], [true, 'function', 'felix', ['felix', 'bob', 'maya'], true], 'hook: a call is on: the stage is drawn (Felix, the default character, with all three on offer) and the composer is told to hide')
     // the character: one tap switches, the device remembers (localStorage), a device that cannot remember still switches for the session
     {
       const kept = {}; deviceStore = { getItem: key => (key in kept ? kept[key] : null), setItem: (key, value) => { kept[key] = value } }
@@ -1161,10 +1261,12 @@ async function hookSuite(over = {}) {
       onRun.latest().dock.props.onChooseCompanion(); await onRun.set({})
       eq([onRun.latest().dock.props.pack, kept['deckster.studio.voiceCompanion']], ['bob', 'bob'], 'hook: one tap on the character switch: Bob, and it is stored on the device')
       onRun.latest().dock.props.onChooseCompanion(); await onRun.set({})
-      eq([onRun.latest().dock.props.pack, kept['deckster.studio.voiceCompanion']], ['felix', 'felix'], 'hook: ...and one more goes back to Felix')
+      eq([onRun.latest().dock.props.pack, kept['deckster.studio.voiceCompanion']], ['maya', 'maya'], 'hook: ...one more is Maya, stored')
+      onRun.latest().dock.props.onChooseCompanion(); await onRun.set({})
+      eq([onRun.latest().dock.props.pack, kept['deckster.studio.voiceCompanion']], ['felix', 'felix'], 'hook: ...and one more goes back to Felix (round all three)')
       deviceStore = 'throws'; onRun.latest().dock.props.onChooseCompanion(); await onRun.set({})
       eq(onRun.latest().dock.props.pack, 'bob', 'hook: blocked storage (it throws): the switch still works for the session')
-      deviceStore = null; onRun.latest().dock.props.onChooseCompanion(); await onRun.set({}); eq(onRun.latest().dock.props.pack, 'felix', 'hook: no storage at all: the same')
+      deviceStore = null; onRun.latest().dock.props.onChooseCompanion(); await onRun.set({}); eq(onRun.latest().dock.props.pack, 'maya', 'hook: no storage at all: the same')
     }
     on.calls.did.length = 0
     stageEl.props.onTalkPress(); stageEl.props.onTalkRelease(); stageEl.props.onStop(); stageEl.props.onMute(true); stageEl.props.onEnd(); stageEl.props.onDismissNotice(); stageEl.props.onRetry()
@@ -1188,7 +1290,7 @@ async function hookSuite(over = {}) {
     onRun.rootNode.unmount()
     eq([on.calls.disposed, on.ui.voiceCallBus.frame, on.ui.voiceCallBus.sent], [true, null, null], 'hook: unmounting disposes the controller and clears the bus')
     // a device that chose Bob gets Bob at once; a blocked or foreign value is Felix
-    for (const [label, store, want] of [['Bob remembered', { 'deckster.studio.voiceCompanion': 'bob' }, 'bob'], ['a stranger is not believed', { 'deckster.studio.voiceCompanion': '../x' }, 'felix'], ['blocked storage', 'throws', 'felix'], ['no storage', null, 'felix']]) {
+    for (const [label, store, want] of [['Bob remembered', { 'deckster.studio.voiceCompanion': 'bob' }, 'bob'], ['Maya remembered', { 'deckster.studio.voiceCompanion': 'maya' }, 'maya'], ['a stranger is not believed', { 'deckster.studio.voiceCompanion': '../x' }, 'felix'], ['blocked storage', 'throws', 'felix'], ['no storage', null, 'felix']]) {
       deviceStore = store && store !== 'throws' ? { getItem: key => (key in store ? store[key] : null), setItem() {} } : store
       const w = mk(ENV_ON); const r = await run(w, { enabled: true, sendTurn: () => {}, sendAction: () => {}, sessionKey: 's1', connected: true })
       w.calls.snapshot = { active: true, starting: false, notice: null, mode: 'audio' }; await r.set({})
@@ -1294,7 +1396,11 @@ function sourceSuite(sources, { base = null } = {}) {
   ok(strip.stripVoiceCall(PAGE, 42) === 42, 'strip: not text comes back as it is')
   ok(sources[BROWSER].includes('blob: await toWav(heard, context)') && sources[BROWSER].includes('encodeWavPcm16(resampleLinear(mixToMono(channels), decoded.sampleRate, VOICE_WAV_RATE), VOICE_WAV_RATE)') && sources[BROWSER].includes("type: 'audio/wav'"), 'browser: what was recorded is decoded, mixed to mono, brought to 16 kHz and sent as WAV (ROUTER-1: hearing takes base64 WAV)')
   ok(sources[PLAYER].includes('const width = framedWidth(framing, size, rect)'), 'player: its width is the lib\'s (the disc is a square, the chest as wide as its crop)')
-  ok(sources[PLAYER].includes('const main = await loadCatalog(`${root}manifest.json`, fetchJson, core.parseBirdMotionManifest)') && sources[PLAYER].includes('const face = await loadCatalog(`${root}${main.face.manifest}`, fetchJson, core.parseBirdMotionManifest)') && sources[PLAYER].includes('core.resolveCompanionClip(manifest, name)'), 'player: the whole character and its Face pack both read through the catalog loader (companion clips merged when the base lacks them), and every clip is resolved through the core (a pack without one falls back)')
+  ok(sources[PLAYER].includes('const catalog = await loadCompanionPack(pack, framing, fetchJson, core.parseBirdMotionManifest)') && sources[PLAYER].includes('core.resolveCompanionClip(manifest, name)') && !sources[PLAYER].includes('loadCatalog('), 'player: the whole character and its Face pack both read through the lib\'s pack loader (the compatibility view, companion clips merged when the base lacks them), and every clip is resolved through the core (a pack without one falls back)')
+  // the v2 seam: one function, null today (the compatibility view), called right after the body is drawn, and the loop repaints every frame when a painter is there
+  ok(/export function layeredPainterFor\(pack: Pick<LoadedPack, 'layered'>\): LayerPainter \| null \{\s*void pack\s*return null\s*\}/.test(sources[PLAYER]) && (sources[PLAYER].match(/layeredPainterFor\(/g) ?? []).length === 2, 'player: the v2 renderer plugs in at one function (layeredPainterFor), which returns null today: the compatibility view')
+  ok(sources[PLAYER].includes('const painter = layeredPainterFor(loaded)') && /context\.drawImage\(bitmap[^\n]*\n\s*shownId = id\n\s*painter\?\.\(\{ context, canvas, pack: loaded, frame: store\.has\(id\) \? id : loaded\.manifest\.neutral, bitmap, rect, scene: currentScene, level: live\.current\.getLevel\(\), timeSec: \(performance\.now\(\) - sceneStart\) \/ 1000 \}\)/.test(sources[PLAYER]) && sources[PLAYER].includes('if (next.id !== shownId || !store.has(next.id) || painter) {') && sources[PLAYER].includes('layered: catalog.layered'), 'player: a painter is called with the body just drawn, the loop repaints each frame when there is one (the body holds while the mouth changes), and the pack keeps its layered section')
+  ok(sources[PLAYER].includes("const portrait = loaded === null && noPortrait !== pack") && sources[PLAYER].includes('src={portraitUrl(pack)}') && sources[PLAYER].includes('onError={() => setNoPortrait(pack)}') && sources[PLAYER].includes("data-companion-art={loaded === null ? (portrait ? 'portrait' : 'initials') : undefined}") && sources[PLAYER].includes('{!ready && !portrait ? <span className="studio-voice-initials"'), 'player: a pack with no usable catalog shows its portrait, and the initials only when that fails too')
   ok(sources[STAGE].includes('size={videoCharacterPx(height)}') && sources[STAGE].includes("useLevelVariable(ringRef, getLevel, live && !snapshot.reducedMotion && (snapshot.holding || snapshot.scene === 'speaking'))") && sources[STAGE].includes('const read = () => setHeight(element.clientHeight)') && sources[STAGE].includes('new ResizeObserver(read)'), 'stage: the character is as tall as the call\'s measured height allows (it follows a resize), and the level ring is driven only while you talk or it speaks, never in reduced motion')
   ok(/if \(plan\.accent\) \{[\s\S]{0,260}overlay = \{ clip: plan\.accent\.clip[\s\S]{0,400}mouthShapeIndex\(/.test(sources[PLAYER]), 'player: an accent can play while it speaks (before the mouth is drawn)')
   // the stylesheet: nothing global, nothing that reaches an element without the call's own attributes
@@ -1354,17 +1460,36 @@ if (baseOk) {
   for (const rel of strip.VOICE_CALL_NEW_FILES) ok(fs.existsSync(path.join(root, rel)), `scope: ${rel} exists`)
   for (const rel of strip.VOICE_CALL_RETIRED_FILES) ok(!fs.existsSync(path.join(root, rel)) && strip.VOICE_CALL_SCOPE_FILES.has(rel) && !strip.VOICE_CALL_NEW_FILES.includes(rel), `scope: ${rel} is gone from the tree (the stage and the two buttons replaced it) and stays named for the history`)
   ok(strip.VOICE_CALL_FILES.every(rel => !strip.VOICE_CALL_NEW_FILES.includes(rel)), 'scope: marked and new files are different lists')
-  // the committed art: Felix and Bob in Garud's bird layout, the runtime files only
+  // the committed art: Felix and Bob in Garud's bird layout, Maya in the v2 layout (her native Face catalog at the pack's root), the runtime files only
   {
     const tracked = git('ls-files', 'public/companions').split('\n').filter(Boolean).sort()
     eq(tracked, [...strip.VOICE_CALL_ART_FILES].sort(), 'art: the written-out list (scripts/studio-voice-call-art-files.mjs) is exactly what is tracked under public/companions')
-    const layout = /^public\/companions\/(felix|bob)\/(portrait-(256|512)\.webp|icon-(20|32|64|96)\.webp|blink-[12]\.webp|talk-[0-3]\.webp|motion\/[A-Za-z0-9_.\/-]+\.(webp|json)|video\/[A-Za-z0-9_.-]+\.webp)$/
-    eq(tracked.filter(rel => !layout.test(rel)), [], 'art: only the bird layout\'s runtime files (portraits, icons, blink and talk stills, motion/ with its Face pack and manifests, video/), no README, no review images, no scene')
+    const layout = /^public\/companions\/(felix|bob|maya)\/(portrait-(256|512)\.webp|icon-(20|32|64|96)\.webp|blink-[12]\.webp|talk-[0-3]\.webp|motion\/[A-Za-z0-9_.\/-]+\.(webp|json)|face\/[A-Za-z0-9_.\/-]+\.(webp|json)|video\/[A-Za-z0-9_.-]+\.webp)$/
+    eq(tracked.filter(rel => !layout.test(rel)), [], 'art: only the bird layout\'s runtime files (portraits, icons, blink and talk stills, motion/ with its Face pack and manifests, video/; Maya\'s native Face catalog is face/ at her root), no README, no review images, no scene')
+    eq([...new Set(tracked.filter(rel => /\/face\//.test(rel) && !/\/motion\/face\//.test(rel)).map(rel => rel.split('/')[2]))], ['maya'], 'art: only Maya has a Face catalog at the pack\'s root (Felix and Bob\'s is motion/face/)')
     for (const name of ['felix', 'bob']) for (const file of ['motion/manifest.json', 'motion/face/manifest.json', 'portrait-256.webp', 'icon-96.webp']) ok(tracked.includes(`public/companions/${name}/${file}`), `art: ${name} has ${file}`)
+    for (const file of ['motion/manifest.json', 'face/manifest.json', 'portrait-256.webp', 'portrait-512.webp', 'icon-96.webp', 'blink-1.webp', 'blink-2.webp', 'talk-0.webp', 'talk-3.webp', 'video/gesture-point.webp']) ok(tracked.includes(`public/companions/maya/${file}`), `art: maya has ${file}`)
+    ok(!tracked.some(rel => rel.startsWith('public/companions/maya/') && (/README|\.md$/i.test(rel) || /motion\/face\//.test(rel))), 'art: Maya has no README and no motion/face/ (her Face catalog is the one at her root)')
     ok(tracked.includes('public/companions/bob/motion/companion.json') && tracked.includes('public/companions/bob/motion/face/companion.json') && !tracked.includes('public/companions/felix/motion/companion.json'), 'art: Bob keeps his companion clips in companion.json (the player merges it), Felix has all of his in the manifest')
     const bytes = tracked.reduce((sum, rel) => sum + fs.statSync(path.join(root, rel)).size, 0)
-    ok(bytes > 20 * 1024 * 1024 && bytes < 30 * 1024 * 1024, `art: about 24 MiB in all (${(bytes / 1048576).toFixed(1)} MiB)`)
-    for (const name of ['felix', 'bob']) { const manifest = JSON.parse(fs.readFileSync(path.join(root, `public/companions/${name}/motion/manifest.json`), 'utf8')); eq([manifest.version, manifest.bird, typeof manifest.clips.idle_breathe, typeof manifest.clips.talk_neutral], [1, name, 'object', 'object'], `art: ${name}'s manifest is the bird layout's`) }
+    ok(bytes > 30 * 1024 * 1024 && bytes < 40 * 1024 * 1024, `art: about 34 MiB in all (${(bytes / 1048576).toFixed(1)} MiB)`)
+    const mayaFiles = tracked.filter(rel => rel.startsWith('public/companions/maya/')), mayaBytes = mayaFiles.reduce((sum, rel) => sum + fs.statSync(path.join(root, rel)).size, 0)
+    eq([mayaFiles.length, mayaBytes], [360, 10746812], 'art: Maya is 360 files, 10,746,812 bytes (10.2 MiB, no README)')
+    for (const name of ['felix', 'bob', 'maya']) { const manifest = JSON.parse(fs.readFileSync(path.join(root, `public/companions/${name}/motion/manifest.json`), 'utf8')); eq([manifest.version, manifest.bird, typeof manifest.clips.idle_breathe, typeof manifest.clips.talk_neutral], [1, name, 'object', 'object'], `art: ${name}'s manifest is the bird layout's`) }
+    // Maya: two self-contained catalogs (the 768 whole character, the native Face), each with the v2 face section inline; each is read in the compatibility view by the real core's parser
+    {
+      const uiHost = makeHost({ over: {} }), uiMod = uiHost.load(UI), coreMod = uiHost.load('lib/studio/voice/bird-motion.ts')
+      for (const [dir, size, bytes, variant] of [['motion', [768, 768], 4791288, undefined], ['face', [604, 594], 4999106, 'face']]) {
+        const raw = JSON.parse(fs.readFileSync(path.join(root, `public/companions/maya/${dir}/manifest.json`), 'utf8'))
+        const files = mayaFiles.filter(rel => rel.startsWith(`public/companions/maya/${dir}/`)), sum = files.reduce((total, rel) => total + fs.statSync(path.join(root, rel)).size, 0)
+        eq([raw.version, raw.bird, raw.packBudgetMiB, [raw.size.width, raw.size.height], raw.totalBytes, sum, raw.variant, uiMod.isLayeredFace(raw.face), raw.face.angles, Object.keys(raw.face.pieces).sort()], [1, 'maya', 8, size, bytes, bytes, variant, true, ['front', 'left', 'right'], ['brows', 'eyes', 'mouth']], `art: Maya's ${dir} catalog is self-contained (its own manifest, bodies and ${dir === 'motion' ? 'default 768' : 'native Face'} pictures: ${bytes} bytes, under the 8 MiB budget) with the v2 face section inline`)
+        const refs = new Set(Object.values(raw.frames).map(frame => frame.src)), walk = value => { if (typeof value === 'string') { if (value.endsWith('.webp')) refs.add(value) } else if (value && typeof value === 'object') for (const item of Object.values(value)) walk(item) }
+        walk(raw.face)
+        eq([[...refs].filter(rel => !fs.existsSync(path.join(root, `public/companions/maya/${dir}`, rel))), files.length - 1 - refs.size, raw.uniqueFrames, Object.keys(raw.frames).length, raw.totalBytes < 8 * 1024 * 1024], [[], 0, 77, 77, true], `art: Maya's ${dir} catalog: every body picture and every face piece it names is in the folder, and nothing else is (77 bodies, ${refs.size - 77} face pieces)`)
+        const view = uiMod.compatCatalog(raw), parsed = coreMod.parseBirdMotionManifest(view.catalog)
+        eq([view.layered === raw.face, 'face' in parsed, parsed.bird, parsed.variant, Object.keys(parsed.clips).length, !!parsed.clips.lean_in, uiMod.needsCompanionCatalog(raw)], [true, false, 'maya', variant, 61, true, false], `art: Maya's ${dir} catalog in the compatibility view is accepted by the core's parser (61 clips, her own lean_in, so no companion.json is asked for)`)
+      }
+    }
     const felixManifest = JSON.parse(fs.readFileSync(path.join(root, 'public/companions/felix/motion/manifest.json'), 'utf8'))
     eq(['lean_in', 'work_loop', 'look_down', 'one_moment', 'invite', 'hold', 'point_left', 'point_right', 'emphasis', 'shrug', 'thank_you', 'count', 'wave_both'].filter(name => !felixManifest.clips[name]), [], 'art: Felix has every companion clip (so the player never falls back for him)')
     const bobManifest = JSON.parse(fs.readFileSync(path.join(root, 'public/companions/bob/motion/manifest.json'), 'utf8'))
@@ -1435,7 +1560,7 @@ const mutants = [
   [UI, 'a stranger\'s character is believed', "return typeof stored === 'string' && companionChoices(fallback).includes(stored) ? stored : fallback", "return typeof stored === 'string' ? stored : fallback"],
   [UI, 'blocked storage fails the read', "  } catch { return fallback }\n}\nexport function writeCompanionChoice", "  } catch (e) { throw e }\n}\nexport function writeCompanionChoice"],
   [UI, 'any name is written', "if (!storage || !companionChoices(fallback).includes(name)) return false", "if (!storage) return false"],
-  [UI, 'a failed write is an error', "  } catch { return false }\n}\n/** The other character", "  } catch (e) { throw e }\n}\n/** The other character"],
+  [UI, 'a failed write is an error', "  } catch { return false }\n}\n/** The next character", "  } catch (e) { throw e }\n}\n/** The next character"],
   [UI, 'the switch does not wrap', 'choices[(at + 1) % choices.length]!', 'choices[Math.min(at + 1, choices.length - 1)]!'],
   [UI, 'the catalog is always asked for', '!!raw.clips && !raw.clips.lean_in', '!!raw.clips'],
   [UI, 'the companion\'s frames win', 'const frames = { ...companion.frames, ...base.frames }', 'const frames = { ...base.frames, ...companion.frames }'],
@@ -1613,14 +1738,47 @@ const mutants = [
   [BUTTONS, 'a press takes the draft\'s focus', 'onMouseDown={event => event.preventDefault()}', 'onMouseDown={() => {}}'],
   [BUTTONS, 'only one button', 'CALL_MODES.map(mode', "CALL_MODES.slice(0, 1).map(mode"],
   [BUTTONS, 'the word shows on a desktop', 'studio-voice-start-word hidden', 'studio-voice-start-word'],
-  [PLAYER, 'the Face pack does not read its catalog', 'const face = await loadCatalog(`${root}${main.face.manifest}`, fetchJson, core.parseBirdMotionManifest)', 'const face = core.parseBirdMotionManifest(await fetchJson(`${root}${main.face.manifest}`))'],
-  [PLAYER, 'the whole character does not read its catalog', 'const main = await loadCatalog(`${root}manifest.json`, fetchJson, core.parseBirdMotionManifest)', 'const main = core.parseBirdMotionManifest(await fetchJson(`${root}manifest.json`))'],
+  [UI, 'the Face pack does not read its catalog', 'const face = await read(url)', 'const face = { manifest: parse(await fetchJson(url)), layered: null }'],
+  [UI, 'the whole character does not read its catalog', 'const main = await read(`${root}manifest.json`)', 'const main = { manifest: parse(await fetchJson(`${root}manifest.json`)), layered: null, pointer: null }'],
   [UI, 'the catalog is asked for every time', '  if (needsCompanionCatalog(raw)) {\n    try {', '  if (true) {\n    try {'],
   [UI, 'a catalog that fails fails the pack', '    } catch { /* the base alone */ }\n  }\n  return parse(raw)', '    } catch (e) { throw e }\n  }\n  return parse(raw)'],
   [UI, 'the catalog is read from the wrong place', "url.replace(/[^/]*$/, 'companion.json')", "'companion.json'"],
   [UI, 'the catalog is not merged', 'return parse(mergeCompanionCatalog(raw, (await fetchJson(', 'return parse((raw, (await fetchJson('],
   [PLAYER, 'nothing plays while it speaks', '// an emphasis now and then while it speaks (the mouth is still for the moment it takes)\n        if (plan.accent) {', '// an emphasis now and then while it speaks (the mouth is still for the moment it takes)\n        if (false) {'],
-  [PLAYER, 'a pack that fails shows nothing', "{!ready ? <span className=\"studio-voice-initials\" aria-hidden>{initialsFor(pack)}</span> : null}", ''],
+  [PLAYER, 'a pack that fails shows nothing', "{!ready && !portrait ? <span className=\"studio-voice-initials\" aria-hidden>{initialsFor(pack)}</span> : null}", ''],
+  // Maya, the third companion: the choice, the compatibility view of a v2 pack, the pack loader, the v2 seam, the portrait fallback, the dots
+  [UI, 'Maya is not on offer', "export const COMPANION_CHOICES: readonly string[] = ['felix', 'bob', 'maya']", "export const COMPANION_CHOICES: readonly string[] = ['felix', 'bob']"],
+  [UI, 'Maya is first', "export const COMPANION_CHOICES: readonly string[] = ['felix', 'bob', 'maya']", "export const COMPANION_CHOICES: readonly string[] = ['maya', 'felix', 'bob']"],
+  [UI, 'a v1 Face pointer is a layered face', "return typeof section.manifest !== 'string' && !!section.pieces && typeof section.pieces === 'object'", "return !!section.pieces && typeof section.pieces === 'object'"],
+  [UI, 'a layered face needs no pieces', "return typeof section.manifest !== 'string' && !!section.pieces && typeof section.pieces === 'object'", "return typeof section.manifest !== 'string'"],
+  [UI, 'any object is a layered face', "return isLayeredFace(face) ? { catalog: rest, layered: face } : { catalog: raw, layered: null }", "return face && typeof face === 'object' ? { catalog: rest, layered: face as Record<string, unknown> } : { catalog: raw, layered: null }"],
+  [UI, 'the compatibility view keeps the section in the catalog', "return isLayeredFace(face) ? { catalog: rest, layered: face } : { catalog: raw, layered: null }", "return isLayeredFace(face) ? { catalog: raw, layered: face } : { catalog: raw, layered: null }"],
+  [UI, 'the compatibility view drops the section', "return isLayeredFace(face) ? { catalog: rest, layered: face } : { catalog: raw, layered: null }", "return isLayeredFace(face) ? { catalog: rest, layered: null } : { catalog: raw, layered: null }"],
+  [UI, 'the compatibility view changes the manifest it was given', "const { face, ...rest } = raw as Record<string, unknown>\n  return isLayeredFace", "const { face, ...rest } = raw as Record<string, unknown>\n  delete (raw as Record<string, unknown>).face\n  return isLayeredFace"],
+  [UI, 'the compatibility view touches a non-object', "if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { catalog: raw, layered: null }\n  const { face, ...rest }", "const { face, ...rest }"],
+  [UI, 'a v2 pack\'s Face catalog is in motion/face', "main.layered ? `/companions/${pack}/face/manifest.json` : main.pointer", "main.layered ? `${root}face/manifest.json` : main.pointer"],
+  [UI, 'a v1 pack\'s Face pointer is ignored', ": main.pointer ? `${root}${main.pointer}` : null", ": null"],
+  [UI, 'the audio call reads no Face catalog', "    if (framing === 'disc') {\n      const url =", "    if (false) {\n      const url ="],
+  [UI, 'a refused Face catalog fails the pack', "        } catch { /* the Face pack is optional: the whole character is cropped instead */ }", "        } catch (e) { throw e }"],
+  [UI, 'a refused character is thrown', "    return { manifest: main.manifest, layered: main.layered, base: root }\n  } catch {\n    return null\n  }", "    return { manifest: main.manifest, layered: main.layered, base: root }\n  } catch (e) {\n    throw e\n  }"],
+  [UI, 'the Face catalog\'s files are read from the wrong folder', "return { manifest: face.manifest, layered: face.layered, base: url.replace(/[^/]*$/, '') }", "return { manifest: face.manifest, layered: face.layered, base: root }"],
+  [UI, 'the pack loses its layered section', "return { manifest: main.manifest, layered: main.layered, base: root }", "return { manifest: main.manifest, layered: null, base: root }"],
+  [UI, 'the Face catalog loses its layered section', "return { manifest: face.manifest, layered: face.layered, base:", "return { manifest: face.manifest, layered: null, base:"],
+  [UI, 'the portrait is the small one', "`/companions/${pack}/portrait-512.webp`", "`/companions/${pack}/portrait-256.webp`"],
+  [PLAYER, 'the seam draws something', 'void pack\n  return null', 'void pack\n  return () => undefined'],
+  [PLAYER, 'a painter is never called', 'painter?.({ context, canvas, pack: loaded,', 'void ({ context, canvas, pack: loaded,'],
+  [PLAYER, 'a painter does not make the loop repaint', 'if (next.id !== shownId || !store.has(next.id) || painter) {', 'if (next.id !== shownId || !store.has(next.id)) {'],
+  [PLAYER, 'the player does not keep the layered section', 'layered: catalog.layered', 'layered: null'],
+  [PLAYER, 'the player does not use the lib\'s pack loader', 'const catalog = await loadCompanionPack(pack, framing, fetchJson, core.parseBirdMotionManifest)\n        if (!catalog) return null', 'const catalog = { manifest: core.parseBirdMotionManifest(await fetchJson(`/companions/${pack}/motion/manifest.json`)), layered: null, base: `/companions/${pack}/motion/` }\n        if (!catalog) return null'],
+  [PLAYER, 'a pack with a catalog shows its portrait', 'const portrait = loaded === null && noPortrait !== pack', 'const portrait = noPortrait !== pack'],
+  [PLAYER, 'a portrait that fails is remembered for every pack', 'const portrait = loaded === null && noPortrait !== pack', 'const portrait = loaded === null && noPortrait === null'],
+  [PLAYER, 'a portrait that fails stays', 'onError={() => setNoPortrait(pack)}', 'onError={() => undefined}'],
+  [PLAYER, 'the portrait is another file', 'src={portraitUrl(pack)}', 'src={`/companions/${pack}/icon-96.webp`}'],
+  [PLAYER, 'the fallback is not named', "data-companion-art={loaded === null ? (portrait ? 'portrait' : 'initials') : undefined}", 'data-companion-art={undefined}'],
+  [STAGE, 'two characters get a pager', '{choices.length > 2 ? <span className="studio-voice-pack-dots"', '{choices.length > 1 ? <span className="studio-voice-pack-dots"'],
+  [STAGE, 'three characters have no pager', '{choices.length > 2 ? <span className="studio-voice-pack-dots"', '{choices.length > 3 ? <span className="studio-voice-pack-dots"'],
+  [STAGE, 'the pager marks the wrong character', "data-on={choice === pack ? 'true' : 'false'}", "data-on={choice !== pack ? 'true' : 'false'}"],
+  [STAGE, 'the pager has a dot missing', "{choices.map(choice => <i key={choice} data-choice={choice}", "{choices.slice(0, 2).map(choice => <i key={choice} data-choice={choice}"],
   [UI, 'the disc is as wide as its crop', "return rect && framing === 'chest' ? Math.round(size * rect.sw / rect.sh) : size", 'return rect ? Math.round(size * rect.sw / rect.sh) : size'],
   [PLAYER, 'the player sizes itself by hand', 'const width = framedWidth(framing, size, rect)', 'const width = size'],
   // the sources

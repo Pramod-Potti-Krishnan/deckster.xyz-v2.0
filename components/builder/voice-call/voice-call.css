@@ -53,6 +53,10 @@
 [data-studio-voice-call="stage"] .studio-voice-end { color: #b3261e; }
 [data-studio-voice-call="stage"] .studio-voice-pack { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 9999px; border: 1px solid var(--ss-line); font-size: 13px; font-weight: 600; color: var(--ss-text); background: color-mix(in srgb, var(--ss-panel) 84%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
 [data-studio-voice-call="stage"] .studio-voice-pack:hover { background: var(--ss-active); }
+/* with three or more characters the switch shows one dot for each (the one on screen is filled): one tap goes round the list */
+[data-studio-voice-call="stage"] .studio-voice-pack-dots { display: inline-flex; align-items: center; gap: 3px; margin-left: 1px; }
+[data-studio-voice-call="stage"] .studio-voice-pack-dots i { width: 6px; height: 6px; border-radius: 9999px; border: 1px solid var(--ss-muted); box-sizing: border-box; }
+[data-studio-voice-call="stage"] .studio-voice-pack-dots i[data-on="true"] { background: var(--ss-accent); border-color: var(--ss-accent); }
 [data-studio-voice-call="stage"] .studio-voice-small { width: 28px; height: 28px; background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; border-color: transparent; }
 [data-studio-voice-call="stage"] button:disabled, [data-studio-voice-call="notice"] button:disabled { opacity: 0.45; cursor: not-allowed; }
 [data-studio-voice-call="stage"] button:focus-visible, [data-studio-voice-call="stage"] .studio-voice-transcript-list:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; }
@@ -64,6 +68,11 @@
 [data-studio-voice-call="stage"] .studio-voice-actor { line-height: 0; filter: drop-shadow(0 14px 18px rgb(0 0 0 / 0.16)); }
 [data-studio-voice-call="stage"] .studio-voice-companion { position: relative; display: block; }
 [data-studio-voice-call="stage"] .studio-voice-companion canvas { position: absolute; inset: 0; display: block; transition: opacity 120ms ease; }
+/* a pack with no usable catalog shows its portrait; in the video call the portrait is a disc with its own level ring (in the audio call the stage's ring is around it already) */
+[data-studio-voice-call="stage"] .studio-voice-portrait { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; user-select: none; -webkit-user-select: none; }
+[data-studio-voice-call="stage"] .studio-voice-companion[data-companion-framing="chest"] .studio-voice-portrait { inset: auto; left: 50%; bottom: 16%; width: auto; height: 70%; aspect-ratio: 1; transform: translateX(-50%); border-radius: 9999px; background: var(--ss-active); --ring: var(--ss-line); box-shadow: 0 0 0 calc(2px + var(--voice-level, 0) * 12px) var(--ring); transition: box-shadow 90ms linear; }
+[data-studio-voice-call="stage"] .studio-voice-actor[data-ring="listening"] .studio-voice-portrait { --ring: var(--ss-accent); }
+[data-studio-voice-call="stage"] .studio-voice-actor[data-ring="speaking"] .studio-voice-portrait { --ring: var(--ss-teal); }
 [data-studio-voice-call="stage"] .studio-voice-initials { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 2.6rem; letter-spacing: 0.02em; color: var(--ss-teal); line-height: 1; }
 [data-studio-voice-call="stage"] .studio-voice-halo { position: relative; display: grid; place-items: center; padding: 18px; line-height: 0; --voice-level: 0; }
 [data-studio-voice-call="stage"] .studio-voice-disc { position: relative; border-radius: 9999px; overflow: hidden; background: var(--ss-active); box-shadow: 0 0 0 2px var(--ss-line); flex: none; line-height: 0; }
@@ -121,5 +130,5 @@
 }
 @media (prefers-reduced-motion: reduce) {
   [data-studio-voice-call="stage"] .studio-voice-chip i, [data-studio-voice-call="stage"] .studio-voice-ring { animation: none !important; }
-  [data-studio-voice-call="stage"] .studio-voice-ring, [data-studio-voice-call="stage"] .studio-voice-companion canvas { transition: none; }
+  [data-studio-voice-call="stage"] .studio-voice-ring, [data-studio-voice-call="stage"] .studio-voice-companion canvas, [data-studio-voice-call="stage"] .studio-voice-portrait { transition: none; }
 }

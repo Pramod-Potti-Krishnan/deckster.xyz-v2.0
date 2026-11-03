@@ -15,7 +15,7 @@ export interface VoiceCallStageProps {
   snapshot: VoiceCallSnapshot
   /** The pack's folder under public/companions/. */
   pack: string
-  /** The characters on offer (a switch is shown when there is more than one); one tap on it goes to the next. */
+  /** The characters on offer (a switch is shown when there is more than one, with a dot for each when there are three or more); one tap on it goes to the next, round the list. */
   choices: readonly string[]
   onChooseCompanion: () => void
   getLevel: () => number
@@ -171,6 +171,7 @@ export function VoiceCallStage({ snapshot, pack, choices, onChooseCompanion, get
             {choices.length > 1 ? (
               <button type="button" className="studio-voice-pack" data-studio-voice-character={pack} onClick={onChooseCompanion} aria-label={`Character: ${name}. Switch to ${companionName(nextCompanion(pack, choices))}`} title={`Switch to ${companionName(nextCompanion(pack, choices))}`}>
                 <Repeat aria-hidden className="h-3.5 w-3.5" />{name}
+                {choices.length > 2 ? <span className="studio-voice-pack-dots" aria-hidden>{choices.map(choice => <i key={choice} data-choice={choice} data-on={choice === pack ? 'true' : 'false'} />)}</span> : null}
               </button>
             ) : null}
             <button type="button" className="studio-voice-icon" disabled={!controls.stop} onClick={onStop} aria-label="Stop" title="Stop">

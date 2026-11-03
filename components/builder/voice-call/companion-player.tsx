@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import type { BirdMotionManifest } from '@/lib/studio/voice/bird-motion'
 import {
-  BLINK_EVERY_MS, clipsForScene, framedWidth, framingRect, initialsFor, loadCatalog, mouthShapeIndex, nextDelayMs, planPoseAt, scenePlan, stepFrameIndex, stillFrameIndex, clipDurationSec,
+  BLINK_EVERY_MS, clipsForScene, framedWidth, framingRect, initialsFor, loadCompanionPack, mouthShapeIndex, nextDelayMs, planPoseAt, portraitUrl, scenePlan, stepFrameIndex, stillFrameIndex, clipDurationSec,
   type ClipLike, type CompanionScene, type FramingRect,
 } from '@/lib/studio-voice-call-ui'
 
@@ -11,7 +11,9 @@ import {
  * The companion: one pack from public/companions/<name>/ in the bird layout (motion/manifest.json, and a Face pack beside it for the small disc), drawn on a canvas from the call's scene.
  * The pack is read once, its frames are fetched on demand (a clip when a scene first needs it) and decoded at the size they are drawn, so a disc costs a few megabytes, not a pack's worth.
  * The scene -> clip table is lib/studio-voice-call-ui.ts (Garud's); a clip a pack does not have falls back through the core's resolveCompanionClip (lean_in -> head_tilt ...).
- * A pack that is missing, or does not pass the core's manifest check, leaves a plain disc with initials. Reduced motion draws one still per scene and runs no animation loop.
+ * A pack with a layered (v2) face (Maya) is drawn in its compatibility view: the catalog without its `face` section (lib: compatCatalog), so she has her body poses, her gestures, her talk slots and her blink, but her mouth, eyes and brows
+ * do not change; the v2 renderer plugs in at `layeredPainterFor`, below. A pack that is missing, or does not pass the core's manifest check, shows its portrait (a level ring around it speaks for the voice) and, with no portrait either,
+ * a plain disc with initials. Reduced motion draws one still per scene and runs no animation loop.
  */
 export interface CompanionPlayerProps {
   pack: string
@@ -26,8 +28,38 @@ export interface CompanionPlayerProps {
   getLevel: () => number
 }
 
-interface LoadedPack { manifest: BirdMotionManifest; base: string; resolve: (name: string) => string }
+export interface LoadedPack {
+  manifest: BirdMotionManifest; base: string; resolve: (name: string) => string
+  /** The pack's layered (v2) face section, whole and unread (Garud's locked `face` contract), or null for a v1 pack. Never drawn until a painter is plugged in below. */
+  layered: Record<string, unknown> | null
+}
 const packs = new Map<string, Promise<LoadedPack | null>>()
+
+/** What a layered face's painter is given after the body frame is drawn: the canvas, the frame just drawn and where it sits, the scene, the speaker's level and the scene's clock. */
+export interface LayerPaintInput {
+  context: CanvasRenderingContext2D
+  canvas: HTMLCanvasElement
+  pack: LoadedPack
+  /** The body frame's id and its decoded bitmap, drawn from `rect` (frame pixels) over the whole canvas. */
+  frame: string
+  bitmap: ImageBitmap
+  rect: FramingRect
+  scene: CompanionScene
+  /** 0..1, what is coming out of the speaker now. */
+  level: number
+  /** Seconds since the scene began. */
+  timeSec: number
+}
+export type LayerPainter = (input: LayerPaintInput) => void
+/**
+ * THE SEAM FOR THE V2 PLAYER (Garud's layered face: the body holds while the mouth, eye and brow patches change). Given a pack that has a layered face section, return the painter that draws its patches over the body frame, or null:
+ * null (today, for every pack) keeps the compatibility view, which draws the body frames only. When a painter is returned the loop repaints on every animation frame (the body can hold while the mouth moves), calling it right after
+ * the body is drawn, and `pack.layered` is the section as the manifest had it. Nothing else in this file or in the lib has to change for the port: the compatibility view already hands the parser a catalog it accepts.
+ */
+export function layeredPainterFor(pack: Pick<LoadedPack, 'layered'>): LayerPainter | null {
+  void pack
+  return null
+}
 
 async function fetchJson(url: string): Promise<unknown> {
   const response = await fetch(url, { credentials: 'same-origin' })
@@ -35,7 +67,7 @@ async function fetchJson(url: string): Promise<unknown> {
   return response.json()
 }
 
-/** The pack's manifest (the Face pack for the disc when the pack has one and it loads), parsed by the core. null when there is no pack here. */
+/** The pack's manifest (the Face pack for the disc when the pack has one and it loads), parsed by the core through the compatibility view (lib: loadCompanionPack). null when there is no pack here or it is refused. */
 function loadPack(pack: string, framing: 'disc' | 'chest'): Promise<LoadedPack | null> {
   const key = `${pack}:${framing}`
   let found = packs.get(key)
@@ -43,19 +75,11 @@ function loadPack(pack: string, framing: 'disc' | 'chest'): Promise<LoadedPack |
     found = (async () => {
       try {
         const core = await import('@/lib/studio/voice/bird-motion')
-        const root = `/companions/${pack}/motion/`
-        const main = await loadCatalog(`${root}manifest.json`, fetchJson, core.parseBirdMotionManifest)
-        const make = (manifest: BirdMotionManifest, base: string): LoadedPack => {
-          const cache = new Map<string, string>()
-          return { manifest, base, resolve: name => { let hit = cache.get(name); if (!hit) { hit = core.resolveCompanionClip(manifest, name); cache.set(name, hit) } return hit } }
-        }
-        if (framing === 'disc' && main.face) {
-          try {
-            const face = await loadCatalog(`${root}${main.face.manifest}`, fetchJson, core.parseBirdMotionManifest)
-            return make(face, `${root}${main.face.manifest.replace(/[^/]*$/, '')}`)
-          } catch { /* the Face pack is optional: the full pack is cropped instead */ }
-        }
-        return make(main, root)
+        const catalog = await loadCompanionPack(pack, framing, fetchJson, core.parseBirdMotionManifest)
+        if (!catalog) return null
+        const { manifest } = catalog
+        const cache = new Map<string, string>()
+        return { manifest, base: catalog.base, layered: catalog.layered, resolve: (name: string) => { let hit = cache.get(name); if (!hit) { hit = core.resolveCompanionClip(manifest, name); cache.set(name, hit) } return hit } }
       } catch {
         return null
       }
@@ -107,6 +131,7 @@ export function CompanionPlayer({ pack, scene, dance, framing, size, reducedMoti
   const rootRef = useRef<HTMLDivElement | null>(null)
   const [loaded, setLoaded] = useState<LoadedPack | null | undefined>(undefined)
   const [drawn, setDrawn] = useState(false)
+  const [noPortrait, setNoPortrait] = useState<string | null>(null) // the pack whose portrait could not be shown
   const live = useRef({ scene, dance, reducedMotion, getLevel })
   live.current = { scene, dance, reducedMotion, getLevel }
   const rect: FramingRect | null = loaded ? framingRect(loaded.manifest, framing) : null
@@ -129,6 +154,7 @@ export function CompanionPlayer({ pack, scene, dance, framing, size, reducedMoti
     const context = canvas.getContext('2d')
     if (!context) return
     const store = new FrameStore(loaded, Math.min(1, (canvas.width * 1.25) / rect.sw))
+    const painter = layeredPainterFor(loaded) // null: the compatibility view (the body frames only)
     const clipOf = (name: string): ClipLike => loaded.manifest.clips[loaded.resolve(name)] ?? loaded.manifest.clips.idle_breathe!
     const clipName = (name: string) => loaded.resolve(name)
     let raf = 0
@@ -149,6 +175,7 @@ export function CompanionPlayer({ pack, scene, dance, framing, size, reducedMoti
       context.clearRect(0, 0, canvas.width, canvas.height)
       context.drawImage(bitmap, rect.sx * k, rect.sy * k, rect.sw * k, rect.sh * k, 0, 0, canvas.width, canvas.height)
       shownId = id
+      painter?.({ context, canvas, pack: loaded, frame: store.has(id) ? id : loaded.manifest.neutral, bitmap, rect, scene: currentScene, level: live.current.getLevel(), timeSec: (performance.now() - sceneStart) / 1000 })
       return true
     }
     const pick = (now: number): { id: string; clip: string } => {
@@ -195,7 +222,7 @@ export function CompanionPlayer({ pack, scene, dance, framing, size, reducedMoti
     }
     const paint = (now: number) => {
       const next = pick(now)
-      if (next.id !== shownId || !store.has(next.id)) {
+      if (next.id !== shownId || !store.has(next.id) || painter) {
         if (store.has(next.id) ? draw(next.id) : (shownId === null ? draw(loaded.manifest.neutral) : false)) {
           setDrawn(true)
         }
@@ -222,11 +249,14 @@ export function CompanionPlayer({ pack, scene, dance, framing, size, reducedMoti
   }, [loaded, framing, size, width, reducedMotion]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const ready = !!loaded && drawn
+  // No usable catalog (missing, or refused by the parser): the portrait, still; the level ring around it (the stage's own in the audio call, the portrait's own in the video call) is what shows the voice. Its own failure: the initials.
+  const portrait = loaded === null && noPortrait !== pack
   return (
     <div
       ref={rootRef}
       className="studio-voice-companion"
       data-studio-voice-companion={loaded === null ? 'fallback' : ready ? 'pack' : 'loading'}
+      data-companion-art={loaded === null ? (portrait ? 'portrait' : 'initials') : undefined}
       data-companion-scene={scene}
       data-companion-pack={pack}
       data-companion-framing={framing}
@@ -236,7 +266,8 @@ export function CompanionPlayer({ pack, scene, dance, framing, size, reducedMoti
       aria-label={`${pack} the companion`}
     >
       {loaded ? <canvas ref={canvasRef} style={{ width, height: size, opacity: ready ? 1 : 0 }} aria-hidden /> : null}
-      {!ready ? <span className="studio-voice-initials" aria-hidden>{initialsFor(pack)}</span> : null}
+      {portrait ? <img className="studio-voice-portrait" src={portraitUrl(pack)} alt="" draggable={false} onError={() => setNoPortrait(pack)} /> : null}
+      {!ready && !portrait ? <span className="studio-voice-initials" aria-hidden>{initialsFor(pack)}</span> : null}
     </div>
   )
 }

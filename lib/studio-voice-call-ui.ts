@@ -22,8 +22,8 @@ export const DEFAULT_COMPANION = 'felix'
 export function companionNameFrom(value: string | undefined): string {
   return typeof value === 'string' && /^[a-z0-9][a-z0-9-]{0,31}$/.test(value) ? value : DEFAULT_COMPANION
 }
-/** The characters a person can switch between (their packs are committed under public/companions/): Felix, the default, and Bob. The build's own default (NEXT_PUBLIC_STUDIO_VOICE_COMPANION) is always one of them. */
-export const COMPANION_CHOICES: readonly string[] = ['felix', 'bob']
+/** The characters a person can switch between (their packs are committed under public/companions/): Felix, the default, Bob and Maya. The build's own default (NEXT_PUBLIC_STUDIO_VOICE_COMPANION) is always one of them. */
+export const COMPANION_CHOICES: readonly string[] = ['felix', 'bob', 'maya']
 export const COMPANION_STORAGE_KEY = 'deckster.studio.voiceCompanion'
 export function companionChoices(fallback: string): string[] {
   return [...new Set([fallback, ...COMPANION_CHOICES])]
@@ -43,7 +43,7 @@ export function writeCompanionChoice(storage: CompanionStorage | null | undefine
     return true
   } catch { return false }
 }
-/** The other character: the one after `current` in the list on offer (back to the first at the end). One tap on the call's character switch. */
+/** The next character: the one after `current` in the list on offer (back to the first at the end). One tap on the call's character switch cycles through all of them (Felix, Bob, Maya, Felix ...). */
 export function nextCompanion(current: string, choices: readonly string[]): string {
   const at = choices.indexOf(current)
   return choices.length ? choices[(at + 1) % choices.length]! : current
@@ -474,6 +474,64 @@ export function mergeCompanionCatalog<T extends RawCatalog>(base: T, companion: 
   const bytes = Math.min(budget * 1024 * 1024, (base.totalBytes ?? 0) + (companion.totalBytes ?? 0))
   return { ...base, frames, clips, uniqueFrames: Object.keys(frames).length, totalBytes: bytes, packBudgetMiB: budget }
 }
+
+// ---------------------------------------------------------------------------
+// A pack with a layered (v2) face: the compatibility view it is drawn in today, and the pack's catalogs
+// ---------------------------------------------------------------------------
+
+/**
+ * Garud's v2 packs (Maya) carry the locked `face` contract inline in the manifest: an object (angles, pieces, patch, heads, recipes) that draws the mouth, eyes and brows as patches on a held body. A v1 pack's `face` is a
+ * pointer to its Face catalog ({ manifest, totalBytes }), the only form the core's v1 parser knows. It refuses the inline object ("Invalid bird Face pack reference"); everything else in the manifest is a plain v1 catalog
+ * (the body poses, the 9 talk slots, the blink, 61 clips), which is what a v1 player has always drawn: Garud's rule is that v2 is an additive `face` section and "turning it off plays the v1 pack".
+ */
+export function isLayeredFace(face: unknown): face is Record<string, unknown> {
+  if (!face || typeof face !== 'object' || Array.isArray(face)) return false
+  const section = face as { manifest?: unknown; pieces?: unknown }
+  return typeof section.manifest !== 'string' && !!section.pieces && typeof section.pieces === 'object'
+}
+/**
+ * THE COMPATIBILITY VIEW (pure): a manifest with a layered face is read as its v1 catalog (the same object without its `face` section), and the section is kept whole beside it for the v2 renderer, which is not here yet (the
+ * seam is `layeredPainterFor` in components/builder/voice-call/companion-player.tsx). Any other manifest, including a broken one, is handed through untouched for the core's parser to accept or refuse.
+ */
+export function compatCatalog(raw: unknown): { catalog: unknown; layered: Record<string, unknown> | null } {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { catalog: raw, layered: null }
+  const { face, ...rest } = raw as Record<string, unknown>
+  return isLayeredFace(face) ? { catalog: rest, layered: face } : { catalog: raw, layered: null }
+}
+/** The pointer a v1 pack's manifest holds to its Face catalog (a path beside the manifest), once the parser has accepted the manifest; null for a pack with no Face pointer. */
+function faceCatalogPointer(raw: unknown): string | null {
+  const face = raw && typeof raw === 'object' ? (raw as { face?: { manifest?: unknown } | null }).face : null
+  return face && typeof face.manifest === 'string' ? face.manifest : null
+}
+
+/** One catalog of a pack, parsed: the manifest, the layered face section when it has one (kept for the v2 renderer, never drawn today) and the folder its frame files are in. */
+export interface PackCatalog<T> { manifest: T; layered: Record<string, unknown> | null; base: string }
+/**
+ * A pack's catalog for this framing, parsed by the core through the compatibility view. The whole character (`/companions/<pack>/motion/manifest.json`) always; for the audio disc the Face catalog when the pack has one and it
+ * loads: a v1 pack points at it from its manifest (`motion/face/manifest.json`), a v2 pack keeps its native Face catalog at the pack's root (`face/manifest.json`, self-contained, picked explicitly: the two are never combined).
+ * A Face catalog that is missing or refused leaves the whole character, cropped. null when the whole character cannot be read or is refused: the caller draws the pack's portrait instead. Never throws. Pure: `fetchJson` and `parse` are the caller's.
+ */
+export async function loadCompanionPack<T>(pack: string, framing: 'disc' | 'chest', fetchJson: (url: string) => Promise<unknown>, parse: (raw: unknown) => T): Promise<PackCatalog<T> | null> {
+  const root = `/companions/${pack}/motion/`
+  const read = (url: string) => loadCatalog(url, fetchJson, raw => { const view = compatCatalog(raw); return { manifest: parse(view.catalog), layered: view.layered, pointer: faceCatalogPointer(view.catalog) } })
+  try {
+    const main = await read(`${root}manifest.json`)
+    if (framing === 'disc') {
+      const url = main.layered ? `/companions/${pack}/face/manifest.json` : main.pointer ? `${root}${main.pointer}` : null
+      if (url) {
+        try {
+          const face = await read(url)
+          return { manifest: face.manifest, layered: face.layered, base: url.replace(/[^/]*$/, '') }
+        } catch { /* the Face pack is optional: the whole character is cropped instead */ }
+      }
+    }
+    return { manifest: main.manifest, layered: main.layered, base: root }
+  } catch {
+    return null
+  }
+}
+/** The pack's portrait, the still the call shows when its catalog cannot be used (Garud's bird layout, 512 px, a head on a transparent ground). */
+export const portraitUrl = (pack: string): string => `/companions/${pack}/portrait-512.webp`
 
 /** The frame of one step `elapsed` seconds in: once runs to its last frame, hold runs to the clip's hold frame (or its last) and stays, loop repeats the clip's loop range (or all of it). */
 export function stepFrameIndex(clip: ClipLike, mode: 'once' | 'loop' | 'hold', elapsedSec: number): number {
