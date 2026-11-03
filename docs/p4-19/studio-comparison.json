@@ -5,7 +5,7 @@
   "baseHead": "abf52d4d4858b24cdb62549325ae5b9eed36624e",
   "fullBranchHead": "466fc2503463be2213b6f1d267eed30fcc5cf078",
   "latestFocusedHead": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
-  "status": "rebased-dc154019-light-checks-only-awaiting-seat2-gate",
+  "status": "merged-7ccc857b-light-checks-only-awaiting-seat2-gate",
   "voiceFixtureTests": {
     "files": 11,
     "passed": 225,
@@ -3853,5 +3853,29 @@
       "builds"
     ],
     "reason": "PROGRAM-1 2026-11-02T15:49Z Mac memory/disk hold; light rebase only, OPS-2 gates on seat 2"
+  },
+  "post559Refresh": {
+    "targetHead": "7ccc857be71ac5b4dd74b05838ffe77537fbb9ae",
+    "mergeCodeHead": "e59b7f1f054bffadea6260f34defbef6379fec4b",
+    "method": "merge-only; preserve existing feature ancestry",
+    "normalizedProofMetadataViews": {
+      "files": 19,
+      "mismatches": 0
+    },
+    "appSourceIdentity": "identical to target across app/components/hooks/public/styles/types",
+    "coreAndFixtureIdentity": "identical to 9f724934",
+    "checks": [
+      "exact source/metadata views",
+      "JavaScript syntax",
+      "git diff --check",
+      "clean merge-tree"
+    ],
+    "notRerun": [
+      "Vitest",
+      "TypeScript job",
+      "Studio suites",
+      "builds"
+    ],
+    "gateOwner": "OPS-2 seat2; current Mac hold remains in effect"
   }
 }
