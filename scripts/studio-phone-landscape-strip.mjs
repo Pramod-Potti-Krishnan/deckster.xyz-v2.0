@@ -9,7 +9,7 @@
 // Two older proofs read the first-parent line of BASE..HEAD for their own commits' subjects, and a branch with this change on it has this change's commits there: each is taught one inserted line that leaves "Phone landscape:" commits out (PIN_EDITS, tests only, registry-read marks). The stage open gate proof is taught one inserted line too, chained after the strawman stage's and chat's: its registry-line allowance also lets this change's registry lines follow its own (dev dc154019: the two other lines both changes rewrote are dev's as they stand, whose laterStrips already reads past this change).
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = 'dc1540195b58630a345d4ada0f81edd9a31b4673' // origin/studio-v4-dev-preparation-code (#557 merged, on #556) merged into this branch; this change started on 61a71137 (#555) and its own commits are found by subject
+export const BASE_COMMIT = '7ccc857be71ac5b4dd74b05838ffe77537fbb9ae' // origin/studio-v4-dev-preparation-code (#559 template match merged, on #557) merged into this branch; this change started on 61a71137 (#555) and its own commits are found by subject
 export const PHONE_LANDSCAPE_FLAG = 'NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE'
 export const PHONE_LANDSCAPE_MARKER = 'PHONE-LANDSCAPE'
 /** The marker as a WHOLE token: PHONE-LANDSCAPE-X and X-PHONE-LANDSCAPE are not it. */
