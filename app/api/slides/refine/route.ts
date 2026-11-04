@@ -1,4 +1,5 @@
 import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
+import { directorRestSignHeaders } from '@/lib/studio-director-rest-sign'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
@@ -50,6 +51,7 @@ export async function POST(req: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(await directorRestSignHeaders(userId, 'POST')),
       },
       body: JSON.stringify(payload),
       cache: 'no-store',
