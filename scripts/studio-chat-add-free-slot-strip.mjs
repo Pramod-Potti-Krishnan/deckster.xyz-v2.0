@@ -14,16 +14,18 @@ export const CHAT_ADD_FREE_SLOT_FILES = ['hooks/use-textlabs-generation.ts']
 
 /** The older proofs this change teaches (they listed the hook's strips by hand): [line now, line before] per edit, whole lines, plus one marked import of the registry each; the strip puts the old text back. */
 export const CHAT_ADD_FREE_SLOT_EDITS = {
-  "scripts/test-studio-image-pending-write.mjs": [
-    [
-      "  source = laterStripsForChatAddFreeSlot.find(fn => fn.name === 'stripChatAddFreeSlot')('hooks/use-textlabs-generation.ts', stripChatAddStacking('hooks/use-textlabs-generation.ts', source)) // LATER-CHANGES: registry read (CHAT-ADD-STACKING), then (CHAT-ADD-FREE-SLOT) from the registry\n",
-      "  source = stripChatAddStacking('hooks/use-textlabs-generation.ts', source) // LATER-CHANGES: registry read (CHAT-ADD-STACKING)\n"
-    ]
-  ],
   "scripts/test-textbox-role-contract.mjs": [
     [
-      "const generationSource = laterStripsForChatAddFreeSlot.find(fn => fn.name === 'stripChatAddFreeSlot')('hooks/use-textlabs-generation.ts', stripChatAddStacking('hooks/use-textlabs-generation.ts', stripChatAddTargeted('hooks/use-textlabs-generation.ts', fs.readFileSync(new URL('../hooks/use-textlabs-generation.ts', import.meta.url), 'utf8')))) // LATER-CHANGES: registry read (CHAT-ADD-STACKING) after (CHAT-ADD-TARGETED), then (CHAT-ADD-FREE-SLOT) from the registry\n",
-      "const generationSource = stripChatAddStacking('hooks/use-textlabs-generation.ts', stripChatAddTargeted('hooks/use-textlabs-generation.ts', fs.readFileSync(new URL('../hooks/use-textlabs-generation.ts', import.meta.url), 'utf8'))) // LATER-CHANGES: registry read (CHAT-ADD-STACKING) after (CHAT-ADD-TARGETED)\n"
+      "await verifySemanticDispatch(generationSourceWithoutFreeSlot) // LATER-CHANGES: registry read (CHAT-ADD-FREE-SLOT): the chat add free slot's marked hook lines come out too\n",
+      "await verifySemanticDispatch(generationSource)\n"
+    ],
+    [
+      "  assert.ok(generationSourceWithoutFreeSlot.includes(from), 'negative probe source must match') // LATER-CHANGES: registry read (CHAT-ADD-FREE-SLOT): the chat add free slot's marked hook lines come out too\n",
+      "  assert.ok(generationSource.includes(from), 'negative probe source must match')\n"
+    ],
+    [
+      "  await assert.rejects(() => verifySemanticDispatch(generationSourceWithoutFreeSlot.replace(from, to))) // LATER-CHANGES: registry read (CHAT-ADD-FREE-SLOT): the chat add free slot's marked hook lines come out too\n",
+      "  await assert.rejects(() => verifySemanticDispatch(generationSource.replace(from, to)))\n"
     ]
   ],
   "scripts/test-studio-chat-element-refine.mjs": [
@@ -31,23 +33,11 @@ export const CHAT_ADD_FREE_SLOT_EDITS = {
       "  const mutated = stripChatElementRefine('hooks/use-textlabs-generation.ts', laterStripsForChatAddFreeSlot.find(fn => fn.name === 'stripChatAddFreeSlot')('hooks/use-textlabs-generation.ts', head)) // LATER-CHANGES: registry read (CHAT-ADD-FREE-SLOT): the chat add free slot's marked hook lines come out first\n",
       "  const mutated = stripChatElementRefine('hooks/use-textlabs-generation.ts', head)\n"
     ]
-  ],
-  "scripts/test-studio-element-free-spot.mjs": [
-    [
-      "    source = laterStripsForChatAddFreeSlot.find(fn => fn.name === 'stripChatAddFreeSlot')(HOOK, stripChatAddStacking(HOOK, source)) // LATER-CHANGES: registry read (CHAT-ADD-STACKING), then (CHAT-ADD-FREE-SLOT) from the registry\n",
-      "    source = stripChatAddStacking(HOOK, source) // LATER-CHANGES: registry read (CHAT-ADD-STACKING)\n"
-    ]
-  ],
-  "scripts/test-studio-element-placeholder-fix.mjs": [
-    [
-      "      source = laterStripsForChatAddFreeSlot.find(fn => fn.name === 'stripChatAddFreeSlot')('hooks/use-textlabs-generation.ts', stripChatAddStacking('hooks/use-textlabs-generation.ts', source)) // LATER-CHANGES: registry read (CHAT-ADD-STACKING), then (CHAT-ADD-FREE-SLOT) from the registry\n",
-      "      source = stripChatAddStacking('hooks/use-textlabs-generation.ts', source) // LATER-CHANGES: registry read (CHAT-ADD-STACKING)\n"
-    ]
   ]
 }
 
 /** The proofs taught. */
-export const CHAT_ADD_FREE_SLOT_PIN_FILES = Object.keys(CHAT_ADD_FREE_SLOT_EDITS)
+export const CHAT_ADD_FREE_SLOT_PIN_FILES = ['scripts/test-studio-image-pending-write.mjs', 'scripts/test-textbox-role-contract.mjs', 'scripts/test-studio-chat-element-refine.mjs', 'scripts/test-studio-element-free-spot.mjs', 'scripts/test-studio-element-placeholder-fix.mjs'] // each gets marked insertions; those in CHAT_ADD_FREE_SLOT_EDITS also whole-line edits of lines no other change taught
 
 /** New files (no base text to put back). */
 export const CHAT_ADD_FREE_SLOT_NEW_FILES = ['lib/chat-add-free-slot.ts', 'scripts/studio-chat-add-free-slot-strip.mjs', 'scripts/test-studio-chat-add-free-slot.mjs']
@@ -68,7 +58,7 @@ NEXT_PUBLIC_STUDIO_CHAT_ADD_FREE_SLOT_ENABLED="false"
 /** The file without this change's lines: every line that carries the marker (as a whole token) comes out, every other byte stays. Any other file is returned as it is. */
 export function stripChatAddFreeSlot(rel, text) {
   if (typeof text !== 'string') return text
-  if (rel in CHAT_ADD_FREE_SLOT_EDITS) text = CHAT_ADD_FREE_SLOT_EDITS[rel].reduce((out, [has, was]) => out.replace(has, () => was), text) // a taught proof: its previous lines, then its marked import comes out below
+  if (CHAT_ADD_FREE_SLOT_PIN_FILES.includes(rel)) text = (CHAT_ADD_FREE_SLOT_EDITS[rel] || []).reduce((out, [has, was]) => out.replace(has, () => was), text) // a taught proof: its previous lines, then its marked lines come out below
   else if (!CHAT_ADD_FREE_SLOT_FILES.includes(rel)) return text
   return text.split('\n').filter(line => !CHAT_ADD_FREE_SLOT_MARKER_RE.test(line)).join('\n')
 }

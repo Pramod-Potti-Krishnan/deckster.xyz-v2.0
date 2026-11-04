@@ -886,7 +886,8 @@ function wiringChecks() {
   const decl = (source, name) => {
     source = withoutImagePendingLines(stripChatElementRefine(HOOK, source)) // NEXT_PUBLIC_CHAT_ELEMENT_REFINE
     source = stripChatAddTargeted(HOOK, source) // LATER-CHANGES: registry read (CHAT-ADD-TARGETED)
-    source = laterStripsForChatAddFreeSlot.find(fn => fn.name === 'stripChatAddFreeSlot')(HOOK, stripChatAddStacking(HOOK, source)) // LATER-CHANGES: registry read (CHAT-ADD-STACKING), then (CHAT-ADD-FREE-SLOT) from the registry
+    source = stripChatAddStacking(HOOK, source) // LATER-CHANGES: registry read (CHAT-ADD-STACKING)
+    source = laterStripsForChatAddFreeSlot.find(fn => fn.name === 'stripChatAddFreeSlot')(HOOK, source) // LATER-CHANGES: registry read (CHAT-ADD-FREE-SLOT): the chat add free slot's marked hook lines come out too
     const sf = ts.createSourceFile('x.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
     let found
     const visit = node => { if (!found && ts.isVariableDeclaration(node) && node.name.getText(sf) === name) found = printer.printNode(ts.EmitHint.Unspecified, node.initializer, sf); else ts.forEachChild(node, visit) }

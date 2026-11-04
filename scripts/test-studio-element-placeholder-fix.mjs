@@ -419,7 +419,8 @@ await check('flag: exact "true", Studio shell only, documented off in .env.examp
     const decl = (source, name) => {
       source = withoutImagePendingLines(stripChatElementRefine('hooks/use-textlabs-generation.ts', source)) // NEXT_PUBLIC_CHAT_ELEMENT_REFINE
       source = stripChatAddTargeted('hooks/use-textlabs-generation.ts', source) // LATER-CHANGES: registry read (CHAT-ADD-TARGETED)
-      source = laterStripsForChatAddFreeSlot.find(fn => fn.name === 'stripChatAddFreeSlot')('hooks/use-textlabs-generation.ts', stripChatAddStacking('hooks/use-textlabs-generation.ts', source)) // LATER-CHANGES: registry read (CHAT-ADD-STACKING), then (CHAT-ADD-FREE-SLOT) from the registry
+      source = stripChatAddStacking('hooks/use-textlabs-generation.ts', source) // LATER-CHANGES: registry read (CHAT-ADD-STACKING)
+      source = laterStripsForChatAddFreeSlot.find(fn => fn.name === 'stripChatAddFreeSlot')('hooks/use-textlabs-generation.ts', source) // LATER-CHANGES: registry read (CHAT-ADD-FREE-SLOT): the chat add free slot's marked hook lines come out too
       const sf = ts.createSourceFile('x.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
       let found
       const visit = node => { if (!found && ts.isVariableDeclaration(node) && node.name.getText(sf) === name) found = printer.printNode(ts.EmitHint.Unspecified, node.initializer, sf); else ts.forEachChild(node, visit) }
