@@ -68,7 +68,7 @@ export const VOICE_CALL_CORE_STRIP_EDIT = 'scripts/studio-voice-core-strip.mjs'
 export const VOICE_CALL_RETIRED_FILES = ['components/builder/voice-call/voice-call-dock.tsx', 'components/builder/voice-call/voice-call-button.tsx', /* P4-21b: the first port's face parser, replaced by ELEMENT-3's lib/studio/voice/companion-face.ts */ 'lib/studio/voice-v2/companion-face.ts', 'scripts/fixtures/studio-voice-v2/companion-face.test.ts']
 
 /** Files this change edits that are neither marked app code nor new: its .env.example block, the registry (three lines), the core's subject helper (one marked edit) and the proofs its history touched. No package.json script: run the proof with `node scripts/test-studio-voice-call.mjs`. */
-export const VOICE_CALL_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', VOICE_CALL_CORE_STRIP_EDIT, ...VOICE_CALL_PUT_BACK_FILES]
+export const VOICE_CALL_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', VOICE_CALL_CORE_STRIP_EDIT, ...VOICE_CALL_PUT_BACK_FILES, /* P4-21 integration: the typed cast in ELEMENT-3's core fixture (tsc), for ELEMENT-3 to adopt */ 'scripts/fixtures/studio-voice-core/companion-face.test.ts']
 
 /** Every file this change's own commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
 export const VOICE_CALL_SCOPE_FILES = new Set([...VOICE_CALL_FILES, ...VOICE_CALL_NEW_FILES, ...VOICE_CALL_OWN_EDITS, ...VOICE_CALL_RETIRED_FILES, ...VOICE_CALL_ART_FILES, 'scripts/studio-voice-call-art-files.mjs'])
