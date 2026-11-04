@@ -51,7 +51,7 @@ export const MODEL_PICKER_SIMPLE_OWN_EDITS = ['.env.example', 'scripts/studio-la
 export const MODEL_PICKER_SIMPLE_SCOPE_FILES = new Set([...MODEL_PICKER_SIMPLE_FILES, ...MODEL_PICKER_SIMPLE_NEW_FILES, ...MODEL_PICKER_SIMPLE_OWN_EDITS])
 
 /** The whole .env.example block: its comments and its line. */
-export const MODEL_PICKER_SIMPLE_ENV_BLOCK = `# STUDIO MODEL PICKER SIMPLE (FRONTEND-1; F-14, PK's final of 4 Nov). On for the exact value "true" AND only together with NEXT_PUBLIC_STUDIO_MODEL_CHOICE (and NEXT_PUBLIC_STUDIO_MODEL_CATALOG for the model names); default off, and then the composer's slider picker is exactly as before. Build-time value: change it on Vercel and redeploy.
+export const MODEL_PICKER_SIMPLE_ENV_BLOCK = `# STUDIO MODEL PICKER SIMPLE (FRONTEND-1; F-14, PK's final of 4 Nov). On for the exact value "true" AND only together with NEXT_PUBLIC_STUDIO_MODEL_CHOICE (the model names come from the model catalogue, when that is on too); default off, and then the composer's slider picker is exactly as before. Build-time value: change it on Vercel and redeploy.
 # On, the composer's model button opens a calmer popover (a bottom sheet on a phone): the current preset's name as the title (Fast, Balanced, Best, Max; Auto or Custom off the scale), under it the writing model the router resolves for it, read from the catalogue, with a chevron that opens a read-only per-step list
 # and "Choose a specific model...", one slider with a thicker bar, a reset icon at the top right ("Use my default" on a deck, Auto otherwise) and a plain Advanced row that holds the slider's own rows. None of the slider's legend, hint, footer or notes. A stop saves the preset only, as before.
 NEXT_PUBLIC_STUDIO_MODEL_PICKER_SIMPLE="false"
