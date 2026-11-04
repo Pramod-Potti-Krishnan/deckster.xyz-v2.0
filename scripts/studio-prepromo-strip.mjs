@@ -8,6 +8,9 @@ export const PREPROMO_SCOPE_FILES = [
   'scripts/studio-prepromo-strip.mjs',
   'scripts/studio-later-changes.mjs',
   'scripts/test-studio-d1-debug-routes.mjs',
+  'lib/composer-library.ts',
+  'scripts/test-studio-composer-env-hosts.mjs',
+  'scripts/test-studio-deck-import.mjs',
 ]
 
 const MOCK_TOKEN_PAIRS = [
