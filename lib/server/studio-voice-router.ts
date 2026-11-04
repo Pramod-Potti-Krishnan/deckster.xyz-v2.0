@@ -2,18 +2,20 @@
 // IMPORT-FREE, with fetch, the clock, the signed-in user and the environment injected, so the proof (scripts/test-studio-voice-speech-routes.mjs) runs it with a fake fetch and no network.
 // ROUTER-1's final contract (via ELEMENT-3's docs/p4-19/VOICE-CORE.md): hearing is the router's POST /v1/chat/completions with an `input_audio` part (base64 WAV; NOT /audio/transcriptions), the transcript is the first
 // choice's content; speaking is the router's POST /v1/audio/speech, which answers audio with Content-Type and x-generation-id. The router key (MODEL_ROUTER_STUDIO_KEY, the "studio" proxy-scoped key) and its address
-// (MODEL_ROUTER_URL, no /v1) are server variables, read per request and never sent to the browser, logged or put in an error. X-Deckster-Cost-Usd is optional normalized metadata: it is set only when the router's
-// answer says what the call cost (a finite number, zero or more), never made up.
+// (MODEL_ROUTER_URL, no /v1) are server variables, read per request and never sent to the browser, logged or put in an error. COST IS INTERNAL (ROUTER-1, 2026-11-04): every call sends X-MR-Signal: headers, and the
+// router's X-MR-Cost-USD / X-MR-Model-Served / X-MR-Fallback-Depth / X-MR-Attempts (and a completion's usage.cost) are logged server-side only. No cost header, figure or margin is ever passed to the browser.
 // Behind NEXT_PUBLIC_STUDIO_VOICE_CALL (exactly "true"): with it off both routes answer 404 before anything else is read.
 
 export const VOICE_SPEECH_FLAG = 'NEXT_PUBLIC_STUDIO_VOICE_CALL'
+/** The client's cost header name: these routes never set it (cost stays internal), so the call's meter adds null. */
 export const VOICE_COST_HEADER = 'X-Deckster-Cost-Usd'
+/** The router's internal signal headers (answered when the request carries X-MR-Signal: headers). */
+export const ROUTER_SIGNAL_HEADERS = ['x-mr-cost-usd', 'x-mr-model-served', 'x-mr-fallback-depth', 'x-mr-attempts'] as const
 export const VOICE_TASKS = { stt: 'studio.voice_stt', tts: 'studio.voice_tts' } as const
 
-// TODO-ROUTER-LABEL: the router's registry (backend/model-router at d4a2d01) has no studio.voice_stt / studio.voice_tts entry yet, so the model each call names is not decided by ROUTER-1. These two constants are the only
-// place to change once it is (the task header already carries the label the router will route on).
-export const VOICE_STT_MODEL = 'google/gemini-2.5-flash' // TODO-ROUTER-LABEL: an audio-input chat model for studio.voice_stt
-/** The voices a call may ask for: narration's measured mp3 voices (lib/narration/voices.ts), written out so this file stays import-free. The first is the default (quickest to start speaking). TODO-ROUTER-LABEL for studio.voice_tts. */
+// ROUTER-1 (2026-11-04): studio.voice_stt and studio.voice_tts are registered labels (X-MR-Task); the label does not pick the model, the body's model slug is what is served. No X-MR-Group is sent.
+export const VOICE_STT_MODEL = 'google/gemini-3.5-flash-lite'
+/** The voices a call may ask for: narration's measured mp3 voices (lib/narration/voices.ts), written out so this file stays import-free. The first is the default (quickest to start speaking). */
 export const VOICE_TTS_VOICES: Record<string, { model: string; providerVoice: string }> = {
   ava: { model: 'microsoft/mai-voice-2-flash', providerVoice: 'en-US-AvaNeural' },
   andrew: { model: 'microsoft/mai-voice-2-flash', providerVoice: 'en-US-AndrewNeural' },
@@ -43,6 +45,8 @@ export interface SpeechDeps {
   userId: () => Promise<string | null>
   timeoutMs?: number
   traceId?: () => string
+  /** Where the internal figures go (server log). Default console.info. */
+  log?: (line: string) => void
 }
 
 export function voiceSpeechOn(env: Env): boolean {
@@ -64,7 +68,7 @@ export function routerAddress(env: Env): RouterAddress | null {
 }
 
 export function routerHeaders(address: RouterAddress, task: string, userId: string | null, traceId: string | null): Record<string, string> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json', Authorization: `Bearer ${address.key}`, 'X-MR-Service': 'studio', 'X-MR-Task': task }
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', Authorization: `Bearer ${address.key}`, 'X-MR-Service': 'studio', 'X-MR-Task': task, 'X-MR-Signal': 'headers' }
   if (userId && ID_SHAPE.test(userId)) headers['X-MR-User-ID'] = userId
   if (traceId && ID_SHAPE.test(traceId)) headers['X-MR-Trace-ID'] = traceId
   return headers
@@ -119,19 +123,18 @@ export function parseTranscript(body: unknown): string | null {
   return null
 }
 
-function finiteCost(value: unknown): number | null {
-  const n = typeof value === 'string' && value.trim() ? Number(value) : value
-  return typeof n === 'number' && Number.isFinite(n) && n >= 0 ? n : null
+/** The router's internal figures for one call (signal headers, plus a completion's usage.cost), as one server log line; null when the router said nothing. Never sent to the browser. */
+export function internalSignalLine(task: string, headers: Headers, body?: unknown): string | null {
+  const parts: string[] = []
+  for (const name of ROUTER_SIGNAL_HEADERS) { const v = headers.get(name); if (v && /^[\x20-\x7e]{1,128}$/.test(v)) parts.push(`${name.slice(5)}=${v}`) }
+  const usage = (body as { usage?: { cost?: unknown } } | null)?.usage?.cost
+  if (typeof usage === 'number' && Number.isFinite(usage)) parts.push(`usage-cost=${usage}`)
+  return parts.length ? `[VoiceCall] ${task} ${parts.join(' ')}` : null
 }
 
-/** The cost the router said a chat call had (usage.cost), or null. */
-export function costFromCompletion(body: unknown): number | null {
-  return finiteCost((body as { usage?: { cost?: unknown } } | null)?.usage?.cost)
-}
-
-/** The cost the router said a speech call had, in its own normalized header, or null. TODO for ROUTER-1: no such header is promised yet; until it is, speech carries no cost. */
-export function costFromSpeechHeaders(headers: Headers): number | null {
-  return finiteCost(headers.get(VOICE_COST_HEADER))
+function logSignal(deps: SpeechDeps, task: string, headers: Headers, body?: unknown) {
+  const line = internalSignalLine(task, headers, body)
+  if (line) (deps.log ?? (l => console.info(l)))(line)
 }
 
 /** What the client's error shapes need: the status the router (or its absence) maps to. 404/501/503 read "not connected" on the client, 402/429 "a limit". */
@@ -168,7 +171,7 @@ async function gate(deps: SpeechDeps): Promise<{ error: Response } | { userId: s
   return { userId, address }
 }
 
-/** POST /api/studio/voice/transcribe: multipart `audio` (WAV, 16 kHz, mono, 16-bit) -> 200 { text } (+ X-Deckster-Cost-Usd when known). */
+/** POST /api/studio/voice/transcribe: multipart `audio` (WAV, 16 kHz, mono, 16-bit) -> 200 { text } (no cost header: cost is internal). */
 export async function handleTranscribe(request: Request, deps: SpeechDeps): Promise<Response> {
   const gated = await gate(deps)
   if ('error' in gated) return gated.error
@@ -192,12 +195,11 @@ export async function handleTranscribe(request: Request, deps: SpeechDeps): Prom
   const text = parseTranscript(body)
   if (text === null) return json(502, 'The speech service answered something unreadable')
   const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }
-  const cost = costFromCompletion(body)
-  if (cost !== null) headers[VOICE_COST_HEADER] = String(cost)
+  logSignal(deps, VOICE_TASKS.stt, routed.response.headers, body)
   return new Response(JSON.stringify({ text }), { status: 200, headers })
 }
 
-/** POST /api/studio/voice/speak: JSON { text, voice? } -> 200 audio (Content-Type from the router, x-generation-id passed through, X-Deckster-Cost-Usd when known). */
+/** POST /api/studio/voice/speak: JSON { text, voice? } -> 200 audio (Content-Type from the router, x-generation-id passed through, no cost header: cost is internal). */
 export async function handleSpeak(request: Request, deps: SpeechDeps): Promise<Response> {
   const gated = await gate(deps)
   if ('error' in gated) return gated.error
@@ -216,7 +218,6 @@ export async function handleSpeak(request: Request, deps: SpeechDeps): Promise<R
   const headers: Record<string, string> = { 'Content-Type': contentType, 'Cache-Control': 'no-store' }
   const generation = routed.response.headers.get('x-generation-id')
   if (generation) headers['x-generation-id'] = generation
-  const cost = costFromSpeechHeaders(routed.response.headers)
-  if (cost !== null) headers[VOICE_COST_HEADER] = String(cost)
+  logSignal(deps, VOICE_TASKS.tts, routed.response.headers)
   return new Response(routed.response.body, { status: 200, headers })
 }

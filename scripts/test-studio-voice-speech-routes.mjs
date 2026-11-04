@@ -1,6 +1,6 @@
 // FRONTEND-1 (W6 P4-21): proof of the voice call's two speech routes, POST /api/studio/voice/transcribe and /api/studio/voice/speak, and their pure server module lib/server/studio-voice-router.ts.
-//   A. The module, function by function (flag, router address, headers, WAV header, request bodies, transcript and cost parsing, status mapping).
-//   B. The handlers with a fake fetch: flag off is 404 and reads nothing, auth 401, router unset 503, type 415, size 413, timeout 504, router errors 429 / 502, the cost header present only when known, x-generation-id passed through.
+//   A. The module, function by function (flag, router address, headers, WAV header, request bodies, transcript parsing, the internal signal line, status mapping).
+//   B. The handlers with a fake fetch: flag off is 404 and reads nothing, auth 401, router unset 503, type 415, size 413, timeout 504, router errors 429 / 502, no cost header ever (cost is internal, ROUTER-1 2026-11-04) while the router's signal figures are logged server-side, x-generation-id passed through.
 //   C. The two route files, run with stub next-auth / auth options: the signed-in user's id reaches the router, nobody signed in is 401, flag off is 404.
 //   D. Flag-off identity: the client seam (lib/studio-voice-call-router.ts) is unchanged, no existing app file imports the new module, and no browser file names the router key.
 //   E. MUTANTS: each must be caught by A-C.
@@ -52,7 +52,9 @@ function fakeFetch(answer) {
   fn.calls = calls
   return fn
 }
-const deps = (over = {}) => ({ env: ENV_ON, fetch: fakeFetch(routerJson({ choices: [{ message: { content: ' hello deck ' } }] })), userId: async () => 'user_1', traceId: () => 'trc_abc123abc123', timeoutMs: 200, ...over })
+const deps = (over = {}) => ({ env: ENV_ON, fetch: fakeFetch(routerJson({ choices: [{ message: { content: ' hello deck ' } }] })), userId: async () => 'user_1', traceId: () => 'trc_abc123abc123', timeoutMs: 200, log: () => {}, ...over })
+const SIGNAL = { 'X-MR-Cost-USD': '0.000412', 'X-MR-Model-Served': 'google/gemini-3.5-flash-lite', 'X-MR-Fallback-Depth': '0', 'X-MR-Attempts': '1' }
+const COSTY = /cost|usd|margin|0\.000412|0\.0004\b/i
 
 async function suite(m) {
   // ---------- A. the module ----------
@@ -62,7 +64,7 @@ async function suite(m) {
   eq(m.routerAddress({ MODEL_ROUTER_URL: 'ftp://r.test', MODEL_ROUTER_STUDIO_KEY: 'k' }), null, 'A address: not http(s) -> null')
   eq(m.routerAddress({ MODEL_ROUTER_URL: 'https://r.test', MODEL_ROUTER_STUDIO_KEY: 'a b' }), null, 'A address: a key with a space -> null')
   const h = m.routerHeaders({ baseUrl: 'x', key: 'k1' }, 'studio.voice_stt', 'user_1', 'trc_1')
-  eq([h.Authorization, h['X-MR-Service'], h['X-MR-Task'], h['X-MR-User-ID'], h['X-MR-Trace-ID']], ['Bearer k1', 'studio', 'studio.voice_stt', 'user_1', 'trc_1'], 'A headers: key, service, task, identity')
+  eq([h.Authorization, h['X-MR-Service'], h['X-MR-Task'], h['X-MR-User-ID'], h['X-MR-Trace-ID'], h['X-MR-Signal'], 'X-MR-Group' in h], ['Bearer k1', 'studio', 'studio.voice_stt', 'user_1', 'trc_1', 'headers', false], 'A headers: key, service, task, identity, X-MR-Signal headers, no X-MR-Group')
   ok(!('X-MR-User-ID' in m.routerHeaders({ baseUrl: 'x', key: 'k' }, 't', 'a@b.c d', null)), 'A headers: an id that is not opaque is left out')
   eq(m.readWavHeader(wav()), { format: 1, channels: 1, sampleRate: 16000, bitsPerSample: 16 }, 'A wav: header read')
   ok(m.isCallWav(m.readWavHeader(wav())), 'A wav: the capture format passes')
@@ -77,7 +79,12 @@ async function suite(m) {
   eq(m.parseTranscript({ choices: [{ message: { content: [{ type: 'text', text: 'a' }, { type: 'text', text: 'b' }] } }] }), 'ab', 'A transcript: parts')
   eq(m.parseTranscript({ choices: [] }), null, 'A transcript: none -> null')
   eq(m.parseTranscript({ choices: [{ message: { content: '' } }] }), '', 'A transcript: empty is an answer, not an error')
-  eq([m.costFromCompletion({ usage: { cost: 0.0012 } }), m.costFromCompletion({ usage: { cost: 0 } }), m.costFromCompletion({ usage: {} }), m.costFromCompletion({ usage: { cost: -1 } }), m.costFromCompletion({ usage: { cost: 'x' } })], [0.0012, 0, null, null, null], 'A cost: only a finite number, zero or more')
+  eq(m.VOICE_STT_MODEL, 'google/gemini-3.5-flash-lite', 'A stt model: ROUTER-1\'s slug')
+  eq(Object.fromEntries(Object.entries(m.VOICE_TTS_VOICES).map(([k, v]) => [k, v.model])), { ava: 'microsoft/mai-voice-2-flash', andrew: 'microsoft/mai-voice-2-flash', alloy: 'fish-audio/s2.1-pro' }, 'A tts models')
+  ok(!SRC.includes('TODO-ROUTER-LABEL'), 'A: no TODO-ROUTER-LABEL left')
+  eq(m.internalSignalLine('studio.voice_stt', new Headers(SIGNAL), { usage: { cost: 0.0004 } }), '[VoiceCall] studio.voice_stt cost-usd=0.000412 model-served=google/gemini-3.5-flash-lite fallback-depth=0 attempts=1 usage-cost=0.0004', 'A signal: one server log line')
+  eq(m.internalSignalLine('t', new Headers({}), {}), null, 'A signal: nothing said -> no line')
+  eq(m.internalSignalLine('t', new Headers({ 'X-MR-Attempts': 'a\tb' }), {}), null, 'A signal: a value with control characters is not logged')
   eq([m.mapRouterStatus(429), m.mapRouterStatus(402), m.mapRouterStatus(500), m.mapRouterStatus(401), m.mapRouterStatus(400)], [429, 429, 502, 502, 502], 'A status mapping')
 
   // ---------- B. the handlers ----------
@@ -97,14 +104,19 @@ async function suite(m) {
     ok(!leak.includes('sk-test-key'), `B ${name}: no error body names the key`)
   }
   // transcribe
-  const d = deps({ fetch: fakeFetch(routerJson({ choices: [{ message: { content: ' hello deck ' } }], usage: { cost: 0.0004 } })) })
+  const logged = []
+  const d = deps({ log: line => logged.push(line), fetch: fakeFetch(new Response(JSON.stringify({ choices: [{ message: { content: ' hello deck ' } }], usage: { cost: 0.0004 } }), { status: 200, headers: { 'Content-Type': 'application/json', ...SIGNAL } })) })
   const r = await m.handleTranscribe(sttRequest(), d)
-  eq([r.status, await r.json(), r.headers.get('X-Deckster-Cost-Usd')], [200, { text: 'hello deck' }, '0.0004'], 'B stt: 200 {text} with the cost header when known')
+  const rText = await r.text()
+  eq([r.status, JSON.parse(rText), r.headers.get('X-Deckster-Cost-Usd')], [200, { text: 'hello deck' }, null], 'B stt: 200 {text}, no cost header even when the router said the cost')
+  ok(![...r.headers].some(([k, v]) => COSTY.test(k) || COSTY.test(v) || /^x-mr-/i.test(k)) && !COSTY.test(rText), 'B stt: no cost, margin or router signal reaches the browser')
+  eq(logged.length === 1 && logged[0].includes('cost-usd=0.000412') && logged[0].includes('usage-cost=0.0004'), true, 'B stt: the internal figures are logged server-side')
+  eq(d.fetch.calls[0].init.headers['X-MR-Signal'], 'headers', 'B stt: X-MR-Signal headers sent')
   const call = d.fetch.calls[0]
   ok(call.url === 'https://router.test/v1/chat/completions' && call.init.headers['X-MR-Task'] === 'studio.voice_stt' && call.init.headers.Authorization === 'Bearer sk-test-key' && call.init.headers['X-MR-User-ID'] === 'user_1', 'B stt: chat/completions with the task, the key and the user')
   ok(!call.url.includes('transcriptions'), 'B stt: never /audio/transcriptions')
   const noCost = await m.handleTranscribe(sttRequest(), deps())
-  ok(noCost.status === 200 && noCost.headers.get('X-Deckster-Cost-Usd') === null, 'B stt: cost unknown -> no header (never zero)')
+  ok(noCost.status === 200 && noCost.headers.get('X-Deckster-Cost-Usd') === null, 'B stt: cost unknown -> no header')
   eq((await m.handleTranscribe(new Request('http://s.test/x', { method: 'POST', body: '{}', headers: { 'Content-Type': 'application/json' } }), deps())).status, 415, 'B stt: not multipart -> 415')
   eq((await m.handleTranscribe(sttRequest(wav(), 'audio/webm'), deps())).status, 415, 'B stt: a webm part -> 415')
   eq((await m.handleTranscribe(sttRequest(wav({ rate: 48000 })), deps())).status, 415, 'B stt: 48 kHz -> 415')
@@ -123,8 +135,10 @@ async function suite(m) {
   eq([s.status, s.headers.get('content-type'), s.headers.get('x-generation-id'), s.headers.get('X-Deckster-Cost-Usd'), [...new Uint8Array(await s.arrayBuffer())]], [200, 'audio/mpeg', 'gen-123', null, [73, 68, 51, 1, 2, 3]], 'B tts: the audio, its type, x-generation-id, no cost header when unknown')
   const sc = sd.fetch.calls[0]
   ok(sc.url === 'https://router.test/v1/audio/speech' && sc.init.headers['X-MR-Task'] === 'studio.voice_tts' && JSON.parse(sc.init.body).voice === 'en-US-AvaNeural', 'B tts: audio/speech, the task, the default voice')
-  const costly = await m.handleSpeak(ttsRequest({ text: 'Hi.' }), deps({ fetch: fakeFetch(routerAudio({ 'X-Deckster-Cost-Usd': '0.0002' })) }))
-  eq(costly.headers.get('X-Deckster-Cost-Usd'), '0.0002', 'B tts: the cost header when the router says it')
+  const ttsLogged = []
+  const costly = await m.handleSpeak(ttsRequest({ text: 'Hi.' }), deps({ log: line => ttsLogged.push(line), fetch: fakeFetch(routerAudio({ ...SIGNAL, 'X-Deckster-Cost-Usd': '0.0002' })) }))
+  ok(costly.status === 200 && ![...costly.headers].some(([k, v]) => COSTY.test(k) || COSTY.test(v) || /^x-mr-/i.test(k)), 'B tts: no cost header or router signal passed through, whatever the router sends')
+  ok(ttsLogged.length === 1 && ttsLogged[0].startsWith('[VoiceCall] studio.voice_tts cost-usd=0.000412'), 'B tts: the internal figures are logged server-side')
   eq(JSON.parse((await (async () => { const f = deps({ fetch: fakeFetch(routerAudio()) }); await m.handleSpeak(ttsRequest({ text: 'Hi.', voice: 'andrew' }), f); return f.fetch.calls[0].init.body })())).voice, 'en-US-AndrewNeural', 'B tts: an allowed voice')
   eq((await m.handleSpeak(ttsRequest({ text: 'Hi.', voice: 'zephyr' }), deps())).status, 400, 'B tts: a voice not on the list -> 400')
   eq((await m.handleSpeak(ttsRequest({ text: 'Hi.', voice: 'constructor' }), deps())).status, 400, 'B tts: a prototype name is not a voice')
@@ -181,6 +195,10 @@ eq(importers, [], 'D: no other app file imports the server module (flag off, the
 const browserKey = appFiles.filter(f => (f.startsWith('components/') || f.startsWith('hooks/') || f.includes('studio-voice-call')) && read(f).includes('MODEL_ROUTER_STUDIO_KEY'))
 eq(browserKey, [], 'D: no browser file names the router key')
 
+// ---------- D2. the call UI shows no cost ----------
+const uiFiles = appFiles.filter(f => f.startsWith('components/builder/voice-call/') || f === 'hooks/use-studio-voice-call.ts')
+eq(uiFiles.filter(f => /costUsd|CostMeter|meter\.|X-Deckster-Cost/i.test(read(f))), [], 'D: no call UI file reads or shows a cost')
+
 // ---------- E. mutants ----------
 const MUTANTS = [
   ["return env[VOICE_SPEECH_FLAG] === 'true'", 'return true'],
@@ -189,8 +207,11 @@ const MUTANTS = [
   ['export const VOICE_STT_MAX_BYTES = 1_000_000', 'export const VOICE_STT_MAX_BYTES = 100_000_000'],
   ['if (status === 402 || status === 429) return 429', ''],
   ["if (isAbort(error) || controller.signal.aborted) return { error: json(504, 'The speech service took too long') }", ''],
-  ['if (cost !== null) headers[VOICE_COST_HEADER] = String(cost)\n  return new Response(JSON.stringify({ text })', "headers[VOICE_COST_HEADER] = String(cost ?? 0)\n  return new Response(JSON.stringify({ text })"],
-  ['Number.isFinite(n) && n >= 0 ? n : null', 'n'],
+  ["  logSignal(deps, VOICE_TASKS.stt, routed.response.headers, body)\n", "  headers[VOICE_COST_HEADER] = String((body as any)?.usage?.cost)\n  logSignal(deps, VOICE_TASKS.stt, routed.response.headers, body)\n"],
+  ["  logSignal(deps, VOICE_TASKS.tts, routed.response.headers)\n", "  for (const n of ROUTER_SIGNAL_HEADERS) { const v = routed.response.headers.get(n); if (v) headers[n] = v }\n"],
+  ["'X-MR-Signal': 'headers' }", "}"],
+  ["export const VOICE_STT_MODEL = 'google/gemini-3.5-flash-lite'", "export const VOICE_STT_MODEL = 'google/gemini-2.5-flash'"],
+  ['if (v && /^[\\x20-\\x7e]{1,128}$/.test(v))', 'if (v)'],
   ["if (generation) headers['x-generation-id'] = generation", ''],
   ["'/v1/chat/completions'", "'/v1/audio/transcriptions'"],
   ["format: 'wav' }", "format: 'mp3' }"],
