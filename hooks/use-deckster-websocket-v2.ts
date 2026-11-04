@@ -1,3 +1,4 @@
+import { announceQuotaRefusal, isStudioUsagePageOn, walletPrecheckAllows } from '@/lib/studio-billing-usage' // BILLING-F5-USAGE
 import { useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from './use-auth';
 import { composerThemeFromSync, composerThemeSyncBlocked, readComposerAdoption, type ComposerAdoption } from '@/lib/composer-theme-policy';
@@ -1897,6 +1898,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 ...(rawMessage.type === 'error' && typeof payload.detail === 'string' ? { detail: payload.detail } : {}),
                 ...(rawMessage.type === 'auth_expired' && typeof payload.discarded_message_type === 'string' ? { discardedMessageType: payload.discarded_message_type } : {}),
               };
+              if (rawMessage.type === 'error') announceQuotaRefusal(payload.code); // BILLING-F5-USAGE: Director D1 QUOTA_EXCEEDED / PLAN_REQUIRED -> the Builder's refusal screen (off: no-op)
               const previousNotice = transportNoticeRef.current;
               if (previousNotice?.requiresResend && previousNotice.sessionId === socketSessionId) {
                 // A later transport error is new information, not proof that the
@@ -3526,6 +3528,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     timeoutMs: number = SEND_RECONNECT_TIMEOUT_MS,
     isCurrentRequest?: () => boolean,
   ): Promise<boolean> => {
+    if (isStudioUsagePageOn() && !(await walletPrecheckAllows())) return false; // BILLING-F5-USAGE: F4 pre-build check (404 = allowed)
     const origin = { ...turnSubmissionLifecycleRef.current };
     const isCurrentTurn = () => (
       turnSubmissionLifecycleRef.current.active &&

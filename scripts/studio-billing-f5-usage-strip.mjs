@@ -1,14 +1,19 @@
 // FRONTEND-1 (L-BILLING F5 = S-3 quota and refusal UX, plus a Usage page; 4 Nov). Flag NEXT_PUBLIC_STUDIO_USAGE_PAGE (the string "true", default off, build-time).
-// New files only: no existing line of app code is touched, so flag off is byte-identical (the new /usage route renders notFound() while off; the refusal component renders null).
+// First commit: new files only. Follow-up (Builder wiring): 5 marked lines (marker BILLING-F5-USAGE) in hooks/use-deckster-websocket-v2.ts and app/builder/page.tsx, pure insertions;
+// strip them and each file is its base byte for byte. Off: /usage is notFound(), the refusal components render null, the hook lines are no-ops (no fetch, no event).
 // Stacked on frontend1/tier-update-guard (#575: the quota route reads tier from the DB). Plain node, no imports.
 export const BASE_COMMIT = '3e1ce88eec23fbfd33f249332d06a65ad05ffc40' // origin/studio-v4-dev-preparation-code at the start of this change
 export const BILLING_F5_USAGE_FLAGS = ['NEXT_PUBLIC_STUDIO_USAGE_PAGE']
 export const BILLING_F5_USAGE_MARKER = 'BILLING-F5-USAGE'
-export const BILLING_F5_USAGE_FILES = []
+/** The marker as a WHOLE token. */
+export const BILLING_F5_USAGE_MARKER_RE = /(?<![\w-])BILLING-F5-USAGE(?![\w-])/
+/** Existing files that get marked lines (follow-up, 4 Nov: the Builder wiring). Pure insertions; strip them and each file is its base. */
+export const BILLING_F5_USAGE_FILES = ['hooks/use-deckster-websocket-v2.ts', 'app/builder/page.tsx']
 export const BILLING_F5_USAGE_NEW_FILES = [
   'lib/studio-billing-usage.ts',
   'components/billing/quota-refusal.tsx',
   'app/(app)/usage/page.tsx',
+  'components/billing/builder-quota-refusal.tsx',
   'scripts/studio-billing-f5-usage-strip.mjs',
   'scripts/test-studio-billing-f5-usage.mjs',
 ]
@@ -21,7 +26,8 @@ export const BILLING_F5_USAGE_ENV_BLOCK = `# STUDIO USAGE PAGE (FRONTEND-1; L-BI
 NEXT_PUBLIC_STUDIO_USAGE_PAGE="false"
 `
 
-/** No marked lines in existing files: every file is returned as it is. */
+/** The file without this change's marked lines; any other file is returned as it is. */
 export function stripBillingF5Usage(rel, text) {
-  return text
+  if (typeof text !== 'string' || !BILLING_F5_USAGE_FILES.includes(rel)) return text
+  return text.split('\n').filter(line => !BILLING_F5_USAGE_MARKER_RE.test(line)).join('\n')
 }

@@ -47,7 +47,7 @@ export function usageView(quota: UsageQuotaInput | null | undefined, walletBalan
   return { planLabel: quota?.tierLabel || "Free", planCredits, usedCredits, leftCredits, topUpCredits, usedFraction, state }
 }
 
-export type RefusalKind = "credits_exhausted" | "image_cap_reached" | "plan_required" | "cap_reached"
+export type RefusalKind = "credits_exhausted" | "image_cap_reached" | "plan_required" | "cap_reached" | "wallet_capped"
 
 export interface RefusalCopy {
   title: string
@@ -74,6 +74,7 @@ export function refusalKind(code: unknown): RefusalKind | null {
     case "image_cap_reached": return "image_cap_reached"
     case "model_not_in_plan": case "feature_not_in_plan": case "PLAN_REQUIRED": return "plan_required"
     case "daily_cap_reached": case "weekly_cap_reached": return "cap_reached"
+    case "wallet_capped": return "wallet_capped"
     default: return null
   }
 }
@@ -90,7 +91,42 @@ export function refusalCopy(kind: RefusalKind, tier?: unknown): RefusalCopy {
       return { title: "You've reached your image limit", body: "Your plan's images for this period are used up. Upgrade for a higher image limit. Text and charts still work.", primary: upgrade ?? topUp }
     case "plan_required":
       return { title: "This needs a higher plan", body: "This feature isn't included in your current plan. Upgrade to use it.", primary: upgrade ?? { label: "See plans", href: "/billing" } }
+    case "wallet_capped":
+      return { title: "Not enough credits to start", body: "You don't have enough credits left to start this. Top up to keep going now, or upgrade for more credits every month.", primary: topUp, ...(upgrade ? { secondary: upgrade } : {}) }
     case "cap_reached":
       return { title: "You've hit today's limit", body: "You've reached your plan's limit for now. It resets soon, or you can top up to keep going.", primary: topUp, ...(upgrade ? { secondary: upgrade } : {}) }
+  }
+}
+
+/** The window event the Builder's refusal overlay listens for. */
+export const QUOTA_REFUSAL_EVENT = "studio-quota-refusal"
+
+/** Flag on and a billing refusal code: tell the Builder (a window event; nothing else). Returns whether it announced. */
+export function announceQuotaRefusal(code: unknown): boolean {
+  if (!isStudioUsagePageOn() || !refusalKind(code) || typeof window === "undefined") return false
+  window.dispatchEvent(new CustomEvent(QUOTA_REFUSAL_EVENT, { detail: { code } }))
+  return true
+}
+
+/** Pure: a precheck response status/body is allowed unless it is a billing refusal. 404 (F4 not deployed) and any other failure count as allowed. */
+export function precheckAllows(status: number, body: unknown): { ok: boolean; code?: string } {
+  if (status === 402 || status === 403) {
+    const code = body && typeof body === "object" ? (body as { code?: unknown }).code : undefined
+    if (typeof code === "string" && refusalKind(code)) return { ok: false, code }
+  }
+  return { ok: true }
+}
+
+/** Before a send: POST /api/wallet/precheck. Off: true without a call. A 404 or network failure is allowed. A refusal is announced and returns false. */
+export async function walletPrecheckAllows(fetcher: typeof fetch = fetch): Promise<boolean> {
+  if (!isStudioUsagePageOn()) return true
+  try {
+    const res = await fetcher("/api/wallet/precheck", { method: "POST" })
+    const body = res.status === 402 || res.status === 403 ? await res.json().catch(() => null) : null
+    const verdict = precheckAllows(res.status, body)
+    if (!verdict.ok) announceQuotaRefusal(verdict.code)
+    return verdict.ok
+  } catch {
+    return true
   }
 }

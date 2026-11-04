@@ -50,5 +50,32 @@ ok(leaks(lib + '\nconst m = "gpt-4o"'), 'E: leak check catches a model id')
 ok(!copyOk(lib.replace('Top up credits', 'Buy more')), 'E: copy check catches a missing Top up step')
 ok(!flagOk(lib.replace('value === "true"', 'Boolean(value)')), 'E: flag check catches a truthy flag')
 
+// F follow-up: Builder wiring
+const BASE2 = 'origin/studio-v4-dev-preparation-code'
+for (const rel of strip.BILLING_F5_USAGE_FILES) {
+  const head = registry.stripLaterChanges(rel, git('show', `${HEAD}:${rel}`)), base = registry.stripLaterChanges(rel, git('show', `${BASE2}:${rel}`))
+  ok(strip.stripBillingF5Usage(rel, git('show', `${HEAD}:${rel}`)) === git('show', `${BASE2}:${rel}`) || head === base, `F: ${rel} minus marked lines is the base (flag-off identity)`)
+  const added = git('diff', '-U0', `${BASE2}..${HEAD}`, '--', rel).split('\n').filter(l => /^[+-]/.test(l) && !/^(\+\+\+|---) /.test(l))
+  ok(added.every(l => l.startsWith('+') && strip.BILLING_F5_USAGE_MARKER_RE.test(l)), `F: ${rel} changes are marked insertions only`)
+}
+const hook = readFileSync('hooks/use-deckster-websocket-v2.ts', 'utf8')
+ok(/if \(rawMessage\.type === 'error'\) announceQuotaRefusal\(payload\.code\)/.test(hook), 'F: error frame code goes to the refusal screen')
+ok(/if \(isStudioUsagePageOn\(\) && !\(await walletPrecheckAllows\(\)\)\) return false/.test(hook), 'F: send path prechecks only when on')
+// G code -> screen (mirror of refusalKind, read from the source so a drift fails)
+const map = { QUOTA_EXCEEDED: 'credits_exhausted', credits_exhausted: 'credits_exhausted', PLAN_REQUIRED: 'plan_required', model_not_in_plan: 'plan_required', image_cap_reached: 'image_cap_reached', wallet_capped: 'wallet_capped' }
+const kindOf = (src, code) => { const sw = src.slice(src.indexOf('export function refusalKind')); const m = sw.slice(0, sw.indexOf('default:')).split('\n').find(l => l.includes(`"${code}"`)); return m && (m.match(/return "(\w+)"/) || [])[1] }
+const mapOk = src => Object.entries(map).every(([c, k]) => kindOf(src, c) === k)
+ok(mapOk(lib), 'G: each code maps to the right screen')
+ok(lib.includes('case "wallet_capped":') && lib.includes('Not enough credits to start'), 'G: wallet_capped has its own screen')
+// H precheck: 404 allowed
+const preOk = src => { const f = src.slice(src.indexOf('export function precheckAllows')); const body = f.slice(0, f.indexOf('\n}\n')); return /status === 402 \|\| status === 403/.test(body) && /return \{ ok: true \}/.test(body) && !/404/.test(body) }
+ok(preOk(lib), 'H: a precheck 404 (or any non-402/403) counts as allowed')
+ok(/catch \{\s*return true/.test(lib), 'H: a precheck network failure counts as allowed')
+// mutants
+ok(!mapOk(lib.replace('case "wallet_capped": return "wallet_capped"', 'case "wallet_capped": return "plan_required"')), 'E: map check catches a wrong screen')
+ok(!preOk(lib.replace('status === 402 || status === 403', 'status === 402 || status === 403 || status === 404')), 'E: precheck check catches 404 as a refusal')
+ok(strip.stripBillingF5Usage('app/builder/page.tsx', 'a\nb // BILLING-F5-USAGE\n') === 'a\n', 'E: strip removes a marked line')
+ok(strip.stripBillingF5Usage('app/builder/page.tsx', 'b // BILLING-F5-USAGE-X\n') !== '', 'E: strip keeps a non-token marker')
+
 console.log(fails ? `\n${fails} failed` : '\nall passed')
 process.exit(fails ? 1 : 0)
