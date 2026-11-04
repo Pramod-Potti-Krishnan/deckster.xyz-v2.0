@@ -21,7 +21,6 @@ import {
   BASE_COMMIT, D1_BLOCKS, D1_DELETED, D1_GATE, D1_REMOVED_ROUTES, D1_HELPERS, D1_IMPORTS, D1_NEW_FILES, D1_OWN_EDITS, D1_ROUTE, D1_SCOPE_FILES, D1_SUBJECT, stripD1DebugRoutes,
 } from './studio-d1-debug-routes-strip.mjs'
 import { LATER_CHANGE_FILES, LATER_ENV_BLOCKS, LATER_STRIPS, stripLaterChanges } from './studio-later-changes.mjs'
-import { API_HARDENING_DELETED } from './studio-api-hardening-strip.mjs' // LATER-CHANGE: PROGRAM-1 API hardening deletes app/api/dev/mock-token (reviewed and kept by D1)
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const BASE = process.env.D1_DEBUG_ROUTES_BASE || BASE_COMMIT
@@ -60,7 +59,7 @@ function proveDeleted() {
     ok(!gitOk('cat-file', '-e', `HEAD:${rel}`), `deleted: ${rel} is not in the committed tree`)
     ok(gitOk('cat-file', '-e', `${BASE}:${rel}`), `deleted: ${rel} was in the base`)
   }
-  for (const rel of KEPT) if (!(API_HARDENING_DELETED.includes(rel) && !fs.existsSync(path.join(root, rel)))) eq(read(rel), baseOf(rel), `deleted: ${rel} (reviewed, left alone) is the base's, byte for byte`)
+  for (const rel of KEPT) eq(read(rel), baseOf(rel), `deleted: ${rel} (reviewed, left alone) is the base's, byte for byte`)
   // the route list (the committed trees, with any in-memory mutation applied): the base's routes minus HEAD's are exactly D1's two (routes a later change ADDS, like #512's /terms and /privacy, are not removals)
   const appFiles = ref => git('ls-tree', '-r', '--name-only', ref, '--', 'app').split('\n').filter(Boolean)
   const headFiles = new Set(appFiles('HEAD'))

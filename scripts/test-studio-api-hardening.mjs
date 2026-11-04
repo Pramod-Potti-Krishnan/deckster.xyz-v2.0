@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
 
-// Studio API hardening v1 (security audit items 2, 4, 5, 6, 7, 9, 10). Pure decisions are executed from
+// Studio API hardening v1 (security audit items 2, 5, 6, 7, 9, 10; item 4, the mock-token deletion, lives in #571). Pure decisions are executed from
 // lib/api-hardening-core.ts; the route wiring is pinned by reading the route sources. No network, no database.
 const read = path => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 const exists = path => fs.existsSync(new URL(`../${path}`, import.meta.url))
@@ -56,6 +56,12 @@ assert.equal(core.isAdminEmail('boss@x.com', onEnv), true)
 assert.equal(core.isAdminEmail('OPS@x.com', onEnv), true)
 assert.equal(core.isAdminEmail(null, onEnv), false)
 assert.equal(core.isAdminEmail('dev@x.com', { ...ON, DEV_BYPASS_EMAIL: 'dev@x.com' }), false, 'unset ADMIN_EMAILS = nobody')
+assert.equal(core.isAdminEmail('dev@x.com', { ...ON, DEV_BYPASS_EMAIL: 'dev@x.com', ADMIN_EMAILS: ' , ' }), false, 'empty list = nobody')
+assert.equal(core.isAdminEmail('', { ...ON, ADMIN_EMAILS: '' }), false, 'empty email with an empty list is not admin')
+assert.equal(core.isAdminEmail('', { DEV_BYPASS_EMAIL: '' }), false, 'flag off: an empty email never matches an empty DEV_BYPASS_EMAIL')
+assert.equal(core.isAdminEmail(undefined, { DEV_BYPASS_EMAIL: undefined }), false)
+assert.equal(core.isAdminEmail('Dev@x.com', offEnv), false, 'flag off keeps the exact-case rule')
+assert.equal(core.isAdminEmail('boss@x.com', { ...offEnv, STUDIO_API_HARDENING_V1_ENABLED: 'false' }), false)
 
 // ---- #7 unlock lockout
 same(core.unlockVerdict({ ipFailures: 4, slugFailures: 49 }), { allowed: true })
@@ -97,8 +103,7 @@ assert.equal(read('lib/api-hardening-core.ts').includes('NEXT_PUBLIC_'), false)
 // Off = no session or DB read before the flag check.
 assert.match(read('lib/api-hardening.ts'), /requireApprovedUser\(\): Promise<NextResponse \| null> \{\n\s+if \(!isApiHardeningEnabled\(\)\) return null/)
 
-// #4 mock-token is gone (unflagged).
-assert.equal(exists('app/api/dev/mock-token/route.ts'), false)
+// #4 is not this branch's: the mock-token deletion lives in #571, so the route is the base's, byte for byte (pinned in the strip section below).
 
 // #10 activate compares the id (unflagged).
 const activate = read('app/api/sessions/[id]/activate/route.ts')
@@ -106,7 +111,7 @@ assert.match(activate, /chatSession\.userId !== userId/)
 assert.equal(activate.includes('chatSession.userId !== session.user.email'), false)
 
 // #9 admin routes + middleware go through isAdminEmail.
-for (const route of ['app/api/admin/users/route.ts', 'app/api/admin/users/approve/route.ts', 'middleware.ts']) {
+for (const route of ['app/api/admin/users/route.ts', 'app/api/admin/users/approve/route.ts', 'app/api/admin/coupons/route.ts', 'app/api/admin/coupons/[id]/route.ts', 'app/api/admin/cleanup-sessions/route.ts', 'middleware.ts']) {
   const src = read(route)
   assert.match(src, /isAdminEmail\(/, route)
   assert.equal(/!==? process\.env\.DEV_BYPASS_EMAIL|=== process\.env\.DEV_BYPASS_EMAIL/.test(src), false, route)
@@ -123,5 +128,91 @@ assert.match(speak, /evaluateLimits\(\{/)
 assert.match(speak, /putMedia\(cachePath/)
 assert.match(read('prisma/schema.prisma'), /@@map\("fe_api_rate_events"\)/)
 assert.ok(exists('prisma/sql/20261104_api_rate_events.sql'))
+
+// ---- strip, registry, .env.example block, own commits (FRONTEND-1 completion, 4 Nov) ---------------------------
+const { execFileSync } = await import('node:child_process')
+const strip = await import('./studio-api-hardening-strip.mjs')
+const registry = await import('./studio-later-changes.mjs')
+const repo = new URL('..', import.meta.url).pathname
+const git = (...args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+const BASE = process.env.API_HARDENING_BASE || strip.BASE_COMMIT
+const baseOf = rel => { try { return git('show', `${BASE}:${rel}`) } catch { return null } }
+
+/** Every failure of the strip / registry contract for a file map (rel -> text now). Empty = holds. */
+function stripFailures(files, mod = strip) {
+  const out = []
+  for (const rel of [...Object.keys(mod.API_HARDENING_EDITS), '.env.example']) {
+    const now = files[rel]
+    if (typeof now !== 'string') { out.push(`${rel}: missing`); continue }
+    if (now === baseOf(rel)) out.push(`${rel}: not changed by this change`)
+    if (mod.stripApiHardening(rel, now) !== baseOf(rel)) out.push(`${rel}: strip does not give the base byte for byte`)
+  }
+  for (const rel of mod.API_HARDENING_NEW_FILES) if (baseOf(rel) !== null) out.push(`${rel}: listed as new but in the base`)
+  if (mod.API_HARDENING_DELETED.length) out.push('this branch deletes nothing (the mock-token deletion lives in #571)')
+  if (files['app/api/dev/mock-token/route.ts'] !== baseOf('app/api/dev/mock-token/route.ts')) out.push('app/api/dev/mock-token/route.ts is not the base byte for byte')
+  for (const rel of ['app/api/admin/coupons/route.ts', 'app/api/admin/coupons/[id]/route.ts', 'app/api/admin/cleanup-sessions/route.ts']) {
+    if (!/return isAdminEmail\(email\)/.test(files[rel] || '')) out.push(`${rel}: isAdmin does not go through isAdminEmail`)
+    if (/DEV_BYPASS_EMAIL\n/.test((files[rel] || '').replace(/\/\/.*$/gm, ''))) out.push(`${rel}: still compares DEV_BYPASS_EMAIL in code`)
+  }
+  const env = files['.env.example'] || ''
+  if (env.split('\n' + mod.API_HARDENING_ENV_BLOCK).length !== 2) out.push('.env.example: the block is not there exactly once')
+  if (!env.endsWith(mod.API_HARDENING_ENV_BLOCK)) out.push('.env.example: the block is not at the end')
+  if (!/^STUDIO_API_HARDENING_V1_ENABLED="false"$/m.test(mod.API_HARDENING_ENV_BLOCK) || !/^ADMIN_EMAILS=""$/m.test(mod.API_HARDENING_ENV_BLOCK)) out.push('env block: flag off and ADMIN_EMAILS empty')
+  return out
+}
+
+/** The registry's three lines: present once, LATER-CHANGE marked, last in each list. */
+function registryFailures(text) {
+  const out = []
+  for (const [list, name] of [['LATER_CHANGE_FILES', 'API_HARDENING_SCOPE_FILES'], ['LATER_ENV_BLOCKS', 'API_HARDENING_ENV_BLOCK'], ['LATER_STRIPS', 'stripApiHardening']]) {
+    const body = (text.split(`export const ${list} = `)[1] || '').split('\n  // one line per later change, above this comment')[0]
+    const lines = body.split('\n').filter(line => line.includes('LATER-CHANGE'))
+    const mine = lines.filter(line => line.includes(`'./studio-api-hardening-strip.mjs')).${name}`))
+    if (mine.length !== 1) out.push(`${list}: ${mine.length} lines`)
+    else if (lines.at(-1) !== mine[0]) out.push(`${list}: not the last line`)
+  }
+  return out
+}
+
+const owned = [...Object.keys(strip.API_HARDENING_EDITS), '.env.example', 'app/api/dev/mock-token/route.ts', 'app/api/admin/coupons/route.ts', 'app/api/admin/coupons/[id]/route.ts', 'app/api/admin/cleanup-sessions/route.ts']
+const files = Object.fromEntries(owned.map(rel => [rel, read(rel)]))
+same(stripFailures(files), [], 'strip contract')
+same(registryFailures(read('scripts/studio-later-changes.mjs')), [], 'registry lines')
+assert.ok(registry.LATER_CHANGE_FILES.has('app/api/admin/coupons/route.ts'))
+assert.ok(registry.LATER_ENV_BLOCKS.includes(strip.API_HARDENING_ENV_BLOCK))
+assert.ok(registry.LATER_STRIPS.includes(strip.stripApiHardening))
+for (const rel of Object.keys(strip.API_HARDENING_EDITS)) assert.ok(strip.API_HARDENING_SCOPE_FILES.has(rel), rel)
+
+// own commits, by subject: every file an own commit touches is in scope, and every scope file that differs from the base was touched by an own commit.
+const own = git('log', '--no-merges', '--format=%H %s', `${BASE}..HEAD`).split('\n').filter(Boolean).filter(line => line.slice(41).includes(strip.API_HARDENING_SUBJECT))
+assert.ok(own.length >= 1, 'at least one own commit')
+const ownFiles = new Set(own.flatMap(line => git('show', '--name-only', '--format=', line.slice(0, 40)).split('\n').filter(Boolean)))
+for (const rel of ownFiles) assert.ok(strip.API_HARDENING_SCOPE_FILES.has(rel) || rel === 'app/api/dev/mock-token/route.ts', `own commit touches ${rel}, outside scope`)
+const changed = git('diff', '--name-only', `${BASE}..HEAD`).split('\n').filter(Boolean).filter(rel => strip.API_HARDENING_SCOPE_FILES.has(rel))
+for (const rel of changed) assert.ok(ownFiles.has(rel), `${rel} changed but not by an own commit`)
+assert.equal(git('diff', '--name-only', `${BASE}..HEAD`, '--', 'app/api/dev/mock-token/route.ts').trim(), '', 'mock-token untouched in the committed tree')
+
+// mutants: each must be caught.
+const mutants = {
+  'coupons back to DEV_BYPASS_EMAIL': f => ({ ...f, 'app/api/admin/coupons/route.ts': f['app/api/admin/coupons/route.ts'].replace('return isAdminEmail(email)', 'return !!email && email === process.env.DEV_BYPASS_EMAIL') }),
+  'cleanup-sessions edit lost a context byte': f => ({ ...f, 'app/api/admin/cleanup-sessions/route.ts': f['app/api/admin/cleanup-sessions/route.ts'].replace("import { isAdminEmail } from '@/lib/api-hardening-core'\n", "import { isAdminEmail } from '@/lib/api-hardening-core';\n") }),
+  'mock-token deleted again': f => ({ ...f, 'app/api/dev/mock-token/route.ts': undefined }),
+  'mock-token edited': f => ({ ...f, 'app/api/dev/mock-token/route.ts': f['app/api/dev/mock-token/route.ts'] + '\n' }),
+  'env block twice': f => ({ ...f, '.env.example': f['.env.example'] + '\n' + strip.API_HARDENING_ENV_BLOCK }),
+  'env block missing': f => ({ ...f, '.env.example': strip.stripApiHardening('.env.example', f['.env.example']) }),
+  'middleware edit gone': f => ({ ...f, 'middleware.ts': strip.stripApiHardening('middleware.ts', f['middleware.ts']) }),
+}
+for (const [name, mutate] of Object.entries(mutants)) assert.ok(stripFailures(mutate(files)).length > 0, `mutant survived: ${name}`)
+const deleting = { ...strip, API_HARDENING_DELETED: ['app/api/dev/mock-token/route.ts'] }
+assert.ok(stripFailures(files, deleting).length > 0, 'mutant survived: strip lists mock-token as deleted')
+const regText = read('scripts/studio-later-changes.mjs')
+const regMutants = {
+  'strip line removed': regText.replace(/\n.*\.stripApiHardening, \/\/ LATER-CHANGE.*/, ''),
+  'env line not last': regText.replace(/(\n.*PHONE_HINTS_ENV_BLOCK, \/\/ LATER-CHANGE.*)(\n.*\.API_HARDENING_ENV_BLOCK, \/\/ LATER-CHANGE.*)/, '$2$1'),
+  'scope line doubled': regText.replace(/(\n.*\.API_HARDENING_SCOPE_FILES, \/\/ LATER-CHANGE.*)/, '$1$1'),
+}
+for (const [name, text] of Object.entries(regMutants)) { assert.notEqual(text, regText, name); assert.ok(registryFailures(text).length > 0, `mutant survived: ${name}`) }
+const admin = env => core.isAdminEmail('boss@x.com', env)
+assert.ok([{ ...ON, ADMIN_EMAILS: 'BOSS@X.COM' }, { ...ON, ADMIN_EMAILS: 'a@x.com,boss@x.com' }].every(admin), 'list + case')
 
 console.log('test-studio-api-hardening: all checks passed')

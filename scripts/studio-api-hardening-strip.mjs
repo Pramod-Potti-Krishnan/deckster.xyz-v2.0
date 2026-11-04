@@ -1,10 +1,15 @@
-// PROGRAM-1 (4 Nov 2026): Studio API hardening v1, the security audit's items 2, 4, 5, 6, 7, 9 and 10 (STUDIO_API_HARDENING_V1_ENABLED, server only, default off;
-// the mock-token deletion and the activate id fix ship unflagged). How the older pins reach it: this change REGISTERS its files and its strip in scripts/studio-later-changes.mjs
-// (two lines; no .env.example block). The strip below puts back each edited file's base text: API_HARDENING_EDITS holds, per file, [the text this change left, the base text it
-// replaced] (each with a line of context, each present exactly once), applied in order, only when every one of them is there. Any other file comes back as it is. Plain node, no I/O.
+// PROGRAM-1 (4 Nov 2026), completed by FRONTEND-1: Studio API hardening v1, the security audit's items 2, 5, 6, 7, 9 and 10 (STUDIO_API_HARDENING_V1_ENABLED, server only, default off;
+// the activate id fix ships unflagged). Item 4 (deleting app/api/dev/mock-token) is NOT here: it lives in PR #571 (frontend1/prepromo-fixes), so this branch leaves that file as the base has it.
+// Admin (item 9): with the flag on, /admin, /api/admin/users(/approve), /api/admin/coupons(/[id]) and /api/admin/cleanup-sessions accept only ADMIN_EMAILS (comma-separated, any case, empty = nobody);
+// off, the signed-in email against DEV_BYPASS_EMAIL as before. Before the flag goes on (PK): apply prisma/sql/20261104_api_rate_events.sql and set ADMIN_EMAILS.
+// How the older pins reach it: this change REGISTERS its files, its .env.example block and its strip in scripts/studio-later-changes.mjs (three lines, at the end of each list).
+// The strip puts back each edited file's base text: API_HARDENING_EDITS holds, per file, [the text this change left, the base text it replaced] (each with a line of context, each present exactly once),
+// applied in order, only when every one of them is there; .env.example loses exactly API_HARDENING_ENV_BLOCK. Any other file comes back as it is. Plain node, no I/O.
 
+export const BASE_COMMIT = '3e1ce88eec23fbfd33f249332d06a65ad05ffc40' // origin/studio-v4-dev-preparation-code when FRONTEND-1 completed this change
+export const API_HARDENING_SUBJECT = 'API hardening' // own commits: "Studio API hardening v1 ..." and "API hardening: ..."
 export const API_HARDENING_FLAG = 'STUDIO_API_HARDENING_V1_ENABLED'
-export const API_HARDENING_DELETED = ['app/api/dev/mock-token/route.ts']
+export const API_HARDENING_DELETED = [] // the mock-token deletion lives in #571
 export const API_HARDENING_NEW_FILES = [
   'lib/api-hardening-core.ts',
   'lib/api-hardening.ts',
@@ -14,6 +19,36 @@ export const API_HARDENING_NEW_FILES = [
 ]
 
 export const API_HARDENING_EDITS = {
+ "app/api/admin/cleanup-sessions/route.ts": [
+  [
+   "import { isStudioDevDeployment } from '@/lib/dev-deployment'\nimport { isAdminEmail } from '@/lib/api-hardening-core'\n",
+   "import { isStudioDevDeployment } from '@/lib/dev-deployment'\n"
+  ],
+  [
+   "function isAdmin(email: string | null | undefined): boolean {\n  // STUDIO_API_HARDENING_V1_ENABLED: on, ADMIN_EMAILS only (comma list, any case; empty = nobody); off, DEV_BYPASS_EMAIL as before.\n  return isAdminEmail(email)\n",
+   "function isAdmin(email: string | null | undefined): boolean {\n  return !!email && email === process.env.DEV_BYPASS_EMAIL\n"
+  ]
+ ],
+ "app/api/admin/coupons/[id]/route.ts": [
+  [
+   "import { studioP2AdminOn, studioP2AdminParseExpiry } from \"@/lib/studio-p2-admin\"\nimport { isAdminEmail } from \"@/lib/api-hardening-core\"\n",
+   "import { studioP2AdminOn, studioP2AdminParseExpiry } from \"@/lib/studio-p2-admin\"\n"
+  ],
+  [
+   "function isAdmin(email: string | null | undefined): boolean {\n  // STUDIO_API_HARDENING_V1_ENABLED: on, ADMIN_EMAILS only (comma list, any case; empty = nobody); off, DEV_BYPASS_EMAIL as before.\n  return isAdminEmail(email)\n",
+   "function isAdmin(email: string | null | undefined): boolean {\n  return !!email && email === process.env.DEV_BYPASS_EMAIL\n"
+  ]
+ ],
+ "app/api/admin/coupons/route.ts": [
+  [
+   "import { studioP2AdminOn, studioP2AdminPageWindow, studioP2AdminPaging, studioP2AdminParseExpiry, studioP2AdminTotalsFromGroups } from \"@/lib/studio-p2-admin\"\nimport { isAdminEmail } from \"@/lib/api-hardening-core\"\n",
+   "import { studioP2AdminOn, studioP2AdminPageWindow, studioP2AdminPaging, studioP2AdminParseExpiry, studioP2AdminTotalsFromGroups } from \"@/lib/studio-p2-admin\"\n"
+  ],
+  [
+   "function isAdmin(email: string | null | undefined): boolean {\n  // STUDIO_API_HARDENING_V1_ENABLED: on, ADMIN_EMAILS only (comma list, any case; empty = nobody); off, DEV_BYPASS_EMAIL as before.\n  return isAdminEmail(email)\n",
+   "function isAdmin(email: string | null | undefined): boolean {\n  return !!email && email === process.env.DEV_BYPASS_EMAIL\n"
+  ]
+ ],
  "app/api/admin/users/approve/route.ts": [
   [
    "import { prisma } from '@/lib/prisma';\nimport { isAdminEmail } from '@/lib/api-hardening-core';\n",
@@ -303,9 +338,26 @@ export const API_HARDENING_SCOPE_FILES = new Set([
   ...API_HARDENING_DELETED,
   ...API_HARDENING_NEW_FILES,
   'scripts/studio-later-changes.mjs',
+  '.env.example',
+  // the older proofs this change taught to read through it
+  'scripts/test-admin-email-guard.mjs',
+  'scripts/test-studio-kg-ask.mjs',
+  'scripts/test-studio-legal-short-links.mjs',
+  'scripts/test-studio-p2-admin.mjs',
+  'scripts/test-studio-template-library-manage.mjs',
+  'scripts/test-studio-tl-signed-requests.mjs',
 ])
 
+export const API_HARDENING_ENV_BLOCK = `# STUDIO API HARDENING V1 (PROGRAM-1 / FRONTEND-1; security audit items 2, 5, 6, 7, 9, 10). Server only; on for the exact value "true", default off, and then every route behaves as before.
+# On: approved users only on the paid routes, session owners checked, request bodies allow-listed, publish unlock lockout, spoken-answer cache, and admin = ADMIN_EMAILS only.
+# BEFORE turning it on: apply prisma/sql/20261104_api_rate_events.sql and set ADMIN_EMAILS (empty = nobody is admin).
+STUDIO_API_HARDENING_V1_ENABLED="false"
+# Admins while STUDIO_API_HARDENING_V1_ENABLED is on: comma-separated emails, matched case-insensitively. Empty = nobody (fail closed). Ignored while the flag is off (DEV_BYPASS_EMAIL is admin then).
+ADMIN_EMAILS=""
+`
+
 export function stripApiHardening(rel, text) {
+  if (rel === '.env.example' && typeof text === 'string') return text.split('\n' + API_HARDENING_ENV_BLOCK).length === 2 ? text.replace('\n' + API_HARDENING_ENV_BLOCK, '') : text
   const edits = API_HARDENING_EDITS[rel]
   if (!edits || typeof text !== 'string') return text
   if (!edits.every(([added]) => text.split(added).length === 2)) return text
