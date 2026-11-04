@@ -6,6 +6,8 @@ import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
 import { PICKER_BACK_LABEL, PICKER_MENU_LABEL, chipLabel, pickerMenu, scopeNote, type ChipLabel, type ModelChoice, type PickerMenu } from "@/lib/studio-model-picker"
 import { ModelOption } from "./model-option"
 import { ModelPickerSlider } from "./model-slider"
+import { STUDIO_MODEL_PICKER_SIMPLE_ENABLED } from "@/lib/studio-model-picker-simple" // MODEL-PICKER-SIMPLE
+import { ModelPickerSimple } from "./model-picker-simple" // MODEL-PICKER-SIMPLE
 import { STUDIO_MODEL_PICKER_ENABLED, useModelChoice } from "./use-model-choice"
 import "./model-picker.css"
 
@@ -36,6 +38,7 @@ export interface ModelPickerProps {
  * imagery and narration stay "Fixed for now". Style it from outside with `className` (the chip) and the --mpick-* variables in model-picker.css. */
 export function ModelPicker(props: ModelPickerProps) {
   if (!STUDIO_MODEL_PICKER_ENABLED) return null
+  if (props.variant === "slider" && STUDIO_MODEL_PICKER_SIMPLE_ENABLED) return <ModelPickerSimple {...props} /> // MODEL-PICKER-SIMPLE
   return props.variant === "slider" ? <ModelPickerSlider {...props} /> : <ModelPickerConnected {...props} />
 }
 
