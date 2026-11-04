@@ -73,6 +73,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-phone-landscape-strip.mjs')).PHONE_LANDSCAPE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape (PR 1): a phone turned sideways gets a viewing stage with a hamburger and a plus (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   ...(await import('./studio-phone-hints-strip.mjs')).PHONE_HINTS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, F-13 phone hints (PR 2): the portrait rotate card, swipe to change slide, Full screen (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
   ...(await import('./studio-ux-honesty-strip.mjs')).UX_HONESTY_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, UX honesty (no flag) + UX-09 page headings (NEXT_PUBLIC_STUDIO_PAGE_HEADINGS)
+  ...(await import('./studio-page-consistency-strip.mjs')).PAGE_CONSISTENCY_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, UX-07 / UX-10 Billing and Settings on the Studio shell, one create label (NEXT_PUBLIC_STUDIO_PAGE_CONSISTENCY)
   // one line per later change, above this comment
 ])
 
@@ -118,6 +119,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-phone-landscape-strip.mjs')).PHONE_LANDSCAPE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape, PR 1 (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   (await import('./studio-phone-hints-strip.mjs')).PHONE_HINTS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-13 phone hints, PR 2 (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
   (await import('./studio-ux-honesty-strip.mjs')).PAGE_HEADINGS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, UX-09 page headings (NEXT_PUBLIC_STUDIO_PAGE_HEADINGS)
+  (await import('./studio-page-consistency-strip.mjs')).PAGE_CONSISTENCY_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, UX-07 / UX-10 page consistency (NEXT_PUBLIC_STUDIO_PAGE_CONSISTENCY)
   // one line per later change, above this comment
 ]
 
@@ -172,6 +174,7 @@ export const LATER_STRIPS = [
   (await import('./studio-phone-landscape-strip.mjs')).stripPhoneLandscape, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape, PR 1 (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   (await import('./studio-phone-hints-strip.mjs')).stripPhoneHints, // LATER-CHANGE: FRONTEND-1, F-13 phone hints, PR 2 (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
   (await import('./studio-ux-honesty-strip.mjs')).stripUxHonesty, // LATER-CHANGE: FRONTEND-1, UX honesty (no flag) + UX-09 page headings (NEXT_PUBLIC_STUDIO_PAGE_HEADINGS)
+  (await import('./studio-page-consistency-strip.mjs')).stripPageConsistency, // LATER-CHANGE: FRONTEND-1, UX-07 / UX-10 page consistency (NEXT_PUBLIC_STUDIO_PAGE_CONSISTENCY)
   // one line per later change, above this comment
 ]
 
