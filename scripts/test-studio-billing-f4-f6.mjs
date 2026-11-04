@@ -25,12 +25,12 @@ ok(env === `${git(`show ${m.BASE_COMMIT}:.env.example`)}\n${m.BILLING_F4F6_ENV_B
 // B
 for (const rel of Object.keys(m.BILLING_F4F6_EDITS)) ok(!/"\$(10|20|25|50|100)(\/month)?"/.test(readFileSync(rel, 'utf8')), `B: no price literal left in ${rel}`)
 const pricing = readFileSync('lib/marketing/homepage-v2-pricing.ts', 'utf8')
-for (const [id, price] of [['starter', '$20'], ['pro', '$50'], ['premium', '$100']]) ok(new RegExp(`id: "${id}",\\n\\s+name: "[^"]+",\\n\\s+price: "\\${price.slice(1)}"`).test(pricing), `B: ${id} list price ${price}`)
+for (const [id, price] of [['starter', '$20'], ['pro', '$50'], ['premium', '$100']]) ok(new RegExp(`id: "${id}",\\n\\s+name: "[^"]+",\\n\\s+price: "\\$${price.slice(1)}"`).test(pricing), `B: ${id} list price ${price}`)
 ok(/export const TOPUP_PACKS/.test(pricing), 'B: TOPUP_PACKS lives in the price module')
 ok(!/provider_cost|providerCost|margin/i.test(Object.keys(m.BILLING_F4F6_EDITS).map(f => readFileSync(f, 'utf8')).join('')), 'B: no provider cost or margin on user-facing price surfaces')
 
 // C: evaluate the switch module (TS without types)
-const loadSwitch = src => { const js = src.replace(/export type[^\n]*\n/g, '').replace(/: Record<string, string \| undefined>/g, '').replace(/\(now: Date\): Date/g, '(now)').replace(/\): (WalletDebitSource|boolean)/g, ')').replace(/export /g, ''); return new Function(`${js}; return { walletDebitSource, flatDebitEnabled, preBuildCapCheck, preBuildRefused, meterFeedDebitsWallet, monthlyOnlyCaps, startOfMonthUtc, CAPPED_STATUS, CAPPED_CODE }`)() }
+const loadSwitch = src => { const js = src.replace(/export type[^\n]*\n/g, '').replace(/: Record<string, string \| undefined>/g, '').replace(/\(now: Date\): Date/g, '(now)').replace(/(\w+): (?:boolean|number)(?=[,)])/g, '$1').replace(/\): (WalletDebitSource|boolean)/g, ')').replace(/export /g, ''); return new Function(`${js}; return { walletDebitSource, flatDebitEnabled, preBuildCapCheck, preBuildRefused, meterFeedDebitsWallet, monthlyOnlyCaps, startOfMonthUtc, CAPPED_STATUS, CAPPED_CODE }`)() }
 const sw = readFileSync('lib/billing/wallet-debit-source.ts', 'utf8')
 const checkSwitch = s => {
   for (const v of [undefined, '', 'flat', 'ROUTER', 'junk']) { assert.equal(s.walletDebitSource({ WALLET_DEBIT_SOURCE: v }), 'flat'); assert.equal(s.flatDebitEnabled({ WALLET_DEBIT_SOURCE: v }), true); assert.equal(s.preBuildCapCheck({ WALLET_DEBIT_SOURCE: v }), false); assert.equal(s.preBuildRefused(s.preBuildCapCheck({ WALLET_DEBIT_SOURCE: v }), false, 0), false); assert.equal(s.meterFeedDebitsWallet({ WALLET_DEBIT_SOURCE: v }), false) }
