@@ -43,6 +43,11 @@ export const VOICE_CALL_NEW_FILES = [
   'scripts/fixtures/studio-voice-call-replay/scenario-V0.json',
   'scripts/fixtures/studio-voice-call-replay/scenario-V1.json',
   'scripts/fixtures/studio-voice-call-replay/scenario-V2.json',
+  // P4-21: the two speech routes (server-only, model-router) and their pure module and proof
+  'lib/server/studio-voice-router.ts',
+  'app/api/studio/voice/transcribe/route.ts',
+  'app/api/studio/voice/speak/route.ts',
+  'scripts/test-studio-voice-speech-routes.mjs',
 ]
 
 /** Older proofs one of this change's commits touched and a later one put back (the voice core's subject helper took over for the element-edit and deck-sync ones; the theme-export one is the core's own now (ad5b5232); the stage open gate's reads the page past every registered later change itself (laterStrips); the font-selection sandbox runs the socket hook unchanged, its voice line guards the flag with typeof): the history touches them, the tree does not change them. */
@@ -69,7 +74,7 @@ export const VOICE_CALL_ENV_BLOCK = `# STUDIO VOICE CALL UI (FRONTEND-1, W6 P4-2
 # and let go to send; or tap it to talk until you tap again), and a live transcript in the bottom fifth (scrollable, can be hidden). The words you say go as an ordinary user_message with data.mode "voice" and the client cap "voice1"; Director
 # answers with its usual chat text and, in voice mode, payload.spoken and payload.companion_state. Only payload.spoken is said. Reduced motion draws one still per state.
 # Speech in and out is two same-origin routes that call model-router (never a vendor from the browser): POST /api/studio/voice/transcribe (multipart audio, label studio.voice_stt, answers {"text"}) and POST /api/studio/voice/speak
-# (JSON {"text","label":"studio.voice_tts"}, answers audio). Neither route exists yet (ELEMENT-3 / ROUTER-1).
+# (JSON {"text","label":"studio.voice_tts"}, answers audio). Both are built (P4-21), server-only: they read MODEL_ROUTER_URL and MODEL_ROUTER_STUDIO_KEY (the narration block's names) on each request; either unset is "not connected".
 # STUDIO VOICE COMPANION: the default character, the pack folder under public/companions/ (bird layout: motion/manifest.json, a Face pack beside it for the audio call's disc, an optional scene image for the video call; a pack may keep its
 # companion clips in motion/companion.json, which is merged in). Lower-case letters, digits and dashes, up to 32; anything else is the default. Felix (the default), Bob and Maya are committed, and a person goes round them in the call
 # (one tap on the character's name in its top bar, a dot for each; remembered on that device, localStorage). Maya is a v2 layered-face pack (her native Face catalog is face/ at her root): she is drawn in her compatibility view (her body poses,

@@ -23,7 +23,7 @@ With the flag off nothing is loaded, listened to, timed or asked for; strip the 
 - Director to Studio (voice mode only, existing frames): `payload.spoken` on `chat_message` and `action_request` (the reply, the card, all the clarifying questions; up to about 240 characters) and on `status_update` / `build_phase` / deck-scope `build_event` (about 120 characters); `payload.companion_state` (`thinking | working | reporting | pleased | concerned | waiting`; `listening` is client-only).
 - Studio speaks only `payload.spoken`; nothing is made up from the chat text. Replies and cards are said at once (chunk by chunk); progress lines follow Garud's rules (said after 4 s of quiet, at most one every 6 s, only the newest, dropped after 20 s). It drives the character from `companion_state` when present, from the frame's type when not.
 
-## Speech in and out (the router contract; the routes do not exist yet)
+## Speech in and out (the router contract)
 
 ROUTER-1's transport contract (via the core's `docs/p4-19/VOICE-CORE.md`): the calls belong in Studio's SERVER adapter, which holds the router key; the browser never does. Hearing is the router's chat/completions with `input_audio` as base64 WAV (task `studio.voice_stt`); speaking is the router's audio/speech (task `studio.voice_tts`, audio plus `x-generation-id`). So the call is written against two same-origin routes:
 
@@ -31,7 +31,17 @@ ROUTER-1's transport contract (via the core's `docs/p4-19/VOICE-CORE.md`): the c
 - `POST /api/studio/voice/speak`: JSON `{ "text", "label": "studio.voice_tts" }`; answers audio.
 - Either answer may carry the optional header `X-Deckster-Cost-Usd`; the call keeps the core's `CallCostMeter` and adds `null` when it is not there (never zero). The per-call cap is P4-22's.
 
-404, 501 and 503 read as "Speech isn't connected yet", 402 and 429 as a limit. Neither route exists on this branch; tests and shots answer them locally.
+404, 501 and 503 read as "Speech isn't connected yet", 402 and 429 as a limit. Both routes are built (P4-21, below).
+
+## The speech routes (P4-21)
+
+`app/api/studio/voice/transcribe/route.ts` and `app/api/studio/voice/speak/route.ts` are thin: the signed-in Studio user (`getServerSession`, as the other routes), then `lib/server/studio-voice-router.ts` (pure, import-free, fetch injected) decides everything. Flag off: 404 before anything is read. Server variables `MODEL_ROUTER_URL` (no /v1) and `MODEL_ROUTER_STUDIO_KEY`, read per request; either unset is 503 ("not connected").
+
+- Transcribe: multipart only (415), the part a WAV at 16 kHz, mono, 16-bit PCM (415), at most 1,000,000 bytes, about 30 s (413, also on a declared length before reading), 30 s timeout (504). The router's `/v1/chat/completions` with `X-MR-Task: studio.voice_stt` and an `input_audio` part (base64, `wav`). Answers `{ text }` (empty when no words); `X-Deckster-Cost-Usd` only from the router's `usage.cost`.
+- Speak: JSON only (415), text 1..600 characters (400 / 413), `voice` optional, one of ava (default), andrew, alloy (400 otherwise). The router's `/v1/audio/speech` with `X-MR-Task: studio.voice_tts`, mp3. Streams the audio with the router's `audio/*` type (anything else 502), passes `x-generation-id`, and `X-Deckster-Cost-Usd` only when the router sends it.
+- Router 402 / 429 answer 429; any other router status, an unreachable router or an unreadable answer 502. No error body carries the key.
+- Models: `VOICE_STT_MODEL` and `VOICE_TTS_VOICES` are marked TODO-ROUTER-LABEL (the router registry has no voice entry yet).
+- Proof: `node scripts/test-studio-voice-speech-routes.mjs` (fake fetch, no network; module, handlers, both route files with stub auth, flag-off identity, mutants).
 
 ## The call (redesign, PK 2026-11-02)
 
