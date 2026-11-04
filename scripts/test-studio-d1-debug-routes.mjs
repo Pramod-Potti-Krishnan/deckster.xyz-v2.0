@@ -21,6 +21,7 @@ import {
   BASE_COMMIT, D1_BLOCKS, D1_DELETED, D1_GATE, D1_REMOVED_ROUTES, D1_HELPERS, D1_IMPORTS, D1_NEW_FILES, D1_OWN_EDITS, D1_ROUTE, D1_SCOPE_FILES, D1_SUBJECT, stripD1DebugRoutes,
 } from './studio-d1-debug-routes-strip.mjs'
 import { LATER_CHANGE_FILES, LATER_ENV_BLOCKS, LATER_STRIPS, stripLaterChanges } from './studio-later-changes.mjs'
+import { PREPROMO_DELETED, PREPROMO_REMOVED_ROUTES } from './studio-prepromo-strip.mjs' // taught (FRONTEND-1, pre-promo C-07 deletion): a registered later change's deleted files and routes
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const BASE = process.env.D1_DEBUG_ROUTES_BASE || BASE_COMMIT
@@ -38,7 +39,7 @@ const eq = count(assert.equal), deep = count(assert.deepEqual), ok = count(asser
 
 const REGISTRY = 'scripts/studio-later-changes.mjs', PROOF = 'scripts/test-studio-d1-debug-routes.mjs', STRIP = 'scripts/studio-d1-debug-routes-strip.mjs'
 const COUPONS = 'app/api/admin/coupons/route.ts', DEV_HELPER = 'lib/dev-deployment.ts'
-// reviewed and left alone: debug/env answers 403 outside NODE_ENV=development; dev/mock-token answers 403 unless NODE_ENV=development or NEXT_PUBLIC_DEV_MODE=true (and 404 on the dev deployment); since pre-promo C-07 it is 404 unless NODE_ENV=development AND the flag (scripts/test-studio-dev-token-gate.mjs)
+// reviewed and left alone: debug/env answers 403 outside NODE_ENV=development; dev/mock-token answers 403 unless NODE_ENV=development or NEXT_PUBLIC_DEV_MODE=true (and 404 on the dev deployment); since pre-promo C-07 it is deleted outright (scripts/test-studio-dev-token-gate.mjs)
 const KEPT = ['app/api/debug/env/route.ts', 'app/api/dev/mock-token/route.ts']
 // the files that still name a removed route at HEAD, all reported and none edited: an archived plan, and two older pins that already fail on the base (the dev-deployment pin's baseline commit is not in this clone; the
 // dev-server pin needs a running server); and this change's own two scripts
@@ -60,13 +61,20 @@ function proveDeleted() {
     ok(gitOk('cat-file', '-e', `${BASE}:${rel}`), `deleted: ${rel} was in the base`)
   }
   // taught (FRONTEND-1, pre-promo C-07): a later change may tighten a kept route; through the registry it must still read as the base's, byte for byte
-  for (const rel of KEPT) eq(stripLaterChanges(rel, read(rel)), baseOf(rel), `deleted: ${rel} (reviewed, left alone) is the base's, byte for byte, through the later-changes registry`)
+  // taught (FRONTEND-1, pre-promo C-07 deletion): a kept route that a REGISTERED later change deletes must be gone (on disk and at HEAD) and have been in the base
+  const laterDeleted = PREPROMO_DELETED.filter(rel => LATER_CHANGE_FILES.has(rel))
+  for (const rel of KEPT) {
+    if (laterDeleted.includes(rel)) { ok(!exists(rel), `deleted: ${rel} (a registered later change deletes it) is not on disk`); ok(!gitOk('cat-file', '-e', `HEAD:${rel}`), `deleted: ${rel} is not in the committed tree`); ok(gitOk('cat-file', '-e', `${BASE}:${rel}`), `deleted: ${rel} was in the base`); continue }
+    eq(stripLaterChanges(rel, read(rel)), baseOf(rel), `deleted: ${rel} (reviewed, left alone) is the base's, byte for byte, through the later-changes registry`)
+  }
   // the route list (the committed trees, with any in-memory mutation applied): the base's routes minus HEAD's are exactly D1's two (routes a later change ADDS, like #512's /terms and /privacy, are not removals)
   const appFiles = ref => git('ls-tree', '-r', '--name-only', ref, '--', 'app').split('\n').filter(Boolean)
   const headFiles = new Set(appFiles('HEAD'))
   for (const [rel, text] of Object.entries(overrides)) if (rel.startsWith('app/')) { if (text === null) headFiles.delete(rel); else headFiles.add(rel) }
   const before = routesOf(appFiles(BASE)), after = routesOf([...headFiles])
-  deep(before.filter(route => !after.includes(route)), D1_REMOVED_ROUTES, 'deleted: the route list loses exactly /api/debug/check-env and /api/test-env')
+  const laterRemoved = laterDeleted.length ? PREPROMO_REMOVED_ROUTES : [] // taught (FRONTEND-1, pre-promo C-07 deletion): plus exactly the routes a registered later change deletes
+  deep(before.filter(route => !after.includes(route)), [...D1_REMOVED_ROUTES, ...laterRemoved].sort(), 'deleted: the route list loses exactly /api/debug/check-env and /api/test-env (and a registered later change\'s deleted routes)')
+  deep(routesOf(laterDeleted), laterRemoved, 'deleted: and those are the routes the later change\'s deleted files served')
   deep(routesOf(D1_DELETED), D1_REMOVED_ROUTES, 'deleted: and those are the routes the two deleted files served')
   let committed = ''
   try { committed = git('grep', '-l', '-I', '-E', '(^|[^A-Za-z0-9_-])(check-env|test-env)([^A-Za-z0-9_-]|$)', 'HEAD', '--', '.', ':!pnpm-lock.yaml', ':!package-lock.json') } catch { committed = '' }
