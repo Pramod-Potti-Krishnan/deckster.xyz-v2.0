@@ -14,6 +14,8 @@ export const TIER_GUARD_SCOPE_FILES = [
   'scripts/test-studio-tier-update-guard.mjs',
   'scripts/studio-tier-update-guard-strip.mjs',
   'scripts/studio-later-changes.mjs',
+  'scripts/test-studio-p2-admin.mjs',
+  'scripts/test-studio-p2-docs.mjs',
 ]
 
 /** [now, before] pairs per file: the strip puts the base's text back (each `now` sits in the head's file exactly once). Generated from the diff against BASE_COMMIT. */
