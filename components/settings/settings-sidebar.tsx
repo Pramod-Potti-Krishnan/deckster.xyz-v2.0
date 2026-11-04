@@ -5,7 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { cn } from "@/lib/utils"
-import { User, Palette, Bell, ShieldCheck, Lock, Brain } from "lucide-react"
+import { User, Palette, Bell, ShieldCheck, Lock, Brain, Plug } from "lucide-react"
 
 interface NavItem {
   href: string
@@ -13,6 +13,9 @@ interface NavItem {
   icon: ComponentType<{ className?: string }>
   authenticatedOnly?: boolean
 }
+
+// P4-15 slice 1 (DARK): the Connectors entry exists only when NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED is exactly "true".
+const CONNECTORS_ITEM: NavItem = { href: "/settings/connectors", label: "Connectors", icon: Plug, authenticatedOnly: true }
 
 const ITEMS: NavItem[] = [
   { href: "/settings/profile", label: "Profile", icon: User },
@@ -28,7 +31,7 @@ export function SettingsSidebar() {
   const pathname = usePathname()
   const { data: session, status } = useSession()
   const authenticated = status === "authenticated" && Boolean(session?.user?.id)
-  const items = ITEMS.filter((item) => !item.authenticatedOnly || authenticated)
+  const items = (process.env.NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED === "true" ? [...ITEMS, CONNECTORS_ITEM] : ITEMS).filter((item) => !item.authenticatedOnly || authenticated)
 
   return (
     <nav
