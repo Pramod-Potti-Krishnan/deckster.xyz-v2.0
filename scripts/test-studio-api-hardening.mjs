@@ -134,7 +134,7 @@ const { execFileSync } = await import('node:child_process')
 const strip = await import('./studio-api-hardening-strip.mjs')
 const registry = await import('./studio-later-changes.mjs')
 const repo = new URL('..', import.meta.url).pathname
-const git = (...args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+const git = (...args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] })
 const BASE = process.env.API_HARDENING_BASE || strip.BASE_COMMIT
 const baseOf = rel => { try { return git('show', `${BASE}:${rel}`) } catch { return null } }
 
@@ -187,7 +187,7 @@ for (const rel of Object.keys(strip.API_HARDENING_EDITS)) assert.ok(strip.API_HA
 const own = git('log', '--no-merges', '--format=%H %s', `${BASE}..HEAD`).split('\n').filter(Boolean).filter(line => line.slice(41).includes(strip.API_HARDENING_SUBJECT))
 assert.ok(own.length >= 1, 'at least one own commit')
 const ownFiles = new Set(own.flatMap(line => git('show', '--name-only', '--format=', line.slice(0, 40)).split('\n').filter(Boolean)))
-for (const rel of ownFiles) assert.ok(strip.API_HARDENING_SCOPE_FILES.has(rel) || rel === 'app/api/dev/mock-token/route.ts', `own commit touches ${rel}, outside scope`)
+for (const rel of ownFiles) assert.ok(strip.API_HARDENING_SCOPE_FILES.has(rel) || git('diff', '--name-only', `${BASE}..HEAD`, '--', rel).trim() === '', `own commit touches ${rel}, outside scope, and leaves it changed`) // a file put back to the base (mock-token, the D1 proof) nets to nothing
 const changed = git('diff', '--name-only', `${BASE}..HEAD`).split('\n').filter(Boolean).filter(rel => strip.API_HARDENING_SCOPE_FILES.has(rel))
 for (const rel of changed) assert.ok(ownFiles.has(rel), `${rel} changed but not by an own commit`)
 assert.equal(git('diff', '--name-only', `${BASE}..HEAD`, '--', 'app/api/dev/mock-token/route.ts').trim(), '', 'mock-token untouched in the committed tree')
