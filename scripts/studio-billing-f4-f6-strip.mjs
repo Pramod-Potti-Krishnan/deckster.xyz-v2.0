@@ -32,6 +32,10 @@ export const BILLING_F4F6_EDITS = {
  ],
  "app/(app)/billing/page.tsx": [
   [
+   "import { PRICING_TIERS, TOPUP_PACKS, planMonthlyPriceLabel } from \"@/lib/marketing/homepage-v2-pricing\" // BILLING-F4F6\n",
+   "import { PRICING_TIERS } from \"@/lib/marketing/homepage-v2-pricing\"\n"
+  ],
+  [
    "                        ? planMonthlyPriceLabel(\"premium\") // BILLING-F4F6\n                        : user.tier === \"pro\"\n                          ? planMonthlyPriceLabel(\"pro\") // BILLING-F4F6\n                          : user.tier === \"starter\"\n                            ? planMonthlyPriceLabel(\"starter\") // BILLING-F4F6",
    "                        ? \"$100/month\"\n                        : user.tier === \"pro\"\n                          ? \"$50/month\"\n                          : user.tier === \"starter\"\n                            ? \"$20/month\""
   ],

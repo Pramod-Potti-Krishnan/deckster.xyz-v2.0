@@ -13,7 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CreditCard, Calendar, Crown, Sparkles, Shield, Check, X, AlertCircle, Download, Wallet, Plus, Loader2 } from "lucide-react"
 import { useWallet } from "@/hooks/use-wallet"
 import { features } from "@/lib/config"
-import { PRICING_TIERS } from "@/lib/marketing/homepage-v2-pricing"
+import { PRICING_TIERS, TOPUP_PACKS, planMonthlyPriceLabel } from "@/lib/marketing/homepage-v2-pricing" // BILLING-F4F6
 import { studioBillingPriceLine, studioNextPlan, studioPlanForTier, studioPlanLines, type StudioBillingQuota } from "@/lib/studio-billing"
 import { StudioBillingCapacity } from "@/components/billing/studio-billing-capacity"
 import "@/components/billing/studio-billing.css"
