@@ -17,7 +17,7 @@ export const BILLING_F5_USAGE_NEW_FILES = [
   'scripts/studio-billing-f5-usage-strip.mjs',
   'scripts/test-studio-billing-f5-usage.mjs',
 ]
-export const BILLING_F5_USAGE_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs']
+export const BILLING_F5_USAGE_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', 'scripts/test-director-question-submit.mjs'] // the last is a pin taught to read the Builder files without the F5 marked lines
 export const BILLING_F5_USAGE_SCOPE_FILES = new Set([...BILLING_F5_USAGE_FILES, ...BILLING_F5_USAGE_NEW_FILES, ...BILLING_F5_USAGE_OWN_EDITS])
 
 export const BILLING_F5_USAGE_ENV_BLOCK = `# STUDIO USAGE PAGE (FRONTEND-1; L-BILLING Usage page). On only for the string "true"; default off, and then nothing changes (/usage is a 404). Build-time value.
