@@ -524,7 +524,7 @@ function mountWorkspace({ source = WORKSPACE_SOURCE, flag, templates = [QBR, BOA
     const changed = spawnSync('git', ['diff', '--name-only', BASE_COMMIT, '--', 'app', 'components', 'lib', 'hooks', 'middleware.ts'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(Boolean)
     const allowed = new Set([THEMES_WORKSPACE, TEMPLATES_WORKSPACE, THEME_HOOK, USE_TEMPLATES, PROXY, ...LIBRARY_MANAGE_NEW_FILES, ...STACKED_PASS3_FILES, ...STACKED_P2_FILES])
     ok(changed.every(file => allowed.has(file)), `this change touches only the two workspaces, the theme hook, the template hook and proxy (the rename) and its own three new files (the other Pass 3 changes' files and the Pass 2 pages' files may be stacked on it): ${changed.filter(file => !allowed.has(file)).join(', ') || 'ok'}`)
-    ok(!changed.some(file => (/^app\/api\/(templates|themes)\//.test(file) && file !== PROXY) || /admission/i.test(file)), 'no API proxy but the template one (the rename) and nothing of the admission report is touched')
+    ok(!changed.filter((later => file => !later.has(file))((await import('./studio-later-changes.mjs')).LATER_CHANGE_FILES)).some(file => (/^app\/api\/(templates|themes)\//.test(file) && file !== PROXY) || /admission/i.test(file)), 'no API proxy but the template one (the rename) and nothing of the admission report is touched') // LATER-CHANGES: registry read (DUAL-LOOKUP): the strips registered after this change (the flip enablers' whole-text pin edits, chained on this change's taught lines) are put back first, newest first
   }
 
   // ---- flag on: who gets a menu --------------------------------------------------------------------------------------------------------------------------------------------

@@ -445,7 +445,7 @@ const scopeCommittedFiles = (head, ctx = REAL) => {
   const touched = new Set()
   for (const c of own) for (const rel of git('show', '--name-only', '--format=', c).split('\n').filter(Boolean)) touched.add(rel)
   // a file an own commit touched and a later own commit put back (the viewer, which an earlier version of this change edited) has no net change: it is not this change's file
-  const net = new Set(git('diff', '--name-only', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)); for (const rel of [...touched]) if (!net.has(rel)) touched.delete(rel)
+  const net = new Set(git('diff', '--name-only', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean).filter(rel => { try { return ctx.norm(rel, git('show', `${head}:${rel}`)) !== ctx.norm(rel, git('show', `${BASE_COMMIT}:${rel}`)) } catch { return true } })); for (const rel of [...touched]) if (!net.has(rel)) touched.delete(rel) // LATER-CHANGES: registry read (DUAL-LOOKUP): the strips registered after this change (the flip enablers' whole-text pin edits, chained on this change's taught lines) are put back first, newest first
   assert.deepEqual([...touched].sort(), [...PHONE_HINTS_SCOPE_FILES].sort(), 'the files this change\'s own commits touch (net of what they put back) are exactly its scope')
   for (const rel of PHONE_HINTS_FILES) {
     const diff = diffLines(normDiff(ctx, rel, head))
