@@ -24,13 +24,20 @@ export function billingCycleForPrice(
   return null
 }
 
+/** The server flag for B5 (a coupon never grants a tier) and B8 (refund / dispute clawback, which may take the balance negative). Exact "true"; default off = today's behaviour. */
+export const COUPON_TIER_HARDENING_FLAG = "STUDIO_BILLING_COUPON_TIER_HARDENING"
+export function isCouponTierHardeningOn(env: Record<string, string | undefined>): boolean {
+  return env[COUPON_TIER_HARDENING_FLAG] === "true"
+}
+
 /**
- * B5: a coupon never changes the user's tier. The coupon schema has no grant
- * expiry, so granting its tier would be an unbounded paid plan (and would
- * overwrite a paying user's tier). Coupons grant wallet credit + approval only.
+ * B5: with the flag on a coupon never changes the user's tier. The coupon schema has no grant
+ * expiry, so granting its tier would be an unbounded paid plan (and would overwrite a paying
+ * user's tier). Flag off: today's update, tier included.
  */
-export function couponUserUpdate(couponCode: string, now: Date = new Date()) {
-  return { approved: true, approvedAt: now, approvedBy: `coupon:${couponCode}` }
+export function couponUserUpdate(couponCode: string, couponTier: string, hardened: boolean, now: Date = new Date()) {
+  const base = { approved: true, approvedAt: now, approvedBy: `coupon:${couponCode}` }
+  return hardened ? base : { ...base, tier: couponTier }
 }
 
 /** B8: only credit a top-up once Stripe says the money is in. */
@@ -65,7 +72,7 @@ export function disputeClawbackCents(creditedCents: number, alreadyDebitedCents:
  * B7: an event is stale when a newer (by Stripe `created`) event for the same
  * subscription was already processed.
  */
-export function isStaleSubscriptionEvent(eventCreated: number, newestProcessedCreated: number | null | undefined): boolean {
+export function isStaleSubscriptionEvent(eventCreated: number, newestProcessedCreated: number | bigint | null | undefined): boolean {
   if (newestProcessedCreated === null || newestProcessedCreated === undefined) return false
-  return eventCreated < newestProcessedCreated
+  return eventCreated < Number(newestProcessedCreated)
 }
