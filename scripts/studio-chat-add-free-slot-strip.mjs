@@ -25,6 +25,24 @@ export const CHAT_ADD_FREE_SLOT_EDITS = {
       "const generationSource = laterStripsForChatAddFreeSlot.find(fn => fn.name === 'stripChatAddFreeSlot')('hooks/use-textlabs-generation.ts', stripChatAddStacking('hooks/use-textlabs-generation.ts', stripChatAddTargeted('hooks/use-textlabs-generation.ts', fs.readFileSync(new URL('../hooks/use-textlabs-generation.ts', import.meta.url), 'utf8')))) // LATER-CHANGES: registry read (CHAT-ADD-STACKING) after (CHAT-ADD-TARGETED), then (CHAT-ADD-FREE-SLOT) from the registry\n",
       "const generationSource = stripChatAddStacking('hooks/use-textlabs-generation.ts', stripChatAddTargeted('hooks/use-textlabs-generation.ts', fs.readFileSync(new URL('../hooks/use-textlabs-generation.ts', import.meta.url), 'utf8'))) // LATER-CHANGES: registry read (CHAT-ADD-STACKING) after (CHAT-ADD-TARGETED)\n"
     ]
+  ],
+  "scripts/test-studio-chat-element-refine.mjs": [
+    [
+      "const { stripChatAddTargeted } = await import('./studio-chat-add-targeted-strip.mjs'), { stripChatAddStacking } = await import('./studio-chat-add-stacking-strip.mjs'), read = rel => laterStripsForChatAddFreeSlot.find(fn => fn.name === 'stripChatAddFreeSlot')(rel, stripChatAddStacking(rel, stripChatAddTargeted(rel, stripFirstPaint(rel, stripLaunchWording(rel, fs.readFileSync(path.join(root, rel), 'utf8')))))) /* then (CHAT-ADD-FREE-SLOT) from the registry */ // LATER-CHANGES: registry read (CHAT-ADD-STACKING) after (CHAT-ADD-TARGETED): the targeted chat add and the chat add stacking stacked after this change, so their marked lines in the generation hook come out first; one line, so the older stacked-scope checks (model-catalog, narration-router) still find stripLaunchWording on every added line\n",
+      "const { stripChatAddTargeted } = await import('./studio-chat-add-targeted-strip.mjs'), { stripChatAddStacking } = await import('./studio-chat-add-stacking-strip.mjs'), read = rel => stripChatAddStacking(rel, stripChatAddTargeted(rel, stripFirstPaint(rel, stripLaunchWording(rel, fs.readFileSync(path.join(root, rel), 'utf8'))))) // LATER-CHANGES: registry read (CHAT-ADD-STACKING) after (CHAT-ADD-TARGETED): the targeted chat add and the chat add stacking stacked after this change, so their marked lines in the generation hook come out first; one line, so the older stacked-scope checks (model-catalog, narration-router) still find stripLaunchWording on every added line\n"
+    ]
+  ],
+  "scripts/test-studio-element-free-spot.mjs": [
+    [
+      "    source = laterStripsForChatAddFreeSlot.find(fn => fn.name === 'stripChatAddFreeSlot')(HOOK, stripChatAddStacking(HOOK, source)) // LATER-CHANGES: registry read (CHAT-ADD-STACKING), then (CHAT-ADD-FREE-SLOT) from the registry\n",
+      "    source = stripChatAddStacking(HOOK, source) // LATER-CHANGES: registry read (CHAT-ADD-STACKING)\n"
+    ]
+  ],
+  "scripts/test-studio-element-placeholder-fix.mjs": [
+    [
+      "      source = laterStripsForChatAddFreeSlot.find(fn => fn.name === 'stripChatAddFreeSlot')('hooks/use-textlabs-generation.ts', stripChatAddStacking('hooks/use-textlabs-generation.ts', source)) // LATER-CHANGES: registry read (CHAT-ADD-STACKING), then (CHAT-ADD-FREE-SLOT) from the registry\n",
+      "      source = stripChatAddStacking('hooks/use-textlabs-generation.ts', source) // LATER-CHANGES: registry read (CHAT-ADD-STACKING)\n"
+    ]
   ]
 }
 
