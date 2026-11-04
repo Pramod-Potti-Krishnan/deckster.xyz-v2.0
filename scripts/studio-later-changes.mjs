@@ -155,6 +155,7 @@ export const LATER_STRIPS = [
   (await import('./studio-theme-own-choice-strip.mjs')).stripThemeOwnChoice, // LATER-CHANGE: FRONTEND-2, B34 theme own choice (NEXT_PUBLIC_STUDIO_THEME_OWN_CHOICE)
   (await import('./studio-chat-edit-targeted-strip.mjs')).stripChatEditTargeted, // LATER-CHANGE: FRONTEND-2, B33 targeted chat edit (NEXT_PUBLIC_STUDIO_CHAT_EDIT_TARGETED_SAVE)
   (await import('./studio-chat-clean-held-all-built-strip.mjs')).stripHeldAllBuilt, // LATER-CHANGE: FRONTEND-2, B40 held all built (NEXT_PUBLIC_STUDIO_CHAT_CLEAN_HELD_ALL_BUILT)
+  (await import('./studio-chat-add-free-slot-strip.mjs')).stripChatAddFreeSlot, // LATER-CHANGE: FRONTEND-1 (placed before the chat add strips: it edits lines they taught, so it is put back first), PROGRAM-1 E5 chat add free slot, move only (NEXT_PUBLIC_STUDIO_CHAT_ADD_FREE_SLOT_ENABLED)
   (await import('./studio-chat-add-targeted-strip.mjs')).stripChatAddTargeted, // LATER-CHANGE: FRONTEND-2, B42 targeted chat add (NEXT_PUBLIC_STUDIO_CHAT_ADD_TARGETED_SAVE)
   (await import('./studio-chat-stale-viewer-guard-strip.mjs')).stripChatStaleViewerGuard, // LATER-CHANGE: FRONTEND-2, B43 stale viewer guard (NEXT_PUBLIC_STUDIO_CHAT_STALE_VIEWER_GUARD)
   (await import('./studio-deck-save-refused-strip.mjs')).stripDeckSaveRefused, // LATER-CHANGE: FRONTEND-2, B46 deck save refused (NEXT_PUBLIC_STUDIO_DECK_SAVE_REFUSED_NOTICE)
@@ -171,7 +172,6 @@ export const LATER_STRIPS = [
   (await import('./studio-template-match-strip.mjs')).stripStudioTemplateMatch, // LATER-CHANGE: FRONTEND-2, W2 P4-7/8 template match (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH)
   (await import('./studio-phone-landscape-strip.mjs')).stripPhoneLandscape, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape, PR 1 (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   (await import('./studio-phone-hints-strip.mjs')).stripPhoneHints, // LATER-CHANGE: FRONTEND-1, F-13 phone hints, PR 2 (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
-  (await import('./studio-chat-add-free-slot-strip.mjs')).stripChatAddFreeSlot, // LATER-CHANGE: FRONTEND-1, PROGRAM-1 E5 chat add free slot, move only (NEXT_PUBLIC_STUDIO_CHAT_ADD_FREE_SLOT_ENABLED)
   // one line per later change, above this comment
 ]
 
