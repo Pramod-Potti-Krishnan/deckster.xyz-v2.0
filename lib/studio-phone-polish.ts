@@ -48,6 +48,22 @@ export const STUDIO_PHONE_MORE_PROPS: { onOpenAutoFocus?: (event: Event) => void
   : {}
 
 /**
+ * The account menu's close focus inside the More sheet (UserProfileMenu's `returnFocusOnClose={false}`): Radix would return the focus to the avatar, whose Tooltip hint opens on focus and floats over the Help row again (and is the topmost Escape layer again).
+ * So Radix's return is cancelled and, where the focus was left on nothing (the page body), the dialog the menu sits in takes it, as the sheet does when it opens. Where the focus was left on a control (a tap outside the menu landed on a sheet row), or there is no dialog
+ * round the avatar (the menu is not in a sheet), nothing is cancelled and Radix does what it always did.
+ */
+export function studioPhoneMenuCloseFocus(event: { preventDefault(): void }, trigger: { closest?: (selector: string) => unknown } | null, active: unknown): void {
+  const dialog = trigger && typeof trigger.closest === 'function' ? (trigger.closest('[role="dialog"]') as { focus?: (options?: { preventScroll?: boolean }) => void } | null) : null
+  if (!dialog || typeof dialog.focus !== 'function') return
+  event.preventDefault()
+  const body = typeof document === 'undefined' ? null : document.body
+  if (active === null || active === undefined || active === body) dialog.focus({ preventScroll: true })
+}
+
+/** The props the More sheet gives its account menu: none with the flag off (an empty spread passes nothing, so the menu is the one every other host draws); with it on, the menu does not take the focus back to the avatar when it closes. */
+export const STUDIO_PHONE_MORE_MENU_PROPS: { returnFocusOnClose?: boolean } = STUDIO_PHONE_POLISH_ENABLED ? { returnFocusOnClose: false } : {}
+
+/**
  * The Reveal slide number's box in the Layout viewer's frame, in px from the bottom-right corner of the screen (the stage's slide fills the screen): 8 px from each edge (Reveal's own place for it) and a box reserved generously for "NN / NN" at 12 px with 5 px 10 px padding
  * (about 70 x 22 px; reserved 88 x 28 px). The viewer is not ours: this is the box the stage's buttons must stay clear of.
  */

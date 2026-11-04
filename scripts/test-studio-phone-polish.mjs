@@ -9,7 +9,9 @@
 //                hint is a DismissableLayer and Escape closes only the topmost layer, so Escape 1 closes the hint, Escape 2 the sheet. With the fix the avatar is not focused, no hint opens, Escape 1 closes the sheet; no capture-phase handler in the app eats Escape
 //   4. landscape the stylesheet's contract, computed from both stylesheets at 844x390 and 932x430 (and with a notch's safe area): flag off, the dock sits on the page number's box (the bug); flag on, it is clear of it, and the cards, the hidden top bar and the
 //                authoring row move with it; the new rules outrank the stage's own in either order and match nothing without the flag's attribute; the attribute is set only with the flag, only on the stage, and taken off again
-//   5. pin       the two app files without this change's lines are the base's byte for byte (also through the registry), twice over; the one rewritten line is pinned; .env.example block (appended, default "false"); the registry's three lines; the two taught proofs
+//   4c. menu     the account menu's close focus (UserProfileMenu `returnFocusOnClose`): absent by default, the classic and the P2 menu render the base HTML and pass nothing with it absent or true; with false Radix's focus return is cancelled and the sheet's box takes the
+//                focus; only the More sheet passes it, only with the flag on; Radix's own composeEventHandlers, run, skips the avatar focus when the handler cancels
+//   5. pin       the four app files without this change's lines are the base's byte for byte (also through the registry), twice over; the one rewritten line is pinned; .env.example block (appended, default "false"); the registry's three lines; the two taught proofs
 //   6. scope     the COMMITTED diff only, GATE-SAFE (own commits by subject across `rev-list --no-merges BASE..head`, HEAD^2 on the gate's merge), no `hash-object --stdin`, the co-author line, no secret
 //   7. mutants   each one must make sections 1-5 fail
 import assert from 'node:assert/strict'
@@ -46,6 +48,7 @@ const count = fn => (...args) => { checks += 1; return fn(...args) }
 const plain = value => JSON.parse(JSON.stringify(value === undefined ? null : value))
 const eq = count(assert.equal), deep = count((actual, expected, message) => assert.deepStrictEqual(plain(actual), plain(expected), message)), ok = count(assert.ok), match = count(assert.match), nomatch = count(assert.doesNotMatch)
 
+const UPM = 'components/user-profile-menu.tsx', UPM2 = 'components/user-profile-menu-p2.tsx'
 const LIB = 'lib/studio-phone-polish.ts', BAR = 'components/layout/studio-phone-tab-bar.tsx', LANDSCAPE = 'components/builder/studio-phone-landscape.tsx', CSS = 'components/layout/studio-phone-polish.css', STAGE_CSS = 'components/builder/studio-phone-landscape.css'
 const FLAG = 'NEXT_PUBLIC_STUDIO_PHONE_POLISH', SHELL = 'NEXT_PUBLIC_STUDIO_PHONE_SHELL', V4 = 'NEXT_PUBLIC_STUDIO_V4_SHELL', LAND = 'NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE'
 const SPELLINGS = [undefined, '', 'false', 'TRUE', 'True', '1', 'yes', ' true', 'true ', 'true']
@@ -59,7 +62,7 @@ function compile(rel, text) {
   if (!compileCache.has(id)) compileCache.set(id, ts.transpileModule(text, { fileName: rel, compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText)
   return compileCache.get(id)
 }
-const REAL_LIBS = { '@/lib/studio-phone-shell': 'lib/studio-phone-shell.ts', '@/lib/studio-nav-labels': 'lib/studio-nav-labels.ts', '@/lib/last-builder-session': 'lib/last-builder-session.ts', '@/lib/studio-phone-polish': LIB }
+const REAL_LIBS = { '@/lib/studio-phone-shell': 'lib/studio-phone-shell.ts', '@/lib/studio-nav-labels': 'lib/studio-nav-labels.ts', '@/lib/last-builder-session': 'lib/last-builder-session.ts', '@/lib/studio-phone-polish': LIB, '@/lib/studio-p2-polish': 'lib/studio-p2-polish.ts', '@/lib/studio-profile-menu': 'lib/studio-profile-menu.ts' }
 function load(rel, { env = {}, stubs = {}, globals = {}, text = read(rel) } = {}) {
   const module = { exports: {} }
   const req = spec => {
@@ -105,6 +108,16 @@ function proveLib(at = '') {
   const edge = []
   on.studioPhoneMoreOpenFocus({ preventDefault: () => edge.push('p'), currentTarget: null }); on.studioPhoneMoreOpenFocus({ preventDefault: () => edge.push('p'), currentTarget: {} })
   deep(edge, ['p', 'p'], a('no box, or a box that cannot take focus: still cancelled, nothing thrown'))
+  deep(on.STUDIO_PHONE_MORE_MENU_PROPS, { returnFocusOnClose: false }, a('flag on: the sheet\'s account menu is told not to take the focus back to the avatar'))
+  deep(off.STUDIO_PHONE_MORE_MENU_PROPS, {}, a('flag off: nothing is passed to the account menu (an empty spread)'))
+  const closeCalls = (trigger, active) => { const calls = []; const dialog = { focus: options => calls.push(['focus', options]) }; const made = trigger === 'in a dialog' ? { closest: selector => (selector === '[role="dialog"]' ? dialog : null) } : trigger === 'no dialog' ? { closest: () => null } : trigger === 'a detached trigger without closest' ? {} : null; on.studioPhoneMenuCloseFocus({ preventDefault: () => calls.push(['preventDefault']) }, made, active); return calls }
+  const BODY = { tag: 'body' }
+  deep(closeCalls('in a dialog', null), [['preventDefault'], ['focus', { preventScroll: true }]], a('menu closed in a dialog, focus on nothing: Radix\'s return to the avatar is cancelled and the dialog takes the focus'))
+  deep(closeCalls('in a dialog', undefined), [['preventDefault'], ['focus', { preventScroll: true }]], a('(no active element at all: the same)'))
+  deep(closeCalls('in a dialog', { tag: 'a' }), [['preventDefault']], a('menu closed in a dialog, focus left on a control (a tap on a sheet row): cancelled, the focus is not taken from that control'))
+  deep(closeCalls('no dialog', null), [], a('the menu is not in a dialog: nothing is cancelled, Radix does what it always did'))
+  deep(closeCalls('a detached trigger without closest', null), [], a('a trigger that cannot say its dialog: nothing is cancelled'))
+  deep(closeCalls('null', null), [], a('no trigger: nothing is cancelled'))
   deep(plain(on.STUDIO_PHONE_PAGE_NUMBER_BOX), { right: 8, bottom: 8, width: 88, height: 28 }, a('the page number\'s reserved box (Reveal puts it 8 px from the bottom and right edges)'))
   eq(on.STUDIO_PHONE_DOCK_LIFT, 34, a('the dock\'s lift'))
   // Reveal's slide number, where the Layout viewer draws it (the repo's own layout code, when this checkout has it)
@@ -153,6 +166,7 @@ function proveSheet(at = '') {
       eq(sha(now.html), sha(renderBar(route, env, { text: baseOf(BAR) }).html), a(`${route}: flag off (${JSON.stringify(env)}): the sheet's HTML is the base commit's, byte for byte (sha256)`))
       deep(now.state.content.map(props => Object.keys(props).sort()), base.state.content.map(props => Object.keys(props).sort()), a(`${route}: flag off: the same props reach Radix's Dialog.Content as at the base commit`))
       ok(!('onOpenAutoFocus' in now.state.content[0]), a(`${route}: flag off: Radix keeps its own initial focus`))
+      deep(now.state.profile.map(props => Object.keys(props).sort()), base.state.profile.map(props => Object.keys(props).sort()), a(`${route}: flag off: the account menu gets exactly the props it got at the base commit (no returnFocusOnClose)`))
     }
     const now = renderBar(route, ON)
     eq(now.html.split(POLISH_ATTR).length - 1, 1, a(`${route}: flag on: one attribute, on the sheet`))
@@ -162,6 +176,8 @@ function proveSheet(at = '') {
     eq(typeof content.onOpenAutoFocus, 'function', a(`${route}: flag on: the sheet takes the initial focus itself`))
     for (const prop of ['onEscapeKeyDown', 'onPointerDownOutside', 'onInteractOutside', 'onCloseAutoFocus', 'forceMount']) ok(!(prop in content), a(`${route}: flag on: the sheet still keeps Radix's ${prop} (Escape, a tap outside and the way back to More are Radix's)`))
     deep(now.state.profile.map(props => [props.studioLabels, props.studioPalette]), [[true, false]], a(`${route}: flag on: the account menu gets the props it had`))
+    deep(now.state.profile.map(props => props.returnFocusOnClose), [false], a(`${route}: flag on: and one more, returnFocusOnClose={false}: it does not give the focus back to the avatar when it closes`))
+    deep(now.state.profile.map(props => Object.keys(props).sort()), [[...Object.keys(base.state.profile[0]), 'returnFocusOnClose'].sort()], a(`${route}: flag on: nothing else changes in what it gets`))
     eq(now.state.root[0].open, false, a(`${route}: flag on: closed at first`)); ok(!('modal' in now.state.root[0]), a(`${route}: flag on: still modal (the Radix default)`))
   }
 }
@@ -367,6 +383,88 @@ function proveLandscape(at = '') {
   ok(!matchesSelector('[data-studio-phone-more="true"][data-studio-phone-polish="true"]', [html({}), ...ELEMENTS.sheet]), a('flag off: the sheet does not have the attribute, the rule matches nothing'))
 }
 
+
+// ---------------------------------------------------------------- 4c. the account menu's close focus
+const menuStubs = (state, fake = {}) => {
+  const generic = name => ({ children }) => h('span', { 'data-stub': name }, children)
+  const ui = new Proxy({ __esModule: true }, { get: (t, name) => {
+    if (name === '__esModule') return true
+    if (name === 'DropdownMenuContent') return props => { state.content.push(props); return h('div', { 'data-content': 'true' }, props.children) }
+    if (name === 'DropdownMenu') return props => h(React.Fragment, null, props.children)
+    if (name === 'DropdownMenuTrigger') return props => props.children
+    return generic(String(name))
+  } })
+  const stubs = {
+    react: React, 'next/navigation': { useRouter: () => ({ push() {} }) }, 'next-themes': { useTheme: () => ({ theme: 'light', setTheme() {} }) }, 'lucide-react': lucide,
+    '@/hooks/use-auth': { useAuth: () => ({ user: { name: 'Ada Lovelace', email: 'ada@example.test', image: null, tier: 'free' }, logout: async () => {}, isLoading: false }) },
+    '@/components/ui/dropdown-menu': ui, '@/components/ui/avatar': new Proxy({ __esModule: true }, { get: (t, name) => (name === '__esModule' ? true : generic(String(name))) }), '@/components/ui/badge': { Badge: generic('badge') },
+    '@/components/ui/button': { Button: React.forwardRef((props, ref) => { if (ref && fake.trigger) ref.current = fake.trigger; return h('button', { type: 'button' }, props.children) }) },
+    '@/components/builder/studio-introduction': { useStudioAboutReplay: () => ({ onCloseAutoFocus() {}, intro: null, requestFromAbout() {} }) },
+    '@/components/studio-about-dialog': { StudioAboutDialog: () => null }, '@/components/version-history-menu-item': { VersionHistoryMenuItem: () => null },
+    '@/components/layout/studio-navigation-hint': { StudioNavigationHint: ({ children }) => children }, '@/lib/utils': { cn: (...parts) => parts.filter(Boolean).join(' ') },
+  }
+  return stubs
+}
+function renderMenu(env, props, { upmText, p2Text, fake } = {}) {
+  const state = { content: [] }
+  const stubs = menuStubs(state, fake)
+  const globals = { document: fake?.document ?? { activeElement: null, body: { tag: 'body' } } }
+  stubs['@/components/user-profile-menu-p2'] = load(UPM2, { env, stubs, globals, ...(p2Text === undefined ? {} : { text: p2Text }) })
+  const { UserProfileMenu } = load(UPM, { env, stubs, globals, ...(upmText === undefined ? {} : { text: upmText }) })
+  return { html: renderToStaticMarkup(h(UserProfileMenu, { studioLabels: true, studioPalette: true, ...props })), state }
+}
+function proveMenu(at = '') {
+  const a = message => (at ? `${at}: menu: ${message}` : `menu: ${message}`)
+  const CLASSIC = { [V4]: 'true' }, P2 = { [V4]: 'true', NEXT_PUBLIC_STUDIO_P2_PROFILE_MENU: 'true' }
+  const baseText = { upmText: baseOf(UPM), p2Text: baseOf(UPM2) }
+  for (const [name, env] of [['the classic menu', CLASSIC], ['the P2 menu', P2], ['the menu without the Studio palette', {}]]) {
+    const base = renderMenu(env, {}, baseText)
+    eq(base.state.content.length, 1, a(`${name}: one menu content at the base commit (the control)`))
+    for (const [what, props] of [['the prop absent', {}], ['returnFocusOnClose={true}', { returnFocusOnClose: true }]]) {
+      const now = renderMenu(env, props)
+      eq(sha(now.html), sha(base.html), a(`${name}, ${what}: the HTML is the base commit's, byte for byte (sha256)`))
+      deep(now.state.content.map(content => Object.keys(content).sort()), base.state.content.map(content => Object.keys(content).sort()), a(`${name}, ${what}: the same props reach Radix's menu content as at the base commit (no onCloseAutoFocus: Radix returns the focus to the avatar as it always did)`))
+    }
+  }
+  // returnFocusOnClose={false}: the menu content gets Radix's onCloseAutoFocus, wired to the avatar, the active element and the lib's decision
+  for (const [name, env] of [['the classic menu', CLASSIC], ['the P2 menu', P2]]) {
+    const calls = []
+    const dialog = { focus: options => calls.push(['focus', options]) }
+    const fake = { trigger: { closest: selector => (selector === '[role="dialog"]' ? dialog : null) }, document: { activeElement: null, body: { tag: 'body' } } }
+    const now = renderMenu(env, { returnFocusOnClose: false }, { fake })
+    const base = renderMenu(env, {}, { upmText: baseOf(UPM), p2Text: baseOf(UPM2) })
+    eq(typeof now.state.content[0].onCloseAutoFocus, 'function', a(`${name}: returnFocusOnClose={false}: the menu content gets an onCloseAutoFocus`))
+    deep(Object.keys(now.state.content[0]).sort(), [...Object.keys(base.state.content[0]), 'onCloseAutoFocus'].sort(), a(`${name}: and nothing else changes in its props`))
+    eq(sha(now.html), sha(base.html), a(`${name}: the markup is the base commit's`))
+    const event = { preventDefault: () => calls.push(['preventDefault']) }
+    now.state.content[0].onCloseAutoFocus(event)
+    deep(calls, [['preventDefault'], ['focus', { preventScroll: true }]], a(`${name}: when the menu closes, Radix's return to the avatar is cancelled and the dialog round the avatar takes the focus (not <body>)`))
+  }
+  // only the More sheet passes it, and only through the flag's export
+  const users = []
+  const scan = dir => { for (const entry of fs.readdirSync(path.join(root, dir), { withFileTypes: true })) { const rel = `${dir}/${entry.name}`; if (entry.isDirectory()) { if (entry.name !== 'node_modules' && entry.name !== '.next') scan(rel) } else if (/\.tsx?$/.test(entry.name)) { const text = read(rel); if (/<UserProfileMenu\b/.test(text)) users.push(rel); if (/returnFocusOnClose|STUDIO_PHONE_MORE_MENU_PROPS/.test(text)) users.push(`${rel}#prop`) } } }
+  for (const dir of ['app', 'components', 'hooks', 'lib']) scan(dir)
+  deep(users.filter(item => item.endsWith('#prop')).sort(), ['components/layout/studio-phone-tab-bar.tsx#prop', 'components/user-profile-menu.tsx#prop', 'lib/studio-phone-polish.ts#prop'], a('the prop is named in the menu (its declaration), the lib (the flag-gated export) and the More sheet (its one use): no other host passes it'))
+  ok(users.filter(item => !item.endsWith('#prop')).length >= 3, a(`the menu has other hosts that keep the focus return (${users.filter(item => !item.endsWith('#prop')).join(', ')})`))
+  for (const rel of users.filter(item => !item.endsWith('#prop') && item !== BAR)) nomatch(read(rel).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, ''), /returnFocusOnClose|STUDIO_PHONE_MORE_MENU_PROPS/, a(`${rel}: a host that does not pass it`))
+  const barText = read(BAR)
+  eq((barText.match(/STUDIO_PHONE_MORE_MENU_PROPS/g) || []).length, 2, a('the sheet: the import and one use'))
+  match(barText, /<UserProfileMenu sessionUsage=\{sessionUsage\} studioLabels studioPalette=\{process\.env\.NEXT_PUBLIC_STUDIO_V4_TOKENS === "true"\} \{\.\.\.STUDIO_PHONE_MORE_MENU_PROPS \/\* PHONE-POLISH \*\/\} \/>/, a('the sheet passes it as a spread of the flag\'s export, on the account menu it already had'))
+  // Radix itself: a handler that cancels skips the avatar focus; with none the avatar is focused
+  const dropdownDir = radixDir('@radix-ui/react-dropdown-menu', path.join(root, 'components'))
+  const dropdown = radixText(dropdownDir)
+  match(dropdown, /onCloseAutoFocus: composeEventHandlers\(props\.onCloseAutoFocus, \(event\) => \{\s*if \(!hasInteractedOutsideRef\.current\) context\.triggerRef\.current\?\.focus\(\);/, a('the installed Radix dropdown: the menu content runs the props\' onCloseAutoFocus first and returns the focus to the trigger after it'))
+  const primitive = nodeRequire(nodeRequire.resolve('@radix-ui/primitive', { paths: [dropdownDir] }))
+  const radixReturn = []
+  const radixDefault = event => { radixReturn.push('focus the avatar'); event.preventDefault() }
+  const fire = handler => { const event = { defaultPrevented: false, preventDefault() { this.defaultPrevented = true } }; primitive.composeEventHandlers(handler, radixDefault)(event); return event }
+  fire(undefined); deep(radixReturn, ['focus the avatar'], a('Radix run as it is: with no handler (every other host) the avatar gets the focus back'))
+  radixReturn.length = 0
+  const lib = load(LIB, { env: ON }); const focused = []
+  fire(event => lib.studioPhoneMenuCloseFocus(event, { closest: () => ({ focus: () => focused.push('the sheet') }) }, null))
+  deep([radixReturn, focused], [[], ['the sheet']], a('Radix run as it is: with the sheet\'s handler the avatar is NOT focused (so its hint does not reopen) and the sheet takes the focus'))
+}
+
 // ---------------------------------------------------------------- 4b. the stage's attribute (the component's marked effect, run)
 function proveStageAttribute(at = '') {
   const a = message => (at ? `${at}: stage attribute: ${message}` : `stage attribute: ${message}`)
@@ -406,12 +504,15 @@ function provePin(strip = stripPhonePolish, at = '') {
     const marked = now.split('\n').filter(line => PHONE_POLISH_MARKER_RE.test(line))
     ok(marked.length >= 3, a(`${rel}: ${marked.length} marked lines`))
   }
-  const edits = PHONE_POLISH_LINE_EDITS[BAR]
-  eq(edits.length, 1, a('one rewritten app line'))
-  const [now, was] = edits[0]
-  ok(read(BAR).includes(now) && !read(BAR).includes(was), a('the sheet has the new line and not the base line'))
-  ok(baseOf(BAR).includes(was) && !baseOf(BAR).includes(now), a('the base commit has the old line'))
-  ok(PHONE_POLISH_MARKER_RE.test(now) && now.replace(/\s*\{\.\.\.STUDIO_PHONE_MORE_PROPS \/\* PHONE-POLISH \*\/\}/, '') === was, a('the rewritten line is the base line plus one marked spread, nothing else'))
+  deep(Object.keys(PHONE_POLISH_LINE_EDITS).sort(), [BAR, UPM, UPM2].sort(), a('the rewritten app lines are in the sheet, the account menu and the P2 menu only'))
+  deep(Object.values(PHONE_POLISH_LINE_EDITS).map(list => list.length), [2, 3, 2], a('7 rewritten lines in all: 2 + 3 + 2 (every other added line is a pure marked insertion)'))
+  for (const [rel, list] of Object.entries(PHONE_POLISH_LINE_EDITS)) for (const [now, was] of list) {
+    ok(read(rel).includes(now) && !read(rel).includes(was), a(`${rel}: the file has the new line and not the base line`))
+    ok(baseOf(rel).includes(was) && !baseOf(rel).includes(now), a(`${rel}: the base commit has the old line`))
+    ok(PHONE_POLISH_MARKER_RE.test(now) && !PHONE_POLISH_MARKER_RE.test(was), a(`${rel}: the new line carries the marker`))
+    eq(read(rel).split('\n').filter(line => line.trim() === now).length, 1, a(`${rel}: the new line is there exactly once`))
+    ok(baseOf(rel).split('\n').filter(line => line.trim() === was).length === 1, a(`${rel}: the base line is unique`))
+  }
   // .env.example, registry, taught proofs
   const env = read('.env.example'), baseEnv = baseOf('.env.example')
   eq(env.split(PHONE_POLISH_ENV_BLOCK).length - 1, 1, a('.env.example: the block is there exactly once, verbatim'))
@@ -436,7 +537,7 @@ function provePin(strip = stripPhonePolish, at = '') {
   eq(strip(LANDSCAPE, 'a\nb // PHONE-POLISH-X\nc // X-PHONE-POLISH\nd // PHONE-POLISH\n'), 'a\nb // PHONE-POLISH-X\nc // X-PHONE-POLISH\n', a('the marker is a whole token'))
 }
 
-function proveAll() { proveLib(); proveSheet(); proveEscape(); proveLandscape(); proveStageAttribute(); provePin() }
+function proveAll() { proveLib(); proveSheet(); proveEscape(); proveLandscape(); proveStageAttribute(); proveMenu(); provePin() }
 
 // ---------------------------------------------------------------- 6. scope: the COMMITTED diff, gate-safe
 const GIT_IDENT = { GIT_AUTHOR_NAME: 'gate', GIT_AUTHOR_EMAIL: 'gate@example.invalid', GIT_COMMITTER_NAME: 'gate', GIT_COMMITTER_EMAIL: 'gate@example.invalid', GIT_AUTHOR_DATE: '2026-11-04T00:00:00Z', GIT_COMMITTER_DATE: '2026-11-04T00:00:00Z' }
@@ -474,7 +575,7 @@ const scopeCommittedFiles = head => {
     const diff = diffLines(git('diff', '-U0', `${BASE}..${head}`, '--', rel))
     for (const line of diff.filter(line => line.startsWith('+'))) assert.match(line, PHONE_POLISH_MARKER_RE, `${rel}: an unmarked added line: ${line.slice(0, 120)}`)
     const removed = diff.filter(line => line.startsWith('-')).map(line => line.slice(1).trim())
-    assert.deepEqual(removed, (PHONE_POLISH_LINE_EDITS[rel] || []).map(([, was]) => was), `${rel}: the only line removed is the one pinned rewrite`)
+    assert.deepEqual(removed.sort(), (PHONE_POLISH_LINE_EDITS[rel] || []).map(([, was]) => was).sort(), `${rel}: the only lines removed are the pinned rewrites`)
     assert.ok(diff.filter(line => line.startsWith('+')).length > 0, `${rel}: the number of added lines`)
     assert.equal(stripPhonePolish(rel, git('show', `${head}:${rel}`)), git('show', `${BASE}:${rel}`), `${rel}: without its marked lines the file is the base's, byte for byte`)
   }
@@ -483,7 +584,7 @@ const scopeCommittedFiles = head => {
     const added = diffLines(git('diff', '-U0', `${BASE}..${head}`, '--', rel))
     assert.ok(added.length >= 1 && added.every(line => line.startsWith('+') && line.includes(PHONE_POLISH_PIN_MARK)), `${rel}: every line this change added to the proof carries the mark and none is removed`)
   }
-  for (const rel of ['lib/studio-phone-shell.ts', 'lib/studio-phone-landscape.ts', 'lib/studio-phone-hints.ts', 'components/layout/studio-phone-shell.css', 'components/builder/studio-phone-landscape.css', 'components/help/studio-help.tsx', 'components/builder/studio-session-hygiene.tsx', 'components/user-profile-menu.tsx', 'components/layout/studio-navigation-hint.tsx', 'app/builder/page.tsx', 'package.json', 'pnpm-lock.yaml']) assert.ok(!net.has(rel), `${rel} is not touched by this change`)
+  for (const rel of ['lib/studio-phone-shell.ts', 'lib/studio-phone-landscape.ts', 'lib/studio-phone-hints.ts', 'components/layout/studio-phone-shell.css', 'components/builder/studio-phone-landscape.css', 'components/help/studio-help.tsx', 'components/builder/studio-session-hygiene.tsx', 'components/layout/studio-navigation-hint.tsx', 'components/ui/dropdown-menu.tsx', 'app/builder/page.tsx', 'package.json', 'pnpm-lock.yaml']) assert.ok(!net.has(rel), `${rel} is not touched by this change`)
   void REGISTRY_NORM
 }
 const scopeEnvAndRegistry = head => {
@@ -507,12 +608,13 @@ await check('1. lib: the flags, the sheet\'s props, the focus decision', () => p
 await check('2. sheet: flag off the base commit\'s HTML byte for byte; flag on one attribute and the focus handler', () => proveSheet())
 await check('3. escape: one root cause for the hint over the Help row and for Escape needing two presses; the fix removes both', () => proveEscape())
 await check('4. landscape: the dock clear of the page number at 844x390 and 932x430; the cards, hidden bar and authoring row follow; the rules match nothing without the attribute', () => { proveLandscape(); proveStageAttribute() })
+await check('4c. menu: the account menu\'s close focus: absent by default and the base HTML; with false Radix\'s avatar focus is cancelled; only the More sheet passes it, only with the flag on', () => proveMenu())
 await check('5. pin: the app files without this change\'s lines are the base\'s; .env.example; the registry; the taught proofs', () => provePin())
 
 console.log('scope over the committed diff (own commits by subject across `rev-list --no-merges BASE..head`, HEAD^2 on the gate\'s merge)')
 const HEAD = scopeHead('HEAD')
 await check(`6a. this change's own commits (subject starts "${PHONE_POLISH_SUBJECT}", found across the whole line, no merges) exist, with the co-author line; none could be taken for an older change's`, () => { scopeOwnCommits(HEAD) })
-await check('6b. the committed files are exactly this change\'s; every line added to an app file carries the marker; the one rewritten line is pinned; the strip gives the base back byte for byte; the pinned libs, the stage\'s stylesheet and the profile menu are not touched', () => scopeCommittedFiles(HEAD))
+await check('6b. the committed files are exactly this change\'s; every line added to an app file carries the marker; the one rewritten line is pinned; the strip gives the base back byte for byte; the pinned libs, the stage\'s stylesheet, the hint and the shared dropdown are not touched', () => scopeCommittedFiles(HEAD))
 await check('6c. .env.example is the base plus the block (after one blank line); the registry gains exactly its three marked lines and loses none; no secret-shaped literal in the new files', () => {
   scopeEnvAndRegistry(HEAD)
   for (const rel of PHONE_POLISH_NEW_FILES) assert.doesNotMatch(fs.readFileSync(path.join(root, rel), 'utf8'), /(sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{12,}|eyJ[A-Za-z0-9_-]{20,}\.|-----BEGIN [A-Z ]*PRIVATE KEY)/, rel)
@@ -577,6 +679,21 @@ await mutant('pin: the strip is not idempotent (puts the line back twice)', {}, 
 await mutant('pin: the strip leaves the marked lines', {}, { strip: (rel, text) => text })
 await mutant('pin: the env block default is true', { '.env.example': ['NEXT_PUBLIC_STUDIO_PHONE_POLISH="false"', 'NEXT_PUBLIC_STUDIO_PHONE_POLISH="true"'] })
 await mutant('pin: the registry loses its strip line', { 'scripts/studio-later-changes.mjs': ["  (await import('./studio-phone-polish-strip.mjs')).stripPhonePolish, // LATER-CHANGE: FRONTEND-2, B59 phone polish (NEXT_PUBLIC_STUDIO_PHONE_POLISH)\n", ''] })
+const UPMT = (from, to) => ({ [UPM]: [from, to] }), UPM2T = (from, to) => ({ [UPM2]: [from, to] })
+const CF = ' {...(menuCloseFocus ? { onCloseAutoFocus: menuCloseFocus } : {}) /* PHONE-POLISH */}'
+await mutant('menu: the close focus does not cancel Radix\'s return to the avatar', lib("  event.preventDefault()\n  const body = typeof document", "  const body = typeof document"))
+await mutant('menu: the dialog takes the focus even when it was left on a control', lib("if (active === null || active === undefined || active === body) dialog.focus({ preventScroll: true })", "dialog.focus({ preventScroll: true })"))
+await mutant('menu: the dialog never takes the focus (it would be left on <body>)', lib("if (active === null || active === undefined || active === body) dialog.focus({ preventScroll: true })", "void body"))
+await mutant('menu: the close focus is cancelled where the menu is in no dialog', lib("  if (!dialog || typeof dialog.focus !== 'function') return\n  event.preventDefault()", "  event.preventDefault()\n  if (!dialog || typeof dialog.focus !== 'function') return"))
+await mutant('menu: the sheet\'s props are there with the flag off', lib("STUDIO_PHONE_MORE_MENU_PROPS: { returnFocusOnClose?: boolean } = STUDIO_PHONE_POLISH_ENABLED ?", "STUDIO_PHONE_MORE_MENU_PROPS: { returnFocusOnClose?: boolean } = true ?"))
+await mutant('menu: the prop defaults to false (every host would lose the focus return)', UPMT('returnFocusOnClose = true /* PHONE-POLISH */', 'returnFocusOnClose = false /* PHONE-POLISH */'))
+await mutant('menu: the handler is set whatever the prop says', UPMT('returnFocusOnClose === false ? (event: Event)', 'true ? (event: Event)'))
+await mutant('menu: the handler looks for the dialog round nothing', UPMT('studioPhoneMenuCloseFocus(event, accountTrigger.current, document.activeElement)', 'studioPhoneMenuCloseFocus(event, null, document.activeElement)'))
+await mutant('menu: the classic menu content ignores the prop', UPMT(CF + '>', '>'))
+await mutant('menu: the P2 menu is not told (its call loses the handler)', UPMT(CF + ' /> : (', ' /> : ('))
+await mutant('menu: the P2 menu content ignores the handler', UPM2T(' {...(onCloseAutoFocus ? { onCloseAutoFocus } : {}) /* PHONE-POLISH */}>', '>'))
+await mutant('menu: the More sheet does not pass the prop', bar(' {...STUDIO_PHONE_MORE_MENU_PROPS /* PHONE-POLISH */}', ''))
+await mutant('menu: the desktop header passes the prop too', { 'components/layout/app-header.tsx': ['<UserProfileMenu studioLabels={studioLabels}', '<UserProfileMenu returnFocusOnClose={false} studioLabels={studioLabels}'] })
 await mutant('escape: the account menu loses its hint (the premise of the chain is gone)', { 'components/user-profile-menu.tsx': ['label="Account menu"', 'label="Account"'] })
 await mutant('escape: the landscape cards lose their Escape handler', { [LANDSCAPE]: ['if (event.key === "Escape") { event.stopPropagation(); closeMenu() }', 'if (event.key === "Enter") { event.stopPropagation(); closeMenu() }'] })
 

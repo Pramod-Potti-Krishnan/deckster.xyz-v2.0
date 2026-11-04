@@ -2,8 +2,8 @@
 // (lib/studio-phone-polish.ts) and only active together with the phone shell (NEXT_PUBLIC_STUDIO_PHONE_SHELL) and so with the Studio shell (NEXT_PUBLIC_STUDIO_V4_SHELL); the landscape fix also needs NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE.
 // Three small phone fixes: the "Account menu" hint no longer floats over the Help row when the More sheet opens (UX-21); Escape closes the More sheet at once (it closed the hint first: ONE root cause, the sheet's initial focus lands on the avatar,
 // whose Radix Tooltip opens on focus and is then the topmost Escape layer); in a phone turned sideways the hamburger and the plus sit clear of the slide's page number.
-// Every line this change adds to an EXISTING app file is a pure insertion that carries the marker PHONE-POLISH (a WHOLE token), with ONE exception: the More sheet's Dialog.Content tag is one line and takes one more attribute (a spread), so that line is rewritten
-// and PHONE_POLISH_LINE_EDITS (an idempotent pin table, [the line now, the base commit's line]) puts it back first. Strip the marked lines and put that one back, and each file is its base, byte for byte (stripPhonePolish(rel, text)).
+// Every line this change adds to an EXISTING app file is a pure insertion that carries the marker PHONE-POLISH (a WHOLE token), with SEVEN exceptions: a JSX tag or a signature is one line and takes one more attribute (a spread) or one more prop, so that line is rewritten
+// (the More sheet's Dialog.Content and its account menu in the bar; the account menu's signature, its Content tag and its P2 call; the P2 menu's signature and Content tag) and PHONE_POLISH_LINE_EDITS (an idempotent pin table, [the line now, the base commit's line]) puts each back first. Strip the marked lines and put that one back, and each file is its base, byte for byte (stripPhonePolish(rel, text)).
 // The older proofs this change teaches (PIN_EDITS, tests only, every line carries the registry-read mark): the two that read the first-parent line of BASE..HEAD for their own commits' subjects (one more inserted line each, for "Phone polish:", as the phone hints did).
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
@@ -16,7 +16,7 @@ export const PHONE_POLISH_MARKER_RE = /(?<![\w-])PHONE-POLISH(?![\w-])/
 export const PHONE_POLISH_SUBJECT = 'Phone polish:'
 
 /** Existing app files that get marked lines. */
-export const PHONE_POLISH_FILES = ['components/layout/studio-phone-tab-bar.tsx', 'components/builder/studio-phone-landscape.tsx']
+export const PHONE_POLISH_FILES = ['components/layout/studio-phone-tab-bar.tsx', 'components/builder/studio-phone-landscape.tsx', 'components/user-profile-menu.tsx', 'components/user-profile-menu-p2.tsx']
 
 /** New files (no base text to put back). */
 export const PHONE_POLISH_NEW_FILES = [
@@ -26,11 +26,27 @@ export const PHONE_POLISH_NEW_FILES = [
   'scripts/test-studio-phone-polish.mjs',
 ]
 
-/** The one app line this change rewrites: [the line now, the base commit's line], whole lines without the newline, so putting it back gives the base file byte for byte. Idempotent: a file that has the base line comes back as it is. */
+/** The app lines this change REWRITES (every other line it adds is a pure marked insertion): [the line now, the base commit's line], whole lines without their indentation, so putting them back gives the base file byte for byte. Idempotent: a file that has the base lines comes back as it is. */
 export const PHONE_POLISH_LINE_EDITS = {
   'components/layout/studio-phone-tab-bar.tsx': [
-    ['<Dialog.Content data-studio-v4-shell="true" data-studio-phone-more="true" aria-describedby={undefined} {...STUDIO_PHONE_MORE_PROPS /* PHONE-POLISH */}>',
-     '<Dialog.Content data-studio-v4-shell="true" data-studio-phone-more="true" aria-describedby={undefined}>'],
+    ["<Dialog.Content data-studio-v4-shell=\"true\" data-studio-phone-more=\"true\" aria-describedby={undefined} {...STUDIO_PHONE_MORE_PROPS /* PHONE-POLISH */}>",
+     "<Dialog.Content data-studio-v4-shell=\"true\" data-studio-phone-more=\"true\" aria-describedby={undefined}>"],
+    ["<li data-studio-phone-more-account=\"true\"><UserProfileMenu sessionUsage={sessionUsage} studioLabels studioPalette={process.env.NEXT_PUBLIC_STUDIO_V4_TOKENS === \"true\"} {...STUDIO_PHONE_MORE_MENU_PROPS /* PHONE-POLISH */} /><span aria-hidden=\"true\">Account</span></li>",
+     "<li data-studio-phone-more-account=\"true\"><UserProfileMenu sessionUsage={sessionUsage} studioLabels studioPalette={process.env.NEXT_PUBLIC_STUDIO_V4_TOKENS === \"true\"} /><span aria-hidden=\"true\">Account</span></li>"],
+  ],
+  'components/user-profile-menu.tsx': [
+    ["export function UserProfileMenu({ studioLabels = false, studioPalette = false, sessionUsage, returnFocusOnClose = true /* PHONE-POLISH */ }: { studioLabels?: boolean; studioPalette?: boolean; sessionUsage?: ReactNode; returnFocusOnClose?: boolean /* PHONE-POLISH */ } = {}) {",
+     "export function UserProfileMenu({ studioLabels = false, studioPalette = false, sessionUsage }: { studioLabels?: boolean; studioPalette?: boolean; sessionUsage?: ReactNode } = {}) {"],
+    ["{p2Menu ? <StudioProfileMenuP2 name={user.name} email={user.email} image={user.image} initials={userInitials} tierLabel={quota?.tierLabel} sessionTier={user.tier} quotaFailed={quotaFailed} sessionUsage={sessionUsage} quota={quota} theme={theme} onTheme={setTheme} onNavigate={handleNavigation} onAbout={() => { setIsOpen(false); setAboutOpen(true) }} onLogout={handleLogout} {...(versionHistoryRow ? { versionHistoryRow /* VERSION-HISTORY-V2 */ } : {})} {...(menuCloseFocus ? { onCloseAutoFocus: menuCloseFocus } : {}) /* PHONE-POLISH */} /> : (",
+     "{p2Menu ? <StudioProfileMenuP2 name={user.name} email={user.email} image={user.image} initials={userInitials} tierLabel={quota?.tierLabel} sessionTier={user.tier} quotaFailed={quotaFailed} sessionUsage={sessionUsage} quota={quota} theme={theme} onTheme={setTheme} onNavigate={handleNavigation} onAbout={() => { setIsOpen(false); setAboutOpen(true) }} onLogout={handleLogout} {...(versionHistoryRow ? { versionHistoryRow /* VERSION-HISTORY-V2 */ } : {})} /> : ("],
+    ["<DropdownMenuContent data-studio-v4-profile={studioPalette ? \"true\" : undefined} data-studio-profile-fidelity={studioProfile ? \"true\" : undefined} side={studioProfile ? \"right\" : undefined} sideOffset={studioProfile ? 8 : undefined} align=\"end\" className=\"w-64\" {...(menuCloseFocus ? { onCloseAutoFocus: menuCloseFocus } : {}) /* PHONE-POLISH */}>",
+     "<DropdownMenuContent data-studio-v4-profile={studioPalette ? \"true\" : undefined} data-studio-profile-fidelity={studioProfile ? \"true\" : undefined} side={studioProfile ? \"right\" : undefined} sideOffset={studioProfile ? 8 : undefined} align=\"end\" className=\"w-64\">"],
+  ],
+  'components/user-profile-menu-p2.tsx': [
+    ["export function StudioProfileMenuP2({ name, email, image, initials, tierLabel, sessionTier, quotaFailed, sessionUsage, quota, theme, onTheme, onNavigate, onAbout, onLogout, versionHistoryRow, onCloseAutoFocus /* PHONE-POLISH */ }: StudioProfileMenuP2Props) { // VERSION-HISTORY-V2",
+     "export function StudioProfileMenuP2({ name, email, image, initials, tierLabel, sessionTier, quotaFailed, sessionUsage, quota, theme, onTheme, onNavigate, onAbout, onLogout, versionHistoryRow }: StudioProfileMenuP2Props) { // VERSION-HISTORY-V2"],
+    ["<DropdownMenuContent data-studio-v4-profile=\"true\" data-studio-profile-fidelity=\"true\" data-studio-p2-profile=\"true\" {...(STUDIO_P2_POLISH_ENABLED ? { [STUDIO_P2_POLISH_ATTR]: \"true\" } : {})} side=\"right\" sideOffset={8} align=\"end\" className=\"w-64\" {...(onCloseAutoFocus ? { onCloseAutoFocus } : {}) /* PHONE-POLISH */}>",
+     "<DropdownMenuContent data-studio-v4-profile=\"true\" data-studio-profile-fidelity=\"true\" data-studio-p2-profile=\"true\" {...(STUDIO_P2_POLISH_ENABLED ? { [STUDIO_P2_POLISH_ATTR]: \"true\" } : {})} side=\"right\" sideOffset={8} align=\"end\" className=\"w-64\">"],
   ],
 }
 
@@ -63,7 +79,7 @@ export const PHONE_POLISH_SCOPE_FILES = new Set([...PHONE_POLISH_FILES, ...PHONE
 
 /** The whole .env.example block: its comments and its line (appended at the end of the file, after one blank line). */
 export const PHONE_POLISH_ENV_BLOCK = `# STUDIO PHONE POLISH (FRONTEND-2; B59; FRONTEND-1's pre-promotion UX pass of 4 Nov, finding UX-21, and F-13's two known limits). On for the exact value "true" AND only together with NEXT_PUBLIC_STUDIO_PHONE_SHELL and NEXT_PUBLIC_STUDIO_V4_SHELL (both exact "true"); the landscape fix also needs NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE. Default off, and then
-# nothing changes: no attribute is set and no rule matches. Build-time value: change it on Vercel and redeploy. On: (1) the phone More sheet takes the focus itself when it opens, so the "Account menu" hint no longer floats over the Help row; (2) Escape closes the sheet at once (it used to close that hint first and the sheet only on a second press);
+# nothing changes: no attribute is set and no rule matches. Build-time value: change it on Vercel and redeploy. On: (1) the phone More sheet takes the focus itself when it opens, so the "Account menu" hint no longer floats over the Help row; (2) Escape closes the sheet at once (it used to close that hint first and the sheet only on a second press); the sheet's account menu does not give the focus back to the avatar when it closes, so the hint does not reopen after it;
 # (3) in a phone turned sideways the two floating buttons (hamburger and plus) sit 34 px higher, clear of the slide's page number. Tablets and desktops are unchanged.
 NEXT_PUBLIC_STUDIO_PHONE_POLISH="false"
 `
