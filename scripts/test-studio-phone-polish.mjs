@@ -185,6 +185,7 @@ function proveEscape(at = '') {
   // the installed Radix
   const scope = radixText(radixDir('@radix-ui/react-focus-scope', dialogDir)), layer = radixText(layerDir), tooltip = radixText(radixDir('@radix-ui/react-tooltip', path.join(root, 'components'))), escapeKey = radixText(radixDir('@radix-ui/react-use-escape-keydown', layerDir))
   match(scope, /const mountEvent = new CustomEvent\(AUTOFOCUS_ON_MOUNT, EVENT_OPTIONS\);[\s\S]*?if \(!mountEvent\.defaultPrevented\) \{\s*focusFirst\(removeLinks\(getTabbableCandidates\(container\)\), \{ select: true \}\);/, a('Radix FocusScope: on mount the first candidate that is NOT a link takes the focus, unless the open-focus event was cancelled'))
+  match(scope, /Primitive\.div, \{ tabIndex: -1, \.\.\.scopeProps/, a('Radix FocusScope: the sheet\'s own box is focusable (tabIndex -1), so the fix has somewhere to put the focus'))
   match(scope, /function removeLinks\(items\) \{\s*return items\.filter\(\(item\) => item\.tagName !== "A"\);/, a('Radix FocusScope: links are skipped'))
   match(tooltip, /onFocus: composeEventHandlers\(props\.onFocus, \(\) => \{\s*if \(!isPointerDownRef\.current\) context\.onOpen\(\);/, a('Radix Tooltip: the trigger opens on focus (unless a pointer is down)'))
   match(tooltip, /onPointerMove: composeEventHandlers\(props\.onPointerMove, \(event\) => \{\s*if \(event\.pointerType === "touch"\) return;/, a('Radix Tooltip: touch movement never opens it (so on a phone only focus does)'))
