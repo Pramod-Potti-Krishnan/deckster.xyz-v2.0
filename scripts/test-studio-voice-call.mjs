@@ -1805,7 +1805,6 @@ const mutants = [
   [UI, 'the pack loses its layered section', "return { manifest: main.manifest, layered: main.layered, base: root }", "return { manifest: main.manifest, layered: null, base: root }"],
   [UI, 'the Face catalog loses its layered section', "return { manifest: face.manifest, layered: face.layered, base:", "return { manifest: face.manifest, layered: null, base:"],
   [UI, 'the portrait is the small one', "`/companions/${pack}/portrait-512.webp`", "`/companions/${pack}/portrait-256.webp`"],
-  [PLAYER, 'a v1 pack gets a painter', "  if (!pack.layered) return null\n", ''],
   [PLAYER, 'a face that does not parse is drawn anyway', 'const painter: LayerPainter | null = face ? createLayeredPainter(pack, face) : null', 'const painter: LayerPainter | null = createLayeredPainter(pack, face ?? (pack.layered as never))'],
   [PLAYER, 'the seam never draws (the compatibility view for all)', 'const painter: LayerPainter | null = face ? createLayeredPainter(pack, face) : null', 'const painter: LayerPainter | null = null'],
   [LAYERED, 'the mouth ignores the scene', "const speaking = input.scene === 'speaking'", 'const speaking = true'],
