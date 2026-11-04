@@ -25,7 +25,7 @@ import {
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Tx = any
-type WalletFn = (params: Record<string, unknown>) => Promise<{ balanceAfterCents: number; transactionId: string }>
+type WalletFn = (params: any) => Promise<{ balanceAfterCents: number; transactionId: string }>
 
 export interface StripeWebhookDeps {
   prisma: { $transaction: (fn: (tx: Tx) => Promise<unknown>, options?: Record<string, unknown>) => Promise<unknown> }
