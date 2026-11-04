@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url'
 import { stripChatElementRefine } from './studio-chat-element-refine-strip.mjs'
 import { stripChatAddTargeted } from './studio-chat-add-targeted-strip.mjs' // LATER-CHANGES: registry read (CHAT-ADD-TARGETED): the targeted chat add stacked after this change, so its marked lines in the generation hook come out first
 import { stripChatAddStacking } from './studio-chat-add-stacking-strip.mjs' // LATER-CHANGES: registry read (CHAT-ADD-STACKING): the chat add stacking stacked after this change, so its marked lines in the generation hook come out first
+import { LATER_STRIPS as laterStripsForChatAddFreeSlot } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-ADD-FREE-SLOT): the registered strip of the chat add free slot, stacked after this change
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 let ownRoot = here
@@ -876,7 +877,7 @@ async function hookSuite(src) {
 function stripMarked(source) {
   source = stripChatElementRefine('hooks/use-textlabs-generation.ts', source) // NEXT_PUBLIC_CHAT_ELEMENT_REFINE
   source = stripChatAddTargeted('hooks/use-textlabs-generation.ts', source) // LATER-CHANGES: registry read (CHAT-ADD-TARGETED)
-  source = stripChatAddStacking('hooks/use-textlabs-generation.ts', source) // LATER-CHANGES: registry read (CHAT-ADD-STACKING)
+  source = laterStripsForChatAddFreeSlot.find(fn => fn.name === 'stripChatAddFreeSlot')('hooks/use-textlabs-generation.ts', stripChatAddStacking('hooks/use-textlabs-generation.ts', source)) // LATER-CHANGES: registry read (CHAT-ADD-STACKING), then (CHAT-ADD-FREE-SLOT) from the registry
   const out = []
   let inBlock = false
   for (const line of source.split('\n')) {

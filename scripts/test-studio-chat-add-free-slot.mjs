@@ -143,6 +143,7 @@ function housePattern(stripFn) {
     const diff = git('diff', '-U0', `${strip.BASE_COMMIT}..${OWN}`, '--', rel).split('\n').filter(l => /^[+-]/.test(l) && !/^(\+\+\+|---) /.test(l))
     ok(diff.length > 0 && diff.every(l => l.startsWith('+') && strip.CHAT_ADD_FREE_SLOT_MARKER_RE.test(l)), `${rel}: pure insertions, each marked`)
   }
+  for (const rel of strip.CHAT_ADD_FREE_SLOT_PIN_FILES) eq(stripFn(rel, git('show', `${OWN}:${rel}`)), git('show', `${strip.BASE_COMMIT}:${rel}`), `${rel} (a taught proof): stripped, it is the base byte for byte`)
   eq(stripFn('app/builder/page.tsx', 'x // CHAT-ADD-FREE-SLOT\n'), 'x // CHAT-ADD-FREE-SLOT\n', 'strip: a file it does not own is untouched')
   eq(stripFn(HOOK, 'a // CHAT-ADD-FREE-SLOT-X\nb // X-CHAT-ADD-FREE-SLOT\n'), 'a // CHAT-ADD-FREE-SLOT-X\nb // X-CHAT-ADD-FREE-SLOT\n', 'strip: the marker is a whole token')
   eq(git('show', `${OWN}:.env.example`), `${git('show', `${strip.BASE_COMMIT}:.env.example`)}\n${strip.CHAT_ADD_FREE_SLOT_ENV_BLOCK}`, '.env.example is the base plus the block')
