@@ -1,12 +1,10 @@
 /** Ported from Garud feature/companion-v2-player b3a812e (packages/core/src/voice/companion-compositor.ts), unchanged except where marked "Deckster:". Pure: no React, no DOM. */
 /** Pure layered companion scene selection. All clocks are supplied by the host. */
-// Deckster: types come from ELEMENT-3's core (lib/studio/voice). Its v1 manifest types `face` as the native Face pointer only and has no CompanionState,
-// so the manifest here is the v1 shape with `face` left open (isCompanionFace decides), and a state is any name (unknown names map to no expression).
+// Deckster: the face contract and manifest types are ELEMENT-3's core (lib/studio/voice, ab2321c8); only the import paths differ from Garud.
 import type { AvatarState } from "../voice/avatar-rig";
-import type { BirdMotionClip, BirdMotionManifest as V1Manifest } from "../voice/bird-motion";
-type CompanionState = string;
-export type BirdMotionManifest = Omit<V1Manifest, "face"> & { face?: unknown };
-import { isCompanionFace, type CompanionFace, type FaceExpression, type FaceHead, type FaceMouth, type FacePatch, type FaceRecipe, type SpeechTimeline } from "./companion-face";
+import type { BirdMotionClip, BirdMotionManifest, CompanionState } from "../voice/bird-motion";
+export type { BirdMotionManifest };
+import { isCompanionFace, type CompanionFace, type FaceExpression, type FaceHead, type FaceMouth, type FacePatch, type FaceRecipe, type SpeechTimeline } from "../voice/companion-face";
 
 export const COMPANION_GESTURE_EASE = .12;
 export const COMPANION_BREATH_PERIOD = 4.5;

@@ -1,4 +1,5 @@
 // FRONTEND-1 (P4-21b): proof of lib/studio/voice-v2, the port of Garud's v2 layered companion (feature/companion-v2-player b3a812e: companion-face, companion-compositor, companion-speech) and Deckster's call glue (call-face).
+//   The face contract parser is ELEMENT-3's (lib/studio/voice/companion-face.ts, its own fixtures); M uses it through index.ts.
 //   G. Garud's own tests (scripts/fixtures/studio-voice-v2/*.test.ts, imports re-pointed), run by a small vitest-shaped shim.
 //   M. Maya's committed pack: both catalogs' face sections pass the locked contract against their own body frames, every piece is on disk, the compatibility view still parses, and the compositor draws her held body.
 //   C. call-face: scene -> recipe, the call's mouth (loudness fallback with the 70 ms crossfade, a timeline when one exists, closed when not speaking or reduced).
@@ -14,8 +15,8 @@ import ts from 'typescript'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const V2 = 'lib/studio/voice-v2'
-const FILES = ['companion-face.ts', 'companion-compositor.ts', 'companion-speech.ts', 'call-face.ts', 'index.ts'].map(f => `${V2}/${f}`)
-const TESTS = ['companion-face', 'companion-compositor', 'companion-speech'].map(n => `scripts/fixtures/studio-voice-v2/${n}.test.ts`)
+const FILES = ['companion-compositor.ts', 'companion-speech.ts', 'call-face.ts', 'index.ts'].map(f => `${V2}/${f}`)
+const TESTS = ['companion-compositor', 'companion-speech'].map(n => `scripts/fixtures/studio-voice-v2/${n}.test.ts`)
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
 const SOURCES = Object.fromEntries(FILES.map(rel => [rel, read(rel)]))
 
@@ -143,7 +144,7 @@ async function all(over = {}, log = false) {
     ok(!/\b(react|document|window|HTMLCanvasElement|requestAnimationFrame|performance\.now|Date\.now|setTimeout)\b/.test(SOURCES[rel].replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '')), `pure: ${rel} touches no DOM, React or clock`)
     ok(rel.endsWith('index.ts') || SOURCES[rel].includes('b3a812e'), `provenance: ${rel} names Garud b3a812e`)
   }
-  for (const f of ['companion-face.ts', 'companion-speech.ts']) {
+  for (const f of ['companion-speech.ts']) {
     const garud = SOURCES[`${V2}/${f}`].split('\n').slice(1).join('\n')
     ok(garud.length > 1000 && !garud.includes('Deckster:'), `port: ${f} is Garud's text after its provenance line`)
   }
@@ -155,11 +156,6 @@ const passed = checks
 
 // E. mutants
 const mutants = [
-  [`${V2}/companion-face.ts`, 'unsafe sources accepted', 'typeof v === "string" && /^[a-zA-Z0-9_/-]+\\.webp$/.test(v)', 'typeof v === "string" && /\\.webp$/.test(v)'],
-  [`${V2}/companion-face.ts`, 'heads need not match bodies', 'Object.keys(f.heads).length !== bodyFrames.length', 'false'],
-  [`${V2}/companion-face.ts`, 'recipes not checked', 'if (!r || !FACE_BROWS.includes(r.brows)', 'if (!r || false'],
-  [`${V2}/companion-face.ts`, 'native Face pointer is v2', 'return record(v) && own(v, "angles")', 'return record(v)'],
-  [`${V2}/companion-face.ts`, 'timeline order not checked', 'c.t <= last', 'false'],
   [`${V2}/companion-compositor.ts`, 'blink never', 'if (t < 3.8) return "open";', 'return "open";'],
   [`${V2}/companion-compositor.ts`, 'blink opens closed eyes', 'r.eyes === "closed" || blink === "open" ? r.eyes : blink', 'blink === "open" ? r.eyes : blink'],
   [`${V2}/companion-compositor.ts`, 'breath too deep', 'export const COMPANION_BREATH_RISE = .008', 'export const COMPANION_BREATH_RISE = .02'],

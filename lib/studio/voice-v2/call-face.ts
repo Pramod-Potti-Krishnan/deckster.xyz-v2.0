@@ -4,7 +4,7 @@
  * - The mouth the call can drive: a speech timeline when one exists (sampleCompanionSpeech on the audio clock), else Garud's loudness fallback
  *   (companionLoudnessMouth, the same thresholds and 20 Hz shape variety as the bird method), with Garud's 70 ms patch crossfade between shapes.
  */
-import type { FaceExpression, FaceMouth, SpeechTimeline } from "./companion-face";
+import type { FaceExpression, FaceMouth, SpeechTimeline } from "../voice/companion-face";
 import { COMPANION_MOUTH_FADE, companionLoudnessMouth, sampleCompanionSpeech, type CompanionMouthSample, type PreparedCompanionSpeech } from "./companion-speech";
 
 /** Studio's call scenes (lib/studio-voice-call-ui.ts CompanionScene) to the pack's recipes. Anything not listed is the plain neutral face. */

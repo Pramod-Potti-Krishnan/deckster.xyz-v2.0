@@ -1,6 +1,6 @@
 /** Ported from Garud feature/companion-v2-player b3a812e (packages/core/src/voice/companion-speech.ts), unchanged except where marked "Deckster:". Pure: no React, no DOM. */
 /** Client-only speech timing. All samples depend on the supplied audio time, never a timer. */
-import { FACE_MOUTHS, parseSpeechTimeline, type FaceMouth, type SpeechTimeline } from "./companion-face";
+import { FACE_MOUTHS, parseSpeechTimeline, type FaceMouth, type SpeechTimeline } from "../voice/companion-face";
 
 export const COMPANION_MOUTH_LEAD = 0.05;
 export const COMPANION_MOUTH_FADE = 0.07;

@@ -1,6 +1,6 @@
 // Garud feature/companion-v2-player b3a812e packages/core/test/companion-speech.test.ts, run by scripts/test-studio-voice-v2.mjs (a vitest-shaped shim). Adapted: imports point at lib/studio/voice-v2.
 import { describe, expect, it } from "vitest";
-import { parseSpeechTimeline, type SpeechTimeline } from "@/lib/studio/voice-v2/companion-face";
+import { parseSpeechTimeline, type SpeechTimeline } from "@/lib/studio/voice/companion-face";
 import { COMPANION_MOUTH_FADE, companionLoudnessMouth, liveCompanionTimeline, prepareCompanionSpeech, sampleCompanionSpeech, textToCompanionSounds } from "@/lib/studio/voice-v2/companion-speech";
 const fixed: SpeechTimeline = { cues: [{t:0,mouth:"closed"},{t:.5,mouth:"mbp"},{t:.8,mouth:"ah"},{t:1.2,mouth:"oo"},{t:1.7,mouth:"closed"}], gestures:[{t:.6,clip:"point_left"}] };
 describe("companion audio-clock timing", () => {

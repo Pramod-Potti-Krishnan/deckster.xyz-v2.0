@@ -1,7 +1,7 @@
 // Garud feature/companion-v2-player b3a812e packages/core/test/companion-compositor.test.ts, run by scripts/test-studio-voice-v2.mjs (a vitest-shaped shim). Adapted: imports point at lib/studio/voice-v2.
 import { describe, expect, it } from "vitest";
-import type { BirdMotionManifest } from "@/lib/studio/voice-v2/companion-compositor";
-import { FACE_BROWS, FACE_EYES, FACE_EXPRESSIONS, FACE_MOUTHS, type CompanionFace, type FaceMouth } from "@/lib/studio/voice-v2/companion-face";
+import type { BirdMotionManifest } from "@/lib/studio/voice/bird-motion";
+import { FACE_BROWS, FACE_EYES, FACE_EXPRESSIONS, FACE_MOUTHS, type CompanionFace, type FaceMouth } from "@/lib/studio/voice/companion-face";
 import { COMPANION_BREATH_PERIOD, COMPANION_BREATH_RISE, COMPANION_GESTURE_EASE, companionBlink, companionBreathY, companionHeadDrift, composeCompanionFace, type CompanionCompositionInput } from "@/lib/studio/voice-v2/companion-compositor";
 function manifest(): BirdMotionManifest {
   const box = { x: 0, y: 0, width: 100, height: 100 };
