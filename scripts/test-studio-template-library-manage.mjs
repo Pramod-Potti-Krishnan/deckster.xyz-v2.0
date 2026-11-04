@@ -108,15 +108,20 @@ const MUTATIONS = [
   { name: 'a blocked Rename still opens the field', file: ROW, from: 'onSelect={() => { if (renameBlockedReason) return; startRename() }}', to: 'onSelect={() => { startRename() }}' },
   { name: 'the Rename reason is not shown', file: ROW, from: '{onRename && renameBlockedReason && <p id={renameNoteId}', to: '{false && <p id={renameNoteId}' },
 ]
-const readFile = makeReader(MUTATIONS, 'TEMPLATE_MANAGE_TEST_MUTATION')
-const read = rel => stripLaterChanges(rel, readFile(rel)) // stacked: a later change's lines and .env.example block come out first (scripts/studio-later-changes.mjs)
+const readFile = makeReader([], 'TEMPLATE_MANAGE_TEST_MUTATION') // the mutation is applied below, AFTER the later changes' lines are out (a later change that replaces a base line, as #577 does in the proxy, would otherwise leave the mutant's text nowhere)
+const MUTATION = process.env.TEMPLATE_MANAGE_TEST_MUTATION === undefined ? null : MUTATIONS[Number(process.env.TEMPLATE_MANAGE_TEST_MUTATION)]
+const read = rel => { // stacked: a later change's lines and .env.example block come out first (scripts/studio-later-changes.mjs)
+  let source = stripLaterChanges(rel, readFile(rel))
+  if (MUTATION && MUTATION.file === rel) { assert.ok(source.includes(MUTATION.from), `mutation "${MUTATION.name}" no longer applies; update MUTATIONS`); source = source.replace(MUTATION.from, () => MUTATION.to) }
+  return source
+}
 // A mutant is judged by behaviour: with one applied, the byte-for-byte "without this change's lines it is the base's file" pins are skipped (they would trip on any edit of a pinned line and hide whether the behaviour checks notice it). The normal run keeps them.
 const MUTATING = process.env.TEMPLATE_MANAGE_TEST_MUTATION !== undefined
 
 if (process.argv.includes('--mutation-check')) {
   let caught = 0, invalid = 0
   MUTATIONS.forEach((mutation, index) => {
-    const occurrences = fs.readFileSync(path.join(root, mutation.file), 'utf8').split(mutation.from).length - 1
+    const occurrences = stripLaterChanges(mutation.file, fs.readFileSync(path.join(root, mutation.file), 'utf8')).split(mutation.from).length - 1
     if (occurrences !== 1) { console.error(`INVALID: ${mutation.name} (its text occurs ${occurrences} times in ${mutation.file}, not once)`); invalid++; process.exitCode = 1; return }
     const child = spawnSync(process.execPath, [...process.execArgv, here], { env: { ...process.env, TEMPLATE_MANAGE_TEST_MUTATION: String(index) }, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
     if (child.status === 0) { console.error(`NOT CAUGHT: ${mutation.name}`); process.exitCode = 1 } else if (/no longer applies/.test(child.stderr)) { console.error(`INVALID: ${mutation.name} (its text no longer applies)`); invalid++; process.exitCode = 1 } else { caught++; console.log(`ok   mutant caught: ${mutation.name}`) }
