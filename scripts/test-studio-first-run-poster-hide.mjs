@@ -45,7 +45,7 @@ const check = (fn, ...args) => { checks++; return fn(...args) }
 const STAGE = 'components/builder/studio-welcome-stage.tsx'
 const AREA = 'components/builder/presentation-area.tsx'
 const PAGE = 'app/builder/page.tsx'
-const SOURCES = { [STAGE]: read(STAGE), [AREA]: read(AREA), [PAGE]: read(PAGE) }
+const SOURCES = { [STAGE]: read(STAGE), [AREA]: (await import('./studio-later-changes.mjs')).stripLaterChanges(AREA, read(AREA)), [PAGE]: read(PAGE) } // LATER-CHANGES: registry read (STUDIO-TEMPLATE-MATCH): PresentationArea is read past the lines of the changes registered after this one (the template match's marked lines)
 const FLAG = 'NEXT_PUBLIC_STUDIO_FIRST_RUN_POSTER_HIDE'
 
 // ---------------------------------------------------------------- 1. the stage component

@@ -6,13 +6,14 @@ import {
   BLINK_EVERY_MS, clipsForScene, framedWidth, framingRect, initialsFor, loadCompanionPack, mouthShapeIndex, nextDelayMs, planPoseAt, portraitUrl, scenePlan, stepFrameIndex, stillFrameIndex, clipDurationSec,
   type ClipLike, type CompanionScene, type FramingRect,
 } from '@/lib/studio-voice-call-ui'
+import { createLayeredPainter, parsedLayeredFace } from './layered-face'
 
 /**
  * The companion: one pack from public/companions/<name>/ in the bird layout (motion/manifest.json, and a Face pack beside it for the small disc), drawn on a canvas from the call's scene.
  * The pack is read once, its frames are fetched on demand (a clip when a scene first needs it) and decoded at the size they are drawn, so a disc costs a few megabytes, not a pack's worth.
  * The scene -> clip table is lib/studio-voice-call-ui.ts (Garud's); a clip a pack does not have falls back through the core's resolveCompanionClip (lean_in -> head_tilt ...).
- * A pack with a layered (v2) face (Maya) is drawn in its compatibility view: the catalog without its `face` section (lib: compatCatalog), so she has her body poses, her gestures, her talk slots and her blink, but her mouth, eyes and brows
- * do not change; the v2 renderer plugs in at `layeredPainterFor`, below. A pack that is missing, or does not pass the core's manifest check, shows its portrait (a level ring around it speaks for the voice) and, with no portrait either,
+ * A pack with a layered (v2) face (Maya) is parsed through its compatibility view (the catalog without its `face` section, lib: compatCatalog) for its body poses and clips, and its face is drawn over the held body by
+ * the v2 painter `layeredPainterFor` returns (below); if the face section does not parse, she stays in the compatibility view (body frames only). A pack that is missing, or does not pass the core's manifest check, shows its portrait (a level ring around it speaks for the voice) and, with no portrait either,
  * a plain disc with initials. Reduced motion draws one still per scene and runs no animation loop.
  */
 export interface CompanionPlayerProps {
@@ -30,7 +31,7 @@ export interface CompanionPlayerProps {
 
 export interface LoadedPack {
   manifest: BirdMotionManifest; base: string; resolve: (name: string) => string
-  /** The pack's layered (v2) face section, whole and unread (Garud's locked `face` contract), or null for a v1 pack. Never drawn until a painter is plugged in below. */
+  /** The pack's layered (v2) face section, whole and unread (Garud's locked `face` contract), or null for a v1 pack. Drawn by the v2 painter (layeredPainterFor) when it parses. */
   layered: Record<string, unknown> | null
 }
 const packs = new Map<string, Promise<LoadedPack | null>>()
@@ -49,16 +50,25 @@ export interface LayerPaintInput {
   level: number
   /** Seconds since the scene began. */
   timeSec: number
+  /** Reduced motion: the face holds (closed mouth, no blink, no breath). */
+  reduced?: boolean
 }
 export type LayerPainter = (input: LayerPaintInput) => void
 /**
- * THE SEAM FOR THE V2 PLAYER (Garud's layered face: the body holds while the mouth, eye and brow patches change). Given a pack that has a layered face section, return the painter that draws its patches over the body frame, or null:
- * null (today, for every pack) keeps the compatibility view, which draws the body frames only. When a painter is returned the loop repaints on every animation frame (the body can hold while the mouth moves), calling it right after
- * the body is drawn, and `pack.layered` is the section as the manifest had it. Nothing else in this file or in the lib has to change for the port: the compatibility view already hands the parser a catalog it accepts.
+ * THE SEAM FOR THE V2 PLAYER (Garud's layered face: the body holds while the mouth, eye and brow patches change). Given a pack, return the painter that draws its patches over the body frame, or null.
+ * A pack with a layered face section that Garud's locked contract accepts (lib/studio/voice-v2 parseCompanionFace, against the catalog's own body frames) gets the painter in ./layered-face (Garud's compositor: the
+ * mouth from the speaker's level, Garud's loudness fallback since the call has no viseme timeline; the player's own blink on the eye patch and breathing as a slow transform; the thinking, pleased, concerned and
+ * sorry recipes from the scene). A v1 pack, or a section that does not parse, gets null: the compatibility view, which draws the body frames only. When a painter is returned the loop repaints on every animation
+ * frame, calling it right after the body is drawn. One painter per loaded pack (its pieces are fetched once).
  */
-export function layeredPainterFor(pack: Pick<LoadedPack, 'layered'>): LayerPainter | null {
-  void pack
-  return null
+const painters = new WeakMap<object, LayerPainter | null>()
+export function layeredPainterFor(pack: Pick<LoadedPack, 'layered' | 'manifest' | 'base'>): LayerPainter | null {
+  if (!pack.layered) return null
+  if (painters.has(pack)) return painters.get(pack)!
+  const face = parsedLayeredFace(pack)
+  const painter: LayerPainter | null = face ? createLayeredPainter(pack, face) : null
+  painters.set(pack, painter)
+  return painter
 }
 
 async function fetchJson(url: string): Promise<unknown> {
@@ -155,6 +165,7 @@ export function CompanionPlayer({ pack, scene, dance, framing, size, reducedMoti
     if (!context) return
     const store = new FrameStore(loaded, Math.min(1, (canvas.width * 1.25) / rect.sw))
     const painter = layeredPainterFor(loaded) // null: the compatibility view (the body frames only)
+    if (rootRef.current) rootRef.current.dataset.companionFace = painter ? 'layered' : loaded.layered ? 'compat' : 'v1'
     const clipOf = (name: string): ClipLike => loaded.manifest.clips[loaded.resolve(name)] ?? loaded.manifest.clips.idle_breathe!
     const clipName = (name: string) => loaded.resolve(name)
     let raf = 0
@@ -175,7 +186,7 @@ export function CompanionPlayer({ pack, scene, dance, framing, size, reducedMoti
       context.clearRect(0, 0, canvas.width, canvas.height)
       context.drawImage(bitmap, rect.sx * k, rect.sy * k, rect.sw * k, rect.sh * k, 0, 0, canvas.width, canvas.height)
       shownId = id
-      painter?.({ context, canvas, pack: loaded, frame: store.has(id) ? id : loaded.manifest.neutral, bitmap, rect, scene: currentScene, level: live.current.getLevel(), timeSec: (performance.now() - sceneStart) / 1000 })
+      painter?.({ context, canvas, pack: loaded, frame: store.has(id) ? id : loaded.manifest.neutral, bitmap, rect, scene: currentScene, level: live.current.getLevel(), timeSec: (performance.now() - sceneStart) / 1000, reduced: live.current.reducedMotion })
       return true
     }
     const pick = (now: number): { id: string; clip: string } => {

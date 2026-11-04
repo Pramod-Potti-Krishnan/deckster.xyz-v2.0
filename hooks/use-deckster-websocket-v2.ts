@@ -18,6 +18,9 @@ import { STUDIO_JOB_LEDGER_ENABLED, JOB_UPDATE_TYPE, jobLedgerRow, jobLedgerRows
 import { STUDIO_BULK_EDIT_UNDO_ENABLED, STUDIO_CHAT_UNDO_ENABLED, BULK_EDIT_UNDO_CLIENT_CAPS, addBulkEditUndoCaps, normaliseDeckRestored } from '@/lib/studio-bulk-edit-wire'; // BULK-EDIT-UNDO (flags NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO, default off)
 import { bulkEditUndoContext, routeStudioBulkEditUndoFrame } from '@/lib/studio-bulk-edit-store'; // BULK-EDIT-UNDO
 import { STUDIO_CHAT_COMMANDS_ENABLED, addChatCommandsFields, chatCommandsSent } from '@/lib/studio-chat-commands-wire'; // CHAT-COMMANDS (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, default off): the picked @ references, the / command hint and the mentions2 / commands1 caps
+import { STUDIO_TEMPLATE_MATCH_ENABLED, isTemplateMatchMessage } from '@/lib/studio-template-match'; // STUDIO-TEMPLATE-MATCH (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH, default off): the matched template's capability, the two sends and Director's template_match frame
+import { addTemplateMatchCap, templateMatchBaseCaps } from '@/lib/studio-template-match-wire'; // STUDIO-TEMPLATE-MATCH
+import { templateMatchFrameReceived, templateMatchSocketOpened } from '@/hooks/use-studio-template-match'; // STUDIO-TEMPLATE-MATCH
 import { STUDIO_FLOW_AMEND_ENABLED, STUDIO_FLOW_FOCUS_ENABLED, flowBus, isFlowFocusFrameType, isFlowSettledPhase, takeFlowInstructions } from '@/lib/studio-flow-control'; // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_FOCUS / _FLOW_AMEND, default off)
 import { STUDIO_VOICE_CALL_UI_ENABLED, addVoiceCallFields, isVoiceCallFrameType, voiceCallBus } from '@/lib/studio-voice-call-ui'; // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL, default off)
 import type { ManualDeckContext } from '@/lib/manual-deck-workflow';
@@ -1811,6 +1814,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
           // Start heartbeat to keep connection alive
           startHeartbeat(ws);
+          if (STUDIO_TEMPLATE_MATCH_ENABLED) templateMatchSocketOpened({ sessionId: socketSessionId, userId: userIdRef.current || null, socket: { send: message => { if (wsRef.current !== ws || ws.readyState !== WebSocket.OPEN) return false; try { ws.send(JSON.stringify(message)); return true } catch { return false } }, caps: templateMatchBaseCaps } }); // STUDIO-TEMPLATE-MATCH: the user's auto-apply preference goes out on every connect, here, before any user_message can be sent on this socket. Off: nothing.
 
           setState(prev => ({
             ...prev,
@@ -1953,6 +1957,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             // CHAT-ELEMENT-EDIT (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off): Director's element_edit unlocks the turn and goes to the page's runner, here, ahead of the allowlist, so it
             // CHAT-ELEMENT-EDIT: never reaches the reducer, the transcript or the cache (lib/chat-element-edit-wire.ts). Flag off: unknown, dropped below as before.
             if (CHAT_ELEMENT_EDIT_ENABLED && routeElementEditFrame(parsedMessage, { sessionId: socketSessionId, isCurrent: isCurrentSocket, unlockTurn: clearAwaitReply, onDirective: transportCallbacksRef.current.onElementEditDirective })) return; // CHAT-ELEMENT-EDIT
+            if (STUDIO_TEMPLATE_MATCH_ENABLED && isTemplateMatchMessage(parsedMessage)) { if (parsedMessage.session_id === socketSessionId) templateMatchFrameReceived(parsedMessage, socketSessionId); return } // STUDIO-TEMPLATE-MATCH: Director's template_match is a state tick (it does not unlock the turn): it goes to the store, here, ahead of the allowlist, never to the reducer, the transcript or the cache. Off: unknown, dropped below as before.
             // CHAT-PARITY (any NEXT_PUBLIC_STUDIO_CHAT_PARITY_* flag on): Director's studio_action unlocks the turn and goes to the page's runner, here, ahead of the allowlist,
             // CHAT-PARITY: so it never reaches the reducer, the transcript or the cache; a frame with no request id is dropped unanswered. Every flag off: unknown, dropped below as before.
             if (STUDIO_CHAT_PARITY_ANY_ENABLED && isChatParityRequestFrame(parsedMessage)) { // CHAT-PARITY
@@ -3464,6 +3469,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
     try {
       const message = buildUserMessage();
+      if (STUDIO_TEMPLATE_MATCH_ENABLED) addTemplateMatchCap(message.data as unknown as Record<string, unknown>); // STUDIO-TEMPLATE-MATCH: template_match1, LAST in client_caps (after every other cap, on the built message). Off: nothing.
       const effectiveStoreName = message.data.store_name;
 
       debugLog(

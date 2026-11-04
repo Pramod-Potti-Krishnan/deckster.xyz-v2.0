@@ -5,7 +5,7 @@
   "baseHead": "abf52d4d4858b24cdb62549325ae5b9eed36624e",
   "fullBranchHead": "466fc2503463be2213b6f1d267eed30fcc5cf078",
   "latestFocusedHead": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
-  "status": "rebased-dc154019-light-checks-only-awaiting-seat2-gate",
+  "status": "merged-91bcc908-light-checks-only-frozen-for-seat2-gate",
   "voiceFixtureTests": {
     "files": 11,
     "passed": 225,
@@ -3853,5 +3853,95 @@
       "builds"
     ],
     "reason": "PROGRAM-1 2026-11-02T15:49Z Mac memory/disk hold; light rebase only, OPS-2 gates on seat 2"
+  },
+  "post559Refresh": {
+    "targetHead": "7ccc857be71ac5b4dd74b05838ffe77537fbb9ae",
+    "mergeCodeHead": "e59b7f1f054bffadea6260f34defbef6379fec4b",
+    "method": "merge-only; preserve existing feature ancestry",
+    "normalizedProofMetadataViews": {
+      "files": 19,
+      "mismatches": 0
+    },
+    "appSourceIdentity": "identical to target across app/components/hooks/public/styles/types",
+    "coreAndFixtureIdentity": "identical to 9f724934",
+    "checks": [
+      "exact source/metadata views",
+      "JavaScript syntax",
+      "git diff --check",
+      "clean merge-tree"
+    ],
+    "notRerun": [
+      "Vitest",
+      "TypeScript job",
+      "Studio suites",
+      "builds"
+    ],
+    "gateOwner": "OPS-2 seat2; current Mac hold remains in effect"
+  },
+  "postF13Refresh": {
+    "targetHead": "91bcc9083defa55aafce204be3949fd2ff8e5841",
+    "mergeCodeHead": "9d2b90d36c05bd8cbf0bcc8828ce332ba5ca88b9",
+    "method": "merge-only, preserve both sides of append conflicts",
+    "normalizedViews": {
+      "files": 19,
+      "mismatches": 0
+    },
+    "sourceIdentity": "application trees identical target; core and fixtures identical8d652288",
+    "checks": [
+      "19 exact views",
+      "JavaScript syntax",
+      "git diff --check",
+      "clean merge-tree"
+    ],
+    "suitesTypesBuilds": "not rerun; OPS-2 seat2 gate owns them",
+    "dependencyRuling": "PROGRAM-1 approved option a: retain Vitest5.0.3; OPS-2 one online install on seat2"
+  },
+  "mayaV2Followup": {
+    "base": "dcb9c9007423a4004d6ae98eb12c481997263fc4",
+    "branch": "element3/p4-19-maya-v2-core",
+    "sourceCommit": "b3a812e",
+    "sourceFaceSha256": "7ac34352e22e50f4973568b1d09d6f2a560f5d307b66c0f3ef0544f8648aa99e",
+    "sourceFaceIdentity": "byte-identical",
+    "voiceFixtures": {
+      "files": 13,
+      "passed": 286,
+      "retained": 225,
+      "new": 61
+    },
+    "strictClientCoreTypes": "passed",
+    "strictPinnedCompositorAndSamplerConsumerTypes": "passed",
+    "deliveredManifestValidation": [
+      {
+        "variant": "motion",
+        "bodyFrames": 77,
+        "angles": [
+          "front",
+          "left",
+          "right"
+        ],
+        "clips": 61,
+        "states": 23,
+        "totalBytes": 4791288
+      },
+      {
+        "variant": "face",
+        "bodyFrames": 77,
+        "angles": [
+          "front",
+          "left",
+          "right"
+        ],
+        "clips": 61,
+        "states": 23,
+        "totalBytes": 4999106
+      }
+    ],
+    "fullStudioSuites": "not rerun for this follow-up",
+    "noRuntimeChanges": "no app/components/hooks/public/styles/types/dependency/flag/transport edits",
+    "limits": [
+      "JSON validation only; no image decode",
+      "no actual rendering, audio sync or physical-device acceptance",
+      "no connected providers, paid calls or real audio"
+    ]
   }
 }

@@ -48,6 +48,15 @@ export const VOICE_CALL_NEW_FILES = [
   'app/api/studio/voice/transcribe/route.ts',
   'app/api/studio/voice/speak/route.ts',
   'scripts/test-studio-voice-speech-routes.mjs',
+  // P4-21b: Maya's layered face (Garud's v2 player port, b3a812e): the pure modules, the painter behind the player's seam, and their proof
+  'lib/studio/voice-v2/companion-compositor.ts',
+  'lib/studio/voice-v2/companion-speech.ts',
+  'lib/studio/voice-v2/call-face.ts',
+  'lib/studio/voice-v2/index.ts',
+  'components/builder/voice-call/layered-face.ts',
+  'scripts/test-studio-voice-v2.mjs',
+  'scripts/fixtures/studio-voice-v2/companion-compositor.test.ts',
+  'scripts/fixtures/studio-voice-v2/companion-speech.test.ts',
 ]
 
 /** Older proofs one of this change's commits touched and a later one put back (the voice core's subject helper took over for the element-edit and deck-sync ones; the theme-export one is the core's own now (ad5b5232); the stage open gate's reads the page past every registered later change itself (laterStrips); the font-selection sandbox runs the socket hook unchanged, its voice line guards the flag with typeof): the history touches them, the tree does not change them. */
@@ -56,7 +65,7 @@ export const VOICE_CALL_PUT_BACK_FILES = ['scripts/test-studio-chat-element-edit
 /** The one edit of the voice core's strip module (its commit-subject helper also names this change's commits): the line carries the marker, the text before it is the core's own. */
 export const VOICE_CALL_CORE_STRIP_EDIT = 'scripts/studio-voice-core-strip.mjs'
 /** The dock and the one toolbar button the first design had (replaced by the stage and the two buttons beside Send): this change's earlier commits touched them, the tree has them no more. */
-export const VOICE_CALL_RETIRED_FILES = ['components/builder/voice-call/voice-call-dock.tsx', 'components/builder/voice-call/voice-call-button.tsx']
+export const VOICE_CALL_RETIRED_FILES = ['components/builder/voice-call/voice-call-dock.tsx', 'components/builder/voice-call/voice-call-button.tsx', /* P4-21b: the first port's face parser, replaced by ELEMENT-3's lib/studio/voice/companion-face.ts */ 'lib/studio/voice-v2/companion-face.ts', 'scripts/fixtures/studio-voice-v2/companion-face.test.ts']
 
 /** Files this change edits that are neither marked app code nor new: its .env.example block, the registry (three lines), the core's subject helper (one marked edit) and the proofs its history touched. No package.json script: run the proof with `node scripts/test-studio-voice-call.mjs`. */
 export const VOICE_CALL_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', VOICE_CALL_CORE_STRIP_EDIT, ...VOICE_CALL_PUT_BACK_FILES]
