@@ -11,8 +11,8 @@ import { openDrivePicker } from "@/lib/gdrive-picker-loader"
 export const dynamic = "force-dynamic"
 
 /** P4-15 slice 1 (DARK). Flag NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED exact "true"; off → 404. Tier gate pending PK decision C1. */
-interface DriveItem { id?: string; title?: string; source_modified_at?: string; source_url?: string; status?: string; error?: string }
-interface DriveState { connected?: boolean; account_label?: string; items?: DriveItem[] }
+interface DriveItem { id?: string; title?: string | null; modified_time?: string | null; url?: string | null; status?: string | null; error?: string | null }
+interface DriveState { connected?: boolean; account_label?: string | null; items?: DriveItem[] }
 
 export default function ConnectorsSettingsPage() {
   if (!isGdriveConnectorEnabled()) notFound()
@@ -71,8 +71,8 @@ function GoogleDriveCard() {
           <ul className="divide-y text-sm" aria-label="Files added from Google Drive">
             {state.items.map((item, i) => (
               <li key={item.id ?? i} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                <span className="font-medium">{item.source_url ? <a href={item.source_url} target="_blank" rel="noopener noreferrer">{item.title ?? "Untitled"}</a> : (item.title ?? "Untitled")}</span>
-                <span className="text-slate-500">{item.source_modified_at ? `Modified ${new Date(item.source_modified_at).toLocaleString()}` : ""}</span>
+                <span className="font-medium">{item.url ? <a href={item.url} target="_blank" rel="noopener noreferrer">{item.title ?? "Untitled"}</a> : (item.title ?? "Untitled")}</span>
+                <span className="text-slate-500">{item.modified_time ? `Modified ${new Date(item.modified_time).toLocaleString()}` : ""}</span>
                 <span>{item.status ?? "queued"}{item.error ? `: ${item.error}` : ""}</span>
               </li>
             ))}

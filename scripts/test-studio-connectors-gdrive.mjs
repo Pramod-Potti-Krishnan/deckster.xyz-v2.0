@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import vm from 'node:vm'
+import crypto from 'node:crypto'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
@@ -47,7 +48,7 @@ const stubsFor = (userId = 'cuid_session_user') => ({
   },
   '@/lib/service-url': { requireServiceUrl: (_l, c) => { if (!c[0].value) throw new Error('nc'); return c[0].value } },
 })
-const ENV_ON = { NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED: 'true', NEXTAUTH_SECRET: 's3cret', NEXTAUTH_URL: 'https://app.test', GOOGLE_CONNECTOR_CLIENT_ID: 'cid', KNOWLEDGE_SERVICE_URL: 'https://researcher.test' }
+const ENV_ON = { NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED: 'true', NEXTAUTH_SECRET: 's3cret', NEXTAUTH_URL: 'https://app.test', GOOGLE_CONNECTOR_CLIENT_ID: 'cid', KNOWLEDGE_SERVICE_URL: 'https://researcher.test', RESEARCHER_SESSION_TOKEN_SECRET: 'test-only-researcher-session-secret-0123456789' }
 const fakeFetch = async (url, init) => { calls.push({ url, init, body: init?.body ? JSON.parse(init.body) : undefined }); return reply(url, init) }
 globalThis.fetch = fakeFetch
 const SERVER = 'lib/connectors-gdrive-server.ts'
@@ -145,7 +146,7 @@ await t('items GET / disconnect / picker-token use session owner; token-like fie
   const s = load(SERVER, stubsFor(), ENV_ON)
   const g = await s.handleItemsGet()
   assert.equal(new URL(calls[0].url).searchParams.get('owner_id'), 'cuid_session_user')
-  assert.deepEqual(plain(g.body), { connected: true, items: [{ title: 'Doc' }] })
+  assert.deepEqual(plain(g.body), { connected: true, account_label: null, items: [{ title: 'Doc' }] })
   await s.handleDisconnect(); assert.deepEqual(plain(calls[1].body), { owner_id: 'cuid_session_user' })
   reply = () => ({ ok: true, status: 200, json: async () => ({ access_token: 'short', expires_in: 3599, refresh_token: 'RT' }) })
   const p = await s.handlePickerToken(); assert.deepEqual(plain(p.body), { access_token: 'short', expires_in: 3599 })
@@ -156,5 +157,51 @@ await t('unauthenticated => 401, no fetch; upstream 500 => plain-words 502', asy
   reply = () => ({ ok: false, status: 500, json: async () => ({ detail: 'Traceback...' }) })
   const s2 = load(SERVER, stubsFor(), ENV_ON)
   const r = await s2.handleDisconnect(); assert.equal(r.status, 502); assert.ok(!JSON.stringify(r.body).includes('Traceback'))
+})
+// 6. K-06 identity contract (shared vector with Researcher tests/test_connectors_gdrive.py)
+const VECTOR = { secret: 'deckster-p4-15-connector-contract-test-vector', owner: 'cuid_vector_user_01', exp: 4102444800,
+  token: 'v1.bGliOmN1aWRfdmVjdG9yX3VzZXJfMDE.Y3VpZF92ZWN0b3JfdXNlcl8wMQ.4102444800.vImUHf3LHLKn-HLM7ujUHthqmabrtM9C5r8Oki-0_mQ' }
+await t('shared vector: Studio mint == Researcher-accepted token', async () => {
+  const tok = load('lib/researcher-session-token.ts', {}, {})
+  const m = tok.mintResearcherSessionToken({ secret: VECTOR.secret, sessionId: lib.connectorSessionId(VECTOR.owner), userId: VECTOR.owner, ttlSeconds: 600, nowSeconds: VECTOR.exp - 600 })
+  assert.equal(m.token, VECTOR.token)
+})
+await t('every Researcher call (callback included) carries a lib:<owner> K-06 token for the session user', async () => {
+  const s = load(SERVER, stubsFor(), ENV_ON)
+  const st = lib.signState('s3cret', 'cuid_session_user', 'n1')
+  await s.handleCallback(req(`https://app.test/api/connectors/gdrive/callback?code=C&state=${st}`, null, 'n1'))
+  await s.handlePickerToken(); await s.handleItemsGet(); await s.handleItemsPost(req('u', { file_ids: ['1AbCdEfGhIjK_-x'] })); await s.handleDisconnect()
+  assert.equal(calls.length, 5)
+  for (const c of calls) {
+    const [v, sid, uid, exp, mac] = c.init.headers['X-Deckster-Session-Token'].split('.')
+    assert.equal(v, 'v1'); assert.equal(Buffer.from(sid, 'base64url').toString(), 'lib:cuid_session_user')
+    assert.equal(Buffer.from(uid, 'base64url').toString(), 'cuid_session_user')
+    const want = crypto.createHmac('sha256', ENV_ON.RESEARCHER_SESSION_TOKEN_SECRET).update(`lib:cuid_session_user|cuid_session_user|${exp}`).digest('base64url')
+    assert.equal(mac, want); assert.ok(Number(exp) - Date.now() / 1000 <= 301)
+    assert.equal(c.init.headers['X-API-Key'], 'test-key')
+  }
+})
+await t('secret unset/short => fail closed: 503 / callback failed, no Researcher call', async () => {
+  for (const sec of [undefined, 'short']) {
+    calls = []
+    const s = load(SERVER, stubsFor(), { ...ENV_ON, RESEARCHER_SESSION_TOKEN_SECRET: sec })
+    assert.equal((await s.handleStart()).status, 503)
+    for (const r of [await s.handlePickerToken(), await s.handleItemsGet(), await s.handleItemsPost(req('u', { file_ids: ['1AbCdEfGhIjK_-x'] })), await s.handleDisconnect()]) assert.equal(r.status, 503)
+    const st = lib.signState('s3cret', 'cuid_session_user', 'n1')
+    assert.match((await s.handleCallback(req(`https://app.test/cb?code=C&state=${st}`, null, 'n1'))).location, /gdrive=failed/)
+    assert.equal(calls.length, 0)
+  }
+})
+await t('allow-list relay: contract fields kept, unknown/secret fields dropped, error_code relayed', async () => {
+  const row = { id: 'f1', source_ref: 'f1', title: 'Doc', mime: 'm', modified_time: 't', url: 'https://d', status: 'queued', error: null, job_id: 'j',
+    storage_path: 'connectors/x', owner_id: 'o', enc_refresh_token: 'RT', credentials: { a: 1 } }
+  reply = () => ({ ok: true, status: 200, json: async () => ({ connected: true, account_label: 'a@b', items: [row], refresh_token: 'RT', debug: 1 }) })
+  const s = load(SERVER, stubsFor(), ENV_ON)
+  const g = plain((await s.handleItemsGet()).body)
+  assert.deepEqual(g, { connected: true, account_label: 'a@b', items: [{ id: 'f1', source_ref: 'f1', title: 'Doc', mime: 'm', modified_time: 't', url: 'https://d', status: 'queued', error: null, job_id: 'j' }] })
+  reply = () => ({ ok: false, status: 409, json: async () => ({ detail: 'CONNECTOR_GRANT_REVOKED' }) })
+  const e = await s.handleItemsGet(); assert.equal(e.status, 409); assert.equal(e.body.error_code, 'CONNECTOR_GRANT_REVOKED')
+  reply = () => ({ ok: false, status: 401, json: async () => ({ detail: 'secret=abc' }) })
+  const e2 = await s.handleItemsGet(); assert.equal(e2.body.error_code, null)
 })
 console.log(`\n${passed} passed`)

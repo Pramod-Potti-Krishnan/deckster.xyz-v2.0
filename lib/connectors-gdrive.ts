@@ -7,7 +7,7 @@ import crypto from 'node:crypto'
 export const GDRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file'
 export const GDRIVE_NONCE_COOKIE = 'deckster_gdrive_oauth_nonce'
 export const STATE_TTL_MS = 10 * 60 * 1000
-export const MAX_ITEMS_PER_POST = 50
+export const MAX_ITEMS_PER_POST = 25 // = Researcher MAX_ITEMS_PER_CALL
 
 export function isGdriveConnectorEnabled(value: string | undefined = process.env.NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED): boolean {
   return value === 'true'
@@ -63,4 +63,33 @@ export function validateFileIds(input: unknown): string[] | null {
     if (!out.includes(id)) out.push(id)
   }
   return out
+}
+
+/** K-06 token scope for connector calls: sid = "lib:<owner>", uid = owner (Researcher services/connectors/identity.py). */
+export const CONNECTOR_SESSION_PREFIX = 'lib:'
+export const CONNECTOR_TOKEN_TTL_SECONDS = 300
+export const connectorSessionId = (ownerId: string) => `${CONNECTOR_SESSION_PREFIX}${ownerId}`
+
+/** Item fields relayed to the browser (Researcher routers/connectors.py ITEM_FIELDS). Anything else is dropped. */
+export const ITEM_FIELDS = ['id', 'source_ref', 'title', 'mime', 'modified_time', 'url', 'status', 'error', 'job_id'] as const
+
+export function pick(value: unknown, fields: readonly string[]): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return out
+  const src = value as Record<string, unknown>
+  for (const f of fields) {
+    const v = src[f]
+    if (v === null || typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') out[f] = v
+  }
+  return out
+}
+
+/** Researcher error codes Studio may relay as error_code; anything else reads null. */
+export const CONNECTOR_ERROR_CODES = [
+  'CONNECTOR_IDENTITY_NOT_CONFIGURED', 'CONNECTOR_IDENTITY_REQUIRED', 'CONNECTOR_IDENTITY_INVALID', 'CONNECTOR_OWNER_MISMATCH',
+  'CONNECTOR_NOT_CONNECTED', 'CONNECTOR_GRANT_REVOKED', 'CONNECTOR_CRYPTO_UNAVAILABLE', 'CONNECTOR_UPSTREAM_ERROR',
+  'CONNECTOR_EXCHANGE_FAILED', 'CONNECTOR_NO_REFRESH_TOKEN',
+] as const
+export function connectorErrorCode(detail: unknown): string | null {
+  return typeof detail === 'string' && (CONNECTOR_ERROR_CODES as readonly string[]).includes(detail) ? detail : null
 }
