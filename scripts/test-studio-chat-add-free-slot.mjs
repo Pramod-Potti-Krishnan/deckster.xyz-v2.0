@@ -105,7 +105,7 @@ async function suite() {
   eq([img, cap], [i0, c0], 'an unreadable caption position: both stay')
   img = { gridRow: '4/14', gridColumn: '2/16', positionWidth: 14, positionHeight: 10 }; cap = { gridRow: '14/18', gridColumn: '2/16' }
   const [i1, c1] = [{ ...img }, { ...cap }]
-  eq(await lib.applyChatAddFreeSlot({ params: img, caption: cap, sendElementCommand: viewer(ctx([['4/18', '2/18']])), slideIndex: 1 }), null, 'no room for the pair: no move')
+  eq(await lib.applyChatAddFreeSlot({ params: img, caption: cap, sendElementCommand: viewer(ctx([['4/18', '2/20']])), slideIndex: 1 }), null, 'no room for the pair: no move')
   eq([img, cap], [i1, c1], 'no room for the pair: both stay (never split, never shrunk)')
 
   // ---- D. a slow viewer is logged
