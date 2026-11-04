@@ -99,6 +99,9 @@ async function suite() {
   eq([rc.r0 - ri.r0, rc.c0 - ri.c0], [10, 0], 'the caption keeps its place under the picture (same offset)')
   ok(!overlaps(ri, { r0: 4, r1: 18, c0: 2, c1: 16 }) && !overlaps(rc, { r0: 4, r1: 18, c0: 2, c1: 16 }), 'the pair is clear of the slide\'s boxes')
   eq([slot.startCol, slot.startRow], [ri.c0, ri.r0], 'the slot is the picture\'s')
+  img = { gridRow: '4/12', gridColumn: '2/16', positionWidth: 14, positionHeight: 8 }; cap = { gridRow: '12/14', gridColumn: '2/16' }
+  ok(await lib.applyChatAddFreeSlot({ params: img, caption: cap, sendElementCommand: viewer(ctx([['4/7', '2/32']])), slideIndex: 1 }), 'picture + caption under a title band: moved down')
+  eq([img.gridRow, img.gridColumn, cap.gridRow, cap.gridColumn], ['8/16', '2/16', '16/18', '2/16'], 'moved down together: the caption by the same rows as its picture')
   img = { gridRow: '4/14', gridColumn: '2/16', positionWidth: 14, positionHeight: 10 }; cap = { gridRow: 'auto', gridColumn: '2/16' }
   const [i0, c0] = [{ ...img }, { ...cap }]
   eq(await lib.applyChatAddFreeSlot({ params: img, caption: cap, sendElementCommand: viewer(left), slideIndex: 1 }), null, 'an unreadable caption position: no move')
