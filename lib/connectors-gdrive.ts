@@ -9,9 +9,7 @@ export const GDRIVE_NONCE_COOKIE = 'deckster_gdrive_oauth_nonce'
 export const STATE_TTL_MS = 10 * 60 * 1000
 export const MAX_ITEMS_PER_POST = 25 // = Researcher MAX_ITEMS_PER_CALL
 
-export function isGdriveConnectorEnabled(value: string | undefined = process.env.NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED): boolean {
-  return value === 'true'
-}
+export { isGdriveConnectorEnabled } from '@/lib/connectors-gdrive-flag'
 
 const b64url = (buf: Buffer) => buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 const hmac = (secret: string, data: string) => b64url(crypto.createHmac('sha256', secret).update(data).digest())

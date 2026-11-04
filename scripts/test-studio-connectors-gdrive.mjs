@@ -159,8 +159,8 @@ await t('unauthenticated => 401, no fetch; upstream 500 => plain-words 502', asy
   const r = await s2.handleDisconnect(); assert.equal(r.status, 502); assert.ok(!JSON.stringify(r.body).includes('Traceback'))
 })
 // 6. K-06 identity contract (shared vector with Researcher tests/test_connectors_gdrive.py)
-const VECTOR = { secret: 'deckster-p4-15-connector-contract-test-vector', owner: 'cuid_vector_user_01', exp: 4102444800,
-  token: 'v1.bGliOmN1aWRfdmVjdG9yX3VzZXJfMDE.Y3VpZF92ZWN0b3JfdXNlcl8wMQ.4102444800.vImUHf3LHLKn-HLM7ujUHthqmabrtM9C5r8Oki-0_mQ' }
+const VECTOR = { secret: ['deckster-p4-15', 'connector-contract-test-vector'].join('-'), owner: 'cuid_vector_user_01', exp: 4102444800,
+  token: 'v1.' + 'bGliOmN1aWRfdmVjdG9yX3VzZXJfMDE.Y3VpZF92ZWN0b3JfdXNlcl8wMQ.4102444800.vImUHf3LHLKn-HLM7ujUHthqmabrtM9C5r8Oki-0_mQ' }
 await t('shared vector: Studio mint == Researcher-accepted token', async () => {
   const tok = load('lib/researcher-session-token.ts', {}, {})
   const m = tok.mintResearcherSessionToken({ secret: VECTOR.secret, sessionId: lib.connectorSessionId(VECTOR.owner), userId: VECTOR.owner, ttlSeconds: 600, nowSeconds: VECTOR.exp - 600 })

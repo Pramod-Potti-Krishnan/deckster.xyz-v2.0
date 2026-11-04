@@ -4,7 +4,7 @@
  * (short-lived, drive.file); no refresh token ever reaches the browser.
  * Env: NEXT_PUBLIC_GOOGLE_PICKER_API_KEY (browser API key, referrer-restricted), NEXT_PUBLIC_GOOGLE_PICKER_APP_ID (GCP project number).
  */
-import { isGdriveConnectorEnabled } from '@/lib/connectors-gdrive'
+import { isGdriveConnectorEnabled } from '@/lib/connectors-gdrive-flag'
 
 type PickerDoc = { id: string }
 declare global { interface Window { gapi?: any; google?: any } } // eslint-disable-line @typescript-eslint/no-explicit-any

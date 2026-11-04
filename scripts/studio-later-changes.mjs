@@ -21,6 +21,7 @@
 // All three lists are empty when nothing is stacked after bulk edit + chat undo, and then nothing here changes anything: stripLaterChanges returns its text as it was given, for every file.
 
 export const LATER_CHANGE_FILES = new Set([
+  ...(await import('./studio-connectors-gdrive-strip.mjs')).CONNECTORS_GDRIVE_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE, P4-15 slice 1 Google Drive picker connector (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED)
   ...(await import('./studio-first-paint-strip.mjs')).FIRST_PAINT_SCOPE_FILES, // LATER-CHANGE: COMPOSER-2, studio first paint (NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED)
   ...(await import('./studio-deck-card-thumbnail-strip.mjs')).DECK_CARD_THUMBNAIL_SCOPE_FILES, // LATER-CHANGE: COMPOSER-2, deck card thumbnails (NEXT_PUBLIC_STUDIO_DECK_CARD_THUMBNAILS_ENABLED)
   ...(await import('./studio-chat-undo-v2-strip.mjs')).CHAT_UNDO_V2_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, chat undo v2 (NEXT_PUBLIC_STUDIO_CHAT_UNDO; no .env.example block)
@@ -76,6 +77,7 @@ export const LATER_CHANGE_FILES = new Set([
 ])
 
 export const LATER_ENV_BLOCKS = [
+  (await import('./studio-connectors-gdrive-strip.mjs')).CONNECTORS_GDRIVE_ENV_BLOCK, // LATER-CHANGE: KNOWLEDGE, P4-15 slice 1 Google Drive picker connector (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED)
   (await import('./studio-first-paint-strip.mjs')).FIRST_PAINT_ENV_BLOCK, // LATER-CHANGE: COMPOSER-2, studio first paint (NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED)
   (await import('./studio-deck-card-thumbnail-strip.mjs')).DECK_CARD_THUMBNAIL_ENV_BLOCK, // LATER-CHANGE: COMPOSER-2, deck card thumbnails (NEXT_PUBLIC_STUDIO_DECK_CARD_THUMBNAILS_ENABLED)
   (await import('./studio-pass3-polish-strip.mjs')).PASS3_POLISH_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, pass 3 polish set, PR A (NEXT_PUBLIC_STUDIO_PASS3_POLISH)

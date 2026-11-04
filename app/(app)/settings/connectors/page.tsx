@@ -5,7 +5,7 @@ import { notFound } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { isGdriveConnectorEnabled } from "@/lib/connectors-gdrive"
+import { isGdriveConnectorEnabled } from "@/lib/connectors-gdrive-flag"
 import { openDrivePicker } from "@/lib/gdrive-picker-loader"
 
 export const dynamic = "force-dynamic"
