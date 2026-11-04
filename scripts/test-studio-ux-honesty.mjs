@@ -119,4 +119,52 @@ for (const [rel, from, to] of MUTANTS) {
   assert.ok(caught, `mutant survived in ${rel}: ${to}`)
   killed++
 }
-console.log(`Studio UX honesty: ${realChecks} checks passed, ${killed}/${MUTANTS.length} mutants killed; no network.`)
+// ---- UX-09 (NEXT_PUBLIC_STUDIO_PAGE_HEADINGS, exact "true", default off): one page container and heading style
+const { execFileSync } = await import('node:child_process')
+const strip = await import('./studio-ux-honesty-strip.mjs')
+const registry = await import('./studio-later-changes.mjs')
+const LAYOUT = 'app/(app)/layout.tsx', LIB_PH = 'lib/studio-page-headings.ts', CSS_PH = 'components/studio-page-headings/studio-page-headings.css'
+function loadTs(source) {
+  const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText
+  const sandbox = { module: { exports: {} }, process: { env: {} } }
+  sandbox.exports = sandbox.module.exports
+  vm.runInNewContext(js, sandbox)
+  return sandbox.module.exports
+}
+function checkHeadings(files) {
+  const lib = files[LIB_PH], layout = files[LAYOUT], css = files[CSS_PH]
+  ok(lib.includes("process.env.NEXT_PUBLIC_STUDIO_PAGE_HEADINGS === 'true' && process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'"), 'UX-09: the flag is exact "true", with the Studio shell')
+  const L = loadTs(lib)
+  ok(L.STUDIO_PAGE_HEADINGS_ENABLED === false, 'UX-09: default off')
+  const box = (maxWidth, ml = '0px', mr = ml) => ({ maxWidth, marginLeft: ml, marginRight: mr })
+  ok(JSON.stringify(L.studioPageContainerRoles([box('none'), box('896px', '40px'), box('none', '12px', '12px'), box('none', '0px', '8px')])) === '[null,"outer","inner",null]', 'UX-09: the first centring box is outer, a later one inner, others left alone')
+  ok(JSON.stringify(L.studioPageContainerRoles([box('none'), box('none', '0px', '0px')])) === '[null,null]', 'UX-09: no centring box: nothing marked')
+  ok(/STUDIO_PAGE_HEADINGS_ENABLED && <StudioPageHeadingsMount \/>/.test(layout), 'UX-09: the layout draws the mount only with the flag on')
+  ok(strip.stripUxHonesty(LAYOUT, layout) === execFileSync('git', ['show', `${strip.BASE_COMMIT}:${LAYOUT}`], { cwd: root, encoding: 'utf8' }), 'UX-09: the layout without its PAGE-HEADINGS lines is the base, byte for byte')
+  const rules = css.split('\n').filter(line => line.includes('{') && !line.startsWith('@media') && !line.startsWith('/*'))
+  ok(rules.length >= 5 && rules.every(line => line.trim().startsWith('html[data-studio-page-headings="true"]')), 'UX-09: every rule is scoped to the flag attribute')
+  ok(/h1\[data-studio-page-heading="true"\] \{ font-size: 28px/.test(css), 'UX-09: one heading size')
+  ok(/\[data-studio-page-container="outer"\] \{[^}]*max-width: 1152px[^}]*padding-left: 32px/.test(css), 'UX-09: one container width and gutter')
+}
+const phFiles = { [LIB_PH]: read(LIB_PH), [LAYOUT]: read(LAYOUT), [CSS_PH]: read(CSS_PH) }
+const before = checks
+checkHeadings(phFiles)
+ok(registry.LATER_CHANGE_FILES.has(LAYOUT) && registry.LATER_STRIPS.includes(strip.stripUxHonesty) && registry.LATER_ENV_BLOCKS.includes(strip.PAGE_HEADINGS_ENV_BLOCK), 'UX-09: registered in scripts/studio-later-changes.mjs')
+ok(read('.env.example').includes(strip.PAGE_HEADINGS_ENV_BLOCK) && /NEXT_PUBLIC_STUDIO_PAGE_HEADINGS="false"/.test(strip.PAGE_HEADINGS_ENV_BLOCK), 'UX-09: .env.example carries the block, off')
+const PH_MUTANTS = [
+  [LIB_PH, "NEXT_PUBLIC_STUDIO_PAGE_HEADINGS === 'true'", "NEXT_PUBLIC_STUDIO_PAGE_HEADINGS !== 'false'"],
+  [LIB_PH, 'if (seen) return \'inner\'', 'if (seen) return \'outer\''],
+  [LIB_PH, "if (box.maxWidth && box.maxWidth !== 'none') return true", 'if (box.maxWidth) return true'],
+  [LAYOUT, '{STUDIO_PAGE_HEADINGS_ENABLED && <StudioPageHeadingsMount />}', '<StudioPageHeadingsMount />'],
+  [LAYOUT, ' // PAGE-HEADINGS\n', '\n'],
+  [CSS_PH, 'html[data-studio-page-headings="true"] [data-studio-v4-shell-workspace="true"] h1', '[data-studio-v4-shell-workspace="true"] h1'],
+  [CSS_PH, 'font-size: 28px', 'font-size: 32px'],
+]
+for (const [rel, from, to] of PH_MUTANTS) {
+  assert.ok(phFiles[rel].includes(from), `UX-09 mutant anchor present in ${rel}: ${from}`)
+  let caught = false
+  try { checkHeadings({ ...phFiles, [rel]: phFiles[rel].replace(from, to) }) } catch { caught = true }
+  assert.ok(caught, `UX-09 mutant survived in ${rel}: ${to}`)
+  killed++
+}
+console.log(`Studio UX honesty: ${realChecks + checks - before} checks passed, ${killed}/${MUTANTS.length + PH_MUTANTS.length} mutants killed; no network.`)

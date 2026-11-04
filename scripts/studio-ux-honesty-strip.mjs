@@ -113,15 +113,15 @@ export const UX_HONESTY_EDITS = {
 }
 
 /** Existing files UX-09 adds marked lines to. */
-export const PAGE_HEADINGS_FILES = []
+export const PAGE_HEADINGS_FILES = ['app/(app)/layout.tsx']
 
 /** New files (no base text to put back). */
-export const UX_HONESTY_NEW_FILES = ['scripts/studio-ux-honesty-strip.mjs', 'scripts/test-studio-ux-honesty.mjs']
+export const UX_HONESTY_NEW_FILES = ['scripts/studio-ux-honesty-strip.mjs', 'scripts/test-studio-ux-honesty.mjs', 'lib/studio-page-headings.ts', 'components/studio-page-headings/studio-page-headings-mount.tsx', 'components/studio-page-headings/studio-page-headings.css']
 
 /** The older proofs and strips this change teaches (one marked line each). */
 export const UX_HONESTY_PIN_FILES = ['scripts/studio-launch-wording-strip.mjs', 'scripts/test-studio-p2-docs.mjs']
 
-export const PAGE_HEADINGS_ENV_BLOCK = ''
+export const PAGE_HEADINGS_ENV_BLOCK = "# STUDIO PAGE HEADINGS (FRONTEND-1, UX-09). On only for the string \"true\" (and only with NEXT_PUBLIC_STUDIO_V4_SHELL); default off, and then nothing runs. Build-time value: change it on Vercel and redeploy.\n# On: the Studio account pages (Decks, Templates, Themes, Intelligence, Details, Settings, Billing ...) share one page container (1152 px wide, 32 px gutter; 16 px on a phone) and one page heading style (28 px, 24 px on a phone).\nNEXT_PUBLIC_STUDIO_PAGE_HEADINGS=\"false\"\n"
 
 /** Every file this change's commits touch. */
 export const UX_HONESTY_SCOPE_FILES = new Set([...Object.keys(UX_HONESTY_EDITS), ...PAGE_HEADINGS_FILES, ...UX_HONESTY_NEW_FILES, ...UX_HONESTY_PIN_FILES, 'scripts/studio-later-changes.mjs', '.env.example'])
