@@ -112,7 +112,7 @@ async function suite() {
   warns.length = 0
   p = { gridRow: '4/10', gridColumn: '2/14', positionWidth: 12, positionHeight: 6 }
   const slowBefore = { ...p }
-  eq(await lib.applyChatAddFreeSlot({ params: p, sendElementCommand: () => new Promise(() => {}), slideIndex: 1, timeoutMs: 15 }), null, 'slow viewer: no slot')
+  eq(await Promise.race([lib.applyChatAddFreeSlot({ params: p, sendElementCommand: () => new Promise(() => {}), slideIndex: 1, timeoutMs: 15 }), new Promise(resolve => setTimeout(() => resolve('hung'), 500))]), null, 'slow viewer: no slot, within the timeout')
   eq(p, slowBefore, 'slow viewer: untouched')
   eq(warns.length, 1, 'slow viewer: one log line')
   ok(/timed out/.test(warns[0]) && /15 ms/.test(warns[0]) && /FREE_SPOT_READ_TIMEOUT_MS/.test(warns[0]), 'the line says the read timed out, after how long, and names the timeout')
