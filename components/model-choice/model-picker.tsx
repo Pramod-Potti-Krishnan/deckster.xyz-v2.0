@@ -37,8 +37,8 @@ export interface ModelPickerProps {
  * (/api/model-choice/prefs, /api/model-choice/prefs/deck/{session}), or on this device while saving is not switched on, and the menu says which. A choice is written to the three text groups together;
  * imagery and narration stay "Fixed for now". Style it from outside with `className` (the chip) and the --mpick-* variables in model-picker.css. */
 export function ModelPicker(props: ModelPickerProps) {
+  if (STUDIO_MODEL_PICKER_ENABLED && props.variant === "slider" && STUDIO_MODEL_PICKER_SIMPLE_ENABLED) return <ModelPickerSimple {...props} /> // MODEL-PICKER-SIMPLE
   if (!STUDIO_MODEL_PICKER_ENABLED) return null
-  if (props.variant === "slider" && STUDIO_MODEL_PICKER_SIMPLE_ENABLED) return <ModelPickerSimple {...props} /> // MODEL-PICKER-SIMPLE
   return props.variant === "slider" ? <ModelPickerSlider {...props} /> : <ModelPickerConnected {...props} />
 }
 

@@ -81,7 +81,7 @@ export function ModelPickerSimple({ sessionId, disabled, className, onChange }: 
 }
 
 /** The picker with everything handed in: the gauge trigger and, open, the popover (or the sheet). Presentation only; a fixture renders it with its own data. */
-export function ModelSimpleView({ view, stateKind, scope, mode, ready, disabled, className, sheet = false, draft = null, advanced, saving = false, announce = "", open, onOpenChange, onDraft, onCommit, onReset, onAdvanced, initialList = false, initialAdvanced = false }: {
+export function ModelSimpleView({ view, stateKind, scope, mode, ready, disabled, className, sheet = false, draft = null, advanced, saving = false, announce = "", open, onOpenChange, onDraft, onCommit, onReset, onAdvanced }: {
   view: SimpleView
   stateKind: string
   scope: "deck" | "user"
@@ -100,8 +100,6 @@ export function ModelSimpleView({ view, stateKind, scope, mode, ready, disabled,
   onCommit: (index: number) => void
   onReset: () => void
   onAdvanced: (choice: ModelChoice) => void
-  initialList?: boolean
-  initialAdvanced?: boolean
 }) {
   const blocked = Boolean(disabled) || !ready
   const thumbRef = useRef<HTMLSpanElement>(null)
@@ -111,7 +109,7 @@ export function ModelSimpleView({ view, stateKind, scope, mode, ready, disabled,
   }
   const icon = <Gauge className="mpick-gauge-icon" size={16} aria-hidden="true" />
   const panel = (Title: ElementType) => <ModelSimplePanel
-    Title={Title} view={view} blocked={blocked} saving={saving} draft={draft} advanced={advanced} thumbRef={thumbRef} initialList={initialList} initialAdvanced={initialAdvanced}
+    Title={Title} view={view} blocked={blocked} saving={saving} draft={draft} advanced={advanced} thumbRef={thumbRef}
     onDraft={onDraft} onCommit={onCommit} onReset={onReset} onAdvanced={onAdvanced} />
   const focusSlider = (event: Event) => { if (thumbRef.current) { event.preventDefault(); thumbRef.current.focus({ preventScroll: true }) } } // the slider takes focus on open, as the slider picker's does
   return <>
