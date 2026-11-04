@@ -38,7 +38,7 @@ const eq = count(assert.equal), deep = count(assert.deepEqual), ok = count(asser
 
 const REGISTRY = 'scripts/studio-later-changes.mjs', PROOF = 'scripts/test-studio-d1-debug-routes.mjs', STRIP = 'scripts/studio-d1-debug-routes-strip.mjs'
 const COUPONS = 'app/api/admin/coupons/route.ts', DEV_HELPER = 'lib/dev-deployment.ts'
-// reviewed and left alone: debug/env answers 403 outside NODE_ENV=development; dev/mock-token answers 403 unless NODE_ENV=development or NEXT_PUBLIC_DEV_MODE=true (and 404 on the dev deployment)
+// reviewed and left alone: debug/env answers 403 outside NODE_ENV=development; dev/mock-token answers 403 unless NODE_ENV=development or NEXT_PUBLIC_DEV_MODE=true (and 404 on the dev deployment); since pre-promo C-07 it is 404 unless NODE_ENV=development AND the flag (scripts/test-studio-dev-token-gate.mjs)
 const KEPT = ['app/api/debug/env/route.ts', 'app/api/dev/mock-token/route.ts']
 // the files that still name a removed route at HEAD, all reported and none edited: an archived plan, and two older pins that already fail on the base (the dev-deployment pin's baseline commit is not in this clone; the
 // dev-server pin needs a running server); and this change's own two scripts
@@ -59,7 +59,8 @@ function proveDeleted() {
     ok(!gitOk('cat-file', '-e', `HEAD:${rel}`), `deleted: ${rel} is not in the committed tree`)
     ok(gitOk('cat-file', '-e', `${BASE}:${rel}`), `deleted: ${rel} was in the base`)
   }
-  for (const rel of KEPT) eq(read(rel), baseOf(rel), `deleted: ${rel} (reviewed, left alone) is the base's, byte for byte`)
+  // taught (FRONTEND-1, pre-promo C-07): a later change may tighten a kept route; through the registry it must still read as the base's, byte for byte
+  for (const rel of KEPT) eq(stripLaterChanges(rel, read(rel)), baseOf(rel), `deleted: ${rel} (reviewed, left alone) is the base's, byte for byte, through the later-changes registry`)
   // the route list (the committed trees, with any in-memory mutation applied): the base's routes minus HEAD's are exactly D1's two (routes a later change ADDS, like #512's /terms and /privacy, are not removals)
   const appFiles = ref => git('ls-tree', '-r', '--name-only', ref, '--', 'app').split('\n').filter(Boolean)
   const headFiles = new Set(appFiles('HEAD'))

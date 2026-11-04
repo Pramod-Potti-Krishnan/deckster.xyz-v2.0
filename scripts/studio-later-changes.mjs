@@ -117,6 +117,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-phone-landscape-strip.mjs')).PHONE_LANDSCAPE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape, PR 1 (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   (await import('./studio-phone-hints-strip.mjs')).PHONE_HINTS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-13 phone hints, PR 2 (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
   // one line per later change, above this comment
+  ...(await import('./studio-prepromo-strip.mjs')).PREPROMO_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, pre-promotion fixes C-07 / C-06 / UX-01 (no flag: security and honesty fixes apply everywhere; no .env.example block)
 ]
 
 /** One strip per later change, (rel, text) => text, in the order the changes were stacked. */
@@ -170,6 +171,7 @@ export const LATER_STRIPS = [
   (await import('./studio-phone-landscape-strip.mjs')).stripPhoneLandscape, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape, PR 1 (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   (await import('./studio-phone-hints-strip.mjs')).stripPhoneHints, // LATER-CHANGE: FRONTEND-1, F-13 phone hints, PR 2 (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
   // one line per later change, above this comment
+  (await import('./studio-prepromo-strip.mjs')).stripPrepromo, // LATER-CHANGE: FRONTEND-1, pre-promotion fixes C-07 / C-06 / UX-01 (no flag)
 ]
 
 const lineStart = (text, at) => at === 0 || text[at - 1] === '\n'

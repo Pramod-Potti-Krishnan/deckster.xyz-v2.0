@@ -2,18 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SignJWT } from 'jose';
 import { isStudioDevDeployment } from '@/lib/dev-deployment';
 
-// Only enable in development mode
-const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_DEV_MODE === 'true';
+// C-07: a local development server only. NODE_ENV must be 'development' AND the dev-mode flag must be on; any other
+// environment (production, test, preview, UAT) answers 404 as if the route did not exist. Not flag-gated: applies everywhere.
+function mockTokenAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.NODE_ENV === 'development' && env.NEXT_PUBLIC_DEV_MODE === 'true';
+}
 
 export async function POST(request: NextRequest) {
   if (isStudioDevDeployment()) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
-  if (!isDevelopment) {
-    return NextResponse.json(
-      { error: 'Mock tokens are only available in development mode' },
-      { status: 403 }
-    );
+  if (!mockTokenAllowed()) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
   try {
@@ -64,11 +64,8 @@ export async function GET(request: NextRequest) {
   if (isStudioDevDeployment()) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
-  if (!isDevelopment) {
-    return NextResponse.json(
-      { error: 'Mock tokens are only available in development mode' },
-      { status: 403 }
-    );
+  if (!mockTokenAllowed()) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
   return NextResponse.json({
