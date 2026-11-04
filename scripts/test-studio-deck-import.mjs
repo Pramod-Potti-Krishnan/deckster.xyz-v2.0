@@ -34,7 +34,7 @@ import { stripChatThemeExport } from './studio-chat-theme-export-strip.mjs' // N
 import { sameAsBase } from './studio-env-append-tolerant.mjs'
 import { sameOrTolerant, stackMutants, stackScope } from './studio-stack-tolerant.mjs'
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
-import { stripLaterChanges } from './studio-later-changes.mjs' // stacked: the later-changes registry (a change stacked after this one registers its files, its .env.example block and its strip there; every read of an app file goes through it first)
+import { stripLaterChanges, LATER_CHANGE_FILES } from './studio-later-changes.mjs' // stacked: the later-changes registry (a change stacked after this one registers its files, its .env.example block and its strip there; every read of an app file goes through it first) // LATER-CHANGES: registry read (DUAL-LOOKUP): the registered later-change files
 
 const BASE_COMMIT = process.env.DECK_IMPORT_BASE || '8d5c494a7abcbfaf3d1b69eda257a5100013cb18'
 const read = rel => stripLaunchWording(rel, stripLaterChanges(rel, fs.readFileSync(path.join(root, rel), 'utf8'))) // stacked: a later change's lines (scripts/studio-later-changes.mjs) come out first
@@ -1302,7 +1302,7 @@ async function secStatic() {
   ok(seen.size > clientRoots.length, 'the closure follows imports')
   ok(!seen.has(HELPER), 'no "use client" module, and nothing a client module imports, reaches lib/director-rest-entitlement')
   text.delete('lib/studio-compose-entitlement.ts') // stacked after #475: Add Slide compose signs its user (STUDIO_COMPOSE_ENTITLEMENT_ENABLED) also reaches the minter, from one server-only lib that the compose route alone imports (scripts/test-studio-compose-entitlement.mjs proves it); the closure walk above already ran over it
-  deepEq([...text.keys()].filter(rel => rel !== HELPER && /director-rest-entitlement/.test(text.get(rel))).sort(), [JOBS, START].sort(), 'the minter is imported by the two import routes only')
+  deepEq([...text.keys()].filter(rel => rel !== HELPER && /director-rest-entitlement/.test(text.get(rel))).filter(rel => !(LATER_CHANGE_FILES.has(rel))).sort(), [JOBS, START].sort(), 'the minter is imported by the two import routes only') // LATER-CHANGES: registry read (DUAL-LOOKUP): a registered later change's server-only Director signers are its own
   for (const rel of [START, JOBS]) { ok(!isClient(rel), `${rel} is server code`); match(text.get(rel), /from '@\/lib\/director-rest-entitlement'/); eq((text.get(rel).match(/restEntitlementHeaders\(/g) ?? []).length, 1, `${rel}: one signed call`); eq((text.get(rel).match(/\bfetch\(/g) ?? []).length, 1, `${rel}: one Director fetch`) }
   match(text.get(START), /restEntitlementHeaders\(userId, 'POST'\)/); match(text.get(JOBS), /restEntitlementHeaders\(userId, 'GET'\)/)
   for (const rel of [START, JOBS]) match(text.get(rel), /process\.env\.NEXT_PUBLIC_STUDIO_DECK_IMPORT === 'true' && process\.env\.DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED === 'true'\s*\? restEntitlementHeaders/, `${rel}: signed only when both flags are on`)

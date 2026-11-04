@@ -1,5 +1,6 @@
 import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
 import { resolveDirectorUserId, directorRestSignHeaders } from '@/lib/studio-director-rest-sign'
+import { directorEmailFallbackRead, missOnEmpty } from '@/lib/studio-director-email-fallback' // DUAL-LOOKUP
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
@@ -22,6 +23,8 @@ export async function GET() {
       `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes/standard`,
       { cache: 'no-store', headers: await directorRestSignHeaders(userId, 'GET') },
     )
+    const legacy = await directorEmailFallbackRead(r, userId, (id, headers) => fetch(`${directorBaseUrl()}/api/users/${encodeURIComponent(id)}/themes/standard`, { cache: 'no-store', headers }), missOnEmpty('theme')) // DUAL-LOOKUP
+    if (legacy) return NextResponse.json(await legacy.json(), { status: legacy.status }) // DUAL-LOOKUP
     const body = await r.json()
     return NextResponse.json(body, { status: r.status })
   } catch (error) {

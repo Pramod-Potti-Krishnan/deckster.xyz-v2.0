@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
 import { dbVerifiedSessionUserId, directorRestSignHeaders } from '@/lib/studio-director-rest-sign'
+import { directorEmailFallbackRead, missOnForbiddenOrNotFound } from '@/lib/studio-director-email-fallback' // DUAL-LOOKUP
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -47,6 +48,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ sourceS
       cache: 'no-store',
       headers: await directorRestSignHeaders(userId, 'GET'),
     })
+    const legacy = await directorEmailFallbackRead(upstream, userId, (_id, headers) => fetch(`${base}/sessions/${encodeURIComponent(sessionId)}/library`, { cache: 'no-store', headers }), missOnForbiddenOrNotFound) // DUAL-LOOKUP
+    if (legacy) return new Response(await legacy.text(), { status: legacy.status, headers: { ...NO_STORE, 'Content-Type': legacy.headers.get('content-type') ?? 'application/json' } }) // DUAL-LOOKUP
     return new Response(await upstream.text(), {
       status: upstream.status,
       headers: { ...NO_STORE, 'Content-Type': upstream.headers.get('content-type') ?? 'application/json' },
