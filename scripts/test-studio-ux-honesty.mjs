@@ -94,7 +94,7 @@ const realChecks = checks
 // ---- mutants: each dishonest claim put back must be caught
 const MUTANTS = [
   [DOCS, 'Choose your format (PDF or PowerPoint)', 'Choose your format (PDF, PowerPoint, Google Slides)'],
-  [DOCS, '### Images (PNG/JPEG)', '### Google Slides\nExport to Google Slides\n\n### Images (PNG/JPEG)'],
+  [DOCS, '### Web Link (Hosted)', '### Google Slides\nExport to Google Slides\n\n### Web Link (Hosted)'],
   [DOCS, 'Welcome to Deckster!', 'Welcome to deckster!'],
   [DOCS, 'click "New deck"', 'click "New Presentation"'],
   [HELP, 'See the pricing page for the current plans and prices.', 'Starter is $20/user/mo.'],

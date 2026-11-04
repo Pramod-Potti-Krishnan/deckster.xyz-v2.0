@@ -715,8 +715,7 @@ Export your presentations in multiple formats and share them with others.
 
 **How to export:**
 1. Click "Export" → "PowerPoint"
-2. Choose quality settings
-3. Download .pptx file
+2. Download .pptx file
 
 ### PDF Document
 **Best for:** Sharing, printing, archiving
@@ -727,34 +726,12 @@ Export your presentations in multiple formats and share them with others.
 - Locked formatting
 - Smaller file size
 
-**Options:**
-- **Standard**: Regular quality, smaller size
-- **High Resolution**: Print quality, larger size
-- **With Notes**: Includes speaker notes
-
 **How to export:**
 1. Click "Export" → "PDF"
-2. Select quality option
-3. Download PDF file
-
-### Images (PNG/JPEG)
-**Best for:** Social media, websites, individual slides
-
-**Features:**
-- Per-slide images
-- Custom dimensions
-- High resolution
-- Transparent backgrounds (PNG)
-
-**How to export:**
-1. Click "Export" → "Images"
-2. Select format (PNG or JPEG)
-3. Choose slides (all or selection)
-4. Set resolution
-5. Download zip file
+2. Download PDF file
 
 ### Web Link (Hosted)
-**Best for:** Online sharing, embedding
+**Best for:** Online sharing
 
 **Features:**
 - Shareable URL
@@ -767,55 +744,6 @@ Export your presentations in multiple formats and share them with others.
 2. Set permissions (public/private)
 3. Copy URL
 4. Share link
-
-### Embed Code
-**Best for:** Embedding on websites
-
-**Features:**
-- Responsive iframe
-- Customizable size
-- Auto-play options
-- Interactive or static
-
-**How to embed:**
-1. Click "Share" → "Embed"
-2. Customize options
-3. Copy embed code
-4. Paste in website HTML
-
-## Export Settings
-
-### Quality Options
-
-**Draft**: Fast export, lower quality
-- File size: Small
-- Export time: < 10s
-- Use case: Quick previews
-
-**Standard**: Balanced quality and size
-- File size: Medium
-- Export time: 10-30s
-- Use case: Most presentations
-
-**High Quality**: Maximum quality
-- File size: Large
-- Export time: 30s+
-- Use case: Print, large displays
-
-### Slide Selection
-
-Export options:
-- **All slides**: Complete presentation
-- **Current slide**: Just one slide
-- **Slide range**: Slides 3-7, for example
-- **Selected slides**: Custom selection
-
-### Additional Options
-
-- **Include speaker notes**: Add notes pages
-- **Include animations**: Preserve transitions (PowerPoint only)
-- **Optimize for web**: Smaller file sizes
-- **Password protect**: Add password to PDF
 
 ## Sharing Options
 
@@ -909,7 +837,6 @@ Track presentation performance:
 ### For Sharing
 - Use web links for quick sharing
 - PDF for client deliverables
-- Images for social media teasers
 
 ### For Collaboration
 - Share edit link with team
@@ -920,7 +847,6 @@ Track presentation performance:
 
 ### Export Failed
 - Check internet connection
-- Try lower quality setting
 - Reduce file size (fewer slides, smaller images)
 - Contact support if persists
 
