@@ -2,12 +2,14 @@
 // F4: app/api/wallet/debit/route.ts gets marked pure insertions (marker BILLING-F4F6): under "router" it ignores the browser amount; under "flat_strict" an over-cap debit still lands and is logged; the refusal is the pre-build check GET /api/wallet/precheck (new file), 402 wallet_capped.
 // F6: plan and pack prices are written once, in lib/marketing/homepage-v2-pricing.ts (PRICING_TIERS, TOPUP_PACKS, marked appended lines); Billing, the top-up modal and the Stripe top-up route read them.
 // Those are REPLACED lines; BILLING_F4F6_EDITS holds [text now, text before] and stripBillingF4F6 puts the old text back. The derived strings equal the old literals, so output is byte-identical.
+// PK ruling (v1 caps): under flat_strict only, lib/quota/quota.ts uses the monthly cap alone and the UTC calendar month (marked lines; one replaced line in BILLING_F4F6_EDITS).
 // Plain node, no imports.
 
 export const BASE_COMMIT = '3e1ce88eec23fbfd33f249332d06a65ad05ffc40' // origin/studio-v4-dev-preparation-code at the start of this change (stacked on #575, frontend1/tier-update-guard)
 export const BILLING_F4F6_MARKER_RE = /(?<![\w-])BILLING-F4F6(?![\w-])/
-export const BILLING_F4F6_FILES = ['app/api/wallet/debit/route.ts', 'lib/marketing/homepage-v2-pricing.ts']
+export const BILLING_F4F6_FILES = ['app/api/wallet/debit/route.ts', 'lib/marketing/homepage-v2-pricing.ts', 'lib/quota/quota.ts']
 export const BILLING_F4F6_EDITS = {
+ "lib/quota/quota.ts": [["    sumUsage(monthFrom), // BILLING-F4F6\n", "    sumUsage(monthStart),\n"]],
  "app/api/stripe/create-topup-session/route.ts": [
   [
    "const CREDIT_PACKS = TOPUP_PACKS // BILLING-F4F6: the one pack list, lib/marketing/homepage-v2-pricing.ts\n",

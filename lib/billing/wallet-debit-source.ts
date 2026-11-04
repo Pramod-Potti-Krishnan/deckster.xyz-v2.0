@@ -34,3 +34,13 @@ export function preBuildCapCheck(env: Record<string, string | undefined> = proce
 export function preBuildRefused(enabled: boolean, fitsOneCent: boolean, walletBalanceCents: number): boolean {
   return enabled && !fitsOneCent && !(walletBalanceCents > 0)
 }
+
+/** PK ruling (v1): under "flat_strict" only, the caps are the monthly cap alone (no daily or weekly cap) and "this period" is the UTC calendar month. Other values keep today's ET windows and all three caps. */
+export function monthlyOnlyCaps(env: Record<string, string | undefined> = process.env): boolean {
+  return walletDebitSource(env) === "flat_strict"
+}
+
+/** The first instant of `now`'s UTC calendar month. */
+export function startOfMonthUtc(now: Date): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+}
