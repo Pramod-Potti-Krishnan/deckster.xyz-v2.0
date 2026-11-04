@@ -5,7 +5,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter"
 import type { Adapter } from "next-auth/adapters"
 import { prisma } from "./prisma"
 import { getUserSubscription } from "@/lib/stripe/stripe-utils"
-import { applySessionUpdate, type ServerEntitlements } from "@/lib/auth-session-update"
+import { applySessionUpdate, refreshEntitlementsIfStale, type ServerEntitlements } from "@/lib/auth-session-update"
 
 async function loadServerEntitlements(userId: string): Promise<ServerEntitlements | null> {
   const dbUser = await prisma.user.findUnique({
@@ -185,6 +185,7 @@ export const authOptions: NextAuthOptions = {
               tier: dbUser?.tier || "free",
               approved: dbUser?.approved || false,
               walletBalanceCents: dbUser?.walletBalanceCents ?? 0,
+              entitlementCheckedAt: Date.now(),
               subscription: subscription ? {
                 status: subscription.status,
                 tier: subscription.tier,
@@ -208,7 +209,10 @@ export const authOptions: NextAuthOptions = {
           }
         }
 
-        return token
+        // Token refresh: re-read server entitlements (throttled to 60s) so tokens that were
+        // escalated via the old update() hole heal. Runs only in the Node auth route /
+        // getServerSession — edge middleware (withAuth) decodes the JWT without this callback.
+        return refreshEntitlementsIfStale(token, loadServerEntitlements)
       } catch (error) {
         console.error('[Auth] Fatal error in JWT callback:', error)
         throw error

@@ -14,6 +14,9 @@ try { ts = req('typescript') } catch { ts = createRequire(join(root, '..', 'fron
 
 const helperSrc = readFileSync(join(root, 'lib/auth-session-update.ts'), 'utf8')
 const authSrc = readFileSync(join(root, 'lib/auth-options.ts'), 'utf8')
+const debitSrc = readFileSync(join(root, 'app/api/wallet/debit/route.ts'), 'utf8')
+const quotaSrc = readFileSync(join(root, 'app/api/usage/quota/route.ts'), 'utf8')
+const tierSrc = readFileSync(join(root, 'lib/quota/server-tier.ts'), 'utf8')
 
 async function load(src) {
   const js = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020 } }).outputText
@@ -22,8 +25,8 @@ async function load(src) {
 
 const quiet = () => { const e = console.error; console.error = () => {}; return () => { console.error = e } }
 
-async function proof(src, auth) {
-  const { applySessionUpdate } = await load(src)
+async function proof(src, auth, routes = { debit: debitSrc, quota: quotaSrc, tier: tierSrc }) {
+  const { applySessionUpdate, refreshEntitlementsIfStale } = await load(src)
   const fails = []
   const base = { id: 'u1', name: 'Old', picture: 'old.png', tier: 'free', approved: false, walletBalanceCents: 0, subscription: null }
   const db = { tier: 'free', approved: false, walletBalanceCents: 0, subscription: null }
@@ -56,6 +59,34 @@ async function proof(src, auth) {
   // Wiring: auth-options must route update through the helper and never read session.tier.
   if (/session\.(tier|approved|walletBalanceCents)\b/.test(auth)) fails.push('auth-options reads entitlement from update payload')
   if (!/trigger === "update"[\s\S]{0,200}applySessionUpdate\(/.test(auth)) fails.push('auth-options update branch not guarded')
+  // Refresh: a stale escalated token heals after 60s; the throttle holds within 60s.
+  const now = 1_000_000_000
+  let hits = 0
+  const counting = async () => { hits++; return db }
+  const escalated = { ...base, tier: 'premium', approved: true, entitlementCheckedAt: now - 61_000 }
+  t = await refreshEntitlementsIfStale(escalated, counting, now)
+  if (t.tier !== 'free' || t.approved !== false) fails.push('stale escalated token did not heal')
+  if (t.entitlementCheckedAt !== now) fails.push('entitlementCheckedAt not stamped')
+  const legacy = { ...base, tier: 'premium' } // pre-fix token, no checkedAt
+  t = await refreshEntitlementsIfStale(legacy, counting, now)
+  if (t.tier !== 'free') fails.push('legacy token without checkedAt did not heal')
+  hits = 0
+  const fresh = { ...base, tier: 'pro', entitlementCheckedAt: now - 30_000 }
+  t = await refreshEntitlementsIfStale(fresh, counting, now)
+  if (hits !== 0) fails.push('throttle broken: DB read within 60s')
+  if (t.tier !== 'pro') fails.push('fresh token changed within throttle')
+  const restore2 = quiet()
+  t = await refreshEntitlementsIfStale(escalated, async () => { throw new Error('db down') }, now)
+  restore2()
+  if (t.tier !== 'premium') fails.push('DB failure on refresh did not keep existing values')
+  if (!/return refreshEntitlementsIfStale\(token, loadServerEntitlements\)/.test(auth)) fails.push('auth-options refresh not wired')
+
+  // Debit + quota routes ignore a forged session tier: tier comes from the DB helper.
+  for (const [name, r] of [['debit', routes.debit], ['quota', routes.quota]]) {
+    if (/session\.user\.tier/.test(r)) fails.push(name + ' reads session.user.tier')
+    if (!/const tier = await getServerTier\(session\.user\.id\)/.test(r)) fails.push(name + ' does not read tier from DB')
+  }
+  if (!/prisma\.user\.findUnique\(\{ where: \{ id: userId \}/.test(routes.tier)) fails.push('server-tier does not read the User row')
   return fails
 }
 
@@ -64,11 +95,20 @@ const mutants = [
   ['spread payload', s => s.replace('const next: Record<string, unknown> = { ...token }', 'const next: Record<string, unknown> = { ...token, ...(payload as object) }')],
   ['drop name update', s => s.replace('if (typeof p.name === "string") next.name = p.name', '')],
   ['skip server refresh', s => s.replace('const fresh = await loadServerEntitlements(userId)', 'const fresh = null as any')],
+  ['no throttle', s => s.replace('if (now - checkedAt <= ENTITLEMENT_TTL_MS) return token', '')],
+  ['never refresh', s => s.replace('if (now - checkedAt <= ENTITLEMENT_TTL_MS) return token', 'return token')],
+  ['refresh error clears to payload-ish', s => s.replace('console.error("[Auth] Entitlement refresh failed on token refresh:", error)\n    return token', 'return { ...token, tier: "max" } as T')],
   ['payload fallback on error', s => s.replace('console.error("[Auth] Entitlement refresh failed on session update:", error)', 'next.tier = p.tier')],
 ]
 const authMutants = [
   ['auth reads session.tier', s => s.replace('return applySessionUpdate(token, session, loadServerEntitlements)', 'token.tier = (session as any).tier; return token')],
 ]
+
+const routeMutants = [
+  ['debit reads session tier', r => ({ ...r, debit: r.debit.replace('const tier = await getServerTier(session.user.id)', 'const tier = (session.user.tier ?? "free") as Tier') })],
+  ['quota reads session tier', r => ({ ...r, quota: r.quota.replace('const tier = await getServerTier(session.user.id)', 'const tier = (session.user.tier ?? "free") as Tier') })],
+]
+authMutants.push(['auth refresh unwired', s => s.replace('return refreshEntitlementsIfStale(token, loadServerEntitlements)', 'return token')])
 
 let ok = true
 const real = await proof(helperSrc, authSrc)
@@ -85,6 +125,14 @@ for (const [name, mut] of authMutants) {
   const m = mut(authSrc)
   if (m === authSrc) { console.log('MUTANT NOT APPLIED: ' + name); ok = false; continue }
   const f = await proof(helperSrc, m)
+  console.log(f.length ? `killed mutant: ${name}` : `SURVIVED mutant: ${name}`)
+  if (!f.length) ok = false
+}
+const baseRoutes = { debit: debitSrc, quota: quotaSrc, tier: tierSrc }
+for (const [name, mut] of routeMutants) {
+  const m = mut(baseRoutes)
+  if (JSON.stringify(m) === JSON.stringify(baseRoutes)) { console.log('MUTANT NOT APPLIED: ' + name); ok = false; continue }
+  const f = await proof(helperSrc, authSrc, m)
   console.log(f.length ? `killed mutant: ${name}` : `SURVIVED mutant: ${name}`)
   if (!f.length) ok = false
 }
