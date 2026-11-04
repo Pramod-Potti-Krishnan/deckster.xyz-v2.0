@@ -11,6 +11,8 @@ import { lastBuilderSessionKey } from "@/lib/last-builder-session"
 import { studioNavLabels } from "@/lib/studio-nav-labels"
 import { STUDIO_PHONE_COMPOSER_SELECTOR, STUDIO_PHONE_MORE_LINKS, studioPhoneActiveTab } from "@/lib/studio-phone-shell"
 import "./studio-phone-shell.css"
+import { STUDIO_PHONE_MORE_PROPS } from "@/lib/studio-phone-polish" // PHONE-POLISH
+import "./studio-phone-polish.css" // PHONE-POLISH
 
 const MORE_ICONS = { knowledge: Brain, intelligence: Cpu, details: UserRound, help: HelpCircle } as const
 
@@ -72,7 +74,7 @@ export function StudioPhoneTabBar({ sessionUsage }: { sessionUsage?: ReactNode }
         </Dialog.Trigger>
         <Dialog.Portal>
           <Dialog.Overlay data-studio-phone-more-overlay="true" />
-          <Dialog.Content data-studio-v4-shell="true" data-studio-phone-more="true" aria-describedby={undefined}>
+          <Dialog.Content data-studio-v4-shell="true" data-studio-phone-more="true" aria-describedby={undefined} {...STUDIO_PHONE_MORE_PROPS /* PHONE-POLISH */}>
             <Dialog.Title data-studio-phone-more-title="true">More</Dialog.Title>
             <ul aria-label="More destinations">
               {STUDIO_PHONE_MORE_LINKS.map(({ key, label, href }) => {
