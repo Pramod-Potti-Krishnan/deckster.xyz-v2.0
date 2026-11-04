@@ -1241,7 +1241,7 @@ await check('receipts: the runner posts no chat line of its own (no toast, no me
 await check('viewer: the save-ack publish and the edit-mode registration are marked insertions; the stripped viewer is the base byte for byte', async () => {
   const rel = 'components/presentation-viewer.tsx'
   assert.equal(stripPeers(rel, stripChatElementEdit(rel, read(rel))), stripPeers(rel, baseFile(rel)))
-  const added = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n').filter(l => l.startsWith('+') && !l.startsWith('+++') && stripPeers(rel, `${l.slice(1)}\n`) !== '') // a line another registered change marks (Arrange's) is its own
+  const added = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n').filter(l => l.startsWith('+') && !l.startsWith('+++') && stripPeers(rel, `${l.slice(1)}\n`) !== '').filter(((raw, kept) => l => !(raw.includes(l.slice(1)) && !kept.includes(l.slice(1))))(read(rel).split('\n'), stripPeers(rel, read(rel)).split('\n'))) // a line another registered change marks (Arrange's) is its own // LATER-CHANGES: registry read (DUAL-LOOKUP): a line a registered later change's strip takes out of the whole file (the flip enablers' viewer ticket) is its own
   assert.equal(added.length, 8); for (const line of added) assert.match(line, CHAT_ELEMENT_EDIT_MARKER_RE)
   const text = read(rel)
   // the publish sits inside the handler, after the status is validated, before the status is acted on
