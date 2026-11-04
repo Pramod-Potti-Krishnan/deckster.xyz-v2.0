@@ -1,11 +1,11 @@
 "use client"
 // FRONTEND-1 (L-BILLING F5). The refusal screen shown when a user is out of credits, over a cap or needs a higher plan. Renders nothing unless
-// NEXT_PUBLIC_STUDIO_USAGE_PAGE is "true" and the code is a billing refusal. Credits only: no cost, tokens or model ids.
+// NEXT_PUBLIC_STUDIO_QUOTA_SCREENS is "true" and the code is a billing refusal. Credits only: no cost, tokens or model ids.
 import Link from "next/link"
-import { isStudioUsagePageOn, refusalCopy, refusalKind } from "@/lib/studio-billing-usage"
+import { isStudioQuotaScreensOn, refusalCopy, refusalKind } from "@/lib/studio-billing-usage"
 
 export function QuotaRefusal({ code, tier, onDismiss }: { code: unknown; tier?: string; onDismiss?: () => void }) {
-  if (!isStudioUsagePageOn()) return null
+  if (!isStudioQuotaScreensOn()) return null
   const kind = refusalKind(code)
   if (!kind) return null
   const copy = refusalCopy(kind, tier)

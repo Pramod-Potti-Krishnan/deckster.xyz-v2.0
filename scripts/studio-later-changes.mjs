@@ -118,7 +118,8 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-phone-landscape-strip.mjs')).PHONE_LANDSCAPE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape, PR 1 (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   (await import('./studio-phone-hints-strip.mjs')).PHONE_HINTS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-13 phone hints, PR 2 (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
   // one line per later change, above this comment
-  (await import('./studio-billing-f5-usage-strip.mjs')).BILLING_F5_USAGE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, L-BILLING F5 quota and refusal screens + Usage page (NEXT_PUBLIC_STUDIO_USAGE_PAGE)
+  (await import('./studio-billing-f5-usage-strip.mjs')).BILLING_F5_USAGE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, L-BILLING Usage page (NEXT_PUBLIC_STUDIO_USAGE_PAGE)
+  (await import('./studio-billing-f5-usage-strip.mjs')).BILLING_F5_QUOTA_SCREENS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, L-BILLING F5 quota and refusal screens (NEXT_PUBLIC_STUDIO_QUOTA_SCREENS)
 ]
 
 /** One strip per later change, (rel, text) => text, in the order the changes were stacked. */

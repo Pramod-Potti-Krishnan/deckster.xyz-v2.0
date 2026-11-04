@@ -4,10 +4,26 @@
 import { PRICING_TIERS } from "@/lib/marketing/homepage-v2-pricing"
 
 export const STUDIO_USAGE_PAGE_FLAG = "NEXT_PUBLIC_STUDIO_USAGE_PAGE"
+/** PK ruling 4 Nov: the quota/refusal screens (QuotaRefusal, the Builder overlay, the hook lines, the precheck) have their own flag. */
+export const STUDIO_QUOTA_SCREENS_FLAG = "NEXT_PUBLIC_STUDIO_QUOTA_SCREENS"
 
 /** On only for the exact string "true". */
 export function isStudioUsagePageOn(value: unknown = process.env.NEXT_PUBLIC_STUDIO_USAGE_PAGE): boolean {
   return value === "true"
+}
+
+/** Quota/refusal screens: on only for the exact string "true". */
+export function isStudioQuotaScreensOn(value: unknown = process.env.NEXT_PUBLIC_STUDIO_QUOTA_SCREENS): boolean {
+  return value === "true"
+}
+
+/** "This period" = the UTC calendar month holding `now` (PK ruling 4 Nov): start inclusive, end exclusive, both UTC. */
+export function utcMonthPeriod(now: Date = new Date()): { start: Date; end: Date; label: string } {
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
+  const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })
+  const last = new Date(end.getTime() - 1)
+  return { start, end, label: `${fmt(start)} – ${fmt(last)} (UTC)` }
 }
 
 /** Whole credits for display; a positive amount under 1 credit reads "under 1" (spec F5 "under 1 credit" rule). */
@@ -47,7 +63,7 @@ export function usageView(quota: UsageQuotaInput | null | undefined, walletBalan
   return { planLabel: quota?.tierLabel || "Free", planCredits, usedCredits, leftCredits, topUpCredits, usedFraction, state }
 }
 
-export type RefusalKind = "credits_exhausted" | "image_cap_reached" | "plan_required" | "cap_reached" | "wallet_capped"
+export type RefusalKind = "credits_exhausted" | "image_cap_reached" | "plan_required" | "wallet_capped"
 
 export interface RefusalCopy {
   title: string
@@ -73,7 +89,6 @@ export function refusalKind(code: unknown): RefusalKind | null {
     case "credits_exhausted": case "QUOTA_EXCEEDED": return "credits_exhausted"
     case "image_cap_reached": return "image_cap_reached"
     case "model_not_in_plan": case "feature_not_in_plan": case "PLAN_REQUIRED": return "plan_required"
-    case "daily_cap_reached": case "weekly_cap_reached": return "cap_reached"
     case "wallet_capped": return "wallet_capped"
     default: return null
   }
@@ -93,8 +108,6 @@ export function refusalCopy(kind: RefusalKind, tier?: unknown): RefusalCopy {
       return { title: "This needs a higher plan", body: "This feature isn't included in your current plan. Upgrade to use it.", primary: upgrade ?? { label: "See plans", href: "/billing" } }
     case "wallet_capped":
       return { title: "Not enough credits to start", body: "You don't have enough credits left to start this. Top up to keep going now, or upgrade for more credits every month.", primary: topUp, ...(upgrade ? { secondary: upgrade } : {}) }
-    case "cap_reached":
-      return { title: "You've hit today's limit", body: "You've reached your plan's limit for now. It resets soon, or you can top up to keep going.", primary: topUp, ...(upgrade ? { secondary: upgrade } : {}) }
   }
 }
 
@@ -103,7 +116,7 @@ export const QUOTA_REFUSAL_EVENT = "studio-quota-refusal"
 
 /** Flag on and a billing refusal code: tell the Builder (a window event; nothing else). Returns whether it announced. */
 export function announceQuotaRefusal(code: unknown): boolean {
-  if (!isStudioUsagePageOn() || !refusalKind(code) || typeof window === "undefined") return false
+  if (!isStudioQuotaScreensOn() || !refusalKind(code) || typeof window === "undefined") return false
   window.dispatchEvent(new CustomEvent(QUOTA_REFUSAL_EVENT, { detail: { code } }))
   return true
 }
@@ -119,7 +132,7 @@ export function precheckAllows(status: number, body: unknown): { ok: boolean; co
 
 /** Before a send: POST /api/wallet/precheck. Off: true without a call. A 404 or network failure is allowed. A refusal is announced and returns false. */
 export async function walletPrecheckAllows(fetcher: typeof fetch = fetch): Promise<boolean> {
-  if (!isStudioUsagePageOn()) return true
+  if (!isStudioQuotaScreensOn()) return true
   try {
     const res = await fetcher("/api/wallet/precheck", { method: "POST" })
     const body = res.status === 402 || res.status === 403 ? await res.json().catch(() => null) : null
