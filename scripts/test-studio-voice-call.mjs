@@ -300,6 +300,12 @@ function uiSuite(ui, over = {}) {
   eq([el('TEXTAREA'), el('INPUT'), el('SELECT'), el('DIV', {}, false, true), el('BUTTON'), el('A'), el('SUMMARY'), el('DIV', { role: 'menuitem' }), el('DIV', { role: 'tab' }), el('SPAN', { role: 'checkbox' }), el('DIV'), el('BODY'), el('SPAN'), null, undefined].map(ui.spaceBelongsToTarget),
     [true, true, true, true, true, true, true, true, true, true, false, false, false, false, false], 'space: a text field and every other control that Space activates keep their Space; the page itself does not')
   eq([ui.spaceBelongsToTarget(el('BUTTON', {}, true)), ui.spaceBelongsToTarget(el('SPAN', { role: 'button' }, true))], [false, false], 'space: ...except the talk button: Space talks there (focus stays on it after it is pressed)')
+  {
+    // focus on the way out of a call: only when it was lost with the call (the page itself) or is still in the call's UI; anywhere else is the person's
+    const at = (tagName, inCall = false) => ({ tagName, closest: selector => (selector === '[data-studio-voice-call]' && inCall ? {} : null) })
+    eq([null, undefined, at('BODY'), at('body'), at('HTML'), at('BUTTON', true), at('DIV', true), at('BUTTON'), at('TEXTAREA'), at('A'), at('INPUT'), at('DIV'), { tagName: 'DIV' }].map(ui.callEndFocusGoesToComposer),
+      [true, true, true, true, true, true, true, false, false, false, false, false, false], 'call end focus: the page itself (nothing, body, html) and the call\'s own UI give the composer the focus; the sidebar, a menu, a field, a link, a dialog keep theirs')
+  }
   eq([{ code: 'Space' }, { key: ' ' }, { code: 'Space', repeat: true }, { code: 'Space', metaKey: true }, { code: 'Space', ctrlKey: true }, { code: 'Space', altKey: true }, { code: 'Space', shiftKey: true }, { code: 'KeyA' }].map(ui.isTalkKey), [true, true, false, false, false, false, false, false], 'talk key: Space alone, not a repeat')
   eq(['not_connected', 'limit', 'failed', 'too_short', 'no_words', 'not_sent', 'no_answer'].every(problem => ui.describeSpeechProblem(problem).title && ui.describeSpeechProblem(problem).steps.length > 0), true, 'words: every speech problem has a title and a step')
   eq(ui.describeSpeechProblem('not_connected').title, "Speech isn't connected yet", 'words: the honest one for a missing router')
@@ -1383,7 +1389,7 @@ function sourceSuite(sources, { base = null } = {}) {
   ok(ws.indexOf(sentTap) > ws.indexOf(fields) && lines(ws)[lines(ws).indexOf(sentTap) - 1].includes('wsRef.current.send(JSON.stringify(message));'), 'ws: ...right after the send')
   ok(!ws.includes('onVoiceCall') && !ws.includes('getUserMedia') && !/mode:\s*'voice'/.test(ws.replace(sentTap, '')), 'ws: no new option, no microphone; the mode is written in the lib only')
   // the composer
-  eq(lines(input).filter(line => MARK.test(line)).length, 6, 'input: six marked lines (two imports, the prop, its destructuring, the line that hides the composer during a call, the two buttons)')
+  eq(lines(input).filter(line => MARK.test(line)).length, 12, 'input: twelve marked lines (three imports, the prop, its destructuring, the line that hides the composer during a call, the two buttons; the six of the focus: import, flag ref, the effect\'s open, its two lines, its close)')
   lineOf(input, "import { VoiceCallButtons } from './voice-call/voice-call-buttons' // VOICE-CALL"); lineOf(input, "import type { VoiceCallComposerProps } from '@/lib/studio-voice-call-ui' // VOICE-CALL")
   lineOf(input, '  voiceCall?: VoiceCallComposerProps // VOICE-CALL'); lineOf(input, '  voiceCall, // VOICE-CALL')
   const btn = lineOf(input, '{voiceCall ? <VoiceCallButtons {...voiceCall} studio={studio} /> : null}{/* VOICE-CALL')
@@ -1392,6 +1398,36 @@ function sourceSuite(sources, { base = null } = {}) {
   const mainReturn = input.indexOf('  return (\n    <div\n      data-studio-v4-chrome=')
   ok(input.indexOf(hide) < mainReturn && input.slice(input.indexOf(hide) + hide.length, mainReturn).trim() === '' && !/(^\s+|=\s*)use[A-Z]\w*\(/m.test(input.slice(input.indexOf(hide))), 'input: while a call is on the composer returns nothing, right before the main return and after every hook (its draft, uploads and state stay)')
   ok(!lines(input).some(line => /VOICE-CALL/.test(line) && /ml-auto|justify-between/.test(line)), 'input: the call changes none of the toolbar\'s layout in the component (the stylesheet places the buttons)')
+  {
+    // focus: when a call ends the composer's text box takes it, only if it was lost with the call (the page) or is still in the call's UI
+    lineOf(input, "import { callEndFocusGoesToComposer } from '@/lib/studio-voice-call-ui' // VOICE-CALL")
+    const inputLines = lines(input)
+    const wasOn = lineOf(input, '  const voiceCallWasOn = useRef(false) // VOICE-CALL')
+    const open = inputLines.findIndex(line => line.startsWith('  useEffect(() => { // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL): when a call ends'))
+    const close = inputLines.findIndex(line => line === '  }, [voiceCall?.active]) // VOICE-CALL')
+    ok(open > 0 && close === open + 3 && inputLines.slice(open, close + 1).every(line => MARK.test(line)), 'input: the focus effect is four marked lines, reading only voiceCall.active')
+    ok(input.indexOf(wasOn) < input.indexOf(inputLines[open]) && inputLines[open - 1] === wasOn && input.indexOf(inputLines[close]) < input.indexOf(hide) && inputLines[close + 1] === hide, 'input: ...a flag ref and the effect sit together, above the line that hides the composer (hooks run every render)')
+    ok(input.indexOf('const textareaRef = useRef<HTMLTextAreaElement | null>(null)') < input.indexOf(wasOn), 'input: ...after the text box ref they focus')
+    const body = inputLines.slice(open + 1, close).join('\n')
+    const uiLib = makeHost({ over: { [UI]: sources[UI] } }).load(UI)
+    const at = (tagName, inCall = false) => ({ tagName, closest: selector => (selector === '[data-studio-voice-call]' && inCall ? {} : null) })
+    const BODY = at('BODY'), SIDEBAR = at('BUTTON'), END = at('BUTTON', true)
+    const run = steps => {
+      const flagRef = { current: false }, focused = [], textareaRef = { current: { focus: options => focused.push(options), blur: () => undefined } }
+      const effect = new Function('voiceCall', 'voiceCallWasOn', 'textareaRef', 'callEndFocusGoesToComposer', 'document', body)
+      for (const [active, focus] of steps) effect(active === undefined ? undefined : { active }, flagRef, textareaRef, uiLib.callEndFocusGoesToComposer, { activeElement: focus })
+      return focused
+    }
+    eq(run([[false, BODY], [true, BODY], [false, BODY]]), [{ preventScroll: true }], 'focus: the call ends with focus on the page: the text box takes it (without scrolling)')
+    eq(run([[false, BODY], [true, null], [false, null]]).length, 1, 'focus: ...focus on nothing: the same')
+    eq(run([[false, BODY], [true, END], [false, END]]).length, 1, 'focus: ...focus still in the call\'s UI: the same')
+    eq(run([[false, BODY], [true, BODY], [false, SIDEBAR]]).length, 0, 'focus: ...focus anywhere else (the sidebar, a menu, a field) is not taken')
+    eq(run([[false, BODY], [true, BODY], [true, BODY], [true, BODY]]).length, 0, 'focus: ...nothing while the call is on')
+    eq(run([[false, BODY], [false, BODY], [false, BODY]]).length, 0, 'focus: ...nothing when there was no call')
+    eq(run([[undefined, BODY], [undefined, BODY], [undefined, null]]).length, 0, 'focus: ...flag off (no call props): nothing, ever')
+    eq(run([[true, BODY], [false, BODY], [false, BODY], [true, BODY], [false, BODY]]).length, 2, 'focus: ...once for each end of a call')
+    ok(sources[UI].includes("active.closest?.('[data-studio-voice-call]')") && sources[STAGE].includes('data-studio-voice-call="stage"') && sources[STAGE].includes('data-studio-voice-call="notice"'), 'focus: the call\'s UI is what the stage and the notice are marked with')
+  }
   ok(!input.includes('getUserMedia'), 'input: the composer never asks for the microphone')
   // the microphone: asked for in one place
   const code = text => text.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
@@ -1840,6 +1876,15 @@ const mutants = [
   [PAGE, 'the voice turn goes by another send', 'sendTurn: text => handleSendMessage(undefined, text)', 'sendTurn: text => sendMessage(text)'],
   [INPUT, 'the buttons are drawn with the flag off', '{voiceCall ? <VoiceCallButtons', '{true ? <VoiceCallButtons'],
   [INPUT, 'the composer stays during a call', 'if (voiceCall?.active) return null // VOICE-CALL', 'if (false) return null // VOICE-CALL'],
+  [INPUT, 'the call end gives no focus', 'textareaRef.current?.focus({ preventScroll: true }) // VOICE-CALL', 'textareaRef.current?.blur() // VOICE-CALL'],
+  [INPUT, 'every render takes the focus', 'if (ended && callEndFocusGoesToComposer(document.activeElement))', 'if (callEndFocusGoesToComposer(document.activeElement))'],
+  [INPUT, 'the call end takes the focus from anywhere', 'if (ended && callEndFocusGoesToComposer(document.activeElement))', 'if (ended)'],
+  [INPUT, 'the focus is not remembered', 'voiceCallWasOn.current = voiceCall?.active === true // VOICE-CALL', 'voiceCallWasOn.current = false // VOICE-CALL'],
+  [INPUT, 'the call start takes the focus', 'const ended = voiceCallWasOn.current && voiceCall?.active !== true;', 'const ended = voiceCallWasOn.current !== (voiceCall?.active === true);'],
+  [UI, 'the page does not give the focus back', "if (tag === 'BODY' || tag === 'HTML') return true", "if (tag === 'BODY' || tag === 'HTML') return false"],
+  [UI, 'the call\'s UI does not give the focus back', "return !!active.closest?.('[data-studio-voice-call]')", 'return false'],
+  [UI, 'nothing in focus does not give it back', 'if (!active) return true\n  const tag = (active.tagName', 'if (!active) return false\n  const tag = (active.tagName'],
+  [UI, 'any focus is taken', "return !!active.closest?.('[data-studio-voice-call]')", 'return true'],
   [INPUT, 'the composer hides before its hooks', '  if (voiceCall?.active) return null // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL): while a call is on you are only talking; the composer (and its draft, which stays in the page) comes back when it ends', '  if (voiceCall?.active) return null // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL): while a call is on you are only talking; the composer (and its draft, which stays in the page) comes back when it ends\n  useEffect(() => {}, [])'],
 ]
 const survivors = [], crashes = [], stale = []

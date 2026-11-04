@@ -735,6 +735,15 @@ export function spaceBelongsToTarget(target: SpaceTarget | null | undefined): bo
   return typeof role === 'string' && SPACE_ROLES.test(role)
 }
 
+/** When a call ends the composer comes back, and its text box takes keyboard focus, but only if focus was lost with the call or never left the page: on the page itself (`body`, or nothing: the call's own controls unmount with the call, and the browser drops focus to the page), or still inside the call's own UI (the stage, the notice: `data-studio-voice-call`). Focus anywhere else (the sidebar, a menu, another field, a dialog) is the person's and stays where it is. `active` is document.activeElement when the call has ended. */
+export interface FocusTarget { tagName?: string; closest?(selector: string): unknown }
+export function callEndFocusGoesToComposer(active: FocusTarget | null | undefined): boolean {
+  if (!active) return true
+  const tag = (active.tagName ?? '').toUpperCase()
+  if (tag === 'BODY' || tag === 'HTML') return true
+  return !!active.closest?.('[data-studio-voice-call]')
+}
+
 /** Space talks, unless the user is typing: a text field, a select, a text area or an editable region keeps its Space. */
 export function isTypingTarget(target: { tagName?: string; isContentEditable?: boolean } | null | undefined): boolean {
   if (!target) return false

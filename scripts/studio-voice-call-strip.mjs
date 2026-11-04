@@ -5,8 +5,8 @@
 // the character is driven by Director's frames. Speech goes in and out through a same-origin router contract (lib/studio-voice-call-router.ts), never direct.
 // The Director side is DIRECTOR-2's P4-18 schema: client cap voice1, user_message data.mode "voice", payload.spoken and payload.companion_state.
 // Every line this change adds to an EXISTING file is a pure insertion that carries the marker VOICE-CALL (matched as a whole token): app/builder/page.tsx (the hook call, the call stage, the composer prop, two lines at
-// the end beside the flow-control import), hooks/use-deckster-websocket-v2.ts (one import, the frame tap, the two voice fields on the one armed voice turn, the sent tap) and components/builder/chat-input.tsx (two
-// imports, one prop, its destructuring, the buttons beside Send, the line that hides the composer during a call). Strip the marked lines and each file is its base, byte for byte. No existing line of app code is rewritten.
+// the end beside the flow-control import), hooks/use-deckster-websocket-v2.ts (one import, the frame tap, the two voice fields on the one armed voice turn, the sent tap) and components/builder/chat-input.tsx (three
+// imports, one prop, its destructuring, the buttons beside Send, the line that hides the composer during a call, and the focus effect: a flag ref and four lines, so the text box takes focus when a call ends). Strip the marked lines and each file is its base, byte for byte. No existing line of app code is rewritten.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports but the written-out list of the committed art (studio-voice-call-art-files.mjs), nothing read from disk or git here.
 import { VOICE_CALL_ART_FILES } from './studio-voice-call-art-files.mjs'
 export { VOICE_CALL_ART_FILES }

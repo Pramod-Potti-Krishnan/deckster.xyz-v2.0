@@ -60,6 +60,7 @@ import { useStudioChatCommands } from '@/components/builder/chat/studio-chat-com
 import type { ChatCommandsPageProps } from '@/lib/studio-chat-commands' // CHAT-COMMANDS
 import { VoiceCallButtons } from './voice-call/voice-call-buttons' // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL, default off)
 import type { VoiceCallComposerProps } from '@/lib/studio-voice-call-ui' // VOICE-CALL
+import { callEndFocusGoesToComposer } from '@/lib/studio-voice-call-ui' // VOICE-CALL
 
 const TEXTAREA_MIN_HEIGHT = 96
 const TEXTAREA_MAX_HEIGHT = 220
@@ -822,6 +823,11 @@ export function ChatInput({
       className="hidden"
     />
   )
+  const voiceCallWasOn = useRef(false) // VOICE-CALL
+  useEffect(() => { // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL): when a call ends the composer is drawn again and its text box takes focus, but only if focus was lost with the call (it falls to the page) or is still in the call's UI; focus anywhere else stays. Hooks stay above the line that hides the composer.
+    const ended = voiceCallWasOn.current && voiceCall?.active !== true; voiceCallWasOn.current = voiceCall?.active === true // VOICE-CALL
+    if (ended && callEndFocusGoesToComposer(document.activeElement)) textareaRef.current?.focus({ preventScroll: true }) // VOICE-CALL
+  }, [voiceCall?.active]) // VOICE-CALL
   if (voiceCall?.active) return null // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL): while a call is on you are only talking; the composer (and its draft, which stays in the page) comes back when it ends
   return (
     <div
