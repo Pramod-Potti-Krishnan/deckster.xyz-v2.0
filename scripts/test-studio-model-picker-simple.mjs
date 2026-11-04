@@ -313,6 +313,22 @@ function suite(src, run) {
       const h = host(opts); h.open(); eq(resetOf(h), off, 'before the drag'); slide(h).onValueChange([3]); h.rootHost.flush(); eq(slide(h).value, [3], 'the thumb is being dragged'); eq(resetOf(h), off, `during the drag (${opts.scope} ${opts.own})`); eq(h.calls, [], 'and nothing is saved')
     }
   })
+  run('F: a drag on a deck that follows its default never announces "your default" on a stop; the saved (hollow) view still does', () => {
+    const h = host({ state: { kind: 'tier', tier: 'best' }, scope: 'deck', own: 'default' }); h.open()
+    const thumbText = () => h.nodes().find(node => node.props?.['aria-valuetext'] !== undefined)?.props['aria-valuetext']
+    assert.match(thumbText(), /your default/, 'the saved hollow thumb says it is the default')
+    for (const i of [0, 1, 2, 3]) { slide(h).onValueChange([i]); h.rootHost.flush(); assert.doesNotMatch(String(thumbText()), /your default/, `stop ${i} while dragged`); eq(h.byAttr('data-mpick', 'reset').props.disabled, true, `reset stays off at stop ${i}`) }
+  })
+  run('F: the reusable default saved as Auto: a drag to any stop keeps the reset off (as saved); the lib\'s drag view copies the saved reset', () => {
+    const h = host({ state: USER_AUTO, scope: 'user' }); h.open(); eq(h.byAttr('data-mpick', 'reset').props.disabled, true, 'before the drag')
+    for (const i of [0, 1, 2, 3]) { slide(h).onValueChange([i]); h.rootHost.flush(); eq(h.byAttr('data-mpick', 'reset').props.disabled, true, `during the drag at stop ${i}`) }
+    eq(h.calls, [], 'nothing saved')
+    const saved = view(USER_AUTO); const dragged = lib.simpleDragView({ catalogue: ROUTER, scope: 'user', tier: 'best', saved })
+    eq([dragged.title, dragged.resetEnabled, saved.resetEnabled], ['Best', false, false])
+    const deckSaved = view({ kind: 'tier', tier: 'best' }, { scope: 'deck', own: 'default' }); const deckDrag = lib.simpleDragView({ catalogue: ROUTER, scope: 'deck', tier: 'max', saved: deckSaved })
+    eq([deckDrag.thumb, deckDrag.resetEnabled], ['selected', false]); assert.doesNotMatch(deckDrag.valueText, /your default/)
+    const setSaved = view({ kind: 'tier', tier: 'best' }, { scope: 'deck', own: 'set' }); eq(lib.simpleDragView({ catalogue: ROUTER, scope: 'deck', tier: 'max', saved: setSaved }).resetEnabled, true)
+  })
   run('F: a deck that follows its default (a hollow thumb) saves its own choice when the same stop is chosen only if it differs: the hollow stop is not a choice of its own', async () => {
     const h = host({ state: { kind: 'tier', tier: 'best' }, scope: 'deck', own: 'default' }); h.open(); eq(slide(h)['data-thumb'], 'hollow')
     h.byAttr('data-mpick-stop', 'best').props.onClick(); await h.flush(); eq(h.calls, [{ tier: 'best' }], 'choosing the default\'s own stop on a hollow thumb saves it for the deck')
@@ -478,7 +494,7 @@ function scopeHead(ref = 'HEAD') { const head = git('rev-parse', `${ref}^{commit
 await check('I: the committed files: this change\'s own commits ("Model picker: ...") touch exactly its files; each commit carries the attribution line; no other change\'s subject is among them', () => {
   git('cat-file', '-e', `${BASE_COMMIT}^{commit}`)
   const head = scopeHead(), own = ownOf(head); assert.ok(own.length >= 1, 'no own commit yet')
-  for (const c of own) assert.match(git('log', '-1', '--format=%B', c), /Co-Authored-By: Claude Sonnet 5\.5 <noreply@anthropic\.com>\s*$/, c.slice(0, 8))
+  for (const c of own) assert.match(git('log', '-1', '--format=%B', c), /Co-Authored-By: Claude (?:Sonnet|Opus) 5\.5 <noreply@anthropic\.com>\s*$/, c.slice(0, 8))
   const touched = new Set(); for (const c of own) for (const rel of git('show', '--name-only', '--format=', c).split('\n').filter(Boolean)) touched.add(rel)
   const net = new Set(git('diff', '--name-only', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)); for (const rel of [...touched]) if (!net.has(rel)) touched.delete(rel)
   eq([...touched].sort(), [...SCOPE_FILES].sort(), 'the files this change\'s own commits touch (net of what they put back) are exactly its scope')
@@ -529,9 +545,12 @@ mut('component: the reset is not disabled when there is nothing to clear', COMPO
 mut('component: a stop saves a model', COMPONENT, 'request(stopChoice(stop, api.scope))', 'request({ model: "anthropic/claude-opus-5.5" })')
 mut('component: the chosen stop saves again', COMPONENT, '(!inFlight.current && chosen.thumb === "selected" && index === chosen.index)', 'false')
 mut('component: the stops carry hover tooltips again', COMPONENT, ' data-mpick-stop={stop.id} aria-hidden="true"', ' data-mpick-stop={stop.id} title={stop.sub ?? undefined} aria-hidden="true"')
-mut('component: the dragged preview drops what the deck holds, so the reset reads as enabled mid-drag', COMPONENT, 'scope: api.scope, own: api.deckOwn, stops }) : chosen', 'scope: api.scope, stops }) : chosen')
+mut('component: the dragged preview is built from scratch, so the reset reads as enabled mid-drag', COMPONENT, 'simpleDragView({ catalogue: api.catalogue, scope: api.scope, tier: dragged.tier, saved: chosen, stops })', 'simpleView({ catalogue: api.catalogue, state: { kind: "tier", tier: dragged.tier }, scope: api.scope, stops })')
+mut('component: the dragged preview carries what the deck holds, so every stop says "your default"', COMPONENT, 'simpleDragView({ catalogue: api.catalogue, scope: api.scope, tier: dragged.tier, saved: chosen, stops })', 'simpleView({ catalogue: api.catalogue, state: { kind: "tier", tier: dragged.tier }, scope: api.scope, own: api.deckOwn, stops })')
+mut('lib: the drag view passes own through', LIB, "scope: args.scope, stops: args.stops })\n  return { ...preview", "scope: args.scope, own: 'default', stops: args.stops })\n  return { ...preview")
+mut('lib: the drag view computes its own reset', LIB, 'return { ...preview, resetEnabled: args.saved.resetEnabled }', 'return preview')
 mut('component: a drag saves', COMPONENT, 'onValueChange={values => onDraft(values[0])}', 'onValueChange={values => { onDraft(values[0]); onCommit(values[0]) }}')
-mut('component: the title does not follow a drag', COMPONENT, 'const view = dragged?.tier ? simpleView({ catalogue: api.catalogue, state: { kind: "tier", tier: dragged.tier }, scope: api.scope, own: api.deckOwn, stops }) : chosen', 'const view = chosen')
+mut('component: the title does not follow a drag', COMPONENT, 'const view = dragged?.tier ? simpleDragView({ catalogue: api.catalogue, scope: api.scope, tier: dragged.tier, saved: chosen, stops }) : chosen', 'const view = chosen')
 mut('component: a choice made during a save is dropped', COMPONENT, 'else if (choiceValue(choice) !== asked.current || waiting.current !== null) { waiting.current = { choice }; asked.current = choiceValue(choice) }', '')
 mut('component: the chevron does not collapse Advanced and the list', COMPONENT, "setListOpen(open => !open); setAdvancedOpen(false)", 'setListOpen(open => !open)')
 mut('component: "Choose a specific model" does not open Advanced', COMPONENT, 'setListOpen(false); setAdvancedOpen(true)', 'setListOpen(false)')

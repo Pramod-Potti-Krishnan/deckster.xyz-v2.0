@@ -7,7 +7,7 @@ import * as SliderPrimitive from "@radix-ui/react-slider"
 import { ChevronDown, ChevronRight, Gauge, RotateCcw } from "lucide-react"
 import { choiceValue, type ModelChoice } from "@/lib/studio-model-picker"
 import { SLIDER_ADVANCED_LABEL, SLIDER_LABEL, SLIDER_MODELS_LABEL, sliderAdvanced, stopChoice, type PickerStop, type SliderAdvanced } from "@/lib/studio-model-slider"
-import { SIMPLE_LIST_ACTION, SIMPLE_MENU_LABEL, SIMPLE_SHEET_QUERY, simpleStops, simpleView, type SimpleView } from "@/lib/studio-model-picker-simple"
+import { SIMPLE_LIST_ACTION, SIMPLE_MENU_LABEL, SIMPLE_SHEET_QUERY, simpleDragView, simpleStops, simpleView, type SimpleView } from "@/lib/studio-model-picker-simple"
 import { ModelOption } from "./model-option"
 import { useModelChoice } from "./use-model-choice"
 import "./model-picker.css"
@@ -48,9 +48,9 @@ export function ModelPickerSimple({ sessionId, disabled, className, onChange }: 
   const asked = useRef<string | null>(null) // what the last choice asked for, while a save is in flight
   const stops = simpleStops(api.catalogue)
   const chosen = simpleView({ catalogue: api.catalogue, state: api.state, scope: api.scope, own: api.deckOwn, stops })
-  // While the thumb is being moved the title and the line follow it (what the stop would resolve to); only a commit saves, so the reset still reads what is saved (`own`).
+  // While the thumb is being moved the title and the line follow it (what the stop would resolve to); only a commit saves, so the reset is the saved view's and the preview never says "your default".
   const dragged = draft !== null ? stops[draft] : undefined
-  const view = dragged?.tier ? simpleView({ catalogue: api.catalogue, state: { kind: "tier", tier: dragged.tier }, scope: api.scope, own: api.deckOwn, stops }) : chosen
+  const view = dragged?.tier ? simpleDragView({ catalogue: api.catalogue, scope: api.scope, tier: dragged.tier, saved: chosen, stops }) : chosen
   const advanced = sliderAdvanced({ catalogue: api.catalogue, state: api.state, scope: api.scope, own: api.deckOwn, userState: api.userState })
 
   function save(choice: ModelChoice) {
