@@ -29,7 +29,7 @@ export const PHONE_SHELL_COVERAGE_NEW_FILES = [
 ]
 
 /** The older proofs this change teaches: [text the proof has now, text the base commit's proof has] per edit, whole lines, so putting them back gives the base file byte for byte. Every line the proof has now carries PHONE_SHELL_COVERAGE_PIN_MARK.
- * None of them is in FRONTEND-1's or COMPOSER-2's lane. */
+ * Two are in FRONTEND-1's lane (test-studio-p2-docs, test-atlas-help-recovery), taught with FRONTEND-1's OK of 4 Nov 11:08Z; none is in COMPOSER-2's. */
 export const PHONE_SHELL_COVERAGE_PIN_MARK = '// LATER-CHANGES: registry read (PHONE-SHELL-COVERAGE)'
 const FIRST_PARENT_LINE = "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Phone shell coverage:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (PHONE-SHELL-COVERAGE): on a branch stacked after this change (the phone shell coverage's), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files\n"
 export const PHONE_SHELL_COVERAGE_PIN_EDITS = {
@@ -39,6 +39,9 @@ export const PHONE_SHELL_COVERAGE_PIN_EDITS = {
     ["  const family = ['lib', 'components/layout', 'scripts'].flatMap(dir => fs.readdirSync(path.join(root, dir)).filter(name => /phone-shell|phone-tab/.test(name) && !/builder-top|phone-shell-coverage/.test(name)).map(name => `${dir}/${name}`)) // LATER-CHANGES: registry read (PHONE-SHELL-COVERAGE): the coverage change's own files (it has its own proof and list) are not this family\n",
      "  const family = ['lib', 'components/layout', 'scripts'].flatMap(dir => fs.readdirSync(path.join(root, dir)).filter(name => /phone-shell|phone-tab/.test(name) && !/builder-top/.test(name)).map(name => `${dir}/${name}`))\n"],
   ],
+  // FRONTEND-1 lane, taught with FRONTEND-1's OK (4 Nov 11:08Z): both read components/help/studio-help.tsx raw, so they strip later changes first
+  "scripts/test-studio-p2-docs.mjs": [["import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (PHONE-SHELL-COVERAGE)\n", ""], ["const read = rel => stripLaunchWording(rel, stripLaterChanges(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))) // LATER-CHANGES: registry read (PHONE-SHELL-COVERAGE)\n", "const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))\n"]],
+  "scripts/test-atlas-help-recovery.mjs": [["import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (PHONE-SHELL-COVERAGE)\n", ""], ["const read = path => stripLaunchWording(path, stripLaterChanges(path, fs.readFileSync(new URL(path, root), 'utf8'))) // LATER-CHANGES: registry read (PHONE-SHELL-COVERAGE)\n", "const read = path => stripLaunchWording(path, fs.readFileSync(new URL(path, root), 'utf8'))\n"]],
 }
 
 /** The proof without this change's edits (the base commit's file). Idempotent: a proof that has none of the edits comes back as it is. */

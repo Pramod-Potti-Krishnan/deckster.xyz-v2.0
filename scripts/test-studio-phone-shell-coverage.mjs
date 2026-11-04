@@ -412,7 +412,7 @@ const OLDER_PREFIXES = /^(Phone landscape:|Phone hints:|Phone shell 1:|Phone she
 const scopeOwnCommits = (head, opts) => {
   const own = ownOf(head, opts)
   assert.ok(own.length >= 1, 'no own commit yet')
-  for (const c of own) assert.match(git('log', '-1', '--format=%B', c), /Co-Authored-By: Claude Sonnet 5\.5 <noreply@anthropic\.com>\s*$/, c.slice(0, 8))
+  for (const c of own) assert.match(git('log', '-1', '--format=%B', c), /Co-Authored-By: Claude (?:Sonnet|Opus) 5\.5 <noreply@anthropic\.com>\s*$/, c.slice(0, 8))
   for (const c of git('rev-list', '--no-merges', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)) assert.doesNotMatch(subjectOf(c), OLDER_PREFIXES, `${c.slice(0, 8)} would be taken for an older change's own commit`)
   return own
 }
