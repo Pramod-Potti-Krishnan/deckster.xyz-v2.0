@@ -5507,7 +5507,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     clearAllFiles
   } = useFileUpload({
     sessionId: currentSessionId || '',
-    userId: user?.email || '',
+    userId: uploadOwnerId(user), // K-02: NEXT_PUBLIC_STUDIO_OWNER_CUID_ENABLED sends user.id (cuid); off = e-mail
     onUploadComplete: (files) => {
       console.log('Files uploaded:', files)
       const storeName = files.find(f => f.geminiStoreName)?.geminiStoreName
@@ -8483,6 +8483,7 @@ import { STUDIO_STAGE_OPEN_GATE_ENABLED, stepStudioStageGate, studioStageGatePro
 import { STUDIO_STRAWMAN_CHAT_ENABLED } from '@/lib/studio-strawman-chat' // STRAWMAN-CHAT: placed here with the other late imports, after the Builder's runners, for the same older proofs
 import { useStudioStrawmanChat } from '@/hooks/use-studio-strawman-chat' // STRAWMAN-CHAT
 import { StudioStrawmanChatLine } from '@/components/builder/chat/studio-strawman-chat' // STRAWMAN-CHAT
+import { uploadOwnerId } from '@/lib/studio-upload-owner' // K-02 owner cuid
 import { useStudioStageOpen } from '@/lib/studio-stage-open-gate' // STRAWMAN-CHAT: FRONTEND-2's gate, read on the one stage-open line
 
 function BuilderLoadingState({ message = 'Loading builder...' }: { message?: string }) {
