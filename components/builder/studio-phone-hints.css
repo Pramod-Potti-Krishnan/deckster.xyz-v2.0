@@ -1,0 +1,82 @@
+/* STUDIO PHONE HINTS (F-13 PR 2; flag NEXT_PUBLIC_STUDIO_PHONE_HINTS, default off, with PR 1's flag). Every rule needs an attribute components/builder/studio-phone-hints.tsx puts on <html> only while it is mounted (data-studio-phone-hints /
+   -fullscreen / -swipe) or one of that component's own elements, so with the flag off none of it matches anything. The portrait rules sit in the phone shell's own width plus portrait, the landscape ones in PR 1's landscape-phone query; the
+   full-screen stage of our own (when the browser has no full screen, or refuses it) and the swipe rules are the same in both.
+   SWIPE: the slide space takes horizontal touches (touch-action: pan-y) and the slide's frame lets them through (pointer-events: none), so a swipe starting on the slide itself reaches the viewer's listener; editing the slide turns the swipe off, which gives the frame its touches back.
+   FULL SCREEN, OUR OWN: a fixed 100dvh stage with nothing but the slide and an Exit button: the rail, top bar, switch, toolbar, pull tabs, notes, brand row, thumbnails, tab bar and PR 1's own controls are out (the top bar and the authoring row stay laid out and invisible, as in PR 1).
+   The slide space's black and the viewer's padding go through the viewer's own :not([data-studio-v4-fullscreen]) form, so (with the hints attribute too) they are more specific than the canvas sheet's neutral surface and PR 1's collapsed-strip padding. */
+
+@media (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
+  html[data-studio-phone-hints] { --studio-phone-controls-right: 46px; }
+  [data-studio-phone-fullscreen-button="true"] {
+    position: fixed; top: calc(8px + env(safe-area-inset-top, 0px)); right: calc(8px + env(safe-area-inset-right, 0px)); z-index: 44; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 15px;
+    background: rgb(14 21 20 / 66%); color: #fff; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); cursor: pointer;
+  }
+  [data-studio-phone-fullscreen-button="true"]::after { content: ""; position: absolute; inset: -7px; }
+  [data-studio-phone-fullscreen-button="true"] svg { width: 15px; height: 15px; stroke-width: 1.8; }
+  [data-studio-phone-fullscreen-button="true"]:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; }
+}
+
+@media (max-width: 640px) and (orientation: portrait) {
+  /* the Full screen button above the slide (its place is set from the slide's box) */
+  [data-studio-phone-fullscreen-pill="true"] {
+    position: fixed; z-index: 40; right: 14px; top: 96px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; box-sizing: border-box; width: 112px; height: 30px; padding: 0 11px 0 9px; border: 1px solid var(--ss-line); border-radius: 15px;
+    background: var(--ss-panel); color: var(--ss-text); font-size: 12px; font-weight: 600; line-height: 1; box-shadow: 0 1px 3px rgb(15 23 42 / 10%); cursor: pointer;
+  }
+  [data-studio-phone-fullscreen-pill="true"]::after { content: ""; position: absolute; inset: -7px -4px; }
+  [data-studio-phone-fullscreen-pill="true"] svg { width: 14px; height: 14px; stroke-width: 1.8; }
+  [data-studio-phone-fullscreen-pill="true"]:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; }
+
+  /* the one-time rotate card, below the slide */
+  [data-studio-phone-rotate-hint="true"] {
+    position: fixed; z-index: 40; left: 16px; right: 16px; top: 62%; box-sizing: border-box; padding: 14px 14px 12px; border: 1px solid var(--ss-line); border-radius: 16px;
+    background: var(--ss-panel); color: var(--ss-text); box-shadow: 0 8px 24px rgb(15 23 42 / 12%), 0 1px 3px rgb(15 23 42 / 8%);
+  }
+  [data-studio-phone-hint-head="true"] { display: flex; align-items: flex-start; gap: 12px; }
+  [data-studio-phone-hint-tile="true"] { flex: none; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; background: var(--ss-accent-soft); color: var(--ss-accent); }
+  [data-studio-phone-hint-tile="true"] svg { width: 22px; height: 22px; stroke-width: 1.8; }
+  [data-studio-phone-hint-head="true"] h2 { margin: 1px 24px 3px 0; font-size: 15px; font-weight: 650; line-height: 20px; }
+  [data-studio-phone-hint-head="true"] p { margin: 0; color: var(--ss-muted); font-size: 13px; line-height: 18px; }
+  [data-studio-phone-hint-dismiss="true"] { position: absolute; top: 8px; right: 8px; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--ss-muted); cursor: pointer; }
+  [data-studio-phone-hint-dismiss="true"]::after { content: ""; position: absolute; inset: -8px; }
+  [data-studio-phone-hint-dismiss="true"] svg { width: 16px; height: 16px; stroke-width: 1.8; }
+  [data-studio-phone-hint-actions="true"] { display: flex; align-items: center; gap: 8px; margin: 12px 0 0 56px; }
+  [data-studio-phone-hint-primary="true"] { position: relative; display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px 0 11px; border: 1px solid var(--ss-action, #223a3f); border-radius: 7px; background: var(--ss-action, #223a3f); color: #fff; font-size: 13px; font-weight: 600; line-height: 1; cursor: pointer; }
+  [data-studio-phone-hint-primary="true"]::after, [data-studio-phone-hint-quiet="true"]::after { content: ""; position: absolute; inset: -5px -2px; }
+  [data-studio-phone-hint-primary="true"] svg { width: 15px; height: 15px; stroke-width: 1.8; }
+  [data-studio-phone-hint-quiet="true"] { position: relative; height: 34px; padding: 0 10px; border: 0; background: transparent; color: var(--ss-muted); font-size: 13px; font-weight: 500; line-height: 1; cursor: pointer; }
+  [data-studio-phone-hint-dismiss="true"]:focus-visible, [data-studio-phone-hint-primary="true"]:focus-visible, [data-studio-phone-hint-quiet="true"]:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; }
+
+  /* the one-time swipe hint, on the foot of the slide */
+  [data-studio-phone-swipe-hint="true"] {
+    position: fixed; z-index: 40; left: 50%; top: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 15px; pointer-events: none;
+    background: rgb(14 21 20 / 72%); color: #fff; font-size: 12px; font-weight: 600; line-height: 1; white-space: nowrap; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  }
+  [data-studio-phone-swipe-hint="true"] svg { width: 14px; height: 14px; stroke-width: 2; }
+}
+
+/* the swipe: horizontal touches belong to the slide space, and reach it through the slide's frame */
+html[data-studio-phone-swipe="on"] [data-studio-v4-shell="true"] [data-studio-slide-space] { touch-action: pan-y; }
+html[data-studio-phone-swipe="on"] [data-studio-v4-shell="true"] [data-studio-slide-space] iframe { pointer-events: none; }
+
+/* the full-screen stage of our own (the browser has none, or refused): the slide on a black 100dvh page with an Exit button */
+html[data-studio-phone-fullscreen="fallback"] [data-studio-v4-shell="true"] { height: 100dvh; }
+html[data-studio-phone-fullscreen="fallback"] [data-studio-v4-shell="true"] > [data-studio-v4-rail],
+html[data-studio-phone-fullscreen="fallback"] [data-studio-v4-shell="true"] > [data-studio-phone-tabbar="true"] { display: none; }
+html[data-studio-phone-fullscreen="fallback"] [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) { padding-bottom: 0; }
+html[data-studio-phone-fullscreen="fallback"] [data-studio-v4-shell="true"] > [data-studio-v4-shell-column] > [data-studio-v4-shell-header],
+html[data-studio-phone-fullscreen="fallback"] [data-studio-v4-shell="true"] [data-studio-authoring-slot] {
+  position: fixed; top: auto; left: auto; right: 64px; bottom: 8px; z-index: 0; width: max-content; max-width: none; visibility: hidden; pointer-events: none;
+}
+html[data-studio-phone-fullscreen="fallback"] [data-studio-v4-shell="true"] :is([data-studio-workspace-switch], [data-studio-drawer-handle], [data-studio-notes-handle], [data-studio-canvas-brand], [data-studio-v4-thumbnail-toggle], [data-studio-v4-thumbnail-resize], [data-studio-v4-thumbnails]) { display: none; }
+html[data-studio-phone-fullscreen="fallback"] [data-studio-v4-shell="true"] [data-studio-v4-shell-workspace] { --studio-pane-toolbar-height: 0px; margin: 0; border: 0; border-radius: 0; }
+html[data-studio-phone-fullscreen="fallback"][data-studio-phone-hints] [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) > [data-studio-v4-shell-column] > [data-studio-v4-shell-workspace] { margin-left: 0; }
+html[data-studio-phone-fullscreen="fallback"][data-studio-phone-hints] [data-studio-v4-shell="true"] [data-studio-v4-viewer]:not([data-studio-v4-fullscreen="true"]) [data-studio-slide-space="true"] { padding: 0; background: #000; }
+html[data-studio-phone-fullscreen="fallback"][data-studio-phone-hints] [data-studio-v4-shell="true"] [data-studio-v4-viewer]:not([data-studio-v4-fullscreen="true"]) { padding-left: 0; }
+html[data-studio-phone-fullscreen="fallback"] :is([data-studio-phone-controls="true"], [data-studio-phone-dock="true"], [data-studio-phone-fan-card="true"], [data-studio-phone-nav-card="true"], [data-studio-phone-menu-backdrop="true"], [data-studio-phone-strip-head="true"], [data-studio-phone-strip-handle="true"], [data-studio-phone-fullscreen-button="true"], [data-studio-phone-fullscreen-pill="true"]) { display: none; }
+html[data-studio-phone-fullscreen="fallback"] [data-studio-phone-exit="true"] {
+  position: fixed; top: calc(8px + env(safe-area-inset-top, 0px)); right: calc(8px + env(safe-area-inset-right, 0px)); z-index: 70; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 15px;
+  background: rgb(14 21 20 / 66%); color: #fff; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); cursor: pointer;
+}
+html[data-studio-phone-fullscreen="fallback"] [data-studio-phone-exit="true"]::after { content: ""; position: absolute; inset: -7px; }
+html[data-studio-phone-fullscreen="fallback"] [data-studio-phone-exit="true"] svg { width: 15px; height: 15px; stroke-width: 1.8; }
+html[data-studio-phone-fullscreen="fallback"] [data-studio-phone-exit="true"]:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; }

@@ -129,6 +129,7 @@ function strip(ref, studio) {
     './studio-rail-build-placeholder': {RailBuildPlaceholderCard:()=>null},
     // THUMBNAILS-BLANK-UAT "never blank" (flag NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD, default off): flag-off stub; the cue is drawn only for a row that carries thumbnailLag, which these renders never do; older refs never import it.
     './studio-thumbnail-lag-cue': {StudioThumbnailLagCue:()=>null},
+    '@/lib/studio-template-match': {STUDIO_TEMPLATE_MATCH_ENABLED:false}, '@/components/builder/studio-template-match-chip': {StudioTemplateMatchChip:()=>null}, // LATER-CHANGES: registry read (STUDIO-TEMPLATE-MATCH): flag-off stubs (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH, default off); the chip is drawn only with the flag on; older refs never import them
   }
   const parsed=ts.createSourceFile('strip.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX)
   for (const declaration of parsed.statements) {

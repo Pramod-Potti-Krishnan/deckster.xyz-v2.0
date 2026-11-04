@@ -10,3 +10,4 @@ export * from "./mic-errors";
 export * from "./format";
 export * from "./gestures";
 export * from "./flag";
+export * from "./companion-face";

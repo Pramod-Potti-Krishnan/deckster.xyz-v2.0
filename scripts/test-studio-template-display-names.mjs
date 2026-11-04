@@ -29,6 +29,7 @@ const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
 const BASE_COMMIT = process.env.TEMPLATE_DISPLAY_NAMES_BASE || '687b694'
 const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (STUDIO-TEMPLATE-MATCH): the loader below reads the files it runs past the lines of the changes registered after this one
 function baseSource(rel) {
   try {
     execFileSync('git', ['cat-file', '-e', `${BASE_COMMIT}^{commit}`], { cwd: repoRoot, stdio: 'ignore' })
@@ -50,7 +51,7 @@ const TEMPLATE_PICKER = 'components/builder/template-picker.tsx'
 const DIALOG = 'components/builder/composer-library-dialog.tsx'
 const DROPDOWN = 'components/theme-dropdown-picker.tsx'
 const STATE = 'lib/studio-template-workspace/state.ts'
-const SOURCES = { [LIB]: read(LIB), [PICKER]: read(PICKER), [TEMPLATE_PICKER]: read(TEMPLATE_PICKER), [DIALOG]: read(DIALOG) }
+const SOURCES = { [LIB]: read(LIB), [PICKER]: (await import('./studio-later-changes.mjs')).stripLaterChanges(PICKER, read(PICKER)), [TEMPLATE_PICKER]: (await import('./studio-later-changes.mjs')).stripLaterChanges(TEMPLATE_PICKER, read(TEMPLATE_PICKER)), [DIALOG]: read(DIALOG) } // LATER-CHANGES: registry read (STUDIO-TEMPLATE-MATCH): the two pickers are read past the lines of the changes registered after this one (the template match's marked lines)
 const FLAG = 'NEXT_PUBLIC_STUDIO_TEMPLATE_DISPLAY_NAMES'
 const SHELL = 'NEXT_PUBLIC_STUDIO_V4_SHELL'
 
@@ -137,7 +138,7 @@ function createLoader({ env = {}, stubs = {}, globals = {}, overrides = {} } = {
     const mod = { exports: {} }
     cache.set(file, mod.exports)
     const rel = path.relative(repoRoot, file)
-    const source = overrides[rel] ?? fs.readFileSync(file, 'utf8')
+    const source = overrides[rel] ?? stripLaterChanges(rel, fs.readFileSync(file, 'utf8')) // LATER-CHANGES: registry read (STUDIO-TEMPLATE-MATCH): the files this loader runs (the pickers) are read past the template match's marked lines
     const key = `${rel}\0${sha(source)}`
     if (!transpiled.has(key)) transpiled.set(key, compile(source, file))
     vm.runInNewContext(transpiled.get(key), { module: mod, exports: mod.exports, process: { env }, console, ...globals, require: spec => requireFor(spec, file) })

@@ -25,6 +25,9 @@ import { studioTemplateShownName, studioTemplateTitleProps } from '@/lib/studio-
 import { templateCapabilities, templateWorkspaceCounts } from '@/lib/studio-template-workspace/state'
 import type { TemplateWorkspaceSnapshot } from '@/lib/studio-template-workspace/adapter'
 import { SlideView, uploadedAgo, useTemplateWorkspaceRecords, useTemplateWorkspaceSnapshots, useTemplateWorkspaceUserKey } from './shared'
+import { STUDIO_TEMPLATE_MATCH_ENABLED } from '@/lib/studio-template-match' // STUDIO-TEMPLATE-MATCH
+import { useStudioTemplateGroupShown, useStudioTemplatePickerRequest } from '@/hooks/use-studio-template-match' // STUDIO-TEMPLATE-MATCH
+import { StudioTemplateMatchGroup } from '@/components/builder/studio-template-match-group' // STUDIO-TEMPLATE-MATCH
 
 export interface StudioTemplatePickerProps {
   disabled?: boolean
@@ -111,6 +114,8 @@ export function StudioTemplatePicker({ disabled, triggerClassName, labelClassNam
   const [mode, setMode] = useState<'new_topic' | 'as_is'>('new_topic')
   const [message, setMessage] = useState<string | null>(null)
   const composerList = useComposerTemplates(Boolean(onComposerTemplateAction && open && userKey))
+  useStudioTemplatePickerRequest(() => setOpen(true)) // STUDIO-TEMPLATE-MATCH: Change on the badge opens this popover (flag off, nothing is requested)
+  const studioTemplateGroupShown = useStudioTemplateGroupShown() // STUDIO-TEMPLATE-MATCH: the "Use with this deck" group is on top, so today's list is the start of a new presentation
 
   const entries: Entry[] = useMemo(() => live
     .filter(item => item.snapshot.state.status !== 'refused' && !(item.snapshot.state.status === 'failed' && !item.snapshot.state.deck))
@@ -175,9 +180,10 @@ export function StudioTemplatePicker({ disabled, triggerClassName, labelClassNam
       <PopoverContent portalContainer={portalContainer ?? undefined} align="center" sideOffset={8} data-studio-v4-shell="true" data-studio-template-picker="true" className="stw-picker stw-tokens"
         onOpenAutoFocus={event => { event.preventDefault(); document.getElementById(`${uid}-search`)?.focus() }}>
         <div className="stw-picker-main">
+          {STUDIO_TEMPLATE_MATCH_ENABLED && <StudioTemplateMatchGroup onDone={() => setOpen(false)} />}{/* STUDIO-TEMPLATE-MATCH: "Use with this deck" on top of today's list; off, or with no match, never drawn */}
           <div className="stw-picker-head">
             <div>
-              <h3>Start from a template <span>{listedCount}</span></h3>
+              <h3>{studioTemplateGroupShown ? 'Start a new presentation ' : 'Start from a template '}<span>{listedCount}</span></h3>{/* STUDIO-TEMPLATE-MATCH: with the group above, today's list is headed "Start a new presentation" (its line below, "Creates a new presentation.", is today's) */}
               <p>Creates a new presentation.</p>
             </div>
             <button type="button" className="stw-btn quiet" style={{ width: 26, height: 26, padding: 0 }} aria-label="Close" onClick={() => setOpen(false)}><X /></button>

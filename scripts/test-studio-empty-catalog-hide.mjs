@@ -33,7 +33,7 @@ const tick = () => new Promise(resolve => setTimeout(resolve, 0))
 const refuse = () => { throw new Error('empty-catalog-hide fixture refuses services and writes') }
 
 const PICKER = 'components/builder/template-picker.tsx', DROPDOWN = 'components/theme-dropdown-picker.tsx', POPUPS = 'lib/studio-composer-popups.ts'
-const SOURCE = read(PICKER), BASE = baseSource(PICKER)
+const SOURCE = (await import('./studio-later-changes.mjs')).stripLaterChanges(PICKER, read(PICKER)), BASE = baseSource(PICKER) // LATER-CHANGES: registry read (STUDIO-TEMPLATE-MATCH): the Template picker is read past the lines of the changes registered after this one (the template match's marked lines)
 const FLAG = 'NEXT_PUBLIC_STUDIO_EMPTY_CATALOG_HIDE', SHELL = 'NEXT_PUBLIC_STUDIO_V4_SHELL'
 const compile = (source, fileName) => ts.transpileModule(source, { fileName, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText
 

@@ -201,7 +201,7 @@ const page = read('app/builder/page.tsx')
     'the Director handle brings the collapsed chat back first')
   check(assert.ok, page.includes(`            studioRailCollapsed={STUDIO_PANEL_FOCUS_ENABLED ? studioPanelFocusRailCollapsed({ focus: studioPanelFocus, revealed: studioPanelFocusReveal.rail }) : undefined}
             onStudioRailReveal={STUDIO_PANEL_FOCUS_ENABLED ? studioPanelFocusRevealRail : undefined}`), 'flag off: the viewer gets no rail props')
-  const area = read('components/builder/presentation-area.tsx')
+  const area = (await import('./studio-later-changes.mjs')).stripLaterChanges('components/builder/presentation-area.tsx', read('components/builder/presentation-area.tsx')) // LATER-CHANGES: registry read (STUDIO-TEMPLATE-MATCH): PresentationArea is read past the lines of the changes registered after this one (the template match's marked lines)
   check(assert.ok, area.includes(`            studioRailCollapsed={studioRailCollapsed}
             onStudioRailReveal={onStudioRailReveal}`), 'PresentationArea passes both through')
   const baseArea = baseSource('components/builder/presentation-area.tsx')
