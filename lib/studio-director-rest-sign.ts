@@ -11,7 +11,15 @@
  * in the users table (by id, else by e-mail) and the header is minted ONLY when that DB row's id is exactly the id the proxy sends to Director
  * (path / body / query). A mismatch (e.g. an e-mail-keyed fallback), a missing row, a DB error or an unset secret all yield {} (never throws).
  *
- * Server-only. Never log the header or the secret; never return it to a browser.
+ * The verified DB id is cached in-process per session user for VERIFIED_ID_TTL_MS (30 s), so a polling proxy (compose jobs) does not read
+ * the DB on every call. Only a found row is cached; a miss, a mismatch or a DB error is read again next time.
+ * The Director path of the call is bound in the claims as `path` (Director's verifier, src/utils/rest_entitlement.py, ignores claims it does not read).
+ *
+ * E-mail fallback: a proxy that sends `sessionUser.id || sessionUser.email` sends the e-mail when the session has no id; the DB id never equals
+ * an e-mail, so that call gets NO header (fail-closed) and one log line says so. Director's DIRECTOR_REST_AUTH_ALL_ENABLED must stay off until
+ * every session carries an id.
+ *
+ * Server-only. Never log the header, the secret or the e-mail; never return it to a browser.
  */
 import { getServerSession } from 'next-auth'
 
@@ -30,6 +38,22 @@ export interface DirectorRestSignDeps {
   sessionUser?: () => Promise<{ id?: string | null; email?: string | null } | null | undefined>
   /** DB lookup of the canonical user id; defaults to prisma.user. */
   findUserId?: (where: { id: string } | { email: string }) => Promise<string | null>
+  /** Milliseconds since epoch; tests only. */
+  now?: () => number
+}
+
+export interface DirectorRestSignOptions extends DirectorRestSignDeps {
+  /** The Director path of this call (no host, no query); bound in the claims as `path`. */
+  path?: string
+}
+
+/** How long a verified DB id is reused for the same session user. */
+export const VERIFIED_ID_TTL_MS = 30_000
+const verifiedIdCache = new Map<string, { id: string; at: number }>()
+
+/** Tests only: forget every cached id. */
+export function clearDirectorRestSignCache(): void {
+  verifiedIdCache.clear()
 }
 
 async function defaultSessionUser() {
@@ -42,13 +66,24 @@ async function defaultFindUserId(where: { id: string } | { email: string }): Pro
   return row?.id ?? null
 }
 
+/** The DB-verified id of a session user, or null; a found id is reused for VERIFIED_ID_TTL_MS. */
+async function verifiedIdFor(where: { id: string } | { email: string }, deps: DirectorRestSignDeps): Promise<string | null> {
+  const key = 'id' in where ? `id:${where.id}` : `email:${where.email}`
+  const now = (deps.now ?? Date.now)()
+  const hit = verifiedIdCache.get(key)
+  if (hit && now - hit.at < VERIFIED_ID_TTL_MS) return hit.id
+  const id = await (deps.findUserId ?? defaultFindUserId)(where)
+  if (typeof id === 'string' && id) verifiedIdCache.set(key, { id, at: now })
+  else verifiedIdCache.delete(key)
+  return id ?? null
+}
+
 /** The DB-verified user id of the current session, or null. */
 export async function dbVerifiedSessionUserId(deps: DirectorRestSignDeps = {}): Promise<string | null> {
   const user = await (deps.sessionUser ?? defaultSessionUser)()
   if (!user) return null
-  const find = deps.findUserId ?? defaultFindUserId
-  if (typeof user.id === 'string' && user.id) return find({ id: user.id })
-  if (typeof user.email === 'string' && user.email) return find({ email: user.email })
+  if (typeof user.id === 'string' && user.id) return verifiedIdFor({ id: user.id }, deps)
+  if (typeof user.email === 'string' && user.email) return verifiedIdFor({ email: user.email }, deps)
   return null
 }
 
@@ -56,18 +91,24 @@ export async function dbVerifiedSessionUserId(deps: DirectorRestSignDeps = {}): 
  * Headers to spread into a Director REST `fetch`: `{ 'X-Deckster-Entitlement': ... }` or `{}`.
  * @param sentUserId the exact user_id string the proxy sends to Director for this call.
  * @param method     the HTTP method of that Director call.
+ * @param options    `path`: the Director path of the call (bound in the claims); the rest is for tests.
  */
 export async function directorRestSignHeaders(
   sentUserId: string,
   method: string,
-  deps: DirectorRestSignDeps = {},
+  options: DirectorRestSignOptions = {},
 ): Promise<Record<string, string>> {
   if (!isStudioDirectorRestSignAllEnabled()) return {}
   try {
     if (typeof sentUserId !== 'string' || !sentUserId) return {}
-    const verified = await dbVerifiedSessionUserId(deps)
-    if (!verified || verified !== sentUserId) return {}
-    const value = mintRestEntitlement({ sub: sentUserId, method })
+    const verified = await dbVerifiedSessionUserId(options)
+    if (!verified || verified !== sentUserId) {
+      if (verified && sentUserId.includes('@')) {
+        console.warn('[studio-director-rest-sign] no entitlement header: the session has no user id, so the proxy sent the e-mail fallback (fail-closed; keep Director DIRECTOR_REST_AUTH_ALL_ENABLED off until every session has an id)')
+      }
+      return {}
+    }
+    const value = mintRestEntitlement({ sub: sentUserId, method, ...(options.path ? { path: options.path } : {}) })
     return value ? { [REST_ENTITLEMENT_HEADER]: value } : {}
   } catch {
     return {}

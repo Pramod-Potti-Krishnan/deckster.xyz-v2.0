@@ -1,5 +1,5 @@
 import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
-import { directorRestSignHeaders } from '@/lib/studio-director-rest-sign'
+import { directorRestSignHeaders } from '@/lib/studio-director-rest-sign' // DIRECTOR-REST-SIGN
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
@@ -24,7 +24,7 @@ export async function PUT(
   try {
     const r = await fetch(
       `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes/${encodeURIComponent(id)}/standard`,
-      { method: 'PUT', headers: await directorRestSignHeaders(userId, 'PUT') },
+      { method: 'PUT', headers: await directorRestSignHeaders(userId, 'PUT', { path: `/api/users/${encodeURIComponent(userId)}/themes/${encodeURIComponent(id)}/standard` }) }, // DIRECTOR-REST-SIGN
     )
     const body = await r.json()
     return NextResponse.json(body, { status: r.status })

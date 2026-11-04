@@ -1,5 +1,5 @@
 import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
-import { directorRestSignHeaders } from '@/lib/studio-director-rest-sign'
+import { directorRestSignHeaders } from '@/lib/studio-director-rest-sign' // DIRECTOR-REST-SIGN
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
@@ -24,7 +24,7 @@ export async function GET(
   try {
     const r = await fetch(
       `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes/${encodeURIComponent(id)}`,
-      { cache: 'no-store', headers: await directorRestSignHeaders(userId, 'GET') },
+      { cache: 'no-store', headers: await directorRestSignHeaders(userId, 'GET', { path: `/api/users/${encodeURIComponent(userId)}/themes/${encodeURIComponent(id)}` }) }, // DIRECTOR-REST-SIGN
     )
     const body = await r.json()
     return NextResponse.json(body, { status: r.status })
@@ -52,7 +52,7 @@ export async function PATCH(
       `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes/${encodeURIComponent(id)}`,
       {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', ...(await directorRestSignHeaders(userId, 'PATCH')) },
+        headers: { 'Content-Type': 'application/json', ...(await directorRestSignHeaders(userId, 'PATCH', { path: `/api/users/${encodeURIComponent(userId)}/themes/${encodeURIComponent(id)}` })) }, // DIRECTOR-REST-SIGN
         body: JSON.stringify(payload),
       },
     )
@@ -74,7 +74,7 @@ export async function DELETE(
   try {
     const r = await fetch(
       `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes/${encodeURIComponent(id)}`,
-      { method: 'DELETE', headers: await directorRestSignHeaders(userId, 'DELETE') },
+      { method: 'DELETE', headers: await directorRestSignHeaders(userId, 'DELETE', { path: `/api/users/${encodeURIComponent(userId)}/themes/${encodeURIComponent(id)}` }) }, // DIRECTOR-REST-SIGN
     )
     const body = await r.json()
     return NextResponse.json(body, { status: r.status })
