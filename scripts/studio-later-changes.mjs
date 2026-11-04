@@ -72,6 +72,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-template-match-strip.mjs')).STUDIO_TEMPLATE_MATCH_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, W2 P4-7/8 template match: Studio shows the template Director applied, with Change / Undo, source chips and an auto-apply check (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH)
   ...(await import('./studio-phone-landscape-strip.mjs')).PHONE_LANDSCAPE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape (PR 1): a phone turned sideways gets a viewing stage with a hamburger and a plus (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   ...(await import('./studio-phone-hints-strip.mjs')).PHONE_HINTS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, F-13 phone hints (PR 2): the portrait rotate card, swipe to change slide, Full screen (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
+  ...(await import('./studio-model-picker-simple-strip.mjs')).MODEL_PICKER_SIMPLE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, F-14 simplified model picker: the composer's slider picker as a calmer popover or phone sheet, the preset's name, the router's writing model, a reset icon (NEXT_PUBLIC_STUDIO_MODEL_PICKER_SIMPLE)
   // one line per later change, above this comment
 ])
 
@@ -116,6 +117,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-template-match-strip.mjs')).STUDIO_TEMPLATE_MATCH_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, W2 P4-7/8 template match (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH)
   (await import('./studio-phone-landscape-strip.mjs')).PHONE_LANDSCAPE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape, PR 1 (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   (await import('./studio-phone-hints-strip.mjs')).PHONE_HINTS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-13 phone hints, PR 2 (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
+  (await import('./studio-model-picker-simple-strip.mjs')).MODEL_PICKER_SIMPLE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-14 simplified model picker (NEXT_PUBLIC_STUDIO_MODEL_PICKER_SIMPLE)
   // one line per later change, above this comment
 ]
 
@@ -169,6 +171,7 @@ export const LATER_STRIPS = [
   (await import('./studio-template-match-strip.mjs')).stripStudioTemplateMatch, // LATER-CHANGE: FRONTEND-2, W2 P4-7/8 template match (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH)
   (await import('./studio-phone-landscape-strip.mjs')).stripPhoneLandscape, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape, PR 1 (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   (await import('./studio-phone-hints-strip.mjs')).stripPhoneHints, // LATER-CHANGE: FRONTEND-1, F-13 phone hints, PR 2 (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
+  (await import('./studio-model-picker-simple-strip.mjs')).stripModelPickerSimple, // LATER-CHANGE: FRONTEND-1, F-14 simplified model picker (NEXT_PUBLIC_STUDIO_MODEL_PICKER_SIMPLE)
   // one line per later change, above this comment
 ]
 
