@@ -14,6 +14,9 @@ import "@/components/settings/studio-security.css"
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = "force-dynamic"
 
+// NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
+const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === "true"
+
 function interruptionMessage(acknowledged: boolean) {
   return acknowledged
     ? "Account deletion was confirmed, but sign-out was interrupted. Verify your account before retrying sign-out."
@@ -148,13 +151,13 @@ function SecuritySettingsForAccount({ owner, accessReady, accessLoading, current
               <div>
                 <p className="font-medium">Two-Factor Authentication</p>
                 <p className="text-sm text-muted-foreground">
-                  Your Google account&apos;s 2FA protects your sign-in.
-                  App-level TOTP is planned for a future release.
+                  {LAUNCH_WORDING ? "Two-step verification comes from your Google account. Deckster does not add a second factor of its own." : <>Your Google account&apos;s 2FA protects your sign-in.
+                  App-level TOTP is planned for a future release.</>}
                 </p>
               </div>
             </div>
             <Badge variant="outline" className="text-muted-foreground" data-studio-security-planned={studioShell ? "true" : undefined}>
-              Planned
+              {LAUNCH_WORDING ? "Via Google" : "Planned"}
             </Badge>
           </div>
         </CardContent>

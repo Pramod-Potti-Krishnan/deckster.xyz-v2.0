@@ -1,0 +1,9 @@
+/* NEXT_PUBLIC_STUDIO_DUPLICATE_COPY_TITLE (default off). Every rule is scoped to html[data-studio-copy-title="true"], which hooks/use-studio-duplicate-copy-title.ts sets only with the flag on, and every rule
+   starts from the attribute the pass (lib/studio-duplicate-copy-title.ts) sets on a copy card's title box, so a deck that is not a copy is never reached from here. The pass only sets attributes (React owns the
+   nodes); this sheet is how the title of a copy looks: the base name cut with an ellipsis, then the suffix " (copy)" in a part that never shrinks, so a long name no longer hides the one thing that tells a
+   copy from its original. The colour, size and line height are the card's own (inherited), so it is the Studio palette in either theme; the only colour this sheet names is the link's see-through text.
+   The title's link keeps its real text and stays the link, the focus target and the accessible name: it is laid over the box, with its text made see-through (the text drawn above is the same words). */
+html[data-studio-copy-title="true"] [data-studio-copy-title-host="1"] { position: relative; display: flex; min-width: 0; overflow: hidden; }
+html[data-studio-copy-title="true"] [data-studio-copy-title-host="1"]::before { content: attr(data-studio-copy-title-base); content: attr(data-studio-copy-title-base) / ""; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html[data-studio-copy-title="true"] [data-studio-copy-title-host="1"]::after { content: attr(data-studio-copy-title-suffix); content: attr(data-studio-copy-title-suffix) / ""; flex: none; white-space: pre; }
+html[data-studio-copy-title="true"] [data-studio-copy-title-host="1"] > a { position: absolute; top: 0; right: 0; bottom: 0; left: 0; overflow: hidden; white-space: nowrap; color: transparent; forced-color-adjust: none; }

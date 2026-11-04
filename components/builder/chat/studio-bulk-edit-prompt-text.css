@@ -1,0 +1,3 @@
+/* FRONTEND-2 (NEXT_PUBLIC_STUDIO_BULK_EDIT_PROMPT_TEXT, default off): Director's own sentence on the whole-deck edit card. One rule, keyed to the attribute only that sentence carries, so with the flag off it
+   matches nothing. The colour is the card's own text token (--ss-text, the same the quoted instruction uses), which follows light and dark; no new colour, no new size. */
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-part="prompt"] { margin: 0; color: var(--ss-text); font-size: 12px; line-height: 1.55; overflow-wrap: anywhere; }

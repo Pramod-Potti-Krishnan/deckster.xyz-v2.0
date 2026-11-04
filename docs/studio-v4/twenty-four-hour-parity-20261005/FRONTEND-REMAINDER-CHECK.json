@@ -1,0 +1,20 @@
+{
+  "atUtc": "2026-10-06T05:07:24.253592+00:00",
+  "baseUnchangedSha256": "4a66901f4c8d1949afff7c5e1a21171856cdc43e1b14c449ebd8f39db8b1d9a2",
+  "allBaseIDsPreserved": true,
+  "uniqueComponentIDs": 120,
+  "updatedPriorIDs": [
+    "studio/ST-03/implementation",
+    "atlas/K08/implementation",
+    "atlas/AS-B03/implementation",
+    "studio/ST-41/local-verification"
+  ],
+  "newIDs": [
+    "atlas/K08/actual-shell-stacking",
+    "atlas/shared-menu/quota-keyboard",
+    "studio/ST-03/current-menu-callback"
+  ],
+  "localLinksExist": 49,
+  "csvRoundTripRows": 120,
+  "claim": "Documentation association/status overlay only; not new product proof, percentage or final cutoff handoff."
+}

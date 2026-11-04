@@ -1,0 +1,62 @@
+{
+ "body": {
+  "checkpoint": {
+   "deck_import": {
+    "error": {
+     "code": "UPLOAD_FILE_TOO_LARGE",
+     "message": "This file is too large to import. Files up to 100 MB can be imported.",
+     "retryable": false
+    },
+    "phase": "failed",
+    "template_id": null,
+    "title": "Q3 Board Review",
+    "version": "director-deck-import-v1",
+    "waiting": null
+   }
+  },
+  "completed_at": null,
+  "created_at": null,
+  "deck_import": {
+   "error": {
+    "code": "UPLOAD_FILE_TOO_LARGE",
+    "message": "This file is too large to import. Files up to 100 MB can be imported.",
+    "retryable": false
+   },
+   "notes": null,
+   "phase": "failed",
+   "progress": null,
+   "result": null,
+   "stage": "failed",
+   "title": "Q3 Board Review",
+   "version": "director-deck-import-v1",
+   "waiting": null,
+   "what_changed": {
+    "headline": null,
+    "items": []
+   }
+  },
+  "errors": [
+   "This file is too large to import. Files up to 100 MB can be imported."
+  ],
+  "job_id": "stage-import-dbef2392-0d8f-4288-8bb4-d3a193d3ef4d",
+  "per_slide_fidelity": [],
+  "presentation_id": null,
+  "session_id": "fresh-session",
+  "slide_count": null,
+  "status": "failed",
+  "template_id": null,
+  "updated_at": null,
+  "upload_ref": {
+   "file_name": "Q3 Board Review.pptx",
+   "kind": "pptx",
+   "purpose": "deck_import",
+   "researcher_session_id": "fresh-session",
+   "session_id": "fresh-session",
+   "storage_path": "fresh-session/1_Q3 Board Review.pptx"
+  },
+  "user_id": "owner",
+  "viewer_url": null
+ },
+ "description": "The uploaded object is over Director's 100 MB download cap",
+ "status": 200
+}

@@ -10,6 +10,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
+import { PAYMENTS_OPEN_SOON_LINE, STUDIO_PAYMENTS_OPEN_SOON_ENABLED } from "@/lib/studio-payments-open-soon" // NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON (default off): the packs are disabled and the modal says so
 import "@/components/builder/studio-usage-topup.css"
 
 const CREDIT_PACKS = [
@@ -36,6 +37,7 @@ export function TopUpModal({ open, onOpenChange, reason }: TopUpModalProps) {
   const [error, setError] = useState<string | null>(null)
 
   const startCheckout = async (packId: string) => {
+    if (STUDIO_PAYMENTS_OPEN_SOON_ENABLED) return // NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON: no request is made (the route refuses too)
     setLoadingPack(packId)
     setError(null)
     try {
@@ -78,7 +80,7 @@ export function TopUpModal({ open, onOpenChange, reason }: TopUpModalProps) {
               type="button"
               data-studio-topup-pack={studioShell ? pack.id : undefined}
               aria-label={studioShell ? `Start checkout for ${pack.label} reserve credits` : undefined}
-              disabled={loadingPack !== null}
+              disabled={loadingPack !== null || STUDIO_PAYMENTS_OPEN_SOON_ENABLED}
               onClick={() => startCheckout(pack.id)}
               className={cn(
                 "flex items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-3 text-sm font-semibold transition-colors hover:border-purple-400 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:hover:bg-purple-950/30",
@@ -92,6 +94,8 @@ export function TopUpModal({ open, onOpenChange, reason }: TopUpModalProps) {
             </button>
           ))}
         </div>
+
+        {STUDIO_PAYMENTS_OPEN_SOON_ENABLED && <p className="pt-1 text-xs text-muted-foreground" role="note" data-studio-payments-soon-note="true">{PAYMENTS_OPEN_SOON_LINE}</p>}
 
         {error && <p className="pt-1 text-xs text-red-600" role={studioShell ? "alert" : undefined} data-studio-topup-error={studioShell ? "true" : undefined}>{error}</p>}
       </DialogContent>

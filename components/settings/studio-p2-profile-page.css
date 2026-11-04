@@ -1,0 +1,87 @@
+/* PASS2 Profile page (NEXT_PUBLIC_STUDIO_P2_PROFILE_PAGE): /settings/profile in the shell's tokens (the --ss-* set carries light and dark), in the type scale of Your details:
+   17px title, 12px body, 11px notes, 13px fields, 7px controls, a 12px card. Every rule is scoped to the page's own marker, so no other Settings page changes. Palette tokens only;
+   the one literal pair is the error red (the settings page's own, readable on the panel in both themes). */
+[data-studio-v4-shell="true"] [data-studio-p2-profile="true"] { color: var(--ss-text); background: var(--ss-panel); border: 1px solid var(--ss-line); border-radius: 12px; overflow: hidden; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile="true"] :where(h2, p, strong, small) { margin: 0; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-header="true"] { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 20px 22px 16px; border-bottom: 1px solid var(--ss-line); }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-header="true"] h2 { font-size: 17px; line-height: 24px; font-weight: 600; letter-spacing: -.01em; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-header="true"] p { margin-top: 3px; font-size: 12px; line-height: 20px; color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-actions="true"] { display: flex; align-items: center; gap: 8px; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-body="true"] { display: grid; gap: 20px; padding: 20px 22px; }
+
+/* controls */
+[data-studio-v4-shell="true"] [data-studio-p2-profile="true"] :where(button, [data-studio-p2-profile-link]) { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 0 12px; border: 1px solid var(--ss-line); border-radius: 7px; background: var(--ss-panel); color: var(--ss-text); font-size: 12px; line-height: 16px; font-weight: 500; text-decoration: none; cursor: pointer; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile="true"] :where(button, [data-studio-p2-profile-link]):hover:not(:disabled) { background: var(--ss-surface); }
+[data-studio-v4-shell="true"] [data-studio-p2-profile="true"] button:disabled { opacity: .55; cursor: not-allowed; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile="true"] :is(button, a, input):focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; box-shadow: none; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile="true"] [data-studio-p2-profile-save="true"] { border-color: var(--ss-action); background: var(--ss-action); color: var(--ss-on-action); }
+[data-studio-v4-shell="true"] [data-studio-p2-profile="true"] [data-studio-p2-profile-save="true"]:hover:not(:disabled) { background: var(--ss-action-hover); }
+
+/* who you are */
+[data-studio-v4-shell="true"] [data-studio-p2-profile-identity="true"] { display: flex; align-items: center; gap: 16px; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-avatar="true"] { width: 72px; height: 72px; flex-shrink: 0; border: 1px solid var(--ss-line); background: var(--ss-active); }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-initials="true"] { background: var(--ss-active); color: var(--ss-teal); font-size: 22px; line-height: 28px; font-weight: 600; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-who="true"] { min-width: 0; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-namerow="true"] { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-namerow="true"] > strong { font-size: 16px; line-height: 24px; font-weight: 500; overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-namerow="true"] > span { padding: 1px 8px; border: 1px solid var(--ss-line); border-radius: 999px; background: var(--ss-active); color: var(--ss-teal); font-size: 10px; line-height: 16px; font-weight: 600; letter-spacing: .02em; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-who="true"] > p { font-size: 12px; line-height: 20px; color: var(--ss-muted); overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-photo="true"] { margin-top: 10px; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-who="true"] > small { display: block; margin-top: 6px; font-size: 11px; line-height: 16px; color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-status="true"] { font-size: 12px; line-height: 20px; color: var(--ss-teal); }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-status="true"]:empty { display: none; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile="true"] [data-studio-p2-profile-error="true"] { margin-top: 6px; font-size: 12px; line-height: 18px; color: #ad4248; }
+.dark [data-studio-v4-shell="true"] [data-studio-p2-profile="true"] [data-studio-p2-profile-error="true"] { color: #ef9a8f; }
+
+/* the fields */
+[data-studio-v4-shell="true"] [data-studio-p2-profile-field] { display: grid; gap: 6px; padding-top: 20px; border-top: 1px solid var(--ss-line); }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-field] > :is(label, span) { font-size: 12px; line-height: 20px; font-weight: 500; color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-field] > input { width: 100%; height: 36px; padding: 0 10px; border: 1px solid var(--ss-line); border-radius: 7px; background: var(--ss-field); color: var(--ss-text); font-size: 13px; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-field] > input[aria-invalid="true"] { border-color: #ad4248; }
+.dark [data-studio-v4-shell="true"] [data-studio-p2-profile-field] > input[aria-invalid="true"] { border-color: #ef9a8f; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-field] > input:disabled { opacity: .7; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-value="true"] { font-size: 13px; line-height: 20px; font-weight: 500; overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-unset="true"] { font-weight: 400; color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-field] > small { font-size: 11px; line-height: 16px; color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-field] > [data-studio-p2-profile-error="true"] { margin-top: 0; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-plan="true"] { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-top: 20px; border-top: 1px solid var(--ss-line); }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-plan="true"] strong { font-size: 12px; line-height: 20px; font-weight: 600; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-plan="true"] p { font-size: 12px; line-height: 20px; color: var(--ss-muted); }
+
+/* signed out */
+[data-studio-v4-shell="true"] [data-studio-p2-profile-empty="true"] { justify-items: start; gap: 6px; padding: 28px 22px; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-empty="true"] h2 { font-size: 17px; line-height: 24px; font-weight: 600; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-empty="true"] p { font-size: 12px; line-height: 20px; color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-p2-profile="true"] [data-studio-p2-profile-empty="true"] [data-studio-p2-profile-link] { margin-top: 10px; border-color: var(--ss-action); background: var(--ss-action); color: var(--ss-on-action); }
+[data-studio-v4-shell="true"] [data-studio-p2-profile="true"] [data-studio-p2-profile-empty="true"] [data-studio-p2-profile-link]:hover:not(:disabled) { background: var(--ss-action-hover); }
+
+/* loading: the card's own shape in soft bars (still under reduced motion) */
+[data-studio-v4-shell="true"] [data-studio-p2-profile-bar] { display: block; border-radius: 6px; background: var(--ss-soft); }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-bar="title"] { width: 168px; height: 20px; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-bar="lede"] { width: min(280px, 100%); height: 12px; margin-top: 10px; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-bar="avatar"] { width: 72px; height: 72px; flex-shrink: 0; border-radius: 50%; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-bar="name"] { width: 140px; height: 16px; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-bar="email"] { width: 200px; max-width: 100%; height: 12px; margin-top: 10px; }
+[data-studio-v4-shell="true"] [data-studio-p2-profile-bar="field"] { height: 36px; }
+@media (prefers-reduced-motion: no-preference) {
+  [data-studio-v4-shell="true"] [data-studio-p2-profile-bar] { animation: studio-p2-profile-pulse 1.4s ease-in-out infinite; }
+  [data-studio-v4-shell="true"] [data-studio-p2-profile-spin="true"] { animation: studio-p2-profile-spin 1s linear infinite; }
+}
+@keyframes studio-p2-profile-pulse { 50% { opacity: .5; } }
+@keyframes studio-p2-profile-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 767px) {
+  [data-studio-v4-shell="true"] :is([data-studio-p2-profile-header="true"], [data-studio-p2-profile-body="true"]) { padding: 16px; }
+  [data-studio-v4-shell="true"] [data-studio-p2-profile-plan="true"] { flex-wrap: wrap; }
+}
+@media (max-width: 420px) {
+  [data-studio-v4-shell="true"] [data-studio-p2-profile-avatar="true"], [data-studio-v4-shell="true"] [data-studio-p2-profile-bar="avatar"] { width: 56px; height: 56px; }
+  [data-studio-v4-shell="true"] [data-studio-p2-profile-identity="true"] { gap: 12px; }
+  [data-studio-v4-shell="true"] [data-studio-p2-profile-actions="true"] { width: 100%; }
+  [data-studio-v4-shell="true"] [data-studio-p2-profile-actions="true"] > button { flex: 1 1 0; }
+}
+@media (min-width: 768px) and (max-height: 760px) {
+  [data-studio-v4-shell="true"] [data-studio-p2-profile-header="true"] { padding: 14px 18px 12px; }
+  [data-studio-v4-shell="true"] [data-studio-p2-profile-body="true"] { gap: 16px; padding: 16px 18px; }
+  [data-studio-v4-shell="true"] :is([data-studio-p2-profile-field], [data-studio-p2-profile-plan="true"]) { padding-top: 16px; }
+}

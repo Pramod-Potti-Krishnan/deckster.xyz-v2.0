@@ -42,6 +42,7 @@ import {
   type SegmentVariant,
 } from '@/lib/narration/segments';
 import { debitWallet, InsufficientFundsError } from '@/lib/wallet';
+import { narrationCallContext } from '@/lib/narration/model-router';
 import { DEFAULT_CLOSING_LINE } from '@/lib/narration/spoken';
 
 export const dynamic = 'force-dynamic';
@@ -200,6 +201,8 @@ export async function POST(request: NextRequest) {
 
     const results: { slide: number; variant: string; status: string; detail?: string }[] = [];
     let spentCents = 0;
+    // One trace and one identity for the whole render, for the model router. Undefined unless NARRATION_VIA_ROUTER is on.
+    const routed = narrationCallContext({ userId: user.id, sessionId: deck.sessionId, presentationId });
 
     for (let start = 0; start < pending.length; start += CONCURRENCY) {
       await Promise.all(
@@ -212,7 +215,7 @@ export async function POST(request: NextRequest) {
             voiceId: voice.id,
           };
           try {
-            const result = await synthesize(job.script, voice.id);
+            const result = await synthesize(job.script, voice.id, routed);
             const audio = result.format === 'pcm' ? pcmToWav(result.audio) : result.audio;
             const path = segmentPath(presentationId, job.slideId, job.variant, job.script, voice);
 
@@ -243,7 +246,7 @@ export async function POST(request: NextRequest) {
             // Charge what the provider actually billed where we can see it, and
             // fall back to the measured rate when the record lags. Either way it
             // is recorded per segment, so the spend is auditable row by row.
-            const billedUsd = await billedCostUsd(result.generationId);
+            const billedUsd = await billedCostUsd(result.generationId, result.servedBy);
             const durationMs =
               result.durationSeconds != null
                 ? Math.round(result.durationSeconds * 1000)

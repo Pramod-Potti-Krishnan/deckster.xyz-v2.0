@@ -1,0 +1,409 @@
+{
+  "checkpoints": [
+    {
+      "checkpoint": "01-connected-one-turn-sent",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "blank",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-olt",
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": true,
+        "owner": "synthetic-session-one-live-tab-a",
+        "presentationId": "synthetic-blank-olt",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-olt",
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": "BLANK_PRESENTATION"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "connected, one turn sent",
+      "messages": ["msg-greeting | chat_message | assistant | +2000ms","msg-reply | chat_message | assistant | +4000ms"],
+      "messagesSha": "a22ab63cc7bb922578416ab9fed8cf4b2b7de79b837eee5e34d1eff0cdc32cb5",
+      "page": {
+        "answeredActions": [],
+        "composer": {"activeTemplate":null,"buildTheme":{"mode":"auto"},"currentSlideIndex":0,"inputMessage":""},
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001"],
+        "userMessages": [
+          {"attachments":0,"id":"synthetic-uuid-0001","text":"Build a short deck about ocean currents","timestamp":3000}
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 4500
+    },
+    {
+      "checkpoint": "02-evicted-by-another-tab",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": false,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "superseded",
+        "sockets": 1,
+        "state": "disconnected"
+      },
+      "deck": {
+        "activeVersion": "blank",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-olt",
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": true,
+        "owner": "synthetic-session-one-live-tab-a",
+        "presentationId": "synthetic-blank-olt",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-olt",
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": "BLANK_PRESENTATION"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "evicted by another tab",
+      "messages": ["msg-greeting | chat_message | assistant | +2000ms","msg-reply | chat_message | assistant | +4000ms"],
+      "messagesSha": "a22ab63cc7bb922578416ab9fed8cf4b2b7de79b837eee5e34d1eff0cdc32cb5",
+      "page": {
+        "answeredActions": [],
+        "composer": {"activeTemplate":null,"buildTheme":{"mode":"auto"},"currentSlideIndex":0,"inputMessage":""},
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001"],
+        "userMessages": [
+          {"attachments":0,"id":"synthetic-uuid-0001","text":"Build a short deck about ocean currents","timestamp":3000}
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 5500
+    },
+    {
+      "checkpoint": "03-a-minute-later",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": false,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "superseded",
+        "sockets": 1,
+        "state": "disconnected"
+      },
+      "deck": {
+        "activeVersion": "blank",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-olt",
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": true,
+        "owner": "synthetic-session-one-live-tab-a",
+        "presentationId": "synthetic-blank-olt",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-olt",
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": "BLANK_PRESENTATION"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "a minute later",
+      "messages": ["msg-greeting | chat_message | assistant | +2000ms","msg-reply | chat_message | assistant | +4000ms"],
+      "messagesSha": "a22ab63cc7bb922578416ab9fed8cf4b2b7de79b837eee5e34d1eff0cdc32cb5",
+      "page": {
+        "answeredActions": [],
+        "composer": {"activeTemplate":null,"buildTheme":{"mode":"auto"},"currentSlideIndex":0,"inputMessage":""},
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001"],
+        "userMessages": [
+          {"attachments":0,"id":"synthetic-uuid-0001","text":"Build a short deck about ocean currents","timestamp":3000}
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 66000
+    },
+    {
+      "checkpoint": "04-send-in-the-paused-tab",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": false,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "superseded",
+        "sockets": 1,
+        "state": "disconnected"
+      },
+      "deck": {
+        "activeVersion": "blank",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-olt",
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": true,
+        "owner": "synthetic-session-one-live-tab-a",
+        "presentationId": "synthetic-blank-olt",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-olt",
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": "BLANK_PRESENTATION"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "send in the paused tab",
+      "messages": ["msg-greeting | chat_message | assistant | +2000ms","msg-reply | chat_message | assistant | +4000ms"],
+      "messagesSha": "a22ab63cc7bb922578416ab9fed8cf4b2b7de79b837eee5e34d1eff0cdc32cb5",
+      "page": {
+        "answeredActions": [],
+        "composer": {
+          "activeTemplate": null,
+          "buildTheme": {"mode":"auto"},
+          "currentSlideIndex": 0,
+          "inputMessage": "Make the title shorter"
+        },
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 1,
+        "userMessageIds": ["synthetic-uuid-0001"],
+        "userMessages": [
+          {"attachments":0,"id":"synthetic-uuid-0001","text":"Build a short deck about ocean currents","timestamp":3000}
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 68000
+    },
+    {
+      "checkpoint": "05-offline-and-online-while-paused",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": false,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "superseded",
+        "sockets": 1,
+        "state": "disconnected"
+      },
+      "deck": {
+        "activeVersion": "blank",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-olt",
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": true,
+        "owner": "synthetic-session-one-live-tab-a",
+        "presentationId": "synthetic-blank-olt",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-olt",
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": "BLANK_PRESENTATION"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "offline and online while paused",
+      "messages": ["msg-greeting | chat_message | assistant | +2000ms","msg-reply | chat_message | assistant | +4000ms"],
+      "messagesSha": "a22ab63cc7bb922578416ab9fed8cf4b2b7de79b837eee5e34d1eff0cdc32cb5",
+      "page": {
+        "answeredActions": [],
+        "composer": {
+          "activeTemplate": null,
+          "buildTheme": {"mode":"auto"},
+          "currentSlideIndex": 0,
+          "inputMessage": "Make the title shorter"
+        },
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 1,
+        "userMessageIds": ["synthetic-uuid-0001"],
+        "userMessages": [
+          {"attachments":0,"id":"synthetic-uuid-0001","text":"Build a short deck about ocean currents","timestamp":3000}
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 129500
+    },
+    {
+      "checkpoint": "06-two-more-minutes",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": false,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "superseded",
+        "sockets": 1,
+        "state": "disconnected"
+      },
+      "deck": {
+        "activeVersion": "blank",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-olt",
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": true,
+        "owner": "synthetic-session-one-live-tab-a",
+        "presentationId": "synthetic-blank-olt",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-olt",
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": "BLANK_PRESENTATION"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "two more minutes",
+      "messages": ["msg-greeting | chat_message | assistant | +2000ms","msg-reply | chat_message | assistant | +4000ms"],
+      "messagesSha": "a22ab63cc7bb922578416ab9fed8cf4b2b7de79b837eee5e34d1eff0cdc32cb5",
+      "page": {
+        "answeredActions": [],
+        "composer": {
+          "activeTemplate": null,
+          "buildTheme": {"mode":"auto"},
+          "currentSlideIndex": 0,
+          "inputMessage": "Make the title shorter"
+        },
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 1,
+        "userMessageIds": ["synthetic-uuid-0001"],
+        "userMessages": [
+          {"attachments":0,"id":"synthetic-uuid-0001","text":"Build a short deck about ocean currents","timestamp":3000}
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 250000
+    },
+    {
+      "checkpoint": "07-final",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": false,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "superseded",
+        "sockets": 1,
+        "state": "disconnected"
+      },
+      "deck": {
+        "activeVersion": "blank",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-olt",
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": true,
+        "owner": "synthetic-session-one-live-tab-a",
+        "presentationId": "synthetic-blank-olt",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-olt",
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": "BLANK_PRESENTATION"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "final",
+      "messages": ["msg-greeting | chat_message | assistant | +2000ms","msg-reply | chat_message | assistant | +4000ms"],
+      "messagesSha": "a22ab63cc7bb922578416ab9fed8cf4b2b7de79b837eee5e34d1eff0cdc32cb5",
+      "page": {
+        "answeredActions": [],
+        "composer": {
+          "activeTemplate": null,
+          "buildTheme": {"mode":"auto"},
+          "currentSlideIndex": 0,
+          "inputMessage": "Make the title shorter"
+        },
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 1,
+        "userMessageIds": ["synthetic-uuid-0001"],
+        "userMessages": [
+          {"attachments":0,"id":"synthetic-uuid-0001","text":"Build a short deck about ocean currents","timestamp":3000}
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 250000
+    }
+  ],
+  "notes": ["step 15: typed turn blocked by preflight"],
+  "steps": [
+    {"op":"ensureConnected","step":0},
+    {"op":"open","step":1},
+    {"op":"frame","step":2},
+    {"op":"frame","step":3},
+    {"op":"compose","step":4},
+    {"comment":"the first turn goes out on the live socket","op":"submit","step":5},
+    {"op":"expect","step":6},
+    {"op":"frame","step":7},
+    {"op":"checkpoint","step":8},
+    {
+      "comment": "Director closes this tab's socket: the session was opened in another tab (4000 New connection opened)",
+      "op": "close",
+      "step": 9
+    },
+    {"op":"checkpoint","step":10},
+    {
+      "comment": "a whole minute: today's ladder (1.5, 3, 6, 12 s) would be well under way",
+      "op": "advance",
+      "step": 11
+    },
+    {"op":"checkpoint","step":12},
+    {
+      "comment": "the session effect asks again (it only connects when the transport is idle): a paused tab is not idle",
+      "op": "ensureConnected",
+      "step": 13
+    },
+    {"op":"compose","step":14},
+    {
+      "comment": "a send in the paused tab: nothing goes out and no reconnect starts (the notice is shown instead)",
+      "op": "submit",
+      "step": 15
+    },
+    {"op":"checkpoint","step":16},
+    {"comment":"the browser goes offline","op":"offline","step":17},
+    {"comment":"and comes back: a paused tab has nothing to resume","op":"online","step":18},
+    {"op":"advance","step":19},
+    {"op":"checkpoint","step":20},
+    {"op":"advance","step":21},
+    {"op":"checkpoint","step":22}
+  ]
+}

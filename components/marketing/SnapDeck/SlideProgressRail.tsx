@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { Fragment, useEffect, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
 import { trackSlideView } from "@/lib/analytics"
 import { SCROLL_TOLERANCE_PX } from "./constants"
@@ -9,6 +9,7 @@ import { getHeaderOffsetPx, getSlides } from "./use-snap-navigation"
 interface SlideInfo {
   id: string
   label: string
+  chapter?: string
 }
 
 function readSlides(): SlideInfo[] {
@@ -18,6 +19,7 @@ function readSlides(): SlideInfo[] {
       el.dataset.slideLabel ||
       el.dataset.label ||
       (el.id ? el.id.charAt(0).toUpperCase() + el.id.slice(1) : `Slide ${i + 1}`),
+    chapter: el.dataset.chapter,
   }))
 }
 
@@ -94,7 +96,11 @@ export function SlideProgressRail({ variant = "default" }: { variant?: "default"
         </span>
         {slides.map((slide, i) => {
           const isActive = i === active
+          // Chapter label (v3 home): shown before the first slide of each chapter.
+          const chapterStart = slide.chapter && slide.chapter !== slides[i - 1]?.chapter
           return (
+            <Fragment key={slide.id}>
+            {chapterStart && <span className={`rail__ch${slides[active]?.chapter === slide.chapter ? " is-on" : ""}`} aria-hidden="true">{slide.chapter}</span>}
             <button
               key={slide.id}
               type="button"
@@ -114,6 +120,7 @@ export function SlideProgressRail({ variant = "default" }: { variant?: "default"
               <i aria-hidden="true" />
               <span>{slide.label}</span>
             </button>
+            </Fragment>
           )
         })}
       </nav>

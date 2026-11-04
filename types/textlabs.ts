@@ -715,6 +715,12 @@ export interface CustomDiagramConfig {
 export interface TextLabsBaseFormData {
   prompt: string
   count: number
+  /**
+   * The panel's Count is "Auto" (the user never chose one). `count` stays 1 for
+   * local geometry, but the request omits it so Text Labs resolves the count
+   * from the prompt. Set only behind NEXT_PUBLIC_TEXTBOX_REQUEST_FIDELITY_ENABLED.
+   */
+  countAuto?: boolean
   layout: 'horizontal' | 'vertical' | 'grid'
   advancedModified: boolean
   z_index?: number
@@ -748,6 +754,12 @@ export interface TextBoxFormData extends TextLabsBaseFormData {
   itemsPerInstance?: number
   textboxConfig: Partial<TextBoxConfig>
   structure?: TextBoxStructure
+  /**
+   * A typed family (Sequential, Compare, ...) with a Boxes/Cards choice above 1: Text Labs
+   * returns ONE element of that many cards, so it belongs over the whole panel area, not in
+   * the first box's cell. Set only behind NEXT_PUBLIC_TEXTBOX_REQUEST_FIDELITY_ENABLED.
+   */
+  cardsInOneElement?: boolean
   semanticRole: TextSemanticRole
   geometryMode: TextGeometryMode
   manualGeometryOverrides?: TextManualGeometryOverrides
@@ -857,6 +869,8 @@ export interface TextLabsElement {
   citations_used?: Array<Record<string, unknown>> | null
   generation_config?: Record<string, unknown> | DiagramGenerationConfig | null
   generationConfig?: Record<string, unknown> | DiagramGenerationConfig | null
+  /** Creative infographic stage-name caption row (Text Labs TL_INFOGRAPHIC_CAPTION_ROW_ENABLED, R14). Additive; read by lib/infographic-caption-row.ts. */
+  caption_row?: Record<string, unknown> | null
   metadata?: {
     theme_variant_id?: string | null
     theme_bindings?: Record<string, string> | null
@@ -880,6 +894,20 @@ export interface TextLabsElement {
   } | null
 }
 
+/**
+ * One entry of `TextLabsResponse.warning_details` (Text Labs TL_TEXTBOX_COUNT_ALL_TYPES_ENABLED):
+ * the numbers behind a count warning. `panel` is the count the panel asked for when the prompt
+ * overrode it; `used` is null when the box was made as before; `box` (0-based) only when the
+ * Text Service names the box.
+ */
+export interface TextLabsWarningDetail {
+  code: string
+  requested?: number | null
+  used?: number | null
+  panel?: number | null
+  box?: number
+}
+
 export interface TextLabsResponse {
   success?: boolean
   element?: TextLabsElement
@@ -897,6 +925,8 @@ export interface TextLabsResponse {
   downstream_generation_attempt_id?: string
   downstreamGenerationAttemptId?: string
   warnings?: string[]
+  /** Absent unless Text Labs has its count flag on and a count warning fired. */
+  warning_details?: TextLabsWarningDetail[]
   message?: string
   response_text?: string
   citations_used?: Array<Record<string, unknown>> | null

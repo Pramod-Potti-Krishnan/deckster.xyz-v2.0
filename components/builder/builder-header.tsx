@@ -6,14 +6,27 @@ import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import { UserProfileMenu } from "@/components/user-profile-menu"
 import { ConnectionError } from "@/components/connection-error"
-import { Brain, Home, PanelLeft, Plus } from "lucide-react"
+import { Brain, Check, Home, PanelLeft, Plus } from "lucide-react"
 import {
   BuildFingerprintBadge,
   BuildVersionGuard,
 } from "@/components/build-version-guard"
 import { DeckIdentityDialog } from "@/components/builder/deck-identity-dialog"
 import { isDeckIdentityEnabled } from "@/lib/deck-identity"
+import { STUDIO_SESSION_HYGIENE_ENABLED } from "@/lib/studio-session-hygiene"
 import { StudioNavigationHint } from "@/components/layout/studio-navigation-hint"
+import {
+  STUDIO_TOP_BAR_V2_ENABLED,
+  getStudioDeckSaveState,
+  studioTopBarSavedLabel,
+  subscribeStudioDeckSaveState,
+} from "@/lib/studio-top-bar-v2"
+import "./studio-top-bar-v2.css"
+import { studioCreateLabel } from "@/lib/studio-create-word"
+import { StudioTemplateWorkspaceHeaderActions, StudioTemplateWorkspaceHeading } from "@/components/studio-template-workspace/entry"
+
+const subscribeToNothing = () => () => {}
+const nothingToRead = () => null
 
 export interface BuilderHeaderProps {
   onNewPresentation?: () => void
@@ -23,6 +36,9 @@ export interface BuilderHeaderProps {
   isChatHistoryOpen?: boolean
   toolbarSlotRef?: (el: HTMLDivElement | null) => void
   onToolbarInteract?: () => void
+  /** The Builder's unsaved-session flag (no history row yet). Read only by the top bar's "Saved" status, and only with
+   *  NEXT_PUBLIC_STUDIO_SESSION_HYGIENE on (see studioTopBarSavedLabel). */
+  isUnsavedSession?: boolean
 }
 
 export function BuilderHeader({
@@ -33,6 +49,7 @@ export function BuilderHeader({
   isChatHistoryOpen = false,
   toolbarSlotRef,
   onToolbarInteract,
+  isUnsavedSession = false,
 }: BuilderHeaderProps) {
   // Theme is owned by next-themes; the in-toolbar light/dark toggle lives
   // in the Mode dropdown (inside presentation-viewer.tsx). We still read
@@ -41,6 +58,18 @@ export function BuilderHeader({
   const isDark = resolvedTheme === 'dark'
   const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   const studioLabels = process.env.NEXT_PUBLIC_STUDIO_V4_LABELS === 'true'
+  // PASS2-PK-FOUR #1 (NEXT_PUBLIC_STUDIO_TOP_BAR_V2, exact "true", Studio shell only, default off): the top bar of the accepted
+  // mockup. Off: the header renders exactly as before.
+  const studioTopBarV2 = studioShell && STUDIO_TOP_BAR_V2_ENABLED
+  // PASS2B G56 (NEXT_PUBLIC_STUDIO_CREATE_WORD, default off): with the top-bar flag off, the create button says "New deck" too.
+  const studioCreateWord = studioShell && process.env.NEXT_PUBLIC_STUDIO_CREATE_WORD === "true"
+  // "Saved" also needs a history row: with NEXT_PUBLIC_STUDIO_SESSION_HYGIENE a bare /builder is an unsaved local session whose
+  // blank deck the viewer already calls saved, so an unsaved session shows nothing here until its first action writes the row.
+  const savedLabel = studioTopBarSavedLabel(React.useSyncExternalStore(
+    studioTopBarV2 ? subscribeStudioDeckSaveState : subscribeToNothing,
+    studioTopBarV2 ? getStudioDeckSaveState : nothingToRead,
+    nothingToRead,
+  ), STUDIO_SESSION_HYGIENE_ENABLED && isUnsavedSession)
 
   const headerRef = React.useRef<HTMLElement>(null)
   React.useEffect(() => {
@@ -91,6 +120,7 @@ export function BuilderHeader({
         data-studio-v4-shell-header="true"
         aria-label={studioLabels ? "Studio" : undefined}
         data-studio-v4-chrome={process.env.NEXT_PUBLIC_STUDIO_V4_TOKENS === 'true' ? 'true' : undefined}
+        {...(studioTopBarV2 ? { 'data-studio-top-bar-v2': 'true' } : {})}
         className={
           isDark
             ? "bg-slate-900 border-b border-slate-800 h-14 flex-shrink-0"
@@ -163,14 +193,25 @@ export function BuilderHeader({
             <StudioNavigationHint enabled label={isChatHistoryOpen ? "Close sessions" : "Sessions"}>
               <Button variant="ghost" size="icon" onClick={onOpenChatHistory} aria-label={isChatHistoryOpen ? 'Close deck list' : 'Open deck list'}><PanelLeft className="h-5 w-5" /></Button>
             </StudioNavigationHint>
-            <span title={deckTitle}>{deckTitle}</span>
+            {studioTopBarV2 && <>
+              <span data-studio-top-bar-divider="true" aria-hidden="true" />
+              <Link href="/dashboard" prefetch={false} data-studio-top-bar-crumb="true">Workspace</Link>
+              <span data-studio-top-bar-crumb-separator="true" aria-hidden="true">/</span>
+            </>}
+            <span title={deckTitle} {...(studioTopBarV2 ? { 'data-studio-top-bar-deck': 'true' } : {})}>{deckTitle}</span>
+            {studioTopBarV2 && savedLabel && <span data-studio-top-bar-saved="true" role="status"><Check aria-hidden="true" />{savedLabel}</span>}
             {isDeckIdentityEnabled() && <DeckIdentityDialog isDark={isDark} />}
+            {/* PASS2-PK-FOUR item 4 (NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE, default off): "Templates / <template>" while the workspace is open. */}
+            {process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE === 'true' && <StudioTemplateWorkspaceHeading />}
           </div>}
           {studioShell ? (
             <div className="studio-shell-header-actions">
-              <Button className="studio-shell-new" onClick={onNewPresentation} aria-label="Add presentation" title="Add presentation"><Plus className="h-4 w-4" /><span>Presentation</span></Button>
+              <Button className="studio-shell-new" onClick={onNewPresentation} aria-label={studioTopBarV2 ? "New deck" : studioCreateLabel(studioCreateWord, "Add presentation")} title={studioTopBarV2 ? "New deck" : studioCreateLabel(studioCreateWord, "Add presentation")}><Plus className="h-4 w-4" /><span>{studioTopBarV2 ? "New deck" : studioCreateLabel(studioCreateWord, "Presentation")}</span></Button>
               {/* Delivery controls retain their portal target and original handlers. */}
               <div data-studio-v4-toolbar-target="true" ref={toolbarSlotRef} className="min-w-0 h-full overflow-hidden" />
+              {/* PASS2-PK-FOUR item 4 (default off): the template workspace (drawn over the stage) and, while it is open, its progress pill,
+                  "Back to Studio" and "Use template ▾". */}
+              {process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE === 'true' && <StudioTemplateWorkspaceHeaderActions />}
             </div>
           ) : (
             <div data-studio-v4-toolbar-target="true" ref={toolbarSlotRef} className="flex-1 min-w-0 h-full overflow-hidden" />

@@ -1,3 +1,4 @@
+import { serviceUrl } from './service-url-harness.mjs'
 /**
  * The narration voice registry.
  *
@@ -13,6 +14,7 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
 import ts from 'typescript';
+import { stripP2Publish } from './studio-p2-publish-strip.mjs';
 
 const require = createRequire(import.meta.url);
 const cache = new Map();
@@ -36,10 +38,10 @@ function load(relPath, baseUrl = import.meta.url) {
   const mod = { exports: {} };
   cache.set(url.href, mod.exports);
   const localRequire = (id) =>
-    id.startsWith('.') ? load(id, url) : require(id);
+    id === '@/lib/service-url' ? serviceUrl : id.startsWith('.') ? load(id, url) : require(id);
   vm.runInNewContext(compiled.outputText, {
     module: mod, exports: mod.exports, require: localRequire,
-    process, Buffer, JSON, Math, fetch, console,
+    process: { env: {} }, Buffer, JSON, Math, fetch: () => { throw new Error('Offline narration fixture refuses unexpected fetch') }, console,
   });
   cache.set(url.href, mod.exports);
   return mod.exports;
@@ -1022,10 +1024,11 @@ test('a question asked mid-presentation joins the written thread', () => {
 // Publishing is a set of decisions, not a button
 // ---------------------------------------------------------------------------
 
-const wizardSource = fs.readFileSync(
-  new URL('../components/publish-wizard.tsx', import.meta.url), 'utf8');
-const dialogSource = fs.readFileSync(
-  new URL('../components/publish-dialog.tsx', import.meta.url), 'utf8');
+// PASS2-PAGES publish (NEXT_PUBLIC_STUDIO_P2_PUBLISH, default off): these pins hold the wizard and the dialog as they were; the flag-gated additions come out first.
+const wizardSource = stripP2Publish('components/publish-wizard.tsx', fs.readFileSync(
+  new URL('../components/publish-wizard.tsx', import.meta.url), 'utf8'));
+const dialogSource = stripP2Publish('components/publish-dialog.tsx', fs.readFileSync(
+  new URL('../components/publish-dialog.tsx', import.meta.url), 'utf8'));
 
 test('every choice is offered BEFORE the deck is published', () => {
   // The old flow asked two questions, published, and only then revealed that

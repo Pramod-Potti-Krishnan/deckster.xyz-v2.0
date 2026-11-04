@@ -36,6 +36,10 @@ export interface BuildPhasePayload {
   slides_done?: number | null;
   auto_proceed?: boolean | null;
   presentation_id?: string | null;
+  /** FLOW-CONTROL: a paused build acknowledging a message sent while paused (Director DIRECTOR_FLOW_STEER_ENABLED). */
+  steer_pending?: boolean | null; // FLOW-CONTROL
+  /** FLOW-CONTROL: the slides (0-based) a resume's instructions were applied to, on the `building` acknowledgement. */
+  applied_to?: number[] | null; // FLOW-CONTROL
 }
 
 export interface BuildEventPayload {
@@ -98,4 +102,6 @@ export interface BuildControlData {
   control_token?: string;
   /** Authenticated user identity bound to the capability. */
   user_id?: string;
+  /** FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_AMEND_INSTRUCTIONS): resume only; what to change for the slides not yet built (1000 characters at most). */
+  instructions?: string; // FLOW-CONTROL
 }

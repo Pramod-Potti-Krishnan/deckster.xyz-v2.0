@@ -1,0 +1,24 @@
+# Saved-theme Delete and Knowledge exploration delivered
+
+**Current public dev: c973241586e25dba702b3e72532df499e8b15874 / READY dpl_2YnA79hyF4roCzotHNNxMUF3HRVq.** Verified6October2026 at04:34:35UTC at [Studio v4 dev](https://deckster-studio-v4-dev.vercel.app). UAT remains `ee532fab4b84a6883f8a5b50675ccab692b62240`. Recoverable predecessor: `725bc5ccbd56a0d543e9cbc6981c62daacb2f6d7` / `dpl_5WKFZWuNbXUPVZA4J8vpCTG4JTjg`.
+
+## Mock and functional parity delivered
+
+| Target | Result and preserved functionality | Verification limit |
+| --- | --- | --- |
+| AS-B03: approved saved-theme Delete/Keep, using the existing theme API | Exact saved-name confirmation, Keep/Escape focus recovery, duplicate/retired-action refusal. Refused deletion retains record/draft. ACK and list-refresh failure are distinct; recovery only re-reads the list. Existing palette/token/harmony/mode, save-copy/standard/filter/preview/Choose options remain. | Actual-source and isolated mounted evidence; no real deletion or durable readback. Status-only DELETE and well-formed normalized list contract remain. |
+| K08: approved Fullscreen/Return/Escape, preserving existing Knowledge functionality | In-place expansion of the real2D graph/list, current selection/transform/Inspector/filter continuity in ordinary enter/return; keyboard containment and valid trigger restoration. Existing search/options/import/paid/server/access gates remain; pending/revoke removes private UI and closes expanded mode. | Synthetic providers/services/navigation and simplified header. No richer3D/corpus/Ask/source-inclusion backend, full AppLayout/Next or connected operation. |
+
+[Architect acceptance](reviews/LIBRARY-EXPLORATION-ARCHITECT-REVIEW.md), gate `9ad049cc28fd7620fb185dd2cc46cf2fb3db571e`, accepts exact92cc16bc plus metadata-only2efa189e. Three independent reviews pass. Root verified the original498 bound entries/499packet files, three exact app pairs,1,090prior documents and22image hashes, and personally viewed16actual images. Knowledge608typing inputs are bound; Themes focused0/0 lacks a complete saved input inventory. This later normal cloud compile/typecheck validates the exported combined source without retroactively filling that historical inventory.
+
+Exactly three accepted app blobs were exported as one public child of725bc5: ThemesWorkspace, Knowledge Page and Knowledge CSS. All other public tracked files,26public-only assets and public build/no-cron configuration are unchanged. No private history/evidence/configuration, unfinished B1 partial-canvas work or Atlas composition work was exported. [Export receipt](reviews/library-exploration-root/PUBLIC-EXPORT.json).
+
+## Release and visual evidence
+
+One authorized submission produced READY `dpl_2YnA79hyF4roCzotHNNxMUF3HRVq`. Normal cloud compilation/typechecking and85static pages passed. Two generated metadata-route source-file mapping warnings were nonblocking. Exact dev static version returned200 and UAT remained unchanged. [Release receipt](reviews/library-exploration-root/RELEASE-RECEIPT.json) and [static checks](reviews/library-exploration-root/PUBLIC-POSTDEPLOY.json). Only the existing per-build source fingerprint was supplied; no persistent project setting, flag, routing, backend, auth/account or credential change occurred. Voice remains off.
+
+[Mock and actual screenshot gallery](LIBRARY-EXPLORATION-GALLERY.md) contains two preserved approved mock images and16actual isolated images with source/date/dimensions and qualifications. Exact capture times remain unknown. Saved before/current served output relations are bounded observations, not current-public/cache proof. Short1280×420 supports reachable controls/scrolling, not simultaneous visibility of all graph labels. Theme specimen fitting may shrink/truncate its displayed title. The source and functionality are retained.
+
+B1's completed519db72a partial-canvas checkpoint is under independent review; its separate unknown-total display correction remains unfinished/unaccepted. Atlas is active on [actual surrounding AppLayout composition](ATLAS-SURROUNDING-COMPOSITION-WORK-ORDER.md), closing the precise full-shell evidence gap without duplicating B1's runtime. [Accepted pre-cutoff reconciliation](reviews/HANDOFF-RECONCILIATION-ARCHITECT-REVIEW.md) is the basis for final completed/remainder reports, not a percentage or final handoff.
+
+Connected verification still requires a designated approved test account; no original/PK/Kitchen inspection or reload is authorized. Backend queue still lacks QUEUE LIVE plus confirmed path/template. Current specialist/native/save/reopen, missing previews, live Label/Structured and full-mock/route obligations remain. Final candidates13:00UTC; ALL implementation/build/render/release stops15:30UTC/11:30EDT; entire final30minutes documentation and preserved screenshots; ultimate16:00UTC/noonEDT.

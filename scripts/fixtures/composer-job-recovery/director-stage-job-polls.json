@@ -1,0 +1,420 @@
+{
+  "source": {
+    "repo": "director-v4.0 (GitLab)",
+    "ref": "origin/uat",
+    "sha": "2978affabad585902150b51ebe26a2bc1dd55acf",
+    "change": "J5 R7 P2 / !498: d6daf2d (COMPOSER_STALE_JOB_WATCHDOG_ENABLED) + f6c0c71",
+    "code": [
+      "src/services/stage_template_router.py (GET /api/template-ingest/stage/jobs/{job_id})",
+      "src/services/composer_stale_job_watchdog.py",
+      "src/models/template_ingest_job.py"
+    ],
+    "how": "Director's own router and watchdog run over ASGI against an in-memory job table (tests/test_composer_commit_guard.py::harness); scripts/fixtures/composer-job-recovery/capture-director-polls.py regenerates this file. No network, no key, no model call.",
+    "clock": "2026-10-14T12:00:00Z"
+  },
+  "polls": {
+    "orphan-use-assembling": {
+      "what": "A Use original job whose Director process died in 'assembling' (25 min since its last write): the first poll",
+      "watchdog_flag": true,
+      "request": {
+        "method": "GET",
+        "path": "/api/template-ingest/stage/jobs/stage-use-run-6f1c1e1a-2b3c-4d5e-8f90-a1b2c3d4e5f6"
+      },
+      "response": {
+        "status_code": 200,
+        "json": {
+          "job_id": "stage-use-run-6f1c1e1a-2b3c-4d5e-8f90-a1b2c3d4e5f6",
+          "session_id": "8d7c6b5a-4f3e-4d2c-9b1a-0f9e8d7c6b5a",
+          "user_id": "owner",
+          "status": "failed",
+          "upload_ref": {
+            "kind": "template-use"
+          },
+          "template_id": "f1x7ure0-0000-4000-8000-n0rthw1nd030",
+          "presentation_id": null,
+          "viewer_url": null,
+          "slide_count": null,
+          "per_slide_fidelity": [],
+          "checkpoint": {
+            "retryable": true
+          },
+          "errors": [
+            "This job was interrupted by a server restart. Please try again."
+          ],
+          "created_at": "2026-10-14T11:34:52Z",
+          "updated_at": "2026-10-14T12:00:00Z",
+          "completed_at": null,
+          "retryable": true
+        }
+      },
+      "director_writes": [
+        {
+          "job_id": "stage-use-run-6f1c1e1a-2b3c-4d5e-8f90-a1b2c3d4e5f6",
+          "updates": {
+            "status": "failed",
+            "errors": [
+              "This job was interrupted by a server restart. Please try again."
+            ],
+            "checkpoint": {
+              "retryable": true
+            }
+          }
+        }
+      ]
+    },
+    "orphan-use-assembling-receipt": {
+      "what": "The same, after the creation receipt was retained (the replay finished, adoption had not)",
+      "watchdog_flag": true,
+      "request": {
+        "method": "GET",
+        "path": "/api/template-ingest/stage/jobs/stage-use-run-0a9b8c7d-6e5f-4a3b-9c2d-1e0f9a8b7c6d"
+      },
+      "response": {
+        "status_code": 200,
+        "json": {
+          "job_id": "stage-use-run-0a9b8c7d-6e5f-4a3b-9c2d-1e0f9a8b7c6d",
+          "session_id": "8d7c6b5a-4f3e-4d2c-9b1a-0f9e8d7c6b5a",
+          "user_id": "owner",
+          "status": "failed",
+          "upload_ref": {
+            "kind": "template-use"
+          },
+          "template_id": "f1x7ure0-0000-4000-8000-n0rthw1nd030",
+          "presentation_id": "9b2f61c4-6f4e-4f5a-9d2b-0c1f1e7d3a55",
+          "viewer_url": "https://layout-builder-v75-uat.up.railway.app/p/9b2f61c4-6f4e-4f5a-9d2b-0c1f1e7d3a55",
+          "slide_count": 30,
+          "per_slide_fidelity": [],
+          "checkpoint": {
+            "operation": "stage_template_replay",
+            "result": {
+              "presentation_id": "9b2f61c4-6f4e-4f5a-9d2b-0c1f1e7d3a55",
+              "template_id": "f1x7ure0-0000-4000-8000-n0rthw1nd030",
+              "viewer_url": "https://layout-builder-v75-uat.up.railway.app/p/9b2f61c4-6f4e-4f5a-9d2b-0c1f1e7d3a55",
+              "slide_count": 30,
+              "session_id": "8d7c6b5a-4f3e-4d2c-9b1a-0f9e8d7c6b5a"
+            },
+            "session_adoption": "pending",
+            "retryable": true
+          },
+          "errors": [
+            "This job was interrupted by a server restart. Please try again."
+          ],
+          "created_at": "2026-10-14T11:34:52Z",
+          "updated_at": "2026-10-14T12:00:00Z",
+          "completed_at": null,
+          "retryable": true
+        }
+      },
+      "director_writes": [
+        {
+          "job_id": "stage-use-run-0a9b8c7d-6e5f-4a3b-9c2d-1e0f9a8b7c6d",
+          "updates": {
+            "status": "failed",
+            "errors": [
+              "This job was interrupted by a server restart. Please try again."
+            ],
+            "checkpoint": {
+              "operation": "stage_template_replay",
+              "result": {
+                "presentation_id": "9b2f61c4-6f4e-4f5a-9d2b-0c1f1e7d3a55",
+                "template_id": "f1x7ure0-0000-4000-8000-n0rthw1nd030",
+                "viewer_url": "https://layout-builder-v75-uat.up.railway.app/p/9b2f61c4-6f4e-4f5a-9d2b-0c1f1e7d3a55",
+                "slide_count": 30,
+                "session_id": "8d7c6b5a-4f3e-4d2c-9b1a-0f9e8d7c6b5a"
+              },
+              "session_adoption": "pending",
+              "retryable": true
+            }
+          }
+        }
+      ]
+    },
+    "orphan-upload-cracking": {
+      "what": "An upload-reference job whose Director process died in 'cracking' (40 min since its last write)",
+      "watchdog_flag": true,
+      "request": {
+        "method": "GET",
+        "path": "/api/template-ingest/stage/jobs/stage-3c2b1a09-8f7e-4d6c-a5b4-c3d2e1f0a9b8"
+      },
+      "response": {
+        "status_code": 200,
+        "json": {
+          "job_id": "stage-3c2b1a09-8f7e-4d6c-a5b4-c3d2e1f0a9b8",
+          "session_id": "8d7c6b5a-4f3e-4d2c-9b1a-0f9e8d7c6b5a",
+          "user_id": "owner",
+          "status": "failed",
+          "upload_ref": {
+            "session_id": "8d7c6b5a-4f3e-4d2c-9b1a-0f9e8d7c6b5a",
+            "researcher_session_id": "8d7c6b5a-4f3e-4d2c-9b1a-0f9e8d7c6b5a",
+            "storage_path": "8d7c6b5a-4f3e-4d2c-9b1a-0f9e8d7c6b5a/1_deck.pptx",
+            "file_name": "deck.pptx",
+            "kind": "pptx"
+          },
+          "template_id": null,
+          "presentation_id": null,
+          "viewer_url": null,
+          "slide_count": null,
+          "per_slide_fidelity": [],
+          "checkpoint": {
+            "retryable": true
+          },
+          "errors": [
+            "This job was interrupted by a server restart. Please try again."
+          ],
+          "created_at": "2026-10-14T11:19:52Z",
+          "updated_at": "2026-10-14T12:00:00Z",
+          "completed_at": null,
+          "retryable": true
+        }
+      },
+      "director_writes": [
+        {
+          "job_id": "stage-3c2b1a09-8f7e-4d6c-a5b4-c3d2e1f0a9b8",
+          "updates": {
+            "status": "failed",
+            "errors": [
+              "This job was interrupted by a server restart. Please try again."
+            ],
+            "checkpoint": {
+              "retryable": true
+            }
+          }
+        }
+      ]
+    },
+    "healthy-use-assembling": {
+      "what": "A Use original job that is running: its heartbeat wrote 20 s ago",
+      "watchdog_flag": true,
+      "request": {
+        "method": "GET",
+        "path": "/api/template-ingest/stage/jobs/stage-use-run-5d4c3b2a-1f0e-4d9c-8b7a-6f5e4d3c2b1a"
+      },
+      "response": {
+        "status_code": 200,
+        "json": {
+          "job_id": "stage-use-run-5d4c3b2a-1f0e-4d9c-8b7a-6f5e4d3c2b1a",
+          "session_id": "8d7c6b5a-4f3e-4d2c-9b1a-0f9e8d7c6b5a",
+          "user_id": "owner",
+          "status": "assembling",
+          "upload_ref": {
+            "kind": "template-use"
+          },
+          "template_id": "f1x7ure0-0000-4000-8000-n0rthw1nd030",
+          "presentation_id": null,
+          "viewer_url": null,
+          "slide_count": null,
+          "per_slide_fidelity": [],
+          "checkpoint": {},
+          "errors": [],
+          "created_at": "2026-10-14T11:59:32Z",
+          "updated_at": "2026-10-14T11:59:40Z",
+          "completed_at": null
+        }
+      },
+      "director_writes": []
+    },
+    "failed-use-genuine": {
+      "what": "A Use original job that failed in the worker (Director's own text); the watchdog did not fail it",
+      "watchdog_flag": true,
+      "request": {
+        "method": "GET",
+        "path": "/api/template-ingest/stage/jobs/stage-use-run-7e6d5c4b-3a29-4180-9f7e-6d5c4b3a2918"
+      },
+      "response": {
+        "status_code": 200,
+        "json": {
+          "job_id": "stage-use-run-7e6d5c4b-3a29-4180-9f7e-6d5c4b3a2918",
+          "session_id": "8d7c6b5a-4f3e-4d2c-9b1a-0f9e8d7c6b5a",
+          "user_id": "owner",
+          "status": "failed",
+          "upload_ref": {
+            "kind": "template-use"
+          },
+          "template_id": "f1x7ure0-0000-4000-8000-n0rthw1nd030",
+          "presentation_id": null,
+          "viewer_url": null,
+          "slide_count": null,
+          "per_slide_fidelity": [],
+          "checkpoint": {},
+          "errors": [
+            "Stored template could not be used; no automatic retry was made."
+          ],
+          "created_at": "2026-10-14T11:58:22Z",
+          "updated_at": "2026-10-14T11:58:30Z",
+          "completed_at": null
+        }
+      },
+      "director_writes": []
+    },
+    "failed-upload-genuine": {
+      "what": "An upload job that failed in the worker (Director's own text)",
+      "watchdog_flag": true,
+      "request": {
+        "method": "GET",
+        "path": "/api/template-ingest/stage/jobs/stage-9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6e"
+      },
+      "response": {
+        "status_code": 200,
+        "json": {
+          "job_id": "stage-9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6e",
+          "session_id": "8d7c6b5a-4f3e-4d2c-9b1a-0f9e8d7c6b5a",
+          "user_id": "owner",
+          "status": "failed",
+          "upload_ref": {
+            "session_id": "8d7c6b5a-4f3e-4d2c-9b1a-0f9e8d7c6b5a",
+            "researcher_session_id": "8d7c6b5a-4f3e-4d2c-9b1a-0f9e8d7c6b5a",
+            "storage_path": "8d7c6b5a-4f3e-4d2c-9b1a-0f9e8d7c6b5a/1_deck.pptx",
+            "file_name": "deck.pptx",
+            "kind": "pptx"
+          },
+          "template_id": null,
+          "presentation_id": null,
+          "viewer_url": null,
+          "slide_count": null,
+          "per_slide_fidelity": [],
+          "checkpoint": {},
+          "errors": [
+            "Template upload could not be completed; no automatic retry was made."
+          ],
+          "created_at": "2026-10-14T11:58:22Z",
+          "updated_at": "2026-10-14T11:58:30Z",
+          "completed_at": null
+        }
+      },
+      "director_writes": []
+    },
+    "dies-while-polled": {
+      "what": "A running Use original job (heartbeat 20 s old: the first poll) whose Director process then dies; polled again 200 s later",
+      "watchdog_flag": true,
+      "request": {
+        "method": "GET",
+        "path": "/api/template-ingest/stage/jobs/stage-use-run-2e3d4c5b-6a79-4b8c-9d0e-1f2a3b4c5d6e"
+      },
+      "response": {
+        "status_code": 200,
+        "json": {
+          "job_id": "stage-use-run-2e3d4c5b-6a79-4b8c-9d0e-1f2a3b4c5d6e",
+          "session_id": "8d7c6b5a-4f3e-4d2c-9b1a-0f9e8d7c6b5a",
+          "user_id": "owner",
+          "status": "assembling",
+          "upload_ref": {
+            "kind": "template-use"
+          },
+          "template_id": "f1x7ure0-0000-4000-8000-n0rthw1nd030",
+          "presentation_id": null,
+          "viewer_url": null,
+          "slide_count": null,
+          "per_slide_fidelity": [],
+          "checkpoint": {},
+          "errors": [],
+          "created_at": "2026-10-14T11:59:32Z",
+          "updated_at": "2026-10-14T11:59:40Z",
+          "completed_at": null
+        }
+      },
+      "director_writes": [
+        {
+          "job_id": "stage-use-run-2e3d4c5b-6a79-4b8c-9d0e-1f2a3b4c5d6e",
+          "updates": {
+            "status": "failed",
+            "errors": [
+              "This job was interrupted by a server restart. Please try again."
+            ],
+            "checkpoint": {
+              "retryable": true
+            }
+          }
+        }
+      ],
+      "later": [
+        {
+          "after_s": 200,
+          "status_code": 200,
+          "json": {
+            "job_id": "stage-use-run-2e3d4c5b-6a79-4b8c-9d0e-1f2a3b4c5d6e",
+            "session_id": "8d7c6b5a-4f3e-4d2c-9b1a-0f9e8d7c6b5a",
+            "user_id": "owner",
+            "status": "failed",
+            "upload_ref": {
+              "kind": "template-use"
+            },
+            "template_id": "f1x7ure0-0000-4000-8000-n0rthw1nd030",
+            "presentation_id": null,
+            "viewer_url": null,
+            "slide_count": null,
+            "per_slide_fidelity": [],
+            "checkpoint": {
+              "retryable": true
+            },
+            "errors": [
+              "This job was interrupted by a server restart. Please try again."
+            ],
+            "created_at": "2026-10-14T11:59:32Z",
+            "updated_at": "2026-10-14T12:03:20Z",
+            "completed_at": null,
+            "retryable": true
+          }
+        },
+        {
+          "after_s": 200,
+          "status_code": 200,
+          "json": {
+            "job_id": "stage-use-run-2e3d4c5b-6a79-4b8c-9d0e-1f2a3b4c5d6e",
+            "session_id": "8d7c6b5a-4f3e-4d2c-9b1a-0f9e8d7c6b5a",
+            "user_id": "owner",
+            "status": "failed",
+            "upload_ref": {
+              "kind": "template-use"
+            },
+            "template_id": "f1x7ure0-0000-4000-8000-n0rthw1nd030",
+            "presentation_id": null,
+            "viewer_url": null,
+            "slide_count": null,
+            "per_slide_fidelity": [],
+            "checkpoint": {
+              "retryable": true
+            },
+            "errors": [
+              "This job was interrupted by a server restart. Please try again."
+            ],
+            "created_at": "2026-10-14T11:59:32Z",
+            "updated_at": "2026-10-14T12:03:20Z",
+            "completed_at": null,
+            "retryable": true
+          }
+        }
+      ]
+    },
+    "watchdog-off-orphan-use-assembling": {
+      "what": "Watchdog off (Director before !498 or the flag unset): the same dead job, 3 h since its last write, is still 'assembling'",
+      "watchdog_flag": false,
+      "request": {
+        "method": "GET",
+        "path": "/api/template-ingest/stage/jobs/stage-use-run-1b2a3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+      },
+      "response": {
+        "status_code": 200,
+        "json": {
+          "job_id": "stage-use-run-1b2a3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+          "session_id": "8d7c6b5a-4f3e-4d2c-9b1a-0f9e8d7c6b5a",
+          "user_id": "owner",
+          "status": "assembling",
+          "upload_ref": {
+            "kind": "template-use"
+          },
+          "template_id": "f1x7ure0-0000-4000-8000-n0rthw1nd030",
+          "presentation_id": null,
+          "viewer_url": null,
+          "slide_count": null,
+          "per_slide_fidelity": [],
+          "checkpoint": {},
+          "errors": [],
+          "created_at": "2026-10-14T08:59:52Z",
+          "updated_at": "2026-10-14T09:00:00Z",
+          "completed_at": null
+        }
+      },
+      "director_writes": []
+    }
+  }
+}

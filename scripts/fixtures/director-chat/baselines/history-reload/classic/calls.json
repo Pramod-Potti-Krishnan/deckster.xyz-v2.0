@@ -1,0 +1,85 @@
+[
+  {
+    "args": [
+      {
+        "generation": 1,
+        "restoredAssistantIds": [
+          "db-greeting-1",
+          "db-think-1",
+          "db-plan-1",
+          "msg_plan_confirm_synthetic-session-history-reload",
+          "db-outline-1",
+          "db-url-1",
+          "db-approve-1",
+          "db-outline-2",
+          "db-final-url",
+          "db-done-1",
+          "db-next-1",
+          "db-outline-replay",
+          "db-outline-replay-2",
+          "db-resend-1",
+          "db-adjust-1"
+        ],
+        "sessionId": "synthetic-session-history-reload",
+        "userId": "synthetic-user-01"
+      }
+    ],
+    "name": "session.setStudioFrontendTranscriptReceipt",
+    "step": 0
+  },
+  {"args":[{"message_id":"msg-sync-1","type":"sync_response"}],"name":"hook.onMessage","step":4},
+  {"args":[{"message_id":"msg-outline-live","type":"slide_update"}],"name":"hook.onMessage","step":5},
+  {"args":[{"message_id":"msg-live-hello","type":"chat_message"}],"name":"hook.onMessage","step":6},
+  {
+    "args": [
+      "Thanks, one more change please",
+      0,
+      {
+        "deepResearch": false,
+        "extendedGeneration": true,
+        "fileUpload": false,
+        "storeName": null,
+        "useKnowledgeGraph": false,
+        "webSearch": false
+      }
+    ],
+    "name": "page.sendTypedTurn",
+    "step": 8
+  },
+  {
+    "args": [
+      {"message_id":"synthetic-uuid-0001","payload":{"text":"Thanks, one more change please"},"type":"chat_message"},
+      "Thanks, one more change please"
+    ],
+    "name": "page.persistence.queueMessage",
+    "step": 8
+  },
+  {
+    "args": [
+      {
+        "generation": 1,
+        "restoredAssistantIds": [
+          "db-greeting-1",
+          "db-think-1",
+          "db-plan-1",
+          "msg_plan_confirm_synthetic-session-history-reload",
+          "db-outline-1",
+          "db-url-1",
+          "db-approve-1",
+          "db-outline-2",
+          "db-final-url",
+          "db-done-1",
+          "db-next-1",
+          "db-outline-replay",
+          "db-outline-replay-2",
+          "db-resend-1",
+          "db-adjust-1"
+        ],
+        "sessionId": "synthetic-session-history-reload",
+        "userId": "synthetic-user-01"
+      }
+    ],
+    "name": "session.setStudioFrontendTranscriptReceipt",
+    "step": 12
+  }
+]

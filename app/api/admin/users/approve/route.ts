@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user is admin
-    const isAdmin = session.user.email === process.env.DEV_BYPASS_EMAIL;
+    const isAdmin = !!session.user.email && session.user.email === process.env.DEV_BYPASS_EMAIL;
 
     if (!isAdmin) {
       return NextResponse.json(

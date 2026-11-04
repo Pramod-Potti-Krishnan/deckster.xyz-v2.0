@@ -32,8 +32,13 @@ import type { BlankElementInfo } from '@/hooks/use-blank-elements'
 import type { TemplateBlueprint, TemplateSelection, TemplateSnapshot } from '@/hooks/use-templates'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
 import type { BuildThemeSelection } from '@/lib/theme-builder'
+import type { AddSlideV2Settings } from '@/lib/studio-add-slide-v2'
 import type { ThemeSyncState } from '@/lib/theme-sync'
 import type { SlideThumbnailUrlsByPresentation } from '@/lib/stage-f-thumbnails'
+import type { ComposerLibraryRequest } from '@/lib/studio-composer-popups'
+import { STUDIO_RAIL_BUILD_COUNT_ENABLED, railBuildPlanFor } from '@/lib/studio-rail-build-count' // RAIL-SLIDES-1-MIDBUILD
+import { STUDIO_TEMPLATE_MATCH_ENABLED } from '@/lib/studio-template-match' // STUDIO-TEMPLATE-MATCH
+import { StudioTemplateMatchBadge } from '@/components/builder/studio-template-match-badge' // STUDIO-TEMPLATE-MATCH
 
 /** Check if a selected element is a blank placeholder; if so, open generation panel instead of format panel */
 export function handleBlankElementClick(
@@ -63,6 +68,8 @@ export interface PresentationAreaProps {
   showOutlinePreview?: boolean
   studioCanvasLifecycle?: StudioCanvasLifecycle
   studioInitialNativeDeferred?: boolean
+  /** PASS2B G09 (NEXT_PUBLIC_STUDIO_FIRST_RUN_POSTER_HIDE): the first message of this session has been sent. The page supplies it only with the flag on. */
+  studioBriefSent?: boolean
   studioPartialStagePending?: boolean
   studioPartialArtifact?: boolean
   onStudioPartialNativeReadback?: (readback: import('@/components/presentation-viewer').StudioPartialNativeReadback) => void
@@ -140,12 +147,23 @@ export interface PresentationAreaProps {
   templateModeOn?: boolean
   onTemplateModeChange?: (enabled: boolean) => void
   templateModeAvailable?: boolean
+  /** Toolbar template picker fix-forward (NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE): passed to the viewer unchanged (see PresentationViewer.onComposerTemplateAction). */
+  onComposerTemplateAction?: (request: ComposerLibraryRequest) => void
+  onOpenComposerLibrary?: () => void
   templateSnapshot?: TemplateSnapshot | null
   templateSnapshotLoading?: boolean
   templateCurrentSlideIndex?: number
   composeJobs?: SlideComposeThumbnailJob[]
   onRefineSlide?: (target: SlideRefineTarget) => void
   onGenerateSlide?: () => void
+  /** NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: passed to the viewer unchanged (see PresentationViewer.onUserDeckEdit). */
+  onUserDeckEdit?: () => void
+  /** NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: passed to the viewer unchanged (see PresentationViewer.studioTabPausedHint). */
+  studioTabPausedHint?: string
+  addSlideV2Settings?: AddSlideV2Settings<BuildThemeSelection>
+  // PASS2 #3 (flag NEXT_PUBLIC_STUDIO_PANEL_FOCUS): passed through to the viewer's slide rail.
+  studioRailCollapsed?: boolean
+  onStudioRailReveal?: () => void
   thumbnailUrlsBySlide?: Record<number, string>
   onThumbnailInvalidated?: (presentationId: string) => void
   onThumbnailMutationCapture?: StudioThumbnailMutationCapture
@@ -179,6 +197,7 @@ export interface PresentationAreaProps {
 export function PresentationArea({
   studioCanvasLifecycle,
   studioInitialNativeDeferred = false,
+  studioBriefSent,
   studioNativeOwner,
   studioPartialStagePending = false,
   studioPartialArtifact = false,
@@ -241,12 +260,19 @@ export function PresentationArea({
   templateModeOn = false,
   onTemplateModeChange,
   templateModeAvailable = false,
+  onComposerTemplateAction,
+  onOpenComposerLibrary,
   templateSnapshot = null,
   templateSnapshotLoading = false,
   templateCurrentSlideIndex,
   composeJobs = [],
   onRefineSlide,
   onGenerateSlide,
+  onUserDeckEdit,
+  studioTabPausedHint,
+  addSlideV2Settings,
+  studioRailCollapsed,
+  onStudioRailReveal,
   thumbnailUrlsBySlide = {},
   onThumbnailInvalidated,
   onThumbnailMutationCapture,
@@ -268,6 +294,8 @@ export function PresentationArea({
   const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   const narrationActive = !!(buildNarration && buildNarration.active)
   const narrationPhase = buildNarration?.phase ?? 'idle'
+  // RAIL-SLIDES-1-MIDBUILD (NEXT_PUBLIC_STUDIO_RAIL_BUILD_COUNT, default off): while the viewer shows this build's filling deck the rail keeps the plan's slide count (the frame only holds the slides persisted when it loaded). Null otherwise; then nothing extra reaches the viewer.
+  const railBuildPlan = railBuildPlanFor({ enabled: STUDIO_RAIL_BUILD_COUNT_ENABLED, studioShell, partialArtifact: Boolean(studioPartialArtifact), narrationActive, phase: narrationPhase, slideCount: buildNarration?.slideCount ?? 0, buildPresentationId: buildNarration?.buildPresentationId, presentationId, ghosts: buildNarration?.ghosts, slideStates: buildNarration?.slideStates }) // RAIL-SLIDES-1-MIDBUILD
   // Canvas v2 R3: the deck walkthrough — auto-step the real strawman once,
   // then follow freshly built slides during the write phases; user navigation
   // cancels automation for the remainder of the phase.
@@ -319,6 +347,8 @@ export function PresentationArea({
     : currentStatus?.status === 'awaiting_user' ? 'awaiting_user' as const
     : (isGeneratingFinal || isGeneratingStrawman || currentStatus?.status === 'generating') ? 'planning' as const : undefined
   const waitingForDirector = narrationActive || !!waitingActivity
+  // PASS2B G09 (flag NEXT_PUBLIC_STUDIO_FIRST_RUN_POSTER_HIDE, exact 'true', default off): once the first message is sent the first-run poster gives way to the planning card.
+  const studioPosterPlanning = process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_POSTER_HIDE === 'true' && studioBriefSent === true ? { planning: true } : {}
   const workingPlaceholder = studioShell && !blankPlaceholderDismissed && lifecycle.hasOwnedSelection
     && !lifecycle.hasGeneratedDeck && !lifecycle.hasAuthoredDeck
     && waitingForDirector && (narrationPhase === 'idle' || narrationPhase === 'planning' || narrationPhase === 'awaiting_user')
@@ -386,6 +416,7 @@ export function PresentationArea({
   return (
     <div className="flex-1 flex bg-gray-100 dark:bg-slate-800 min-w-0 min-h-0">
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
+        {STUDIO_TEMPLATE_MATCH_ENABLED && presentationUrl && mountNative && !templateModeOn && <StudioTemplateMatchBadge />}{/* STUDIO-TEMPLATE-MATCH (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH, default off): the one line above the slide that says which template Director applied; a sibling above the viewer, off, never drawn */}
         {presentationUrl && mountNative ? (
           <PresentationViewer
             studioPartialArtifact={studioPartialArtifact}
@@ -405,6 +436,7 @@ export function PresentationArea({
                 }
               : null
             }
+            {...(railBuildPlan ? { railBuildPlan } : {})} // RAIL-SLIDES-1-MIDBUILD
             slideStructure={slideStructure}
             strawmanPreviewUrl={strawmanPreviewUrl}
             finalPresentationUrl={finalPresentationUrl}
@@ -420,6 +452,7 @@ export function PresentationArea({
                     presentationId={presentationId}
                     slideCount={slideCount}
                     stage={currentStage}
+                    hasFinalDeck={hasFinalDeck}
                   />
                   <PublishControls
                     sessionId={publishSessionId ?? null}
@@ -497,9 +530,15 @@ export function PresentationArea({
             templateModeOn={templateModeOn}
             onTemplateModeChange={onTemplateModeChange}
             templateModeAvailable={templateModeAvailable}
+            {...(onComposerTemplateAction ? { onComposerTemplateAction, onOpenComposerLibrary } : {})}
             composeJobs={composeJobs}
             onRefineSlide={onRefineSlide}
             onGenerateSlide={onGenerateSlide}
+            onUserDeckEdit={onUserDeckEdit}
+            studioTabPausedHint={studioTabPausedHint}
+            addSlideV2Settings={addSlideV2Settings}
+            studioRailCollapsed={studioRailCollapsed}
+            onStudioRailReveal={onStudioRailReveal}
             thumbnailUrlsBySlide={thumbnailUrlsBySlide}
             onThumbnailInvalidated={onThumbnailInvalidated}
             onThumbnailMutationCapture={onThumbnailMutationCapture}
@@ -527,7 +566,7 @@ export function PresentationArea({
             </div></div>, toolbarPortalTarget)}
             <div className="flex w-full min-h-0 flex-col items-center gap-3">
               {narrationActive && buildNarration && <StageRibbon narration={buildNarration} control={buildNarrationApi?.control} />}
-              <StudioWelcomeStage studioIntroReplay={studioIntroReplay} />
+              <StudioWelcomeStage studioIntroReplay={studioIntroReplay} {...studioPosterPlanning} />
               {waitingForDirector && <StudioWaitingState scope="canvas" narration={waitingNarration} activity={waitingActivity} />}
               {onDismissBlankPlaceholder && <button type="button" onClick={onDismissBlankPlaceholder}
                 className="rounded-md border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
@@ -543,7 +582,7 @@ export function PresentationArea({
                   <StudioWaitingState scope="canvas" narration={waitingNarration} activity={waitingActivity} />
                   {narrationActive && buildNarration && <StageProgressFooter narration={buildNarration} />}
                 </div>
-                : <StudioWelcomeStage studioIntroReplay={studioIntroReplay} />
+                : <StudioWelcomeStage studioIntroReplay={studioIntroReplay} {...studioPosterPlanning} />
             ) : buildNarrationEnabled ? (
               /* Canvas v2 R1: designed 16:9 placeholder for the no-URL case
                  (no dismiss — there is no blank deck to reveal). */

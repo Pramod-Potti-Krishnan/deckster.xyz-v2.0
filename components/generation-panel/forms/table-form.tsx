@@ -24,6 +24,8 @@ import { useThemeSourceState } from '../shared/use-theme-source-state'
 import './studio-specialist-forms.css'
 
 const STUDIO_SPECIALIST_FORMS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+// R10: the manual row count is the DATA rows (the header row is added on top); label it so. Request values unchanged.
+const TABLE_DATA_ROWS_LABEL = process.env.NEXT_PUBLIC_TABLE_DATA_ROWS_LABEL_ENABLED === 'true'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.TABLE
 const COLUMN_KINDS: TableColumnKind[] = [
@@ -411,8 +413,8 @@ export function TableForm({
         {structureMode === 'MANUAL' && (
           <div className="mt-2 grid grid-cols-2 gap-2">
             <label className="space-y-1 text-[10px] font-medium text-slate-500 dark:text-slate-400">
-              Rows
-              <select aria-label="Manual table rows" value={rows} onChange={event => setRows(Number(event.target.value))} className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+              {TABLE_DATA_ROWS_LABEL ? 'Data rows' : 'Rows'}
+              <select aria-label={TABLE_DATA_ROWS_LABEL ? 'Manual table data rows' : 'Manual table rows'} aria-describedby={TABLE_DATA_ROWS_LABEL ? 'table-data-rows-hint' : undefined} value={rows} onChange={event => setRows(Number(event.target.value))} className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
                 {Array.from({ length: 10 }, (_, index) => index + 1).map(value => <option key={value}>{value}</option>)}
               </select>
             </label>
@@ -422,6 +424,7 @@ export function TableForm({
                 {Array.from({ length: 5 }, (_, index) => index + 2).map(value => <option key={value}>{value}</option>)}
               </select>
             </label>
+            {TABLE_DATA_ROWS_LABEL && <p id="table-data-rows-hint" className="col-span-2 text-[10px] leading-4 text-slate-500 dark:text-slate-400">The header row is added on top.</p>}
           </div>
         )}
       </section>

@@ -1,0 +1,52 @@
+[
+  {
+    "checkpoint": "01-connected",
+    "hookMessageIds": ["msg-greeting","msg-reply"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":"user","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "02-dropped-a-retry-is-scheduled",
+    "hookMessageIds": ["msg-greeting","msg-reply"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":"user","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "03-retries-used-up",
+    "hookMessageIds": ["msg-greeting","msg-reply"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":"user","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "04-still-exhausted-after-an-online-event",
+    "hookMessageIds": ["msg-greeting","msg-reply"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":"user","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "05-final",
+    "hookMessageIds": ["msg-greeting","msg-reply"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":"user","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  }
+]

@@ -22,6 +22,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { getVoice, isKnownVoiceId } from '@/lib/narration/voices';
 import { synthesize, isNarrationConfigured } from '@/lib/narration/tts';
+import { narrationCallContext } from '@/lib/narration/model-router';
 import { pcmToWav } from '@/lib/narration/wav';
 import { contentKey, getMedia, putMedia, voiceSamplePath } from '@/lib/narration/media-store';
 
@@ -104,7 +105,8 @@ export async function GET(
       return NextResponse.json({ error: 'Narration is not available' }, { status: 503 });
     }
 
-    const result = await synthesize(SAMPLE_TEXT, voiceId);
+    // The signed-in person's opaque id for the model router; undefined unless NARRATION_VIA_ROUTER is on.
+    const result = await synthesize(SAMPLE_TEXT, voiceId, narrationCallContext({ userId: auth.user.id }));
     const body = result.format === 'pcm' ? pcmToWav(result.audio) : result.audio;
 
     memo.set(path, { body, contentType });

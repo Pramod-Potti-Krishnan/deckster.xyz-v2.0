@@ -36,6 +36,9 @@ export type CtaLocation =
   | "v3_close_drop"
   | "v3_header_build"
   | "v3_header_sign_in"
+  | "v3_zoom_try"
+  | "v3_menu"
+  | "v3_realdeck_open"
 
 export function trackCta(location: CtaLocation, props?: Record<string, string>) {
   track("cta_click", { location, ...props })

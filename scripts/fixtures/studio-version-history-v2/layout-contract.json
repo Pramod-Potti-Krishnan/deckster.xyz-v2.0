@@ -1,0 +1,99 @@
+{
+  "_about": "What Studio's Version history relies on in Layout, read (read-only) from backend/layout-builder at origin/uat d86814a5ae04213c4d08e041f61a4c7a4154f961 on 21 Oct 2026. scripts/test-studio-version-history-v2.mjs checks the lib against these facts, and against the live Layout source when it is reachable.",
+  "layout_ref": "origin/uat",
+  "layout_sha": "d86814a5ae04213c4d08e041f61a4c7a4154f961",
+  "viewer": {
+    "file": "viewer/presentation-viewer.html",
+    "message_handler_reads": "const { action, params, source, requestId } = event.data || {};",
+    "drops_without_action": "postMessage received without action",
+    "reply_carries_action_and_request_id": [
+      "let result = { success: false, action, ...(requestId ? { requestId } : {}) };",
+      "const responsePayload = requestId ? { ...payload, requestId } : payload;"
+    ],
+    "commands": {
+      "getVersionHistory": {
+        "case": "case 'getVersionHistory':",
+        "params_read": [
+          "presentationId"
+        ],
+        "reply_fields": [
+          "success",
+          "action",
+          "requestId",
+          "presentationId",
+          "currentVersionId",
+          "versions",
+          "error"
+        ],
+        "reply_snippets": [
+          "result.currentVersionId = data.current_version_id;",
+          "result.versions = data.versions;"
+        ]
+      },
+      "restoreVersion": {
+        "case": "case 'restoreVersion':",
+        "params_read": [
+          "presentationId",
+          "versionId",
+          "createBackup",
+          "reload"
+        ],
+        "backup_default": "create_backup: params?.createBackup !== false",
+        "reply_fields": [
+          "success",
+          "action",
+          "requestId",
+          "message",
+          "backupVersionId",
+          "error"
+        ],
+        "reload_only_after_ok": "if (params?.reload !== false) {"
+      },
+      "forceSave": {
+        "case": "case 'forceSave':",
+        "params_read": [],
+        "reply_fields": [
+          "success",
+          "action",
+          "requestId",
+          "error"
+        ],
+        "awaits_only_when_defined": "if (typeof forceSaveNow === 'function') {"
+      }
+    }
+  },
+  "server": {
+    "versions_row_fields": [
+      "version_id",
+      "created_at",
+      "created_by",
+      "change_summary",
+      "presentation_id"
+    ],
+    "versions_newest_first": ".order(\"created_at\", desc=True)",
+    "restore": {
+      "file": "storage_supabase.py",
+      "backup_before_overwrite": [
+        "if create_backup:",
+        "await self.save_version(",
+        "self.client.table(\"ls_presentations\").update(row)"
+      ],
+      "backup_failure_returns_none": "return None",
+      "route_status_when_none": "status_code=404",
+      "backup_summary": "f\"Pre-restore backup before reverting to {version_id}\"",
+      "backup_created_by": "\"system\""
+    }
+  },
+  "autosave_guard": {
+    "file": "src/utils/auto-save.js",
+    "flag": "LAYOUT_AUTOSAVE_FLUSH_WHILE_SAVING_ENABLED",
+    "restore_is_structural": "['POST', /\\/api\\/presentations\\/([^/?#]+)\\/restore\\/[^/?#]+(?:[?#]|$)/]",
+    "settles_pending_before_request": "await settleBeforeStructuralRequest();",
+    "save_status_message": [
+      "type: 'saveStatusChanged',",
+      "status,",
+      "hasPendingChanges: pendingChanges.size > 0,",
+      "}, '*');"
+    ]
+  }
+}

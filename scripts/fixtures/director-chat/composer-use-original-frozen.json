@@ -1,0 +1,36 @@
+{
+  "name": "composer-use-original-frozen",
+  "description": "PASS2-J3 P0 guard (composer library on, NEXT_PUBLIC_STUDIO_NEW_SESSION_THEME_POLICY on): a Composer \"Use original\" session (the library dialog creates it, stages the use result and opens it) stays frozen exactly as before: the page applies the staged result, Director's sync_response carries the adoption, a stray blank deck frame changes nothing, a theme pick sends no set_theme, Add Element > Generate stops at the theme preflight without calling Text Labs, and a reconnect re-syncs the same frozen policy.",
+  "elementPreflight": true,
+  "elementType": "TEXT_BOX",
+  "env": {
+    "NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED": "true",
+    "NEXT_PUBLIC_STUDIO_NEW_SESSION_THEME_POLICY": "true",
+    "NEXT_PUBLIC_ELEMENTOR_URL": "https://textlabs.synthetic.invalid"
+  },
+  "session": {"id": "synthetic-session-use-original", "userId": "synthetic-user-01"},
+  "steps": [
+    {"op": "useOriginal", "comment": "the page's staged Composer result (composer-library-dialog -> sessionStorage -> applyTemplateIngestReady)", "result": {"session_id": "synthetic-session-use-original", "template_id": "synthetic-template-01", "presentation_id": "synthetic-composer-deck-01", "viewer_url": "https://layout.synthetic.invalid/p/synthetic-composer-deck-01", "slide_count": 3, "composer_adoption": {"schema_version": "composer-adoption-v1", "template_id": "synthetic-template-01", "presentation_id": "synthetic-composer-deck-01", "frozen_theme": true}}},
+    {"op": "expect", "themeBlocked": true, "outbound": 0},
+    {"op": "ensureConnected"},
+    {"op": "open"},
+    {"op": "frame", "comment": "Composer INSERTed the Director session, so Director answers with sync_response carrying the adoption", "frame": {"message_id": "msg-sync-adopted", "session_id": "synthetic-session-use-original", "timestamp": "2026-10-05T12:00:01Z", "type": "sync_response", "role": "assistant", "payload": {"action": "send_history", "message_count": 0, "current_state": "COMPLETE", "has_strawman": true, "presentation_id": "synthetic-composer-deck-01", "presentation_url": "https://layout.synthetic.invalid/p/synthetic-composer-deck-01", "composer_adoption": {"schema_version": "composer-adoption-v1", "template_id": "synthetic-template-01", "presentation_id": "synthetic-composer-deck-01", "frozen_theme": true}}}},
+    {"op": "checkpoint", "label": "composer deck adopted"},
+    {"op": "expect", "themeBlocked": true, "outboundOfType": {"set_theme": 0}},
+    {"op": "frame", "comment": "defensive: a stray blank deck frame after the adoption", "frame": {"message_id": "msg-stray-blank", "session_id": "synthetic-session-use-original", "timestamp": "2026-10-05T12:00:02Z", "type": "presentation_init", "role": "assistant", "payload": {"operation": "full_update", "is_blank": true, "metadata": {"main_title": "Untitled Presentation", "preview_url": "https://layout.synthetic.invalid/p/synthetic-blank-03", "preview_presentation_id": "synthetic-blank-03"}, "slides": [{"slide_id": "blank_slide_1", "slide_number": 1, "slide_type": "title_slide"}]}}},
+    {"op": "expect", "themeBlocked": true, "outboundOfType": {"set_theme": 0}},
+    {"op": "themePick", "theme": {"mode": "preset", "preset_id": "corporate_light"}, "comment": "Theme dialog: Corporate Light"},
+    {"op": "expect", "themeBlocked": true, "outboundOfType": {"set_theme": 0}, "comment": "the adopted deck keeps its stored source theme"},
+    {"op": "generate", "comment": "Add Element > Text Box > Generate on the adopted deck", "form": {"componentType": "TEXT_BOX", "prompt": "Three synthetic facts about ocean currents", "count": 1, "layout": "vertical", "advancedModified": false, "useDeckTheme": true, "slideIndex": 0, "textboxConfig": {}, "semanticRole": "BODY_TEXT", "geometryMode": "AUTO", "positionConfig": {"start_col": 5, "start_row": 4, "position_width": 10, "position_height": 6, "auto_position": false}}},
+    {"op": "expect", "textLabsRequests": 0, "toast": "Deck theme not ready", "comment": "frozen as before: the preflight refuses and nothing reaches Text Labs"},
+    {"op": "checkpoint", "label": "frozen after theme pick and generate"},
+    {"op": "close", "code": 1006, "comment": "socket drops"},
+    {"op": "advance", "ms": 2000, "comment": "backoff elapses, the hook opens socket 1"},
+    {"op": "expect", "sockets": 2, "themeBlocked": true},
+    {"op": "open"},
+    {"op": "frame", "frame": {"message_id": "msg-sync-adopted-2", "session_id": "synthetic-session-use-original", "timestamp": "2026-10-05T12:00:03Z", "type": "sync_response", "role": "assistant", "payload": {"action": "skip_history", "message_count": 0, "current_state": "COMPLETE", "has_strawman": true, "presentation_id": "synthetic-composer-deck-01", "presentation_url": "https://layout.synthetic.invalid/p/synthetic-composer-deck-01", "composer_adoption": {"schema_version": "composer-adoption-v1", "template_id": "synthetic-template-01", "presentation_id": "synthetic-composer-deck-01", "frozen_theme": true}}}},
+    {"op": "themePick", "theme": {"mode": "preset", "preset_id": "corporate_dark"}},
+    {"op": "expect", "themeBlocked": true, "outboundOfType": {"set_theme": 0}, "textLabsRequests": 0},
+    {"op": "checkpoint", "label": "still frozen after reconnect"}
+  ]
+}

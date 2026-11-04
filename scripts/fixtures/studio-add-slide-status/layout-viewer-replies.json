@@ -1,0 +1,413 @@
+{
+ "_provenance": {
+  "layout_builder_sha": "dd32785d6ea3bb8f9824e2741cd2a14a6980f9bc",
+  "note": "Recorded by running the REAL layout-builder server and viewer (viewer/presentation-viewer.html) in headless Chromium; replies are verbatim except the caller-minted requestId. Frontend envelope: presentation-viewer.tsx sendCommand.",
+  "recorder": "scripts/fixtures/studio-add-slide-status/record-layout-viewer.py"
+ },
+ "scenarios": {
+  "generate-ready": {
+   "presentation_id": "86680bca-f625-4c32-9a21-58a1c3ba1c72",
+   "titles": [
+    "Opening",
+    "Findings",
+    "Next steps"
+   ],
+   "steps": [
+    {
+     "do": "command",
+     "action": "goToSlide",
+     "params": {
+      "index": 1
+     },
+     "reply": {
+      "success": true,
+      "action": "goToSlide",
+      "slideIndex": 1
+     }
+    },
+    {
+     "do": "command",
+     "action": "getCurrentSlideInfo",
+     "params": {},
+     "reply": {
+      "success": true,
+      "action": "getCurrentSlideInfo",
+      "data": {
+       "index": 1,
+       "total": 3,
+       "layoutId": "L25"
+      }
+     }
+    },
+    {
+     "do": "command",
+     "action": "composePlaceholderAdd",
+     "params": {
+      "job_id": "job-add-1",
+      "visual_index": 2
+     },
+     "reply": {
+      "success": true,
+      "action": "composePlaceholderAdd",
+      "job_id": "job-add-1",
+      "visual_index": 2
+     }
+    },
+    {
+     "do": "command",
+     "action": "composeGetState",
+     "params": {},
+     "reply": {
+      "success": true,
+      "action": "composeGetState",
+      "current_visual_index": 1,
+      "current_placeholder_job_id": null,
+      "real_slide_count": 3,
+      "visual_section_count": 4,
+      "total_visual_sections": 4,
+      "placeholders": [
+       {
+        "job_id": "job-add-1",
+        "visual_index": 2
+       }
+      ],
+      "slides": [
+       {
+        "slide_id": "slide_e7206374e7b4",
+        "visual_index": 0,
+        "layout_index": 0
+       },
+       {
+        "slide_id": "slide_8d9e62d6fc05",
+        "visual_index": 1,
+        "layout_index": 1
+       },
+       {
+        "slide_id": "slide_98975d36b38e",
+        "visual_index": 3,
+        "layout_index": 2
+       }
+      ]
+     }
+    },
+    {
+     "do": "layout_insert",
+     "request": {
+      "method": "POST",
+      "path": "/api/presentations/{presentation_id}/slides",
+      "body": {
+       "layout": "L25",
+       "position": 2,
+       "content": {
+        "slide_title": "Why a phased rollout",
+        "subtitle": "Built by the composer",
+        "rich_content": "<div>Why a phased rollout</div>"
+       }
+      }
+     },
+     "status": 200,
+     "real_slide_id": "slide_f6b3564e570f",
+     "layout_index": 2,
+     "slide_count": 4
+    },
+    {
+     "do": "command",
+     "action": "composeSlideReconcile",
+     "params": {
+      "job_id": "job-add-1",
+      "real_slide_index": 2,
+      "real_slide_id": "slide_f6b3564e570f",
+      "presentation_id": "86680bca-f625-4c32-9a21-58a1c3ba1c72"
+     },
+     "reply": {
+      "success": true,
+      "action": "composeSlideReconcile",
+      "job_id": "job-add-1",
+      "real_slide_id": "slide_f6b3564e570f",
+      "real_slide_index": 2,
+      "visual_index": 2,
+      "total_slides": 4,
+      "real_slide_count": 4
+     }
+    },
+    {
+     "do": "command",
+     "action": "composeGetState",
+     "params": {},
+     "reply": {
+      "success": true,
+      "action": "composeGetState",
+      "current_visual_index": 1,
+      "current_placeholder_job_id": null,
+      "real_slide_count": 4,
+      "visual_section_count": 4,
+      "total_visual_sections": 4,
+      "placeholders": [],
+      "slides": [
+       {
+        "slide_id": "slide_e7206374e7b4",
+        "visual_index": 0,
+        "layout_index": 0
+       },
+       {
+        "slide_id": "slide_8d9e62d6fc05",
+        "visual_index": 1,
+        "layout_index": 1
+       },
+       {
+        "slide_id": "slide_f6b3564e570f",
+        "visual_index": 2,
+        "layout_index": 2
+       },
+       {
+        "slide_id": "slide_98975d36b38e",
+        "visual_index": 3,
+        "layout_index": 3
+       }
+      ]
+     }
+    },
+    {
+     "do": "command",
+     "action": "goToSlide",
+     "params": {
+      "index": 2
+     },
+     "reply": {
+      "success": true,
+      "action": "goToSlide",
+      "slideIndex": 2
+     }
+    },
+    {
+     "do": "command",
+     "action": "getCurrentSlideInfo",
+     "params": {},
+     "reply": {
+      "success": true,
+      "action": "getCurrentSlideInfo",
+      "data": {
+       "index": 2,
+       "total": 4,
+       "layoutId": "L25"
+      }
+     }
+    }
+   ]
+  },
+  "fail-retry-ready": {
+   "presentation_id": "67aa679a-fca1-4210-bbb2-4f590e41c47b",
+   "titles": [
+    "Opening",
+    "Findings",
+    "Next steps"
+   ],
+   "steps": [
+    {
+     "do": "command",
+     "action": "goToSlide",
+     "params": {
+      "index": 1
+     },
+     "reply": {
+      "success": true,
+      "action": "goToSlide",
+      "slideIndex": 1
+     }
+    },
+    {
+     "do": "command",
+     "action": "composePlaceholderAdd",
+     "params": {
+      "job_id": "job-add-2",
+      "visual_index": 2
+     },
+     "reply": {
+      "success": true,
+      "action": "composePlaceholderAdd",
+      "job_id": "job-add-2",
+      "visual_index": 2
+     }
+    },
+    {
+     "do": "command",
+     "action": "composePlaceholderFail",
+     "params": {
+      "job_id": "job-add-2"
+     },
+     "reply": {
+      "success": true,
+      "action": "composePlaceholderFail",
+      "job_id": "job-add-2"
+     }
+    },
+    {
+     "do": "command",
+     "action": "composeGetState",
+     "params": {},
+     "reply": {
+      "success": true,
+      "action": "composeGetState",
+      "current_visual_index": 1,
+      "current_placeholder_job_id": null,
+      "real_slide_count": 3,
+      "visual_section_count": 4,
+      "total_visual_sections": 4,
+      "placeholders": [
+       {
+        "job_id": "job-add-2",
+        "visual_index": 2
+       }
+      ],
+      "slides": [
+       {
+        "slide_id": "slide_ea95f8789716",
+        "visual_index": 0,
+        "layout_index": 0
+       },
+       {
+        "slide_id": "slide_c3650b6020b1",
+        "visual_index": 1,
+        "layout_index": 1
+       },
+       {
+        "slide_id": "slide_ac1dce31336f",
+        "visual_index": 3,
+        "layout_index": 2
+       }
+      ]
+     }
+    },
+    {
+     "do": "command",
+     "action": "composePlaceholderAdd",
+     "params": {
+      "job_id": "job-add-3",
+      "visual_index": 2,
+      "replace_job_id": "job-add-2"
+     },
+     "reply": {
+      "success": true,
+      "action": "composePlaceholderAdd",
+      "job_id": "job-add-3",
+      "visual_index": 2
+     }
+    },
+    {
+     "do": "command",
+     "action": "composeGetState",
+     "params": {},
+     "reply": {
+      "success": true,
+      "action": "composeGetState",
+      "current_visual_index": 1,
+      "current_placeholder_job_id": null,
+      "real_slide_count": 3,
+      "visual_section_count": 4,
+      "total_visual_sections": 4,
+      "placeholders": [
+       {
+        "job_id": "job-add-3",
+        "visual_index": 2
+       }
+      ],
+      "slides": [
+       {
+        "slide_id": "slide_ea95f8789716",
+        "visual_index": 0,
+        "layout_index": 0
+       },
+       {
+        "slide_id": "slide_c3650b6020b1",
+        "visual_index": 1,
+        "layout_index": 1
+       },
+       {
+        "slide_id": "slide_ac1dce31336f",
+        "visual_index": 3,
+        "layout_index": 2
+       }
+      ]
+     }
+    },
+    {
+     "do": "layout_insert",
+     "request": {
+      "method": "POST",
+      "path": "/api/presentations/{presentation_id}/slides",
+      "body": {
+       "layout": "L25",
+       "position": 2,
+       "content": {
+        "slide_title": "Why a phased rollout, again",
+        "subtitle": "Built by the composer",
+        "rich_content": "<div>Why a phased rollout, again</div>"
+       }
+      }
+     },
+     "status": 200,
+     "real_slide_id": "slide_544aaaf51c08",
+     "layout_index": 2,
+     "slide_count": 4
+    },
+    {
+     "do": "command",
+     "action": "composeSlideReconcile",
+     "params": {
+      "job_id": "job-add-3",
+      "real_slide_index": 2,
+      "real_slide_id": "slide_544aaaf51c08",
+      "presentation_id": "67aa679a-fca1-4210-bbb2-4f590e41c47b"
+     },
+     "reply": {
+      "success": true,
+      "action": "composeSlideReconcile",
+      "job_id": "job-add-3",
+      "real_slide_id": "slide_544aaaf51c08",
+      "real_slide_index": 2,
+      "visual_index": 2,
+      "total_slides": 4,
+      "real_slide_count": 4
+     }
+    },
+    {
+     "do": "command",
+     "action": "composeGetState",
+     "params": {},
+     "reply": {
+      "success": true,
+      "action": "composeGetState",
+      "current_visual_index": 1,
+      "current_placeholder_job_id": null,
+      "real_slide_count": 4,
+      "visual_section_count": 4,
+      "total_visual_sections": 4,
+      "placeholders": [],
+      "slides": [
+       {
+        "slide_id": "slide_ea95f8789716",
+        "visual_index": 0,
+        "layout_index": 0
+       },
+       {
+        "slide_id": "slide_c3650b6020b1",
+        "visual_index": 1,
+        "layout_index": 1
+       },
+       {
+        "slide_id": "slide_544aaaf51c08",
+        "visual_index": 2,
+        "layout_index": 2
+       },
+       {
+        "slide_id": "slide_ac1dce31336f",
+        "visual_index": 3,
+        "layout_index": 3
+       }
+      ]
+     }
+    }
+   ]
+  }
+ }
+}

@@ -1,9 +1,16 @@
 "use client"
 
+import { useEffect, useSyncExternalStore } from 'react'
 import { ArrowRight, Check, ChevronLeft, Loader2, Palette, Sparkles, X } from 'lucide-react'
 import { isValidThemeHex, type BuildThemeSelection, type ThemePresetSummary } from '@/lib/theme-builder'
 import type { SavedThemeProfile } from '@/hooks/use-theme-profiles'
+import { ThemeDropdownPicker, type ThemeDropdownCopy, type ThemeDropdownOption } from '@/components/theme-dropdown-picker'
+import { SavedThemePicker } from './studio-saved-theme-picker'
+import { STUDIO_THEME_SAVED_CHIPS_ENABLED } from '@/lib/studio-theme-saved-chips'
+import { STUDIO_THEME_DELETE_UNDO_ENABLED, STUDIO_THEME_DELETE_UNDO_MS, themeDeleteUndo } from '@/lib/studio-theme-delete-undo'
+import { STUDIO_THEME_PLAIN_WORDS_ENABLED, themePlainDescription, themeSearchText } from '@/lib/studio-theme-plain-words'
 import './studio-theme-menu.css'
+import './studio-composer-popups-v2.css'
 
 export type StudioThemeView = 'choices' | 'save' | 'manage'
 export type StudioThemeMutationKind = 'save' | 'set-standard' | 'clear-standard' | 'delete'
@@ -46,7 +53,14 @@ export interface StudioThemeMenuProps {
   onSetStandard: () => void
   onClearStandard: () => void
   onDelete: () => void
+  /** PASS2-COMPOSER-POPUPS (flag NEXT_PUBLIC_STUDIO_COMPOSER_POPUPS_V2): the choices view shows "Deckster themes" and "My themes" as two searchable dropdowns. */
+  dropdowns?: boolean
+  /** J4-01 (flag NEXT_PUBLIC_STUDIO_THEME_DELETE_UNDO): undefined = flag off (nothing is rendered); null = flag on, nothing waiting; else a delete is waiting out its undo window. */
+  deleteUndo?: { name: string; onUndo: () => void } | null
 }
+
+const DECKSTER_THEMES_COPY: ThemeDropdownCopy = { label: 'Deckster themes', help: null, placeholder: 'Search Deckster themes', singular: 'theme', plural: 'themes', groups: false }
+const MY_THEMES_COPY: ThemeDropdownCopy = { label: 'My themes', help: null, placeholder: 'Choose a saved theme', singular: 'theme', plural: 'themes', groups: false, none: 'No saved themes to show.' }
 
 // Presentation only: all request ownership, acknowledgments and native callbacks
 // remain in ChatInput. Saved chips use explicit primary colors only; unknown
@@ -60,6 +74,60 @@ function savedPrimaryColor(selection: BuildThemeSelection | null | undefined) {
   return undefined
 }
 export function StudioThemeMenu(p: StudioThemeMenuProps) {
+  // Flag off: exactly the view below, called directly, so the element tree is the base's.
+  if (STUDIO_THEME_DELETE_UNDO_ENABLED) return <StudioThemeMenuWithDeleteUndo {...p} />
+  return StudioThemeMenuView(p)
+}
+
+// J4-01: the theme menu with Delete held back for an undo window. State lives in lib/studio-theme-delete-undo.ts (not in this component,
+// which unmounts whenever the popover closes), so the window and its toast outlive the popover.
+function StudioThemeMenuWithDeleteUndo(p: StudioThemeMenuProps) {
+  const state = useSyncExternalStore(themeDeleteUndo.subscribe, themeDeleteUndo.getSnapshot, themeDeleteUndo.getSnapshot)
+  const busy = p.mutation?.phase === 'loading'
+  const hidden = [...(state.pending ? [state.pending.id] : []), ...state.committing]
+  useEffect(() => { themeDeleteUndo.attach({ onDelete: p.onDelete, selectedId: p.selectedId }) })
+  useEffect(() => () => themeDeleteUndo.detach(), [])
+  useEffect(() => {
+    // A committed delete stops being hidden once it is gone from the list or its own notice has settled (failed: the theme comes back).
+    for (const id of state.committing) {
+      if (!p.themes.some(theme => theme.id === id) || (p.mutation?.kind === 'delete' && p.mutation.phase !== 'loading')) themeDeleteUndo.release(id)
+    }
+  })
+  const themes = hidden.length ? p.themes.filter(theme => !hidden.includes(theme.id)) : p.themes
+  // A selection change moves the target of ChatInput's delete, so a waiting delete goes out first.
+  const beforeChange = <A extends unknown[]>(change: (...args: A) => void) => (...args: A) => { themeDeleteUndo.flush(); change(...args) }
+  return StudioThemeMenuView({
+    ...p,
+    themes,
+    selectedId: p.selectedId && hidden.includes(p.selectedId) ? null : p.selectedId,
+    activeTheme: p.activeTheme && hidden.includes(p.activeTheme.id) ? undefined : p.activeTheme,
+    standardTheme: p.standardTheme && hidden.includes(p.standardTheme.id) ? undefined : p.standardTheme,
+    readEmpty: p.readEmpty || (hidden.length > 0 && p.themes.length > 0 && themes.length === 0 && !p.readBusy && !p.readFailed),
+    onPreset: beforeChange(p.onPreset),
+    onSaved: beforeChange(p.onSaved),
+    onHex: beforeChange(p.onHex),
+    onDelete: () => {
+      const theme = p.activeTheme
+      // The same refusals as ChatInput's own delete: nothing selected, locked, or another change still in flight.
+      if (!theme || p.locked || busy || p.selectedId !== theme.id) return
+      themeDeleteUndo.begin(theme.id, theme.name, showUndoToast)
+    },
+    deleteUndo: state.pending ? { name: state.pending.name, onUndo: () => { themeDeleteUndo.undo() } } : null,
+  })
+}
+
+async function showUndoToast(name: string, onUndo: () => void): Promise<(() => void) | null> {
+  // Imported on use: this path exists only with the flag on, and other tests load this file with fixed import maps.
+  const [{ toast }, { ToastAction }] = await Promise.all([import('@/hooks/use-toast'), import('@/components/ui/toast')])
+  return toast({
+    title: 'Theme deleted',
+    description: name,
+    duration: STUDIO_THEME_DELETE_UNDO_MS,
+    action: <ToastAction altText={`Undo deleting the theme ${name}`} onClick={onUndo}>Undo</ToastAction>,
+  }).dismiss
+}
+
+function StudioThemeMenuView(p: StudioThemeMenuProps) {
   const mutationBusy = p.mutation?.phase === 'loading'
   const busyProps = { 'aria-disabled': mutationBusy ? true : undefined, 'aria-busy': mutationBusy ? true : undefined }
   const notices = <>
@@ -69,11 +137,19 @@ export function StudioThemeMenu(p: StudioThemeMenuProps) {
     {p.requestedTheme && <p data-studio-v4-saved-theme-request="true" className="studio-theme-note">From Themes: <strong>{p.requestedTheme.name}</strong>. Choose it in My themes to apply it.</p>}
     {p.mutation && <p role="status" data-studio-theme-mutation-state={p.mutation.phase} data-studio-theme-mutation-kind={p.mutation.kind} className="studio-theme-note">{mutationBusy && <Loader2 aria-hidden="true" className="studio-theme-spinner" />}{p.mutation.message}</p>}
   </>
-  const libraryHeading = <div className="studio-theme-library-heading">
-    <span>My themes</span>
-    <button type="button" data-studio-theme-read-refresh="true" aria-label={p.readFailed ? 'Retry loading saved themes' : 'Refresh saved themes'} disabled={p.locked} aria-disabled={p.readBusy ? true : undefined} aria-busy={p.readBusy ? true : undefined} onClick={p.onRefresh}>
+  // J4-01: "Theme deleted. Undo" while a delete waits out its undo window. The live region is always present (flag on) so its text change is announced;
+  // Undo takes focus because the Delete button it replaces has just left the page. Flag off: undefined, and `notices` is used as it was.
+  const deleteUndoNotice = p.deleteUndo === undefined ? undefined : <div data-studio-theme-delete-undo={p.deleteUndo ? 'pending' : 'idle'} className={p.deleteUndo ? 'studio-theme-note studio-theme-undo' : 'sr-only'}>
+    <span role="status" aria-live="polite">{p.deleteUndo ? `Theme deleted: ${p.deleteUndo.name}. Undo is available for ${STUDIO_THEME_DELETE_UNDO_MS / 1000} seconds.` : ''}</span>
+    {p.deleteUndo && <button type="button" data-studio-theme-action="undo-delete" aria-label={`Undo deleting ${p.deleteUndo.name}`} autoFocus onClick={p.deleteUndo.onUndo}>Undo</button>}
+  </div>
+  const noticesAndUndo = deleteUndoNotice ? <>{notices}{deleteUndoNotice}</> : notices
+  const refreshButton = <button type="button" data-studio-theme-read-refresh="true" aria-label={p.readFailed ? 'Retry loading saved themes' : 'Refresh saved themes'} disabled={p.locked} aria-disabled={p.readBusy ? true : undefined} aria-busy={p.readBusy ? true : undefined} onClick={p.onRefresh}>
       {p.readBusy && <Loader2 aria-hidden="true" className="studio-theme-spinner" />}{p.readFailed ? 'Retry' : 'Refresh'}
     </button>
+  const libraryHeading = <div className="studio-theme-library-heading">
+    <span>My themes</span>
+    {refreshButton}
   </div>
   const empty = p.readEmpty && <p data-studio-theme-read-empty="true" className="studio-theme-empty">No saved themes yet.</p>
   const brand = <div className="studio-theme-brand" data-studio-theme-brand-selected={p.selection.mode === 'custom' && !p.selectedId ? 'true' : undefined}>
@@ -86,6 +162,28 @@ export function StudioThemeMenu(p: StudioThemeMenuProps) {
     <span className="studio-theme-choice-name">{name}{auto && <small>{p.standardTheme ? `Your standard theme · ${p.standardTheme.name}` : 'Use the default theme'}</small>}</span>
     {chosen && <Check aria-hidden="true" className="studio-theme-check" />}
   </button>
+  // The same handlers as the rows below: Auto and presets go to onPreset, saved themes to onSaved.
+  const presetsLocked = p.locked || p.presetsLoading
+  const decksterSelected = p.selectedId ? null : p.selection.mode === 'auto' ? 'auto' : p.selection.mode === 'preset' ? p.selection.preset_id ?? null : null
+  const decksterOptions: ThemeDropdownOption[] = p.dropdowns ? [
+    { id: 'auto', name: 'Auto', hint: 'Auto / default', swatches: [], current: false, sub: p.standardTheme ? `Your standard theme · ${p.standardTheme.name}` : 'Use the default theme' },
+    ...p.presets.map(preset => ({ id: preset.preset_id, name: preset.name, hint: themePlainDescription(STUDIO_THEME_PLAIN_WORDS_ENABLED, preset.preset_id, preset.description), swatches: [], current: false, sub: '', search: themeSearchText(STUDIO_THEME_PLAIN_WORDS_ENABLED, preset.name, preset.description) })),
+  ] : []
+  const myThemeOptions: ThemeDropdownOption[] = p.dropdowns ? p.themes.map(theme => {
+    const color = savedPrimaryColor(theme.theme_payload)
+    return { id: theme.id, name: theme.name, hint: theme.is_standard ? 'Standard theme' : '', swatches: color ? [color] : [], current: false, sub: theme.is_standard ? '★ Standard' : '' }
+  }) : []
+  const dropdownChoices = p.dropdowns ? <div className="studio-theme-dds">
+    <div className="studio-theme-dd" data-studio-theme-dd="deckster">
+      <ThemeDropdownPicker options={decksterOptions} selectedId={decksterSelected} locked={presetsLocked} onSelect={p.onPreset} copy={DECKSTER_THEMES_COPY} />
+    </div>
+    <div className="studio-theme-dd" data-studio-theme-dd="mine">
+      {/* PASS2D 6a (NEXT_PUBLIC_STUDIO_THEME_SAVED_CHIPS, default off): a colour chip strip on every saved theme; same rows, same handlers. */}
+      {STUDIO_THEME_SAVED_CHIPS_ENABLED ? <SavedThemePicker themes={p.themes} options={myThemeOptions} selectedId={p.selectedId} locked={p.locked} onSelect={p.onSaved} copy={MY_THEMES_COPY} labelAccessory={refreshButton} /> : <ThemeDropdownPicker options={myThemeOptions} selectedId={p.selectedId} locked={p.locked} onSelect={p.onSaved} copy={MY_THEMES_COPY} labelAccessory={refreshButton} />}
+      {empty}
+      {p.currentProfile && p.selectedId === p.currentProfile.id && !p.themes.some(theme => theme.id === p.selectedId) && <p data-studio-theme-current="true" className="studio-theme-empty">Current theme: {p.currentProfile.name}</p>}
+    </div>
+  </div> : null
   return <div data-studio-theme-view={p.view} data-studio-theme-selection={p.selectedId || ''} className="studio-theme-menu">
     <div className="studio-theme-heading">
       {p.view !== 'choices' && <button type="button" data-studio-theme-action="back" aria-label="Back to theme choices" onClick={() => p.onView('choices')}><ChevronLeft aria-hidden="true" /></button>}
@@ -93,18 +191,18 @@ export function StudioThemeMenu(p: StudioThemeMenuProps) {
       <button type="button" data-studio-theme-action="close" aria-label="Close build theme" onClick={p.onClose}><X aria-hidden="true" /></button>
     </div>
     {p.view === 'choices' ? <>
-      <div className="studio-theme-choices" aria-label="Build theme choices">
+      {p.dropdowns ? dropdownChoices : <div className="studio-theme-choices" aria-label="Build theme choices">
         {row('auto', 'Auto', p.selection.mode === 'auto' && !p.selectedId, () => p.onPreset('auto'), undefined, true, p.locked || p.presetsLoading)}
-        {p.presets.map(preset => row(`preset:${preset.preset_id}`, preset.name, p.selection.mode === 'preset' && p.selection.preset_id === preset.preset_id && !p.selectedId, () => p.onPreset(preset.preset_id), preset.description, false, p.locked || p.presetsLoading))}
-      </div>
-      <div className="studio-theme-library">
+        {p.presets.map(preset => row(`preset:${preset.preset_id}`, preset.name, p.selection.mode === 'preset' && p.selection.preset_id === preset.preset_id && !p.selectedId, () => p.onPreset(preset.preset_id), themePlainDescription(STUDIO_THEME_PLAIN_WORDS_ENABLED, preset.preset_id, preset.description), false, p.locked || p.presetsLoading))}
+      </div>}
+      {p.dropdowns ? null : <div className="studio-theme-library">
         {libraryHeading}
         {p.themes.map(theme => row(`saved:${theme.id}`, theme.name, p.selectedId === theme.id, () => p.onSaved(theme.id), theme.is_standard ? 'Standard theme' : undefined, false, p.locked, savedPrimaryColor(theme.theme_payload)))}
         {empty}
         {p.currentProfile && p.selectedId === p.currentProfile.id && !p.themes.some(theme => theme.id === p.selectedId) && <p data-studio-theme-current="true" className="studio-theme-empty">Current theme: {p.currentProfile.name}</p>}
-      </div>
+      </div>}
       {brand}
-      {notices}
+      {noticesAndUndo}
       <div className="studio-theme-footer">
         <button type="button" data-studio-theme-action="save-entry" onClick={() => p.onView('save')}>Save or set standard…</button>
         <button type="button" data-studio-theme-action="manage-entry" onClick={() => p.onView('manage')}>Manage themes <ArrowRight aria-hidden="true" /></button>
@@ -132,7 +230,7 @@ export function StudioThemeMenu(p: StudioThemeMenuProps) {
         <label className="studio-theme-standard-checkbox"><input type="checkbox" checked={p.asStandard} disabled={p.locked} onChange={event => p.onAsStandard(event.target.checked)} />Set as standard</label>
         {p.selection.mode === 'auto' && <p className="studio-theme-empty">Choose a preset or brand color to save a theme.</p>}
       </div>}
-      {notices}
+      {noticesAndUndo}
     </>}
   </div>
 }

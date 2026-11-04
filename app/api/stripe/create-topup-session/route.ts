@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth-options"
 import { getStripe } from "@/lib/stripe/stripe"
 import { getOrCreateStripeCustomer } from "@/lib/stripe/stripe-utils"
+import { PAYMENTS_OPEN_SOON_BODY, PAYMENTS_OPEN_SOON_STATUS, STUDIO_PAYMENTS_OPEN_SOON_ENABLED } from "@/lib/studio-payments-open-soon"
 
 const CREDIT_PACKS = [
   { id: "pack_10", label: "$10", amountCents: 1000 },
@@ -16,6 +17,8 @@ type PackId = (typeof CREDIT_PACKS)[number]["id"]
 const PACK_MAP = new Map(CREDIT_PACKS.map((p) => [p.id, p]))
 
 export async function POST(req: NextRequest) {
+  // NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON (default off): no payment can start. Refused before the session, the Stripe customer or Stripe is touched, so a stale page cannot open a checkout.
+  if (STUDIO_PAYMENTS_OPEN_SOON_ENABLED) return NextResponse.json({ ...PAYMENTS_OPEN_SOON_BODY }, { status: PAYMENTS_OPEN_SOON_STATUS, headers: { "Cache-Control": "no-store" } })
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user?.email) {

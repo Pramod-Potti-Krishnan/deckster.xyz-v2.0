@@ -6,6 +6,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { Trash2, MessageSquare } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DeleteConfirmModal } from '@/components/delete-confirm-modal';
+import { isGenericSessionPreview, SESSION_ROW_NO_STAGE_LABEL } from '@/lib/studio-session-row';
 
 export interface SessionListItemProps {
   session: SessionListItemType;
@@ -27,6 +28,8 @@ export function SessionListItem({
   onSelectionChange
 }: SessionListItemProps) {
   const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true';
+  // PASS2B G48 (NEXT_PUBLIC_STUDIO_SESSION_ROW_QUIET, default off, Studio shell only): no canned-line preview, "Draft" for a session without a stage.
+  const quietRow = studio && process.env.NEXT_PUBLIC_STUDIO_SESSION_ROW_QUIET === 'true';
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -36,8 +39,9 @@ export function SessionListItem({
     (lastMessage?.messageType === 'chat_message' ?
       (lastMessage.payload as any)?.text?.substring(0, 60) :
       null);
-  const studioMessagePreview = lastMessage?.userText ||
+  const studioMessagePreviewFull = lastMessage?.userText ||
     (lastMessage?.messageType === 'chat_message' ? (lastMessage.payload as any)?.text : null);
+  const studioMessagePreview = quietRow && isGenericSessionPreview(studioMessagePreviewFull) ? null : studioMessagePreviewFull;
 
   // Format timestamp
   const timeAgo = session.lastMessageAt
@@ -45,7 +49,7 @@ export function SessionListItem({
     : formatDistanceToNow(new Date(session.createdAt), { addSuffix: true });
 
   // Get stage indicator
-  const stageLabel = getStageLabel(session.currentStage);
+  const stageLabel = getStageLabel(session.currentStage, quietRow);
 
   // Handle delete with confirmation modal
   const handleDelete = (e: React.MouseEvent) => {
@@ -181,7 +185,7 @@ export function SessionListItem({
   );
 }
 
-function getStageLabel(stage: number): string {
+function getStageLabel(stage: number, quietRow = false): string {
   switch (stage) {
     case 1: return 'Starting';
     case 2: return 'Planning';
@@ -189,7 +193,7 @@ function getStageLabel(stage: number): string {
     case 4: return 'Preview Ready';
     case 5: return 'Refining';
     case 6: return 'Complete';
-    default: return 'Unknown';
+    default: return quietRow ? SESSION_ROW_NO_STAGE_LABEL : 'Unknown';
   }
 }
 

@@ -1,3 +1,4 @@
+import { serviceUrl, textLabsEnv } from './service-url-harness.mjs'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
@@ -7,7 +8,7 @@ function moduleUrl(relativePath) {
   return new URL(relativePath, import.meta.url)
 }
 
-function loadClient(fetchImpl) {
+function loadClient(fetchImpl, env = textLabsEnv) {
   const moduleCache = new Map()
   const loadModule = url => {
     const key = url.href
@@ -20,7 +21,7 @@ function loadClient(fetchImpl) {
     vm.runInNewContext(compiled.outputText, {
       module: mod,
       exports: mod.exports,
-      process: { env: {} },
+      process: { env: { ...env } },
       fetch: url.pathname.endsWith('textlabs-client.ts') ? fetchImpl : () => {
         throw new Error('Unexpected dependency fetch')
       },
@@ -31,6 +32,7 @@ function loadClient(fetchImpl) {
       setTimeout,
       clearTimeout,
       require: id => {
+        if (id === '@/lib/service-url') return serviceUrl
         const aliases = {
           '@/types/textlabs': '../types/textlabs.ts',
           '@/lib/element-semantic-type': '../lib/element-semantic-type.ts',
@@ -176,4 +178,17 @@ const backendFailure = await runScenario([
 assert.equal(backendFailure.calls, 1)
 assert.match(backendFailure.error.message, /Research data is invalid/)
 
-console.log('chart request safety tests passed')
+// Loader compatibility must keep the actual FE0 guard, not bypass it with a mock.
+for (const configured of [undefined, '', '   ', '/relative', 'ftp://synthetic.invalid', 'https://user:synthetic-only@synthetic.invalid', 'https://synthetic.invalid?synthetic-only']) {
+  let requests = 0
+  const client = loadClient(() => { requests++; throw new Error('Configuration refusal must precede fetch') }, { NEXT_PUBLIC_ELEMENTOR_URL: configured })
+  assert.ok(client.TEXT_LABS_URL_CONFIG_ERROR instanceof serviceUrl.ServiceUrlConfigError)
+  await assert.rejects(client.sendMessage('synthetic-session', 'Synthetic chart', chartOptions), error => {
+    assert.ok(error instanceof serviceUrl.ServiceUrlConfigError, 'Shared real exports keep class identity across VM imports')
+    assert.match(error.message, /NEXT_PUBLIC_ELEMENTOR_URL/)
+    assert.doesNotMatch(error.message, /synthetic-only|user:/)
+    return true
+  })
+  assert.equal(requests, 0, 'Missing or invalid configuration never requests or falls back')
+}
+console.log('chart request safety tests passed; 7 actual FE0 configuration refusals preserve zero requests and error identity')

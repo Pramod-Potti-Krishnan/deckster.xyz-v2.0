@@ -1,0 +1,78 @@
+{
+  "calls": [
+    {"args":[{"type":"sync_response"}],"at":2000,"name":"page.onMessage","step":3},
+    {"args":[{"type":"chat_message"}],"at":3500,"name":"page.onMessage","step":6},
+    {
+      "args": [{"mode":"auto"},"synthetic-uuid-0001","deck-themed-cl",true],
+      "at": 3500,
+      "name": "hook.sendThemeSelection",
+      "step": 6
+    },
+    {"args":[{"type":"chat_message"}],"at":3500,"name":"page.onMessage","step":6},
+    {
+      "args": [{"request_id":"synthetic-uuid-0001","status":"syncing","type":"theme_sync"}],
+      "at": 5000,
+      "name": "page.onMessage",
+      "step": 9
+    },
+    {
+      "args": [{"request_id":"synthetic-uuid-0001","status":"applied","type":"theme_sync"}],
+      "at": 5000,
+      "name": "page.onMessage",
+      "step": 9
+    },
+    {"args":[{"type":"sync_response"}],"at":8000,"name":"page.onMessage","step":15}
+  ],
+  "checkpoints": [
+    {
+      "activeBuildThemeProfile": null,
+      "buildThemeSelection": {"mode":"auto"},
+      "connection": {"connected":true,"generation":1,"sockets":1},
+      "deck": {"effectivePresentationId":"deck-themed-cl","presentationId":"deck-themed-cl"},
+      "gate": {"phase":"waiting","sessionId":"sess-themed-cl","syncSeen":true},
+      "label": "sync_response, no restore yet",
+      "messages": ["db-director-1 | chat_message"],
+      "setThemeSent": [],
+      "themeSelectionChangedLocally": false,
+      "themeSync": {"error":null,"presentationId":null,"requestId":null,"status":"idle","themeFingerprint":null},
+      "toasts": 0,
+      "virtualMs": 2500
+    },
+    {
+      "activeBuildThemeProfile": null,
+      "buildThemeSelection": {"mode":"auto"},
+      "connection": {"connected":true,"generation":1,"sockets":1},
+      "deck": {"effectivePresentationId":"deck-themed-cl","presentationId":"deck-themed-cl"},
+      "gate": {"phase":"fallback","sessionId":"sess-themed-cl","syncSeen":true},
+      "label": "history replay: fallback",
+      "messages": ["db-director-1 | chat_message","msg_hist_0b681a89edc6 | chat_message","msg_hist_b6bf31b5a056 | chat_message"],
+      "setThemeSent": [{"at":3500,"socket":0,"theme":{"mode":"auto"}}],
+      "themeSelectionChangedLocally": false,
+      "themeSync": {
+        "error": null,
+        "presentationId": "deck-themed-cl",
+        "requestId": "synthetic-uuid-0001",
+        "status": "syncing",
+        "themeFingerprint": "{\"mode\":\"auto\"}"
+      },
+      "toasts": 0,
+      "virtualMs": 4000
+    },
+    {
+      "activeBuildThemeProfile": null,
+      "buildThemeSelection": {"mode":"auto"},
+      "connection": {"connected":true,"generation":1,"sockets":2},
+      "deck": {"effectivePresentationId":"deck-themed-cl","presentationId":"deck-themed-cl"},
+      "gate": {"phase":"waiting","sessionId":"sess-themed-cl","syncSeen":true},
+      "label": "reload, only sync_response, 30 s later",
+      "messages": ["db-director-1 | chat_message","msg_hist_0b681a89edc6 | chat_message","msg_hist_b6bf31b5a056 | chat_message"],
+      "setThemeSent": [{"at":3500,"socket":0,"theme":{"mode":"auto"}}],
+      "themeSelectionChangedLocally": false,
+      "themeSync": {"error":null,"presentationId":null,"requestId":null,"status":"idle","themeFingerprint":null},
+      "toasts": 0,
+      "virtualMs": 39000
+    }
+  ],
+  "diagnostics": {"blockedNetwork":[],"console":[],"uncaught":[]},
+  "notes": ["step 16: themeAck skipped, no unanswered set_theme"]
+}

@@ -1,0 +1,33 @@
+{
+  "source": {
+    "observed": "streams/e2e2/parity-proofs/run-A3/RESULTS.md, 'F8 re-check after the router redeploy (22:02-22:05Z)', Studio dev, session 57f9e99a, 27 Oct 2026, router UAT c19a384f with PREFS_SESSION_SCOPE_ENABLED on",
+    "capture": "E2E-2 capture 27 Oct 22:49Z (a $0 capture on Studio dev, 22:48-22:50Z, session 57f9e99a), relayed by the coordinator: the header values below",
+    "router_read": "model-router app/read_api.py at c19a384f (read-only), and ROUTER-2's mail to FRONTEND-2 of 27 Oct 22:16Z",
+    "router_lines": {
+      "deck_get": "app/read_api.py:339 get_session_preferences: always _set_validators (:708), even for a deck never written",
+      "deck_put": "app/read_api.py:357 put_session_preferences: no precondition, replaces the whole map, last writer wins, never 409 or 412, 200 sets no ETag",
+      "etag": "app/read_api.py:685 _etag: a strong tag over the stored rows: '\"' + sha256(json.dumps([[name, preset, model, iso_z(updated_at)], ...sorted by name], separators=(',', ':')))[:32] + '\"'",
+      "user_patch": "app/read_api.py:156 patch_preferences: honours If-Match through _precondition (:715); 412, or 409 for a concurrent first write"
+    }
+  },
+  "recorded": {
+    "deck_get": { "status": 200, "body": { "scope": "deck", "preferences": {} } },
+    "deck_patch_each_time": { "status": 412, "body": { "error": "Your choices changed elsewhere. Read them again and retry.", "code": "preferences_modified" } },
+    "after_patch": "Studio re-read the deck (GET 200, preferences {}) and the next PATCH answered 412 again; 412 three times in all",
+    "popover_said": "Saved to your account. Applies from the next build.",
+    "after_reload": "gauge 'Model: Auto', deck and user preferences {}: nothing was saved"
+  },
+  "capture_22_49Z": {
+    "deck_get_etag": "W/\"4f53cda18c2baa0c0354bb5f9a3ecbe5\"",
+    "deck_get_note": "200, compressed, via Vercel: the router's strong tag arrives weakened",
+    "deck_patch_if_match": "W/\"4f53cda18c2baa0c0354bb5f9a3ecbe5\"",
+    "deck_patch_status": 412,
+    "deck_patch_code": "preferences_modified",
+    "deck_patch_response_etag": "\"4f53cda18c2baa0c0354bb5f9a3ecbe5\"",
+    "deck_patch_response_note": "the 412 is not compressed, so its tag is the strong one",
+    "user_get_etag": "W/\"4f53cda18c2baa0c0354bb5f9a3ecbe5\"",
+    "user_note": "GET /api/model-choice/prefs on the user scope came back weakened too, so 'Reusable defaults' saves hit the same stale-read 412 (not sent, to keep decksterqa's defaults)"
+  },
+  "empty_deck_etag": "\"4f53cda18c2baa0c0354bb5f9a3ecbe5\"",
+  "empty_deck_etag_how": "sha256('[]')[:32], quoted: the router's _etag over no rows (ROUTER-2, 27 Oct 22:16Z)"
+}

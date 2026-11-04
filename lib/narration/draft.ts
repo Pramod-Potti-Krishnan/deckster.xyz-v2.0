@@ -14,6 +14,7 @@
  */
 
 import { COMPRESSED_RATIO } from './budget'
+import { callModel, routerSettings, ROUTER_DRAFT_TIMEOUT_MS, type NarrationCallContext } from './model-router'
 
 const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
@@ -132,25 +133,43 @@ export function numbersAreGrounded(script: string, source: string): { ok: boolea
 export async function draftSlideScript(
   slide: SlideSource,
   words: number,
-  compressedWords: number
+  compressedWords: number,
+  /** Who the draft is for. Used only when NARRATION_VIA_ROUTER routes the call. */
+  context?: NarrationCallContext
 ): Promise<DraftedScript> {
   const key = process.env.OPENROUTER_API_KEY
-  if (!key) throw new DraftError('OPENROUTER_API_KEY is not configured')
+  // Null unless NARRATION_VIA_ROUTER is on and the router is configured.
+  const router = routerSettings()
+  if (!key && !router) throw new DraftError('OPENROUTER_API_KEY is not configured')
 
-  const response = await fetch(OPENROUTER_CHAT_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-    body: JSON.stringify({
-      model: DRAFT_MODEL,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserPrompt(slide, words, compressedWords) },
-      ],
-      // Low but not zero: narration that is identical in cadence on every slide
-      // is its own kind of wrong.
-      temperature: 0.4,
-      response_format: { type: 'json_object' },
-    }),
+  const requestBody = JSON.stringify({
+    model: DRAFT_MODEL,
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: buildUserPrompt(slide, words, compressedWords) },
+    ],
+    // Low but not zero: narration that is identical in cadence on every slide
+    // is its own kind of wrong.
+    temperature: 0.4,
+    response_format: { type: 'json_object' },
+  })
+  const { response } = await callModel({
+    router,
+    path: '/v1/chat/completions',
+    task: 'studio.narration_draft',
+    context,
+    body: requestBody,
+    direct: key
+      ? {
+          url: OPENROUTER_CHAT_URL,
+          init: {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+            body: requestBody,
+          },
+        }
+      : null,
+    timeoutMs: ROUTER_DRAFT_TIMEOUT_MS,
   })
 
   if (!response.ok) {

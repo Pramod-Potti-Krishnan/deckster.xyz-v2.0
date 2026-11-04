@@ -24,7 +24,16 @@ import {
   type CachedSessionState,
 } from '@/hooks/use-session-cache'
 import { unsavedBuilderSessionKey } from '@/lib/last-builder-session'
+import {
+  STUDIO_SESSION_HYGIENE_ENABLED,
+  decideMissingSession,
+  readSessionOrigin,
+  type SessionLoadOutcome,
+  type StudioSessionProblem,
+} from '@/lib/studio-session-hygiene'
 import { STUDIO_VOICE_INTERACTIVE_ENABLED } from '@/lib/studio-voice-interactive'
+import { STUDIO_BLANK_DECK_LEGACY_ROWS_ENABLED, isLegacyBlankDeckRow } from '@/lib/studio-legacy-blank-deck-row'
+import { STUDIO_SESSION_OPEN_READ_ONLY_ENABLED } from '@/lib/studio-open-read-only'
 import {
   attachmentsFromPayload,
   type UserChatMessage,
@@ -39,15 +48,22 @@ export interface StudioFrontendTranscriptReceipt {
   readonly restoredAssistantIds: readonly string[]
 }
 
+/** NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: a write that Director's frames make on their own; the persistence hook ignores the mark with the flag off. */
+const PASSIVE_WRITE = { passive: true } as const
+
 interface UseBuilderSessionParams {
   user: any
   isAuthLoading: boolean
   searchParams: ReturnType<typeof import("next/navigation").useSearchParams>
   loadSession: (sessionId: string) => Promise<any>
+  /** NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the same lookup, but it says why there is no row. Unused when the flag is off. */
+  loadSessionResult?: (sessionId: string) => Promise<SessionLoadOutcome<any>>
   createSession: (sessionId: string) => Promise<any>
   persistence: {
-    queueMessage: (msg: DirectorMessage, userText?: string) => void
-    updateMetadata: (data: any) => void
+    queueMessage: (msg: DirectorMessage, userText?: string, options?: { passive?: boolean }) => void
+    updateMetadata: (data: any, options?: { passive?: boolean }) => void
+    /** NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: an existing session's row has been opened (lib/studio-open-read-only.ts). */
+    beginOpenQuiet?: (sessionId: string, row: unknown) => void
     generateTitle: (text: string) => string
   } | null
   // WebSocket methods
@@ -75,6 +91,7 @@ export function useBuilderSession({
   isAuthLoading,
   searchParams,
   loadSession,
+  loadSessionResult,
   createSession,
   persistence,
   connected,
@@ -144,6 +161,8 @@ export function useBuilderSession({
   const [isLoadingSession, setIsLoadingSession] = useState(() => Boolean(currentSessionId))
   const [isResumedSession, setIsResumedSession] = useState(false)
   const [isCreatingSession, setIsCreatingSession] = useState(false)
+  // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: why the URL's session cannot be opened. Always null with the flag off.
+  const [sessionProblem, setSessionProblem] = useState<{ kind: StudioSessionProblem; sessionId: string } | null>(null)
 
   const [userMessages, setUserMessages] = useState<UserChatMessage[]>(() => {
     if (typeof window === 'undefined') return [];
@@ -238,7 +257,7 @@ export function useBuilderSession({
             timestamp: m.timestamp,
             type: 'chat_message',
             payload: attachments.length > 0 ? { text, attachments } : { text }
-          } as DirectorMessage, text);
+          } as DirectorMessage, text, PASSIVE_WRITE);
         });
       }
 
@@ -325,6 +344,7 @@ export function useBuilderSession({
       }
 
       setIsLoadingSession(true)
+      if (STUDIO_SESSION_HYGIENE_ENABLED) setSessionProblem(null)
       hasTitleFromUserMessageRef.current = false
       hasTitleFromPresentationRef.current = false
       answeredActionsRef.current.clear()
@@ -386,8 +406,13 @@ export function useBuilderSession({
           const transcriptScope = initializationScope
           const transcriptRequest = initializationRequest
           setStudioFrontendTranscriptReceipt(null)
-          const session = await loadSession(sessionParam)
+          // Flag on: the lookup says WHY a row is missing, so a miss is never silently turned into a new empty session.
+          const hygieneLoad = STUDIO_SESSION_HYGIENE_ENABLED && loadSessionResult ? await loadSessionResult(sessionParam) : null
+          const session = hygieneLoad ? (hygieneLoad.kind === 'found' ? hygieneLoad.session : null) : await loadSession(sessionParam)
           if (!mayContinueInitialization() || (session && session.id !== sessionParam)) return
+          const missingDecision = hygieneLoad && hygieneLoad.kind !== 'found'
+            ? decideMissingSession(hygieneLoad, readSessionOrigin(typeof window !== 'undefined' ? window.sessionStorage : null, builderCacheOwner, sessionParam))
+            : null
 
           if (session) {
             if (session.status === 'deleted') {
@@ -408,13 +433,30 @@ export function useBuilderSession({
             })
             setCurrentSessionId(session.id)
             setSessionStoreName(session.geminiStoreName || null)
+            if (STUDIO_SESSION_HYGIENE_ENABLED) {
+              // The history has a row for this id, so it is saved, whatever an unsaved flag left over from the previous session
+              // (bare /builder, then a click on a saved one in the sidebar) or a stale marker says. With the flag on an unsaved
+              // session writes nothing (use-session-persistence), so a saved one must not be mistaken for it.
+              setIsUnsavedSession(false)
+              try {
+                if (builderCacheOwner) sessionStorage.removeItem(unsavedBuilderSessionKey(builderCacheOwner, session.id))
+              } catch {}
+            }
             debugLog('✅ Session loaded successfully')
+            // NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: this session was opened, not created: it stays read-only until the user acts.
+            if (STUDIO_SESSION_OPEN_READ_ONLY_ENABLED) persistence?.beginOpenQuiet?.(session.id, session)
 
             if (session.title) {
               debugLog('📝 Session already has title:', session.title)
               hasTitleFromPresentationRef.current = true
             }
 
+            // NEXT_PUBLIC_STUDIO_BLANK_DECK_LEGACY_ROWS: a row the pre-#389 build saved with the untouched blank deck in its final slots too is restored as the blank deck it is: the loaded copy of the
+            // row reads its final slots as empty (in memory only; nothing is written).
+            if (STUDIO_BLANK_DECK_LEGACY_ROWS_ENABLED && isLegacyBlankDeckRow(session)) {
+              session.finalPresentationUrl = null
+              session.finalPresentationId = null
+            }
             const restoredSessionState = {
               // The loaded record owns this metadata even before React commits
               // the selected session and the socket adopts its new identity.
@@ -468,7 +510,8 @@ export function useBuilderSession({
                 }
               }
 
-              if (Object.keys(normalizedSessionUrls).length > 0) {
+              // NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: opening writes nothing; the recovered URLs are used in memory and recomputed on the next open.
+              if (Object.keys(normalizedSessionUrls).length > 0 && !STUDIO_SESSION_OPEN_READ_ONLY_ENABLED) {
                 try {
                   const response = await fetch(`/api/sessions/${encodeURIComponent(session.id)}`, {
                     method: 'PATCH',
@@ -619,6 +662,23 @@ export function useBuilderSession({
                   .map((msg: any) => msg.id)),
               }))
             }
+          } else if (missingDecision === 'keep_unsaved') {
+            // A local id this tab generated (bare /builder, + Presentation, a reload of either). Its row is created by the
+            // first real action (first message, upload, manual-deck handoff), exactly like + Presentation always did.
+            setCurrentSessionId(sessionParam)
+            setSessionStoreName(null)
+            setIsUnsavedSession(true)
+            setIsResumedSession(false)
+            debugLog('🆕 [SESSION-HYGIENE] Local unsaved session kept; no history row written:', sessionParam)
+          } else if (missingDecision && missingDecision !== 'adopt') {
+            // Not a session this account can open. Show the state; write nothing, connect to nothing.
+            console.warn('⚠️ [SESSION-HYGIENE] Session cannot be opened:', missingDecision, sessionParam)
+            setCurrentSessionId(null)
+            setSessionStoreName(null)
+            setIsUnsavedSession(false)
+            setIsResumedSession(false)
+            setSessionProblem({ kind: missingDecision, sessionId: sessionParam })
+            return
           } else {
             console.warn('⚠️ Session not found in frontend DB, adopting URL session:', sessionParam)
             const adopted = await createSession(sessionParam)
@@ -873,18 +933,18 @@ export function useBuilderSession({
         debugLog('💾 Persisting Director-replayed user message:', msg.message_id, userText.substring(0, 30))
         persistedMessageIdsRef.current.add(msg.message_id)
         userMessageIdsRef.current.add(msg.message_id)
-        persistence.queueMessage(msg, userText)
+        persistence.queueMessage(msg, userText, PASSIVE_WRITE)
         continue
       }
 
       if (msg.type !== 'chat_message') {
         debugLog('💾 Persisting bot message:', msg.type, msg.message_id)
         persistedMessageIdsRef.current.add(msg.message_id)
-        persistence.queueMessage(msg)
+        persistence.queueMessage(msg, undefined, PASSIVE_WRITE)
       } else if (!userMessageIdsRef.current.has(msg.message_id)) {
         debugLog('💾 Persisting bot chat_message (welcome/initial):', msg.message_id)
         persistedMessageIdsRef.current.add(msg.message_id)
-        persistence.queueMessage(msg)
+        persistence.queueMessage(msg, undefined, PASSIVE_WRITE)
       }
 
       if (msg.type === 'slide_update') {
@@ -896,7 +956,7 @@ export function useBuilderSession({
           debugLog('📝 Updating session title from presentation:', presentationTitle)
           persistence.updateMetadata({
             title: presentationTitle
-          })
+          }, PASSIVE_WRITE)
           hasTitleFromPresentationRef.current = true
         }
       }
@@ -916,7 +976,7 @@ export function useBuilderSession({
         debugLog('📝 Updating session title from presentation:', presentationTitle)
         persistence.updateMetadata({
           title: presentationTitle
-        })
+        }, PASSIVE_WRITE)
         hasTitleFromPresentationRef.current = true
       }
     }
@@ -932,6 +992,7 @@ export function useBuilderSession({
     isResumedSession,
     setIsResumedSession,
     isCreatingSession,
+    sessionProblem,
     studioInitialFreshCanonicalEntry: studioInitialFreshCanonicalEntry?.isCurrentAssignment()
       ? studioInitialFreshCanonicalEntry : null,
     // Read at display admission time, including user intent before an awaited

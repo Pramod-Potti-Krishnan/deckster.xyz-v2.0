@@ -1,0 +1,70 @@
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import path from 'node:path'
+import crypto from 'node:crypto'
+import vm from 'node:vm'
+import {createRequire} from 'node:module'
+import ts from 'typescript'
+
+const require=createRequire(import.meta.url),root=path.resolve(new URL('..',import.meta.url).pathname)
+const packet=path.join(root,'docs/studio-v4/twenty-four-hour-parity-20261005/builder1/native-crud-ui-review')
+const input=path.join(packet,'render-input'),out=path.join(packet,'evidence/render')
+const sha=v=>crypto.createHash('sha256').update(v).digest('hex')
+const builderBytes=fs.readFileSync(new URL(import.meta.url))
+const candidateManifestPath='docs/studio-v4/twenty-four-hour-parity-20261005/builder1/native-crud-integration/APP-MANIFEST.json'
+const candidateManifestBytes=fs.readFileSync(path.join(root,candidateManifestPath))
+assert.equal(sha(candidateManifestBytes),'9b1987a0722cd7ecd18203bbf516742c10b37ba3ec27c28799c21bb07c1d81d8')
+const candidateManifest=JSON.parse(candidateManifestBytes)
+assert.deepEqual(candidateManifest.files,[{path:'components/presentation-viewer.tsx',base_sha256:'1a9099b8b74f9dbc8e6a6db9c0bdda63c7e743f7ed0111ac38d4cb8ed8fa8bbc',result_sha256:'6d71574c514145b0ef6857da92d0ecaeed450108a83a8892ad5c280f515202b3'}])
+const viewerBytes=fs.readFileSync(path.join(root,'components/presentation-viewer.tsx'))
+assert.equal(sha(viewerBytes),candidateManifest.files[0].result_sha256)
+
+const origin=process.argv.find(arg=>arg.startsWith('--origin='))?.slice(9)??'http://127.0.0.1:8872'
+assert.match(origin,/^http:\/\/127\.0\.0\.1:[0-9]{2,5}$/,'Only labelled local fixture origin allowed')
+assert.ok(Number(new URL(origin).port)>=1024&&Number(new URL(origin).port)<=65535)
+const disk=fs.statfsSync(root),freeBytes=disk.bavail*disk.bsize
+assert.ok(freeBytes>=8*1024**3,'8GiB build disk floor reached: source preparation may continue, render bundling stops')
+fs.mkdirSync(input,{recursive:true});fs.mkdirSync(out,{recursive:true})
+const compileLog=path.join(input,'compiled-inputs.jsonl');fs.writeFileSync(compileLog,'')
+const tsLoader=path.join(input,'typescript-loader.cjs'),cssLoader=path.join(input,'css-loader.cjs'),linkAdapter=path.join(input,'next-link.cjs'),navigationAdapter=path.join(input,'next-navigation.cjs')
+fs.writeFileSync(tsLoader,`const ts=require('typescript'),fs=require('node:fs'),crypto=require('node:crypto');module.exports=function(source){fs.appendFileSync(${JSON.stringify(compileLog)},JSON.stringify({file:this.resourcePath,sha256:crypto.createHash('sha256').update(source).digest('hex')})+'\\n');const result=ts.transpileModule(source,{fileName:this.resourcePath,reportDiagnostics:true,compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}});const errors=(result.diagnostics||[]).filter(d=>d.category===ts.DiagnosticCategory.Error);if(errors.length)throw Error(ts.formatDiagnosticsWithColorAndContext(errors,{getCanonicalFileName:f=>f,getCurrentDirectory:()=>this.context,getNewLine:()=>"\\n"}));return result.outputText};\n`)
+fs.writeFileSync(cssLoader,`module.exports=function(){return 'module.exports={};'};\n`)
+fs.writeFileSync(linkAdapter,`const React=require('react');module.exports=function Link(p){return React.createElement('a',{...p,onClick:e=>e.preventDefault(),title:'Isolated fixture: Next navigation is absent'})};\n`)
+fs.writeFileSync(navigationAdapter,`exports.usePathname=()=>window.location.pathname;exports.useRouter=()=>({push(){throw Error('Isolated fixture refuses router navigation')},replace(){throw Error('Isolated fixture refuses router navigation')},refresh(){throw Error('Isolated fixture refuses router refresh')}});exports.useSearchParams=()=>new URLSearchParams(window.location.search);\n`)
+const fixture=path.join(packet,'native-crud-fixture.tsx'),frame=path.join(packet,'native-frame.js')
+const config=ts.parseJsonConfigFileContent(ts.readConfigFile(path.join(root,'tsconfig.json'),ts.sys.readFile).config,ts.sys,root)
+const typed=ts.createProgram([fixture,path.join(root,'types/next-auth.d.ts'),path.join(root,'next-env.d.ts')],{...config.options,noEmit:true,incremental:false})
+const typedErrors=ts.getPreEmitDiagnostics(typed).filter(d=>d.category===ts.DiagnosticCategory.Error)
+assert.equal(typedErrors.length,0,ts.formatDiagnosticsWithColorAndContext(typedErrors,{getCanonicalFileName:f=>f,getCurrentDirectory:()=>root,getNewLine:()=> '\n'}))
+const webpack=require('next/dist/compiled/webpack/bundle5')().webpack
+const compiler=webpack({mode:'development',context:root,entry:fixture,devtool:false,target:'web',cache:false,output:{path:out,filename:'native-viewer.js'},optimization:{minimize:false},resolve:{extensions:['.tsx','.ts','.js','.mjs','.json'],alias:{'@':root,'next/link$':linkAdapter,'next/navigation$':navigationAdapter,'react$':require.resolve('react'),'react/jsx-runtime$':require.resolve('react/jsx-runtime'),'react-dom$':require.resolve('react-dom'),'react-dom/client$':require.resolve('react-dom/client')},symlinks:true},module:{rules:[{test:/\.tsx?$/,use:[tsLoader]},{test:/\.css$/,use:[cssLoader]}]},plugins:[new webpack.DefinePlugin({'process.env':JSON.stringify({NODE_ENV:'development',NEXT_PUBLIC_STUDIO_V4_SHELL:'true',NEXT_PUBLIC_STUDIO_V4_TOKENS:'true',NEXT_PUBLIC_STUDIO_V4_TYPE:'true',NEXT_PUBLIC_LAYOUT_SERVICE_URL:origin,NEXT_PUBLIC_TEMPLATE_INGEST_V1:'false'})})]})
+const stats=await new Promise((resolve,reject)=>compiler.run((error,stats)=>{compiler.close(()=>{});if(error)reject(error);else resolve(stats)}))
+const summary=stats.toJson({all:false,errors:true,warnings:true});assert.ok(!stats.hasErrors(),JSON.stringify(summary.errors,null,2))
+const moduleFiles=new Set()
+for(const module of stats.compilation.modules)if(module.resource&&fs.existsSync(module.resource))moduleFiles.add(fs.realpathSync(module.resource))
+const appFiles=[...moduleFiles].filter(file=>file.startsWith(root+'/')&&!file.includes('/node_modules/')&&!file.startsWith(input+'/'))
+for(const required of ['components/presentation-viewer.tsx','components/slide-thumbnail-strip.tsx','components/delete-slide-dialog.tsx','components/slide-layout-picker.tsx','components/ui/alert-dialog.tsx','components/ui/dropdown-menu.tsx','lib/layout-viewer-messaging.ts','lib/layout-service-client.ts'])assert.ok(appFiles.includes(path.join(root,required)),'Actual required source missing '+required)
+const styles=new Set(['app/globals.css','app/builder/studio-v4.css','app/builder/studio-v4-type.css','components/layout/studio-shell.css','components/builder/studio-workspace.css',...[...moduleFiles].filter(file=>file.endsWith('.css')).map(file=>path.relative(root,file))])
+const twModule={exports:{}}
+vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root,'tailwind.config.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{module:twModule,exports:twModule.exports,require})
+const content=appFiles.filter(file=>/\.(tsx?|jsx?)$/.test(file)).map(file=>({raw:fs.readFileSync(file,'utf8'),extension:path.extname(file).slice(1)}))
+const processed=await require('postcss')([require('tailwindcss')({...twModule.exports.default,content}),require('autoprefixer')()]).process([...styles].map(file=>fs.readFileSync(path.join(root,file),'utf8')).join('\n'),{from:path.join(root,'app/globals.css')})
+const fixtureCss=`body{margin:0;background:#e8f0ed;color:#243438;font:14px Arial}.native-fixture-app{display:flex;align-items:start;gap:14px;padding:14px}.native-fixture-controls{width:280px;flex-shrink:0;max-height:calc(100dvh - 28px);overflow:auto}.native-fixture-controls h1{font-size:18px;font-weight:600}.native-fixture-controls>button,.native-fixture-controls>label{display:block;margin:8px 0}.native-fixture-controls>button{border:1px solid #99aaa5;border-radius:7px;background:white;padding:6px 9px}.native-fixture-controls :is(select,textarea){display:block;max-width:100%;border:1px solid #99aaa5;border-radius:6px;background:white;color:#243438;padding:5px}.native-fixture-controls textarea{width:260px;height:90px}.native-fixture-controls pre{font:11px/1.4 monospace;white-space:pre-wrap;max-height:260px;overflow:auto}.native-fixture-controls output{display:block;margin:10px 0}.native-fixture-viewer{height:calc(100dvh - 28px);min-width:400px;max-width:calc(100vw - 322px);border:1px solid var(--ss-line);border-radius:12px;overflow:hidden}.dark body{background:#141c1e;color:#e2ebe8}.dark .native-fixture-controls>button,.dark .native-fixture-controls :is(select,textarea){background:#243034;color:#e2ebe8;border-color:#526963}.native-fixture-controls :is(button,input,textarea,select):focus-visible{outline:3px solid #896dd4;outline-offset:2px}@media(max-width:800px){.native-fixture-app{display:block}.native-fixture-controls{width:auto;max-height:220px}.native-fixture-viewer{max-width:100%;height:calc(100dvh - 260px)}}`
+new vm.Script(fs.readFileSync(path.join(out,'native-viewer.js'),'utf8'),{filename:'native-viewer.js'});new vm.Script(fs.readFileSync(frame,'utf8'),{filename:'native-frame.js'})
+fs.writeFileSync(path.join(out,'native-viewer.css'),processed.css+'\n'+fixtureCss)
+fs.copyFileSync(frame,path.join(out,'native-frame.js'))
+fs.writeFileSync(path.join(out,'native-frame.html'),`<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'none'; script-src 'self'; style-src 'unsafe-inline'; frame-src 'none'; media-src 'none'"><style>body{margin:0;background:#eef4f2;color:#20363a;font:24px Arial;display:grid;place-content:center;min-height:100vh;padding:20px;box-sizing:border-box}h1{font-size:30px}p{font-size:16px}small{font-size:13px}</style></head><body><h1 id="owner"></h1><div id="slide"></div><p id="detail"></p><small>SYNTHETIC LOCAL PROTOCOL — NO LAYOUT SERVICE</small><script src="native-frame.js"></script></body></html>`)
+fs.writeFileSync(path.join(out,'thumbnail.svg'),`<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="#e8f0ed"/><text x="20" y="75" font-family="Arial" font-size="25" fill="#244045">Synthetic thumbnail</text><text x="20" y="112" font-family="Arial" font-size="17" fill="#48615f">No generated slide content</text></svg>`)
+fs.writeFileSync(path.join(out,'native-viewer.html'),`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src 'self'; media-src 'none'"><title>Actual native CRUD UI / isolated fixture</title><link rel="stylesheet" href="native-viewer.css"></head><body><div id="root"></div><script src="native-viewer.js"></script></body></html>`)
+const assets=[]
+for(const asset of ['logo-icon.png','logo-wordmark.png'])if(fs.existsSync(path.join(root,'public',asset))){fs.copyFileSync(path.join(root,'public',asset),path.join(out,asset));assets.push(asset)}
+const compiled=fs.readFileSync(compileLog,'utf8').trim().split('\n').filter(Boolean).map(JSON.parse)
+for(const row of compiled)assert.equal(sha(fs.readFileSync(row.file)),row.sha256,'App input changed during build '+row.file)
+assert.equal(sha(fs.readFileSync(new URL(import.meta.url))),sha(builderBytes),'Builder changed during build')
+const sources=[...new Set([...appFiles,...[...styles].map(f=>path.join(root,f)),path.join(root,'tailwind.config.ts'),frame])].map(file=>({file:path.relative(root,file),sha256:sha(fs.readFileSync(file))}))
+const outputs=['native-viewer.html','native-viewer.js','native-viewer.css','native-frame.html','native-frame.js','thumbnail.svg',...assets].map(file=>({file,sha256:sha(fs.readFileSync(path.join(out,file))),bytes:fs.statSync(path.join(out,file)).size}))
+assert.equal(sha(fs.readFileSync(path.join(root,'components/presentation-viewer.tsx'))),sha(viewerBytes),'Root Viewer candidate changed during build')
+assert.equal(sha(fs.readFileSync(path.join(root,candidateManifestPath))),sha(candidateManifestBytes),'Root manifest changed during build')
+const receipt={candidateManifest:{path:candidateManifestPath,sha256:sha(candidateManifestBytes),files:candidateManifest.files,acceptanceLevel:'Exact root candidate only; independent callback and root browser checks separate'},scope:'Static actual-source PresentationViewer, thumbnail menus, real Radix dialog and local synthetic postMessage frame; browser observations belong solely to root',localOrigin:origin,freeBytesAtStart:freeBytes,diskFloorBytes:8*1024**3,typedErrors:typedErrors.length,actualBuilderMounted:false,actualServicesOrAccount:false,actualLayoutBackend:false,serverOrBrowserStarted:false,adapters:['Synthetic owned identity/metadata props; no WS/session owner implementation','Synthetic same-origin iframe responses to actual sendCommand source/origin/request IDs','Visible immediate/deferred/refused/reload-before-ACK modes; parent ledger retains synthetic responses','Separate deck navigation replaces iframe; logical owner switch retains same iframe for actual stale-await owner test','Only Add synthetic receipt registry; no CRUD retry or registry invented for duplicate/delete/reorder/layout','Synthetic fetch returns503; CSP blocks network connections; WebSocket throws','Installed actual Next ThemeProvider with synthetic local storage key; inert Next Link/navigation','Optional generation callbacks record refusal; no specialist service operation'],sources,compiledInputs:compiled.map(row=>({...row,file:path.relative(root,row.file)})),dependencies:[...moduleFiles].filter(f=>f.includes('/node_modules/')).map(file=>({file:path.relative(root,file),sha256:sha(fs.readFileSync(file))})),warnings:summary.warnings.map(w=>w.message),builderSha256:sha(builderBytes),outputs}
+fs.writeFileSync(path.join(packet,'evidence/render-preparation.json'),JSON.stringify(receipt,null,2)+'\n')
+console.log(`Prepared actual native CRUD fixture: ${sources.length} app/style inputs; type errors ${typedErrors.length}; no server/browser/service started`)

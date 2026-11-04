@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth-options'
 import { prisma } from '@/lib/prisma'
 import { isStudioDevDeployment } from '@/lib/dev-deployment'
 
@@ -22,6 +24,22 @@ const ABANDONMENT_THRESHOLD_HOURS = parseInt(
 )
 
 /**
+ * Who may read the dry run (PK's D1 ruling, 25 Oct 2026). It lists abandoned session ids with their
+ * owners' user ids, so it needs the Vercel cron's `Authorization: Bearer <CRON_SECRET>` (CRON_SECRET
+ * set and non-empty) or a signed-in admin, by the coupons route's check. POST keeps its own check below.
+ */
+function isAdmin(email: string | null | undefined): boolean {
+  return !!email && email === process.env.DEV_BYPASS_EMAIL
+}
+
+async function canReadDryRun(req: NextRequest): Promise<boolean> {
+  const cronSecret = process.env.CRON_SECRET
+  if (cronSecret && req.headers.get('authorization') === `Bearer ${cronSecret}`) return true
+  const session = await getServerSession(authOptions).catch(() => null)
+  return !!session?.user && isAdmin(session.user.email)
+}
+
+/**
  * GET - Dry run mode
  * Shows what would be deleted without actually deleting anything
  * Useful for monitoring and testing
@@ -31,6 +49,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
   try {
+    if (!(await canReadDryRun(req))) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const cutoffTime = new Date(
       Date.now() - ABANDONMENT_THRESHOLD_HOURS * 60 * 60 * 1000
     )

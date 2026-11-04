@@ -1,0 +1,710 @@
+{
+  "checkpoints": [
+    {
+      "checkpoint": "01-empty-composer-no-deck-yet",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "blank",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": true,
+        "owner": "synthetic-session-composer-send",
+        "presentationId": "synthetic-blank-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": "BLANK_PRESENTATION"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "empty composer, no deck yet",
+      "messages": ["msg-greeting | chat_message | assistant | +2000ms"],
+      "messagesSha": "48e13d934cff0a5a74668dcc8529737ab0dd912ec842fecbcff34d7a35ff9354",
+      "page": {
+        "answeredActions": [],
+        "composer": {"activeTemplate":null,"buildTheme":{"mode":"auto"},"currentSlideIndex":0,"inputMessage":""},
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": [],
+        "userMessages": []
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 2500
+    },
+    {
+      "checkpoint": "02-draft-typed",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "blank",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": true,
+        "owner": "synthetic-session-composer-send",
+        "presentationId": "synthetic-blank-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": "BLANK_PRESENTATION"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "draft typed",
+      "messages": ["msg-greeting | chat_message | assistant | +2000ms"],
+      "messagesSha": "48e13d934cff0a5a74668dcc8529737ab0dd912ec842fecbcff34d7a35ff9354",
+      "page": {
+        "answeredActions": [],
+        "composer": {
+          "activeTemplate": null,
+          "buildTheme": {"mode":"auto"},
+          "currentSlideIndex": 0,
+          "inputMessage": "Build a four slide deck about synthetic ocean currents"
+        },
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": [],
+        "userMessages": []
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 3500
+    },
+    {
+      "checkpoint": "03-sent-from-the-send-button",
+      "connection": {
+        "awaitingDirectorReply": true,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "blank",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": true,
+        "owner": "synthetic-session-composer-send",
+        "presentationId": "synthetic-blank-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": "BLANK_PRESENTATION"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "sent from the Send button",
+      "messages": ["msg-greeting | chat_message | assistant | +2000ms"],
+      "messagesSha": "48e13d934cff0a5a74668dcc8529737ab0dd912ec842fecbcff34d7a35ff9354",
+      "page": {
+        "answeredActions": [],
+        "composer": {"activeTemplate":null,"buildTheme":{"mode":"auto"},"currentSlideIndex":0,"inputMessage":""},
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001"],
+        "userMessages": [
+          {
+            "attachments": 0,
+            "id": "synthetic-uuid-0001",
+            "text": "Build a four slide deck about synthetic ocean currents",
+            "timestamp": 4000
+          }
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 5000
+    },
+    {
+      "checkpoint": "04-deck-open-slide-1",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "finalId": "synthetic-final-01",
+        "finalUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "hasStrawman": true,
+        "isBlank": false,
+        "owner": "synthetic-session-composer-send",
+        "presentationId": "synthetic-final-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "slideContextIndexes": null,
+        "slideCount": 3,
+        "slideStructureSha": "e25f6261112e4784b5c63ebdcd0e28d4201eb7209b1743f441ccdff5bf89055e",
+        "strawmanUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "workflow": "CONTENT_GENERATED"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "deck open, slide 1",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +2000ms",
+        "msg-reply-1 | chat_message | assistant | +5500ms",
+        "msg-outline-1 | slide_update | assistant | +7000ms",
+        "msg-url-final | presentation_url | assistant | +7500ms"
+      ],
+      "messagesSha": "f63e1b88ce44c1a45b640f65f5f3800eae12743ce7dfb00112c8cc3adc7ab8d4",
+      "page": {
+        "answeredActions": [],
+        "composer": {"activeTemplate":null,"buildTheme":{"mode":"auto"},"currentSlideIndex":0,"inputMessage":""},
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001"],
+        "userMessages": [
+          {
+            "attachments": 0,
+            "id": "synthetic-uuid-0001",
+            "text": "Build a four slide deck about synthetic ocean currents",
+            "timestamp": 4000
+          }
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 8000
+    },
+    {
+      "checkpoint": "05-deck-open-slide-3",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "finalId": "synthetic-final-01",
+        "finalUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "hasStrawman": true,
+        "isBlank": false,
+        "owner": "synthetic-session-composer-send",
+        "presentationId": "synthetic-final-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "slideContextIndexes": null,
+        "slideCount": 3,
+        "slideStructureSha": "e25f6261112e4784b5c63ebdcd0e28d4201eb7209b1743f441ccdff5bf89055e",
+        "strawmanUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "workflow": "CONTENT_GENERATED"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "deck open, slide 3",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +2000ms",
+        "msg-reply-1 | chat_message | assistant | +5500ms",
+        "msg-outline-1 | slide_update | assistant | +7000ms",
+        "msg-url-final | presentation_url | assistant | +7500ms"
+      ],
+      "messagesSha": "f63e1b88ce44c1a45b640f65f5f3800eae12743ce7dfb00112c8cc3adc7ab8d4",
+      "page": {
+        "answeredActions": [],
+        "composer": {"activeTemplate":null,"buildTheme":{"mode":"auto"},"currentSlideIndex":2,"inputMessage":""},
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001"],
+        "userMessages": [
+          {
+            "attachments": 0,
+            "id": "synthetic-uuid-0001",
+            "text": "Build a four slide deck about synthetic ocean currents",
+            "timestamp": 4000
+          }
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 9000
+    },
+    {
+      "checkpoint": "06-template-and-theme-selected",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "finalId": "synthetic-final-01",
+        "finalUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "hasStrawman": true,
+        "isBlank": false,
+        "owner": "synthetic-session-composer-send",
+        "presentationId": "synthetic-final-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "slideContextIndexes": null,
+        "slideCount": 3,
+        "slideStructureSha": "e25f6261112e4784b5c63ebdcd0e28d4201eb7209b1743f441ccdff5bf89055e",
+        "strawmanUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "workflow": "CONTENT_GENERATED"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "template and theme selected",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +2000ms",
+        "msg-reply-1 | chat_message | assistant | +5500ms",
+        "msg-outline-1 | slide_update | assistant | +7000ms",
+        "msg-url-final | presentation_url | assistant | +7500ms"
+      ],
+      "messagesSha": "f63e1b88ce44c1a45b640f65f5f3800eae12743ce7dfb00112c8cc3adc7ab8d4",
+      "page": {
+        "answeredActions": [],
+        "composer": {
+          "activeTemplate": {"id":"synthetic-template-01","name":"Quarterly review"},
+          "buildTheme": {"mode":"preset","preset_id":"corporate_light"},
+          "currentSlideIndex": 2,
+          "inputMessage": ""
+        },
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001"],
+        "userMessages": [
+          {
+            "attachments": 0,
+            "id": "synthetic-uuid-0001",
+            "text": "Build a four slide deck about synthetic ocean currents",
+            "timestamp": 4000
+          }
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 10000
+    },
+    {
+      "checkpoint": "07-sent-with-enter-with-a-template-and-theme-select",
+      "connection": {
+        "awaitingDirectorReply": true,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "finalId": "synthetic-final-01",
+        "finalUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "hasStrawman": true,
+        "isBlank": false,
+        "owner": "synthetic-session-composer-send",
+        "presentationId": "synthetic-final-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "slideContextIndexes": null,
+        "slideCount": 3,
+        "slideStructureSha": "e25f6261112e4784b5c63ebdcd0e28d4201eb7209b1743f441ccdff5bf89055e",
+        "strawmanUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "workflow": "CONTENT_GENERATED"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "sent with Enter, with a template and theme selected",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +2000ms",
+        "msg-reply-1 | chat_message | assistant | +5500ms",
+        "msg-outline-1 | slide_update | assistant | +7000ms",
+        "msg-url-final | presentation_url | assistant | +7500ms"
+      ],
+      "messagesSha": "f63e1b88ce44c1a45b640f65f5f3800eae12743ce7dfb00112c8cc3adc7ab8d4",
+      "page": {
+        "answeredActions": [],
+        "composer": {
+          "activeTemplate": {"id":"synthetic-template-01","name":"Quarterly review"},
+          "buildTheme": {"mode":"preset","preset_id":"corporate_light"},
+          "currentSlideIndex": 2,
+          "inputMessage": ""
+        },
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001","synthetic-uuid-0002"],
+        "userMessages": [
+          {
+            "attachments": 0,
+            "id": "synthetic-uuid-0001",
+            "text": "Build a four slide deck about synthetic ocean currents",
+            "timestamp": 4000
+          },
+          {"attachments":0,"id":"synthetic-uuid-0002","text":"Shorten the title on slide 3","timestamp":11000}
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 12000
+    },
+    {
+      "checkpoint": "08-pills-cleared-the-handlers-were-called-the-page-",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "finalId": "synthetic-final-01",
+        "finalUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "hasStrawman": true,
+        "isBlank": false,
+        "owner": "synthetic-session-composer-send",
+        "presentationId": "synthetic-final-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "slideContextIndexes": null,
+        "slideCount": 3,
+        "slideStructureSha": "e25f6261112e4784b5c63ebdcd0e28d4201eb7209b1743f441ccdff5bf89055e",
+        "strawmanUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "workflow": "CONTENT_GENERATED"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "pills cleared (the handlers were called; the page owns the selection)",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +2000ms",
+        "msg-reply-1 | chat_message | assistant | +5500ms",
+        "msg-outline-1 | slide_update | assistant | +7000ms",
+        "msg-url-final | presentation_url | assistant | +7500ms",
+        "msg-reply-2 | chat_message | assistant | +12500ms"
+      ],
+      "messagesSha": "e4be0c7ca7ac53517ae76743918cedc76c2bffe6ba5d8e6e1a7b2b388ecedfa5",
+      "page": {
+        "answeredActions": [],
+        "composer": {
+          "activeTemplate": {"id":"synthetic-template-01","name":"Quarterly review"},
+          "buildTheme": {"mode":"preset","preset_id":"corporate_light"},
+          "currentSlideIndex": 2,
+          "inputMessage": "A draft that Shift+Enter must not send"
+        },
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001","synthetic-uuid-0002"],
+        "userMessages": [
+          {
+            "attachments": 0,
+            "id": "synthetic-uuid-0001",
+            "text": "Build a four slide deck about synthetic ocean currents",
+            "timestamp": 4000
+          },
+          {"attachments":0,"id":"synthetic-uuid-0002","text":"Shorten the title on slide 3","timestamp":11000}
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 15500
+    },
+    {
+      "checkpoint": "09-selections-locked",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "finalId": "synthetic-final-01",
+        "finalUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "hasStrawman": true,
+        "isBlank": false,
+        "owner": "synthetic-session-composer-send",
+        "presentationId": "synthetic-final-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "slideContextIndexes": null,
+        "slideCount": 3,
+        "slideStructureSha": "e25f6261112e4784b5c63ebdcd0e28d4201eb7209b1743f441ccdff5bf89055e",
+        "strawmanUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "workflow": "CONTENT_GENERATED"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "selections locked",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +2000ms",
+        "msg-reply-1 | chat_message | assistant | +5500ms",
+        "msg-outline-1 | slide_update | assistant | +7000ms",
+        "msg-url-final | presentation_url | assistant | +7500ms",
+        "msg-reply-2 | chat_message | assistant | +12500ms"
+      ],
+      "messagesSha": "e4be0c7ca7ac53517ae76743918cedc76c2bffe6ba5d8e6e1a7b2b388ecedfa5",
+      "page": {
+        "answeredActions": [],
+        "composer": {
+          "activeTemplate": {"id":"synthetic-template-01","name":"Quarterly review"},
+          "buildTheme": {"mode":"preset","preset_id":"corporate_light"},
+          "currentSlideIndex": 2,
+          "inputMessage": "A draft that Shift+Enter must not send"
+        },
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001","synthetic-uuid-0002"],
+        "userMessages": [
+          {
+            "attachments": 0,
+            "id": "synthetic-uuid-0001",
+            "text": "Build a four slide deck about synthetic ocean currents",
+            "timestamp": 4000
+          },
+          {"attachments":0,"id":"synthetic-uuid-0002","text":"Shorten the title on slide 3","timestamp":11000}
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 16500
+    },
+    {
+      "checkpoint": "10-socket-lost",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": false,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 1,
+        "reconnectStatus": "scheduled",
+        "sockets": 1,
+        "state": "disconnected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "finalId": "synthetic-final-01",
+        "finalUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "hasStrawman": true,
+        "isBlank": false,
+        "owner": "synthetic-session-composer-send",
+        "presentationId": "synthetic-final-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "slideContextIndexes": null,
+        "slideCount": 3,
+        "slideStructureSha": "e25f6261112e4784b5c63ebdcd0e28d4201eb7209b1743f441ccdff5bf89055e",
+        "strawmanUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "workflow": "CONTENT_GENERATED"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "socket lost",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +2000ms",
+        "msg-reply-1 | chat_message | assistant | +5500ms",
+        "msg-outline-1 | slide_update | assistant | +7000ms",
+        "msg-url-final | presentation_url | assistant | +7500ms",
+        "msg-reply-2 | chat_message | assistant | +12500ms"
+      ],
+      "messagesSha": "e4be0c7ca7ac53517ae76743918cedc76c2bffe6ba5d8e6e1a7b2b388ecedfa5",
+      "page": {
+        "answeredActions": [],
+        "composer": {
+          "activeTemplate": {"id":"synthetic-template-01","name":"Quarterly review"},
+          "buildTheme": {"mode":"preset","preset_id":"corporate_light"},
+          "currentSlideIndex": 2,
+          "inputMessage": "A draft that Shift+Enter must not send"
+        },
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001","synthetic-uuid-0002"],
+        "userMessages": [
+          {
+            "attachments": 0,
+            "id": "synthetic-uuid-0001",
+            "text": "Build a four slide deck about synthetic ocean currents",
+            "timestamp": 4000
+          },
+          {"attachments":0,"id":"synthetic-uuid-0002","text":"Shorten the title on slide 3","timestamp":11000}
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 17500
+    },
+    {
+      "checkpoint": "11-final",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": false,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 1,
+        "reconnectStatus": "scheduled",
+        "sockets": 1,
+        "state": "disconnected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "finalId": "synthetic-final-01",
+        "finalUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "hasStrawman": true,
+        "isBlank": false,
+        "owner": "synthetic-session-composer-send",
+        "presentationId": "synthetic-final-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "slideContextIndexes": null,
+        "slideCount": 3,
+        "slideStructureSha": "e25f6261112e4784b5c63ebdcd0e28d4201eb7209b1743f441ccdff5bf89055e",
+        "strawmanUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "workflow": "CONTENT_GENERATED"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "final",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +2000ms",
+        "msg-reply-1 | chat_message | assistant | +5500ms",
+        "msg-outline-1 | slide_update | assistant | +7000ms",
+        "msg-url-final | presentation_url | assistant | +7500ms",
+        "msg-reply-2 | chat_message | assistant | +12500ms"
+      ],
+      "messagesSha": "e4be0c7ca7ac53517ae76743918cedc76c2bffe6ba5d8e6e1a7b2b388ecedfa5",
+      "page": {
+        "answeredActions": [],
+        "composer": {
+          "activeTemplate": {"id":"synthetic-template-01","name":"Quarterly review"},
+          "buildTheme": {"mode":"preset","preset_id":"corporate_light"},
+          "currentSlideIndex": 2,
+          "inputMessage": "A draft that Shift+Enter must not send"
+        },
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001","synthetic-uuid-0002"],
+        "userMessages": [
+          {
+            "attachments": 0,
+            "id": "synthetic-uuid-0001",
+            "text": "Build a four slide deck about synthetic ocean currents",
+            "timestamp": 4000
+          },
+          {"attachments":0,"id":"synthetic-uuid-0002","text":"Shorten the title on slide 3","timestamp":11000}
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 17500
+    }
+  ],
+  "notes": [],
+  "steps": [
+    {"op":"ensureConnected","step":0},
+    {"op":"open","step":1},
+    {"op":"frame","step":2},
+    {"op":"frame","step":3},
+    {"op":"checkpoint","step":4},
+    {"op":"compose","step":5},
+    {"op":"checkpoint","step":6},
+    {
+      "comment": "the Send button: the draft goes out as one user_message and the box clears",
+      "op": "submit",
+      "step": 7
+    },
+    {"op":"expect","step":8},
+    {"op":"checkpoint","step":9},
+    {"op":"frame","step":10},
+    {"comment":"an empty draft sends nothing","op":"submit","step":11},
+    {"op":"expect","step":12},
+    {"op":"frame","step":13},
+    {"op":"frame","step":14},
+    {"op":"checkpoint","step":15},
+    {"comment":"the canvas moves to slide 3","op":"props","step":16},
+    {"op":"checkpoint","step":17},
+    {"op":"props","step":18},
+    {"op":"checkpoint","step":19},
+    {"op":"compose","step":20},
+    {"comment":"Enter sends exactly like Send","op":"key","step":21},
+    {"op":"expect","step":22},
+    {"op":"checkpoint","step":23},
+    {"op":"frame","step":24},
+    {"op":"compose","step":25},
+    {"op":"key","step":26},
+    {"op":"expect","step":27},
+    {"comment":"the template pill's x calls the existing clear handler","op":"click","step":28},
+    {"comment":"the theme pill's x calls the existing clear handlers","op":"click","step":29},
+    {"op":"checkpoint","step":30},
+    {"op":"props","step":31},
+    {"op":"checkpoint","step":32},
+    {"op":"close","step":33},
+    {"op":"checkpoint","step":34}
+  ]
+}

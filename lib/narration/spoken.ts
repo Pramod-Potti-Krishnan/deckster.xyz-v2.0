@@ -20,6 +20,7 @@
 
 import { getVoice, canSpeakLiveAnswers } from './voices'
 import { synthesize, type SynthesisResult } from './tts'
+import type { NarrationCallContext } from './model-router'
 import { pcmToWav } from './wav'
 import { contentKey, getMedia, putMedia } from './media-store'
 
@@ -105,7 +106,8 @@ function audioFrom(result: SynthesisResult): { body: Buffer; contentType: string
 export async function speakFixedLine(
   text: string,
   voiceId: string,
-  slot: string
+  slot: string,
+  context?: NarrationCallContext
 ): Promise<{ body: Buffer; contentType: string; cached: boolean } | null> {
   const voice = getVoice(voiceId)
   const key = contentKey({ text, model: voice.model, providerVoice: voice.providerVoice })
@@ -116,7 +118,7 @@ export async function speakFixedLine(
   if (stored) return { ...stored, cached: true }
 
   try {
-    const result = await synthesize(text, voice.id)
+    const result = await synthesize(text, voice.id, context)
     const audio = audioFrom(result)
     await putMedia(path, audio.body, audio.contentType)
     return { ...audio, cached: false }
@@ -138,12 +140,13 @@ export async function speakFixedLine(
  */
 export async function speakAnswer(
   text: string,
-  voiceId: string
+  voiceId: string,
+  context?: NarrationCallContext
 ): Promise<{ body: Buffer; contentType: string; costCents: number } | null> {
   if (!canSpeakAnswers(voiceId)) return null
   const voice = getVoice(voiceId)
   try {
-    const result = await synthesize(text, voice.id)
+    const result = await synthesize(text, voice.id, context)
     const audio = audioFrom(result)
     const seconds =
       result.durationSeconds ?? text.split(/\s+/).filter(Boolean).length / (140 / 60)

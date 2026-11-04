@@ -1,0 +1,536 @@
+{
+  "deckster_session_v2_synthetic-user-01_synthetic-session-history-reload": {
+    "activeVersion": "final",
+    "blankPresentationId": null,
+    "blankPresentationUrl": null,
+    "currentStatus": null,
+    "deckContext": null,
+    "finalPresentationId": "synthetic-final-05",
+    "finalPresentationUrl": "https://layout.synthetic.invalid/p/synthetic-final-05",
+    "isBlankPresentation": false,
+    "lastUpdated": 1791201606500,
+    "messages": [
+      {
+        "clientTimestamp": 1791198000000,
+        "message_id": "db-greeting-1",
+        "payload": {"list_items":null,"sub_title":null,"text":"Hello! I'm your presentation assistant. "},
+        "session_id": "synthetic-session-history-reload",
+        "timestamp": "2026-10-05T11:00:00.000Z",
+        "type": "chat_message"
+      },
+      {
+        "clientTimestamp": 1791198008000,
+        "message_id": "db-think-1",
+        "payload": {"ephemeral":true,"text":"Analyzing presentation strategy..."},
+        "session_id": "synthetic-session-history-reload",
+        "timestamp": "2026-10-05T11:00:08.000Z",
+        "type": "chat_message"
+      },
+      {
+        "clientTimestamp": 1791198012000,
+        "message_id": "db-plan-1",
+        "payload": {"list_items":["4 slides"],"sub_title":null,"text":"Here is the plan."},
+        "session_id": "synthetic-session-history-reload",
+        "timestamp": "2026-10-05T11:00:12.000Z",
+        "type": "chat_message"
+      },
+      {
+        "clientTimestamp": 1791198013000,
+        "message_id": "msg_plan_confirm_synthetic-session-history-reload",
+        "payload": {
+          "actions": [
+            {"label":"Yes, let's build it!","primary":true,"requires_input":false,"value":"accept_plan"},
+            {"label":"I'd like to make changes","primary":false,"requires_input":false,"value":"reject_plan"}
+          ],
+          "prompt_text": "Does this structure work for you?"
+        },
+        "session_id": "synthetic-session-history-reload",
+        "timestamp": "2026-10-05T11:00:13.000Z",
+        "type": "action_request"
+      },
+      {
+        "clientTimestamp": 1791198070000,
+        "message_id": "db-outline-1",
+        "payload": {
+          "affected_slides": null,
+          "metadata": {
+            "design_suggestions": "Minimal, data-forward",
+            "main_title": "Ocean currents, explained",
+            "overall_theme": "Clear and calm",
+            "presentation_duration": 8,
+            "preview_presentation_id": "synthetic-strawman-05",
+            "preview_url": "https://layout.synthetic.invalid/p/synthetic-strawman-05",
+            "target_audience": "General audience"
+          },
+          "operation": "full_update",
+          "slides": [
+            {
+              "analytics_needed": null,
+              "diagrams_needed": null,
+              "key_points": ["Why ocean currents matter: first point","Why ocean currents matter: second point"],
+              "narrative": "Set the stage",
+              "slide_id": "synthetic-strawman-05-s1",
+              "slide_number": 1,
+              "slide_type": "title",
+              "speaker_notes": null,
+              "structure_preference": null,
+              "title": "Why ocean currents matter",
+              "visuals_needed": null
+            },
+            {
+              "analytics_needed": null,
+              "diagrams_needed": null,
+              "key_points": ["How gyres form: first point","How gyres form: second point"],
+              "narrative": "Wind, rotation and coastlines",
+              "slide_id": "synthetic-strawman-05-s2",
+              "slide_number": 2,
+              "slide_type": "content",
+              "speaker_notes": null,
+              "structure_preference": null,
+              "title": "How gyres form",
+              "visuals_needed": null
+            },
+            {
+              "analytics_needed": null,
+              "diagrams_needed": null,
+              "key_points": ["Reading the evidence: first point","Reading the evidence: second point"],
+              "narrative": "Buoy tracks and temperature",
+              "slide_id": "synthetic-strawman-05-s3",
+              "slide_number": 3,
+              "slide_type": "data",
+              "speaker_notes": null,
+              "structure_preference": null,
+              "title": "Reading the evidence",
+              "visuals_needed": null
+            },
+            {
+              "analytics_needed": null,
+              "diagrams_needed": null,
+              "key_points": ["What changes next: first point","What changes next: second point"],
+              "narrative": "Scenarios",
+              "slide_id": "synthetic-strawman-05-s4",
+              "slide_number": 4,
+              "slide_type": "closing",
+              "speaker_notes": null,
+              "structure_preference": null,
+              "title": "What changes next",
+              "visuals_needed": null
+            }
+          ]
+        },
+        "session_id": "synthetic-session-history-reload",
+        "timestamp": "2026-10-05T11:01:10.000Z",
+        "type": "slide_update"
+      },
+      {
+        "clientTimestamp": 1791198071000,
+        "message_id": "db-url-1",
+        "payload": {
+          "message": "Your outline preview is ready.",
+          "presentation_id": "synthetic-strawman-05",
+          "slide_count": 4,
+          "url": "https://layout.synthetic.invalid/p/synthetic-strawman-05"
+        },
+        "session_id": "synthetic-session-history-reload",
+        "timestamp": "2026-10-05T11:01:11.000Z",
+        "type": "presentation_url"
+      },
+      {
+        "clientTimestamp": 1791198072000,
+        "message_id": "db-approve-1",
+        "payload": {
+          "actions": [
+            {"label":"Looks perfect!","primary":true,"requires_input":false,"value":"accept_strawman"},
+            {"label":"Make some changes","primary":false,"requires_input":false,"value":"request_refinement"}
+          ],
+          "prompt_text": "Does this outline look good, or would you like to make changes?"
+        },
+        "session_id": "synthetic-session-history-reload",
+        "timestamp": "2026-10-05T11:01:12.000Z",
+        "type": "action_request"
+      },
+      {
+        "clientTimestamp": 1791198091000,
+        "message_id": "db-outline-2",
+        "payload": {
+          "affected_slides": null,
+          "metadata": {
+            "design_suggestions": "Minimal, data-forward",
+            "main_title": "Ocean currents, explained",
+            "overall_theme": "Clear and calm",
+            "presentation_duration": 8,
+            "preview_presentation_id": "synthetic-strawman-05",
+            "preview_url": "https://layout.synthetic.invalid/p/synthetic-strawman-05",
+            "target_audience": "General audience"
+          },
+          "operation": "full_update",
+          "slides": [
+            {
+              "analytics_needed": null,
+              "diagrams_needed": null,
+              "key_points": ["Why ocean currents matter: first point","Why ocean currents matter: second point"],
+              "narrative": "Set the stage",
+              "slide_id": "synthetic-strawman-05-s1",
+              "slide_number": 1,
+              "slide_type": "title",
+              "speaker_notes": null,
+              "structure_preference": null,
+              "title": "Why ocean currents matter",
+              "visuals_needed": null
+            },
+            {
+              "analytics_needed": null,
+              "diagrams_needed": null,
+              "key_points": ["How gyres form: first point","How gyres form: second point"],
+              "narrative": "Wind, rotation and coastlines",
+              "slide_id": "synthetic-strawman-05-s2",
+              "slide_number": 2,
+              "slide_type": "content",
+              "speaker_notes": null,
+              "structure_preference": null,
+              "title": "How gyres form",
+              "visuals_needed": null
+            },
+            {
+              "analytics_needed": null,
+              "diagrams_needed": null,
+              "key_points": ["Reading the evidence: first point","Reading the evidence: second point"],
+              "narrative": "Buoy tracks and temperature",
+              "slide_id": "synthetic-strawman-05-s3",
+              "slide_number": 3,
+              "slide_type": "data",
+              "speaker_notes": null,
+              "structure_preference": null,
+              "title": "Reading the evidence",
+              "visuals_needed": null
+            },
+            {
+              "analytics_needed": null,
+              "diagrams_needed": null,
+              "key_points": ["What changes next: first point","What changes next: second point"],
+              "narrative": "Scenarios",
+              "slide_id": "synthetic-strawman-05-s4",
+              "slide_number": 4,
+              "slide_type": "closing",
+              "speaker_notes": null,
+              "structure_preference": null,
+              "title": "What changes next",
+              "visuals_needed": null
+            }
+          ]
+        },
+        "session_id": "synthetic-session-history-reload",
+        "timestamp": "2026-10-05T11:01:31.000Z",
+        "type": "slide_update"
+      },
+      {
+        "clientTimestamp": 1791198180000,
+        "message_id": "db-final-url",
+        "payload": {
+          "message": "Your presentation is ready.",
+          "presentation_id": "synthetic-final-05",
+          "slide_count": 4,
+          "url": "https://layout.synthetic.invalid/p/synthetic-final-05"
+        },
+        "session_id": "synthetic-session-history-reload",
+        "timestamp": "2026-10-05T11:03:00.000Z",
+        "type": "presentation_url"
+      },
+      {
+        "clientTimestamp": 1791198181000,
+        "message_id": "db-done-1",
+        "payload": {"list_items":null,"sub_title":null,"text":"**Ocean currents, explained** is ready: 4 slides."},
+        "session_id": "synthetic-session-history-reload",
+        "timestamp": "2026-10-05T11:03:01.000Z",
+        "type": "chat_message"
+      },
+      {
+        "clientTimestamp": 1791198182000,
+        "message_id": "db-next-1",
+        "payload": {
+          "actions": [
+            {"label":"Done, looks great!","primary":true,"requires_input":false,"value":"complete_presentation"},
+            {"label":"Make adjustments","primary":false,"requires_input":true,"value":"request_adjustments"}
+          ],
+          "prompt_text": "What would you like to do next?"
+        },
+        "session_id": "synthetic-session-history-reload",
+        "timestamp": "2026-10-05T11:03:02.000Z",
+        "type": "action_request"
+      },
+      {
+        "clientTimestamp": 1791198245000,
+        "message_id": "db-outline-replay",
+        "payload": {
+          "affected_slides": null,
+          "metadata": {
+            "design_suggestions": "Minimal, data-forward",
+            "main_title": "Ocean currents, explained",
+            "overall_theme": "Clear and calm",
+            "presentation_duration": 8,
+            "preview_presentation_id": "synthetic-final-05",
+            "preview_url": "https://layout.synthetic.invalid/p/synthetic-final-05",
+            "target_audience": "General audience"
+          },
+          "operation": "full_update",
+          "slides": [
+            {
+              "analytics_needed": null,
+              "diagrams_needed": null,
+              "key_points": ["Why ocean currents matter: first point","Why ocean currents matter: second point"],
+              "narrative": "Set the stage",
+              "slide_id": "synthetic-final-05-s1",
+              "slide_number": 1,
+              "slide_type": "title",
+              "speaker_notes": null,
+              "structure_preference": null,
+              "title": "Why ocean currents matter",
+              "visuals_needed": null
+            },
+            {
+              "analytics_needed": null,
+              "diagrams_needed": null,
+              "key_points": ["How gyres form: first point","How gyres form: second point"],
+              "narrative": "Wind, rotation and coastlines",
+              "slide_id": "synthetic-final-05-s2",
+              "slide_number": 2,
+              "slide_type": "content",
+              "speaker_notes": null,
+              "structure_preference": null,
+              "title": "How gyres form",
+              "visuals_needed": null
+            },
+            {
+              "analytics_needed": null,
+              "diagrams_needed": null,
+              "key_points": ["Reading the evidence: first point","Reading the evidence: second point"],
+              "narrative": "Buoy tracks and temperature",
+              "slide_id": "synthetic-final-05-s3",
+              "slide_number": 3,
+              "slide_type": "data",
+              "speaker_notes": null,
+              "structure_preference": null,
+              "title": "Reading the evidence",
+              "visuals_needed": null
+            },
+            {
+              "analytics_needed": null,
+              "diagrams_needed": null,
+              "key_points": ["What changes next: first point","What changes next: second point"],
+              "narrative": "Scenarios",
+              "slide_id": "synthetic-final-05-s4",
+              "slide_number": 4,
+              "slide_type": "closing",
+              "speaker_notes": null,
+              "structure_preference": null,
+              "title": "What changes next",
+              "visuals_needed": null
+            }
+          ]
+        },
+        "session_id": "synthetic-session-history-reload",
+        "timestamp": "2026-10-05T11:04:05.000",
+        "type": "slide_update"
+      },
+      {
+        "clientOutlineReplayOf": "db-outline-replay",
+        "clientTimestamp": 1791198246000,
+        "message_id": "db-outline-replay-2",
+        "payload": {
+          "affected_slides": null,
+          "metadata": {
+            "design_suggestions": "Minimal, data-forward",
+            "main_title": "Ocean currents, explained",
+            "overall_theme": "Clear and calm",
+            "presentation_duration": 8,
+            "preview_presentation_id": "synthetic-final-05",
+            "preview_url": "https://layout.synthetic.invalid/p/synthetic-final-05",
+            "target_audience": "General audience"
+          },
+          "operation": "full_update",
+          "slides": [
+            {
+              "analytics_needed": null,
+              "diagrams_needed": null,
+              "key_points": ["Why ocean currents matter: first point","Why ocean currents matter: second point"],
+              "narrative": "Set the stage",
+              "slide_id": "synthetic-final-05-s1",
+              "slide_number": 1,
+              "slide_type": "title",
+              "speaker_notes": null,
+              "structure_preference": null,
+              "title": "Why ocean currents matter",
+              "visuals_needed": null
+            },
+            {
+              "analytics_needed": null,
+              "diagrams_needed": null,
+              "key_points": ["How gyres form: first point","How gyres form: second point"],
+              "narrative": "Wind, rotation and coastlines",
+              "slide_id": "synthetic-final-05-s2",
+              "slide_number": 2,
+              "slide_type": "content",
+              "speaker_notes": null,
+              "structure_preference": null,
+              "title": "How gyres form",
+              "visuals_needed": null
+            },
+            {
+              "analytics_needed": null,
+              "diagrams_needed": null,
+              "key_points": ["Reading the evidence: first point","Reading the evidence: second point"],
+              "narrative": "Buoy tracks and temperature",
+              "slide_id": "synthetic-final-05-s3",
+              "slide_number": 3,
+              "slide_type": "data",
+              "speaker_notes": null,
+              "structure_preference": null,
+              "title": "Reading the evidence",
+              "visuals_needed": null
+            },
+            {
+              "analytics_needed": null,
+              "diagrams_needed": null,
+              "key_points": ["What changes next: first point","What changes next: second point"],
+              "narrative": "Scenarios",
+              "slide_id": "synthetic-final-05-s4",
+              "slide_number": 4,
+              "slide_type": "closing",
+              "speaker_notes": null,
+              "structure_preference": null,
+              "title": "What changes next",
+              "visuals_needed": null
+            }
+          ]
+        },
+        "session_id": "synthetic-session-history-reload",
+        "timestamp": "2026-10-05T11:04:06.000",
+        "type": "slide_update"
+      },
+      {
+        "clientTimestamp": 1791198300000,
+        "message_id": "db-resend-1",
+        "payload": {"list_items":null,"sub_title":null,"text":"Your presentation is ready."},
+        "session_id": "synthetic-session-history-reload",
+        "timestamp": "2026-10-05T11:05:00.000Z",
+        "type": "chat_message"
+      },
+      {
+        "clientTimestamp": 1791198335000,
+        "message_id": "db-adjust-1",
+        "payload": {"list_items":null,"sub_title":null,"text":"Sure. I added a slide about tides after slide 4."},
+        "session_id": "synthetic-session-history-reload",
+        "timestamp": "2026-10-05T11:05:35.000Z",
+        "type": "chat_message"
+      },
+      {
+        "clientOutlineReplayOf": "db-outline-replay-2",
+        "clientTimestamp": 1791201603000,
+        "message_id": "msg-outline-live",
+        "payload": {
+          "affected_slides": null,
+          "metadata": {
+            "design_suggestions": "Minimal, data-forward",
+            "main_title": "Ocean currents, explained",
+            "overall_theme": "Clear and calm",
+            "presentation_duration": 8,
+            "preview_presentation_id": "synthetic-final-05",
+            "preview_url": "https://layout.synthetic.invalid/p/synthetic-final-05",
+            "target_audience": "General audience"
+          },
+          "operation": "full_update",
+          "slides": [
+            {
+              "analytics_needed": null,
+              "diagrams_needed": null,
+              "key_points": ["Why ocean currents matter: first point","Why ocean currents matter: second point"],
+              "narrative": "Set the stage",
+              "slide_id": "synthetic-final-05-s1",
+              "slide_number": 1,
+              "slide_type": "title",
+              "speaker_notes": null,
+              "structure_preference": null,
+              "title": "Why ocean currents matter",
+              "visuals_needed": null
+            },
+            {
+              "analytics_needed": null,
+              "diagrams_needed": null,
+              "key_points": ["How gyres form: first point","How gyres form: second point"],
+              "narrative": "Wind, rotation and coastlines",
+              "slide_id": "synthetic-final-05-s2",
+              "slide_number": 2,
+              "slide_type": "content",
+              "speaker_notes": null,
+              "structure_preference": null,
+              "title": "How gyres form",
+              "visuals_needed": null
+            },
+            {
+              "analytics_needed": null,
+              "diagrams_needed": null,
+              "key_points": ["Reading the evidence: first point","Reading the evidence: second point"],
+              "narrative": "Buoy tracks and temperature",
+              "slide_id": "synthetic-final-05-s3",
+              "slide_number": 3,
+              "slide_type": "data",
+              "speaker_notes": null,
+              "structure_preference": null,
+              "title": "Reading the evidence",
+              "visuals_needed": null
+            },
+            {
+              "analytics_needed": null,
+              "diagrams_needed": null,
+              "key_points": ["What changes next: first point","What changes next: second point"],
+              "narrative": "Scenarios",
+              "slide_id": "synthetic-final-05-s4",
+              "slide_number": 4,
+              "slide_type": "closing",
+              "speaker_notes": null,
+              "structure_preference": null,
+              "title": "What changes next",
+              "visuals_needed": null
+            }
+          ]
+        },
+        "role": "assistant",
+        "session_id": "synthetic-session-history-reload",
+        "timestamp": "2026-10-05T12:00:06Z",
+        "type": "slide_update"
+      },
+      {
+        "clientTimestamp": 1791201603500,
+        "message_id": "msg-live-hello",
+        "payload": {"format":"markdown","list_items":null,"sub_title":null,"text":"Hello! I'm your presentation assistant. "},
+        "role": "assistant",
+        "session_id": "synthetic-session-history-reload",
+        "timestamp": "2026-10-05T12:00:07Z",
+        "type": "chat_message"
+      }
+    ],
+    "ownerUserId": "synthetic-user-01",
+    "presentationId": "synthetic-final-05",
+    "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-final-05",
+    "slideContextByIndex": null,
+    "slideCount": 5,
+    "slideStructure": null,
+    "strawmanPresentationId": "synthetic-strawman-05",
+    "strawmanPreviewUrl": "https://layout.synthetic.invalid/p/synthetic-strawman-05",
+    "tokenUsage": null,
+    "tokenUsageMessageId": null,
+    "userMessages": [
+      {
+        "attachments": [],
+        "id": "db-user-1",
+        "text": "Build a four slide deck about ocean currents",
+        "timestamp": 1791198005000
+      },
+      {"attachments":[],"id":"db-user-2","text":"Yes, let's build it!","timestamp":1791198020000},
+      {"attachments":[],"id":"db-user-3","text":"Looks perfect!","timestamp":1791198090000},
+      {"attachments":[],"id":"db-user-4","text":"Done, looks great!","timestamp":1791198240000},
+      {"attachments":[],"id":"db-user-5","text":"Can you add a slide about tides?","timestamp":1791198330000}
+    ],
+    "version": 2
+  }
+}

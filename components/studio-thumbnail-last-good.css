@@ -1,0 +1,24 @@
+/* NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD (default off): the "May lag" cue on a rail card that shows its slide's last good preview. Scoped to the Studio rail; the colours are the rail's own tokens
+   (--st-*, components/studio-thumbnails.css), which already switch for .dark, so the badge follows light and dark with the card. It lies over the preview's top-right corner (the selection check sits
+   at the right, 31px above the card's bottom; the "No preview" label at the left only shows when there is no image), takes no pointer events, and never wraps or grows past the card. */
+[data-studio-thumbnail-strip="true"] .studio-thumbnail-lag-cue {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  max-width: calc(100% - 8px);
+  padding: 1px 6px;
+  border: 1px solid var(--st-line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--st-panel) 92%, transparent);
+  color: var(--st-muted);
+  box-shadow: 0 1px 2px rgb(10 26 24 / 18%);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: .1px;
+  white-space: nowrap;
+  pointer-events: none;
+}

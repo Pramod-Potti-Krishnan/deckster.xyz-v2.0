@@ -26,6 +26,7 @@ const {
   mergeStageFPresentationThumbnailUrl,
   mergeStageFInsertedThumbnailUrl,
   applyStageFThumbnailUrls,
+  ownedRestoredThumbnailUrl,
 } = module.exports
 
 const empty = {}
@@ -119,3 +120,16 @@ assert.equal(
 )
 
 console.log('stage-f thumbnail helpers ok')
+
+// Session metadata is shared across presentation versions: image ownership is
+// mandatory even when Final and Strawman have the same slide count/index.
+const restored = { slideIndex: 0, thumbnail_presentation_id: 'final-deck', thumbnail_url: ' https://cdn.test/final/0.png ' }
+assert.equal(ownedRestoredThumbnailUrl(restored, 'final-deck'), 'https://cdn.test/final/0.png')
+assert.equal(ownedRestoredThumbnailUrl(restored, 'strawman-deck'), undefined)
+assert.equal(ownedRestoredThumbnailUrl(restored, 'custom-deck'), undefined)
+assert.equal(ownedRestoredThumbnailUrl(restored, null), undefined)
+assert.equal(ownedRestoredThumbnailUrl({thumbnail_url: restored.thumbnail_url}, 'final-deck'), undefined)
+assert.equal(ownedRestoredThumbnailUrl({...restored, thumbnail_url: ' '}, 'final-deck'), undefined)
+const restoredSlides = [{...restored, thumbnailUrl: ownedRestoredThumbnailUrl(restored, 'final-deck')}]
+assert.equal(applyStageFThumbnailUrls(restoredSlides, {0: 'https://cdn.test/final/live.png'})[0].thumbnailUrl, 'https://cdn.test/final/live.png')
+console.log('Owned restored images reject missing/different presentation owners; live StageF images take precedence.')

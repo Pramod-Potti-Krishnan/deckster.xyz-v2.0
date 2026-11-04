@@ -10,12 +10,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { AlertCircle, Check, Download, FileText, Loader2, Presentation, RefreshCw } from 'lucide-react';
+import { AlertCircle, Check, ChevronDown, Download, FileText, Loader2, Presentation, RefreshCw } from 'lucide-react';
 import { downloadPDF, downloadPPTX, DownloadQuality } from '@/lib/api/download-service';
 import { useToast } from '@/hooks/use-toast';
+import { STUDIO_TOP_BAR_V2_ENABLED } from '@/lib/studio-top-bar-v2';
+import { studioExportBlockedReason } from '@/lib/studio-export-gate';
+import { StudioDisabledReason } from '@/components/studio-disabled-reason';
 import './studio-delivery.css';
 
 const STUDIO_DELIVERY = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true';
+// PASS2-PK-FOUR #1 (NEXT_PUBLIC_STUDIO_TOP_BAR_V2, default off): the trigger reads "Export" with a menu chevron, as in the mockup.
+// Same menu, same PDF / PPTX handlers. Off: exactly as before.
+const STUDIO_EXPORT_LABEL = STUDIO_DELIVERY && STUDIO_TOP_BAR_V2_ENABLED;
 
 function DownloadMenuPortal({ container, children }: { container: Element | null; children: React.ReactNode }) {
   // Fullscreen hides body portals outside its element. Classic keeps its native portal.
@@ -37,6 +43,8 @@ export interface PresentationDownloadControlsProps {
   presentationId: string | null;
   slideCount: number | null;
   stage: number;
+  /** PASS2B G16 (NEXT_PUBLIC_STUDIO_EXPORT_AFTER_BUILD): a final deck exists. Read only with that flag on. */
+  hasFinalDeck?: boolean;
   className?: string;
 }
 
@@ -58,6 +66,7 @@ export function PresentationDownloadControls({
   presentationId,
   slideCount,
   stage,
+  hasFinalDeck = false,
   className = ''
 }: PresentationDownloadControlsProps) {
   const { toast } = useToast();
@@ -71,7 +80,11 @@ export function PresentationDownloadControls({
 
   // Check if downloads should be enabled
   // Enable from Stage 4 onwards when presentationUrl is available
-  const isDownloadEnabled = presentationUrl !== null && stage >= 4;
+  // PASS2B G16 (NEXT_PUBLIC_STUDIO_EXPORT_AFTER_BUILD, default off, Studio shell only): while the open deck is only the outline, Export stays disabled and
+  // says why. Off, exportBlockedReason is null and this is the base's rule.
+  const exportAfterBuild = STUDIO_DELIVERY && process.env.NEXT_PUBLIC_STUDIO_EXPORT_AFTER_BUILD === 'true';
+  const exportBlockedReason = studioExportBlockedReason({ enabled: exportAfterBuild, stage, hasFinalDeck });
+  const isDownloadEnabled = presentationUrl !== null && stage >= 4 && exportBlockedReason === null;
 
   // Get stage label for user feedback
   const getStageLabel = (): string => {
@@ -169,6 +182,7 @@ export function PresentationDownloadControls({
   // Get button tooltip
   const getTooltip = (format: string): string => {
     if (!isDownloadEnabled) {
+      if (process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === 'true') return "Your presentation isn't ready to export.";
       return 'Presentation not ready yet. Waiting for Stage 4 (strawman)...';
     }
     const stageLabel = getStageLabel();
@@ -177,7 +191,7 @@ export function PresentationDownloadControls({
 
   const isDownloading = isDownloadingPDF || isDownloadingPPTX;
 
-  return (
+  const controls = (
     <div className={`flex items-center ${className}`} data-studio-v4-shell={STUDIO_DELIVERY} data-studio-download-control={STUDIO_DELIVERY}>
       <DropdownMenu onOpenChange={STUDIO_DELIVERY ? (open) => {
         setMenuPortalContainer(open ? document.fullscreenElement : null);
@@ -185,13 +199,14 @@ export function PresentationDownloadControls({
         <DropdownMenuTrigger asChild>
           <button
             disabled={!isDownloadEnabled || isDownloading}
-            aria-label={STUDIO_DELIVERY ? isDownloading ? 'Converting presentation for download' : isDownloadEnabled ? 'Download presentation' : 'Download unavailable until presentation is ready' : undefined}
+            aria-label={STUDIO_DELIVERY ? isDownloading ? 'Converting presentation for download' : isDownloadEnabled ? (STUDIO_EXPORT_LABEL ? 'Export presentation' : 'Download presentation') : (STUDIO_EXPORT_LABEL ? 'Export unavailable until presentation is ready' : 'Download unavailable until presentation is ready') : undefined}
             aria-busy={STUDIO_DELIVERY ? isDownloading : undefined}
             className="flex h-12 min-w-[72px] flex-col items-center justify-center gap-0.5 rounded-md px-3 py-1 text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-700 dark:disabled:hover:text-slate-200"
-            title={!isDownloadEnabled ? 'Waiting for presentation...' : 'Download as PDF or PPTX'}
+            title={!isDownloadEnabled ? (exportBlockedReason ?? 'Waiting for presentation...') : STUDIO_EXPORT_LABEL ? 'Export as PDF or PPTX' : 'Download as PDF or PPTX'}
           >
             {STUDIO_DELIVERY && isDownloading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className={`h-5 w-5 ${isDownloading ? 'animate-pulse' : ''}`} />}
-            <span className="text-[10px] font-medium">{isDownloading ? 'Converting' : 'Download'}</span>
+            <span className="text-[10px] font-medium">{isDownloading ? 'Converting' : STUDIO_EXPORT_LABEL ? 'Export' : 'Download'}</span>
+            {STUDIO_EXPORT_LABEL && <ChevronDown data-studio-export-chevron="true" aria-hidden="true" />}
           </button>
         </DropdownMenuTrigger>
         <DownloadMenuPortal container={menuPortalContainer}>
@@ -249,7 +264,9 @@ export function PresentationDownloadControls({
         </DropdownMenuContent>
         </DownloadMenuPortal>
       </DropdownMenu>
-      {STUDIO_DELIVERY && <span className="sr-only" role="status" aria-live="polite">{currentFeedback ? `${currentFeedback.format}: ${currentFeedback.message}` : !isDownloadEnabled ? 'Download unlocks when a presentation is available at stage four.' : ''}</span>}
+      {STUDIO_DELIVERY && <span className="sr-only" role="status" aria-live="polite">{currentFeedback ? `${currentFeedback.format}: ${currentFeedback.message}` : !isDownloadEnabled ? (exportBlockedReason ?? 'Download unlocks when a presentation is available at stage four.') : ''}</span>}
     </div>
   );
+  // With the flag on the box is always there (inert while Export is allowed), so the menu never remounts when the deck gets built.
+  return exportAfterBuild ? <StudioDisabledReason reason={exportBlockedReason} label="Export">{controls}</StudioDisabledReason> : controls;
 }

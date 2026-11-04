@@ -1,0 +1,367 @@
+{
+ "name": "second-tab-theme",
+ "description": "THEME-2's S6 two-tab recording. Tab 1 is a new session (initial theme_sync, blank deck, restored {mode:auto} applied, greeting); the user picks Vibrant, then Corporate Light, each acknowledged by Director. Tab 2 is a fresh tab (new page, empty sessionStorage) on the same session: sync_response, restored Corporate Light, the greeting replay. Flag on: tab 1 sends only its two picks, tab 2 shows Corporate Light and sends nothing. Base / flag off: each tab sends a socket-ready {mode:auto}; tab 2's overwrites Corporate Light.",
+ "source": "THEME-2 recorded frames (director !485 @ 50772ff, backsafe generator), sha256 59ef57a09d508d91b73a2a8adf54ef4ca4838bc8f9ed69ba855d33e5c5f409fa (S6_two_tabs_dedup_on, conn 1 and 2)",
+ "session": {
+  "id": "sess-s6",
+  "userId": "synthetic-user-01"
+ },
+ "ackTemplate": [
+  {
+   "type": "theme_sync",
+   "session_id": "sess-themed-cl",
+   "timestamp": "2026-10-13T23:09:31.689734Z",
+   "payload": {
+    "request_id": "__REQ__",
+    "status": "syncing",
+    "presentation_id": "deck-themed-cl",
+    "theme": {
+     "mode": "auto"
+    }
+   }
+  },
+  {
+   "type": "theme_sync",
+   "session_id": "sess-themed-cl",
+   "timestamp": "2026-10-13T23:09:31.689741Z",
+   "payload": {
+    "request_id": "__REQ__",
+    "status": "applied",
+    "presentation_id": "deck-themed-cl",
+    "theme": {
+     "mode": "auto"
+    },
+    "theme_session_id": "ts-ack"
+   }
+  }
+ ],
+ "steps": [
+  {
+   "op": "ensureConnected"
+  },
+  {
+   "op": "open"
+  },
+  {
+   "op": "frames",
+   "frames": [
+    {
+     "type": "theme_sync",
+     "session_id": "sess-s6",
+     "timestamp": "2026-10-13T21:56:46.505574Z",
+     "payload": {
+      "request_id": "initial:blank-pres-1",
+      "status": "applied",
+      "presentation_id": "blank-pres-1",
+      "theme": {
+       "mode": "auto"
+      },
+      "theme_session_id": "theme-sess-1"
+     }
+    },
+    {
+     "message_id": "msg_c4c1b5e9",
+     "session_id": "sess-s6",
+     "timestamp": "2026-10-13T21:56:46.505647Z",
+     "type": "presentation_init",
+     "role": "assistant",
+     "payload": {
+      "operation": "full_update",
+      "metadata": {
+       "main_title": "Untitled Presentation",
+       "overall_theme": "",
+       "design_suggestions": "",
+       "target_audience": "",
+       "presentation_duration": 0,
+       "preview_url": "https://layout.example.com/p/blank-pres-1",
+       "preview_presentation_id": "blank-pres-1"
+      },
+      "slides": [
+       {
+        "slide_id": "blank_slide_1",
+        "slide_number": 1,
+        "slide_type": "title_slide",
+        "title": "",
+        "subtitle": "",
+        "narrative": "",
+        "key_points": [],
+        "variant_id": "H1s",
+        "service": "text",
+        "purpose": "title_slide",
+        "semantic_group": null,
+        "analytics_needed": null,
+        "visuals_needed": null,
+        "diagrams_needed": null,
+        "structure_preference": null,
+        "container_layout": null,
+        "speaker_notes": null
+       }
+      ],
+      "affected_slides": null,
+      "is_blank": true
+     }
+    },
+    {
+     "type": "theme_sync",
+     "session_id": "sess-s6",
+     "timestamp": "2026-10-13T21:56:46.507191Z",
+     "payload": {
+      "request_id": "restore:sess-s6:none",
+      "status": "restored",
+      "presentation_id": "blank-pres-1",
+      "theme": {
+       "mode": "auto"
+      },
+      "applied": true,
+      "desired_status": null
+     }
+    },
+    {
+     "message_id": "msg_hist_46d6999d5c90",
+     "session_id": "sess-s6",
+     "timestamp": "2026-10-13T21:56:46.508643Z",
+     "type": "chat_message",
+     "role": "assistant",
+     "payload": {
+      "text": "Hello! I'm your presentation assistant. I can help you create professional presentations. What topic would you like to present on?",
+      "sub_title": null,
+      "list_items": null,
+      "format": "markdown",
+      "ephemeral": false
+     }
+    }
+   ]
+  },
+  {
+   "op": "themeAck"
+  },
+  {
+   "op": "checkpoint",
+   "label": "tab 1 new session ready"
+  },
+  {
+   "op": "expect",
+   "on": {
+    "setTheme": 0,
+    "selection": {
+     "mode": "auto"
+    },
+    "themeSyncStatus": "applied",
+    "gatePhase": "restored"
+   },
+   "off": {
+    "setTheme": 1,
+    "lastSetTheme": {
+     "mode": "auto"
+    }
+   }
+  },
+  {
+   "op": "themePick",
+   "theme": {
+    "mode": "preset",
+    "preset_id": "vibrant"
+   }
+  },
+  {
+   "op": "expect",
+   "on": {
+    "setTheme": 1,
+    "lastSetTheme": {
+     "mode": "preset",
+     "preset_id": "vibrant"
+    }
+   },
+   "off": {
+    "setTheme": 2,
+    "lastSetTheme": {
+     "mode": "preset",
+     "preset_id": "vibrant"
+    }
+   }
+  },
+  {
+   "op": "themeAck"
+  },
+  {
+   "op": "themePick",
+   "theme": {
+    "mode": "preset",
+    "preset_id": "corporate_light"
+   }
+  },
+  {
+   "op": "expect",
+   "on": {
+    "setTheme": 2,
+    "lastSetTheme": {
+     "mode": "preset",
+     "preset_id": "corporate_light"
+    }
+   },
+   "off": {
+    "setTheme": 3,
+    "lastSetTheme": {
+     "mode": "preset",
+     "preset_id": "corporate_light"
+    }
+   }
+  },
+  {
+   "op": "themeAck"
+  },
+  {
+   "op": "checkpoint",
+   "label": "tab 1 Corporate Light applied"
+  },
+  {
+   "op": "expect",
+   "on": {
+    "themeSyncStatus": "applied",
+    "selection": {
+     "mode": "preset",
+     "preset_id": "corporate_light"
+    }
+   },
+   "off": {
+    "themeSyncStatus": "applied",
+    "selection": {
+     "mode": "preset",
+     "preset_id": "corporate_light"
+    }
+   }
+  },
+  {
+   "op": "unmount"
+  },
+  {
+   "op": "mount",
+   "freshTab": true
+  },
+  {
+   "op": "restore",
+   "session": {
+    "id": "sess-s6",
+    "status": "active",
+    "title": "Synthetic session",
+    "geminiStoreName": null,
+    "blankPresentationUrl": "https://layout.example.com/p/blank-pres-1",
+    "blankPresentationId": "blank-pres-1",
+    "strawmanPreviewUrl": null,
+    "strawmanPresentationId": null,
+    "finalPresentationUrl": null,
+    "finalPresentationId": null,
+    "slideCount": null,
+    "currentStage": 1,
+    "stateCache": {
+     "activeVersion": "blank",
+     "slideStructure": null
+    },
+    "messages": [
+     {
+      "id": "db-director-0",
+      "messageType": "chat_message",
+      "timestamp": "2026-10-13T09:00:00.000Z",
+      "payload": {
+       "text": "Hello! I'm your presentation assistant. I can help you create professional presentations. What topic would you like to present on?",
+       "sub_title": null,
+       "list_items": null
+      }
+     }
+    ]
+   }
+  },
+  {
+   "op": "ensureConnected"
+  },
+  {
+   "op": "open"
+  },
+  {
+   "op": "frames",
+   "frames": [
+    {
+     "message_id": "msg_sync_410eef5f",
+     "session_id": "sess-s6",
+     "timestamp": "2026-10-13T21:56:46.508819Z",
+     "type": "sync_response",
+     "role": "assistant",
+     "payload": {
+      "action": "send_history",
+      "message_count": 1,
+      "current_state": "BLANK_PRESENTATION",
+      "has_strawman": false,
+      "presentation_url": "https://layout.example.com/p/blank-pres-1",
+      "presentation_id": "blank-pres-1",
+      "slide_count": null
+     }
+    },
+    {
+     "type": "theme_sync",
+     "session_id": "sess-s6",
+     "timestamp": "2026-10-13T21:56:46.510282Z",
+     "payload": {
+      "request_id": "restore:sess-s6:uuid-t1-corp",
+      "status": "restored",
+      "presentation_id": "blank-pres-1",
+      "theme": {
+       "mode": "preset",
+       "preset_id": "corporate_light"
+      },
+      "applied": true,
+      "desired_status": "applied"
+     }
+    },
+    {
+     "message_id": "msg_hist_46d6999d5c90",
+     "session_id": "sess-s6",
+     "timestamp": "2026-10-13T21:56:46.508643Z",
+     "type": "chat_message",
+     "role": "assistant",
+     "payload": {
+      "text": "Hello! I'm your presentation assistant. I can help you create professional presentations. What topic would you like to present on?",
+      "sub_title": null,
+      "list_items": null,
+      "format": "markdown",
+      "ephemeral": false
+     }
+    }
+   ]
+  },
+  {
+   "op": "themeAck"
+  },
+  {
+   "op": "advance",
+   "ms": 25000
+  },
+  {
+   "op": "checkpoint",
+   "label": "tab 2 on the same session"
+  },
+  {
+   "op": "expect",
+   "on": {
+    "setTheme": 2,
+    "selection": {
+     "mode": "preset",
+     "preset_id": "corporate_light"
+    },
+    "themeSyncStatus": "applied",
+    "gatePhase": "restored"
+   },
+   "off": {
+    "setTheme": 4,
+    "lastSetTheme": {
+     "mode": "auto"
+    },
+    "selection": {
+     "mode": "auto"
+    }
+   }
+  }
+ ],
+ "env": {
+  "NEXT_PUBLIC_LAYOUT_SERVICE_URL": "https://layout.example.com"
+ }
+}

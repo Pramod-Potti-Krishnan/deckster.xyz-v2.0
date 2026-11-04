@@ -26,6 +26,7 @@ import {
   RUNNING_LONG_LINE,
 } from '@/lib/narration/spoken';
 import { isNarrationConfigured } from '@/lib/narration/tts';
+import { narrationCallContext } from '@/lib/narration/model-router';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,10 +75,12 @@ export async function POST(request: NextRequest) {
 
     const { voiceId } = await getSessionVoiceId(deck.sessionId, deck.userId);
     const voice = voiceId ?? '';
+    // Who the model router bills these lines to: the publisher, over this deck's session. Undefined unless NARRATION_VIA_ROUTER is on.
+    const routed = narrationCallContext({ userId: deck.userId, sessionId: deck.sessionId });
 
     if (kind === 'announcement') {
       // Fixed text, one object per voice, shared by every deck in the system.
-      const spoken = await speakFixedLine(RUNNING_LONG_LINE, voice, 'running-long');
+      const spoken = await speakFixedLine(RUNNING_LONG_LINE, voice, 'running-long', routed);
       if (!spoken) return NextResponse.json({ error: 'Could not speak that' }, { status: 502 });
       return new NextResponse(new Uint8Array(spoken.body), {
         headers: {
@@ -115,7 +118,7 @@ export async function POST(request: NextRequest) {
     // Said short, and pointed at the written answer for the rest. A minute of
     // speech to answer one question costs more of the session than the question
     // was worth, and the full text is already on screen with its citations.
-    const spoken = await speakAnswer(spokenPrecis(text), voice);
+    const spoken = await speakAnswer(spokenPrecis(text), voice, routed);
     if (!spoken) return NextResponse.json({ error: 'Could not speak that' }, { status: 502 });
 
     // Metered against the publisher, like every other model call this deck

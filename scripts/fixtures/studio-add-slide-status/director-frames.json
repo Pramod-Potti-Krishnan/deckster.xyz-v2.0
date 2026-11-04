@@ -1,0 +1,118 @@
+{
+ "_provenance": {
+  "director_sha": "2978affabad585902150b51ebe26a2bc1dd55acf",
+  "layout_builder_sha": "dd32785d6ea3bb8f9824e2741cd2a14a6980f9bc",
+  "note": "Frames built by the REAL Director helpers and serialised as Director sends them; ids from the real Layout recording.",
+  "recorder": "scripts/fixtures/studio-add-slide-status/record-director-frames.py",
+  "session_id": "session-j2-04"
+ },
+ "scenarios": {
+  "generate-ready": {
+   "presentation_id": "86680bca-f625-4c32-9a21-58a1c3ba1c72",
+   "frames": [
+    {
+     "at": "accepted",
+     "http_status": 202,
+     "body": {
+      "status": "accepted",
+      "job_id": "job-add-1",
+      "target_index": 2,
+      "session_id": "session-j2-04",
+      "presentation_id": "86680bca-f625-4c32-9a21-58a1c3ba1c72"
+     }
+    },
+    {
+     "at": "ws",
+     "frame": {
+      "message_id": "msg_slide_ready_rec1",
+      "session_id": "session-j2-04",
+      "timestamp": "2026-10-15T12:41:44.138691Z",
+      "type": "slide_ready",
+      "role": "assistant",
+      "payload": {
+       "job_id": "job-add-1",
+       "kind": "compose",
+       "presentation_id": "86680bca-f625-4c32-9a21-58a1c3ba1c72",
+       "slide_index": 2,
+       "inserted_at_index": 2,
+       "presentation_url": "http://layout.invalid/p/86680bca-f625-4c32-9a21-58a1c3ba1c72",
+       "real_slide_id": "slide_f6b3564e570f",
+       "replaced_slide_id": null,
+       "thumbnail_url": null,
+       "status": "built"
+      }
+     }
+    }
+   ]
+  },
+  "fail-retry-ready": {
+   "presentation_id": "67aa679a-fca1-4210-bbb2-4f590e41c47b",
+   "frames": [
+    {
+     "at": "accepted",
+     "http_status": 202,
+     "body": {
+      "status": "accepted",
+      "job_id": "job-add-2",
+      "target_index": 2,
+      "session_id": "session-j2-04",
+      "presentation_id": "67aa679a-fca1-4210-bbb2-4f590e41c47b"
+     }
+    },
+    {
+     "at": "ws",
+     "frame": {
+      "message_id": "msg_slide_failed_rec1",
+      "session_id": "session-j2-04",
+      "timestamp": "2026-10-15T12:41:44.139002Z",
+      "type": "slide_failed",
+      "role": "assistant",
+      "payload": {
+       "job_id": "job-add-2",
+       "kind": "compose",
+       "stage": "slide_builder",
+       "errors": [
+        "Slide Builder did not answer in time."
+       ],
+       "presentation_id": "67aa679a-fca1-4210-bbb2-4f590e41c47b",
+       "status": "error"
+      }
+     }
+    },
+    {
+     "at": "retry-accepted",
+     "http_status": 202,
+     "body": {
+      "status": "accepted",
+      "job_id": "job-add-3",
+      "target_index": 2,
+      "session_id": "session-j2-04",
+      "presentation_id": "67aa679a-fca1-4210-bbb2-4f590e41c47b"
+     }
+    },
+    {
+     "at": "ws",
+     "frame": {
+      "message_id": "msg_slide_ready_rec2",
+      "session_id": "session-j2-04",
+      "timestamp": "2026-10-15T12:41:44.139072Z",
+      "type": "slide_ready",
+      "role": "assistant",
+      "payload": {
+       "job_id": "job-add-3",
+       "kind": "compose",
+       "presentation_id": "67aa679a-fca1-4210-bbb2-4f590e41c47b",
+       "slide_index": 2,
+       "inserted_at_index": 2,
+       "presentation_url": "http://layout.invalid/p/67aa679a-fca1-4210-bbb2-4f590e41c47b",
+       "real_slide_id": "slide_544aaaf51c08",
+       "replaced_slide_id": null,
+       "thumbnail_url": null,
+       "status": "built"
+      }
+     }
+    }
+   ]
+  }
+ }
+}

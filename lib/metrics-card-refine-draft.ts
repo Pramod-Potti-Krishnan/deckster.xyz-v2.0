@@ -32,6 +32,8 @@ function singleCardConfig(value: Record<string, unknown>): Record<string, unknow
     if (record(value[key])) next[key] = { ...value[key], layout: 'horizontal' }
   }
   if ('compose' in value) next.compose = false
+  // One generated card is a concrete count of 1, never "Auto" (request fidelity flag).
+  if ('countAuto' in value) next.countAuto = false
   delete next.elements
   return next
 }

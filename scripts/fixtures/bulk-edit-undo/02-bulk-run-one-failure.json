@@ -1,0 +1,493 @@
+{
+ "scenario": "02-bulk-run-one-failure",
+ "description": "Card, then confirm_bulk_edit:<id>; slide 3 (L2) fails to refine. Receipt, per-slide bulk_edit_progress (+ slide_ready / deck_mutation slide_replaced for done slides), bulk_edit_summary, the honest partial closing line, change_recorded (kind bulk_edit).",
+ "director_commit": "8258481ba51a0c1279ef6bf7e76bee7c40a5b8c1",
+ "flags": {
+  "MULTI_INTENT_ENABLED": "true",
+  "DIRECTOR_MDC_BULK_EDIT_ENABLED": "true",
+  "DIRECTOR_MDC_CHAT_UNDO_ENABLED": "true",
+  "CHAT_CAP_BULK_EDIT": "true",
+  "CHAT_CAP_CHAT_UNDO": "true",
+  "SLIDE_COMPOSER_ENABLED": "true",
+  "SLIDE_COMPOSER_ASYNC_ENABLED": "true",
+  "SLIDE_REFINER_ENABLED": "true",
+  "DIRECTOR_MDC_REFINE_SLIDE_ENABLED": "true",
+  "CHAT_CAP_REFINE_SLIDE": "true",
+  "DIRECTOR_MDC_HONEST_REPLIES_ENABLED": "true",
+  "DIRECTOR_MDC_SESSION_SCOPE_ENABLED": "true"
+ },
+ "client_caps": [
+  "mdc1",
+  "bulk_edit1",
+  "undo1"
+ ],
+ "recorded_by": "docs/mdc/bulk-edit-undo-frames/record.py (offline, $0)",
+ "scripted_model_output": [
+  {
+   "action_type": "bulk_edit",
+   "response_text": null,
+   "questions": null,
+   "tool_calls": null,
+   "reasoning": "scripted",
+   "confidence": 0.95,
+   "requires_approval": false,
+   "extracted_context": null,
+   "target_slide_indices": [],
+   "new_topic": null,
+   "op_brief": "Make it more concise",
+   "element_type": null,
+   "structured_questions": []
+  }
+ ],
+ "frame_counts": {
+  "in": 2,
+  "out": 19
+ },
+ "outbound_frame_types": [
+  "action_request",
+  "bulk_edit_progress",
+  "bulk_edit_summary",
+  "change_recorded",
+  "chat_message",
+  "deck_mutation",
+  "slide_failed",
+  "slide_ready"
+ ],
+ "frames": [
+  {
+   "seq": 1,
+   "direction": "in",
+   "frame": {
+    "type": "user_message",
+    "data": {
+     "text": "Make every slide more concise",
+     "client_caps": [
+      "mdc1",
+      "bulk_edit1",
+      "undo1"
+     ]
+    }
+   }
+  },
+  {
+   "seq": 2,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_a148efd0",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:57.952943Z",
+    "type": "action_request",
+    "role": "assistant",
+    "payload": {
+     "prompt_text": "Change 5 slides (slides 1, 2, 3, 4 and 5)? I'll apply \"Make it more concise\" to each one, one or two at a time, keeping each slide in its place. Rough cost: about $0.25 to $0.50.",
+     "actions": [
+      {
+       "label": "Change 5 slides",
+       "value": "confirm_bulk_edit:bulk_89298da530fd",
+       "primary": true,
+       "requires_input": false
+      },
+      {
+       "label": "Cancel",
+       "value": "cancel_bulk_edit:bulk_89298da530fd",
+       "primary": false,
+       "requires_input": false
+      }
+     ],
+     "kind": "bulk_edit_confirm",
+     "bulk_edit": {
+      "bulk_id": "bulk_89298da530fd",
+      "instruction": "Make it more concise",
+      "slide_indexes": [
+       0,
+       1,
+       2,
+       3,
+       4
+      ],
+      "slide_ids": [
+       "L0",
+       "L1",
+       "L2",
+       "L3",
+       "L4"
+      ],
+      "slide_count": 5,
+      "estimate": {
+       "usd": 0.5,
+       "label": "about $0.25 to $0.50"
+      }
+     }
+    }
+   }
+  },
+  {
+   "seq": 3,
+   "direction": "in",
+   "frame": {
+    "type": "user_message",
+    "data": {
+     "text": "",
+     "client_caps": [
+      "mdc1",
+      "bulk_edit1",
+      "undo1"
+     ],
+     "action_value": "confirm_bulk_edit:bulk_89298da530fd",
+     "action_label": "confirm_bulk_edit:bulk_89298da530fd"
+    }
+   }
+  },
+  {
+   "seq": 4,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_4b9358dc",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:57.999822Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Changing 5 slides: \"Make it more concise\". I'll work through them one or two at a time; each slide stays as it is until its new version is ready.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  },
+  {
+   "seq": 5,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_slide_ready_4f6d8cb0",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:58.028057Z",
+    "type": "slide_ready",
+    "role": "assistant",
+    "payload": {
+     "job_id": "mdc_d00153e0dca8",
+     "kind": "refine",
+     "presentation_id": "pres-e2e",
+     "slide_index": 0,
+     "inserted_at_index": 0,
+     "presentation_url": null,
+     "real_slide_id": "R1-L0",
+     "replaced_slide_id": "L0",
+     "thumbnail_url": null,
+     "status": "built"
+    }
+   }
+  },
+  {
+   "seq": 6,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_slide_ready_a97aa4ba",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:58.029803Z",
+    "type": "slide_ready",
+    "role": "assistant",
+    "payload": {
+     "job_id": "mdc_a3343720b9d7",
+     "kind": "refine",
+     "presentation_id": "pres-e2e",
+     "slide_index": 1,
+     "inserted_at_index": 1,
+     "presentation_url": null,
+     "real_slide_id": "R2-L1",
+     "replaced_slide_id": "L1",
+     "thumbnail_url": null,
+     "status": "built"
+    }
+   }
+  },
+  {
+   "seq": 7,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_bep_071540be",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:58.031484Z",
+    "type": "bulk_edit_progress",
+    "role": "assistant",
+    "payload": {
+     "bulk_id": "bulk_89298da530fd",
+     "slide_id": "L0",
+     "slide_index": 0,
+     "status": "done",
+     "reason": null
+    }
+   }
+  },
+  {
+   "seq": 8,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_dmut_febadc96",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:58.031519Z",
+    "type": "deck_mutation",
+    "role": "assistant",
+    "payload": {
+     "mutation": "slide_replaced",
+     "slide_index": 0,
+     "new_slide_index": null,
+     "presentation_id": "pres-e2e",
+     "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+     "refresh_token": "dm_e51eff936568"
+    }
+   }
+  },
+  {
+   "seq": 9,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_bep_fd136f69",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:58.033141Z",
+    "type": "bulk_edit_progress",
+    "role": "assistant",
+    "payload": {
+     "bulk_id": "bulk_89298da530fd",
+     "slide_id": "L1",
+     "slide_index": 1,
+     "status": "done",
+     "reason": null
+    }
+   }
+  },
+  {
+   "seq": 10,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_dmut_84a8ab90",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:58.033156Z",
+    "type": "deck_mutation",
+    "role": "assistant",
+    "payload": {
+     "mutation": "slide_replaced",
+     "slide_index": 1,
+     "new_slide_index": null,
+     "presentation_id": "pres-e2e",
+     "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+     "refresh_token": "dm_723371c5d501"
+    }
+   }
+  },
+  {
+   "seq": 11,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_slide_failed_5737b962",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:58.060772Z",
+    "type": "slide_failed",
+    "role": "assistant",
+    "payload": {
+     "job_id": "mdc_cfb06157c96c",
+     "kind": "refine",
+     "stage": "slide_builder",
+     "errors": [
+      "Slide Builder returned no slide"
+     ],
+     "presentation_id": "pres-e2e",
+     "status": "error"
+    }
+   }
+  },
+  {
+   "seq": 12,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_slide_ready_4324cb63",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:58.060865Z",
+    "type": "slide_ready",
+    "role": "assistant",
+    "payload": {
+     "job_id": "mdc_cfb56306fa0b",
+     "kind": "refine",
+     "presentation_id": "pres-e2e",
+     "slide_index": 3,
+     "inserted_at_index": 3,
+     "presentation_url": null,
+     "real_slide_id": "R3-L3",
+     "replaced_slide_id": "L3",
+     "thumbnail_url": null,
+     "status": "built"
+    }
+   }
+  },
+  {
+   "seq": 13,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_bep_6ce8fde6",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:58.062526Z",
+    "type": "bulk_edit_progress",
+    "role": "assistant",
+    "payload": {
+     "bulk_id": "bulk_89298da530fd",
+     "slide_id": "L2",
+     "slide_index": 2,
+     "status": "failed",
+     "reason": "refine_failed"
+    }
+   }
+  },
+  {
+   "seq": 14,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_bep_0e00ceee",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:58.062545Z",
+    "type": "bulk_edit_progress",
+    "role": "assistant",
+    "payload": {
+     "bulk_id": "bulk_89298da530fd",
+     "slide_id": "L3",
+     "slide_index": 3,
+     "status": "done",
+     "reason": null
+    }
+   }
+  },
+  {
+   "seq": 15,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_dmut_a1a96062",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:58.062561Z",
+    "type": "deck_mutation",
+    "role": "assistant",
+    "payload": {
+     "mutation": "slide_replaced",
+     "slide_index": 3,
+     "new_slide_index": null,
+     "presentation_id": "pres-e2e",
+     "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+     "refresh_token": "dm_727c0f4c291d"
+    }
+   }
+  },
+  {
+   "seq": 16,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_slide_ready_aa88ec40",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:58.077384Z",
+    "type": "slide_ready",
+    "role": "assistant",
+    "payload": {
+     "job_id": "mdc_9ee5ed0624bf",
+     "kind": "refine",
+     "presentation_id": "pres-e2e",
+     "slide_index": 4,
+     "inserted_at_index": 4,
+     "presentation_url": null,
+     "real_slide_id": "R4-L4",
+     "replaced_slide_id": "L4",
+     "thumbnail_url": null,
+     "status": "built"
+    }
+   }
+  },
+  {
+   "seq": 17,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_bep_8b2dce3b",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:58.079028Z",
+    "type": "bulk_edit_progress",
+    "role": "assistant",
+    "payload": {
+     "bulk_id": "bulk_89298da530fd",
+     "slide_id": "L4",
+     "slide_index": 4,
+     "status": "done",
+     "reason": null
+    }
+   }
+  },
+  {
+   "seq": 18,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_dmut_d6faee92",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:58.079046Z",
+    "type": "deck_mutation",
+    "role": "assistant",
+    "payload": {
+     "mutation": "slide_replaced",
+     "slide_index": 4,
+     "new_slide_index": null,
+     "presentation_id": "pres-e2e",
+     "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+     "refresh_token": "dm_85cbc091a0a8"
+    }
+   }
+  },
+  {
+   "seq": 19,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_bes_1c6f4cc9",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:58.080686Z",
+    "type": "bulk_edit_summary",
+    "role": "assistant",
+    "payload": {
+     "bulk_id": "bulk_89298da530fd",
+     "done": 4,
+     "failed": 1,
+     "skipped": 0,
+     "total": 5
+    }
+   }
+  },
+  {
+   "seq": 20,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_d3d7dd2c",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:58.080713Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "I changed 4 of 5 slides. Slide 3 didn't change: the new version didn't come out cleanly, so it is as before.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  },
+  {
+   "seq": 21,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_chg_c80eb4a5",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:58.084361Z",
+    "type": "change_recorded",
+    "role": "assistant",
+    "payload": {
+     "change_id": "chg_e5793ba7b465",
+     "label": "Changed 4 slides",
+     "kind": "bulk_edit",
+     "presentation_id": "pres-e2e",
+     "undoable": true
+    }
+   }
+  }
+ ]
+}

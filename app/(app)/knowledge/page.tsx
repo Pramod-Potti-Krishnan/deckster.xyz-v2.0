@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { StudioIntroReplay } from "@/components/studio-intro-replay"
 import "@/components/studio-libraries/destination-intros.css"
@@ -16,8 +16,6 @@ import {
   Layers3,
   Loader2,
   Lock,
-  Maximize2,
-  Minimize2,
   Network,
   RefreshCw,
   Search,
@@ -29,6 +27,21 @@ import {
 import { useKnowledgeGraph } from "@/hooks/use-knowledge-graph"
 import { KgGraphView, typeColor } from "@/components/knowledge/kg-graph-view"
 import { StudioKnowledgeInspector } from "@/components/knowledge/studio-knowledge-inspector"
+import { StudioKnowledgeSourcesMenu } from "@/components/knowledge/studio-knowledge-sources-menu"
+import { StudioKnowledgeEmptyMap } from "@/components/knowledge/studio-knowledge-empty-state"
+import { isEmptyGraph } from "@/lib/studio-knowledge-empty-state"
+import { KnowledgeSectionBoundary } from "@/components/knowledge/knowledge-section-boundary"
+import { KnowledgeImportConfirm } from "@/components/knowledge/knowledge-import-confirm"
+import { StudioKnowledgeFilterTabs } from "@/components/knowledge/studio-knowledge-filter-tabs"
+import { StudioP2Sources } from "@/components/knowledge/studio-p2-sources"
+import { StudioP2SourcesMenu } from "@/components/knowledge/studio-p2-sources-menu"
+import { StudioP2DeckProvider } from "@/components/knowledge/studio-p2-deck-provider"
+import { StudioKgAsk } from "@/components/knowledge/studio-kg-ask"
+import type { StudioDeckDirectory } from "@/hooks/use-studio-p2-deck-titles"
+import {
+  clearImportMarker, IMPORT_FAILED_TEXT, importConfirmWarning, importFailureText, normalizeKgGraph, normalizeKgStats, OFFLINE_IMPORT_TEXT, ownerTag,
+  plainKnowledgeError, readImportMarker, resumedImportNotice, touchImportMarker, writeImportMarker,
+} from "@/lib/studio-knowledge-fixes"
 import type { KgGraphPresentationState, KgViewEdge, KgViewNode } from "@/components/knowledge/kg-graph-view"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -37,6 +50,18 @@ import "@/components/knowledge/studio-knowledge.css"
 
 export const dynamic = "force-dynamic"
 const STUDIO_SHELL = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true"
+// J6 pass-2 fixes (card PASS2-J6-FINDINGS). Exact "true" enables them; default off, and then the page is exactly as before.
+const KNOWLEDGE_FIXES = process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_FIXES === "true"
+// J6 finding L4 (card PASS2-J6-FINDINGS): the map filter as "Everything N" + one tab per kind in plain words (the Studio shell only). Exact "true" enables it; default off.
+const KNOWLEDGE_FILTER_TABS = STUDIO_SHELL && process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_FILTER_TABS === "true"
+// J6 finding L5 (card PASS2-J6-FINDINGS): one "Sources" menu and the search field in the header (the Studio shell only). Exact "true" enables it; default off.
+const KNOWLEDGE_HEADER_ACTIONS = STUDIO_SHELL && process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_HEADER_ACTIONS === "true"
+// J6 finding L9 (card PASS2-J6-FINDINGS): the empty map on the map's own dark canvas, and a side panel that says there is nothing to follow yet (the Studio shell only). Exact "true" enables it; default off.
+const KNOWLEDGE_EMPTY_STATE = STUDIO_SHELL && process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_EMPTY_STATE === "true"
+// PASS2 Second Brain (SB-02/05/06/08/10, lib/studio-p2-second-brain.ts). Exact "true" AND the Studio shell; default off, and then the page is exactly as before.
+const P2_SB = process.env.NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN === "true" && STUDIO_SHELL
+// "Ask your second brain" (lib/studio-kg-ask.ts): a question box above the map that shows the passages the graph holds on a question, with their sources. Exact "true" AND the Studio shell; default off, and then the page is exactly as before.
+const KG_ASK = process.env.NEXT_PUBLIC_STUDIO_KG_ASK === "true" && STUDIO_SHELL
 
 interface KgStats {
   node_count: number
@@ -91,7 +116,17 @@ interface KgNodeDetail {
   edges: Array<{ src_name: string; dst_name: string; relation: string; weight: number }>
 }
 
-type ImportNotice = { tone: "success" | "error" | "neutral"; text: string }
+// kind (flag on only): "failed" = the import request itself failed (the banner offers Retry); "resumed" / "interrupted" = found on return
+// to the page: an import this browser started never reported finishing (the banner offers Refresh / nothing).
+type ImportNotice = { tone: "success" | "error" | "neutral"; text: string; kind?: "failed" | "resumed" | "interrupted" }
+
+// Evaluates a section's markup while rendering as ITS OWN component, so an error thrown by the expression is caught by the section's boundary.
+function LazySection({ render }: { render: () => ReactNode }) {
+  return <>{render()}</>
+}
+
+// Flag on: the singular where the count is 1 ("1 new entity"). Flag off: always the form the page used before.
+const noun = (count: number | undefined, one: string, many: string) => (KNOWLEDGE_FIXES && count === 1 ? one : many)
 
 function formatNumber(value: number | undefined): string {
   return new Intl.NumberFormat().format(value ?? 0)
@@ -280,6 +315,8 @@ function Inspector({
   selectedId,
   onRetry,
   onClear,
+  emptyGraph,
+  decks,
 }: {
   selected: KgNodeDetail | null
   loading: boolean
@@ -289,8 +326,10 @@ function Inspector({
   selectedId: string | null
   onRetry: () => void
   onClear: () => void
+  emptyGraph?: boolean
+  decks?: StudioDeckDirectory
 }) {
-  if (STUDIO_SHELL) return <StudioKnowledgeInspector key={selectedId || "unselected"} selected={selected?.node.node_id === selectedId ? selected : null} selectedId={selectedId} loading={loading} error={error} topEntities={topEntities} onSelect={onSelect} onRetry={onRetry} onClear={onClear} />
+  if (STUDIO_SHELL) return <StudioKnowledgeInspector key={selectedId || "unselected"} selected={selected?.node.node_id === selectedId ? selected : null} selectedId={selectedId} loading={loading} error={error} topEntities={topEntities} onSelect={onSelect} onRetry={onRetry} onClear={onClear} emptyGraph={emptyGraph} {...(decks ? { decks } : {})} />
   return (
     <aside data-studio-knowledge-role="inspector" className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/80 xl:sticky xl:top-20 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto">
       <div className="border-b border-slate-200 px-4 py-4 dark:border-slate-800">
@@ -314,6 +353,11 @@ function Inspector({
         {!loading && error && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
             {error}
+            {KNOWLEDGE_FIXES && (
+              <button type="button" onClick={onRetry} className="mt-2 block rounded-md border border-amber-300 px-2.5 py-0.5 text-xs font-medium text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:border-amber-800 dark:text-amber-100 dark:hover:bg-amber-950/50">
+                Retry
+              </button>
+            )}
           </div>
         )}
 
@@ -449,7 +493,10 @@ export default function KnowledgePage() {
   // Account identity is a React ownership boundary. Switching users remounts
   // the workspace synchronously, so graph/search/selection state from the
   // previous account can never be rendered while the new account resolves.
-  return <KnowledgePageForAccount key={kg.accountKey} kg={kg} />
+  const account = <KnowledgePageForAccount key={kg.accountKey} kg={kg} />
+  // Flag on: the whole-page safety net. A render error nobody anticipated shows a plain notice with "Try again" in the page's place,
+  // not Next's application-error screen (which replaces the whole app).
+  return KNOWLEDGE_FIXES ? <KnowledgeSectionBoundary label="Second Brain page" page resetKey={kg.accountKey}>{account}</KnowledgeSectionBoundary> : account
 }
 
 function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
@@ -469,6 +516,8 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
   const [hiddenTypes, setHiddenTypes] = useState<Set<string>>(new Set())
   const [importing, setImporting] = useState(false)
   const [importNotice, setImportNotice] = useState<ImportNotice | null>(null)
+  // Flag on: the confirm dialog in front of "Import past sessions" (null = closed; warning = another import may still be running).
+  const [importConfirm, setImportConfirm] = useState<{ warning: string | null } | null>(null)
   const dataGenerationRef = useRef(0)
   const dataAbortRef = useRef<AbortController | null>(null)
   const nodeGenerationRef = useRef(0)
@@ -479,6 +528,8 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
   const importGenerationRef = useRef(0)
   const importAbortRef = useRef<AbortController | null>(null)
   const importActiveRef = useRef(false)
+  // Flag on: true from the moment the browser starts leaving this document (reload, navigation, closing the tab).
+  const pageLeavingRef = useRef(false)
   const interruptedImportRef = useRef({ owner: kg.accountKey, interrupted: false })
   const mountedRef = useRef(true)
   const admissionWaitersRef = useRef(new Set<() => void>())
@@ -518,79 +569,6 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
     }
   }
   const presentationContext = presentationContextRef.current
-  // Presentation admission is intentionally narrower than the retained3294
-  // graph holder: any observed pending check closes fullscreen and retires its
-  // captured actions. The existing gates below still remove private children.
-  const immersiveEpochRef = useRef({ status: accessStatus, epoch: 0 })
-  if (immersiveEpochRef.current.status !== accessStatus) {
-    immersiveEpochRef.current = { status: accessStatus, epoch: immersiveEpochRef.current.epoch + 1 }
-  }
-  const immersiveEpoch = immersiveEpochRef.current.epoch
-  const [immersiveRequest, setImmersiveRequest] = useState<{ epoch: number; context: typeof presentationContext } | null>(null)
-  const immersive = accessStatus === "ready" && immersiveRequest?.epoch === immersiveEpoch && immersiveRequest.context === presentationContext
-  const explorationRef = useRef<HTMLDivElement>(null)
-  const fullscreenTriggerRef = useRef<HTMLButtonElement>(null)
-  const returnButtonRef = useRef<HTMLButtonElement>(null)
-  const canPresentImmersive = useCallback(() => {
-    const access = accessRef.current
-    return mountedRef.current && access.status === "ready" && access.owner === operationOwner && access.lifetime === operationLifetime &&
-      presentationContextRef.current === presentationContext && immersiveEpochRef.current.epoch === immersiveEpoch
-  }, [operationOwner, operationLifetime, presentationContext, immersiveEpoch])
-  const openImmersive = useCallback(() => {
-    if (!canPresentImmersive()) return
-    setImmersiveRequest({ epoch: immersiveEpoch, context: presentationContext })
-  }, [canPresentImmersive, immersiveEpoch, presentationContext])
-  const closeImmersive = useCallback(() => {
-    if (!canPresentImmersive()) return
-    setImmersiveRequest(null)
-  }, [canPresentImmersive])
-  useLayoutEffect(() => {
-    if (!immersive || !canPresentImmersive()) return
-    const frame = explorationRef.current
-    if (!frame) return
-    const trigger = fullscreenTriggerRef.current
-    const visible = (element: HTMLElement | SVGElement) => element.isConnected && !element.closest("[hidden], [inert]") &&
-      !element.matches(":disabled") && element.getClientRects().length > 0 && getComputedStyle(element).visibility !== "hidden"
-    // Inert sibling branches along the existing DOM path; the graph never moves
-    // to another host and its React identity, geometry and handlers stay intact.
-    const background = new Map<HTMLElement, boolean>()
-    let branch: Element = frame
-    while (branch.parentElement) {
-      for (const sibling of Array.from(branch.parentElement.children)) {
-        if (sibling !== branch && sibling instanceof HTMLElement) background.set(sibling, sibling.inert)
-      }
-      branch = branch.parentElement
-      if (branch === document.body) break
-    }
-    background.forEach((_, element) => { element.inert = true })
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-    const focusReturn = () => { if (canPresentImmersive()) returnButtonRef.current?.focus({ preventScroll: true }) }
-    const onFocus = (event: FocusEvent) => { if (!frame.contains(event.target as Node)) focusReturn() }
-    const onKey = (event: KeyboardEvent) => {
-      if (!canPresentImmersive()) return
-      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeImmersive(); return }
-      if (event.key !== "Tab") return
-      const items = Array.from(frame.querySelectorAll<HTMLElement | SVGElement>('button, a[href], input, select, textarea, summary, [tabindex]:not([tabindex="-1"])')).filter(visible)
-      const first = items[0], last = items[items.length - 1]
-      if (!first || !last) { event.preventDefault(); focusReturn(); return }
-      if (event.shiftKey && (document.activeElement === first || !frame.contains(document.activeElement))) { event.preventDefault(); last.focus() }
-      else if (!event.shiftKey && (document.activeElement === last || !frame.contains(document.activeElement))) { event.preventDefault(); first.focus() }
-    }
-    document.addEventListener("keydown", onKey, true)
-    document.addEventListener("focusin", onFocus, true)
-    focusReturn()
-    return () => {
-      document.removeEventListener("keydown", onKey, true)
-      document.removeEventListener("focusin", onFocus, true)
-      background.forEach((wasInert, element) => { element.inert = wasInert })
-      document.body.style.overflow = previousOverflow
-      // A pending/revoked/unmounted workspace cannot recover focus through an
-      // old trigger. Ordinary Return/Escape restores only a still-visible one.
-      queueMicrotask(() => { if (canPresentImmersive() && trigger && visible(trigger)) trigger.focus({ preventScroll: true }) })
-    }
-  }, [immersive, canPresentImmersive, closeImmersive])
-
   const selectKnowledgeNode = useCallback((nodeId: string) => {
     const access = accessRef.current
     if (!mountedRef.current || access.status !== "ready" || access.owner !== operationOwner ||
@@ -653,6 +631,7 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
       setSearchLoading(false)
       setSearchError(null)
       setImporting(false)
+      setImportConfirm(null)
       setImportNotice(retainInterruptedNotice ? { tone: "neutral", text: "Import interrupted because Knowledge access changed. No further batches will be sent from this import. Already dispatched requests may have completed; their results have not been verified here. Refresh your graph after access is restored before starting another import." } : null)
     }
     wakeAdmissionWaiters()
@@ -692,12 +671,18 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
         graphResponse.json() as Promise<KgGraphData>,
       ])
       if (await admitted() && isCurrent()) {
-        setStats(current => isCurrent() ? nextStats : current)
-        setGraph(current => isCurrent() && !sameKnowledgeSnapshot(current, nextGraph) ? nextGraph : current)
+        // Flag on: a response missing nodes_by_type / top_entities / nodes / edges is treated as empty instead of crashing the render.
+        const loadedStats = KNOWLEDGE_FIXES ? normalizeKgStats(nextStats) : nextStats
+        const loadedGraph = KNOWLEDGE_FIXES ? normalizeKgGraph(nextGraph) : nextGraph
+        if (KNOWLEDGE_FIXES && !loadedGraph) throw new Error("Your knowledge graph could not be loaded.")
+        setStats(current => isCurrent() ? loadedStats : current)
+        setGraph(current => isCurrent() && !sameKnowledgeSnapshot(current, loadedGraph) ? loadedGraph : current)
       }
     } catch (error) {
       if (await admitted() && isCurrent()) {
-        setLoadError(error instanceof Error ? error.message : "Your knowledge graph could not be loaded.")
+        setLoadError(KNOWLEDGE_FIXES
+          ? plainKnowledgeError(error, "Your knowledge graph could not be loaded.")
+          : error instanceof Error ? error.message : "Your knowledge graph could not be loaded.")
       }
     } finally {
       if (await admitted() && isCurrent()) setDataLoading(false)
@@ -709,6 +694,30 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
       void loadData()
     }
   }, [accessRevision, accessStatus, loadData])
+
+  useEffect(() => {
+    if (!KNOWLEDGE_FIXES) return
+    const leaving = () => { pageLeavingRef.current = true }
+    const returned = () => { pageLeavingRef.current = false }
+    window.addEventListener("pagehide", leaving)
+    window.addEventListener("pageshow", returned)
+    return () => {
+      window.removeEventListener("pagehide", leaving)
+      window.removeEventListener("pageshow", returned)
+    }
+  }, [])
+
+  // Flag on: an import this browser started that never reported finishing (the page was reloaded or closed, or it runs in another tab)
+  // is announced on return. Read when the page becomes usable (access "ready"), and again if access is retired and restored, because
+  // retiring access clears the notice; an existing notice (for example "interrupted because Knowledge access changed") is never replaced.
+  // The marker is written and cleared by the import itself.
+  useEffect(() => {
+    if (!KNOWLEDGE_FIXES || accessStatus !== "ready" || importActiveRef.current) return
+    const marker = readImportMarker(ownerTag(operationOwner))
+    if (!marker) return
+    const found = resumedImportNotice(marker)
+    setImportNotice(current => current ?? { tone: "neutral", kind: found.kind, text: found.text })
+  }, [operationOwner, accessStatus, accessRevision])
 
   useEffect(() => {
     const generation = ++nodeGenerationRef.current
@@ -747,7 +756,9 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
       })
       .catch(async (error) => {
         if (await admitted() && isCurrent()) {
-          setSelectedError(error instanceof Error ? error.message : "Entity details could not be loaded.")
+          setSelectedError(KNOWLEDGE_FIXES
+            ? plainKnowledgeError(error, "Entity details could not be loaded.")
+            : error instanceof Error ? error.message : "Entity details could not be loaded.")
         }
       })
       .finally(async () => {
@@ -829,7 +840,9 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
     } catch (error) {
       if (await admitted() && isCurrent()) {
         setSearchHits([])
-        setSearchError(error instanceof Error ? error.message : "Search is unavailable right now.")
+        setSearchError(KNOWLEDGE_FIXES
+          ? plainKnowledgeError(error, "Search is unavailable right now.")
+          : error instanceof Error ? error.message : "Search is unavailable right now.")
       }
     } finally {
       if (await admitted() && isCurrent()) setSearchLoading(false)
@@ -852,6 +865,10 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
     importActiveRef.current = true
     interruptedImportRef.current = { owner, interrupted: false }
     setImporting(true)
+    // Flag on: remember in this browser that an import started, so a reload (or a second tab) can say one may still be running.
+    const markerOwner = KNOWLEDGE_FIXES ? ownerTag(owner) : ""
+    const markerStartedAt = Date.now()
+    if (KNOWLEDGE_FIXES) writeImportMarker(markerOwner, markerStartedAt, markerStartedAt)
     setImportNotice({ tone: "neutral", text: "Importing eligible past sessions. This can take a few minutes…" })
     const totals = {
       processed: 0,
@@ -876,11 +893,14 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
         if (!await admitted() || !isCurrent()) return
         if (!response.ok) {
           throw new Error(
-            typeof body.error === "string"
+            KNOWLEDGE_FIXES
+              ? importFailureText(response.status, body.error)
+              : typeof body.error === "string"
               ? body.error
               : "Past sessions could not be imported."
           )
         }
+        if (KNOWLEDGE_FIXES) touchImportMarker(markerOwner, markerStartedAt)
         if (body.no_sessions_found && !foundAny) {
           setImportNotice({ tone: "neutral", text: "No eligible past sessions with uploads or research were found." })
           return
@@ -899,7 +919,7 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
         const totalCandidates = Number(body.total_candidates ?? totals.processed)
         setImportNotice({
           tone: "neutral",
-          text: `Processed ${formatNumber(totals.processed)} of ${formatNumber(totalCandidates)} eligible session IDs · ${formatNumber(totals.completed)} completed…`,
+          text: `Processed ${formatNumber(totals.processed)} of ${formatNumber(totalCandidates)} eligible session ${noun(totalCandidates, "ID", "IDs")} · ${formatNumber(totals.completed)} completed…`,
         })
         cursor = typeof body.next_cursor === "number" ? body.next_cursor : null
         batchCount += 1
@@ -915,11 +935,11 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
         text:
           `${partial ? "Processed" : "Imported"} ${formatNumber(totals.processed)} session ID${totals.processed === 1 ? "" : "s"}: ` +
           `${formatNumber(totals.completed)} completed` +
-          (totals.retryable ? `, ${formatNumber(totals.retryable)} need another attempt` : "") +
+          (totals.retryable ? `, ${formatNumber(totals.retryable)} ${noun(totals.retryable, "needs", "need")} another attempt` : "") +
           (nonRetryable ? `, and ${formatNumber(nonRetryable)} could not be imported` : "") +
-          `. ${formatNumber(totals.entitiesCreated)} new entities and ${formatNumber(totals.entitiesMerged)} reinforced.` +
+          `. ${formatNumber(totals.entitiesCreated)} new ${noun(totals.entitiesCreated, "entity", "entities")} and ${formatNumber(totals.entitiesMerged)} reinforced.` +
           (totals.alreadyPresent
-            ? ` ${formatNumber(totals.alreadyPresent)} were already in your graph.`
+            ? ` ${formatNumber(totals.alreadyPresent)} ${noun(totals.alreadyPresent, "was", "were")} already in your graph.`
             : "") +
           (moreBatchesRemain
             ? " This bounded import stopped before all eligible sessions were processed. More sessions remain according to the returned cursor. You can run Import past sessions again."
@@ -930,18 +950,32 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
       if (await admitted() && isCurrent()) {
         setImportNotice({
           tone: "error",
+          ...(KNOWLEDGE_FIXES ? { kind: "failed" as const } : {}),
           text:
-            (totals.processed ? `${formatNumber(totals.processed)} session IDs were processed before import paused. ` : "") +
-            (error instanceof Error ? error.message : "Past sessions could not be imported."),
+            (totals.processed ? `${formatNumber(totals.processed)} session ${noun(totals.processed, "ID was", "IDs were")} processed before import paused. ` : "") +
+            (KNOWLEDGE_FIXES
+              ? plainKnowledgeError(error, IMPORT_FAILED_TEXT, OFFLINE_IMPORT_TEXT)
+              : error instanceof Error ? error.message : "Past sessions could not be imported."),
         })
       }
     } finally {
       if (await admitted() && isCurrent()) {
+        // Flag on: the import finished (or failed) in this tab, so there is nothing left to announce. An import cut short by leaving the page
+        // within the app never gets here, and its marker stays. A reload or a closed tab makes the browser reject the request that is in
+        // flight, which lands here as a network failure: pagehide comes first, so that case keeps the marker too.
+        if (KNOWLEDGE_FIXES && !pageLeavingRef.current) clearImportMarker(markerOwner, markerStartedAt)
         importActiveRef.current = false
         setImporting(false)
       }
     }
   }, [loadData, operationOwner, operationLifetime, waitForAdmission])
+
+  // Flag on: every way to start an import (the header button, the empty-map button, the failed-import banner's Retry) only opens the confirm
+  // dialog. The import starts from the dialog's own button and from nowhere else.
+  const requestImport = useCallback(() => {
+    if (importActiveRef.current) return
+    setImportConfirm({ warning: importConfirmWarning(readImportMarker(ownerTag(operationOwner))) })
+  }, [operationOwner])
 
   const filteredGraph = useMemo(() => {
     if (!graph || hiddenTypes.size === 0) return graph
@@ -971,7 +1005,29 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
   const visibleNodes = filteredGraph?.nodes.length ?? 0
   const selectedMapNode = selectedId ? graph?.nodes.find(node => node.node_id === selectedId) : undefined
   const selectionOutsideMap = Boolean(selectedId && graph && !filteredGraph?.nodes.some(node => node.node_id === selectedId))
+  // Flag on: the graph loaded and has nothing in it (the page's own empty-map condition).
+  const graphIsEmpty = KNOWLEDGE_EMPTY_STATE && isEmptyGraph({ dataLoading, graph, loadError })
 
+  // Flag on: a render error inside one section shows a plain notice in that section's place; the rest of the page keeps working.
+  // Flag off: returns the node untouched.
+  const guardSection = (label: string, node: ReactNode, resetKey?: unknown) =>
+    KNOWLEDGE_FIXES ? <KnowledgeSectionBoundary label={label} resetKey={resetKey}>{node}</KnowledgeSectionBoundary> : node
+
+  // Flag on (SB-10): `decks` is the person's deck list, read once by StudioP2DeckProvider. Off, renderInspector() is called without it and the element is the base's.
+  const renderInspector = (decks?: StudioDeckDirectory) => (
+    <Inspector
+      selected={selected}
+      loading={selectedLoading}
+      error={selectedError}
+      topEntities={stats?.top_entities ?? []}
+      onSelect={selectKnowledgeNode}
+      selectedId={selectedId}
+      onRetry={() => setDetailAttempt(attempt => attempt + 1)}
+      onClear={() => setSelectedId(null)}
+      {...(KNOWLEDGE_EMPTY_STATE ? { emptyGraph: graphIsEmpty } : {})}
+      {...(decks ? { decks } : {})}
+    />
+  )
   const summaryCards = (
 <section data-studio-knowledge-role="summary" className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Knowledge graph summary">
         {dataLoading && !stats ? (
@@ -988,7 +1044,7 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
         )}
       </section>
   )
-  const typeFilters = (
+  const renderTypeFilters = () => (
 stats && stats.nodes_by_type.length > 0 && (
               <div data-studio-knowledge-role="filters" className="mt-4 flex flex-wrap gap-1.5" aria-label="Filter entities by type">
                 {stats.nodes_by_type.map((item) => {
@@ -1026,6 +1082,12 @@ stats && stats.nodes_by_type.length > 0 && (
               </div>
             )
   )
+  // Flag on: evaluated inside its own boundary, so a bad field here cannot throw from the page body itself.
+  const typeFilters = KNOWLEDGE_FILTER_TABS
+    ? <StudioKnowledgeFilterTabs nodesByType={stats?.nodes_by_type} hiddenTypes={hiddenTypes} onPick={setHiddenTypes} colorFor={typeColor} />
+    : KNOWLEDGE_FIXES
+    ? <KnowledgeSectionBoundary label="type filters" resetKey={stats}><LazySection render={renderTypeFilters} /></KnowledgeSectionBoundary>
+    : renderTypeFilters()
   const headerContext = <>
 <p data-studio-knowledge-role="description" className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
             Explore the entities, relationships, and source evidence accumulated from the decks you chose to connect.
@@ -1036,6 +1098,76 @@ stats && stats.nodes_by_type.length > 0 && (
             </p>
           )}
   </>
+  // Flag on (J6 L5): the header's one "Sources" menu, with the page's own handlers and numbers. With the Second Brain flag also on (PASS2 SB-02) the same props go to the menu that holds the
+  // read-only sources list too (StudioP2SourcesMenu), so the header has one Sources control, not two.
+  const sourcesMenuProps = {
+    sessions: stats?.sessions_consolidated,
+    importing,
+    loading: dataLoading,
+    onImport: KNOWLEDGE_FIXES ? requestImport : runImport,
+    onRefresh: () => void loadData(),
+    settingsHref: "/settings/knowledge-graph",
+  }
+  // Flag on (J6 L5): the search field sits in the header; the one block of markup, the same handlers. Flag off: rendered in the map header, as before.
+  const knowledgeSearch = (
+    <div data-studio-knowledge-role="search" className="relative w-full lg:max-w-sm">
+      <form
+        onSubmit={(event) => { event.preventDefault(); void runSearch() }}
+        className="flex gap-2"
+        role="search"
+      >
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Input
+            ref={STUDIO_SHELL ? searchInputRef : undefined}
+            value={searchQuery}
+            onChange={(event) => {
+              setSearchQuery(event.target.value)
+              clearSearchResults()
+            }}
+            className="pl-9 pr-8"
+            placeholder="Search your knowledge…"
+            aria-label="Search your knowledge graph"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => { setSearchQuery(""); clearSearchResults(); if (STUDIO_SHELL) searchInputRef.current?.focus() }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 dark:hover:text-slate-200"
+              aria-label="Clear search"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        <Button type="submit" variant="outline" size="icon" disabled={searchLoading} aria-label="Run search">
+          {searchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+        </Button>
+      </form>
+
+      {searchHits !== null && (
+        <div data-studio-knowledge-role={STUDIO_SHELL ? "search-results" : undefined} className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+          {STUDIO_SHELL && <div className="sk-search-summary"><span>{searchError ? "Search unavailable" : `${searchHits.length} returned results`}</span><button type="button" aria-label="Close knowledge search results" onClick={() => { clearSearchResults(); searchInputRef.current?.focus() }}><X size={13} /></button></div>}
+          {searchError && (KNOWLEDGE_FIXES
+            ? <div className="flex items-center justify-between gap-3 px-3 py-3"><p className="min-w-0 text-sm text-amber-700 dark:text-amber-300">{searchError}</p><button type="button" onClick={() => void runSearch()} className="shrink-0 rounded-md border border-amber-300 px-2.5 py-0.5 text-xs font-medium text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:border-amber-800 dark:text-amber-100 dark:hover:bg-amber-950/50">Retry</button></div>
+            : <p className="px-3 py-3 text-sm text-amber-700 dark:text-amber-300">{searchError}</p>)}
+          {!searchError && searchHits.length === 0 && <p className="px-3 py-3 text-sm text-slate-500">No matching entities found.</p>}
+          {!searchError && searchHits.map((node) => (
+            <button
+              key={node.node_id}
+              type="button"
+              onClick={() => { setSelectedId(node.node_id); clearSearchResults() }}
+              className="flex w-full items-center gap-2 border-b border-slate-100 px-3 py-2.5 text-left last:border-0 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500 dark:border-slate-800 dark:hover:bg-slate-800"
+            >
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: typeColor(node.entity_type) }} />
+              <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800 dark:text-slate-200">{node.name}</span>
+              <span className="text-[10px] uppercase text-slate-400">{node.entity_type}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <main data-studio-knowledge="true" data-studio-intro-surface="knowledge" className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
@@ -1050,17 +1182,26 @@ stats && stats.nodes_by_type.length > 0 && (
           {STUDIO_SHELL && <p className="sk-page-subtitle">Your sources and ideas, connected in one view.</p>}
           {STUDIO_SHELL ? <details data-studio-knowledge-role="context"><summary>About this knowledge{lastUpdated ? ` · Updated ${lastUpdated}` : ""}</summary>{headerContext}</details> : headerContext}
         </div>
-        <div data-studio-knowledge-role="actions" className="flex flex-wrap gap-2">
-          {STUDIO_SHELL && <Button variant="outline" disabled={dataLoading || importing} onClick={() => void loadData()}><RefreshCw className={cn("mr-2 h-4 w-4", dataLoading && "animate-spin")} />{dataLoading ? "Refreshing…" : "Refresh"}</Button>}
-          <Button variant="outline" onClick={runImport} disabled={importing}>
-            {importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Import className="mr-2 h-4 w-4" />}
-            {importing ? "Importing…" : "Import past sessions"}
-          </Button>
-          <Button asChild variant="ghost" size="icon">
-            <Link href="/settings/knowledge-graph" aria-label="Knowledge Graph settings" title="Knowledge settings">
-              <Settings className="h-4 w-4" />
-            </Link>
-          </Button>
+        <div data-studio-knowledge-role={KNOWLEDGE_HEADER_ACTIONS ? "header-tools" : "actions"} className="flex flex-wrap gap-2">
+          {P2_SB && !KNOWLEDGE_HEADER_ACTIONS && <StudioP2Sources entities={stats?.top_entities ?? []} />}
+          {KNOWLEDGE_HEADER_ACTIONS && (P2_SB
+            ? <StudioP2SourcesMenu entities={stats?.top_entities ?? []} {...sourcesMenuProps} />
+            : <StudioKnowledgeSourcesMenu {...sourcesMenuProps} />)}
+          {KNOWLEDGE_HEADER_ACTIONS && knowledgeSearch}
+          {!KNOWLEDGE_HEADER_ACTIONS && STUDIO_SHELL && <Button variant="outline" disabled={dataLoading || importing} onClick={() => void loadData()}><RefreshCw className={cn("mr-2 h-4 w-4", dataLoading && "animate-spin")} />{dataLoading ? "Refreshing…" : "Refresh"}</Button>}
+          {!KNOWLEDGE_HEADER_ACTIONS && (
+            <Button variant="outline" onClick={KNOWLEDGE_FIXES ? requestImport : runImport} disabled={importing}>
+              {importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Import className="mr-2 h-4 w-4" />}
+              {importing ? "Importing…" : "Import past sessions"}
+            </Button>
+          )}
+          {!KNOWLEDGE_HEADER_ACTIONS && (
+            <Button asChild variant="ghost" size="icon">
+              <Link href="/settings/knowledge-graph" aria-label="Knowledge Graph settings" title="Knowledge settings">
+                <Settings className="h-4 w-4" />
+              </Link>
+            </Button>
+          )}
         </div>
       </header>
 
@@ -1074,16 +1215,26 @@ stats && stats.nodes_by_type.length > 0 && (
             importNotice.tone === "neutral" && "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200"
           )}
         >
-          <span>{importNotice.text}</span>
+          <span className={KNOWLEDGE_FIXES ? "min-w-0 flex-1" : undefined}>{importNotice.text}</span>
+          {KNOWLEDGE_FIXES && importNotice.kind === "failed" && !importing && (
+            <button type="button" onClick={() => requestImport()} className="shrink-0 rounded-md border border-red-300 bg-white/70 px-2.5 py-0.5 text-xs font-medium text-red-800 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current dark:border-red-800 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-950/50">
+              Retry
+            </button>
+          )}
+          {KNOWLEDGE_FIXES && importNotice.kind === "resumed" && (
+            <button type="button" disabled={dataLoading} onClick={() => void loadData()} className="shrink-0 rounded-md border border-blue-300 bg-white/70 px-2.5 py-0.5 text-xs font-medium text-blue-800 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current disabled:opacity-60 dark:border-blue-800 dark:bg-transparent dark:text-blue-200 dark:hover:bg-blue-950/50">
+              Refresh
+            </button>
+          )}
           {!importing && (
-            <button type="button" onClick={() => { interruptedImportRef.current.interrupted = false; setImportNotice(null) }} className="rounded p-0.5 hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current" aria-label="Dismiss import message">
+            <button type="button" onClick={() => { interruptedImportRef.current.interrupted = false; if (KNOWLEDGE_FIXES && importNotice.kind === "interrupted") clearImportMarker(ownerTag(operationOwner)); setImportNotice(null) }} className="rounded p-0.5 hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current" aria-label="Dismiss import message">
               <X className="h-4 w-4" />
             </button>
           )}
         </div>
       )}
 
-      {STUDIO_SHELL ? <details data-studio-knowledge-role="summary-disclosure"><summary><span>Knowledge summary</span><span>{stats ? `${formatNumber(stats.node_count)} entities · ${formatNumber(stats.edge_count)} relations · ${formatNumber(stats.evidence_count)} evidence · ${formatNumber(stats.sessions_consolidated)} sessions` : dataLoading ? "Loading counts…" : "Counts not loaded"}</span></summary>{summaryCards}</details> : summaryCards}
+      {guardSection("summary", STUDIO_SHELL ? <details data-studio-knowledge-role="summary-disclosure"><summary><span>Knowledge summary</span><span>{stats ? `${formatNumber(stats.node_count)} ${noun(stats.node_count, "entity", "entities")} · ${formatNumber(stats.edge_count)} ${noun(stats.edge_count, "relation", "relations")} · ${formatNumber(stats.evidence_count)} evidence · ${formatNumber(stats.sessions_consolidated)} ${noun(stats.sessions_consolidated, "session", "sessions")}` : dataLoading ? "Loading counts…" : "Counts not loaded"}</span></summary>{summaryCards}</details> : summaryCards, stats)}
 
       {loadError && (
         <section data-studio-knowledge-role={STUDIO_SHELL ? "load-error" : undefined} role={STUDIO_SHELL ? "alert" : undefined} className="mb-4 flex flex-col items-start justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center dark:border-amber-900/60 dark:bg-amber-950/30">
@@ -1101,84 +1252,24 @@ stats && stats.nodes_by_type.length > 0 && (
         </section>
       )}
 
-      <div ref={explorationRef} data-studio-knowledge-role="layout" data-knowledge-immersive={immersive ? "true" : undefined} role={immersive ? "dialog" : undefined} aria-modal={immersive || undefined} aria-label={immersive ? "Full-screen knowledge exploration" : undefined} className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_370px]">
-        {/* Keep this slot mounted so presentation changes never shift/remount the map. */}
-        <header className="sk-immersive-header" hidden={!immersive}>
-          <div><Network size={20} /><span><strong>Second Brain</strong><small>Explore your loaded map and recorded evidence</small></span></div>
-          <button ref={returnButtonRef} type="button" onClick={closeImmersive}><Minimize2 size={16} /><span>Return to Second Brain</span><kbd>Esc</kbd></button>
-        </header>
+      {KG_ASK && <StudioKgAsk />}
+
+      <div data-studio-knowledge-role="layout" className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_370px]">
         <section data-studio-knowledge-role="map-panel" className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
           <div data-studio-knowledge-role="map-header" className="border-b border-slate-200 p-4 dark:border-slate-800">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <div className="sk-map-title-row">
-                  <h2 className="flex items-center gap-2 text-base font-semibold text-slate-950 dark:text-white">
-                    <Network className="h-4 w-4 text-violet-500" /> Knowledge map
-                  </h2>
-                  <button ref={fullscreenTriggerRef} type="button" className="sk-fullscreen-trigger" hidden={immersive} disabled={!graph || graph.nodes.length === 0} onClick={openImmersive} aria-label="Open full-screen knowledge exploration" title="Explore this map and its entity list in full screen"><Maximize2 size={14} /><span>Fullscreen</span></button>
-                </div>
+                <h2 className="flex items-center gap-2 text-base font-semibold text-slate-950 dark:text-white">
+                  <Network className="h-4 w-4 text-violet-500" /> Knowledge map
+                </h2>
                 <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                   {graph
-                    ? `Showing ${formatNumber(visibleNodes)} of ${formatNumber(graph.total_nodes)} entities`
+                    ? `Showing ${formatNumber(visibleNodes)} of ${formatNumber(graph.total_nodes)} ${noun(graph.total_nodes, "entity", "entities")}`
                     : STUDIO_SHELL && !dataLoading ? "Graph not loaded" : "Loading the most reinforced entities…"}
                 </p>
               </div>
 
-              <div data-studio-knowledge-role="search" className="relative w-full lg:max-w-sm">
-                <form
-                  onSubmit={(event) => { event.preventDefault(); void runSearch() }}
-                  className="flex gap-2"
-                  role="search"
-                >
-                  <div className="relative min-w-0 flex-1">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <Input
-                      ref={STUDIO_SHELL ? searchInputRef : undefined}
-                      value={searchQuery}
-                      onChange={(event) => {
-                        setSearchQuery(event.target.value)
-                        clearSearchResults()
-                      }}
-                      className="pl-9 pr-8"
-                      placeholder="Search your knowledge…"
-                      aria-label="Search your knowledge graph"
-                    />
-                    {searchQuery && (
-                      <button
-                        type="button"
-                        onClick={() => { setSearchQuery(""); clearSearchResults(); if (STUDIO_SHELL) searchInputRef.current?.focus() }}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 dark:hover:text-slate-200"
-                        aria-label="Clear search"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                  <Button type="submit" variant="outline" size="icon" disabled={searchLoading} aria-label="Run search">
-                    {searchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-                  </Button>
-                </form>
-
-                {searchHits !== null && (
-                  <div data-studio-knowledge-role={STUDIO_SHELL ? "search-results" : undefined} className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
-                    {STUDIO_SHELL && <div className="sk-search-summary"><span>{searchError ? "Search unavailable" : `${searchHits.length} returned results`}</span><button type="button" aria-label="Close knowledge search results" onClick={() => { clearSearchResults(); searchInputRef.current?.focus() }}><X size={13} /></button></div>}
-                    {searchError && <p className="px-3 py-3 text-sm text-amber-700 dark:text-amber-300">{searchError}</p>}
-                    {!searchError && searchHits.length === 0 && <p className="px-3 py-3 text-sm text-slate-500">No matching entities found.</p>}
-                    {!searchError && searchHits.map((node) => (
-                      <button
-                        key={node.node_id}
-                        type="button"
-                        onClick={() => { setSelectedId(node.node_id); clearSearchResults() }}
-                        className="flex w-full items-center gap-2 border-b border-slate-100 px-3 py-2.5 text-left last:border-0 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500 dark:border-slate-800 dark:hover:bg-slate-800"
-                      >
-                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: typeColor(node.entity_type) }} />
-                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800 dark:text-slate-200">{node.name}</span>
-                        <span className="text-[10px] uppercase text-slate-400">{node.entity_type}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              {KNOWLEDGE_HEADER_ACTIONS ? null : knowledgeSearch}
             </div>
 
             {typeFilters}
@@ -1198,7 +1289,10 @@ stats && stats.nodes_by_type.length > 0 && (
               </div>
             )}
 
-            {!dataLoading && graph && graph.nodes.length === 0 && !loadError && (
+            {graphIsEmpty && (
+              <StudioKnowledgeEmptyMap importing={importing} onImport={KNOWLEDGE_FIXES ? requestImport : runImport} />
+            )}
+            {!KNOWLEDGE_EMPTY_STATE && !dataLoading && graph && graph.nodes.length === 0 && !loadError && (
               <div data-studio-knowledge-role={STUDIO_SHELL ? "map-empty" : undefined} className="flex min-h-[520px] flex-col items-center justify-center rounded-2xl bg-[#070b18] px-6 text-center">
                 <div className="rounded-2xl border border-violet-400/20 bg-violet-500/10 p-4 text-violet-300">
                   <Brain className="h-8 w-8" />
@@ -1208,13 +1302,13 @@ stats && stats.nodes_by_type.length > 0 && (
                   Build a deck with Knowledge enabled, or import eligible past sessions to create your first entities and connections.
                 </p>
                 <div className="mt-5 flex flex-wrap justify-center gap-2">
-                  <Button onClick={runImport} disabled={importing}><Import className="mr-2 h-4 w-4" /> Import past sessions</Button>
+                  <Button onClick={KNOWLEDGE_FIXES ? requestImport : runImport} disabled={importing}><Import className="mr-2 h-4 w-4" /> Import past sessions</Button>
                   <Button asChild variant="outline" className="border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:text-white"><Link href="/builder">Build a deck</Link></Button>
                 </div>
               </div>
             )}
 
-            {filteredGraph && filteredGraph.nodes.length > 0 && (
+            {filteredGraph && filteredGraph.nodes.length > 0 && guardSection("knowledge map", (
               <KgGraphView
                 key={presentationContext.generation}
                 nodes={filteredGraph.nodes}
@@ -1223,7 +1317,7 @@ stats && stats.nodes_by_type.length > 0 && (
                 onSelect={selectKnowledgeNode}
                 presentation={graphPresentation}
               />
-            )}
+            ), graph)}
 
             {graph && graph.nodes.length > 0 && filteredGraph?.nodes.length === 0 && (
               <div data-studio-knowledge-role={STUDIO_SHELL ? "map-filtered" : undefined} className="flex min-h-[430px] flex-col items-center justify-center rounded-2xl bg-[#070b18] px-6 text-center sm:min-h-[520px]">
@@ -1235,17 +1329,16 @@ stats && stats.nodes_by_type.length > 0 && (
           </div>
         </section>
 
-        <Inspector
-          selected={selected}
-          loading={selectedLoading}
-          error={selectedError}
-          topEntities={stats?.top_entities ?? []}
-          onSelect={selectKnowledgeNode}
-          selectedId={selectedId}
-          onRetry={() => setDetailAttempt(attempt => attempt + 1)}
-          onClear={() => setSelectedId(null)}
-        />
+        {guardSection("entity inspector", P2_SB ? <StudioP2DeckProvider enabled={selectedId !== null}>{renderInspector}</StudioP2DeckProvider> : renderInspector(), selected ?? selectedId)}
       </div>
+      {KNOWLEDGE_FIXES && (
+        <KnowledgeImportConfirm
+          open={importConfirm !== null}
+          warning={importConfirm?.warning ?? null}
+          onCancel={() => setImportConfirm(null)}
+          onConfirm={() => { setImportConfirm(null); if (!importActiveRef.current) void runImport() }}
+        />
+      )}
       <StudioIntroReplay screen="knowledge" autoStart={true} targetSelector='[data-studio-intro-surface="knowledge"]' className="studio-destination-intro-replay" />
     </main>
   )

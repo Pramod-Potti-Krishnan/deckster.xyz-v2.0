@@ -1,0 +1,95 @@
+{
+  "case": "30-notes-ok",
+  "user_message": {
+    "text": "Set slide 3's speaker notes to open with the churn number",
+    "client_caps": [
+      "mdc1",
+      "element_edit1",
+      "notes1",
+      "undo1"
+    ]
+  },
+  "decision": {
+    "action_type": "set_speaker_notes",
+    "reasoning": "scripted",
+    "confidence": 0.95,
+    "requires_approval": false,
+    "target_slide_indices": [
+      2
+    ],
+    "notes_text": "Open with the churn number, then ask for questions."
+  },
+  "frames_in": [],
+  "frames_out": [
+    [
+      {
+        "message_id": "msg_dmut_ce1727ad",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:22:01.974300Z",
+        "type": "deck_mutation",
+        "role": "assistant",
+        "payload": {
+          "mutation": "notes_updated",
+          "slide_index": 2,
+          "new_slide_index": null,
+          "presentation_id": "pres-e2e",
+          "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+          "refresh_token": "dm_a0a34cc1db3d"
+        }
+      },
+      {
+        "message_id": "msg_368a6d5c",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:22:01.976003Z",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Done. The speaker notes for slide 3 are updated.",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      },
+      {
+        "message_id": "msg_chg_c61119fd",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:22:01.982884Z",
+        "type": "change_recorded",
+        "role": "assistant",
+        "payload": {
+          "change_id": "chg_65195ce0ae77",
+          "label": "Updated the notes on slide 3",
+          "kind": "notes_updated",
+          "presentation_id": "pres-e2e",
+          "undoable": true,
+          "anchor_message_id": "msg_368a6d5c"
+        }
+      }
+    ]
+  ],
+  "chat_lines": [
+    "Done. The speaker notes for slide 3 are updated."
+  ],
+  "layout_calls": [
+    "GET /api/presentations/pres-e2e",
+    "GET /api/presentations/pres-e2e",
+    "PUT /api/presentations/pres-e2e",
+    "GET /api/presentations/pres-e2e/versions",
+    "PUT /api/presentations/pres-e2e/slides/2",
+    "GET /api/presentations/pres-e2e",
+    "GET /api/presentations/pres-e2e/versions"
+  ],
+  "layout_put_bodies": [
+    {
+      "index": 2,
+      "params": {
+        "created_by": "director_chat",
+        "change_summary": "Changed the speaker notes of slide 3"
+      },
+      "body": {
+        "speaker_notes": "Open with the churn number, then ask for questions."
+      }
+    }
+  ]
+}

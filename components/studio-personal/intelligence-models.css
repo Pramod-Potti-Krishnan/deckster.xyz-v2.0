@@ -1,0 +1,73 @@
+/* NEXT_PUBLIC_STUDIO_MODEL_CATALOG. Every rule here styles markup that exists only with the flag on (the sp-mc-* classes and [data-studio-model-catalog-frame], both added by
+   app/(app)/studio/intelligence/layout.tsx). With the flag off no element matches, so the page is unchanged. The section is a docked bar below the Intelligence page: closed it is one line, open it is a
+   panel that scrolls on its own. The page above gives up exactly that much height and is otherwise untouched. */
+.sp-mc {
+  --sp-panel: var(--ss-panel, #fff);
+  --sp-surface: var(--ss-surface, #f5f7f6);
+  --sp-line: var(--ss-line, #d6e1dc);
+  --sp-text: var(--ss-text, #243438);
+  --sp-muted: var(--ss-muted, #566965);
+  --sp-accent: var(--ss-accent, #6a4fc0);
+  --sp-teal: var(--ss-teal, #1f6f72);
+  --sp-active: var(--ss-active, #e8f2f0);
+  min-width: 0; border-top: 1px solid var(--sp-line); background: var(--sp-panel); color: var(--sp-text); font-size: 13px; line-height: 1.5;
+}
+.sp-mc * { box-sizing: border-box; }
+.sp-mc :is(h2, h3, p, ul) { margin: 0; }
+.sp-mc :is(button, input):focus-visible { outline: 2px solid var(--sp-accent); outline-offset: 2px; }
+.sp-mc button { font: inherit; cursor: pointer; }
+.sp-mc button:disabled { cursor: not-allowed; }
+.sp-mc-heading { font-size: inherit; font-weight: inherit; }
+.sp-mc-toggle { display: flex; align-items: center; gap: 12px; width: 100%; max-width: 1320px; min-height: 42px; margin: 0 auto; padding: 8px 30px; border: 0; background: transparent; color: inherit; text-align: left; }
+.sp-mc-toggle:hover { background: var(--sp-active); }
+.sp-mc-title { font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--sp-muted); }
+.sp-mc-summary { min-width: 0; flex: 1; color: var(--sp-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-mc-chevron { flex-shrink: 0; color: var(--sp-muted); transition: transform .15s; }
+.sp-mc[data-mc-open="true"] .sp-mc-chevron { transform: rotate(180deg); }
+.sp-mc-panel { max-height: min(52dvh, 520px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; border-top: 1px solid var(--sp-line); }
+.sp-mc-inner { max-width: 1320px; margin: 0 auto; padding: 14px 30px 18px; }
+.sp-mc-state { padding: 10px 0; color: var(--sp-muted); }
+.sp-mc-state strong { color: var(--sp-text); font-weight: 600; }
+.sp-mc-state p + p, .sp-mc-state p + button { margin-top: 4px; }
+.sp-mc-state button + button { margin-left: 8px; }
+.sp-mc-button { min-height: 32px; padding: 5px 12px; border: 1px solid var(--sp-line); border-radius: 7px; background: var(--sp-panel); color: var(--sp-text); font-size: 12px; font-weight: 600; }
+.sp-mc-button:hover:not(:disabled) { background: var(--sp-active); }
+.sp-mc-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin-bottom: 12px; }
+.sp-mc-switch { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.sp-mc-switch input { width: 15px; height: 15px; margin: 0; accent-color: var(--sp-teal); }
+.sp-mc-note { display: flex; align-items: center; gap: 7px; min-width: 0; flex: 1 1 280px; color: var(--sp-muted); font-size: 11px; }
+.sp-mc-note svg { flex-shrink: 0; }
+.sp-mc-version { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--sp-muted); font-size: 10px; }
+.sp-mc-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; align-items: start; }
+.sp-mc-group { min-width: 0; border: 1px solid var(--sp-line); border-radius: 10px; background: var(--sp-panel); overflow: hidden; }
+.sp-mc-group-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--sp-line); }
+.sp-mc-group-head h3 { color: var(--sp-muted); font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
+.sp-mc-group-head small { flex-shrink: 0; color: var(--sp-muted); font-size: 10px; }
+.sp-mc-rows { padding: 0; list-style: none; }
+.sp-mc-row { padding: 9px 12px; border-top: 1px solid var(--sp-line); }
+.sp-mc-row:first-child { border-top: 0; }
+.sp-mc-row[data-mc-selectable="false"] { color: var(--sp-muted); }
+.sp-mc-row-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.sp-mc-row-head strong { font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+.sp-mc-badge { padding: 0 6px; border-radius: 999px; font-size: 10px; font-weight: 600; line-height: 16px; white-space: nowrap; }
+.sp-mc-badge-suggested { background: var(--sp-active); color: var(--sp-teal); }
+.sp-mc-badge-premium { border: 1px solid var(--sp-line); color: var(--sp-text); }
+.sp-mc-badge-closed { border: 1px dashed var(--sp-line); color: var(--sp-muted); }
+.sp-mc-meta { margin-top: 1px; color: var(--sp-muted); font-size: 10px; overflow-wrap: anywhere; }
+.sp-mc-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; padding: 0; list-style: none; }
+.sp-mc-chips li { padding: 0 7px; border: 1px solid var(--sp-line); border-radius: 6px; color: var(--sp-muted); font-size: 10px; line-height: 17px; }
+.sp-mc-none, .sp-mc-count { padding: 9px 12px; color: var(--sp-muted); font-size: 11px; }
+.sp-mc-count { border-top: 1px solid var(--sp-line); font-size: 10px; }
+.sp-mc-more { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; }
+.sp-mc-more-error { color: var(--sp-muted); font-size: 11px; }
+/* The Intelligence page fits the window on a desktop (its own panes scroll); beside the docked bar it takes the height that is left. Below 851px the page flows and so does the bar. */
+@media (min-width: 851px) {
+  [data-studio-model-catalog-frame] { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+  [data-studio-model-catalog-frame] > .sp-workspace { flex: 1 1 0; height: auto; min-height: 0; }
+  [data-studio-model-catalog-frame] > .sp-mc { flex: 0 0 auto; }
+}
+@media (max-width: 850px) {
+  .sp-mc-toggle { padding: 8px 18px; }
+  .sp-mc-inner { padding: 12px 18px 16px; }
+  .sp-mc-panel { max-height: none; }
+}

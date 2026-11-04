@@ -1,0 +1,69 @@
+[
+  {"args":[{"message_id":"msg-greeting","type":"chat_message"}],"name":"hook.onMessage","step":2},
+  {
+    "args": [
+      "Build a deck about ocean currents",
+      0,
+      {
+        "deepResearch": false,
+        "extendedGeneration": true,
+        "fileUpload": false,
+        "storeName": null,
+        "useKnowledgeGraph": false,
+        "webSearch": false
+      }
+    ],
+    "name": "page.sendTypedTurn",
+    "step": 3
+  },
+  {
+    "args": [
+      {
+        "message_id": "synthetic-uuid-0001",
+        "payload": {"text":"Build a deck about ocean currents"},
+        "type": "chat_message"
+      },
+      "Build a deck about ocean currents"
+    ],
+    "name": "page.persistence.queueMessage",
+    "step": 3
+  },
+  {"args":[{"message_id":"msg-think-1","type":"chat_message"}],"name":"hook.onMessage","step":4},
+  {"args":[{"message_id":"msg-status-1","type":"status_update"}],"name":"hook.onMessage","step":5},
+  {"args":[{"message_id":"msg-status-2","type":"status_update"}],"name":"hook.onMessage","step":7},
+  {
+    "args": [
+      "Build a deck about ocean currents",
+      0,
+      {
+        "deepResearch": false,
+        "extendedGeneration": true,
+        "fileUpload": false,
+        "storeName": null,
+        "useKnowledgeGraph": false,
+        "webSearch": false
+      }
+    ],
+    "name": "page.sendTypedTurn",
+    "step": 15
+  },
+  {
+    "args": [
+      {
+        "message_id": "synthetic-uuid-0002",
+        "payload": {"text":"Build a deck about ocean currents"},
+        "type": "chat_message"
+      },
+      "Build a deck about ocean currents"
+    ],
+    "name": "page.persistence.queueMessage",
+    "step": 15
+  },
+  {"args":[{"message_id":"msg-think-2","type":"chat_message"}],"name":"hook.onMessage","step":19},
+  {"args":[{"message_id":"msg-plan","type":"chat_message"}],"name":"hook.onMessage","step":20},
+  {
+    "args": [{"message_id":"msg_plan_confirm_synthetic-session-error-retry","type":"action_request"}],
+    "name": "hook.onMessage",
+    "step": 21
+  }
+]

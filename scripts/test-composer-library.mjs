@@ -15,6 +15,7 @@ function load(relative, context = {}, imports = {}) {
   return module.exports
 }
 
+const serviceUrl = load('../lib/service-url.ts')
 const contracts = load('../lib/composer-library.ts')
 const { requireComposerServiceUrl, validateComposerFile, composerReadyResult } = contracts
 const host = 'directorv40-uat.up.railway.app'
@@ -41,6 +42,7 @@ const route = load('../app/api/composer-library/[...path]/route.ts', {
   process: { env },
   fetch: async (url, options) => { calls.push({ url, options }); return Response.json({ job_id: 'job-1', status: 'queued' }, { status: 202 }) },
 }, {
+  '@/lib/service-url': serviceUrl,
   'next/server': { NextResponse: Response },
   'next-auth': { getServerSession: async () => identity },
   '@/lib/auth-options': { authOptions: {} },
@@ -53,7 +55,9 @@ const route = load('../app/api/composer-library/[...path]/route.ts', {
       return ownedSession ? { id: query.where.id } : null
     } },
   } },
+  '@/lib/composer-long-brief': load('../lib/composer-long-brief.ts'),
   '@/lib/composer-library': contracts,
+  '@/lib/composer-ditto': load('../lib/composer-ditto.ts'),
 })
 function request(method, path, body, extraHeaders = {}) {
   const req = new Request(`http://localhost/api/composer-library/${path.join('/')}`, {
@@ -89,6 +93,8 @@ for (const path of [['upload'], ['templates', '../escape', 'use'], ['templates',
 assert.equal((await request('POST', ['upload-reference'], 'file-bytes', { 'Content-Type': 'application/octet-stream' })).status, 415)
 assert.equal((await request('POST', ['upload-reference'], 'x'.repeat(16385))).status, 413)
 assert.equal((await request('POST', ['templates', 'template-1', 'use'], { session_id: 'session-1', user_id: 'attacker' })).status, 400)
+// Flag off (NEXT_PUBLIC_COMPOSER_STAGE1B_DITTO_ENABLED unset): `mode` never reaches Director. The flag-on rules are in test-composer-ditto.mjs.
+assert.equal((await request('POST', ['templates', 'template-1', 'use'], { session_id: 'session-1', mode: 'ditto' })).status, 400)
 assert.equal(calls.length, 0)
 const upload = { session_id: 'session-1', researcher_session_id: 'session-1', storage_path: 'session-1/deck.pptx', file_name: 'deck.pptx', kind: 'pptx' }
 for (const spoof of [

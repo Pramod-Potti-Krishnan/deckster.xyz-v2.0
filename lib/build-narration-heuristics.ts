@@ -342,7 +342,7 @@ export type NarrationAction =
   | { type: 'awaiting_user'; ts: number }
   | { type: 'accepted'; ts: number } // accept clicked / isGeneratingFinal flipped
   | { type: 'planning_resumed'; ts: number } // plan gate answered; strawman generation started
-  | { type: 'final_url'; ts: number; presentationId?: string | null }
+  | { type: 'final_url'; ts: number; presentationId?: string | null; keepStopped?: boolean }
   | { type: 'pin'; slideIndex: number | null }
   | { type: 'control'; control: NarrationControl; ts: number }
   | { type: 'control_timeout'; requested: NarrationControl; fallback: NarrationControl; ts: number }
@@ -350,6 +350,7 @@ export type NarrationAction =
   | { type: 'typed_event'; payload: BuildEventPayload; ts: number }
   | { type: 'typed_slide_built'; payload: SlideBuiltPayload; ts: number }
   | { type: 'typed_sync'; buildState: unknown; ts: number; pendingControl?: NarrationControl }
+  | { type: 'status_ended'; ts: number } // BUILD-FAILURE-END: the transient status that opened the building phase has ended (the hook sends it only with NEXT_PUBLIC_STUDIO_BUILD_FAILURE_END)
   | { type: 'hydrate'; state: NarrationState };
 
 function capList<T>(list: T[], cap: number): T[] {
@@ -473,6 +474,12 @@ function typedStateForBuild(state: NarrationState, buildId?: string | null): Nar
   return { ...state, source: 'typed', buildId: buildId ?? state.buildId, retiredBuildIds };
 }
 
+// BUILD-FAILURE-END (NEXT_PUBLIC_STUDIO_BUILD_FAILURE_END): a "building" with nothing built behind it: not paused or stopped (or asked to be), no slide started, built or failed, no per-slide event. Director's legacy
+// BUILD-FAILURE-END: invoke_tools turn opens one with status_update "Generating presentation content..." and, when its tools fail, closes with one chat_message and no terminal frame (streams/director2/build-failure-frames/FINDINGS.md).
+// BUILD-FAILURE-END: Only the hook decides that a status is what opened it (use-build-narration.ts); this is the reducer's own last guard.
+export function isUnbackedBuilding(state: NarrationState): boolean { // BUILD-FAILURE-END
+  return state.active && state.phase === 'building' && state.control === 'running' && state.slidesDone === 0 && Object.keys(state.slideEvents).length === 0 && !Object.values(state.slideStates).some((s) => s !== 'pending') // BUILD-FAILURE-END
+} // BUILD-FAILURE-END
 export function narrationReducer(state: NarrationState, action: NarrationAction): NarrationState {
   switch (action.type) {
     case 'reset':
@@ -622,6 +629,10 @@ export function narrationReducer(state: NarrationState, action: NarrationAction)
       return toPhase(state, 'planning', action.ts);
 
     case 'final_url': {
+      // J7-RESUME-LOOP-P1 (NEXT_PUBLIC_STUDIO_BUILD_RESUME_FIX; the hook sets keepStopped): Director publishes the
+      // partial deck's URL after a Stop. It updates the deck only; the build stays stopped (Resume stays) until a
+      // later build_phase or a new build id. Without the flag this is today's completion.
+      if (action.keepStopped === true && state.phase === 'stopped') return state;
       if (action.presentationId && state.buildPresentationId && action.presentationId !== state.buildPresentationId) {
         return state;
       }
@@ -781,6 +792,9 @@ export function narrationReducer(state: NarrationState, action: NarrationAction)
       return next;
     }
 
+    case 'status_ended': // BUILD-FAILURE-END: leave an unbacked "building" (the outline and its ghosts stay, so a retry or an Accept starts from them); every other phase is untouched
+      if (!isUnbackedBuilding(state)) return state // BUILD-FAILURE-END
+      return { ...state, active: false, phase: 'idle', phaseLabel: '', startedAt: null, waitingSince: null, deckEvents: [], lastEventAt: null } // BUILD-FAILURE-END
     default:
       return state;
   }

@@ -2,16 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { getStripe } from '@/lib/stripe/stripe'
 import { prisma } from '@/lib/prisma'
-import { creditWallet, clawbackWallet } from '@/lib/wallet'
-import {
-  billingCycleForPrice,
-  disputeClawbackCents,
-  isMissingTable,
-  isStaleSubscriptionEvent,
-  isTopupPaid,
-  isUniqueViolation,
-  refundClawbackCents,
-} from '@/lib/billing/security'
+import { creditWallet } from '@/lib/wallet'
+import { tryResolveStripeSubscriptionPlan } from '@/lib/stripe/subscription-plan'
 import Stripe from 'stripe'
 
 export async function POST(req: NextRequest) {
@@ -214,20 +206,23 @@ async function handleWalletTopup(session: Stripe.Checkout.Session) {
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription, event: Stripe.Event) {
   console.log('📝 Subscription updated:', subscription.id)
 
-  // B7: ignore out-of-order events (an older event arriving after a newer one).
-  const newest = await newestProcessedSubscriptionEvent(subscription.id, event.id)
-  if (isStaleSubscriptionEvent(event.created, newest)) {
-    console.log(`[stripe-webhook] Stale ${event.type} for ${subscription.id} ignored`)
-    return
-  }
-  // Cancellation is terminal in Stripe: never resurrect a canceled subscription.
-  const existingSub = await prisma.subscription.findUnique({
-    where: { stripeSubscriptionId: subscription.id },
-    select: { status: true },
-  })
-  if (existingSub?.status === 'canceled') {
-    console.log(`[stripe-webhook] ${event.type} for canceled ${subscription.id} ignored`)
-    return
+  // Validate before any writes. Unset/false preserves the legacy webhook payloads. With the flag on, a
+  // subscription whose plan cannot be resolved (unknown price, price config missing or ambiguous, no item
+  // or more than one base-plan item) takes exactly the legacy path below and logs one warning, so Stripe
+  // gets a 200 and does not retry.
+  const resolution = process.env.STRIPE_REAL_TIER_MAPPING_ENABLED === 'true'
+    ? tryResolveStripeSubscriptionPlan(subscription.items, {
+        STRIPE_STARTER_MONTHLY_PRICE_ID: process.env.STRIPE_STARTER_MONTHLY_PRICE_ID,
+        STRIPE_STARTER_YEARLY_PRICE_ID: process.env.STRIPE_STARTER_YEARLY_PRICE_ID,
+        STRIPE_PRO_MONTHLY_PRICE_ID: process.env.STRIPE_PRO_MONTHLY_PRICE_ID,
+        STRIPE_PRO_YEARLY_PRICE_ID: process.env.STRIPE_PRO_YEARLY_PRICE_ID,
+        STRIPE_MAX_MONTHLY_PRICE_ID: process.env.STRIPE_MAX_MONTHLY_PRICE_ID,
+        STRIPE_MAX_YEARLY_PRICE_ID: process.env.STRIPE_MAX_YEARLY_PRICE_ID,
+      })
+    : null
+  const mappedPlan = resolution?.ok ? resolution.plan : null
+  if (resolution && !resolution.ok) {
+    console.warn(`[stripe-real-tier] plan not resolved (${resolution.reason}), keeping the legacy tier; price ids: ${resolution.priceIds.join(', ') || 'none'}`)
   }
 
   let userId = subscription.metadata.userId
@@ -244,21 +239,25 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription, even
     userId = user.id
   }
 
-  const priceId = subscription.items.data[0]?.price.id
-  const productId = subscription.items.data[0]?.price.product as string
+  const priceId = mappedPlan ? mappedPlan.priceId : subscription.items.data[0]?.price.id
+  const productId = mappedPlan ? mappedPlan.productId : subscription.items.data[0]?.price.product as string
 
   // Determine tier and billing cycle
   let tier = 'pro'
-  const billingCycle =
-    billingCycleForPrice(priceId, {
-      monthly: process.env.STRIPE_PRO_MONTHLY_PRICE_ID,
-      yearly: process.env.STRIPE_PRO_YEARLY_PRICE_ID,
-    }) ?? "monthly"
+  let billingCycle = 'monthly'
+
+  if (mappedPlan) {
+    tier = mappedPlan.tier
+    billingCycle = mappedPlan.billingCycle
+  } else if (priceId === process.env.STRIPE_PRO_YEARLY_PRICE_ID) {
+    billingCycle = 'yearly'
+  }
 
   // Upsert subscription
   await prisma.subscription.upsert({
     where: { stripeSubscriptionId: subscription.id },
     update: {
+      ...(mappedPlan ? { tier, billingCycle } : {}),
       status: subscription.status,
       stripePriceId: priceId,
       stripeProductId: productId,

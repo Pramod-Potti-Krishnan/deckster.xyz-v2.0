@@ -35,6 +35,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
+import { faqItemIdOf, inboxRowActions, STUDIO_P2_PUBLISH_INBOX_ENABLED as STUDIO_P2_INBOX } from '@/lib/studio-p2-publish'
 
 import './studio-qa-inbox.css'
 
@@ -51,6 +52,8 @@ interface DeckQuestion {
   ownerAnswer: string | null
   ownerAnsweredAt: string | null
   createdAt: string
+  /** NEXT_PUBLIC_STUDIO_P2_PUBLISH_INBOX: the published FAQ entry made from this question, when there is one. */
+  faqItemId?: string | null
 }
 
 interface InboxResponse {
@@ -167,19 +170,21 @@ function QuestionRow({
   const isDeferred = item.status === 'deferred'
   const isBlocked = item.status === 'blocked'
   const answered = Boolean(item.ownerAnswer)
+  const p2Actions = STUDIO_P2_INBOX ? inboxRowActions(item) : null
 
   const call = useCallback(
-    async (action: string, path: string, body: unknown, ok: string) => {
+    async (action: string, path: string, body: unknown, ok: string, reverse?: { url: string }) => {
       if (!ownerIsCurrent()) return false
       const operation = {}
       operationRef.current = operation
       const isCurrent = () => ownerIsCurrent() && operationRef.current === operation
       setBusy(previous => isCurrent() ? { owner, value: action } : previous)
       try {
-        const response = await fetch(`/api/publish/${slug}/questions/${item.id}${path}`, {
-          method: 'POST',
+        // `reverse` (NEXT_PUBLIC_STUDIO_P2_PUBLISH_INBOX): Unblock and Remove from FAQ are DELETEs on their own routes.
+        const response = await fetch(reverse?.url ?? `/api/publish/${slug}/questions/${item.id}${path}`, {
+          method: reverse ? 'DELETE' : 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
+          body: reverse ? undefined : JSON.stringify(body),
         })
         if (!isCurrent()) return false
         const data = await response.json().catch(() => ({}))
@@ -255,6 +260,7 @@ function QuestionRow({
         {item.askerName && <span>· from {item.askerName}</span>}
         {/* The email is shown but never mailed from here — see the panel note. */}
         {item.askerEmail && <span>· {item.askerEmail}</span>}
+        {p2Actions && faqItemIdOf(item) !== null && <span className="studio-qa-in-faq inline-flex items-center gap-1"><Check className="h-3 w-3" /> In the FAQ</span>}
       </div>
 
       {/* The machine's text is labelled as a DRAFT wherever the owner has not
@@ -312,12 +318,20 @@ function QuestionRow({
           <Button size="sm" variant="outline" className="studio-qa-answer-open" onClick={() => setOpen(true)} disabled={busy !== null}>
             {answered ? 'Edit answer' : 'Answer'}
           </Button>
+          {p2Actions?.removeFromFaq ? (
+            <Button size="sm" variant="ghost" className="studio-qa-remove-faq" disabled={busy !== null}
+              onClick={() => void call('unfaq', '', {}, 'Removed from the FAQ', { url: `/api/publish/${slug}/faq/${encodeURIComponent(faqItemIdOf(item) ?? '')}` })}>
+              {busy === 'unfaq' ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+              Remove from FAQ
+            </Button>
+          ) : (
           <Button size="sm" variant="ghost" onClick={promote} disabled={busy !== null}>
             {busy === 'promote' ? (
               <Loader2 className="mr-1 h-3 w-3 animate-spin" />
             ) : null}
             Publish to FAQ
           </Button>
+          )}
           <Button
             size="sm"
             variant="ghost"
@@ -328,6 +342,17 @@ function QuestionRow({
             {busy === 'block' ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
             Block
           </Button>
+        </div>
+      )}
+
+      {p2Actions?.unblock && (
+        <div className="studio-qa-question-actions mt-2 flex flex-wrap items-center gap-1.5">
+          <Button size="sm" variant="outline" className="studio-qa-unblock" disabled={busy !== null}
+            onClick={() => void call('unblock', '/block', {}, 'Unblocked', { url: `/api/publish/${slug}/questions/${item.id}/block` })}>
+            {busy === 'unblock' ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+            Unblock
+          </Button>
+          <span className="studio-qa-unblock-note text-[11px] text-slate-500 dark:text-slate-400">Their blocked questions come back to this inbox as waiting.</span>
         </div>
       )}
     </div>

@@ -5,9 +5,11 @@ import { ExpertsLoop } from "@/components/marketing/v3/ExpertsLoop"
 import { FooterV3 } from "@/components/marketing/v3/FooterV3"
 import { SlideChip } from "@/components/marketing/v3/SlideChip"
 import { V3_CONTENT } from "@/lib/marketing/v3-content"
+import { uatMarketingMetadata } from "@/components/marketing/v3-uat/pages/metadata"
 
 const copy = V3_CONTENT.pages.experts
-export const metadata: Metadata = { title: { absolute: copy.title }, alternates: { canonical: "/experts" } }
+// NEXT_PUBLIC_STUDIO_UAT_MARKETING (default off): with the flag on this page is the UAT design (components/marketing/v3-uat). Off: the page below, as it was.
+export const metadata: Metadata = process.env.NEXT_PUBLIC_STUDIO_UAT_MARKETING === "true" ? uatMarketingMetadata.experts : { title: { absolute: copy.title }, alternates: { canonical: "/experts" } }
 const reveal = (delay: number) => ({ "--d": delay } as CSSProperties)
 
 function Hero() {
@@ -74,7 +76,11 @@ function Close() {
   </section>
 }
 
-export default function ExpertsPage() {
+export default async function ExpertsPage() {
+  if (process.env.NEXT_PUBLIC_STUDIO_UAT_MARKETING === "true") {
+    const { UatExpertsPage } = await import("@/components/marketing/v3-uat/pages/experts")
+    return <UatExpertsPage />
+  }
   return <>
     <style>{`@media (max-width:900px){.mv3 #loop .steps{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
       @media (max-width:560px){.mv3 #loop .steps{grid-template-columns:1fr!important}}`}</style>

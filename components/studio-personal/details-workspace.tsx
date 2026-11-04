@@ -8,8 +8,12 @@ import { AccountProfileEditor } from "./account-profile-editor"
 import { AccountIdentityPreview } from "./account-identity-preview"
 import { StudioWorkflowAction } from "@/components/studio-libraries/studio-workflow-action"
 import { StudioIntroReplay } from "@/components/studio-intro-replay"
+import { StudioP2DetailsWorkspace } from "./studio-p2-details"
 import "@/components/studio-libraries/destination-intros.css"
 import "./personal-workspaces.css"
+
+// NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
+const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === "true"
 
 type DetailsDraft = { author: string; role: string; company: string; email: string; footer: "author" | "title" | "pages" | "none"; confidentiality: string }
 type LocalLogo = { url: string; name: string }
@@ -21,6 +25,8 @@ export function AccountDetailsWorkspace() {
   const { user, isLoading } = useAuth()
   if (isLoading && !user) return <div className="sp-workspace" role="status">Loading your account…</div>
   if (!user?.id) return <div className="sp-workspace" role="alert">Your account session is unavailable. Reload to try again.</div>
+  // PASS2 DET-01..06 (NEXT_PUBLIC_STUDIO_P2_DETAILS, default off): the mockup's Your details wired to the open deck. Off: the page below, unchanged.
+  if (process.env.NEXT_PUBLIC_STUDIO_P2_DETAILS === "true") return <StudioP2DetailsWorkspace key={user.id} userId={user.id} accountName={user.name || ""} accountEmail={user.email} accountImage={user.image} />
   return <DetailsWorkspace key={user.id} accountName={user.name || ""} accountEmail={user.email} accountImage={user.image} />
 }
 
@@ -35,42 +41,6 @@ export function DetailsWorkspace({ accountName, accountEmail, accountImage }: { 
   currentLogo.current = logo
   const [status, setStatus] = useState("")
   const dirty = JSON.stringify(draft) !== JSON.stringify(initialDraft(accountName)) || Boolean(logo)
-  const currentDraft = useRef(draft); currentDraft.current = draft
-  const focusFrame = useRef<number | null>(null)
-  const focusOccurrence = useRef<object | null>(null)
-  const mounted = useRef(true)
-  const mountEpoch = useRef({})
-  const renderedMount = mountEpoch.current
-  const [, refreshPresentation] = useState(0)
-  const presentation = useRef({ section, preview, accountName, accountEmail, accountImage, epoch: {} })
-  if (presentation.current.section !== section || presentation.current.preview !== preview || presentation.current.accountName !== accountName || presentation.current.accountEmail !== accountEmail || presentation.current.accountImage !== accountImage) presentation.current = { section, preview, accountName, accountEmail, accountImage, epoch: {} }
-  const renderedPresentation = presentation.current
-  const presentationCurrent = () => mounted.current && mountEpoch.current === renderedMount && presentation.current === renderedPresentation
-
-  useEffect(() => {
-    mounted.current = true
-    if (mountEpoch.current !== renderedMount) refreshPresentation(value => value + 1)
-    return () => { mounted.current = false; mountEpoch.current = {}; if (focusFrame.current !== null) window.cancelAnimationFrame(focusFrame.current) }
-  }, [])
-
-  // Reveal the whole control/ring after native focus or caret scrolling settles.
-  function revealFocusedControl(event: import("react").SyntheticEvent<HTMLElement>) {
-    const target = event.target
-    const host = event.currentTarget
-    if (!presentationCurrent() || currentDraft.current !== draft || currentLogo.current !== logo || !(target instanceof HTMLElement) || !target.matches('button,a,input,textarea,select') || !host.contains(target) || document.activeElement !== target) return
-    if (focusFrame.current !== null) window.cancelAnimationFrame(focusFrame.current)
-    const occurrence = event.type === 'focus' ? {} : focusOccurrence.current
-    if (!occurrence) return
-    if (event.type === 'focus') focusOccurrence.current = occurrence
-    const stillFocused = () => presentationCurrent() && focusOccurrence.current === occurrence && target.isConnected && host.isConnected && host.contains(target) && document.activeElement === target
-    focusFrame.current = window.requestAnimationFrame(() => {
-      if (!stillFocused()) { focusFrame.current = null; return }
-      focusFrame.current = window.requestAnimationFrame(() => {
-        focusFrame.current = null
-        if (stillFocused()) target.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
-      })
-    })
-  }
 
   useEffect(() => {
     if (!logo) return
@@ -125,7 +95,7 @@ export function DetailsWorkspace({ accountName, accountEmail, accountImage }: { 
       : draft.footer === "pages" ? `Page ${page} of 8` : ""
 
   return (
-    <main className="sp-workspace sp-details" data-studio-personal="details" data-studio-intro-surface="details" onFocusCapture={revealFocusedControl} onInputCapture={revealFocusedControl} onKeyUpCapture={revealFocusedControl}>
+    <main className="sp-workspace sp-details" data-studio-personal="details" data-studio-intro-surface="details">
       <header className="sp-heading">
         <div><p className="sp-eyebrow">MAKE IT YOURS</p><h1>Your details</h1><p>The person behind the presentation.</p></div>
         <span className="sp-draft-badge"><span /> {section === "account" ? "Your account" : "Local draft preview"}</span>
@@ -145,7 +115,7 @@ export function DetailsWorkspace({ accountName, accountEmail, accountImage }: { 
               <label className="sp-field"><span>Organization</span><input value={draft.company} maxLength={120} placeholder="Your organization" autoComplete="off" onChange={event => update("company", event.target.value)} /></label>
               <label className="sp-field sp-field-wide"><span>Contact line <small>Optional</small></span><input value={draft.email} maxLength={120} placeholder="Email or website to show on slides" autoComplete="off" onChange={event => update("email", event.target.value)} /></label>
             </div>
-            <div className="sp-inline-note"><FileText size={16} aria-hidden="true" /><p>One reusable identity is the direction. Saving defaults and applying them to decks are not connected in this candidate.</p></div>
+            <div className="sp-inline-note"><FileText size={16} aria-hidden="true" /><p>{LAUNCH_WORDING ? "Presenter details here are a preview. Use Open deck details in Studio to set the footer and logo for a deck." : "One reusable identity is the direction. Saving defaults and applying them to decks are not connected in this candidate."}</p></div>
           </div> : section === "footer" ? <div className="sp-form-section">
             <div className="sp-form-intro"><h2>The finishing details</h2><p>Preview a consistent footer and logo across a sample deck.</p></div>
             <label className="sp-field"><span>Footer style</span><select value={draft.footer} onChange={event => update("footer", event.target.value as DetailsDraft["footer"])}><option value="author">Author + page number</option><option value="title">Presentation title + page number</option><option value="pages">Page X of Y</option><option value="none">No footer text</option></select></label>
@@ -170,10 +140,10 @@ export function DetailsWorkspace({ accountName, accountEmail, accountImage }: { 
       </div>
 
       {section !== "account" && <div className="sp-draft-actions">
-        <div><p id="sp-details-save-note"><Info size={15} aria-hidden="true" /> Reusable defaults are not connected. Leaving this page discards the draft.</p><span className="sp-feedback" role="status">{status || "Your account profile and existing presentation settings remain available."}</span></div>
+        <div><p id="sp-details-save-note"><Info size={15} aria-hidden="true" />{LAUNCH_WORDING ? " Reusable defaults are not available. Leaving this page discards the draft." : " Reusable defaults are not connected. Leaving this page discards the draft."}</p><span className="sp-feedback" role="status">{status || "Your account profile and existing presentation settings remain available."}</span></div>
         <div className="sp-action-buttons"><button className="sp-button" type="button" disabled={!dirty} onClick={() => { setDraft(initialDraft(accountName)); setLogo(null); setLogoError(""); setStatus("Draft reset. Author name restored from your account.") }}><RotateCcw size={14} aria-hidden="true" /> Reset draft</button><button className="sp-button sp-button-save" type="button" disabled aria-describedby="sp-details-save-note">Save as defaults</button></div>
       </div>}
-      <p className="sp-later-note">Presenter avatars and voice are optional later additions.</p>
+      {!LAUNCH_WORDING && <p className="sp-later-note">Presenter avatars and voice are optional later additions.</p>}
       <StudioIntroReplay screen="details" autoStart={true} targetSelector='[data-studio-intro-surface="details"]' className="studio-destination-intro-replay" />
     </main>
   )

@@ -1,0 +1,129 @@
+{
+  "scenario": "09-failed-timeout",
+  "description": "Failed: status 'failed', error_code 'timeout'; same fixed closing line.",
+  "director_commit": "19d09d603095e263ea87ab55af79fa59a8ad2370",
+  "flags": {
+    "MULTI_INTENT_ENABLED": "true",
+    "DIRECTOR_MDC_REFINE_ELEMENT_ENABLED": "true",
+    "CHAT_CAP_REFINE_ELEMENT": "true",
+    "DIRECTOR_MDC_HONEST_REPLIES_ENABLED": "true",
+    "DIRECTOR_MDC_SESSION_SCOPE_ENABLED": "true"
+  },
+  "recorded_by": "record.py (offline harness: real _process_message + real DecisionEngine.decide over a scripted model output)",
+  "scripted_model_output": [
+    {
+      "action_type": "refine_element",
+      "response_text": "On it.",
+      "target_slide_indices": [
+        2
+      ],
+      "op_brief": "make it a bar chart",
+      "element_type": null
+    }
+  ],
+  "frame_counts": {
+    "in": 2,
+    "out": 3,
+    "total": 5
+  },
+  "outbound_frame_types": [
+    "element_refine_directive",
+    "chat_message",
+    "chat_message"
+  ],
+  "frames": [
+    {
+      "seq": 1,
+      "direction": "in",
+      "frame": {
+        "type": "user_message",
+        "data": {
+          "text": "Make this a bar chart",
+          "client_caps": [
+            "mdc1",
+            "element_refine1"
+          ],
+          "references": [
+            {
+              "kind": "element",
+              "element_id": "el_chart_7f3a",
+              "element_type": "CHART",
+              "slide_index": 2,
+              "slide_id": "L2",
+              "label": "Chart · slide 3"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "seq": 2,
+      "direction": "out",
+      "frame": {
+        "message_id": "msg_erdir_f4f4dbae",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-22T16:17:49.446489Z",
+        "type": "element_refine_directive",
+        "role": "assistant",
+        "payload": {
+          "directive_id": "elr_6f4ef2c812b6",
+          "presentation_id": "pres-e2e",
+          "slide_index": 2,
+          "slide_id": "L2",
+          "element_id": "el_chart_7f3a",
+          "element_type": "CHART",
+          "instruction": "make it a bar chart"
+        }
+      }
+    },
+    {
+      "seq": 3,
+      "direction": "out",
+      "frame": {
+        "message_id": "msg_c419d72e",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-22T16:17:49.446545Z",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Refining the chart on slide 3: \"make it a bar chart\". One moment while it regenerates on the canvas.",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      }
+    },
+    {
+      "seq": 4,
+      "direction": "in",
+      "frame": {
+        "type": "element_directive_result",
+        "data": {
+          "directive_id": "elr_6f4ef2c812b6",
+          "status": "failed",
+          "element_id": "el_chart_7f3a",
+          "error_code": "timeout"
+        }
+      }
+    },
+    {
+      "seq": 5,
+      "direction": "out",
+      "frame": {
+        "message_id": "msg_437a69fc",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-22T16:17:49.446616Z",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "That chart didn't refine cleanly, so it's unchanged. The Element panel (select it, then Refine element) gives you finer control.",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      }
+    }
+  ]
+}

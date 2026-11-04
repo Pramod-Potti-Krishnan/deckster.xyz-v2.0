@@ -1,0 +1,27 @@
+{
+  "01-new-blank-canvas": {
+    "chat": "6691f4f2d5b0118fcb7b91d59321000d3d221e2f29f04c5b9076de2ad8081a0a",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "02-corporate-light-requested": {
+    "chat": "6691f4f2d5b0118fcb7b91d59321000d3d221e2f29f04c5b9076de2ad8081a0a",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "03-corporate-light-applied": {
+    "chat": "6691f4f2d5b0118fcb7b91d59321000d3d221e2f29f04c5b9076de2ad8081a0a",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "04-element-generated": {
+    "chat": "6691f4f2d5b0118fcb7b91d59321000d3d221e2f29f04c5b9076de2ad8081a0a",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "05-final": {
+    "chat": "6691f4f2d5b0118fcb7b91d59321000d3d221e2f29f04c5b9076de2ad8081a0a",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

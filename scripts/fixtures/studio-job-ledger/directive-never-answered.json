@@ -1,0 +1,82 @@
+{
+ "directive_and_running_row": [
+  {
+   "message_id": "msg_edir_af18f474",
+   "session_id": "s_e2e",
+   "timestamp": "2026-10-23T15:15:48.414674Z",
+   "type": "element_directive",
+   "role": "assistant",
+   "payload": {
+    "directive_id": "el_0e870f857120",
+    "element_type": "CHART",
+    "prompt": "Revenue by region, Q4",
+    "slide_index": 3,
+    "grid_hint": null
+   }
+  },
+  {
+   "message_id": "msg_job_5baf158f",
+   "session_id": "s_e2e",
+   "timestamp": "2027-01-15T08:00:00.000Z",
+   "type": "job_update",
+   "role": "assistant",
+   "payload": {
+    "job_id": "el_0e870f857120",
+    "kind": "element_directive",
+    "state": "running",
+    "seq": 1,
+    "started_at": "2027-01-15T08:00:00.000Z",
+    "updated_at": "2027-01-15T08:00:00.000Z",
+    "deadline_at": "2027-01-15T08:05:00.000Z",
+    "presentation_id": "pres-e2e",
+    "slide_index": 3,
+    "failure": null,
+    "retry": null,
+    "retry_of": null
+   }
+  }
+ ],
+ "after_deadline": [
+  {
+   "message_id": "msg_job_1059dcb2",
+   "session_id": "s_e2e",
+   "timestamp": "2027-01-15T08:00:00.000Z",
+   "type": "job_update",
+   "role": "assistant",
+   "payload": {
+    "job_id": "el_0e870f857120",
+    "kind": "element_directive",
+    "state": "timed_out",
+    "seq": 2,
+    "started_at": "2027-01-15T08:00:00.000Z",
+    "updated_at": "2027-01-15T08:00:00.000Z",
+    "deadline_at": "2027-01-15T08:05:00.000Z",
+    "presentation_id": "pres-e2e",
+    "slide_index": 3,
+    "failure": {
+     "code": "deadline_exceeded",
+     "retryable": true
+    },
+    "retry": {
+     "via": "frame",
+     "job_id": "el_0e870f857120"
+    },
+    "retry_of": null
+   }
+  },
+  {
+   "message_id": "msg_98e8a604",
+   "session_id": "s_e2e",
+   "timestamp": "2026-10-23T15:15:48.415000Z",
+   "type": "chat_message",
+   "role": "assistant",
+   "payload": {
+    "text": "I didn't hear back from the canvas about adding the chart to slide 4, so I can't confirm it was added. Please check slide 4, and ask me again if it isn't there.",
+    "sub_title": null,
+    "list_items": null,
+    "format": "markdown",
+    "ephemeral": false
+   }
+  }
+ ]
+}

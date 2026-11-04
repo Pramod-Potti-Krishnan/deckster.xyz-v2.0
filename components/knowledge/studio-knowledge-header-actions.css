@@ -1,0 +1,37 @@
+/* Second Brain header: one "Sources" menu and the search field (NEXT_PUBLIC_STUDIO_KNOWLEDGE_HEADER_ACTIONS), the accepted mock's `ws-brain-bar`, on the shell's tokens.
+   Every rule hangs on an attribute that exists only with the flag on (data-studio-knowledge-role="header-tools" is the header's action row then), so flag off nothing is restyled. */
+[data-studio-v4-shell="true"] [data-studio-knowledge-role="header-tools"] { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; }
+[data-studio-v4-shell="true"] [data-studio-knowledge-role="header-tools"] [data-studio-knowledge-role="search"] { width: 290px; max-width: 100%; }
+[data-studio-v4-shell="true"] [data-studio-knowledge-role="header-tools"] [data-studio-knowledge-role="search-results"] { min-width: 320px; right: 0; }
+[data-studio-v4-shell="true"] [data-studio-knowledge-role="header-tools"] .sksm { position: relative; }
+[data-studio-v4-shell="true"] [data-studio-knowledge-role="header-tools"] .sksm-trigger {
+  display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border: 1px solid var(--ss-line); border-radius: 7px;
+  background: var(--ss-panel); color: var(--ss-text); font-size: 12px; cursor: pointer;
+}
+[data-studio-v4-shell="true"] [data-studio-knowledge-role="header-tools"] .sksm-trigger:hover,
+[data-studio-v4-shell="true"] [data-studio-knowledge-role="header-tools"] .sksm-trigger[aria-expanded="true"] { background: var(--ss-active); }
+[data-studio-v4-shell="true"] [data-studio-knowledge-role="header-tools"] .sksm-trigger:focus-visible,
+[data-studio-v4-shell="true"] [data-studio-knowledge-role="header-tools"] .sksm-item:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; }
+[data-studio-v4-shell="true"] [data-studio-knowledge-role="header-tools"] .sksm-count {
+  min-width: 18px; padding: 1px 6px; border-radius: 999px; background: var(--ss-soft); color: var(--ss-muted); font-size: 10px; line-height: 16px; text-align: center; font-variant-numeric: tabular-nums;
+}
+[data-studio-v4-shell="true"] [data-studio-knowledge-role="header-tools"] .sksm-spin { animation: sksm-spin 1s linear infinite; }
+@keyframes sksm-spin { to { transform: rotate(360deg); } }
+[data-studio-v4-shell="true"] [data-studio-knowledge-role="header-tools"] .sksm-panel {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; width: 300px; padding: 6px; border: 1px solid var(--ss-line); border-radius: 10px;
+  background: var(--ss-panel); box-shadow: 0 12px 30px rgba(20, 40, 44, .16);
+}
+[data-studio-v4-shell="true"] [data-studio-knowledge-role="header-tools"] .sksm-item {
+  display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 9px 10px; border: 0; border-radius: 7px; background: transparent;
+  color: var(--ss-text); text-align: left; text-decoration: none; cursor: pointer;
+}
+[data-studio-v4-shell="true"] [data-studio-knowledge-role="header-tools"] .sksm-item svg { margin-top: 2px; color: var(--ss-accent); flex-shrink: 0; }
+[data-studio-v4-shell="true"] [data-studio-knowledge-role="header-tools"] .sksm-item strong { display: block; font-size: 12px; font-weight: 600; }
+[data-studio-v4-shell="true"] [data-studio-knowledge-role="header-tools"] .sksm-item small { display: block; margin-top: 2px; color: var(--ss-muted); font-size: 11px; line-height: 1.45; }
+[data-studio-v4-shell="true"] [data-studio-knowledge-role="header-tools"] .sksm-item:hover:not(:disabled) { background: var(--ss-active); }
+[data-studio-v4-shell="true"] [data-studio-knowledge-role="header-tools"] .sksm-item:disabled { opacity: .55; cursor: default; }
+@media (max-width: 640px) {
+  [data-studio-v4-shell="true"] [data-studio-knowledge-role="header-tools"] { justify-content: flex-start; }
+  [data-studio-v4-shell="true"] [data-studio-knowledge-role="header-tools"] [data-studio-knowledge-role="search"] { width: 100%; }
+  [data-studio-v4-shell="true"] [data-studio-knowledge-role="header-tools"] .sksm-panel { left: 0; right: auto; max-width: calc(100vw - 32px); }
+}

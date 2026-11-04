@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import type { BuildThemeSelection } from '@/lib/theme-builder'
+import { applyThemeFontPolicy } from '@/lib/theme-fonts'
 
 export interface SavedThemeProfile {
   id: string
@@ -17,6 +18,16 @@ export interface ThemeProfilesResponse {
   count: number
 }
 
+// J4-FONTS: a profile read from Director keeps font_family / font_family_heading only under
+// NEXT_PUBLIC_THEME_FONT_SELECTION_ENABLED (flag off, or a font-free payload: the same profile object back).
+// Writes are left as they were: the save body carries the draft as chosen, so a font Director refuses (422) is shown, not hidden.
+function withThemeFontPolicy(profile: SavedThemeProfile): SavedThemeProfile {
+  const payload = profile?.theme_payload
+  if (!payload || typeof payload !== 'object') return profile
+  const next = applyThemeFontPolicy(payload)
+  return next === payload ? profile : { ...profile, theme_payload: next }
+}
+
 export function useThemeProfiles() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
@@ -29,7 +40,8 @@ export function useThemeProfiles() {
       if (!res.ok) throw new Error(`list failed: HTTP ${res.status}`)
       const data = await res.json()
       if (data.error) throw new Error(String(data.error))
-      return { themes: data.themes ?? [], count: data.count ?? 0 }
+      const themes = data.themes ?? []
+      return { themes: Array.isArray(themes) ? themes.map(withThemeFontPolicy) : themes, count: data.count ?? 0 }
     } catch (e) {
       setError(e instanceof Error ? e : new Error(String(e)))
       return null
@@ -46,7 +58,7 @@ export function useThemeProfiles() {
       if (!res.ok) throw new Error(`standard failed: HTTP ${res.status}`)
       const data = await res.json()
       if (data.error) throw new Error(String(data.error))
-      return data.theme as SavedThemeProfile | null
+      return (data.theme ? withThemeFontPolicy(data.theme) : data.theme) as SavedThemeProfile | null
     } catch (e) {
       setError(e instanceof Error ? e : new Error(String(e)))
       return null
@@ -133,6 +145,30 @@ export function useThemeProfiles() {
     }
   }, [])
 
+  // NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE: rename one saved theme. PATCH /api/themes/{id} with { name } only (Director leaves description, palette and standard as they are);
+  // the saved profile comes back, or null when the rename was not confirmed (the error says why).
+  const renameTheme = useCallback(async (id: string, name: string): Promise<SavedThemeProfile | null> => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/themes/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data?.detail || data?.error || `rename failed: HTTP ${res.status}`)
+      }
+      return data as SavedThemeProfile
+    } catch (e) {
+      setError(e instanceof Error ? e : new Error(String(e)))
+      return null
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
   return {
     loading,
     error,
@@ -142,5 +178,6 @@ export function useThemeProfiles() {
     setStandardTheme,
     clearStandardTheme,
     deleteTheme,
+    renameTheme,
   }
 }

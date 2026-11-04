@@ -26,6 +26,7 @@ import {
   resolveMetricsCardColorPatch,
   type MetricsCardColorChoice,
 } from '@/lib/metrics-card-design'
+import { TEXTBOX_REQUEST_FIDELITY_ENABLED } from '@/lib/textbox-request-fidelity'
 
 import './studio-specialist-forms.css'
 
@@ -79,6 +80,7 @@ const MULTI_BOX_COLOR_VALUES: Array<NonNullable<MetricsFormData['multiBoxColorMo
 
 export interface MetricsControlsDraft {
   count: number
+  countAuto?: boolean
   layoutChoice: MetricsLayoutChoice
   multiBoxColorMode: NonNullable<MetricsFormData['multiBoxColorMode']>
   visualOverrides: Partial<MetricsConfig>
@@ -160,6 +162,10 @@ function readSavedMetricsGenerationConfig(value: unknown) {
   const fitMode = stringValue(source.metricsFitMode ?? source.metrics_fit_mode, ['AUTO', 'MANUAL'] as const, 'AUTO')
   return {
     count: Math.max(1, Math.min(4, Math.round(numberValue(source.count, 1)))),
+    // Configs saved before the fidelity flag only carry the old default count of 1.
+    countAuto: TEXTBOX_REQUEST_FIDELITY_ENABLED
+      ? booleanValue(source.countAuto, numberValue(source.count, 1) <= 1)
+      : false,
     layoutChoice: stringValue(
       source.metricsLayoutChoice ?? source.metrics_layout_choice ?? source.layoutChoice,
       LAYOUT_CHOICE_VALUES,
@@ -251,7 +257,7 @@ function TriStateStyleButton({
 }
 
 export function MetricsForm({
-  onSubmit,
+  onSubmit: onSubmitDirect,
   registerSubmit,
   isGenerating,
   presentationId,
@@ -271,6 +277,7 @@ export function MetricsForm({
     asRecord(initialDraft?.formData?.generationConfig) ?? asRecord(initialDraft?.formData) ?? existingTextTarget?.generationConfig,
   ) : null)
   const [count, setCount] = useState(initialControls?.count ?? initialSaved?.count ?? 1)
+  const [countAuto, setCountAuto] = useState(initialControls?.countAuto ?? initialSaved?.countAuto ?? TEXTBOX_REQUEST_FIDELITY_ENABLED)
   const [layoutChoice, setLayoutChoice] = useState<MetricsLayoutChoice>(initialControls?.layoutChoice ?? initialSaved?.layoutChoice ?? 'auto')
   const [multiBoxColorMode, setMultiBoxColorMode] = useState<NonNullable<MetricsFormData['multiBoxColorMode']>>(initialControls?.multiBoxColorMode ?? initialSaved?.multiBoxColorMode ?? 'SAME')
   const [visualOverrides, setVisualOverrides] = useState<Partial<MetricsConfig>>(initialControls?.visualOverrides ?? initialSaved?.visualOverrides ?? {})
@@ -330,6 +337,7 @@ export function MetricsForm({
       if (STUDIO_SPECIALIST_FORMS) setGeometryEdited(false)
       const saved = readSavedMetricsGenerationConfig(savedGenerationConfig)
       setCount(saved?.count ?? 1)
+      setCountAuto(saved?.countAuto ?? TEXTBOX_REQUEST_FIDELITY_ENABLED)
       setLayoutChoice(saved?.layoutChoice ?? 'auto')
       setMultiBoxColorMode(saved?.multiBoxColorMode ?? 'SAME')
       setVisualOverrides(saved?.visualOverrides ?? {})
@@ -508,7 +516,7 @@ export function MetricsForm({
     onDraftChange?.({
       prompt, showAdvanced,
       metricsControls: {
-        count, layoutChoice, multiBoxColorMode, visualOverrides, fitMode, manualOverrides,
+        count, ...(TEXTBOX_REQUEST_FIDELITY_ENABLED ? { countAuto } : {}), layoutChoice, multiBoxColorMode, visualOverrides, fitMode, manualOverrides,
         positionModified, geometryEdited, geometryContext: geometryContextRef.current, paddingModified, zIndex, positionConfig, paddingConfig,
         sections: {
           instances: showInstances, cardDesign: showCardDesign, value: showValue,
@@ -517,9 +525,28 @@ export function MetricsForm({
         },
       },
     })
-  }, [onDraftChange, prompt, showAdvanced, elementContext, count, layoutChoice, multiBoxColorMode, visualOverrides, fitMode, manualOverrides,
+  }, [onDraftChange, prompt, showAdvanced, elementContext, count, countAuto, layoutChoice, multiBoxColorMode, visualOverrides, fitMode, manualOverrides,
     positionModified, geometryEdited, paddingModified, zIndex, positionConfig, paddingConfig, showInstances,
     showCardDesign, showValue, showLabel, showDescription, showSpacing, showPositioning, showPadding])
+
+  // Request fidelity (flag): an Auto count is resolved from the prompt by Text Labs.
+  // The structural layout only exists once a count is chosen, and sending it as a
+  // config would route the request around prompt extraction entirely.
+  // handleSubmit itself is untouched.
+  const onSubmit = useCallback((formData: MetricsFormData) => {
+    if (!TEXTBOX_REQUEST_FIDELITY_ENABLED) {
+      onSubmitDirect(formData)
+      return
+    }
+    const metricsConfig = { ...formData.metricsConfig }
+    if (countAuto) delete metricsConfig.layout
+    onSubmitDirect({
+      ...formData,
+      ...(countAuto ? { countAuto: true } : {}),
+      metricsConfig,
+      generationConfig: { ...formData.generationConfig, countAuto },
+    })
+  }, [countAuto, onSubmitDirect])
 
   const handleSubmit = useCallback(() => {
     const metricsConfig: Partial<MetricsConfig> = { ...sparseMetricsConfig }
@@ -566,11 +593,20 @@ export function MetricsForm({
           <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">Count</span>
           <select
             aria-label={advanced ? 'Advanced metric count' : 'Metric count'}
-            value={count}
+            value={TEXTBOX_REQUEST_FIDELITY_ENABLED && countAuto ? 'auto' : count}
             disabled={isGenerating}
-            onChange={event => setCount(Number(event.target.value))}
+            onChange={event => {
+              if (TEXTBOX_REQUEST_FIDELITY_ENABLED) {
+                const auto = event.target.value === 'auto'
+                setCountAuto(auto)
+                setCount(auto ? 1 : Number(event.target.value))
+              } else {
+                setCount(Number(event.target.value))
+              }
+            }}
             className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
           >
+            {TEXTBOX_REQUEST_FIDELITY_ENABLED && <option value="auto">Auto</option>}
             {[1, 2, 3, 4].map(value => <option key={value} value={value}>{value}</option>)}
           </select>
         </label>
@@ -626,7 +662,9 @@ export function MetricsForm({
         </label>
       )}
       <p className={`mt-1.5 text-[9px] ${resolvedLayout.viable ? 'text-slate-400' : 'font-medium text-amber-600 dark:text-amber-400'}`}>
-        {count === 1
+        {TEXTBOX_REQUEST_FIDELITY_ENABLED && countAuto
+          ? 'Count follows your prompt (one card if it names none). Pick a number to force that many cards.'
+          : count === 1
           ? 'One card uses the full live placeholder.'
           : resolvedLayout.viable
             ? `${layoutChoice === 'auto' ? 'Auto resolves' : 'Layout resolves'} to ${resolvedLayout.layout} for this ${area.position_width}×${area.position_height} area.`

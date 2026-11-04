@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth-options"
 import { prisma } from "@/lib/prisma"
+import { studioP2AdminOn, studioP2AdminParseExpiry } from "@/lib/studio-p2-admin"
 
 function isAdmin(email: string | null | undefined): boolean {
   return !!email && email === process.env.DEV_BYPASS_EMAIL
@@ -13,6 +14,11 @@ export async function PATCH(
 ) {
   try {
     const session = await getServerSession(authOptions)
+    // PASS2 ADMIN hardening (NEXT_PUBLIC_STUDIO_P2_ADMIN, default off): nobody signed in is a 401, and an expiry says its time zone. Off, this route runs exactly as it always did.
+    const hardened = studioP2AdminOn(process.env.NEXT_PUBLIC_STUDIO_P2_ADMIN)
+    if (hardened && !session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     if (!session?.user || !isAdmin(session.user.email)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
@@ -41,7 +47,15 @@ export async function PATCH(
     for (const key of Object.keys(body)) {
       if (allowedFields[key]) {
         if (key === "expiresAt" && body[key]) {
-          data[key] = new Date(body[key])
+          if (hardened) {
+            const expiry = studioP2AdminParseExpiry(body[key])
+            if (!expiry.ok) {
+              return NextResponse.json({ error: expiry.error }, { status: 400 })
+            }
+            data[key] = expiry.date
+          } else {
+            data[key] = new Date(body[key])
+          }
         } else {
           data[key] = body[key]
         }

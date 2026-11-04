@@ -1,3 +1,4 @@
+import { serviceUrl } from './service-url-harness.mjs'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
@@ -19,8 +20,9 @@ async function upload(options, failAt) {
   vm.runInNewContext(compiled.outputText, {
     module, exports: module.exports,
     require: name => {
+      if (name === '@/lib/service-url') return serviceUrl
       assert.equal(name, '@/lib/config')
-      return { apiConfig: { knowledgeServiceUrl: 'https://researcher-v11-uat.up.railway.app' } }
+      return { getKnowledgeServiceUrl: () => 'https://researcher.synthetic.invalid' }
     },
     fetch: async (url, init) => {
       calls.push({ url, init })

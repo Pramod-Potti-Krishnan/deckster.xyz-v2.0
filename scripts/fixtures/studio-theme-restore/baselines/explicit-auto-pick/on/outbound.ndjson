@@ -1,0 +1,7 @@
+{"handshake":0,"at":500,"url":"wss://director.synthetic.invalid/ws?session_id=sess-auto-pick&user_id=synthetic-user-01&skip_history=false&message_count=0&build_control_capability=1"}
+{"handshake":1,"at":7500,"url":"wss://director.synthetic.invalid/ws?session_id=sess-auto-pick&user_id=synthetic-user-01&skip_history=false&message_count=1&build_control_capability=1"}
+{"socket":0,"at":2500,"data":"{\"type\":\"set_theme\",\"data\":{\"request_id\":\"synthetic-uuid-0001\",\"theme\":{\"mode\":\"preset\",\"preset_id\":\"vibrant\"},\"presentation_id\":\"blank-pres-1\"}}"}
+{"socket":0,"at":3500,"data":"{\"type\":\"set_theme\",\"data\":{\"request_id\":\"synthetic-uuid-0002\",\"theme\":{\"mode\":\"auto\"},\"presentation_id\":\"blank-pres-1\"}}"}
+{"socket":1,"at":23000,"data":"ping"}
+{"close":0,"code":1005,"reason":""}
+{"close":1,"code":1005,"reason":""}

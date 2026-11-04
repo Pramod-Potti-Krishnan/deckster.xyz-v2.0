@@ -1,0 +1,5 @@
+{
+  "error": "router not configured",
+  "code": "router_not_configured",
+  "service_unavailable": true
+}

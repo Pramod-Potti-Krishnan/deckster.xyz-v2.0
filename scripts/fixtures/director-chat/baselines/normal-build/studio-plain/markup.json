@@ -1,0 +1,57 @@
+{
+  "01-empty-chat-welcome-guide": {
+    "chat": "2eb806de9fc59ab3b996af6c956e5f36aa0ba93791136827295a8a8c0accad2d",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "02-greeting": {
+    "chat": "6691f4f2d5b0118fcb7b91d59321000d3d221e2f29f04c5b9076de2ad8081a0a",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "03-thinking-stream": {
+    "chat": "fe742d04922987e146de296fd9bea26386a6406c8c746746a2f2336b3c4a7430",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "04-plan-proposal": {
+    "chat": "287e59908a22e747f6d0c2e8c7268cc0527a65b5e12e629782ae5fcc62631bbd",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "05-drafting": {
+    "chat": "9669f89afe74b70996467c61701d61c4b5fb3d6f12db796948806fa2b7c5ef37",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "06-outline-ready": {
+    "chat": "6cb875b9cdfdab37e1c94baf49c883b2c1a998fdaf445532a65239a2ab81be3e",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "07-building-final-deck": {
+    "chat": "d5b840a1663dc59787387a7152855504517c9f1a6ba5e3161cf09fe26925a54b",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "08-final-deck-ready": {
+    "chat": "caece9ab546efdfdb72ea517f55b2695ffbcc9ec1d0a3eb01824c89d2d2a8e10",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "09-after-done": {
+    "chat": "7c351e6b7555654ce3e9e31eaed3b0cfd1c78614149c652beb4860c5ad788435",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "10-outbound-payload-matrix-sent": {
+    "chat": "7c351e6b7555654ce3e9e31eaed3b0cfd1c78614149c652beb4860c5ad788435",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "11-final": {
+    "chat": "7c351e6b7555654ce3e9e31eaed3b0cfd1c78614149c652beb4860c5ad788435",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

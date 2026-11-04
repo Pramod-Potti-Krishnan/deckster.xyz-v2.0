@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 import { kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
+import { composeEntitlementHeaders } from '@/lib/studio-compose-entitlement'
 
 export const maxDuration = 300
 
@@ -50,6 +51,8 @@ export async function POST(req: NextRequest) {
   )
 
   let effectiveUserId = userId
+  // STUDIO_COMPOSE_ENTITLEMENT_ENABLED (default off, stacked on #475): the id the signed header may carry. Only the session's own id (never the e-mail fallback above) or the KG gate's id.
+  let canonicalUserId: string | null = sessionUser?.id || null
   let directorHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
   }
@@ -61,6 +64,7 @@ export async function POST(req: NextRequest) {
     const gate = await requireKgEntitled()
     if (gate.error) return gate.error
     effectiveUserId = gate.userId
+    canonicalUserId = gate.userId
     directorHeaders = kgHeaders(directorHeaders)
   }
 
@@ -69,10 +73,13 @@ export async function POST(req: NextRequest) {
     user_id: effectiveUserId,
   }
 
+  // STUDIO_COMPOSE_ENTITLEMENT_ENABLED (stacked on #475): the signed X-Deckster-Entitlement Director !535 needs to bind this compose to its user. {} unless the flag is on, the id is canonical and valid.
+  const entitlement = composeEntitlementHeaders(payload.user_id, canonicalUserId)
+
   try {
     const response = await fetch(`${directorBaseUrl()}/api/v1/slides/compose-one`, {
       method: 'POST',
-      headers: directorHeaders,
+      headers: { ...directorHeaders, ...entitlement },
       body: JSON.stringify(payload),
       cache: 'no-store',
     })

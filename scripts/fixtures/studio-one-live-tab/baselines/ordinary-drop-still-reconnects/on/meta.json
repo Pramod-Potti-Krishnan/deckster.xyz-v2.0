@@ -1,0 +1,31 @@
+{
+  "diagnostics": {
+    "blockedNetwork": [],
+    "console": [
+      {"level":"warn","text":"🔌 WebSocket connection closed <object>"},
+      {"level":"warn","text":"🔌 WebSocket connection closed <object>"},
+      {"level":"warn","text":"🔌 WebSocket connection closed <object>"},
+      {"level":"warn","text":"🔌 WebSocket connection closed <object>"},
+      {"level":"warn","text":"🔌 WebSocket connection closed <object>"},
+      {"level":"warn","text":"🔌 WebSocket connection closed <object>"}
+    ],
+    "fetches": [
+      {"method":"GET","url":"/api/director/ws-token?session_id=synthetic-session-one-live-tab-c"},
+      {"method":"GET","url":"/api/director/ws-token?session_id=synthetic-session-one-live-tab-c"},
+      {"method":"GET","url":"/api/director/ws-token?session_id=synthetic-session-one-live-tab-c"},
+      {"method":"GET","url":"/api/director/ws-token?session_id=synthetic-session-one-live-tab-c"},
+      {"method":"GET","url":"/api/director/ws-token?session_id=synthetic-session-one-live-tab-c"},
+      {"method":"GET","url":"/api/director/ws-token?session_id=synthetic-session-one-live-tab-c"},
+      {"method":"GET","url":"/api/director/ws-token?session_id=synthetic-session-one-live-tab-c"},
+      {"method":"GET","url":"/api/director/ws-token?session_id=synthetic-session-one-live-tab-c"}
+    ],
+    "sockets": 8,
+    "timersLeft": 2,
+    "uncaughtTimerErrors": [],
+    "windowOpens": []
+  },
+  "fixture": "ordinary-drop-still-reconnects",
+  "fixtureSha": "3d0c5d43640f83b2",
+  "profile": "studio",
+  "schema": 1
+}

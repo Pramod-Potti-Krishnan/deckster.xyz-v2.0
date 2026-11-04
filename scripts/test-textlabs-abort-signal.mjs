@@ -1,3 +1,4 @@
+import { serviceUrl, textLabsEnv } from './service-url-harness.mjs'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
@@ -14,7 +15,7 @@ const mod = { exports: {} }
 vm.runInNewContext(compiled.outputText, {
   module: mod,
   exports: mod.exports,
-  process: { env: {} },
+  process: { env: { ...textLabsEnv } },
   fetch,
   FormData,
   Blob,
@@ -22,6 +23,7 @@ vm.runInNewContext(compiled.outputText, {
   AbortSignal,
   DOMException,
   require: id => {
+    if (id === '@/lib/service-url') return serviceUrl
     if (id === '@/types/textlabs') {
       return {
         INSERTION_METHOD_MAP: { ICON_LABEL: 'insertElement' },
@@ -726,10 +728,37 @@ await assert.rejects(typeErrorAbortRequest, error => error?.name === 'AbortError
 
 const generationSource = fs.readFileSync(new URL('../hooks/use-textlabs-generation.ts', import.meta.url), 'utf8')
 assert.match(generationSource, /ensureSession\(controller\.signal\)/)
-assert.match(
-  generationSource,
-  /insertedElementIds\.map\(\(elementId, index\) => sendLayoutMutationWithReconciliation\(/,
-)
+// The map may use an expression or block callback. Inspect its real mutation
+// arguments so a missing rollback, wrong element, or reused mutation ID fails.
+const generationAst = ts.createSourceFile('generation.ts', generationSource, ts.ScriptTarget.Latest, true)
+function findNode(root, predicate) {
+  if (predicate(root)) return root
+  let found
+  ts.forEachChild(root, child => { found ??= findNode(child, predicate) })
+  return found
+}
+const rollbackMap = findNode(generationAst, node => ts.isCallExpression(node)
+  && node.expression.getText(generationAst) === 'insertedElementIds.map'
+  && node.arguments[0]?.getText(generationAst).includes(':rollback-generation:'))
+assert.ok(rollbackMap, 'all inserted elements have a rollback callback')
+const rollbackCallback = rollbackMap.arguments[0]
+assert.ok(ts.isArrowFunction(rollbackCallback))
+assert.deepEqual(rollbackCallback.parameters.map(parameter => parameter.name.getText(generationAst)),
+  ['elementId', 'index'], 'rollback identity is per inserted element and index')
+const rollbackMutation = findNode(rollbackCallback, node => ts.isCallExpression(node)
+  && node.expression.getText(generationAst) === 'sendLayoutMutationWithReconciliation')
+assert.ok(rollbackMutation, 'rollback uses receipt reconciliation rather than blind deletion')
+assert.equal(rollbackMutation.arguments[0].getText(generationAst),
+  'generationLayoutServiceApis.sendElementCommand')
+assert.equal(rollbackMutation.arguments[1].getText(generationAst), "'deleteElement'")
+const rollbackTarget = rollbackMutation.arguments[2]
+assert.ok(ts.isObjectLiteralExpression(rollbackTarget))
+assert.equal(rollbackTarget.properties.length, 1)
+assert.ok(ts.isShorthandPropertyAssignment(rollbackTarget.properties[0]))
+assert.equal(rollbackTarget.properties[0].name.text, 'elementId')
+assert.equal(rollbackMutation.arguments[3].getText(generationAst),
+  '`${lifecycleMutationId}:rollback-generation:${index}`',
+  'each compensating delete gets a unique lifecycle receipt ID')
 assert.match(generationSource, /`\$\{lifecycleMutationId\}:rollback-generation:\$\{index\}`/)
 assert.match(generationSource, /!layoutCommandSucceeded\(result\.value\)/)
 assert.match(generationSource, /generating: false/)

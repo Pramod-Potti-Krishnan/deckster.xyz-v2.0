@@ -1,0 +1,94 @@
+[
+  {
+    "args": [
+      {
+        "composer_adoption": {
+          "frozen_theme": true,
+          "presentation_id": "synthetic-composer-deck-01",
+          "schema_version": "composer-adoption-v1",
+          "template_id": "synthetic-template-01"
+        },
+        "presentation_id": "synthetic-composer-deck-01",
+        "session_id": "synthetic-session-use-original",
+        "slide_count": 3,
+        "template_id": "synthetic-template-01",
+        "viewer_url": "https://layout.synthetic.invalid/p/synthetic-composer-deck-01"
+      },
+      "synthetic-session-use-original"
+    ],
+    "name": "hook.applyTemplateIngestReady",
+    "step": 0
+  },
+  {
+    "args": [
+      {
+        "currentStage": 6,
+        "presentationId": "synthetic-composer-deck-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-composer-deck-01",
+        "slideCount": 3
+      }
+    ],
+    "name": "hook.onSessionStateChange",
+    "step": 0
+  },
+  {"args":[{"message_id":"msg-sync-adopted","type":"sync_response"}],"name":"hook.onMessage","step":4},
+  {"args":[{"message_id":"msg-stray-blank","type":"presentation_init"}],"name":"hook.onMessage","step":7},
+  {"args":[{"mode":"preset","preset_id":"corporate_light"}],"name":"page.handleBuildThemeChange","step":9},
+  {"args":[],"name":"page.saveSessionOnFirstAction","step":9},
+  {
+    "args": [
+      {
+        "advancedModified": false,
+        "componentType": "TEXT_BOX",
+        "count": 1,
+        "geometryMode": "AUTO",
+        "layout": "vertical",
+        "positionConfig": {"auto_position":false,"position_height":6,"position_width":10,"start_col":5,"start_row":4},
+        "presentationId": "synthetic-composer-deck-01",
+        "prompt": "Three synthetic facts about ocean currents",
+        "semanticRole": "BODY_TEXT",
+        "slideIndex": 0,
+        "textboxConfig": {},
+        "useDeckTheme": true
+      }
+    ],
+    "name": "page.handleTextLabsGenerate",
+    "step": 11
+  },
+  {"args":[true],"name":"panel.setIsGenerating","step":11},
+  {"args":[null],"name":"panel.setError","step":11},
+  {"args":["synthetic-blank-element-1","generating"],"name":"blank.setStatus","step":11},
+  {
+    "args": ["setElementGenerationState",{"elementId":"synthetic-blank-element-1"}],
+    "name": "layout.sendElementCommand",
+    "step": 11
+  },
+  {"args":["This template keeps its stored source theme."],"name":"panel.setError","step":11},
+  {
+    "args": [{"description":"This template keeps its stored source theme.","title":"Deck theme not ready"}],
+    "name": "page.toast",
+    "step": 11
+  },
+  {"args":["synthetic-blank-element-1","blank"],"name":"blank.setStatus","step":11},
+  {
+    "args": ["setElementGenerationState",{"elementId":"synthetic-blank-element-1"}],
+    "name": "layout.sendElementCommand",
+    "step": 11
+  },
+  {"args":[false],"name":"panel.setIsGenerating","step":11},
+  {
+    "args": [
+      {
+        "error": "This template keeps its stored source theme.",
+        "presentationId": "synthetic-composer-deck-01",
+        "slideIndex": 0,
+        "status": "failed"
+      }
+    ],
+    "name": "page.handleTextLabsGenerate.result",
+    "step": 11
+  },
+  {"args":[{"message_id":"msg-sync-adopted-2","type":"sync_response"}],"name":"hook.onMessage","step":18},
+  {"args":[{"mode":"preset","preset_id":"corporate_dark"}],"name":"page.handleBuildThemeChange","step":19},
+  {"args":[],"name":"page.saveSessionOnFirstAction","step":19}
+]
