@@ -207,7 +207,7 @@ function suite(src, run) {
     assert.match(html, /<button type="button" class="mpick-simple-line" data-mpick="line" aria-expanded="false"/); assert.match(html, /data-icon="ChevronDown"/, 'the chevron')
     assert.match(html, /<button type="button" class="mpick-simple-reset" data-mpick="reset" aria-label="Reset to Auto" title="Reset to Auto">/); assert.match(html, /data-icon="RotateCcw"/, 'the reset icon, top right')
     assert.ok(html.indexOf('mpick-simple-title') < html.indexOf('mpick-simple-reset') && html.indexOf('mpick-simple-reset') < html.indexOf('mpick-simple-line') && html.indexOf('mpick-simple-line') < html.indexOf('role="slider"') && html.indexOf('role="slider"') < html.indexOf('mpick-advanced'), 'title, reset, line, slider, Advanced: in that order')
-    assert.match(html, /<ol class="mpick-stops"[^>]*data-mpick="stops">/); assert.match(html, /data-mpick-stop="economy"[^>]*title="Fast · low cost"/, 'a stop\'s hint is only a tooltip, as the slider\'s')
+    assert.match(html, /<ol class="mpick-stops"[^>]*data-mpick="stops">/); eq(count(html.match(/<ol class="mpick-stops"[\s\S]*?<\/ol>/)[0], /\btitle=/g), 0, 'the stop names carry no hover tooltip: no extra text')
   })
   run('E: the slider is the slider\'s own: min 0, max 3, the thumb on the chosen stop, "none" with nothing chosen, "hollow" while a deck follows its default, "custom" off the scale; its name and spoken value', () => {
     for (const [state, opts, kind] of [[{ kind: 'tier', tier: 'max' }, {}, 'selected'], [USER_AUTO, {}, 'none'], [{ kind: 'tier', tier: 'best' }, { scope: 'deck', own: 'default' }, 'hollow'], [{ kind: 'model', model: 'openai/gpt-6.1-sol' }, {}, 'custom']]) {
@@ -306,6 +306,12 @@ function suite(src, run) {
     slide(h).onValueCommit([2]); await h.flush(); eq(h.calls, [{ tier: 'best' }], 'a release saves'); eq(textOf(h.byAttr('data-mpick', 'title')), 'Balanced', 'back on what is saved while the stub keeps it')
     h.calls.length = 0; slide(h).onValueChange([0]); slide(h).onValueCommit([0]); await h.flush(); eq(h.calls, [{ tier: 'economy' }], 'keys commit too (Radix fires both)')
     eq(h.calls.every(choice => choice === null || 'tier' in choice), true, 'never a model')
+  })
+  run('F: while a thumb is dragged the reset still reads what is SAVED: off on a deck that follows its default, on once the deck has a choice of its own (and on the reusable default with a preset)', () => {
+    const resetOf = h => h.byAttr('data-mpick', 'reset').props.disabled
+    for (const [opts, off] of [[{ state: { kind: 'tier', tier: 'best' }, scope: 'deck', own: 'default' }, true], [{ state: { kind: 'tier', tier: 'best' }, scope: 'deck', own: 'set' }, false], [{ state: { kind: 'tier', tier: 'best' }, scope: 'user' }, false]]) {
+      const h = host(opts); h.open(); eq(resetOf(h), off, 'before the drag'); slide(h).onValueChange([3]); h.rootHost.flush(); eq(slide(h).value, [3], 'the thumb is being dragged'); eq(resetOf(h), off, `during the drag (${opts.scope} ${opts.own})`); eq(h.calls, [], 'and nothing is saved')
+    }
   })
   run('F: a deck that follows its default (a hollow thumb) saves its own choice when the same stop is chosen only if it differs: the hollow stop is not a choice of its own', async () => {
     const h = host({ state: { kind: 'tier', tier: 'best' }, scope: 'deck', own: 'default' }); h.open(); eq(slide(h)['data-thumb'], 'hollow')
@@ -522,8 +528,10 @@ mut('component: the reset writes Auto on a deck', COMPONENT, 'onReset={() => req
 mut('component: the reset is not disabled when there is nothing to clear', COMPONENT, 'disabled={blocked || saving || !view.resetEnabled}', 'disabled={blocked || saving}')
 mut('component: a stop saves a model', COMPONENT, 'request(stopChoice(stop, api.scope))', 'request({ model: "anthropic/claude-opus-5.5" })')
 mut('component: the chosen stop saves again', COMPONENT, '(!inFlight.current && chosen.thumb === "selected" && index === chosen.index)', 'false')
+mut('component: the stops carry hover tooltips again', COMPONENT, ' data-mpick-stop={stop.id} aria-hidden="true"', ' data-mpick-stop={stop.id} title={stop.sub ?? undefined} aria-hidden="true"')
+mut('component: the dragged preview drops what the deck holds, so the reset reads as enabled mid-drag', COMPONENT, 'scope: api.scope, own: api.deckOwn, stops }) : chosen', 'scope: api.scope, stops }) : chosen')
 mut('component: a drag saves', COMPONENT, 'onValueChange={values => onDraft(values[0])}', 'onValueChange={values => { onDraft(values[0]); onCommit(values[0]) }}')
-mut('component: the title does not follow a drag', COMPONENT, 'const view = dragged?.tier ? simpleView({ catalogue: api.catalogue, state: { kind: "tier", tier: dragged.tier }, scope: api.scope, stops }) : chosen', 'const view = chosen')
+mut('component: the title does not follow a drag', COMPONENT, 'const view = dragged?.tier ? simpleView({ catalogue: api.catalogue, state: { kind: "tier", tier: dragged.tier }, scope: api.scope, own: api.deckOwn, stops }) : chosen', 'const view = chosen')
 mut('component: a choice made during a save is dropped', COMPONENT, 'else if (choiceValue(choice) !== asked.current || waiting.current !== null) { waiting.current = { choice }; asked.current = choiceValue(choice) }', '')
 mut('component: the chevron does not collapse Advanced and the list', COMPONENT, "setListOpen(open => !open); setAdvancedOpen(false)", 'setListOpen(open => !open)')
 mut('component: "Choose a specific model" does not open Advanced', COMPONENT, 'setListOpen(false); setAdvancedOpen(true)', 'setListOpen(false)')

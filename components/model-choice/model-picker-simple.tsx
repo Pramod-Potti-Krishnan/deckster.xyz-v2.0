@@ -48,9 +48,9 @@ export function ModelPickerSimple({ sessionId, disabled, className, onChange }: 
   const asked = useRef<string | null>(null) // what the last choice asked for, while a save is in flight
   const stops = simpleStops(api.catalogue)
   const chosen = simpleView({ catalogue: api.catalogue, state: api.state, scope: api.scope, own: api.deckOwn, stops })
-  // While the thumb is being moved the title and the line follow it (what the stop would resolve to); only a commit saves.
+  // While the thumb is being moved the title and the line follow it (what the stop would resolve to); only a commit saves, so the reset still reads what is saved (`own`).
   const dragged = draft !== null ? stops[draft] : undefined
-  const view = dragged?.tier ? simpleView({ catalogue: api.catalogue, state: { kind: "tier", tier: dragged.tier }, scope: api.scope, stops }) : chosen
+  const view = dragged?.tier ? simpleView({ catalogue: api.catalogue, state: { kind: "tier", tier: dragged.tier }, scope: api.scope, own: api.deckOwn, stops }) : chosen
   const advanced = sliderAdvanced({ catalogue: api.catalogue, state: api.state, scope: api.scope, own: api.deckOwn, userState: api.userState })
 
   function save(choice: ModelChoice) {
@@ -202,7 +202,7 @@ export function ModelSimplePanel({ Title, view, blocked, saving = false, draft =
             <SliderPrimitive.Thumb ref={thumbRef} className="mpick-slider-thumb" aria-label={SLIDER_LABEL} aria-valuetext={view.valueText} />
           </SliderPrimitive.Root>
           <ol className="mpick-stops" style={{ "--mpick-stops": stops.length } as CSSProperties} data-mpick="stops">
-            {stops.map((stop, i) => <li key={stop.id} className="mpick-stop" data-active={onScale && i === thumb ? "true" : "false"} data-mpick-stop={stop.id} title={stop.sub ?? undefined} aria-hidden="true" onClick={() => { if (!blocked) onCommit(i) }}>
+            {stops.map((stop, i) => <li key={stop.id} className="mpick-stop" data-active={onScale && i === thumb ? "true" : "false"} data-mpick-stop={stop.id} aria-hidden="true" onClick={() => { if (!blocked) onCommit(i) }}>
               <span className="mpick-stop-name">{stop.label}</span>
             </li>)}
           </ol>
