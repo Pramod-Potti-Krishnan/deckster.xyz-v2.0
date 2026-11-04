@@ -108,6 +108,7 @@ import {
   pickElementFreeSpot,
   type FreeSpot,
 } from '@/lib/element-free-spot'
+import { CHAT_ADD_FREE_SLOT_ENABLED, applyChatAddFreeSlot } from '@/lib/chat-add-free-slot'
 // IMAGE-PENDING-WRITE begin
 import { STUDIO_IMAGE_PENDING_WRITE_ENABLED, imageJobWritesPending, type ImageJobEnd, type ImagePendingJob } from '@/lib/studio-image-pending-write'
 import { startImagePendingJob } from '@/lib/studio-image-pending-runtime'
@@ -1776,6 +1777,7 @@ export function useTextLabsGeneration({
           effectiveSlideIndex
         )
         if (CHAT_ADD_STACKING_ENABLED && invocation?.kind === 'chat-add') { const stackedZIndex = chatAddStackedZIndex(formData.componentType); if (stackedZIndex !== null) params.zIndex = stackedZIndex } // CHAT-ADD-STACKING: a chat add lands at the z the Element panel's own add of this type starts at (not the directive's z 1, under the slide's content)
+        if (CHAT_ADD_FREE_SLOT_ENABLED && invocation?.kind === 'chat-add' && !refineContext) { const slot = await applyChatAddFreeSlot({ params, sendElementCommand: generationLayoutServiceApis?.sendElementCommand, slideIndex: effectiveSlideIndex }); if (slot) console.info('[TextLabs] Chat add placed in a free slot:', slot) } // CHAT-ADD-FREE-SLOT (E5): a chat add goes to a free area of the slide (shrunk if needed), decided before the insert; no room = old position
         if (studio && insertionComponentType === 'METRICS') {
           params.generationConfig = normalizeMetricsCardRefineGenerationConfig(params.generationConfig, 'METRICS')
         }
