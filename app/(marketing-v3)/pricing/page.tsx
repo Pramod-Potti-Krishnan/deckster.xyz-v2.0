@@ -9,10 +9,13 @@ import { studioLandingTiers } from "@/lib/studio-billing"
 import { studioUatMarketing } from "@/components/marketing/v3-uat/flag"
 import { uatMarketingMetadata } from "@/components/marketing/v3-uat/pages/metadata"
 import { UatPricingPage } from "@/components/marketing/v3-uat/pages/pricing"
+import { PricingV22Page } from "@/components/marketing/pricing-v22/pricing-v22-page" // PRICING-V22
+import { studioPricingV22On } from "@/lib/studio-pricing-v22" // PRICING-V22
 
 const copy = V3_CONTENT.pages.pricing
 // PASS2 ACC-14 (NEXT_PUBLIC_STUDIO_P2_ACCOUNT, default off): the plan words come from the shared plan list (PRICING_TIERS), the list Billing reads too. Off: the copy as written.
 const STUDIO_P2_ACCOUNT = process.env.NEXT_PUBLIC_STUDIO_P2_ACCOUNT === "true"
+const STUDIO_PRICING_V22 = studioPricingV22On(process.env.NEXT_PUBLIC_STUDIO_PRICING_V22) // PRICING-V22: the v2.2 page (credits, Free tier), exact "true" only
 
 // UAT marketing flag (default off; components/marketing/v3-uat/flag.ts): with it on this page is the UAT design (components/marketing/v3-uat). Off: the page below, as it was.
 export const metadata: Metadata = studioUatMarketing.on ? uatMarketingMetadata.pricing : {
@@ -27,6 +30,7 @@ const tierEvent = {
 } as const
 
 export default function PricingV3Page() {
+  if (STUDIO_PRICING_V22) return <PricingV22Page /> // PRICING-V22
   if (studioUatMarketing.on) return <UatPricingPage />
   return (
     <main>
