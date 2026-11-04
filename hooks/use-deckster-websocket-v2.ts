@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react';
+import { authorBuildModeField } from '@/lib/studio-author-picker'; // AUTHOR-PICKER
 import { useAuth } from './use-auth';
 import { composerThemeFromSync, composerThemeSyncBlocked, readComposerAdoption, type ComposerAdoption } from '@/lib/composer-theme-policy';
 import { useSessionCache, CachedSessionState } from './use-session-cache';
@@ -609,6 +610,7 @@ export interface UserMessage {
     element_overrides?: TemplateOverrides;
     action_value?: string;
     action_label?: string;
+    build_mode?: 'author'; // AUTHOR-PICKER: spec F-1, sent only on the outline accept when Author was chosen
     template_ingest?: boolean;
     ingest_upload_ref?: IngestUploadRef;
     // Customized-slide workflow. Director latches this source before the
@@ -3424,6 +3426,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           ...(options?.templateId && { template_id: options.templateId }),
           ...(options?.elementOverrides && { element_overrides: options.elementOverrides }),
           ...(options?.actionValue && { action_value: options.actionValue }),
+          ...authorBuildModeField(options?.actionValue), // AUTHOR-PICKER: build_mode:"author" on the outline accept, only when chosen behind the flag and a signed claim
           ...(options?.actionLabel && { action_label: options.actionLabel }),
           ...(options?.templateIngest && { template_ingest: true }),
           ...(options?.ingestUploadRef && { ingest_upload_ref: options.ingestUploadRef }),

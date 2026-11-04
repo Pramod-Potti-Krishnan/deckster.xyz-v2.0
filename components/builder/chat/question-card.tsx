@@ -20,6 +20,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Check, CheckCircle2, HelpCircle, ListChecks, PenLine } from "lucide-react"
 import type { QuestionSet } from "@/types/mdc"
+import { AuthorBuildPicker } from "@/components/builder/chat/author-build-picker" // AUTHOR-PICKER
 
 interface ActionShape {
   label: string
@@ -204,6 +205,7 @@ export function QuestionCard({
         </div>
       )}
 
+      {isOutlineApproval && process.env.NEXT_PUBLIC_STUDIO_AUTHOR_PICKER === "true" && <AuthorBuildPicker />} {/* AUTHOR-PICKER */}
       {actions.length > 0 && (
         <div data-studio-director-part="actions" className="flex flex-wrap gap-1.5">
           {studio && structured && <p data-studio-director-part="alternatives">Or choose an action</p>}

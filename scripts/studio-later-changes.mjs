@@ -73,6 +73,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-phone-landscape-strip.mjs')).PHONE_LANDSCAPE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape (PR 1): a phone turned sideways gets a viewing stage with a hamburger and a plus (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   ...(await import('./studio-phone-hints-strip.mjs')).PHONE_HINTS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, F-13 phone hints (PR 2): the portrait rotate card, swipe to change slide, Full screen (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
   // one line per later change, above this comment
+  ...(await import('./studio-author-picker-strip.mjs')).AUTHOR_PICKER_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, Pass 5 author lane F-1: Standard / Author choice on the outline approval (NEXT_PUBLIC_STUDIO_AUTHOR_PICKER)
 ])
 
 export const LATER_ENV_BLOCKS = [
@@ -117,6 +118,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-phone-landscape-strip.mjs')).PHONE_LANDSCAPE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape, PR 1 (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   (await import('./studio-phone-hints-strip.mjs')).PHONE_HINTS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-13 phone hints, PR 2 (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
   // one line per later change, above this comment
+  (await import('./studio-author-picker-strip.mjs')).AUTHOR_PICKER_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, Pass 5 author lane F-1: Standard / Author choice on the outline approval (NEXT_PUBLIC_STUDIO_AUTHOR_PICKER)
 ]
 
 /** One strip per later change, (rel, text) => text, in the order the changes were stacked. */
@@ -170,6 +172,7 @@ export const LATER_STRIPS = [
   (await import('./studio-phone-landscape-strip.mjs')).stripPhoneLandscape, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape, PR 1 (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   (await import('./studio-phone-hints-strip.mjs')).stripPhoneHints, // LATER-CHANGE: FRONTEND-1, F-13 phone hints, PR 2 (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
   // one line per later change, above this comment
+  (await import('./studio-author-picker-strip.mjs')).stripAuthorPicker, // LATER-CHANGE: FRONTEND-1, Pass 5 author lane F-1: Standard / Author choice on the outline approval (NEXT_PUBLIC_STUDIO_AUTHOR_PICKER)
 ]
 
 const lineStart = (text, at) => at === 0 || text[at - 1] === '\n'
