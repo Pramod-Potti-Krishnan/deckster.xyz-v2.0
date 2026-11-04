@@ -7,6 +7,8 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { StudioViewerThemeProvider } from '@/components/studio-viewer-theme-provider'
 import { STUDIO_P2_PUBLISH_ENABLED } from '@/lib/studio-p2-publish'
 import { Toaster } from '@/components/ui/toaster'
+import { STUDIO_UX_POLISH_2_ENABLED } from '@/lib/studio-ux-polish-2' // UX-POLISH-2 (NEXT_PUBLIC_STUDIO_UX_POLISH_2, default off): one Studio accent, Intelligence overlap fixed
+import { StudioUxPolish2Mount } from '@/components/studio-ux-polish-2/studio-ux-polish-2-mount' // UX-POLISH-2
 
 const inter = Inter({ subsets: ['latin'] })
 const connectedLocal = process.env.STUDIO_V4_CONNECTED_LOCAL === 'true'
@@ -95,6 +97,7 @@ export default function RootLayout({
           </AppThemeProvider>
         </SessionProvider>
         <Analytics />
+        {STUDIO_UX_POLISH_2_ENABLED && <StudioUxPolish2Mount />}{/* UX-POLISH-2 */}
       </body>
     </html>
   )
