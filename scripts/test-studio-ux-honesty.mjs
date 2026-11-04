@@ -122,6 +122,7 @@ for (const [rel, from, to] of MUTANTS) {
 // ---- UX-09 (NEXT_PUBLIC_STUDIO_PAGE_HEADINGS, exact "true", default off): one page container and heading style
 const { execFileSync } = await import('node:child_process')
 const strip = await import('./studio-ux-honesty-strip.mjs')
+const pageConsistency = await import('./studio-page-consistency-strip.mjs') // PAGE-CONSISTENCY is a later change on the same layout: it comes out first
 const registry = await import('./studio-later-changes.mjs')
 const LAYOUT = 'app/(app)/layout.tsx', LIB_PH = 'lib/studio-page-headings.ts', CSS_PH = 'components/studio-page-headings/studio-page-headings.css'
 function loadTs(source) {
@@ -140,7 +141,7 @@ function checkHeadings(files) {
   ok(JSON.stringify(L.studioPageContainerRoles([box('none'), box('896px', '40px'), box('none', '12px', '12px'), box('none', '0px', '8px')])) === '[null,"outer","inner",null]', 'UX-09: the first centring box is outer, a later one inner, others left alone')
   ok(JSON.stringify(L.studioPageContainerRoles([box('none'), box('none', '0px', '0px')])) === '[null,null]', 'UX-09: no centring box: nothing marked')
   ok(/STUDIO_PAGE_HEADINGS_ENABLED && <StudioPageHeadingsMount \/>/.test(layout), 'UX-09: the layout draws the mount only with the flag on')
-  ok(strip.stripUxHonesty(LAYOUT, layout) === execFileSync('git', ['show', `${strip.BASE_COMMIT}:${LAYOUT}`], { cwd: root, encoding: 'utf8' }), 'UX-09: the layout without its PAGE-HEADINGS lines is the base, byte for byte')
+  ok(strip.stripUxHonesty(LAYOUT, pageConsistency.stripPageConsistency(LAYOUT, layout)) === execFileSync('git', ['show', `${strip.BASE_COMMIT}:${LAYOUT}`], { cwd: root, encoding: 'utf8' }), 'UX-09: the layout without its PAGE-HEADINGS lines is the base, byte for byte')
   const rules = css.split('\n').filter(line => line.includes('{') && !line.startsWith('@media') && !line.startsWith('/*'))
   ok(rules.length >= 5 && rules.every(line => line.trim().startsWith('html[data-studio-page-headings="true"]')), 'UX-09: every rule is scoped to the flag attribute')
   ok(/h1\[data-studio-page-heading="true"\] \{ font-size: 28px/.test(css), 'UX-09: one heading size')

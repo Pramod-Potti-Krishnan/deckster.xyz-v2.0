@@ -41,6 +41,17 @@ function rules(css) {
   while ((m = re.exec(body))) out.push({ sel: m[1].trim().replace(/\s+/g, ' '), body: m[2] })
   return out
 }
+// A selector list split at its top-level commas only: the commas inside :is(...) or [...] belong to one selector.
+function selectorList(sel) {
+  const out = []; let depth = 0, cur = ''
+  for (const ch of sel) {
+    if (ch === '(' || ch === '[') depth++
+    else if (ch === ')' || ch === ']') depth--
+    if (ch === ',' && depth === 0) { out.push(cur); cur = '' } else cur += ch
+  }
+  out.push(cur)
+  return out
+}
 
 // ---- 1. identity
 function checkIdentity(files) {
@@ -73,7 +84,7 @@ function studioPurpleTokens(readFile) {
 }
 function checkAccent(css, need) {
   const own = rules(css)
-  ok(own.length > 0 && own.every(r => r.sel.split(',').every(s => s.trim().startsWith(SCOPE))), 'every rule is scoped to the flag attribute on :root')
+  ok(own.length > 0 && own.every(r => selectorList(r.sel).every(s => s.trim().startsWith(SCOPE))), 'every rule is scoped to the flag attribute on :root')
   ok(!/#(6a4fc0|b4a0f2|7358ba|bca5ee|7155ac|c3abea)\b/i.test(blank(css)), 'the stylesheet sets no purple')
   for (const r of own) for (const [, name, value] of r.body.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+)/gi)) if (/accent|violet/.test(name)) ok(TEAL.has(value.trim().toLowerCase()), `${name} maps to the shell teal`)
   ok(need.length > 20, 'the Studio stylesheets define purple accents to map')
