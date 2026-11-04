@@ -206,7 +206,7 @@ async function suite() {
   fresh()
   const jobs = ROUTES.find(r => r[0] === 'app/api/slides/jobs/[jobId]/route.ts')
   state.fetches = []; await jobs[2](load(jobs[0]))
-  eq(header(state.fetches[0].init), null, 'e-mail fallback: no header (fail-closed)')
+  eq(header(state.fetches[0]), null, 'e-mail fallback: no header (fail-closed)')
   eq(sentUserId(state.fetches[0]), 'b@example.test', 'e-mail fallback: the proxy sent the e-mail')
   eq(state.warns.length, 1, 'e-mail fallback: one log line')
   ok(/e-mail fallback/.test(state.warns[0]) && /DIRECTOR_REST_AUTH_ALL_ENABLED/.test(state.warns[0]), 'the line names the fallback and the Director flag')
@@ -228,7 +228,7 @@ async function suite() {
   state.dbRows = new Map([[`id:${UID}`, UID], ['id:u2', 'u2']]); state.dbReads = 0; state.dbWheres = []
   ok(await signs({ id: UID }), 'first call signs'); eq(state.dbReads, 1, 'first call reads the DB')
   now += 29_999; ok(await signs({ id: UID }), 'inside 30 s signs'); eq(state.dbReads, 1, 'inside 30 s: no DB read (polling)')
-  ok(await signs({ id: 'u2' }, 'u2'), 'another user signs'); eq(state.dbReads, 2, 'another user: its own DB read'); eq(state.dbWheres[1], { id: 'u2' }, 'looked up by its own id')
+  ok(await signs({ id: 'u2' }, 'u2'), 'another user signs'); eq(state.dbReads, 2, 'another user: its own DB read'); eq(JSON.stringify(state.dbWheres[1]), JSON.stringify({ id: 'u2' }), 'looked up by its own id')
   ok(!(await signs({ id: 'u2' }, UID)), 'the cache never lends one user\'s id to another sent id')
   now += 1; ok(await signs({ id: UID }), 'at 30 s signs'); eq(state.dbReads, 3, 'at 30 s: read again')
   state.dbRows.delete('id:u3'); now += 1; ok(!(await signs({ id: 'u3' }, 'u3')), 'no row: no header'); state.dbRows.set('id:u3', 'u3'); ok(await signs({ id: 'u3' }, 'u3'), 'a miss is not cached: the next call finds the new row')
