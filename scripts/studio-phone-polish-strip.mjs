@@ -56,6 +56,9 @@ const FIRST_PARENT_LINE = "  shas.splice(0, shas.length, ...shas.filter(sha => !
 export const PHONE_POLISH_PIN_EDITS = {
   'scripts/test-studio-deck-sync-truth.mjs': [[FIRST_PARENT_LINE, '']],
   'scripts/test-studio-chat-element-edit.mjs': [[FIRST_PARENT_LINE, '']],
+  // FRONTEND-1 lane, taught with FRONTEND-1's OK (4 Nov 14:48Z): both read components/user-profile-menu*.tsx raw, so they strip later changes first
+  "scripts/test-studio-p2-profile-menu.mjs": [["import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (PHONE-POLISH)\n", ""], ["const read = rel => stripP2Polish(rel, stripLaterChanges(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))) // LATER-CHANGES: registry read (PHONE-POLISH)\n", "const read = rel => stripP2Polish(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))\n"]],
+  "scripts/test-studio-p2-polish.mjs": [["import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (PHONE-POLISH)\n", ""], ["const read = rel => stripLaunchWording(rel, stripLaterChanges(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))) // LATER-CHANGES: registry read (PHONE-POLISH)\n", "const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))\n"]],
 }
 
 /** The proof without this change's edits (the base commit's file). Idempotent: a proof that has none of the edits comes back as it is. */
