@@ -339,11 +339,16 @@ export const API_HARDENING_SCOPE_FILES = new Set([
   ...API_HARDENING_NEW_FILES,
   'scripts/studio-later-changes.mjs',
   '.env.example',
+  'app/api/dev/mock-token/route.ts', // touched by this branch's first commit (deleted) and its second (put back to the base): net unchanged; the deletion lives in #571
   // the older proofs this change taught to read through it
   'scripts/test-admin-email-guard.mjs',
   'scripts/test-studio-kg-ask.mjs',
   'scripts/test-studio-legal-short-links.mjs',
+  'scripts/test-studio-d1-debug-routes.mjs',
+  'scripts/test-studio-dev-dependencies.mjs',
+  'scripts/test-studio-narration-router.mjs',
   'scripts/test-studio-p2-admin.mjs',
+  'scripts/test-studio-uat-marketing.mjs',
   'scripts/test-studio-template-library-manage.mjs',
   'scripts/test-studio-tl-signed-requests.mjs',
 ])

@@ -21,6 +21,7 @@
 import assert from 'node:assert/strict'
 import { createHash, randomBytes } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
+import { stripApiHardening } from './studio-api-hardening-strip.mjs' // LATER-CHANGE: PROGRAM-1 API hardening (STUDIO_API_HARDENING_V1_ENABLED): its lines come out before this pin reads them
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
@@ -56,7 +57,7 @@ const HARNESS = 'scripts/studio-library-manage-harness.mjs'
 const STACK_TOLERANT = 'scripts/studio-stack-tolerant.mjs' // the scope and shared-file rules for a tree that holds later PRs too (read from its text, so the mutants below can edit it)
 const NR_PKG_CHANGES = [['    "test:studio-narration-router": "node scripts/test-studio-narration-router.mjs"', '']] // this change's one package.json line
 
-const tryRead = rel => { try { return fs.readFileSync(path.join(repoRoot, rel), 'utf8') } catch { return null } }
+const tryRead = rel => { try { return stripApiHardening(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')) } catch { return null } } // LATER-CHANGE: PROGRAM-1 API hardening reads through its strip
 const baseCache = new Map()
 const headCache = new Map()
 const ownHeadSource = rel => { if (!headCache.has(rel)) headCache.set(rel, gitOut('show', `${OWN_HEAD}:${rel}`)); return headCache.get(rel) }

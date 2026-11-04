@@ -21,6 +21,7 @@ import {
   BASE_COMMIT, D1_BLOCKS, D1_DELETED, D1_GATE, D1_REMOVED_ROUTES, D1_HELPERS, D1_IMPORTS, D1_NEW_FILES, D1_OWN_EDITS, D1_ROUTE, D1_SCOPE_FILES, D1_SUBJECT, stripD1DebugRoutes,
 } from './studio-d1-debug-routes-strip.mjs'
 import { LATER_CHANGE_FILES, LATER_ENV_BLOCKS, LATER_STRIPS, stripLaterChanges } from './studio-later-changes.mjs'
+import { stripApiHardening } from './studio-api-hardening-strip.mjs' // LATER-CHANGE: PROGRAM-1 API hardening (STUDIO_API_HARDENING_V1_ENABLED): its lines come out before this pin reads them
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const BASE = process.env.D1_DEBUG_ROUTES_BASE || BASE_COMMIT
@@ -29,7 +30,7 @@ const gitOk = (...args) => { try { git(...args); return true } catch { return fa
 const baseCache = new Map()
 const baseOf = rel => { if (!baseCache.has(rel)) baseCache.set(rel, git('show', `${BASE}:${rel}`)); return baseCache.get(rel) }
 let overrides = {} // in-memory mutations: rel -> text (a file that is there), or null (a file that is gone)
-const read = rel => (rel in overrides ? overrides[rel] : fs.readFileSync(path.join(root, rel), 'utf8'))
+const read = rel => (rel in overrides ? overrides[rel] : stripApiHardening(rel, fs.readFileSync(path.join(root, rel), 'utf8'))) // LATER-CHANGE: PROGRAM-1 API hardening reads through its strip
 const exists = rel => (rel in overrides ? overrides[rel] !== null : fs.existsSync(path.join(root, rel)))
 
 let checks = 0
