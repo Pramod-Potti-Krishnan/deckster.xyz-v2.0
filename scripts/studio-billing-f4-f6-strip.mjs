@@ -1,5 +1,5 @@
 // FRONTEND-1 (L-BILLING F4 + F6, Studio half; security audit B2/B3). Server-only switch WALLET_DEBIT_SOURCE (default unset = "flat" = today; see lib/billing/wallet-debit-source.ts).
-// F4: app/api/wallet/debit/route.ts gets marked pure insertions (marker BILLING-F4F6): under "router" it ignores the browser amount; under "flat_strict" a capped debit is refused 402 wallet_capped.
+// F4: app/api/wallet/debit/route.ts gets marked pure insertions (marker BILLING-F4F6): under "router" it ignores the browser amount; under "flat_strict" an over-cap debit still lands and is logged; the refusal is the pre-build check GET /api/wallet/precheck (new file), 402 wallet_capped.
 // F6: plan and pack prices are written once, in lib/marketing/homepage-v2-pricing.ts (PRICING_TIERS, TOPUP_PACKS, marked appended lines); Billing, the top-up modal and the Stripe top-up route read them.
 // Those are REPLACED lines; BILLING_F4F6_EDITS holds [text now, text before] and stripBillingF4F6 puts the old text back. The derived strings equal the old literals, so output is byte-identical.
 // Plain node, no imports.
@@ -39,10 +39,10 @@ export const BILLING_F4F6_EDITS = {
   ]
  ]
 }
-export const BILLING_F4F6_NEW_FILES = ['lib/billing/wallet-debit-source.ts', 'scripts/studio-billing-f4-f6-strip.mjs', 'scripts/test-studio-billing-f4-f6.mjs']
+export const BILLING_F4F6_NEW_FILES = ['lib/billing/wallet-debit-source.ts', 'app/api/wallet/precheck/route.ts', 'scripts/studio-billing-f4-f6-strip.mjs', 'scripts/test-studio-billing-f4-f6.mjs']
 export const BILLING_F4F6_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs']
 export const BILLING_F4F6_SCOPE_FILES = new Set([...BILLING_F4F6_FILES, ...Object.keys(BILLING_F4F6_EDITS), ...BILLING_F4F6_NEW_FILES, ...BILLING_F4F6_OWN_EDITS])
-export const BILLING_F4F6_ENV_BLOCK = "# WALLET DEBIT SOURCE (FRONTEND-1; L-BILLING F4 + security audit B2/B3). Server-only, runtime. Unset or \"flat\" = today: /api/wallet/debit charges browser-reported tokens at the flat rate.\n# \"flat_strict\" = flat, but a debit over the caps and the prepaid reserve is refused with 402 { code: \"wallet_capped\" } instead of being recorded as capped.\n# \"router\" = the router meter is the only debit source: /api/wallet/debit ignores the browser-reported amount and records nothing (no-op 200). Do not set \"router\" before the meter receiver ships.\n# WALLET_DEBIT_SOURCE=flat"
+export const BILLING_F4F6_ENV_BLOCK = "# WALLET DEBIT SOURCE (FRONTEND-1; L-BILLING F4 + security audit B2/B3). Server-only, runtime. Unset or \"flat\" = today: /api/wallet/debit charges browser-reported tokens at the flat rate.\n# \"flat_strict\" = flat (the post-turn debit always lands; an over-cap one is logged), plus a pre-build check: GET /api/wallet/precheck answers 402 { code: \"wallet_capped\" } when over the caps with no top-up balance.\n# \"router\" = the router meter is the only debit source: /api/wallet/debit ignores the browser-reported amount and records nothing (no-op 200). Do not set \"router\" before the meter receiver ships.\n# WALLET_DEBIT_SOURCE=flat"
 
 export function stripBillingF4F6(rel, text) {
   if (typeof text !== 'string') return text

@@ -5,7 +5,7 @@ import { getServerTier } from "@/lib/quota/server-tier"
 import { debitWallet, recordPlanUsage, InsufficientFundsError } from "@/lib/wallet"
 import { tokensToUsdCents } from "@/lib/pricing/tokens"
 import { getQuotaStatus, fitsWithinCaps, type Tier } from "@/lib/quota/quota"
-import { flatDebitEnabled, refuseCappedDebit, CAPPED_STATUS, CAPPED_CODE } from "@/lib/billing/wallet-debit-source" // BILLING-F4F6
+import { flatDebitEnabled, preBuildCapCheck } from "@/lib/billing/wallet-debit-source" // BILLING-F4F6
 
 export async function POST(request: NextRequest) {
   try {
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
         deducted = true
       } catch (error) {
         if (error instanceof InsufficientFundsError) {
-          if (refuseCappedDebit()) return NextResponse.json({ error: "Plan credits and top-up balance are used up", code: CAPPED_CODE, capped: true, quota: before }, { status: CAPPED_STATUS }) // BILLING-F4F6: B3 (WALLET_DEBIT_SOURCE=flat_strict)
+          if (preBuildCapCheck()) console.warn(`[api/wallet/debit] over cap, debit recorded as capped (WALLET_DEBIT_SOURCE=flat_strict) user=${userId} costCents=${costCents}`) // BILLING-F4F6: B3, the post-turn debit always lands
           // Director already completed this turn — never lose the accounting.
           // Record it against the plan and flag `capped` so the UI blocks the
           // NEXT send until the period resets or the user tops up.

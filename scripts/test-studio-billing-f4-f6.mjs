@@ -2,7 +2,7 @@
 // A flag-off identity: stripping BILLING-F4F6 from each touched file gives its base byte for byte (debit route vs #575's head, the rest vs BASE_COMMIT).
 // B single price source: no "$NN" plan/pack literal outside lib/marketing/homepage-v2-pricing.ts in the files this change took them from; derived strings equal the old literals.
 // C switch default = today: unset / "flat" / junk -> flat; only exact "router" / "flat_strict" change behaviour. B2: under router the debit route ignores the client amount
-//   (returns before any read of the body). B3: under flat_strict an InsufficientFundsError answers 402 code wallet_capped.
+//   (returns before any read of the body). B3 (PROGRAM-1 ruling): the post-turn debit is never refused (it logs over cap); GET /api/wallet/precheck refuses 402 wallet_capped under flat_strict when capped.
 // D mutants: each mutation of the switch or the strip must make a check fail.
 import { execSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
@@ -29,21 +29,30 @@ ok(/export const TOPUP_PACKS/.test(pricing), 'B: TOPUP_PACKS lives in the price 
 ok(!/provider_cost|providerCost|margin/i.test(Object.keys(m.BILLING_F4F6_EDITS).map(f => readFileSync(f, 'utf8')).join('')), 'B: no provider cost or margin on user-facing price surfaces')
 
 // C: evaluate the switch module (TS without types)
-const loadSwitch = src => { const js = src.replace(/export type[^\n]*\n/g, '').replace(/: Record<string, string \| undefined>/g, '').replace(/\): (WalletDebitSource|boolean)/g, ')').replace(/export /g, ''); return new Function(`${js}; return { walletDebitSource, flatDebitEnabled, refuseCappedDebit, meterFeedDebitsWallet, CAPPED_STATUS, CAPPED_CODE }`)() }
+const loadSwitch = src => { const js = src.replace(/export type[^\n]*\n/g, '').replace(/: Record<string, string \| undefined>/g, '').replace(/\): (WalletDebitSource|boolean)/g, ')').replace(/export /g, ''); return new Function(`${js}; return { walletDebitSource, flatDebitEnabled, preBuildCapCheck, preBuildRefused, meterFeedDebitsWallet, CAPPED_STATUS, CAPPED_CODE }`)() }
 const sw = readFileSync('lib/billing/wallet-debit-source.ts', 'utf8')
 const checkSwitch = s => {
-  for (const v of [undefined, '', 'flat', 'ROUTER', 'junk']) { assert.equal(s.walletDebitSource({ WALLET_DEBIT_SOURCE: v }), 'flat'); assert.equal(s.flatDebitEnabled({ WALLET_DEBIT_SOURCE: v }), true); assert.equal(s.refuseCappedDebit({ WALLET_DEBIT_SOURCE: v }), false); assert.equal(s.meterFeedDebitsWallet({ WALLET_DEBIT_SOURCE: v }), false) }
+  for (const v of [undefined, '', 'flat', 'ROUTER', 'junk']) { assert.equal(s.walletDebitSource({ WALLET_DEBIT_SOURCE: v }), 'flat'); assert.equal(s.flatDebitEnabled({ WALLET_DEBIT_SOURCE: v }), true); assert.equal(s.preBuildCapCheck({ WALLET_DEBIT_SOURCE: v }), false); assert.equal(s.preBuildRefused(s.preBuildCapCheck({ WALLET_DEBIT_SOURCE: v }), false, 0), false); assert.equal(s.meterFeedDebitsWallet({ WALLET_DEBIT_SOURCE: v }), false) }
   assert.equal(s.flatDebitEnabled({ WALLET_DEBIT_SOURCE: 'router' }), false)
   assert.equal(s.meterFeedDebitsWallet({ WALLET_DEBIT_SOURCE: 'router' }), true)
-  assert.equal(s.refuseCappedDebit({ WALLET_DEBIT_SOURCE: 'flat_strict' }), true)
+  assert.equal(s.preBuildCapCheck({ WALLET_DEBIT_SOURCE: 'flat_strict' }), true)
+  assert.equal(s.preBuildCapCheck({ WALLET_DEBIT_SOURCE: 'router' }), false)
+  assert.equal(s.preBuildRefused(true, false, 0), true, 'capped, no balance -> refused')
+  assert.equal(s.preBuildRefused(true, false, 1), false, 'capped but a top-up balance -> allowed')
+  assert.equal(s.preBuildRefused(true, true, 0), false, 'within caps -> allowed')
+  assert.equal(s.preBuildRefused(false, false, 0), false, 'check off -> allowed')
   assert.equal(s.flatDebitEnabled({ WALLET_DEBIT_SOURCE: 'flat_strict' }), true)
   assert.equal(s.CAPPED_STATUS, 402); assert.equal(s.CAPPED_CODE, 'wallet_capped')
 }
 checkSwitch(loadSwitch(sw)); n++
 const route = readFileSync('app/api/wallet/debit/route.ts', 'utf8')
 ok(route.indexOf('if (!flatDebitEnabled())') < route.indexOf('await request.json()'), 'C/B2: router mode returns before the client amount is read')
-ok(/if \(refuseCappedDebit\(\)\) return NextResponse\.json\(\{[^\n]*code: CAPPED_CODE[^\n]*status: CAPPED_STATUS/.test(route), 'C/B3: capped debit refused under flat_strict')
-ok(route.indexOf('refuseCappedDebit()') > route.indexOf('instanceof InsufficientFundsError') && route.indexOf('refuseCappedDebit()') < route.indexOf('capped: true,\n'), 'C/B3: refusal precedes the capped record')
+ok(!/status: CAPPED_STATUS|CAPPED_CODE|status: 402/.test(route), 'C/B3: the post-turn debit is never refused')
+ok(/if \(preBuildCapCheck\(\)\) console\.warn\(/.test(route) && route.indexOf('preBuildCapCheck()') > route.indexOf('instanceof InsufficientFundsError') && route.indexOf('preBuildCapCheck()') < route.indexOf('capped: true,\n'), 'C/B3: over cap is logged, then recorded as capped as today')
+const pre = readFileSync('app/api/wallet/precheck/route.ts', 'utf8')
+ok(pre.indexOf('if (!preBuildCapCheck()) return NextResponse.json({ ok: true, checked: false }') > 0 && pre.indexOf('if (!preBuildCapCheck())') < pre.indexOf('getQuotaStatus('), 'C/B3: precheck default reads nothing and allows')
+ok(/preBuildRefused\(true, fitsWithinCaps\(quota\.caps, quota\.spent, 1\), quota\.walletBalanceCents\)\) \{\n\s+return NextResponse\.json\(\{[^\n]*code: CAPPED_CODE[^\n]*status: CAPPED_STATUS/.test(pre), 'C/B3: precheck refuses 402 wallet_capped when capped')
+ok(pre.indexOf('getServerTier(') > 0, 'C/B3: precheck tier from the database')
 
 // D mutants
 const mutants = [
@@ -52,6 +61,9 @@ const mutants = [
   s => s.replace('"flat_strict" ? "flat_strict"', '"flat_strict" ? "flat"'),
   s => s.replace('walletDebitSource(env) !== "router"', 'walletDebitSource(env) === "flat"'),
   s => s.replace('CAPPED_STATUS = 402', 'CAPPED_STATUS = 200'),
+  s => s.replace('return enabled && !fitsOneCent && !(walletBalanceCents > 0)', 'return enabled && !fitsOneCent'),
+  s => s.replace('return enabled && !fitsOneCent && !(walletBalanceCents > 0)', 'return !fitsOneCent && !(walletBalanceCents > 0)'),
+  s => s.replace('return walletDebitSource(env) === "flat_strict"', 'return walletDebitSource(env) !== "router"'),
 ]
 for (const [i, mut] of mutants.entries()) { const src = mut(sw); assert.notEqual(src, sw, `mutant ${i} applies`); let killed = false; try { checkSwitch(loadSwitch(src)) } catch { killed = true }; ok(killed, `D: mutant ${i} killed`) }
 const stripMutant = (rel, text) => text.split('\n').filter(l => !l.includes('BILLING-F4F6 ')).join('\n')
