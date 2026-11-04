@@ -73,3 +73,28 @@ export async function directorRestSignHeaders(
     return {}
   }
 }
+
+/**
+ * The user id a Director REST proxy sends (and therefore signs).
+ *
+ * Flag off: exactly the raw id the proxy derived (`session.user.id || session.user.email`), no DB read.
+ * Flag on: a session that carries only an e-mail (no `user.id`) is resolved to the DB users-table id for that e-mail, so the
+ * id sent in the path / body / query is the same DB id `directorRestSignHeaders` verifies and signs. Sessions that already carry an id,
+ * a missing row and a DB error all return the raw id unchanged (the call then goes out unsigned, as before).
+ */
+export async function resolveDirectorUserId(
+  rawUserId: string | null | undefined,
+  deps: DirectorRestSignDeps = {},
+): Promise<string | null> {
+  const raw = typeof rawUserId === 'string' && rawUserId ? rawUserId : null
+  if (!raw || !isStudioDirectorRestSignAllEnabled()) return raw
+  try {
+    const user = await (deps.sessionUser ?? defaultSessionUser)()
+    if (!user || (typeof user.id === 'string' && user.id)) return raw
+    if (typeof user.email !== 'string' || !user.email || user.email !== raw) return raw
+    const dbId = await (deps.findUserId ?? defaultFindUserId)({ email: user.email })
+    return dbId || raw
+  } catch {
+    return raw
+  }
+}

@@ -31,6 +31,7 @@ import {
   BASE_COMMIT, PHONE_LANDSCAPE_FILES, PHONE_LANDSCAPE_NEW_FILES, PHONE_LANDSCAPE_PIN_EDITS, PHONE_LANDSCAPE_PIN_FILES, PHONE_LANDSCAPE_PIN_MARK, PHONE_LANDSCAPE_SCOPE_FILES, PHONE_LANDSCAPE_ENV_BLOCK, PHONE_LANDSCAPE_MARKER_RE, PHONE_LANDSCAPE_SUBJECT, PHONE_LANDSCAPE_FLAG, stripPhoneLandscape,
 } from './studio-phone-landscape-strip.mjs'
 import * as registry from './studio-later-changes.mjs'
+const { stripFlipEnablers } = await import('./studio-flip-enablers-strip.mjs') // LATER-CHANGES: registry read (FLIP-ENABLERS)
 
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
@@ -478,7 +479,7 @@ await check('the Builder page and the viewer without this change\'s lines are th
   assert.equal(stripPhoneLandscape('lib/anything.ts', 'x'), 'x'); assert.equal(stripPhoneLandscape(PAGE, 5), 5)
 })
 await check('the marked lines are where they should be: the page has three imports, the workspace clamp\'s call and one line of JSX (five), every one names the marker as a whole token, no existing line is rewritten; the viewer is not touched at all, and the two lines of it the stage\'s CSS relies on are still there (its 16 px padding, and the fit that takes 32 px off what it measures)', () => {
-  const page = read(PAGE), viewer = read(VIEWER)
+  const page = read(PAGE), viewer = stripFlipEnablers(VIEWER, read(VIEWER)) // LATER-CHANGES: registry read (FLIP-ENABLERS): program1/studio-flip-enablers' viewer lines come out first
   assert.equal(count(page, /^.*PHONE-LANDSCAPE.*$/gm), 5)
   for (const line of page.split('\n').filter(line => /PHONE-LANDSCAPE/.test(line))) assert.match(line, PHONE_LANDSCAPE_MARKER_RE)
   assert.match(page, /useStudioPhoneWorkspaceClamp\(workspaceWidth, setWorkspaceWidth\) \/\/ PHONE-LANDSCAPE/); assert.ok(page.indexOf('useStudioPhoneWorkspaceClamp(workspaceWidth') < page.indexOf('const studioOverlayWorkspace ='), 'the clamp is called before the page decides by the width')

@@ -95,6 +95,7 @@ async function downloadChecks(dlText) {
         if (id === '@/lib/service-url') return { requireServiceUrl: () => 'https://dl.test' }
         if (id === '@/lib/export-view-only') return { withExportViewOnly: x => x }
         if (id === '@/lib/studio-job-deadlines') return jobsStub
+        if (id === '@/lib/downloads-auth-client') return { downloadAuthHeaders: async () => ({}) } // LATER-CHANGES: registry read (FLIP-ENABLERS): program1/studio-flip-enablers', flag off adds no header
         assert.fail(`unexpected import ${id}`)
       } })
     return mod.exports

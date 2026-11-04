@@ -4,7 +4,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 import { kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
 import { composeEntitlementHeaders } from '@/lib/studio-compose-entitlement'
-import { directorRestSignHeaders, isStudioDirectorRestSignAllEnabled } from '@/lib/studio-director-rest-sign'
+import { resolveDirectorUserId, directorRestSignHeaders, isStudioDirectorRestSignAllEnabled } from '@/lib/studio-director-rest-sign'
 
 export const maxDuration = 300
 
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
 
   const session = await getServerSession(authOptions)
   const sessionUser = session?.user as SessionUserWithId | undefined
-  const userId = sessionUser?.id || sessionUser?.email
+  const userId = await resolveDirectorUserId(sessionUser?.id || sessionUser?.email)
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

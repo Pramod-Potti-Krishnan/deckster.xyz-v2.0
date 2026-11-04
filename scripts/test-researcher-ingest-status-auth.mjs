@@ -496,6 +496,8 @@ function hookWorld({ props = {}, onRequest, processBody = { status: 'processing'
     '@/lib/config': { getKnowledgeServiceUrl: () => `${RESEARCHER_BASE}/`, uploadConfig: { maxFiles: 5 } },
     '@/lib/upload-status': load('lib/upload-status.ts'),
     '@/lib/researcher-ingest-status-auth': authLib,
+    // program1/studio-flip-enablers: flag-off upload URLs (NEXT_PUBLIC_STUDIO_RESEARCHER_PROXY_ENABLED unset) are the direct ones.
+    '@/lib/researcher-upload-proxy': { researcherUploadUrl: (base, step) => `${base}/api/v1/${step}` },
   }
   vm.runInNewContext(transpile(HOOK), {
     module,

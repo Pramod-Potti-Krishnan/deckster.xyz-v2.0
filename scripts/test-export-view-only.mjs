@@ -85,6 +85,7 @@ function loadService(text, withLib) {
   return load(text, {
     '@/lib/service-url': serviceUrlShim,
     ...(withLib ? { '@/lib/export-view-only': lib } : {}),
+    '@/lib/downloads-auth-client': { downloadAuthHeaders: async () => ({}) }, // program1/studio-flip-enablers, flag off
     __globals: browserGlobals,
   })
 }
@@ -107,6 +108,7 @@ function loadRoute(text, withLib, deck = DECK) {
       getPublicLayoutBaseUrl: () => 'https://layout.test',
     },
     ...(withLib ? { '@/lib/export-view-only': lib } : {}),
+    '@/lib/downloads-auth-client': { downloadAuthHeaders: async () => ({}) }, // program1/studio-flip-enablers, flag off
     __globals: { fetch: fetchStub },
   })
 }

@@ -31,6 +31,7 @@ import {
   BASE_COMMIT, PHONE_HINTS_FILES, PHONE_HINTS_NEW_FILES, PHONE_HINTS_PIN_EDITS, PHONE_HINTS_PIN_FILES, PHONE_HINTS_PIN_MARK, PHONE_HINTS_SCOPE_FILES, PHONE_HINTS_ENV_BLOCK, PHONE_HINTS_MARKER_RE, PHONE_HINTS_SUBJECT, PHONE_HINTS_FLAG, stripPhoneHints,
 } from './studio-phone-hints-strip.mjs'
 import * as registry from './studio-later-changes.mjs'
+const { stripFlipEnablers } = await import('./studio-flip-enablers-strip.mjs') // LATER-CHANGES: registry read (FLIP-ENABLERS): program1/studio-flip-enablers' viewer lines come out first
 
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
@@ -395,7 +396,7 @@ await check('the Builder page without this change\'s lines is PR 1\'s page byte 
   assert.equal(stripPhoneHints('lib/anything.ts', 'x'), 'x'); assert.equal(stripPhoneHints(PAGE, 5), 5)
 })
 await check('the marked lines are where they should be: the page has two imports and one line of JSX (after PR 1\'s), every one names the marker as a whole token and none names PR 1\'s (neither strip can take out the other\'s lines); the viewer is not touched at all and still answers the key the swipe presses', () => {
-  const page = read(PAGE), viewer = read(VIEWER)
+  const page = read(PAGE), viewer = stripFlipEnablers(VIEWER, read(VIEWER))
   assert.equal(count(page, /^.*PHONE-HINTS.*$/gm), 3); assert.equal(count(viewer, /PHONE-HINTS/g), 0)
   for (const line of page.split('\n').filter(line => /PHONE-HINTS/.test(line))) assert.match(line, PHONE_HINTS_MARKER_RE)
   assert.match(page, /\{STUDIO_PHONE_HINTS_ENABLED && <StudioPhoneHints deckOnStage=\{Boolean\(effectivePresentationUrl\) && !studioWelcome && !session\.isLoadingSession\} stageVisible=\{studioOverlayWorkspace && !studioCanvasCovered\} editing=\{studioViewerEditing\} slideNumber=\{currentSlideIndex \+ 1\} slideCount=\{effectiveSlideCount \?\? 0\} \/>\}/)

@@ -168,6 +168,7 @@ import {
   syncedFooterTotal,
   visualTotalAfterCommit,
 } from '@/lib/studio-slide-count-sync'
+import { useLayoutViewerTicketSrc } from '@/lib/studio-layout-viewer-ticket' // LAYOUT-TICKET (NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED, default off)
 import { STUDIO_DECK_SYNC_TRUTH_ENABLED, syncTruthSettledTotals } from '@/lib/studio-deck-sync-truth' // DECK-SYNC-TRUTH (NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH, default off): after a poll the totals are the viewer's own count, not a floor restored too high
 
 const DEFAULT_BUILD_THEME_SELECTION: BuildThemeSelection = { mode: 'auto' }
@@ -943,6 +944,8 @@ export function PresentationViewer({
   const approvedIframeNavigationUrl = useMemo(() => {
     return buildSnapshotNavigationUrl(approvedPresentationUrl, studioShell ? buildSnapshotRevision : 0)
   }, [approvedPresentationUrl, studioShell, buildSnapshotRevision])
+  // LAYOUT-TICKET (NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED, default off): the editing frame loads with a minted viewer ticket, renewed in place by lib/studio-layout-viewer-ticket.ts. Off: exactly approvedIframeNavigationUrl.
+  const ticketedIframeSrc = useLayoutViewerTicketSrc(approvedIframeNavigationUrl, presentationId)
   // VERSION-HISTORY-V2 (NEXT_PUBLIC_STUDIO_VERSION_HISTORY_V2, default off): the profile menu's "Version history" opens the panel of the deck on screen. The opener exists only while a deck is loaded.
   const [versionHistoryV2Open, setVersionHistoryV2Open] = useState(false) // VERSION-HISTORY-V2
   useEffect(() => { // VERSION-HISTORY-V2
@@ -4761,6 +4764,7 @@ export function PresentationViewer({
                   key={approvedIframeNavigationUrl}
                   ref={iframeRef}
                   src={approvedIframeNavigationUrl || undefined}
+                  {...((/* LAYOUT-TICKET */ ticketedIframeSrc !== approvedIframeNavigationUrl ? { src: ticketedIframeSrc || undefined } : {}) as object)}
                   onLoad={handleIframeLoad}
                   className={cn(
                     "w-full h-full border-0 transition duration-200",

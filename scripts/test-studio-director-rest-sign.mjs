@@ -179,7 +179,19 @@ for (const c of await runAll()) {
 // ---- 4. flag on, no header
 async function expectNone(label) { for (const c of await runAll()) assert.equal(header(c.f), null, `${label}: ${c.rel} ${c.method}`) }
 state.dbRows.clear(); await expectNone('no DB row')
-state.session = { user: { email: 'b@example.test' } }; state.dbRows.set('email:b@example.test', 'cm-other'); await expectNone('e-mail fallback, DB id differs from sent id')
+// program1/studio-flip-enablers gap 1: an e-mail-only session now sends AND signs its DB id (flag on); unresolvable e-mail stays unsigned.
+state.session = { user: { email: 'b@example.test' } }; state.dbRows.set('email:b@example.test', 'cm-other')
+for (const c of await runAll()) {
+  const h = header(c.f)
+  assert.ok(h, `${c.rel} ${c.method} e-mail session signed`)
+  const claims = verify(h, SECRET, c.method)
+  assert.equal(claims.sub, 'cm-other')
+  assert.equal(sentUserId(c.f), 'cm-other', `${c.rel}: e-mail session sends the DB id`)
+}
+state.dbRows.delete('email:b@example.test'); await expectNone('e-mail session, no DB row')
+env.STUDIO_DIRECTOR_REST_SIGN_ALL_ENABLED = 'false'
+for (const c of await runAll()) { assert.equal(header(c.f), null); assert.equal(sentUserId(c.f), 'b@example.test', `${c.rel}: flag off sends the e-mail as before`) }
+env.STUDIO_DIRECTOR_REST_SIGN_ALL_ENABLED = 'true'
 state.session = { user: { id: UID } }; state.dbRows.set(`id:${UID}`, 'someone-else'); await expectNone('DB id mismatch')
 state.dbRows.set(`id:${UID}`, UID); state.dbThrows = true; await expectNone('DB error')
 state.dbThrows = false; delete env.DIRECTOR_WS_AUTH_SECRET; await expectNone('secret unset')

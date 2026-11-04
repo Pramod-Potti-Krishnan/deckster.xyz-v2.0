@@ -72,6 +72,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-template-match-strip.mjs')).STUDIO_TEMPLATE_MATCH_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, W2 P4-7/8 template match: Studio shows the template Director applied, with Change / Undo, source chips and an auto-apply check (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH)
   ...(await import('./studio-phone-landscape-strip.mjs')).PHONE_LANDSCAPE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape (PR 1): a phone turned sideways gets a viewing stage with a hamburger and a plus (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   ...(await import('./studio-phone-hints-strip.mjs')).PHONE_HINTS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, F-13 phone hints (PR 2): the portrait rotate card, swipe to change slide, Full screen (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
+  ...(await import('./studio-flip-enablers-strip.mjs')).FLIP_ENABLERS_SCOPE_FILES, // LATER-CHANGE: PROGRAM-1, studio flip enablers (NEXT_PUBLIC_STUDIO_RESEARCHER_PROXY_ENABLED / NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED / NEXT_PUBLIC_STUDIO_DOWNLOADS_AUTH_ENABLED)
   // one line per later change, above this comment
 ])
 
@@ -116,11 +117,13 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-template-match-strip.mjs')).STUDIO_TEMPLATE_MATCH_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, W2 P4-7/8 template match (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH)
   (await import('./studio-phone-landscape-strip.mjs')).PHONE_LANDSCAPE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape, PR 1 (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   (await import('./studio-phone-hints-strip.mjs')).PHONE_HINTS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-13 phone hints, PR 2 (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
+  (await import('./studio-flip-enablers-strip.mjs')).FLIP_ENABLERS_ENV_BLOCK, // LATER-CHANGE: PROGRAM-1, studio flip enablers
   // one line per later change, above this comment
 ]
 
 /** One strip per later change, (rel, text) => text, in the order the changes were stacked. */
 export const LATER_STRIPS = [
+  (await import('./studio-flip-enablers-strip.mjs')).stripFlipEnablers, // LATER-CHANGE: PROGRAM-1, studio flip enablers
   (await import('./studio-first-paint-strip.mjs')).stripFirstPaint, // LATER-CHANGE: COMPOSER-2, studio first paint (NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED)
   (await import('./studio-deck-card-thumbnail-strip.mjs')).stripDeckCardThumbnail, // LATER-CHANGE: COMPOSER-2, deck card thumbnails (NEXT_PUBLIC_STUDIO_DECK_CARD_THUMBNAILS_ENABLED)
   (await import('./studio-chat-undo-v2-strip.mjs')).stripChatUndoV2, // LATER-CHANGE: FRONTEND-2, chat undo v2 (NEXT_PUBLIC_STUDIO_CHAT_UNDO; no .env.example block)
