@@ -858,10 +858,10 @@ const QS_DOC = 'getting-started/quick-start-guide', UA_DOC = 'getting-started/un
 deepEq(AGENT_NAMES, ['Director', 'Researcher', 'Analyst', 'Content Generator', 'Visualizer', 'Theme Builder', 'Slide Composer', 'Element Generator'], 'the current team (AGENT_TEAM): these eight, in this order')
 deepEq(AGENTS_CONTENT.agents.map(agent => agent.name), AGENT_NAMES, 'content/agents.ts (the agent pages) names the same eight in the same order')
 {
-  const sentence = /Deckster runs as eight specialists:[^"]*/.exec(read('app/help/page.tsx'))?.[0]
-  ok(sentence, 'the Help page tells of the eight specialists')
-  for (const name of AGENT_NAMES) ok(sentence.includes(name), `the Help page's sentence names ${name}`)
-  eq(NUMBER_WORDS[AGENT_NAMES.length], 'eight', 'the Help page says eight, and the team is eight')
+  // UX-HONESTY (FRONTEND-1 UX-05, no flag): the Help page no longer claims a head-count ("eight specialists" was unverified); it reads the LIVE file, not the restored base, and holds the new truth
+  const helpNow = fs.readFileSync(path.join(repoRoot, 'app/help/page.tsx'), 'utf8')
+  nomatch(helpNow, /\b(?:four|six|seven|eight|nine|\d+)\s+(?:AI\s+)?(?:specialists|agents)\b/i, 'the Help page states no agent head-count')
+  match(helpNow, /You talk to the Director in plain English\./, 'the Help page still says the Director coordinates the specialists')
   const experts = plain(V3.pages.experts.team.agents).map(agent => agent.name)
   for (const name of AGENT_NAMES.slice(1)) ok(experts.includes(name), `the Experts page lists ${name}`)
   notes.push(`the Experts page also lists "${experts.at(-1)}" (${V3.pages.experts.team.agents.at(-1).status}); the docs do not name it`)
