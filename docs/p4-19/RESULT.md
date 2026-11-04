@@ -1,5 +1,8 @@
 # P4-19 — Director voice core gate result
 
+Maya v2 follow-up: `element3/p4-19-maya-v2-core` is a separate stack on frozen #558 `dcb9c900`. Locked face/timeline parser and pure Director clip mapping ported from `b3a812e`; 286 fixtures and strict core/consumer types pass. Both delivered Maya catalogs validate. No UI/transport/dependencies changed; full Studio suites were not rerun for this follow-up. Existing full-suite and refresh evidence below retains its original revision boundaries. See the consumer contract's Maya v2 section.
+
+
 Core restacked by merge onto Studio dev `91bcc9083defa55aafce204be3949fd2ff8e5841` (F-13); awaiting OPS-2 / PROGRAM-1 integration gate. Review branch: `element3/p4-19-voice-core`, [Studio PR #558](https://github.com/Pramod-Potti-Krishnan/deckster.xyz-v2.0/pull/558).
 
 Latest post-F-13 merge refresh is light only, per OPS-2's light-restack request: no Vitest, suites, type-check job or builds rerun. The merge preserves the strawman, template-match and F-13 phone features, leaves the voice core and its fixtures byte-identical to `ad5b5232`, and leaves application trees byte-identical to `91bcc908`. All 19 normalized proof/metadata views restore exactly to that new target; JavaScript syntax, whitespace and clean merge-tree checks pass. OPS-2 owns seat-2 install/types/suite/build/route gate. The 29-proof and 225-fixture results below remain evidence from the earlier `1f7b9fc2` refresh, not fresh results on `91bcc908`.

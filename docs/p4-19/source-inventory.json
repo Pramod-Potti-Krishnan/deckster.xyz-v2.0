@@ -17,5 +17,8 @@
   "test/voice-avatar-rig.test.ts": "b72088ccb8e771a9fc2b7c0dabff4a0f503469815ba5aa1417caf24fac98ee0b",
   "test/bird-motion.test.ts": "e7b4fa7f13dac7f13e3228a3ca40eb44173261ad46c0b12d04d7bab7a56ce32b",
   "test/voice-input.test.ts": "94b4cc8ab3b774af0773315bb5147dc1994ea7e5140a4693a6be0ddc52387dbe",
-  "test/cos-cost.test.ts": "51e04565a147fae8587e512be3b9d8acc8f5a208e5676d042f7843a68a21a9e4"
+  "test/cos-cost.test.ts": "51e04565a147fae8587e512be3b9d8acc8f5a208e5676d042f7843a68a21a9e4",
+  "maya-v2@b3a812e/src/voice/companion-face.ts": "7ac34352e22e50f4973568b1d09d6f2a560f5d307b66c0f3ef0544f8648aa99e",
+  "maya-v2@b3a812e/test/companion-face.test.ts": "22e5d075273a8115d5e7bc507da666221d88ea52095085acbcfb635d403d61d9",
+  "maya-v2@b3a812e/src/voice/bird-motion.ts": "6d0a607271a853cd3f49ecbf6eabf5709793bb1dda51e917f0847bcc71abbe33"
 }
