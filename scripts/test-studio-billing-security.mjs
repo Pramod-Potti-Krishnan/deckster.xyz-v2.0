@@ -9,7 +9,7 @@
  * 1. Own commits: every non-merge commit on the branch above the studio base is PROGRAM-1's or starts "Billing security:", and touches only this change's files.
  * 2. Strip: each owned file stripped (alone, and through the later-changes registry) is the base commit's byte for byte; a stray edit is caught.
  * 3. Route rig: concurrent redeem (B4), replayed event (B7), crash then retry (claim not lost), refund + dispute (one clawback), unknown price (fail closed),
- *    missing table (500), B5 / B8 flag off = today (and on = hardened), unpaid top-up not credited, a stale subscription event ignored.
+ *    missing table (500), B5 always on (coupons never grant a tier), B8 flag off = today (and on = clawback), unpaid top-up not credited, a stale subscription event ignored.
  */
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
@@ -49,7 +49,7 @@ const MUTANTS = {
   'clawed sum not read': [[MODULE, 'let remaining = Math.max(0, topup.amountCents - (clawed._sum.amountCents ?? 0))', 'let remaining = topup.amountCents']],
   'user row not locked': [[MODULE, "await tx.user.update({ where: { id: topup.userId }, data: { walletBalanceCents: { increment: 0 } }, select: { id: true } })", 'void 0']],
   'deleted with no row fails': [[MODULE, "  if (!existing) {\n    console.log(`[stripe-webhook] subscription.deleted", "  if (false) {\n    console.log(`[stripe-webhook] subscription.deleted"]],
-  'B5 ignores the flag': [[SECURITY, 'return hardened ? base : { ...base, tier: couponTier }', 'return base']],
+  'B5 re-grants the coupon tier': [[SECURITY, 'return { approved: true, approvedAt: now, approvedBy: `coupon:${couponCode}` }', 'return { approved: true, approvedAt: now, approvedBy: `coupon:${couponCode}`, tier: "pro" }']],
   'B8 ignores the flag': [[MODULE, 'if (isCouponTierHardeningOn(deps.env)) return handleClawback(event, tx, deps)', 'return handleClawback(event, tx, deps)']],
   'flag on for any value': [[SECURITY, 'return env[COUPON_TIER_HARDENING_FLAG] === "true"', 'return Boolean(env[COUPON_TIER_HARDENING_FLAG])']],
   'stale subscription event applied': [[MODULE, 'if (isStaleSubscriptionEvent(event.created, newest?.eventCreated)) {', 'if (false) {']],
@@ -234,16 +234,14 @@ const balance = (db, u = 'u1') => db.t.users.get(u).walletBalanceCents
   const r0 = await Promise.all(['u1', 'u2', 'u3'].map(u => b.redeem(u, 'one')))
   ok(r0.filter(r => r.status === 200).length > 1, 'B4: (the base over-redeems in the same rig)')
 }
-// B5 flag off = today; on = no tier
-for (const value of [undefined, 'false', 'TRUE', '1']) {
-  const db = makeDb(); seed(db); const head = await app(db, ENV(value)).redeem('u1', 'ONE')
-  const db0 = makeDb(); seed(db0); const base = await app(db0, ENV(value), { base: true }).redeem('u1', 'ONE')
-  eq(head, base, `B5 flag ${JSON.stringify(value)}: the redeem answer is today's`)
-  eq(db.t.users.get('u1').tier, 'pro', `B5 flag ${JSON.stringify(value)}: the coupon grants its tier, as today`)
-}
-{
-  const db = makeDb(); seed(db); const r = await app(db, ENV('true')).redeem('u1', 'ONE')
-  eq([r.status, r.body.tier, db.t.users.get('u1').tier, db.t.users.get('u1').approved, balance(db)], [200, 'free', 'free', true, 500], 'B5 flag on: credit + approval, no tier')
+// B5 always on, whatever the flag says: credits + approval, never a tier (a paying user's tier is kept)
+for (const value of [undefined, 'false', 'true', 'TRUE', '1']) {
+  const db = makeDb(); seed(db); const r = await app(db, ENV(value)).redeem('u1', 'ONE')
+  eq([r.status, r.body.tier, db.t.users.get('u1').tier, db.t.users.get('u1').approved, balance(db)], [200, 'free', 'free', true, 500], `B5 (flag ${JSON.stringify(value)}): credit + approval, no tier`)
+  const db2 = makeDb(); seed(db2); db2.t.users.get('u2').tier = 'premium'; const r2 = await app(db2, ENV(value)).redeem('u2', 'ONE')
+  eq([r2.body.tier, db2.t.users.get('u2').tier], ['premium', 'premium'], `B5 (flag ${JSON.stringify(value)}): a paying user's tier is kept`)
+  const db0 = makeDb(); seed(db0); await app(db0, ENV(value), { base: true }).redeem('u1', 'ONE')
+  eq(db0.t.users.get('u1').tier, 'pro', `B5 (flag ${JSON.stringify(value)}): (the base granted the tier in the same rig)`)
 }
 // B8: an unpaid top-up is not credited; async success credits once
 {
@@ -273,7 +271,7 @@ for (const value of [undefined, 'false', 'TRUE', '1']) {
 }
 // refunds and disputes (flag on): per refund id / dispute id, capped at the top-up; flag off: today (no clawback)
 const refundEv = (id, refunds, amount_refunded) => ev(id, 'charge.refunded', { id: 'ch_1', payment_intent: 'pi_1', amount: 1000, amount_refunded, refunds: { data: refunds } })
-for (const value of ['true', undefined]) {
+for (const value of ['true', undefined, 'false', 'TRUE', '1']) {
   const db = makeDb(); seed(db); const a = app(db, ENV(value))
   await a.post(ev('evt_t', 'checkout.session.completed', topupSession()))
   db.t.users.get('u1').walletBalanceCents = 200 // spent 800 since

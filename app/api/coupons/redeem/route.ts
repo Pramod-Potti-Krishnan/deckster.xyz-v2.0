@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth-options"
 import { prisma } from "@/lib/prisma"
 import { creditWallet } from "@/lib/wallet"
-import { couponUserUpdate, isCouponTierHardeningOn, isUniqueViolation } from "@/lib/billing/security" // BILLING-SECURITY
+import { couponUserUpdate, isUniqueViolation } from "@/lib/billing/security" // BILLING-SECURITY
 
 export async function POST(request: NextRequest) {
   try {
@@ -75,15 +75,14 @@ export async function POST(request: NextRequest) {
       })
 
       // BILLING-SECURITY begin redeem-tier
-      // B5 (STUDIO_BILLING_COUPON_TIER_HARDENING, exact "true", default off): a coupon grants credit and approval only, never a tier (the schema has no grant expiry). Off: today's grant.
-      const hardened = isCouponTierHardeningOn(process.env)
+      // B5 (not flagged; PK 4 Nov: coupons give credits only): a coupon grants credit and approval only, never a tier (the schema has no grant expiry).
       const user = await tx.user.update({
         where: { id: session.user.id },
-        data: couponUserUpdate(coupon.code, coupon.tier, hardened),
+        data: couponUserUpdate(coupon.code),
         select: { tier: true },
       })
 
-      return { balanceCents: balanceAfterCents, valueCents: coupon.valueCents, tier: hardened ? user.tier : coupon.tier }
+      return { balanceCents: balanceAfterCents, valueCents: coupon.valueCents, tier: user.tier }
       // BILLING-SECURITY end redeem-tier
     })
 

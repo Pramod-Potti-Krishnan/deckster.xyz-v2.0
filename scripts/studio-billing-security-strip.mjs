@@ -2,7 +2,7 @@
 // Every line this change adds to an EXISTING file carries the marker BILLING-SECURITY (a whole token). A single marked line is a pure insertion. A run of lines that REPLACES base code sits between
 // "// BILLING-SECURITY begin <id>" and "// BILLING-SECURITY end <id>"; BILLING_SECURITY_WAS[file][id] is the base text it replaced ('' for an insertion). stripBillingSecurity puts every block's base
 // text back and takes every single marked line out, so each owned file is BASE_COMMIT's byte for byte (scripts/test-studio-billing-security.mjs proves it, and that a stray edit is caught).
-// Owned files: app/api/webhooks/stripe/route.ts (the dispatch moves to lib/billing/stripe-webhook.ts), app/api/coupons/redeem/route.ts (B4 claim, B5 flag, B9 P2002), lib/wallet.ts (B9 race, B8 clawback),
+// Owned files: app/api/webhooks/stripe/route.ts (the dispatch moves to lib/billing/stripe-webhook.ts), app/api/coupons/redeem/route.ts (B4 claim, B5 always on, B9 P2002), lib/wallet.ts (B9 race, B8 clawback),
 // app/api/stripe/create-checkout-session/route.ts (B9 billing cycle) and prisma/schema.prisma (the StripeWebhookEvent model).
 // Two older proofs are taught to read through the registry (BILLING_SECURITY_EDITS: [line now, line before], whole lines): scripts/test-stripe-real-tier-webhook.mjs and scripts/test-studio-p2-admin.mjs.
 // scripts/test-studio-payments-open-soon.mjs already reads through it. How the older pins reach this strip: three LATER-CHANGE lines in scripts/studio-later-changes.mjs. Plain node, no imports, no I/O.
@@ -75,7 +75,7 @@ export const BILLING_SECURITY_OWN_EDITS = ['.env.example', 'scripts/studio-later
 
 export const BILLING_SECURITY_SCOPE_FILES = new Set([...BILLING_SECURITY_FILES, ...BILLING_SECURITY_NEW_FILES, ...BILLING_SECURITY_OWN_EDITS])
 
-export const BILLING_SECURITY_ENV_BLOCK = "# STUDIO BILLING COUPON TIER HARDENING (FRONTEND-1 for PROGRAM-1; SECURITY-AUDIT-BILLING B5 + B8). Server-only; on only for the string \"true\"; default off, and then coupons and refunds behave as today.\n# On: a coupon grants wallet credit and approval only, never a tier (B5; the coupon schema has no grant expiry). A Stripe charge.refunded or charge.dispute.created on a wallet top-up claws the credit back once per\n# payment intent, and the balance may go negative (B8). Leave off until PK rules. The webhook's other hardening (event claim, paid-only top-ups, price-mapped tier) is not behind this flag.\nSTUDIO_BILLING_COUPON_TIER_HARDENING=\"false\"\n"
+export const BILLING_SECURITY_ENV_BLOCK = "# STUDIO BILLING COUPON TIER HARDENING (FRONTEND-1 for PROGRAM-1; SECURITY-AUDIT-BILLING B8). Server-only; on only for the string \"true\"; default off, and then refunds and disputes behave as today.\n# On: a Stripe charge.refunded or charge.dispute.created on a wallet top-up claws back its share once per refund id / dispute id, capped in total at the credited top-up, and the balance may go negative (B8).\n# Leave off until PK rules. Not behind this flag: B5 (a coupon grants credits and approval only, never a tier; PK 4 Nov), the event claim, paid-only top-ups and the price-mapped tier.\nSTUDIO_BILLING_COUPON_TIER_HARDENING=\"false\"\n"
 
 /** The file without this change: blocks get their base text back, single marked lines go. Any other file comes back as it is. */
 export function stripBillingSecurity(rel, text) {
