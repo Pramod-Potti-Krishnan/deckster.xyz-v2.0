@@ -6,66 +6,89 @@
  * inserted at the directive's fixed position and, with CHAT_ADD_STACKING on (z 1000), is painted OVER the slide's existing text.
  *
  * With the flag on, right before the insert a chat add asks the viewer for the slide's elements (getSlideGenerationContext, the same read the panel uses)
- * and moves the element to the first free spot of the content area at its own size. No room at full size: the box is shrunk in steps (keeping its aspect,
- * down to FREE_SLOT_MIN_*) until it fits. Still no room, an unreadable answer or a slow viewer: the position is left exactly as before (today's behaviour).
+ * and MOVES the element to the first free spot of the content area at its own size. PROGRAM-1's ruling: move only, never shrink. No room at full size,
+ * an unreadable answer or a slow viewer: the position is left exactly as before (today's behaviour); a timed-out read says so in one log line.
+ * A picture with a caption row (captionInsertParams in the hook) moves as one block with its caption: the box that holds both is placed, and the caption is
+ * shifted by the picture's offset. A caption whose position cannot be read keeps both where they were (never split).
  * Layout renders at creation only, so the placement is decided BEFORE the insert (no PATCH afterwards). Flag off: nothing here runs.
  */
-import { chooseFreeSpot, occupiedRectsFromContext, FREE_SPOT_READ_TIMEOUT_MS, type FreeSpotCommandSender, type FreeSpotRect } from '@/lib/element-free-spot'
+import { chooseFreeSpot, occupiedRectsFromContext, parseFreeSpotSpan, FREE_SPOT_READ_TIMEOUT_MS, type FreeSpotCommandSender, type FreeSpotRect } from '@/lib/element-free-spot'
 
 export const CHAT_ADD_FREE_SLOT_ENABLED = process.env.NEXT_PUBLIC_STUDIO_CHAT_ADD_FREE_SLOT_ENABLED === 'true'
-
-/** Smallest box a chat add is shrunk to (grid units); below this a chart or table is unreadable, so the old position is kept instead. */
-export const FREE_SLOT_MIN_WIDTH = 8
-export const FREE_SLOT_MIN_HEIGHT = 5
-/** Shrink steps tried after the full size, as a share of the original width and height. */
-export const FREE_SLOT_SCALES = Object.freeze([1, 0.85, 0.7, 0.55, 0.4])
 
 export interface ChatAddSlot { startCol: number; startRow: number; width: number; height: number }
 
 const snap = (value: number) => Math.round(value * 5) / 5
 
-/** Pure: the first free slot for a width x height box among the occupied boxes, shrinking it if needed. Null when nothing fits. */
+/** Pure: the first free slot for a width x height box among the occupied boxes, at that size (never shrunk). Null when nothing fits. */
 export function chooseChatAddSlot(occupied: readonly FreeSpotRect[], width: number, height: number): ChatAddSlot | null {
   if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null
-  for (const scale of FREE_SLOT_SCALES) {
-    const w = scale === 1 ? width : Math.max(FREE_SLOT_MIN_WIDTH, snap(width * scale))
-    const h = scale === 1 ? height : Math.max(FREE_SLOT_MIN_HEIGHT, snap(height * scale))
-    if (scale !== 1 && (w > width || h > height)) continue
-    const spot = chooseFreeSpot(occupied, w, h)
-    if (spot) return { startCol: spot.startCol, startRow: spot.startRow, width: w, height: h }
-  }
-  return null
+  const spot = chooseFreeSpot(occupied, width, height)
+  return spot ? { startCol: spot.startCol, startRow: spot.startRow, width, height } : null
+}
+
+const SLOW_READ = 'Slide read timed out'
+
+/** The params' grid box, or null when its gridRow / gridColumn cannot be read. */
+function boxOf(params: Record<string, unknown>): { col: [number, number]; row: [number, number] } | null {
+  const col = parseFreeSpotSpan(params.gridColumn)
+  const row = parseFreeSpotSpan(params.gridRow)
+  return col && row ? { col, row } : null
+}
+
+function shift(params: Record<string, unknown>, box: { col: [number, number]; row: [number, number] }, dCol: number, dRow: number) {
+  params.gridRow = `${snap(box.row[0] + dRow)}/${snap(box.row[1] + dRow)}`
+  params.gridColumn = `${snap(box.col[0] + dCol)}/${snap(box.col[1] + dCol)}`
 }
 
 /**
- * Rewrites the insert params' geometry in place to a free slot on the slide. Returns the slot used, or null when the params were left untouched.
+ * Moves the insert params (and their caption row, when given) in place to a free slot on the slide, at full size. Returns the slot of the
+ * element, or null when nothing was touched.
  */
 export async function applyChatAddFreeSlot(input: {
   params: Record<string, unknown>
   sendElementCommand: FreeSpotCommandSender | null | undefined
   slideIndex: number
+  /** The caption row inserted right after a picture (captionInsertParams): moved by the same offset, or nothing moves. */
+  caption?: Record<string, unknown> | null
   timeoutMs?: number
 }): Promise<ChatAddSlot | null> {
-  const { params, sendElementCommand, slideIndex } = input
+  const { params, sendElementCommand, slideIndex, caption } = input
   const width = Number(params.positionWidth)
   const height = Number(params.positionHeight)
   if (!sendElementCommand || !Number.isFinite(width) || !Number.isFinite(height)) return null
+  const own = boxOf(params)
+  const captionBox = caption ? boxOf(caption) : null
+  if (caption && (!own || !captionBox)) return null // a caption must move with its picture: unreadable boxes keep both in place
+  const timeoutMs = input.timeoutMs ?? FREE_SPOT_READ_TIMEOUT_MS
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     const response = await Promise.race([
       sendElementCommand('getSlideGenerationContext', { slideIndex }),
-      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('Slide read timed out')), input.timeoutMs ?? FREE_SPOT_READ_TIMEOUT_MS) }),
+      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(SLOW_READ)), timeoutMs) }),
     ])
     const occupied = occupiedRectsFromContext(response, slideIndex)
     if (!occupied) return null
+    if (caption && own && captionBox) {
+      // the picture and its caption as one block
+      const left = Math.min(own.col[0], captionBox.col[0]), top = Math.min(own.row[0], captionBox.row[0])
+      const right = Math.max(own.col[1], captionBox.col[1]), bottom = Math.max(own.row[1], captionBox.row[1])
+      const block = chooseChatAddSlot(occupied, right - left, bottom - top)
+      if (!block) return null
+      const dCol = block.startCol - left, dRow = block.startRow - top
+      shift(params, own, dCol, dRow)
+      shift(caption, captionBox, dCol, dRow)
+      return { startCol: snap(own.col[0] + dCol), startRow: snap(own.row[0] + dRow), width, height }
+    }
     const slot = chooseChatAddSlot(occupied, width, height)
     if (!slot) return null
     params.gridRow = `${slot.startRow}/${snap(slot.startRow + slot.height)}`
     params.gridColumn = `${slot.startCol}/${snap(slot.startCol + slot.width)}`
-    params.positionWidth = slot.width
-    params.positionHeight = slot.height
     return slot
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message === SLOW_READ) {
+      console.warn(`[chat-add-free-slot] the viewer's free-spot read timed out after ${timeoutMs} ms (FREE_SPOT_READ_TIMEOUT_MS); the chat add keeps its position`)
+    }
     return null
   } finally {
     if (timer !== undefined) clearTimeout(timer)
