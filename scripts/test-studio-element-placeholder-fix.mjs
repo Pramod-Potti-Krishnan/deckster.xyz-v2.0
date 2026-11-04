@@ -30,6 +30,7 @@ import ts from 'typescript'
 import { stripChatElementRefine } from './studio-chat-element-refine-strip.mjs'
 import { stripChatAddTargeted } from './studio-chat-add-targeted-strip.mjs' // LATER-CHANGES: registry read (CHAT-ADD-TARGETED): the targeted chat add stacked after this change, so its marked lines in the generation hook come out first
 import { stripChatAddStacking } from './studio-chat-add-stacking-strip.mjs' // LATER-CHANGES: registry read (CHAT-ADD-STACKING): the chat add stacking stacked after this change, so its marked lines in the generation hook come out first
+import { LATER_STRIPS as laterStripsForChatAddFreeSlot } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-ADD-FREE-SLOT): the registered strip of the chat add free slot, stacked after this change
 
 for (const name of Object.keys(process.env)) if (/KEY|TOKEN|SECRET|CREDENTIAL|PASSWORD/i.test(name)) delete process.env[name]
 const denied = () => { throw new Error('Offline harness forbids network') }
@@ -419,6 +420,7 @@ await check('flag: exact "true", Studio shell only, documented off in .env.examp
       source = withoutImagePendingLines(stripChatElementRefine('hooks/use-textlabs-generation.ts', source)) // NEXT_PUBLIC_CHAT_ELEMENT_REFINE
       source = stripChatAddTargeted('hooks/use-textlabs-generation.ts', source) // LATER-CHANGES: registry read (CHAT-ADD-TARGETED)
       source = stripChatAddStacking('hooks/use-textlabs-generation.ts', source) // LATER-CHANGES: registry read (CHAT-ADD-STACKING)
+      source = laterStripsForChatAddFreeSlot.find(fn => fn.name === 'stripChatAddFreeSlot')('hooks/use-textlabs-generation.ts', source) // LATER-CHANGES: registry read (CHAT-ADD-FREE-SLOT): the chat add free slot's marked hook lines come out too
       const sf = ts.createSourceFile('x.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
       let found
       const visit = node => { if (!found && ts.isVariableDeclaration(node) && node.name.getText(sf) === name) found = printer.printNode(ts.EmitHint.Unspecified, node.initializer, sf); else ts.forEachChild(node, visit) }

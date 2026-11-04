@@ -5,6 +5,7 @@ import vm from 'node:vm'
 import ts from 'typescript'
 import { stripChatAddTargeted } from './studio-chat-add-targeted-strip.mjs' // LATER-CHANGES: registry read (CHAT-ADD-TARGETED): the targeted chat add stacked after this change, so its marked lines in the generation hook come out first
 import { stripChatAddStacking } from './studio-chat-add-stacking-strip.mjs' // LATER-CHANGES: registry read (CHAT-ADD-STACKING): the chat add stacking stacked after this change, so its marked lines in the generation hook come out first
+import { LATER_STRIPS as laterStripsForChatAddFreeSlot } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-ADD-FREE-SLOT): the registered strip of the chat add free slot, stacked after this change
 
 function compile(file, requireImplementation = () => ({})) {
   const source = fs.readFileSync(file, 'utf8')
@@ -354,6 +355,7 @@ assert.equal(logoUpsert.metadata.componentType, 'IMAGE')
 const formSource = fs.readFileSync(new URL('../components/generation-panel/forms/text-box-form.tsx', import.meta.url), 'utf8')
 const panelSource = fs.readFileSync(new URL('../components/generation-panel/header.tsx', import.meta.url), 'utf8')
 const generationSource = stripChatAddStacking('hooks/use-textlabs-generation.ts', stripChatAddTargeted('hooks/use-textlabs-generation.ts', fs.readFileSync(new URL('../hooks/use-textlabs-generation.ts', import.meta.url), 'utf8'))) // LATER-CHANGES: registry read (CHAT-ADD-STACKING) after (CHAT-ADD-TARGETED)
+const generationSourceWithoutFreeSlot = laterStripsForChatAddFreeSlot.find(fn => fn.name === 'stripChatAddFreeSlot')('hooks/use-textlabs-generation.ts', generationSource) // LATER-CHANGES: registry read (CHAT-ADD-FREE-SLOT): the chat add free slot's marked hook lines come out too
 const clientSource = fs.readFileSync(new URL('../lib/textlabs-client.ts', import.meta.url), 'utf8')
 const typesSource = fs.readFileSync(new URL('../types/textlabs.ts', import.meta.url), 'utf8')
 assert.doesNotMatch(formSource, /theme_mode|ThemeSourceSelector|recalcTextBoxLimits/)
@@ -486,15 +488,15 @@ async function verifySemanticDispatch(source) {
     semanticDispatchChecks++
   }
 }
-await verifySemanticDispatch(generationSource)
+await verifySemanticDispatch(generationSourceWithoutFreeSlot) // LATER-CHANGES: registry read (CHAT-ADD-FREE-SLOT): the chat add free slot's marked hook lines come out too
 assert.equal(semanticDispatchChecks, 18)
 for (const [from, to] of [
   [": semanticUpsertParams ? 'upsertSemanticElement'", ": semanticUpsertParams ? 'insertTextBox'"],
   ['(citedUpsertParams ?? semanticUpsertParams ?? params)', '(params)'],
   ['const semanticUpsertParams = buildSemanticUpsertParams(\n          params,\n          effectiveSlideIndex,\n          refineContext?.elementId,', 'const semanticUpsertParams = buildSemanticUpsertParams(\n          params,\n          effectiveSlideIndex,\n          undefined,'],
 ]) {
-  assert.ok(generationSource.includes(from), 'negative probe source must match')
-  await assert.rejects(() => verifySemanticDispatch(generationSource.replace(from, to)))
+  assert.ok(generationSourceWithoutFreeSlot.includes(from), 'negative probe source must match') // LATER-CHANGES: registry read (CHAT-ADD-FREE-SLOT): the chat add free slot's marked hook lines come out too
+  await assert.rejects(() => verifySemanticDispatch(generationSourceWithoutFreeSlot.replace(from, to))) // LATER-CHANGES: registry read (CHAT-ADD-FREE-SLOT): the chat add free slot's marked hook lines come out too
 }
 console.log('18 actual hook semantic dispatch/reconciliation cases and3 negative probes passed; offline only.')
 assert.match(generationSource, /buildSemanticUpsertParams/)
