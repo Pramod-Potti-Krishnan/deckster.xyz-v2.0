@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 import { getStripe } from '@/lib/stripe/stripe'
 import { getOrCreateStripeCustomer } from '@/lib/stripe/stripe-utils'
+import { billingCycleForPrice } from '@/lib/billing/security'
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,15 +13,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { priceId, billingCycle } = await req.json()
+    const { priceId } = await req.json()
 
-    // Validate price ID
-    const validPriceIds = [
-      process.env.STRIPE_PRO_MONTHLY_PRICE_ID,
-      process.env.STRIPE_PRO_YEARLY_PRICE_ID,
-    ]
+    // Validate price ID; billingCycle is derived server-side from it (B9),
+    // never taken from the client body.
+    const billingCycle = billingCycleForPrice(priceId, {
+      monthly: process.env.STRIPE_PRO_MONTHLY_PRICE_ID,
+      yearly: process.env.STRIPE_PRO_YEARLY_PRICE_ID,
+    })
 
-    if (!validPriceIds.includes(priceId)) {
+    if (!billingCycle) {
       return NextResponse.json({ error: 'Invalid price ID' }, { status: 400 })
     }
 
