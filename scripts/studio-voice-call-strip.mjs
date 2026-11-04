@@ -43,6 +43,17 @@ export const VOICE_CALL_NEW_FILES = [
   'scripts/fixtures/studio-voice-call-replay/scenario-V0.json',
   'scripts/fixtures/studio-voice-call-replay/scenario-V1.json',
   'scripts/fixtures/studio-voice-call-replay/scenario-V2.json',
+  // P4-21b: Maya's layered face (Garud's v2 player port, b3a812e): the pure modules, the painter behind the player's seam, and their proof
+  'lib/studio/voice-v2/companion-face.ts',
+  'lib/studio/voice-v2/companion-compositor.ts',
+  'lib/studio/voice-v2/companion-speech.ts',
+  'lib/studio/voice-v2/call-face.ts',
+  'lib/studio/voice-v2/index.ts',
+  'components/builder/voice-call/layered-face.ts',
+  'scripts/test-studio-voice-v2.mjs',
+  'scripts/fixtures/studio-voice-v2/companion-face.test.ts',
+  'scripts/fixtures/studio-voice-v2/companion-compositor.test.ts',
+  'scripts/fixtures/studio-voice-v2/companion-speech.test.ts',
 ]
 
 /** Older proofs one of this change's commits touched and a later one put back (the voice core's subject helper took over for the element-edit and deck-sync ones; the theme-export one is the core's own now (ad5b5232); the stage open gate's reads the page past every registered later change itself (laterStrips); the font-selection sandbox runs the socket hook unchanged, its voice line guards the flag with typeof): the history touches them, the tree does not change them. */

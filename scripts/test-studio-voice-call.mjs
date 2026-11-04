@@ -43,11 +43,12 @@ const core = await import('./studio-voice-core-strip.mjs')
 
 const UI = 'lib/studio-voice-call-ui.ts', ROUTER = 'lib/studio-voice-call-router.ts', CTL = 'lib/studio-voice-call-controller.ts', BROWSER = 'lib/studio-voice-call-browser.ts'
 const HOOK = 'hooks/use-studio-voice-call.ts', STAGE = 'components/builder/voice-call/voice-call-stage.tsx', BUTTONS = 'components/builder/voice-call/voice-call-buttons.tsx', PLAYER = 'components/builder/voice-call/companion-player.tsx'
+const LAYERED = 'components/builder/voice-call/layered-face.ts'
 const CSS = 'components/builder/voice-call/voice-call.css'
 const PAGE = 'app/builder/page.tsx', WS = 'hooks/use-deckster-websocket-v2.ts', INPUT = 'components/builder/chat-input.tsx'
 const CORE = 'lib/studio/voice'
 const CORE_STRIP = 'scripts/studio-voice-core-strip.mjs'
-const SOURCES = Object.fromEntries([UI, ROUTER, CTL, BROWSER, HOOK, STAGE, BUTTONS, PLAYER, CSS, PAGE, WS, INPUT, CORE_STRIP, '.env.example'].map(rel => [rel, read(rel)]))
+const SOURCES = Object.fromEntries([UI, ROUTER, CTL, BROWSER, HOOK, STAGE, BUTTONS, PLAYER, LAYERED, CSS, PAGE, WS, INPUT, CORE_STRIP, '.env.example'].map(rel => [rel, read(rel)]))
 
 // ---- a tiny module host: the real files (or a mutant of one), their imports resolved against the repo, in THIS realm --------------------------------------------------------------------------------
 function compile(text, fileName) {
@@ -1198,6 +1199,45 @@ async function stageSuiteBody(over = {}) {
   const p = renderToStaticMarkup(React.createElement(player.CompanionPlayer, { pack: 'bob', scene: 'idle', dance: false, framing: 'disc', size: 88, reducedMotion: false, getLevel: () => 0 }))
   ok(p.includes('data-studio-voice-companion="loading"') && p.includes('>B<') && p.includes('width:88px') && p.includes('height:88px') && !p.includes('<canvas'), 'player: before the pack is read: a plain disc with initials, no canvas')
   ok(renderToStaticMarkup(React.createElement(player.CompanionPlayer, { pack: 'deckster-owl', scene: 'idle', dance: false, framing: 'chest', size: 240, reducedMotion: true, getLevel: () => 0 })).includes('>DO<'), 'player: initials of the pack\'s name')
+  // THE SEAM (P4-21b): Maya's layered face. A v1 pack and a face section that does not parse get no painter (the compatibility view); hers gets one, which draws her mouth, eyes and brows over the held body
+  {
+    const disk = rel => JSON.parse(fs.readFileSync(path.join(root, 'public/companions', rel), 'utf8'))
+    const ui = makeHost({ env: ENV_ON, over }).load(UI), coreMod = makeHost({ env: ENV_ON, over }).load(`${CORE}/bird-motion.ts`)
+    const packOf = (raw, base) => { const view = ui.compatCatalog(raw); return { manifest: coreMod.parseBirdMotionManifest(view.catalog), layered: view.layered, base } }
+    const was = { fetch: globalThis.fetch, createImageBitmap: globalThis.createImageBitmap }
+    const asked = []
+    globalThis.fetch = async url => { asked.push(url); return { ok: true, status: 200, blob: async () => ({ url }) } }
+    globalThis.createImageBitmap = async blob => ({ src: blob.url, width: 10, height: 10 })
+    try {
+      const mod = makeHost({ env: ENV_ON, over }).load(PLAYER)
+      const felix = packOf(disk('felix/motion/manifest.json'), '/companions/felix/motion/')
+      eq(mod.layeredPainterFor(felix), null, 'seam: a v1 pack (Felix) gets no painter: unchanged')
+      const mayaRaw = disk('maya/motion/manifest.json'), maya = packOf(mayaRaw, '/companions/maya/motion/')
+      const brokenFace = { ...mayaRaw, face: { ...mayaRaw.face, recipes: { ...mayaRaw.face.recipes, sorry: { brows: 'nope', eyes: 'open', mouthSet: 'plain' } } } }
+      const broken = packOf(brokenFace, '/companions/maya/motion/')
+      eq([broken.layered !== null, mod.layeredPainterFor(broken)], [true, null], 'seam: a face section the locked contract refuses keeps the compatibility view (no painter)')
+      const noHeads = packOf({ ...mayaRaw, face: { ...mayaRaw.face, heads: {} } }, '/companions/maya/motion/')
+      eq(mod.layeredPainterFor(noHeads), null, 'seam: ...and so does one whose heads do not match the body frames')
+      const painter = mod.layeredPainterFor(maya)
+      ok(typeof painter === 'function' && mod.layeredPainterFor(maya) === painter, 'seam: Maya gets a painter, one per loaded pack')
+      await settle(); await settle()
+      const pieces = new Set(); for (const kind of ['mouth', 'eyes', 'brows']) for (const a of mayaRaw.face.angles) for (const v of Object.values(mayaRaw.face.pieces[kind][a])) pieces.add(`/companions/maya/motion/${v}`)
+      eq([...new Set(asked)].sort(), [...pieces].sort(), 'seam: every piece of every angle is fetched once, from the catalog\'s own folder')
+      const fakeCanvas = () => { const calls = []; const c2d = new Proxy({ calls }, { get: (t, k) => k in t ? t[k] : k === 'createLinearGradient' ? () => ({ addColorStop() {} }) : (...args) => { calls.push([k, ...args]) }, set: (t, k, v) => { calls.push([`=${String(k)}`, v]); return true } }); return { width: 100, height: 100, dataset: {}, getContext: () => c2d, c2d } }
+      const was2 = globalThis.document; globalThis.document = { createElement: () => fakeCanvas() }
+      try {
+        const run = (scene, level, timeSec, extra = {}) => { const canvas = fakeCanvas(); painter({ context: canvas.c2d, canvas, pack: maya, frame: 'neutral', bitmap: { width: 768, height: 768 }, rect: { sx: 0, sy: 0, sw: 768, sh: 768 }, scene, level, timeSec, ...extra }); return { canvas, drawn: canvas.c2d.calls.filter(c => c[0] === 'drawImage' && c.length === 6).length, ds: { ...canvas.dataset } } }
+        const quiet = run('listening', 0.6, 1)
+        eq([quiet.ds.faceMouth, quiet.drawn], ['closed', 3], 'seam: listening: three patches (mouth, eyes, brows) over the body, the mouth closed whatever the level')
+        const mouths = new Set(); for (let t = 0.5; t < 1.5; t += 0.05) mouths.add(run('speaking', 0.5, t).ds.faceMouth)
+        ok(mouths.size >= 3 && !mouths.has('closed'), `seam: speaking at a loud level the mouth moves through open shapes (${[...mouths]})`)
+        ok(['closed', 'mbp', 'smile'].includes(run('speaking', 0, 0.5).ds.faceMouth), 'seam: silence while speaking is a closed mouth (Garud: closed, an occasional mbp or smile)')
+        eq(['thinking', 'pleased', 'concerned', 'sorry', 'idle'].map(scene => run(scene, 0, 1).ds.faceExpression), ['thinking', 'happy', 'concerned', 'sorry', 'neutral'], 'seam: thinking, pleased, concerned and sorry wear their recipes')
+        ok(run('thinking', 0, 1).ds.faceEyes.endsWith('look_left.webp') && run('sorry', 0, 1).ds.faceEyes.endsWith('half.webp'), 'seam: the recipe changes the eye patch (thinking looks away, sorry is tired)')
+        eq(run('speaking', 0.5, 1, { reduced: true }).ds.faceMouth, 'closed', 'seam: reduced motion: the mouth holds closed')
+      } finally { globalThis.document = was2 }
+    } finally { Object.assign(globalThis, was) }
+  }
 }
 
 async function hookSuite(over = {}) {
@@ -1398,8 +1438,8 @@ function sourceSuite(sources, { base = null } = {}) {
   ok(sources[PLAYER].includes('const width = framedWidth(framing, size, rect)'), 'player: its width is the lib\'s (the disc is a square, the chest as wide as its crop)')
   ok(sources[PLAYER].includes('const catalog = await loadCompanionPack(pack, framing, fetchJson, core.parseBirdMotionManifest)') && sources[PLAYER].includes('core.resolveCompanionClip(manifest, name)') && !sources[PLAYER].includes('loadCatalog('), 'player: the whole character and its Face pack both read through the lib\'s pack loader (the compatibility view, companion clips merged when the base lacks them), and every clip is resolved through the core (a pack without one falls back)')
   // the v2 seam: one function, null today (the compatibility view), called right after the body is drawn, and the loop repaints every frame when a painter is there
-  ok(/export function layeredPainterFor\(pack: Pick<LoadedPack, 'layered'>\): LayerPainter \| null \{\s*void pack\s*return null\s*\}/.test(sources[PLAYER]) && (sources[PLAYER].match(/layeredPainterFor\(/g) ?? []).length === 2, 'player: the v2 renderer plugs in at one function (layeredPainterFor), which returns null today: the compatibility view')
-  ok(sources[PLAYER].includes('const painter = layeredPainterFor(loaded)') && /context\.drawImage\(bitmap[^\n]*\n\s*shownId = id\n\s*painter\?\.\(\{ context, canvas, pack: loaded, frame: store\.has\(id\) \? id : loaded\.manifest\.neutral, bitmap, rect, scene: currentScene, level: live\.current\.getLevel\(\), timeSec: \(performance\.now\(\) - sceneStart\) \/ 1000 \}\)/.test(sources[PLAYER]) && sources[PLAYER].includes('if (next.id !== shownId || !store.has(next.id) || painter) {') && sources[PLAYER].includes('layered: catalog.layered'), 'player: a painter is called with the body just drawn, the loop repaints each frame when there is one (the body holds while the mouth changes), and the pack keeps its layered section')
+  ok(sources[PLAYER].includes("export function layeredPainterFor(pack: Pick<LoadedPack, 'layered' | 'manifest' | 'base'>): LayerPainter | null {") && sources[PLAYER].includes('const face = parsedLayeredFace(pack)') && (sources[PLAYER].match(/layeredPainterFor\(/g) ?? []).length === 2, 'player: the v2 renderer plugs in at one function (layeredPainterFor), which parses the face section and returns null (the compatibility view) when it does not parse')
+  ok(sources[PLAYER].includes('const painter = layeredPainterFor(loaded)') && /context\.drawImage\(bitmap[^\n]*\n\s*shownId = id\n\s*painter\?\.\(\{ context, canvas, pack: loaded, frame: store\.has\(id\) \? id : loaded\.manifest\.neutral, bitmap, rect, scene: currentScene, level: live\.current\.getLevel\(\), timeSec: \(performance\.now\(\) - sceneStart\) \/ 1000, reduced: live\.current\.reducedMotion \}\)/.test(sources[PLAYER]) && sources[PLAYER].includes('if (next.id !== shownId || !store.has(next.id) || painter) {') && sources[PLAYER].includes('layered: catalog.layered'), 'player: a painter is called with the body just drawn, the loop repaints each frame when there is one (the body holds while the mouth changes), and the pack keeps its layered section')
   ok(sources[PLAYER].includes("const portrait = loaded === null && noPortrait !== pack") && sources[PLAYER].includes('src={portraitUrl(pack)}') && sources[PLAYER].includes('onError={() => setNoPortrait(pack)}') && sources[PLAYER].includes("data-companion-art={loaded === null ? (portrait ? 'portrait' : 'initials') : undefined}") && sources[PLAYER].includes('{!ready && !portrait ? <span className="studio-voice-initials"'), 'player: a pack with no usable catalog shows its portrait, and the initials only when that fails too')
   ok(sources[STAGE].includes('size={videoCharacterPx(height)}') && sources[STAGE].includes("useLevelVariable(ringRef, getLevel, live && !snapshot.reducedMotion && (snapshot.holding || snapshot.scene === 'speaking'))") && sources[STAGE].includes('const read = () => setHeight(element.clientHeight)') && sources[STAGE].includes('new ResizeObserver(read)'), 'stage: the character is as tall as the call\'s measured height allows (it follows a resize), and the level ring is driven only while you talk or it speaks, never in reduced motion')
   ok(/if \(plan\.accent\) \{[\s\S]{0,260}overlay = \{ clip: plan\.accent\.clip[\s\S]{0,400}mouthShapeIndex\(/.test(sources[PLAYER]), 'player: an accent can play while it speaks (before the mouth is drawn)')
@@ -1765,7 +1805,15 @@ const mutants = [
   [UI, 'the pack loses its layered section', "return { manifest: main.manifest, layered: main.layered, base: root }", "return { manifest: main.manifest, layered: null, base: root }"],
   [UI, 'the Face catalog loses its layered section', "return { manifest: face.manifest, layered: face.layered, base:", "return { manifest: face.manifest, layered: null, base:"],
   [UI, 'the portrait is the small one', "`/companions/${pack}/portrait-512.webp`", "`/companions/${pack}/portrait-256.webp`"],
-  [PLAYER, 'the seam draws something', 'void pack\n  return null', 'void pack\n  return () => undefined'],
+  [PLAYER, 'a v1 pack gets a painter', "  if (!pack.layered) return null\n", ''],
+  [PLAYER, 'a face that does not parse is drawn anyway', 'const painter: LayerPainter | null = face ? createLayeredPainter(pack, face) : null', 'const painter: LayerPainter | null = createLayeredPainter(pack, face ?? (pack.layered as never))'],
+  [PLAYER, 'the seam never draws (the compatibility view for all)', 'const painter: LayerPainter | null = face ? createLayeredPainter(pack, face) : null', 'const painter: LayerPainter | null = null'],
+  [LAYERED, 'the mouth ignores the scene', "const speaking = input.scene === 'speaking'", 'const speaking = true'],
+  [LAYERED, 'the mouth ignores the level', 'level: input.level, audioTime', 'level: 0, audioTime'],
+  [LAYERED, 'no expressions', 'expression: sceneExpression(input.scene), mouth', "expression: 'neutral', mouth"],
+  [LAYERED, 'reduced motion is not passed on', 'audioTime: input.timeSec, reduced: input.reduced }', 'audioTime: input.timeSec }'],
+  [LAYERED, 'pieces from the pack root', 'void load(`${pack.base}${src}`)', 'void load(`/companions/${src}`)'],
+  [LAYERED, 'a patch is not drawn', 'ctx.drawImage(patch, r.x, r.y, r.w, r.h)', 'void patch'],
   [PLAYER, 'a painter is never called', 'painter?.({ context, canvas, pack: loaded,', 'void ({ context, canvas, pack: loaded,'],
   [PLAYER, 'a painter does not make the loop repaint', 'if (next.id !== shownId || !store.has(next.id) || painter) {', 'if (next.id !== shownId || !store.has(next.id)) {'],
   [PLAYER, 'the player does not keep the layered section', 'layered: catalog.layered', 'layered: null'],
