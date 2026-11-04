@@ -528,7 +528,7 @@ function provePin(strip = stripPhonePolish, at = '') {
     const taught = read(rel)
     eq(strip(rel, taught), baseOf(rel), a(`${rel}: an older proof taught one line: putting it back gives the base commit's proof byte for byte`))
     for (const [has, was2] of PHONE_POLISH_PIN_EDITS[rel]) {
-      eq(taught.split(has).length - 1, 1, a(`${rel}: the taught line is there exactly once`)); eq(was2, '', a(`${rel}: a pure insertion`))
+      eq(taught.split(has).length - 1, 1, a(`${rel}: the taught line is there exactly once`)); if (was2 !== '') { eq(baseOf(rel).split(was2).length - 1, 1, a(`${rel}: a taught replacement stands in for exactly one line of the base's proof`)); ok(!was2.includes(PHONE_POLISH_PIN_MARK), a(`${rel}: the replaced line is the base's own (no mark)`)) } // a pure insertion, or (FRONTEND-1's account-menu pins, owner OK 4 Nov 14:48Z) a marked line in place of one base line
       for (const line of has.split('\n').filter(Boolean)) ok(line.includes(PHONE_POLISH_PIN_MARK), a(`${rel}: the taught line carries the registry-read mark`))
     }
   }
@@ -582,7 +582,8 @@ const scopeCommittedFiles = head => {
   for (const rel of PHONE_POLISH_NEW_FILES) assert.equal(git('cat-file', '-t', `${head}:${rel}`).trim(), 'blob', rel)
   for (const rel of PHONE_POLISH_PIN_FILES) {
     const added = diffLines(git('diff', '-U0', `${BASE}..${head}`, '--', rel))
-    assert.ok(added.length >= 1 && added.every(line => line.startsWith('+') && line.includes(PHONE_POLISH_PIN_MARK)), `${rel}: every line this change added to the proof carries the mark and none is removed`)
+    const replaced = PHONE_POLISH_PIN_EDITS[rel].flatMap(([, was]) => was.split('\n').filter(Boolean))
+    assert.ok(added.length >= 1 && added.every(line => (line.startsWith('+') && line.includes(PHONE_POLISH_PIN_MARK)) || (line.startsWith('-') && replaced.includes(line.slice(1)))), `${rel}: every line this change added to the proof carries the mark, and the only lines removed are the taught replacements' base lines`)
   }
   for (const rel of ['lib/studio-phone-shell.ts', 'lib/studio-phone-landscape.ts', 'lib/studio-phone-hints.ts', 'components/layout/studio-phone-shell.css', 'components/builder/studio-phone-landscape.css', 'components/help/studio-help.tsx', 'components/builder/studio-session-hygiene.tsx', 'components/layout/studio-navigation-hint.tsx', 'components/ui/dropdown-menu.tsx', 'app/builder/page.tsx', 'package.json', 'pnpm-lock.yaml']) assert.ok(!net.has(rel), `${rel} is not touched by this change`)
   void REGISTRY_NORM
