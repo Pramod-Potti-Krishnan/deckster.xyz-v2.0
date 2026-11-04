@@ -10,8 +10,8 @@
  * - B6: the tier comes from the price (lib/stripe/subscription-plan.ts, the STRIPE_*_PRICE_ID map). An active
  *   subscription whose price is unknown is never granted a tier: logged, nothing written, 500 (Stripe retries).
  * - B8: a top-up is credited only when payment_status is paid (and on async_payment_succeeded). With
- *   STUDIO_BILLING_COUPON_TIER_HARDENING on, a refund or dispute of a top-up claws the credit back ONCE per
- *   payment intent (one sourceRef for both events), and the balance may go negative.
+ *   STUDIO_BILLING_COUPON_TIER_HARDENING on, each refund (by refund id) and dispute (by dispute id) of a top-up
+ *   claws back its share, capped in total at the credited amount (user row locked); the balance may go negative.
  */
 import type Stripe from 'stripe'
 import { tryResolveStripeSubscriptionPlan } from '@/lib/stripe/subscription-plan'
@@ -48,8 +48,8 @@ class UnknownPlanError extends Error {
 
 const ACTIVE = new Set(['active', 'trialing'])
 
-/** One clawback per payment intent: a refund and a dispute of the same payment dedupe to one wallet row. */
-export const clawbackSourceRef = (paymentIntentId: string) => `stripe_clawback:${paymentIntentId}`
+/** One clawback row per refund id (refund:<re_id>) and per dispute id (dispute:<dp_id>); the total per payment intent is capped at the top-up. */
+export const clawbackSourceRef = (key: string) => `stripe_clawback:${key}`
 
 function objectIdOf(event: Stripe.Event): string | null {
   const obj = event.data?.object as { id?: unknown } | undefined
@@ -236,6 +236,11 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription, even
 }
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription, tx: Tx) {
+  const existing = await tx.subscription.findUnique({ where: { stripeSubscriptionId: subscription.id }, select: { status: true } })
+  if (!existing) {
+    console.log(`[stripe-webhook] subscription.deleted for ${subscription.id}: nothing to cancel`)
+    return
+  }
   await tx.subscription.update({
     where: { stripeSubscriptionId: subscription.id },
     data: { status: 'canceled', canceledAt: new Date() },
@@ -290,23 +295,40 @@ async function handleClawback(event: Stripe.Event, tx: Tx, deps: StripeWebhookDe
     console.log(`[stripe-webhook] ${event.type} is not on a wallet top-up`)
     return
   }
-  const sourceRef = clawbackSourceRef(pi)
-  // One clawback per payment intent: whichever of refund / dispute lands first claws back; the other is a no-op.
-  const already = await tx.walletTransaction.findUnique({ where: { sourceRef }, select: { id: true } })
-  if (already) {
-    console.log(`[stripe-webhook] ${event.type}: clawback for this payment already applied`)
-    return
-  }
-  const cents = event.type === 'charge.refunded'
-    ? refundClawbackCents({ creditedCents: topup.amountCents, chargeAmount: (object as Stripe.Charge).amount, amountRefunded: (object as Stripe.Charge).amount_refunded, alreadyDebitedCents: 0 })
-    : topup.amountCents
-  if (cents <= 0) return
-  await deps.clawbackWallet({
-    userId: topup.userId,
-    amountCents: cents,
-    sourceRef,
-    metadata: { stripePaymentIntent: pi, stripeObjectId: object.id, kind: event.type === 'charge.refunded' ? 'refund' : 'dispute' },
-    tx,
+  // Lock the user row first: every clawback for this payment intent serializes here, so the sum read below and the
+  // debit commit together and concurrent refund + dispute can never exceed the credited top-up.
+  await tx.user.update({ where: { id: topup.userId }, data: { walletBalanceCents: { increment: 0 } }, select: { id: true } })
+  const clawed = await tx.walletTransaction.aggregate({
+    where: { reason: 'refund_clawback', metadata: { path: ['stripePaymentIntent'], equals: pi } },
+    _sum: { amountCents: true },
   })
-  console.log(`[stripe-webhook] ${event.type} clawback: debited=${cents}c`)
+  let remaining = Math.max(0, topup.amountCents - (clawed._sum.amountCents ?? 0))
+  // One wallet row per refund id and per dispute id: a replay dedupes, a second partial refund claws its own share.
+  const pieces: Array<{ sourceRef: string; cents: number; id: string; kind: string }> = []
+  if (event.type === 'charge.refunded') {
+    const charge = object as Stripe.Charge
+    for (const refund of charge.refunds?.data ?? []) {
+      if (refund.status && refund.status !== 'succeeded' && refund.status !== 'pending') continue
+      const cents = refundClawbackCents({ creditedCents: topup.amountCents, chargeAmount: charge.amount, amountRefunded: refund.amount, alreadyDebitedCents: 0 })
+      pieces.push({ sourceRef: clawbackSourceRef(`refund:${refund.id}`), cents, id: refund.id, kind: 'refund' })
+    }
+    if (!charge.refunds?.data?.length) console.warn(`[stripe-webhook] charge.refunded ${charge.id} carries no refund list; nothing clawed back`)
+  } else {
+    pieces.push({ sourceRef: clawbackSourceRef(`dispute:${object.id}`), cents: topup.amountCents, id: object.id, kind: 'dispute' })
+  }
+  for (const piece of pieces) {
+    const already = await tx.walletTransaction.findUnique({ where: { sourceRef: piece.sourceRef }, select: { id: true } })
+    if (already) continue
+    const cents = Math.min(piece.cents, remaining)
+    if (cents <= 0) continue
+    await deps.clawbackWallet({
+      userId: topup.userId,
+      amountCents: cents,
+      sourceRef: piece.sourceRef,
+      metadata: { stripePaymentIntent: pi, stripeObjectId: piece.id, kind: piece.kind },
+      tx,
+    })
+    remaining -= cents
+    console.log(`[stripe-webhook] ${event.type} clawback (${piece.kind}): debited=${cents}c`)
+  }
 }

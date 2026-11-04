@@ -43,7 +43,12 @@ const MUTANTS = {
   'remove isTopupPaid': [[MODULE, 'if (!isTopupPaid(session)) {', 'if (false) {']],
   "re-allow tier='pro'": [[MODULE, 'if (!plan && active) {', 'if (false) {'], [MODULE, `const newTier = active && plan ? plan.tier : 'free'`, `const newTier = active ? (plan ? plan.tier : 'pro') : 'free'`]],
   'fail-open on the missing table': [[MODULE, `return { status: 500, body: { error: 'Webhook event store unavailable' } }`, `return { status: 200, body: { received: true } }`]],
-  'one sourceRef per event, not per payment intent': [[MODULE, 'const sourceRef = clawbackSourceRef(pi)', 'const sourceRef = `${clawbackSourceRef(pi)}:${object.id}`']],
+  'no cap at the top-up': [[MODULE, 'const cents = Math.min(piece.cents, remaining)', 'const cents = piece.cents']],
+  'one ref per payment intent (second partial refund lost)': [[MODULE, 'clawbackSourceRef(`refund:${refund.id}`)', 'clawbackSourceRef(`refund:${pi}`)']],
+  'refund replay not deduped (ref per event)': [[MODULE, 'clawbackSourceRef(`refund:${refund.id}`)', 'clawbackSourceRef(`refund:${refund.id}:${event.id}`)']],
+  'clawed sum not read': [[MODULE, 'let remaining = Math.max(0, topup.amountCents - (clawed._sum.amountCents ?? 0))', 'let remaining = topup.amountCents']],
+  'user row not locked': [[MODULE, "await tx.user.update({ where: { id: topup.userId }, data: { walletBalanceCents: { increment: 0 } }, select: { id: true } })", 'void 0']],
+  'deleted with no row fails': [[MODULE, "  if (!existing) {\n    console.log(`[stripe-webhook] subscription.deleted", "  if (false) {\n    console.log(`[stripe-webhook] subscription.deleted"]],
   'B5 ignores the flag': [[SECURITY, 'return hardened ? base : { ...base, tier: couponTier }', 'return base']],
   'B8 ignores the flag': [[MODULE, 'if (isCouponTierHardeningOn(deps.env)) return handleClawback(event, tx, deps)', 'return handleClawback(event, tx, deps)']],
   'flag on for any value': [[SECURITY, 'return env[COUPON_TIER_HARDENING_FLAG] === "true"', 'return Boolean(env[COUPON_TIER_HARDENING_FLAG])']],
@@ -136,10 +141,11 @@ function makeDb({ missingTable = false } = {}) {
       user: {
         async findUnique({ where }) { await step('user.findUnique'); const u = matchUser(where); return u ? { ...u } : null },
         async findUniqueOrThrow({ where }) { const u = await c.user.findUnique({ where }); if (!u) throw new Error('no user'); return u },
-        async update({ where, data }) { await step('user.update'); const u = matchUser(where); if (!u) throw new Error('no user'); apply(u, data, undo); return { ...u } },
+        async update({ where, data }) { await step('user.update'); const u = matchUser(where); if (!u) throw new Error('no user'); if (data.walletBalanceCents?.increment === 0) db.locks = (db.locks || 0) + 1; apply(u, data, undo); return { ...u } },
       },
       walletTransaction: {
         async findUnique({ where }) { await step('wt.findUnique'); return t.wallet.find(w => w.sourceRef === where.sourceRef) ?? null },
+        async aggregate({ where }) { await step('wt.aggregate'); const rows = t.wallet.filter(w => w.reason === where.reason && w.metadata?.[where.metadata.path[0]] === where.metadata.equals); return { _sum: { amountCents: rows.length ? rows.reduce((n, w) => n + w.amountCents, 0) : null } } },
         async findFirst({ where }) { await step('wt.findFirst'); return t.wallet.find(w => w.reason === where.reason && w.metadata?.[where.metadata.path[0]] === where.metadata.equals) ?? null },
         async create({ data }) { await step('wt.create'); if (data.sourceRef && t.wallet.some(w => w.sourceRef === data.sourceRef)) throw P2002(); const row = { id: `wt_${t.wallet.length + 1}`, ...data }; t.wallet.push(row); undo.push(() => t.wallet.splice(t.wallet.indexOf(row), 1)); return row },
       },
@@ -265,20 +271,45 @@ for (const value of [undefined, 'false', 'TRUE', '1']) {
   const retry = await a.post(ev('evt_c', 'checkout.session.completed', topupSession({ id: 'cs_c' })))
   eq([retry.status, retry.body.duplicate, balance(db), db.t.events.has('evt_c')], [200, undefined, 1000, true], 'retry: processed, credited once, claimed')
 }
-// refund + dispute: one clawback (flag on); flag off: today (no clawback)
+// refunds and disputes (flag on): per refund id / dispute id, capped at the top-up; flag off: today (no clawback)
+const refundEv = (id, refunds, amount_refunded) => ev(id, 'charge.refunded', { id: 'ch_1', payment_intent: 'pi_1', amount: 1000, amount_refunded, refunds: { data: refunds } })
 for (const value of ['true', undefined]) {
   const db = makeDb(); seed(db); const a = app(db, ENV(value))
   await a.post(ev('evt_t', 'checkout.session.completed', topupSession()))
   db.t.users.get('u1').walletBalanceCents = 200 // spent 800 since
-  const r1 = await a.post(ev('evt_r', 'charge.refunded', { id: 'ch_1', payment_intent: 'pi_1', amount: 1000, amount_refunded: 1000 }))
-  const r2 = await a.post(ev('evt_d', 'charge.dispute.created', { id: 'dp_1', payment_intent: 'pi_1' }))
-  eq([r1.status, r2.status], [200, 200], `refund + dispute (flag ${value}): acked`)
+  const r1 = await a.post(refundEv('evt_r1', [{ id: 're_1', amount: 300, status: 'succeeded' }], 300))
   if (value === 'true') {
-    eq(db.t.wallet.filter(w => w.reason === 'refund_clawback').length, 1, 'refund + dispute: one clawback row')
-    eq(balance(db), -800, 'B8 flag on: clawed back once, the balance may go negative')
+    const early = await a.post(refundEv('evt_r1b', [{ id: 're_1', amount: 300, status: 'succeeded' }], 300))
+    eq([early.status, db.t.wallet.filter(w => w.reason === 'refund_clawback').reduce((n, w) => n + w.amountCents, 0)], [200, 300], 'a replayed refund (same refund id, under the cap) dedupes')
+  }
+  const r2 = await a.post(refundEv('evt_r2', [{ id: 're_1', amount: 300, status: 'succeeded' }, { id: 're_2', amount: 200, status: 'succeeded' }], 500))
+  eq([r1.status, r2.status], [200, 200], `two partial refunds (flag ${value}): acked`)
+  if (value === 'true') {
+    eq(db.t.wallet.filter(w => w.reason === 'refund_clawback').map(w => [w.sourceRef, w.amountCents]), [['stripe_clawback:refund:re_1', 300], ['stripe_clawback:refund:re_2', 200]], 'two partial refunds claw both shares, one row per refund id')
+    ok(db.locks >= 2, 'each clawback locks the user row first')
+    const replay = await a.post(refundEv('evt_r3', [{ id: 're_1', amount: 300, status: 'succeeded' }, { id: 're_2', amount: 200, status: 'succeeded' }], 500))
+    eq([replay.status, db.t.wallet.filter(w => w.reason === 'refund_clawback').length], [200, 2], 'a replayed refund (new event, same refund ids) dedupes')
+    const d = await a.post(ev('evt_d', 'charge.dispute.created', { id: 'dp_1', payment_intent: 'pi_1' }))
+    eq([d.status, db.t.wallet.filter(w => w.reason === 'refund_clawback').reduce((n, w) => n + w.amountCents, 0)], [200, 1000], 'refund + dispute total is capped at the top-up')
+    eq(balance(db), -800, 'B8 flag on: the balance may go negative, never past the top-up')
   } else {
+    await a.post(ev('evt_d', 'charge.dispute.created', { id: 'dp_1', payment_intent: 'pi_1' }))
     eq([db.t.wallet.filter(w => w.reason === 'refund_clawback').length, balance(db)], [0, 200], 'B8 flag off: no clawback, as today')
   }
+}
+// a dispute first, then a refund: still capped
+{
+  const db = makeDb(); seed(db); const a = app(db, ENV('true'))
+  await a.post(ev('evt_t', 'checkout.session.completed', topupSession()))
+  await a.post(ev('evt_d', 'charge.dispute.created', { id: 'dp_1', payment_intent: 'pi_1' }))
+  await a.post(refundEv('evt_r', [{ id: 're_9', amount: 1000, status: 'succeeded' }], 1000))
+  eq(db.t.wallet.filter(w => w.reason === 'refund_clawback').reduce((n, w) => n + w.amountCents, 0), 1000, 'dispute then refund: capped at the top-up')
+}
+// subscription.deleted with no local row: 200, nothing to cancel
+{
+  const db = makeDb(); seed(db); const a = app(db, ENV())
+  const r = await a.post(ev('evt_del', 'customer.subscription.deleted', sub({ id: 'sub_none' })))
+  eq([r.status, db.t.users.get('u1').tier], [200, 'free'], 'subscription.deleted with no local row: 200, nothing changed')
 }
 // unknown price: fail closed
 {
