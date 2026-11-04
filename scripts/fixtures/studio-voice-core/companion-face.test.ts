@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FACE_ANGLES, FACE_BROWS, FACE_EYES, FACE_EXPRESSIONS, FACE_MOUTHS, isCompanionFace, parseCompanionFace, parseSpeechTimeline } from "../../../lib/studio/voice/companion-face";
+import type { CompanionFace } from "../../../lib/studio/voice/companion-face";
 export function fixture() {
   const entries = (keys: readonly string[]) => Object.fromEntries(keys.map(k => [k, `${k}.webp`]));
   return { angles: [...FACE_ANGLES], pieces: { mouth: Object.fromEntries(FACE_ANGLES.map(a => [a, entries(FACE_MOUTHS)])), eyes: Object.fromEntries(FACE_ANGLES.map(a => [a, entries(FACE_EYES)])), brows: Object.fromEntries(FACE_ANGLES.map(a => [a, entries(FACE_BROWS)])) }, patch: Object.fromEntries(FACE_ANGLES.map(a => [a, Object.fromEntries(["mouth", "eyes", "brows"].map(k => [k, { x: 1, y: 2, w: 40, h: 20 }]))])), heads: { body: { x: 20, y: 30, scale: 1, rot: 0, angle: "front" } }, recipes: Object.fromEntries(FACE_EXPRESSIONS.map(e => [e, { brows: "neutral", eyes: "open", mouthSet: "plain" }])) };
@@ -38,7 +39,7 @@ describe("motion manifest layered face integration", () => {
     }
   });
   it("accepts self-contained inline layers and validates all body anchors", () => {
-    const m = motionPack(); m.face = fixture(); expect(parseBirdMotionManifest(m)).toBe(m);
+    const m = motionPack(); m.face = fixture() as unknown as CompanionFace; expect(parseBirdMotionManifest(m)).toBe(m);
     m.frames.second = { ...m.frames.body! }; m.uniqueFrames++;
     expect(() => parseBirdMotionManifest(m)).toThrow("Invalid companion face section");
   });
@@ -49,7 +50,7 @@ describe("motion manifest layered face integration", () => {
     }
   });
   it("rejects sidecars alongside layered faces and retains the existing download budget", () => {
-    const m = motionPack(); m.face = fixture(); (m as any).companion = { manifest: "companion.json", totalBytes: 1000 };
+    const m = motionPack(); m.face = fixture() as unknown as CompanionFace; (m as any).companion = { manifest: "companion.json", totalBytes: 1000 };
     expect(() => parseBirdMotionManifest(m)).toThrow("Layered companion sidecars are unsupported");
     delete (m as any).companion; m.packBudgetMiB = 8; m.totalBytes = 8 * 1024 * 1024;
     expect(parseBirdMotionManifest(m)).toBe(m); m.totalBytes++;

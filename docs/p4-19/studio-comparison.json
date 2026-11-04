@@ -3942,6 +3942,13 @@
       "JSON validation only; no image decode",
       "no actual rendering, audio sync or physical-device acceptance",
       "no connected providers, paid calls or real audio"
-    ]
+    ],
+    "fixtureTypeCorrection": {
+      "source": "FRONTEND-1 #573 fixture type annotation",
+      "runtimeChanges": false,
+      "strictCoreAndNewFixtureTypes": "passed using existing local Vitest type declarations",
+      "focusedFaceFixturesPassed": 19,
+      "prior286FixtureEvidence": "retained; only fixture annotations changed"
+    }
   }
 }
