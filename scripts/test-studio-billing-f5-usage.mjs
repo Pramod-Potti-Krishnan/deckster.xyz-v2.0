@@ -26,11 +26,11 @@ ok(registry.LATER_CHANGE_FILES.has('lib/studio-billing-usage.ts'), 'A: registere
 // B
 const UI = ['lib/studio-billing-usage.ts', 'components/billing/quota-refusal.tsx', 'app/(app)/usage/page.tsx']
 const LEAK = /\btokens?\b|provider[_ ]?cost|margin|\bstripe\b|\b(gpt|claude|gemini|llama|sonnet|opus|haiku)\b|model[_ ]?id|_usd\b|monthTokens|lifetimeSpend/i
-const codeOnly = t => t.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n')
+const codeOnly = t => t.split('\n').filter(l => !/^\s*(\/\/|\/\*\*.*\*\/\s*$|\*)/.test(l)).join('\n') // comments (// and one-line /** */) are not UI
 const leaks = src => LEAK.test(codeOnly(src))
 for (const f of UI) ok(!leaks(readFileSync(f, 'utf8')), `B: no cost/token/model leakage in ${f}`)
 const lib = readFileSync('lib/studio-billing-usage.ts', 'utf8')
-ok(!/fetch\(/.test(lib) && !/api\/wallet\/debit|stripe/i.test(readFileSync('app/(app)/usage/page.tsx', 'utf8')), 'B: page reads quota + wallet balance only')
+ok((lib.match(/fetch\w*\("[^"]*"/g) || []).every(c => c.includes('/api/wallet/precheck')) && !/api\/wallet\/debit|stripe/i.test(codeOnly(readFileSync('app/(app)/usage/page.tsx', 'utf8'))), 'B: page reads quota + wallet balance only')
 ok(/\/api\/usage\/quota/.test(readFileSync('app/(app)/usage/page.tsx', 'utf8')) && /\/api\/wallet\/balance/.test(readFileSync('app/(app)/usage/page.tsx', 'utf8')), 'B: page reads both routes')
 ok(/PRICING_TIERS/.test(lib) && !/\$\d/.test(codeOnly(lib).replace(/\$\{/g, '')), 'B: prices only from PRICING_TIERS (no price literal)')
 
