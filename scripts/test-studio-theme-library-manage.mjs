@@ -22,6 +22,7 @@ import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 const chatClean = await import('./studio-chat-clean-strip.mjs') // LATER-CHANGES: registry read (CHAT-CLEAN): the strip of the change stacked after this one, so its marked lines (chat clean's) come out first
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read: a change stacked after this one (Director REST sign, #577, marks lines in the Next proxies under app/api/themes and app/api/templates) registers its files and its strip there, so every read of an app file comes out as its base first (the same read as test-studio-template-library-manage.mjs)
 import { LIBRARY_MANAGE_ADDITIONS, THEME_HOOK, THEMES_WORKSPACE, TEMPLATES_WORKSPACE, ENV_FILE, LIBRARY_MANAGE_NEW_FILES, stripLibraryManage } from './studio-library-manage-strip.mjs'
 import { BASE_COMMIT, STACKED_P2_FILES, STACKED_PASS3_FILES, baseSource, createRuntime, deferred, flat, isBaseFile, jsxRuntime, loadSource, makeReader, plain, refuse, root, sha, text, tick } from './studio-library-manage-harness.mjs'
 
@@ -56,7 +57,8 @@ const MUTATIONS = [
   { name: 'a failed rename shows no toast', file: ROW, from: "toast({ variant: 'destructive', title: 'Rename not saved', description: result.message })", to: '' },
   { name: 'window.confirm instead of the dialog', file: ROW, from: "onSelect={() => { setDeleteError(''); setConfirming(true) }}", to: "onSelect={() => { if (window.confirm('Delete?')) void confirmDelete() }}" },
 ]
-const read = makeReader(MUTATIONS, 'THEME_MANAGE_TEST_MUTATION')
+const readFile = makeReader(MUTATIONS, 'THEME_MANAGE_TEST_MUTATION')
+const read = rel => stripLaterChanges(rel, readFile(rel)) // LATER-CHANGES: registry read, see the import above
 
 if (process.argv.includes('--mutation-check')) {
   let caught = 0

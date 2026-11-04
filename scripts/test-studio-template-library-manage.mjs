@@ -20,7 +20,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { LIBRARY_MANAGE_ADDITIONS, ENV_FILE, LIBRARY_MANAGE_NEW_FILES, TEMPLATES_WORKSPACE, THEME_HOOK, THEMES_WORKSPACE, stripLibraryManage } from './studio-library-manage-strip.mjs'
-import { stripLaterChanges } from './studio-later-changes.mjs' // stacked: the later-changes registry (a change stacked after this one registers its files, its .env.example block and its strip there; every read of an app file or .env.example goes through it first)
+import { LATER_CHANGE_FILES, stripLaterChanges } from './studio-later-changes.mjs' // stacked: the later-changes registry (a change stacked after this one registers its files, its .env.example block and its strip there; every read of an app file or .env.example goes through it first)
 import { BASE_COMMIT, STACKED_P2_FILES, STACKED_PASS3_FILES, baseSource, createRuntime, deferred, isBaseFile, jsxRuntime, loadSource, makeReader, plain, root, sha, text, tick } from './studio-library-manage-harness.mjs'
 
 const here = fileURLToPath(import.meta.url)
@@ -524,7 +524,7 @@ function mountWorkspace({ source = WORKSPACE_SOURCE, flag, templates = [QBR, BOA
     const changed = spawnSync('git', ['diff', '--name-only', BASE_COMMIT, '--', 'app', 'components', 'lib', 'hooks', 'middleware.ts'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(Boolean)
     const allowed = new Set([THEMES_WORKSPACE, TEMPLATES_WORKSPACE, THEME_HOOK, USE_TEMPLATES, PROXY, ...LIBRARY_MANAGE_NEW_FILES, ...STACKED_PASS3_FILES, ...STACKED_P2_FILES])
     ok(changed.every(file => allowed.has(file)), `this change touches only the two workspaces, the theme hook, the template hook and proxy (the rename) and its own three new files (the other Pass 3 changes' files and the Pass 2 pages' files may be stacked on it): ${changed.filter(file => !allowed.has(file)).join(', ') || 'ok'}`)
-    ok(!changed.some(file => (/^app\/api\/(templates|themes)\//.test(file) && file !== PROXY) || /admission/i.test(file)), 'no API proxy but the template one (the rename) and nothing of the admission report is touched')
+    ok(!changed.some(file => (/^app\/api\/(templates|themes)\//.test(file) && file !== PROXY && !LATER_CHANGE_FILES.has(file)) || /admission/i.test(file)), 'no API proxy but the template one (the rename) and nothing of the admission report is touched')
   }
 
   // ---- flag on: who gets a menu --------------------------------------------------------------------------------------------------------------------------------------------
