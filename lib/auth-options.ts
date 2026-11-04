@@ -5,6 +5,26 @@ import { PrismaAdapter } from "@auth/prisma-adapter"
 import type { Adapter } from "next-auth/adapters"
 import { prisma } from "./prisma"
 import { getUserSubscription } from "@/lib/stripe/stripe-utils"
+import { applySessionUpdate, refreshEntitlementsIfStale, type ServerEntitlements } from "@/lib/auth-session-update"
+
+async function loadServerEntitlements(userId: string): Promise<ServerEntitlements | null> {
+  const dbUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { approved: true, tier: true, walletBalanceCents: true },
+  })
+  if (!dbUser) return null
+  const subscription = await getUserSubscription(userId)
+  return {
+    tier: dbUser.tier,
+    approved: dbUser.approved,
+    walletBalanceCents: dbUser.walletBalanceCents,
+    subscription: subscription ? {
+      status: subscription.status,
+      tier: subscription.tier,
+      currentPeriodEnd: subscription.currentPeriodEnd.toISOString(),
+    } : null,
+  }
+}
 
 // Validate required environment variables (only at runtime, not during build)
 if (typeof window === 'undefined' && process.env.NODE_ENV !== 'development') {
@@ -130,25 +150,11 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user, account, trigger, session }) {
       try {
-        // Client-initiated session update (e.g. after a profile edit).
-        // Refresh the mutable fields on the token without a full re-login.
-        if (trigger === "update" && session) {
-          if (typeof session.name === "string") {
-            token.name = session.name
-          }
-          if (typeof session.image === "string") {
-            token.picture = session.image
-          }
-          if (typeof session.approved === "boolean") {
-            token.approved = session.approved
-          }
-          if (typeof session.walletBalanceCents === "number") {
-            token.walletBalanceCents = session.walletBalanceCents
-          }
-          if (typeof session.tier === "string") {
-            token.tier = session.tier
-          }
-          return token
+        // Client-initiated session update (e.g. after a profile edit or coupon redeem).
+        // Security: the update payload is client-controlled. Only name/image are taken
+        // from it; tier/approved/wallet/subscription are re-read from the database.
+        if (trigger === "update") {
+          return applySessionUpdate(token, session, loadServerEntitlements)
         }
 
         // Initial sign in - fetch user data from database
@@ -181,6 +187,7 @@ export const authOptions: NextAuthOptions = {
               tier: dbUser?.tier || "free",
               approved: dbUser?.approved || false,
               walletBalanceCents: dbUser?.walletBalanceCents ?? 0,
+              entitlementCheckedAt: Date.now(),
               subscription: subscription ? {
                 status: subscription.status,
                 tier: subscription.tier,
@@ -204,7 +211,10 @@ export const authOptions: NextAuthOptions = {
           }
         }
 
-        return token
+        // Token refresh: re-read server entitlements (throttled to 60s) so tokens that were
+        // escalated via the old update() hole heal. Runs only in the Node auth route /
+        // getServerSession — edge middleware (withAuth) decodes the JWT without this callback.
+        return refreshEntitlementsIfStale(token, loadServerEntitlements)
       } catch (error) {
         console.error('[Auth] Fatal error in JWT callback:', error)
         throw error
