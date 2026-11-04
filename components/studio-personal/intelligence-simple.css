@@ -1,0 +1,21 @@
+/* NEXT_PUBLIC_STUDIO_INTELLIGENCE_SIMPLE (UX-02), the Intelligence page as one preset slider (components/studio-personal/intelligence-simple.tsx). Every rule is keyed to .sp-isimple, which that page alone renders;
+   with the flag off nothing matches. The card is the composer picker's simple panel (model-picker-simple.css), placed on the page instead of in a popover. */
+.sp-isimple .sp-isimple-card.mpick-menu.mpick-simple-pop { --mpick-simple-thumb: 20px; --mpick-simple-bar: 6px; position: static; width: 100%; max-width: 520px; max-height: none; margin: 0 0 18px; padding: 18px 20px 12px; border-radius: 12px; font-size: 13px; box-shadow: none; }
+.sp-isimple .sp-isimple-card .mpick-simple-title { font-size: 20px; line-height: 28px; }
+.sp-isimple .sp-isimple-rows { margin: 8px 0 0; padding: 2px 0 0; border-top: 1px solid var(--mpick-menu-line, hsl(var(--border, 240 5.9% 90%))); }
+.sp-isimple .sp-isimple-rows dt, .sp-isimple .sp-isimple-rows dd { margin: 0; }
+.sp-isimple .sp-isimple-rows .mpick-simple-rowval { font-size: 12px; }
+.sp-isimple .sp-isimple-card .mpick-slider-root { margin-top: 16px; }
+.sp-isimple .sp-isimple-card .mpick-stop-name { font-size: 12px; }
+
+/* Advanced: a plain collapsed row; open, the page's per-task chooser as it was, without its own repeated heading. */
+.sp-isimple .sp-isimple-advanced { max-width: 100%; border-top: 1px solid var(--sp-line, hsl(var(--border, 240 5.9% 90%))); }
+.sp-isimple .sp-isimple-advanced > summary { display: flex; align-items: center; min-height: 44px; cursor: pointer; font-size: 14px; font-weight: 500; }
+.sp-isimple .sp-isimple-advanced-body > .sp-heading { display: none; }
+
+@media (max-width: 640px) {
+  .sp-isimple .sp-isimple-card.mpick-menu.mpick-simple-pop { --mpick-simple-thumb: 26px; --mpick-simple-bar: 8px; max-width: none; padding: 16px 16px 10px; }
+  .sp-isimple .sp-isimple-card .mpick-slider-root { height: 52px; margin-top: 8px; }
+  .sp-isimple .sp-isimple-card .mpick-stop { min-height: 44px; }
+  .sp-isimple .sp-isimple-card .mpick-simple-reset { width: 44px; height: 44px; margin: -10px -12px -10px 0; }
+}
