@@ -1,4 +1,5 @@
 /** Client-safe playback of generated bird frames. Time, randomness and amplitude are explicit for offline tests. */
+import { isCompanionFace, parseCompanionFace, type CompanionFace } from "./companion-face";
 import type { AvatarState, RigCue } from "./avatar-rig";
 import type { Moment, WingGesture } from "./gestures";
 
@@ -15,7 +16,7 @@ export interface BirdMotionManifest {
   clips: Record<string, BirdMotionClip>;
   /** Absent legacy packs retain their6MiB compressed ceiling. */
   packBudgetMiB?: number;
-  face?: BirdMotionFaceRef;
+  face?: BirdMotionFaceRef | CompanionFace;
   variant?: "face";
   /** Actual native crop, normalized to the registered full canvas (including pixel-flooring). */
   crop?: MotionBox;
@@ -140,7 +141,11 @@ export function parseBirdMotionManifest(raw: unknown): BirdMotionManifest {
   if (m.crop && (!box(m.crop) || m.crop.x < 0 || m.crop.y < 0 || m.crop.x + m.crop.width > 1 || m.crop.y + m.crop.height > 1)) throw new Error("Invalid native Face crop");
   if (m.nativeCanvas && (![m.nativeCanvas.width, m.nativeCanvas.height].every(finite) || m.nativeCanvas.width < 1 || m.nativeCanvas.height < 1)) throw new Error("Invalid native Face canvas");
   if (m.variant === "face" ? !m.crop || !m.nativeCanvas || Math.abs(m.crop.width * m.nativeCanvas.width - m.size.width) > 1e-6 || Math.abs(m.crop.height * m.nativeCanvas.height - m.size.height) > 1e-6 : m.crop !== undefined || m.nativeCanvas !== undefined) throw new Error("Face crop does not match native source pixels");
-  if (m.face && (typeof m.face.manifest !== "string" || !/^[a-zA-Z0-9_./-]+\.json$/.test(m.face.manifest) || m.face.manifest.startsWith("/") || m.face.manifest.split("/").includes("..") || !finite(m.face.totalBytes) || m.face.totalBytes <= 0)) throw new Error("Invalid bird Face pack reference");
+  if (isCompanionFace(m.face)) {
+    parseCompanionFace(m.face, Object.keys(m.frames));
+    // Layered packs are self-contained: a sidecar would add bodies without validated anchors.
+    if (Object.prototype.hasOwnProperty.call(m, "companion")) throw new Error("Layered companion sidecars are unsupported");
+  } else if (m.face !== undefined && (!m.face || typeof m.face.manifest !== "string" || !/^[a-zA-Z0-9_./-]+\.json$/.test(m.face.manifest) || m.face.manifest.startsWith("/") || m.face.manifest.split("/").includes("..") || !finite(m.face.totalBytes) || m.face.totalBytes <= 0)) throw new Error("Invalid bird Face pack reference");
   for (const frame of Object.values(m.frames)) {
     if (!frame || typeof frame.src !== "string" || !/^[a-zA-Z0-9_./-]+\.webp$/.test(frame.src) || frame.src.startsWith("/") || frame.src.split("/").includes("..") || !box(frame.bbox) || typeof frame.sourceHash !== "string" || !frame.sourceHash) throw new Error("Invalid bird motion frame");
   }
@@ -153,6 +158,116 @@ export function parseBirdMotionManifest(raw: unknown): BirdMotionManifest {
   }
   if (!Array.isArray(m.visemes) || BIRD_VISEMES.some((v, i) => m.visemes[i] !== v) || !m.talking || [m.talking.neutral, m.talking.left, m.talking.right].some((name) => !m.clips[name] || m.clips[name]!.frames.length !== BIRD_VISEMES.length)) throw new Error("Invalid bird talking shapes");
   return m;
+}
+
+/** Director signals, independent of any app's audio or build transport. */
+export const COMPANION_STATES = ["idle", "listening", "thinking", "working", "one_moment", "reporting", "slide_built", "build_done", "concerned", "sorry", "waiting", "paused", "reading", "surprised", "speaking", "present_open", "present_slide", "present_emphasis", "present_list", "present_qa", "good_question", "present_close", "present_reading"] as const;
+export type CompanionState = typeof COMPANION_STATES[number];
+export interface CompanionClipStep {
+  clip: string;
+  mode: "once" | "hold" | "loop" | "talk";
+  /** A still is explicit, including the closed talk slot; never advance it in reduced motion. */
+  frame?: string;
+  reverse?: boolean;
+  rate?: number;
+}
+export interface CompanionClipContext {
+  manifest: BirdMotionManifest;
+  angle?: BirdFaceAngle;
+  /** Building defaults to right; presenting defaults to left. All sides are viewer-relative. */
+  slideSide?: "left" | "right";
+  reduced?: boolean;
+  /** If supplied, an undecoded clip is treated like a missing clip. This selector never fetches. */
+  ready?: (clip: string) => boolean;
+  /** Explicit monotonic seconds. Missing/invalid time suppresses a slide_built beat. */
+  now?: number;
+  /** The caller must retain this across state changes, events and avatar remounts. */
+  lastSlideBuiltAt?: number | null;
+  /** A long build may slow the work loop; a caller's finite rate is bounded to 0.5–1. */
+  workRate?: number;
+}
+export interface CompanionClipPlan {
+  steps: CompanionClipStep[];
+  /** Persist after accepting this plan, including when its small happy beat used a legacy fallback. */
+  lastSlideBuiltAt: number | null;
+  /** Use existing moment handling for its guarded dance, never start an unguarded dance from this plan. */
+  moment?: "congrats";
+  /** Caller schedules this in active seconds and returns to the base loop/hold afterwards. */
+  repeat?: { every: [number, number]; steps: CompanionClipStep[] };
+}
+export const COMPANION_SLIDE_BUILT_COOLDOWN = 20;
+
+/** Pure Director table. Plans contain only drawable clips and explicit stills; no clock, event ledger or randomness is hidden.
+ * The host plays ordered steps between speech, drives `talk` with existing visemes, and saves lastSlideBuiltAt per session.
+ * Build-done's moment delegates the existing one-in-three/nonconsecutive/minute dance guard to the host's shared rig ledger.
+ */
+export function companionClipFor(state: CompanionState, ctx: CompanionClipContext): CompanionClipPlan {
+  const m = ctx.manifest, angle = ctx.angle ?? "front";
+  const side = ctx.slideSide ?? (state.startsWith("present_") ? "left" : "right");
+  const ready = (name: string) => !!m.clips[name] && (!ctx.ready || ctx.ready(name));
+  const pick = (...names: string[]) => names.find(ready) ?? "idle_breathe";
+  const expr = (name: BirdExpression, ...fallback: string[]) => pick(`expr_${name}_${angle}`, `expr_${name}_front`, ...fallback);
+  const talk = pick(angle === "front" ? m.talking.neutral : m.talking[angle], m.talking.neutral);
+  const still = (clip: string, closed = false): CompanionClipStep => {
+    const c = m.clips[clip]!;
+    const frame = closed ? c.frames[0]! : clip === "idle_breathe" ? m.neutral : c.frames[c.hold ?? (clip.startsWith("expr_") ? c.frames.length - 1 : Math.floor(c.frames.length / 2))]!;
+    return { clip, mode: "hold", frame };
+  };
+  const step = (clip: string, mode: CompanionClipStep["mode"] = "once"): CompanionClipStep => ({ clip, mode });
+  const lean = () => pick("lean_in", "head_tilt");
+  const listening = () => [step(lean(), "hold")];
+  const happy = () => expr("happy", "nod");
+  const last = typeof ctx.lastSlideBuiltAt === "number" && Number.isFinite(ctx.lastSlideBuiltAt) && ctx.lastSlideBuiltAt >= 0 ? ctx.lastSlideBuiltAt : null;
+  const plan: CompanionClipPlan = { steps: [], lastSlideBuiltAt: last };
+  let reducedClip: string;
+  switch (state) {
+    case "idle": plan.steps = [step("idle_breathe", "loop")]; reducedClip = "idle_breathe"; break;
+    case "listening":
+      plan.steps = listening(); reducedClip = lean();
+      plan.repeat = { every: [3.5, 6], steps: [step(pick("nod"))] }; break;
+    case "thinking": reducedClip = expr("thinking", "look_up"); plan.steps = [step(reducedClip, "hold")]; break;
+    case "working": {
+      reducedClip = pick("work_loop", "look_down", "look_up");
+      const rate = Number.isFinite(ctx.workRate) ? Math.max(0.5, Math.min(1, ctx.workRate!)) : 1;
+      plan.steps = [{ ...step(reducedClip, reducedClip === "work_loop" ? "loop" : "hold"), rate }];
+      const glance = pick("look_down", "look_up");
+      plan.repeat = { every: [8, 12], steps: [{ ...step(glance), ...(glance === "look_down" ? { reverse: true } : {}) }] }; break;
+    }
+    case "one_moment": reducedClip = pick("one_moment", "welcome"); plan.steps = [step(reducedClip)]; break;
+    case "reporting": reducedClip = talk; plan.steps = [step(pick("present")), step(talk, "talk")]; break;
+    case "slide_built":
+      // A future saved timestamp stays locked through a clock rollback. Never replace it with an invalid clock value.
+      if (typeof ctx.now !== "number" || !Number.isFinite(ctx.now) || ctx.now < 0 || last !== null && ctx.now - last < COMPANION_SLIDE_BUILT_COOLDOWN) {
+        if (ctx.reduced) plan.steps = [still("idle_breathe")];
+        return plan;
+      }
+      plan.lastSlideBuiltAt = ctx.now; reducedClip = happy(); plan.steps = [step(reducedClip)]; break;
+    case "build_done":
+      reducedClip = happy(); plan.steps = [step(reducedClip), step(pick("wave_both", "welcome"))];
+      plan.moment = "congrats"; break;
+    case "concerned": reducedClip = expr("concerned", "welcome"); plan.steps = [step(reducedClip, "hold")]; break;
+    case "sorry": reducedClip = expr("sorry", "welcome"); plan.steps = [step(reducedClip), step(pick("shrug", "present"))]; break;
+    case "waiting": case "present_qa":
+      reducedClip = pick("invite", "welcome"); plan.steps = [step(reducedClip), ...listening()]; break;
+    case "paused": reducedClip = pick("hold"); plan.steps = [step(reducedClip, "hold")]; break;
+    case "reading": reducedClip = pick("look_down", "look_up"); plan.steps = [step(reducedClip, "hold")]; break;
+    case "surprised": reducedClip = expr("surprised", "look_up"); plan.steps = [step(reducedClip, "hold")]; break;
+    case "speaking": reducedClip = talk; plan.steps = [step(talk, "talk")]; break;
+    case "present_open": reducedClip = happy(); plan.steps = [step(pick("welcome", "wave")), step(reducedClip)]; break;
+    case "present_slide":
+      reducedClip = pick(`point_${side}`, "point");
+      plan.steps = [step(pick(`turn_body_${side}`)), step(reducedClip), step(m.talking.neutral, "talk")]; break;
+    case "present_emphasis": reducedClip = pick("emphasis", "point"); plan.steps = [step(reducedClip)]; break;
+    case "present_list": reducedClip = pick("count", "emphasis", "point"); plan.steps = [step(reducedClip)]; break;
+    case "good_question": reducedClip = expr("curious", "head_tilt"); plan.steps = [step(reducedClip), step(happy())]; break;
+    case "present_close": reducedClip = pick("thank_you", "present"); plan.steps = [step(reducedClip)]; break;
+    case "present_reading": reducedClip = pick(`look_${side}`); plan.steps = [step(reducedClip, "hold")]; break;
+  }
+  if (ctx.reduced) {
+    plan.steps = [still(reducedClip, state === "speaking" || state === "reporting")];
+    delete plan.repeat; delete plan.moment;
+  }
+  return plan;
 }
 
 export interface BirdMotionPose { clip: string; frame: string; previousFrame: string | null; opacity: number; level: number; expression: BirdExpression | null; angle: BirdFaceAngle; dancing: boolean; moment: Moment | null }
