@@ -76,13 +76,13 @@ async function suite() {
   eq([r.c1 - r.c0, r.r1 - r.r0], [12, 6], 'the grid box keeps its size')
   ok(!overlaps(r, { r0: 4, r1: 9, c0: 2, c1: 32 }), 'the box is clear of the slide\'s text')
   eq([r.r0, r.c0], [10, 2], 'the first free spot below the band (with its gap)')
-  const crowded = ctx([['4/12', '2/32'], ['12/18', '2/20']]) // room only for a smaller box
+  const crowded = ctx([['4/12', '2/32'], ['12/18', '2/24']]) // room only for a smaller box
   p = { gridRow: '4/10', gridColumn: '2/14', positionWidth: 12, positionHeight: 6 }
   const before = { ...p }
   slot = await lib.applyChatAddFreeSlot({ params: p, sendElementCommand: viewer(crowded), slideIndex: 1 })
   eq(slot, null, 'no room at full size: no slot')
   eq(p, before, 'no room at full size: the params are untouched (never shrunk)')
-  eq(lib.chooseChatAddSlot([{ startCol: 2, startRow: 4, endCol: 32, endRow: 12 }, { startCol: 2, startRow: 12, endCol: 20, endRow: 18 }], 12, 6), null, 'pure: no smaller box is offered')
+  eq(lib.chooseChatAddSlot([{ startCol: 2, startRow: 4, endCol: 32, endRow: 12 }, { startCol: 2, startRow: 12, endCol: 24, endRow: 18 }], 12, 6), null, 'pure: no smaller box is offered')
   ok(!('FREE_SLOT_SCALES' in lib) && !/0\.4|shrink/i.test(read(LIB).split('\n').filter(l => !l.trim().startsWith('*') && !l.trim().startsWith('/')).join('\n')), 'the shrink steps are gone')
   p = { gridRow: '4/10', gridColumn: '2/14', positionWidth: 12, positionHeight: 6 }
   eq(await lib.applyChatAddFreeSlot({ params: p, sendElementCommand: viewer(ctx([], 2)), slideIndex: 1 }), null, 'an answer for another slide: untouched')
