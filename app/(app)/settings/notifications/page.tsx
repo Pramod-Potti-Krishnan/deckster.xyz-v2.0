@@ -174,8 +174,8 @@ function StudioAccountNotifications({ owner, authLoading, email }: { owner: stri
             const id = `notification-${row.key}`
             const hasChoice = choices[row.key] !== undefined
             return <div className="sn-row" key={row.key} data-studio-notification={row.key} data-unsaved={hasChoice ? "true" : "false"}>
-              <div><Label htmlFor={id}>{row.label}</Label><p id={`${id}-help`}>{row.desc}</p><p id={`${id}-status`} className={confirmed && !hasChoice ? "sn-confirmed" : undefined} role="status">{LAUNCH_WORDING ? "Not available" : saving === row.key ? "Saving local choice…" : hasChoice ? `Unsaved local choice · last confirmed ${confirmed?.[row.key] ? "on" : "off"}` : confirmed ? `${savedKey === row.key ? "Save confirmed" : "Last confirmed"} · ${confirmed[row.key] ? "On" : "Off"}` : "Not loaded"}</p></div>
-              <Switch id={id} checked={LAUNCH_WORDING ? false : choices[row.key] ?? confirmed?.[row.key] ?? false} onCheckedChange={(next) => void savePreference(row.key, next)} disabled={disabled} aria-describedby={`${id}-help ${id}-status${saveErrors[row.key] ? ` ${id}-error` : ""}`} />
+              <div><Label htmlFor={id} id={`${id}-label`}>{row.label}</Label><p id={`${id}-help`}>{row.desc}</p><p id={`${id}-status`} className={confirmed && !hasChoice ? "sn-confirmed" : undefined} role="status">{LAUNCH_WORDING ? "Not available" : saving === row.key ? "Saving local choice…" : hasChoice ? `Unsaved local choice · last confirmed ${confirmed?.[row.key] ? "on" : "off"}` : confirmed ? `${savedKey === row.key ? "Save confirmed" : "Last confirmed"} · ${confirmed[row.key] ? "On" : "Off"}` : "Not loaded"}</p></div>
+              <Switch id={id} aria-labelledby={`${id}-label`} checked={LAUNCH_WORDING ? false : choices[row.key] ?? confirmed?.[row.key] ?? false} onCheckedChange={(next) => void savePreference(row.key, next)} disabled={disabled} aria-describedby={`${id}-help ${id}-status${saveErrors[row.key] ? ` ${id}-error` : ""}`} />
               {hasChoice && saving !== row.key && <div className="sn-row-recovery">
                 {saveErrors[row.key] && <p id={`${id}-error`} className="sn-error" role="alert">{saveErrors[row.key]}</p>}
                 <button type="button" className="sn-action" disabled={disabled} onClick={() => void savePreference(row.key, choices[row.key]!)}>Retry choice</button>
@@ -254,10 +254,11 @@ function ClassicNotificationsSettingsPage() {
               {i > 0 && <Separator className="mb-4" />}
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label>{row.label}</Label>
+                  <Label id={`notification-legacy-${row.key}-label`}>{row.label}</Label>
                   <p className="text-sm text-muted-foreground">{row.desc}</p>
                 </div>
                 <Switch
+                  aria-labelledby={`notification-legacy-${row.key}-label`}
                   checked={LAUNCH_WORDING ? false : prefs?.[row.key] ?? false}
                   onCheckedChange={() => toggle(row.key)}
                   disabled={LAUNCH_WORDING || saving === row.key}

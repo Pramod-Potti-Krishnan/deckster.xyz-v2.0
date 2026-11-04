@@ -41,6 +41,7 @@
    narrow form it scrolls with that corner instead of covering color controls. */
 .dark :where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) { --sl-bg: #141c1e; --sl-panel: #1b2426; --sl-soft: #243034; --sl-line: #334245; --sl-text: #e2ebe8; --sl-muted: #a0b1ad; --sl-teal: #83c4bd; --sl-accent: #b4a0f2; --sl-danger: #ef9a8f; }
 .dark :where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-primary { color: #141c1e; }
+:where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-primary:disabled, .dark :where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-primary:disabled { background: var(--sl-disabled-bg); border-color: var(--sl-disabled-line); color: var(--sl-disabled-text); } /* a11y: the shared disabled tokens (libraries.css) */
 @media (min-width: 821px) {
   :where([data-studio-v4-shell="true"]) .studio-library[data-studio-library="themes"]:has(> [data-studio-themes-fidelity="true"]) .sl-split { grid-template-columns: minmax(280px, .8fr) minmax(0, 1.2fr); gap: 18px; }
 }

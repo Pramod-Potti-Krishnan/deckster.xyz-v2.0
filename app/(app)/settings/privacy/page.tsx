@@ -136,7 +136,7 @@ function StudioAccountPrivacy({ owner, authLoading }: { owner: string | null; au
         <div className="sp-tracking" data-studio-privacy-tracking data-unsaved={choice !== null ? "true" : "false"}>
           <div className="sp-load"><span role="status">{loading && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}{status}</span><button type="button" className="sp-action" onClick={() => void readPreferences()} disabled={!owner || loading || saving} data-studio-privacy-refresh>{loadError ? "Retry loading" : "Refresh"}</button></div>
           {loadError && <p className="sp-error" role="alert">{loadError}</p>}
-          <div className="sp-row"><div><Label htmlFor="privacy-activity-tracking">Activity Tracking</Label><p id="privacy-activity-help">Allow us to collect usage data to improve the product</p><p id="privacy-activity-status" className={confirmed !== null && choice === null ? "sp-confirmed" : undefined} role="status">{saving ? "Saving local choice…" : choice !== null ? `Unsaved local choice · last confirmed ${confirmed ? "on" : "off"}` : confirmed === null ? "Not loaded" : `${saved ? "Save confirmed" : "Last confirmed"} · ${confirmed ? "On" : "Off"}`}</p></div><Switch id="privacy-activity-tracking" checked={choice ?? confirmed ?? false} onCheckedChange={(next) => void saveTracking(next)} disabled={disabled} aria-describedby={`privacy-activity-help privacy-activity-status${saveError ? " privacy-activity-error" : ""}`} /></div>
+          <div className="sp-row"><div><Label htmlFor="privacy-activity-tracking" id="privacy-activity-label">Activity Tracking</Label><p id="privacy-activity-help">Allow us to collect usage data to improve the product</p><p id="privacy-activity-status" className={confirmed !== null && choice === null ? "sp-confirmed" : undefined} role="status">{saving ? "Saving local choice…" : choice !== null ? `Unsaved local choice · last confirmed ${confirmed ? "on" : "off"}` : confirmed === null ? "Not loaded" : `${saved ? "Save confirmed" : "Last confirmed"} · ${confirmed ? "On" : "Off"}`}</p></div><Switch id="privacy-activity-tracking" aria-labelledby="privacy-activity-label" checked={choice ?? confirmed ?? false} onCheckedChange={(next) => void saveTracking(next)} disabled={disabled} aria-describedby={`privacy-activity-help privacy-activity-status${saveError ? " privacy-activity-error" : ""}`} /></div>
           {choice !== null && !saving && <div className="sp-recovery">{saveError && <p className="sp-error" id="privacy-activity-error" role="alert">{saveError}</p>}<div><button type="button" className="sp-action" onClick={() => void saveTracking(choice)} disabled={disabled}>Retry choice</button><button type="button" className="sp-action" disabled={loading || saving} onClick={() => { setChoice(null); setSaveError(null); setSaved(false) }}>Discard local choice</button></div></div>}
         </div>
       </CardContent></Card>
@@ -212,7 +212,7 @@ function ClassicPrivacySettingsPage() {
 
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label>Activity Tracking</Label>
+              <Label id="privacy-activity-legacy-label">Activity Tracking</Label>
               <p className="text-sm text-muted-foreground">
                 Allow us to collect usage data to improve the product
               </p>
@@ -221,6 +221,7 @@ function ClassicPrivacySettingsPage() {
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             ) : (
               <Switch
+                aria-labelledby="privacy-activity-legacy-label"
                 checked={activityTracking}
                 onCheckedChange={toggleTracking}
                 disabled={saving}
