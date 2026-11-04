@@ -1658,7 +1658,7 @@ function proveIdentity(label = 'identity') {
   // what the admin pages call or are guarded by that this change does not touch: the old pages, the approval and clean-up routes, the redeem route, the session options, the root layout. (The three list / coupon
   // routes and the middleware ARE changed, behind the flag: their flag-off identity is proved by running them against the base commit's, in proveRoutes and proveMiddleware.)
   for (const rel of [PAGE_USERS, PAGE_COUPONS, ROUTE_APPROVE, 'app/api/admin/cleanup-sessions/route.ts', 'app/api/coupons/redeem/route.ts', 'lib/auth-options.ts', 'app/layout.tsx']) {
-    eq(rel === 'app/api/admin/cleanup-sessions/route.ts' ? stripLaterChanges(rel, read(rel)) : read(rel), baseSource(rel), `${label}: ${rel} is the base commit's file, byte for byte`)
+    eq(rel === 'app/api/admin/cleanup-sessions/route.ts' || rel === 'lib/auth-options.ts' ? stripLaterChanges(rel, read(rel)) : read(rel), baseSource(rel), `${label}: ${rel} is the base commit's file, byte for byte`) // LATER-CHANGES: registry read (TIER-GUARD)
   }
   deepEq(fs.readdirSync(path.join(repoRoot, 'app/admin/users')).sort(), ['layout.tsx', 'page.tsx'], `${label}: app/admin/users holds the page and the layout`)
   deepEq(fs.readdirSync(path.join(repoRoot, 'app/admin/coupons')).sort(), ['layout.tsx', 'page.tsx'], `${label}: app/admin/coupons holds the page and the layout`)
