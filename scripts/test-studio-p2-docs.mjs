@@ -40,7 +40,7 @@ import { execFileSync } from 'node:child_process'
 import ts from 'typescript'
 import postcss from 'postcss'
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
-import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (PHONE-SHELL-COVERAGE)
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (TIER-GUARD)
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const BASE_COMMIT = process.env.P2_DOCS_BASE || 'fae962006b080e26eb70c2add7066ca1edf8eca2'
@@ -1545,7 +1545,7 @@ function proveTypes(kind, code, label = `${kind} types`) {
   ]), prior, `${label}: removing the additions gives back the base commit's types byte for byte`)
 }
 for (const kind of Object.keys(AGENT_KINDS)) proveTypes(kind, SOURCES[AGENT_KINDS[kind].types])
-for (const file of [DATA_COMPARISONS, DATA_EXAMPLES, DATA_TEMPLATES, 'app/examples/page.tsx', 'app/templates/page.tsx', 'app/compare/[competitor]/page.tsx', PRICING_SOURCE, 'lib/auth-options.ts', 'app/auth/signup/page.tsx', 'app/auth/signin/page.tsx']) eq(read(file), baseSource(file), `${file} is the base commit's, byte for byte`)
+for (const file of [DATA_COMPARISONS, DATA_EXAMPLES, DATA_TEMPLATES, 'app/examples/page.tsx', 'app/templates/page.tsx', 'app/compare/[competitor]/page.tsx', PRICING_SOURCE, 'lib/auth-options.ts', 'app/auth/signup/page.tsx', 'app/auth/signin/page.tsx']) eq(file === 'lib/auth-options.ts' ? stripLaterChanges(file, read(file)) : read(file), baseSource(file), `${file} is the base commit's, byte for byte`) // LATER-CHANGES: registry read (TIER-GUARD)
 
 // ruling 3, onboarding: with NEXT_PUBLIC_STUDIO_P2_ONBOARDING and the shell on there is no old agent name to change (the wizard and the Studio introduction name none); the old page and the classic modal, which do, are the flag-off text and are not touched
 const ONB_FILES = ['lib/studio-onboarding.ts', 'components/studio-p2-onboarding.tsx', 'app/onboarding/layout.tsx', 'components/onboarding-modal.tsx', 'app/onboarding/page.tsx']
