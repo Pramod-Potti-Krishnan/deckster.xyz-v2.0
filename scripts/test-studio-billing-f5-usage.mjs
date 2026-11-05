@@ -15,10 +15,12 @@ const ok = (cond, msg) => { if (!cond) { fails++; console.error('FAIL', msg) } e
 // A
 const changed = git('diff', '--name-only', `${BASE}..${HEAD}`).split('\n').filter(Boolean)
 const tierGuard = new Set(git('diff', '--name-only', `${BASE}..origin/frontend1/tier-update-guard`).split('\n').filter(Boolean))
-const stray = changed.filter(f => !strip.BILLING_F5_USAGE_SCOPE_FILES.has(f) && !tierGuard.has(f))
+const stray = changed.filter(f => !strip.BILLING_F5_USAGE_SCOPE_FILES.has(f) && !tierGuard.has(f) && !registry.LATER_CHANGE_FILES.has(f)) // LATER-CHANGES: registry read (BILLING-F4F6): the change this one is stacked on registers its own files, and only a file in no list is still a stray
 ok(stray.length === 0, `A: only own files changed (stray: ${stray.join(', ')})`)
 const env = git('show', `${HEAD}:.env.example`)
-ok(env === `${git('show', `${BASE}:.env.example`)}\n${strip.BILLING_F5_USAGE_ENV_BLOCK}\n${strip.BILLING_F5_QUOTA_SCREENS_ENV_BLOCK}`, 'A: .env.example is the base plus the two blocks')
+const ownEnv = [strip.BILLING_F5_USAGE_ENV_BLOCK, strip.BILLING_F5_QUOTA_SCREENS_ENV_BLOCK], baseEnv = git('show', `${BASE}:.env.example`)
+const stackedEnv = registry.LATER_ENV_BLOCKS.filter(b => !ownEnv.includes(b) && !baseEnv.includes(b) && env.includes(b)).map(b => `${String(b).replace(/\n+$/, '')}\n`) // LATER-CHANGES: registry read (BILLING-F4F6): the env blocks of the changes this one is stacked on, in registry order, sit between the base and this change's two
+ok(env === [baseEnv, ...stackedEnv, ...ownEnv].join('\n'), 'A: .env.example is the base plus the two blocks')
 ok(/^NEXT_PUBLIC_STUDIO_QUOTA_SCREENS="false"$/m.test(strip.BILLING_F5_QUOTA_SCREENS_ENV_BLOCK), 'A: quota screens env default "false"')
 ok(/^NEXT_PUBLIC_STUDIO_USAGE_PAGE="false"$/m.test(strip.BILLING_F5_USAGE_ENV_BLOCK), 'A: env default "false"')
 ok(registry.LATER_CHANGE_FILES.has('lib/studio-billing-usage.ts'), 'A: registered in studio-later-changes')
