@@ -20,6 +20,7 @@ import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
 import { sameAsBase } from './studio-env-append-tolerant.mjs'
 import { stackMutants, stackScope } from './studio-stack-tolerant.mjs'
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (BILLING-F4F6)
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const dependencyRequire = createRequire(process.env.DECKSTER_TEST_DEPENDENCY_PACKAGE || path.join(ROOT, 'package.json'))
@@ -56,7 +57,7 @@ const norm = value => JSON.parse(JSON.stringify(value))
 const eq = (actual, expected, message) => { assert.deepEqual(norm(actual), norm(expected), message); checks++ }
 const ok = (value, message) => { assert.ok(value, message); checks++ }
 const fails = (action, message) => { assert.throws(action, undefined, message); checks++ }
-const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8')
+const read = relative => (relative === 'lib/quota/quota.ts' || relative === 'lib/marketing/homepage-v2-pricing.ts' ? stripLaterChanges(relative, fs.readFileSync(path.join(ROOT, relative), 'utf8')) : fs.readFileSync(path.join(ROOT, relative), 'utf8')) // LATER-CHANGES: registry read (BILLING-F4F6)
 
 // Mutation check: each mutant breaks one behaviour in an in-memory copy of the route or resolver.
 // `from` must occur exactly once (otherwise the mutant is a no-op and the run exits 3, not "caught").

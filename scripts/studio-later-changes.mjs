@@ -72,9 +72,10 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-template-match-strip.mjs')).STUDIO_TEMPLATE_MATCH_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, W2 P4-7/8 template match: Studio shows the template Director applied, with Change / Undo, source chips and an auto-apply check (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH)
   ...(await import('./studio-phone-landscape-strip.mjs')).PHONE_LANDSCAPE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape (PR 1): a phone turned sideways gets a viewing stage with a hamburger and a plus (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   ...(await import('./studio-phone-hints-strip.mjs')).PHONE_HINTS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, F-13 phone hints (PR 2): the portrait rotate card, swipe to change slide, Full screen (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
-  // one line per later change, above this comment
   ...(await import('./studio-tier-update-guard-strip.mjs')).TIER_GUARD_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, security P0 H4-01: server-side tier/entitlement only (no flag: security; no .env.example block)
+  ...(await import('./studio-billing-f4-f6-strip.mjs')).BILLING_F4F6_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, L-BILLING F4 debit switch + F6 single price source (WALLET_DEBIT_SOURCE)
   ...(await import('./studio-billing-f5-usage-strip.mjs')).BILLING_F5_USAGE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, L-BILLING F5 quota and refusal screens + Usage page (NEXT_PUBLIC_STUDIO_USAGE_PAGE)
+  // one line per later change, above this comment
 ])
 
 export const LATER_ENV_BLOCKS = [
@@ -118,6 +119,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-template-match-strip.mjs')).STUDIO_TEMPLATE_MATCH_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, W2 P4-7/8 template match (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH)
   (await import('./studio-phone-landscape-strip.mjs')).PHONE_LANDSCAPE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape, PR 1 (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   (await import('./studio-phone-hints-strip.mjs')).PHONE_HINTS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-13 phone hints, PR 2 (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
+  (await import('./studio-billing-f4-f6-strip.mjs')).BILLING_F4F6_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, L-BILLING F4 debit switch + F6 single price source (WALLET_DEBIT_SOURCE)
   // one line per later change, above this comment
   (await import('./studio-billing-f5-usage-strip.mjs')).BILLING_F5_USAGE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, L-BILLING Usage page (NEXT_PUBLIC_STUDIO_USAGE_PAGE)
   (await import('./studio-billing-f5-usage-strip.mjs')).BILLING_F5_QUOTA_SCREENS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, L-BILLING F5 quota and refusal screens (NEXT_PUBLIC_STUDIO_QUOTA_SCREENS)
@@ -173,9 +175,10 @@ export const LATER_STRIPS = [
   (await import('./studio-template-match-strip.mjs')).stripStudioTemplateMatch, // LATER-CHANGE: FRONTEND-2, W2 P4-7/8 template match (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH)
   (await import('./studio-phone-landscape-strip.mjs')).stripPhoneLandscape, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape, PR 1 (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   (await import('./studio-phone-hints-strip.mjs')).stripPhoneHints, // LATER-CHANGE: FRONTEND-1, F-13 phone hints, PR 2 (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
-  // one line per later change, above this comment
   (await import('./studio-tier-update-guard-strip.mjs')).stripTierUpdateGuard, // LATER-CHANGE: FRONTEND-1, security P0 H4-01: server-side tier/entitlement only (no flag: security)
+  (await import('./studio-billing-f4-f6-strip.mjs')).stripBillingF4F6, // LATER-CHANGE: FRONTEND-1, L-BILLING F4 debit switch + F6 single price source (WALLET_DEBIT_SOURCE)
   (await import('./studio-billing-f5-usage-strip.mjs')).stripBillingF5Usage, // LATER-CHANGE: FRONTEND-1, L-BILLING F5 quota and refusal screens + Usage page (NEXT_PUBLIC_STUDIO_USAGE_PAGE)
+  // one line per later change, above this comment
 ]
 
 const lineStart = (text, at) => at === 0 || text[at - 1] === '\n'
