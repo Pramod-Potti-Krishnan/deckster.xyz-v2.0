@@ -1,5 +1,6 @@
 import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
-import { resolveDirectorUserId, directorRestSignHeaders } from '@/lib/studio-director-rest-sign'
+import { directorRestSignHeaders } from '@/lib/studio-director-rest-sign' // DIRECTOR-REST-SIGN
+import { resolveDirectorUserId } from '@/lib/studio-director-rest-sign'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
@@ -64,7 +65,7 @@ export async function POST(
       `${directorBaseUrl()}/api/sessions/${encodeURIComponent(sourceSessionId)}/handoff`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(await directorRestSignHeaders(userId, 'POST')) },
+        headers: { 'Content-Type': 'application/json', ...(await directorRestSignHeaders(userId, 'POST', { path: `/api/sessions/${encodeURIComponent(sourceSessionId)}/handoff` })) }, // DIRECTOR-REST-SIGN
         body: JSON.stringify(payload),
         cache: 'no-store',
       },

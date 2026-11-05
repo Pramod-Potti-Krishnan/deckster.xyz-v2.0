@@ -8,7 +8,7 @@
 // (the flip enablers' server-only Director signers import the minter too); the strip puts its old line back.
 // A second round ("Flip enablers: dual lookup - pins") teaches nine more pins the same way (DUAL_LOOKUP_EDITS): put-backs newest first where the flip enablers chained a whole-text edit on an older
 // change's taught line, the flip enablers' own commit subjects skipped on the first-parent line, files whose only net change is another registered change's lines left out of a scope,
-// and the thirteen Director routes the REST-sign commit edited put back to dev's text (REST_SIGN_ROUTE_EDITS) so closed-import harnesses read dev's route.
+// and the thirteen Director routes put back to dev's text so closed-import harnesses read dev's route: #577's strip takes its REST-sign lines out, this one the flip enablers' resolveDirectorUserId edit (RESOLVE_ID_ROUTE_EDITS).
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, nothing read from disk or git here.
 
 export const BASE_COMMIT = '359ec0195217c2ca82b3e3cf484468cef5e2a202' // program1/studio-flip-enablers head at the start of this change (already holds origin/studio-v4-dev-preparation-code 3e1ce88e)
@@ -42,9 +42,6 @@ export const DUAL_LOOKUP_EDITS = {
   "scripts/studio-library-manage-harness.mjs": [
     ["    source = stripLaunchWording(rel, stripDualLookup(rel, source)) // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING: its flag-gated edits come out first // LATER-CHANGES: registry read (DUAL-LOOKUP): the strips registered after this change (the flip enablers' whole-text pin edits, chained on this change's taught lines) are put back first, newest first\n", "    source = stripLaunchWording(rel, source) // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING: its flag-gated edits come out first\n"],
     ["import { LATER_CHANGE_FILES } from './studio-later-changes.mjs' // the files of the changes stacked after bulk edit + chat undo (they register there) are stacked files too\nimport { stripDualLookup } from './studio-dual-lookup-strip.mjs' // LATER-CHANGES: registry read (DUAL-LOOKUP): the flip enablers' Director routes (REST-sign + dual lookup) are read as dev's\n", "import { LATER_CHANGE_FILES } from './studio-later-changes.mjs' // the files of the changes stacked after bulk edit + chat undo (they register there) are stacked files too\n"],
-  ],
-  "scripts/test-studio-template-library-manage.mjs": [
-    ["    ok(!changed.filter((later => file => !later.has(file))((await import('./studio-later-changes.mjs')).LATER_CHANGE_FILES)).some(file => (/^app\\/api\\/(templates|themes)\\//.test(file) && file !== PROXY) || /admission/i.test(file)), 'no API proxy but the template one (the rename) and nothing of the admission report is touched') // LATER-CHANGES: registry read (DUAL-LOOKUP): the strips registered after this change (the flip enablers' whole-text pin edits, chained on this change's taught lines) are put back first, newest first\n", "    ok(!changed.some(file => (/^app\\/api\\/(templates|themes)\\//.test(file) && file !== PROXY) || /admission/i.test(file)), 'no API proxy but the template one (the rename) and nothing of the admission report is touched')\n"],
   ],
   "scripts/test-studio-chat-theme-export.mjs": [
     ["    if (rel === 'lib/api/download-service.ts' && read(rel) !== baseFile(rel)) { assert.equal(sha(stripJobDeadlines(rel, (await import('./studio-flip-enablers-strip.mjs')).stripFlipEnablers(rel, read(rel)))), sha(baseFile(rel)), rel); identityHashes[rel] = sha(baseFile(rel)); continue } // stacked after #475: P3-4b's export deadline lines come out first // LATER-CHANGES: registry read (DUAL-LOOKUP): the strips registered after this change (the flip enablers' whole-text pin edits, chained on this change's taught lines) are put back first, newest first\n", "    if (rel === 'lib/api/download-service.ts' && read(rel) !== baseFile(rel)) { assert.equal(sha(stripJobDeadlines(rel, read(rel))), sha(baseFile(rel)), rel); identityHashes[rel] = sha(baseFile(rel)); continue } // stacked after #475: P3-4b's export deadline lines come out first\n"],
@@ -87,232 +84,155 @@ export const DUAL_LOOKUP_ENV_BLOCK = `# STUDIO DIRECTOR DUAL LOOKUP (FRONTEND-1;
 `
 
 /**
- * The REST-sign route edits (commit 763ab2bd "feat(studio): sign every Director REST proxy ...", in the flip enablers' scope but with no strip of its own): [text now, text before] per edit,
- * whole lines with one context line. The registry read for them: once this change's marked lines are out, these put the thirteen Director proxies back to dev's text, so an older pin that holds a
- * route (or loads it in a closed-import harness) through scripts/studio-later-changes.mjs reads dev's route. Applied only after the DUAL-LOOKUP lines are out.
+ * Stacked on #577 (and #583): #577's own strip (scripts/studio-director-rest-sign-strip.mjs, registered BEFORE this one) now takes the REST-sign lines out of the thirteen Director routes, so this
+ * change no longer carries a put-back of them. What is left is the flip enablers' own route edit (359ec019: e-mail sessions resolve to the DB id, resolveDirectorUserId): [text now, text before]
+ * per edit, whole lines with one context line, on the text #577's strip leaves and after this change's DUAL-LOOKUP lines are out. Through the registry each route reads as dev's, byte for byte.
  */
-export const REST_SIGN_ROUTE_EDITS = {
+export const RESOLVE_ID_ROUTE_EDITS = {
  "app/api/director/sessions/[sourceSessionId]/handoff/route.ts": [
   [
-   "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\nimport { resolveDirectorUserId, directorRestSignHeaders } from '@/lib/studio-director-rest-sign'\n",
+   "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\nimport { resolveDirectorUserId } from '@/lib/studio-director-rest-sign'\n",
    "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\n"
   ],
   [
    "  const sessionUser = session?.user as SessionUser | undefined\n  const userId = await resolveDirectorUserId(sessionUser?.id || sessionUser?.email)\n",
    "  const sessionUser = session?.user as SessionUser | undefined\n  const userId = sessionUser?.id || sessionUser?.email\n"
-  ],
-  [
-   "        method: 'POST',\n        headers: { 'Content-Type': 'application/json', ...(await directorRestSignHeaders(userId, 'POST')) },\n",
-   "        method: 'POST',\n        headers: { 'Content-Type': 'application/json' },\n"
   ]
  ],
  "app/api/ingest-jobs/[jobId]/route.ts": [
   [
-   "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\nimport { resolveDirectorUserId, directorRestSignHeaders } from '@/lib/studio-director-rest-sign'\n",
+   "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\nimport { resolveDirectorUserId } from '@/lib/studio-director-rest-sign'\n",
    "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\n"
   ],
   [
    "  const uid = (session?.user as { id?: string } | undefined)?.id || session?.user?.email;\n  return resolveDirectorUserId(uid);\n",
    "  const uid = (session?.user as { id?: string } | undefined)?.id || session?.user?.email;\n  return uid ?? null;\n"
-  ],
-  [
-   "      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/ingest-jobs/${encodeURIComponent(jobId)}`,\n      { cache: 'no-store', headers: await directorRestSignHeaders(userId, 'GET') },\n",
-   "      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/ingest-jobs/${encodeURIComponent(jobId)}`,\n      { cache: 'no-store' },\n"
   ]
  ],
  "app/api/slides/compose/route.ts": [
   [
-   "import { composeEntitlementHeaders } from '@/lib/studio-compose-entitlement'\nimport { resolveDirectorUserId, directorRestSignHeaders, isStudioDirectorRestSignAllEnabled } from '@/lib/studio-director-rest-sign'\n",
+   "import { composeEntitlementHeaders } from '@/lib/studio-compose-entitlement'\nimport { resolveDirectorUserId } from '@/lib/studio-director-rest-sign'\n",
    "import { composeEntitlementHeaders } from '@/lib/studio-compose-entitlement'\n"
   ],
   [
    "  const sessionUser = session?.user as SessionUserWithId | undefined\n  const userId = await resolveDirectorUserId(sessionUser?.id || sessionUser?.email)\n",
    "  const sessionUser = session?.user as SessionUserWithId | undefined\n  const userId = sessionUser?.id || sessionUser?.email\n"
-  ],
-  [
-   "  // STUDIO_COMPOSE_ENTITLEMENT_ENABLED (stacked on #475): the signed X-Deckster-Entitlement Director !535 needs to bind this compose to its user. {} unless the flag is on, the id is canonical and valid.\n  // STUDIO_DIRECTOR_REST_SIGN_ALL_ENABLED (default off): sign compose-one for the DB-verified session id (supersedes the compose-only signer when on).\n  const entitlement = isStudioDirectorRestSignAllEnabled()\n    ? await directorRestSignHeaders(payload.user_id, 'POST')\n    : composeEntitlementHeaders(payload.user_id, canonicalUserId)\n",
-   "  // STUDIO_COMPOSE_ENTITLEMENT_ENABLED (stacked on #475): the signed X-Deckster-Entitlement Director !535 needs to bind this compose to its user. {} unless the flag is on, the id is canonical and valid.\n  const entitlement = composeEntitlementHeaders(payload.user_id, canonicalUserId)\n"
   ]
  ],
  "app/api/slides/jobs/[jobId]/route.ts": [
   [
-   "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\nimport { resolveDirectorUserId, directorRestSignHeaders } from '@/lib/studio-director-rest-sign'\n",
+   "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\nimport { resolveDirectorUserId } from '@/lib/studio-director-rest-sign'\n",
    "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\n"
   ],
   [
    "  const sessionUser = session?.user as SessionUserWithId | undefined\n  const userId = await resolveDirectorUserId(sessionUser?.id || sessionUser?.email)\n",
    "  const sessionUser = session?.user as SessionUserWithId | undefined\n  const userId = sessionUser?.id || sessionUser?.email\n"
-  ],
-  [
-   "      `${directorBaseUrl()}/api/v1/slides/compose-jobs/${encodeURIComponent(jobId)}?${query.toString()}`,\n      { cache: 'no-store', headers: await directorRestSignHeaders(userId, 'GET') },\n",
-   "      `${directorBaseUrl()}/api/v1/slides/compose-jobs/${encodeURIComponent(jobId)}?${query.toString()}`,\n      { cache: 'no-store' },\n"
   ]
  ],
  "app/api/slides/refine/route.ts": [
   [
-   "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\nimport { resolveDirectorUserId, directorRestSignHeaders } from '@/lib/studio-director-rest-sign'\n",
+   "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\nimport { resolveDirectorUserId } from '@/lib/studio-director-rest-sign'\n",
    "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\n"
   ],
   [
    "  const sessionUser = session?.user as SessionUserWithId | undefined\n  const userId = await resolveDirectorUserId(sessionUser?.id || sessionUser?.email)\n",
    "  const sessionUser = session?.user as SessionUserWithId | undefined\n  const userId = sessionUser?.id || sessionUser?.email\n"
-  ],
-  [
-   "        'Content-Type': 'application/json',\n        ...(await directorRestSignHeaders(userId, 'POST')),\n",
-   "        'Content-Type': 'application/json',\n"
   ]
  ],
  "app/api/templates/[id]/blueprint/route.ts": [
   [
-   "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\nimport { resolveDirectorUserId, directorRestSignHeaders } from '@/lib/studio-director-rest-sign'\n",
+   "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\nimport { resolveDirectorUserId } from '@/lib/studio-director-rest-sign'\n",
    "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\n"
   ],
   [
    "  const uid = (session?.user as { id?: string } | undefined)?.id || session?.user?.email;\n  return resolveDirectorUserId(uid);\n",
    "  const uid = (session?.user as { id?: string } | undefined)?.id || session?.user?.email;\n  return uid ?? null;\n"
-  ],
-  [
-   "        method: 'PATCH',\n        headers: { 'Content-Type': 'application/json', ...(await directorRestSignHeaders(userId, 'PATCH')) },\n",
-   "        method: 'PATCH',\n        headers: { 'Content-Type': 'application/json' },\n"
   ]
  ],
  "app/api/templates/[id]/enrich/route.ts": [
   [
-   "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\nimport { resolveDirectorUserId, directorRestSignHeaders } from '@/lib/studio-director-rest-sign'\n",
+   "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\nimport { resolveDirectorUserId } from '@/lib/studio-director-rest-sign'\n",
    "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\n"
   ],
   [
    "  const uid = (session?.user as { id?: string } | undefined)?.id || session?.user?.email;\n  return resolveDirectorUserId(uid);\n",
    "  const uid = (session?.user as { id?: string } | undefined)?.id || session?.user?.email;\n  return uid ?? null;\n"
-  ],
-  [
-   "      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}/enrich`,\n      { method: 'POST', headers: await directorRestSignHeaders(userId, 'POST') },\n",
-   "      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}/enrich`,\n      { method: 'POST' },\n"
   ]
  ],
  "app/api/templates/[id]/route.ts": [
   [
-   "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\nimport { resolveDirectorUserId, directorRestSignHeaders } from '@/lib/studio-director-rest-sign'\n",
+   "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\nimport { resolveDirectorUserId } from '@/lib/studio-director-rest-sign'\n",
    "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\n"
   ],
   [
    "  const uid = (session?.user as { id?: string } | undefined)?.id || session?.user?.email;\n  return resolveDirectorUserId(uid);\n",
    "  const uid = (session?.user as { id?: string } | undefined)?.id || session?.user?.email;\n  return uid ?? null;\n"
-  ],
-  [
-   "      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}`,\n      { cache: 'no-store', headers: await directorRestSignHeaders(userId, 'GET') },\n",
-   "      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}`,\n      { cache: 'no-store' },\n"
-  ],
-  [
-   "      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}`,\n      { method: 'DELETE', headers: await directorRestSignHeaders(userId, 'DELETE') },\n",
-   "      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}`,\n      { method: 'DELETE' },\n"
-  ],
-  [
-   "      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}`,\n      { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(await directorRestSignHeaders(userId, 'PATCH')) }, body: JSON.stringify({ name }) },\n",
-   "      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}`,\n      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) },\n"
   ]
  ],
  "app/api/templates/route.ts": [
   [
-   "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\nimport { resolveDirectorUserId, directorRestSignHeaders } from '@/lib/studio-director-rest-sign'\n",
+   "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\nimport { resolveDirectorUserId } from '@/lib/studio-director-rest-sign'\n",
    "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\n"
   ],
   [
    "  const uid = (session?.user as { id?: string } | undefined)?.id || session?.user?.email;\n  return resolveDirectorUserId(uid);\n",
    "  const uid = (session?.user as { id?: string } | undefined)?.id || session?.user?.email;\n  return uid ?? null;\n"
-  ],
-  [
-   "      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/templates`,\n      { cache: 'no-store', headers: await directorRestSignHeaders(userId, 'GET') },\n",
-   "      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/templates`,\n      { cache: 'no-store' },\n"
-  ],
-  [
-   "        method: 'POST',\n        headers: { 'Content-Type': 'application/json', ...(await directorRestSignHeaders(userId, 'POST')) },\n",
-   "        method: 'POST',\n        headers: { 'Content-Type': 'application/json' },\n"
   ]
  ],
  "app/api/themes/[id]/route.ts": [
   [
-   "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\nimport { resolveDirectorUserId, directorRestSignHeaders } from '@/lib/studio-director-rest-sign'\n",
+   "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\nimport { resolveDirectorUserId } from '@/lib/studio-director-rest-sign'\n",
    "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\n"
   ],
   [
    "  const uid = (session?.user as { id?: string } | undefined)?.id || session?.user?.email\n  return resolveDirectorUserId(uid)\n",
    "  const uid = (session?.user as { id?: string } | undefined)?.id || session?.user?.email\n  return uid ?? null\n"
-  ],
-  [
-   "      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes/${encodeURIComponent(id)}`,\n      { cache: 'no-store', headers: await directorRestSignHeaders(userId, 'GET') },\n",
-   "      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes/${encodeURIComponent(id)}`,\n      { cache: 'no-store' },\n"
-  ],
-  [
-   "        method: 'PATCH',\n        headers: { 'Content-Type': 'application/json', ...(await directorRestSignHeaders(userId, 'PATCH')) },\n",
-   "        method: 'PATCH',\n        headers: { 'Content-Type': 'application/json' },\n"
-  ],
-  [
-   "      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes/${encodeURIComponent(id)}`,\n      { method: 'DELETE', headers: await directorRestSignHeaders(userId, 'DELETE') },\n",
-   "      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes/${encodeURIComponent(id)}`,\n      { method: 'DELETE' },\n"
   ]
  ],
  "app/api/themes/[id]/standard/route.ts": [
   [
-   "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\nimport { resolveDirectorUserId, directorRestSignHeaders } from '@/lib/studio-director-rest-sign'\n",
+   "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\nimport { resolveDirectorUserId } from '@/lib/studio-director-rest-sign'\n",
    "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\n"
   ],
   [
    "  const uid = (session?.user as { id?: string } | undefined)?.id || session?.user?.email\n  return resolveDirectorUserId(uid)\n",
    "  const uid = (session?.user as { id?: string } | undefined)?.id || session?.user?.email\n  return uid ?? null\n"
-  ],
-  [
-   "      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes/${encodeURIComponent(id)}/standard`,\n      { method: 'PUT', headers: await directorRestSignHeaders(userId, 'PUT') },\n",
-   "      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes/${encodeURIComponent(id)}/standard`,\n      { method: 'PUT' },\n"
   ]
  ],
  "app/api/themes/route.ts": [
   [
-   "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\nimport { resolveDirectorUserId, directorRestSignHeaders } from '@/lib/studio-director-rest-sign'\n",
+   "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\nimport { resolveDirectorUserId } from '@/lib/studio-director-rest-sign'\n",
    "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\n"
   ],
   [
    "  const uid = (session?.user as { id?: string } | undefined)?.id || session?.user?.email\n  return resolveDirectorUserId(uid)\n",
    "  const uid = (session?.user as { id?: string } | undefined)?.id || session?.user?.email\n  return uid ?? null\n"
-  ],
-  [
-   "      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes`,\n      { cache: 'no-store', headers: await directorRestSignHeaders(userId, 'GET') },\n",
-   "      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes`,\n      { cache: 'no-store' },\n"
-  ],
-  [
-   "        method: 'POST',\n        headers: { 'Content-Type': 'application/json', ...(await directorRestSignHeaders(userId, 'POST')) },\n",
-   "        method: 'POST',\n        headers: { 'Content-Type': 'application/json' },\n"
   ]
  ],
  "app/api/themes/standard/route.ts": [
   [
-   "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\nimport { resolveDirectorUserId, directorRestSignHeaders } from '@/lib/studio-director-rest-sign'\n",
+   "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\nimport { resolveDirectorUserId } from '@/lib/studio-director-rest-sign'\n",
    "import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'\n"
   ],
   [
    "  const uid = (session?.user as { id?: string } | undefined)?.id || session?.user?.email\n  return resolveDirectorUserId(uid)\n",
    "  const uid = (session?.user as { id?: string } | undefined)?.id || session?.user?.email\n  return uid ?? null\n"
-  ],
-  [
-   "      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes/standard`,\n      { cache: 'no-store', headers: await directorRestSignHeaders(userId, 'GET') },\n",
-   "      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes/standard`,\n      { cache: 'no-store' },\n"
-  ],
-  [
-   "      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes/standard`,\n      { method: 'DELETE', headers: await directorRestSignHeaders(userId, 'DELETE') },\n",
-   "      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes/standard`,\n      { method: 'DELETE' },\n"
   ]
  ]
 }
-export const REST_SIGN_ROUTE_FILES = Object.keys(REST_SIGN_ROUTE_EDITS)
-/** The route as it was before the REST-sign commit (this change's marked lines must already be out). */
-export function putBackRestSign(rel, text) {
-  return (REST_SIGN_ROUTE_EDITS[rel] || []).reduce((out, [now, before]) => out.replace(now, () => before), text)
+export const RESOLVE_ID_ROUTE_FILES = Object.keys(RESOLVE_ID_ROUTE_EDITS)
+/** The route without the flip enablers' resolveDirectorUserId edit (#577's lines and this change's marked lines must already be out). */
+export function putBackResolveId(rel, text) {
+  return (RESOLVE_ID_ROUTE_EDITS[rel] || []).reduce((out, [now, before]) => out.replace(now, () => before), text)
+}
+/** The file without this change's marked lines only (no put-back): the own-commit proof compares this with the commit before it. */
+export function removeDualLookupLines(rel, text) {
+  return typeof text === 'string' && DUAL_LOOKUP_FILES.includes(rel) ? text.split('\n').filter(line => !DUAL_LOOKUP_MARKER_RE.test(line)).join('\n') : text
 }
 
 /** The file without this change's lines: every line that carries the marker is taken out. Any other file is returned as it is. */
 export function stripDualLookup(rel, text) {
   if (typeof text !== 'string') return text
   if (rel in DUAL_LOOKUP_EDITS) return DUAL_LOOKUP_EDITS[rel].reduce((out, [has, was]) => out.replace(has, () => was), text) // a taught proof: its previous text
-  const out = DUAL_LOOKUP_FILES.includes(rel) ? text.split('\n').filter(line => !DUAL_LOOKUP_MARKER_RE.test(line)).join('\n') : text
-  return putBackRestSign(rel, out)
+  return putBackResolveId(rel, removeDualLookupLines(rel, text))
 }

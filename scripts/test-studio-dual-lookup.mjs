@@ -132,7 +132,7 @@ await behaviour()
 // ---------- B. source, from the own commit
 for (const rel of strip.DUAL_LOOKUP_FILES) {
   const head = own(rel), base = git('show', `${BASE}:${rel}`)
-  eq(strip.stripDualLookup(rel, head), strip.putBackRestSign(rel, base), `${rel}: strip gives the base byte for byte (and then dev's text where the REST-sign commit edited it)`)
+  eq(strip.removeDualLookupLines(rel, head), base, `${rel}: the marked lines out gives the base byte for byte`)
   const diff = git('diff', '-U0', `${BASE}..${OWN}`, '--', rel).split('\n').filter(l => /^[+-]/.test(l) && !/^(\+\+\+|---) /.test(l))
   ok(diff.length === 3 && diff.every(l => l.startsWith('+') && strip.DUAL_LOOKUP_MARKER_RE.test(l)), `${rel}: three marked insertions, nothing removed`)
   ok(own(rel).includes(strip.DUAL_LOOKUP_ROUTES[rel]), `${rel}: its miss rule`)
@@ -142,7 +142,7 @@ for (const rel of strip.DUAL_LOOKUP_PIN_FILES) {
   const d = git('diff', '-U0', `${BASE}..${OWN}`, '--', rel).split('\n').filter(l => /^[+-]/.test(l) && !/^(\+\+\+|---) /.test(l))
   ok(d.filter(l => l.startsWith('+')).length === strip.DUAL_LOOKUP_EDITS[rel].length && d.filter(l => l.startsWith('-')).length <= strip.DUAL_LOOKUP_EDITS[rel].length && d.filter(l => l.startsWith('+')).every(l => l.includes('LATER-CHANGES: registry read (DUAL-LOOKUP)')), `${rel}: one marked line per taught edit (a whole line replaced, or one inserted)`)
 }
-for (const rel of strip.REST_SIGN_ROUTE_FILES) eq(strip.stripDualLookup(rel, fs.readFileSync(path.join(root, rel), 'utf8')), git('show', `3e1ce88eec23fbfd33f249332d06a65ad05ffc40:${rel}`), `${rel}: through the strip, dev's route byte for byte (REST-sign put back)`)
+for (const rel of strip.RESOLVE_ID_ROUTE_FILES) eq(registry.stripLaterChanges(rel, fs.readFileSync(path.join(root, rel), 'utf8')), git('show', `0357e8f7:${rel}`), `${rel}: through the registry (#577's strip, then this one), dev's route byte for byte`)
 eq(registry.stripLaterEnvBlocks('.env.example', own('.env.example')), registry.stripLaterEnvBlocks('.env.example', git('show', `${BASE}:.env.example`)), '.env.example: the base plus registered blocks')
 ok(own('.env.example').endsWith(`\n${strip.DUAL_LOOKUP_ENV_BLOCK}`), '.env.example: the block at the end')
 const regDiff = git('diff', '-U0', `${BASE}..${OWN}`, '--', 'scripts/studio-later-changes.mjs').split('\n').filter(l => /^[+-]/.test(l) && !/^(\+\+\+|---) /.test(l))

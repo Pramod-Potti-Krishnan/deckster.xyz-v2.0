@@ -72,6 +72,8 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-template-match-strip.mjs')).STUDIO_TEMPLATE_MATCH_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, W2 P4-7/8 template match: Studio shows the template Director applied, with Change / Undo, source chips and an auto-apply check (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH)
   ...(await import('./studio-phone-landscape-strip.mjs')).PHONE_LANDSCAPE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape (PR 1): a phone turned sideways gets a viewing stage with a hamburger and a plus (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   ...(await import('./studio-phone-hints-strip.mjs')).PHONE_HINTS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, F-13 phone hints (PR 2): the portrait rotate card, swipe to change slide, Full screen (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
+  ...(await import('./studio-tier-update-guard-strip.mjs')).TIER_GUARD_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, security P0 H4-01: server-side tier/entitlement only (no flag: security; no .env.example block)
+  ...(await import('./studio-director-rest-sign-strip.mjs')).DIRECTOR_REST_SIGN_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, program1 Director REST sign all (STUDIO_DIRECTOR_REST_SIGN_ALL_ENABLED)
   ...(await import('./studio-flip-enablers-strip.mjs')).FLIP_ENABLERS_SCOPE_FILES, // LATER-CHANGE: PROGRAM-1, studio flip enablers (NEXT_PUBLIC_STUDIO_RESEARCHER_PROXY_ENABLED / NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED / NEXT_PUBLIC_STUDIO_DOWNLOADS_AUTH_ENABLED)
   ...(await import('./studio-dual-lookup-strip.mjs')).DUAL_LOOKUP_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, flip enablers dual lookup: Director reads ask with the DB id, then the session's own e-mail (STUDIO_DIRECTOR_REST_SIGN_ALL_ENABLED)
   // one line per later change, above this comment
@@ -118,6 +120,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-template-match-strip.mjs')).STUDIO_TEMPLATE_MATCH_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, W2 P4-7/8 template match (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH)
   (await import('./studio-phone-landscape-strip.mjs')).PHONE_LANDSCAPE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape, PR 1 (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   (await import('./studio-phone-hints-strip.mjs')).PHONE_HINTS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-13 phone hints, PR 2 (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
+  (await import('./studio-director-rest-sign-strip.mjs')).DIRECTOR_REST_SIGN_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, program1 Director REST sign all (STUDIO_DIRECTOR_REST_SIGN_ALL_ENABLED)
   (await import('./studio-flip-enablers-strip.mjs')).FLIP_ENABLERS_ENV_BLOCK, // LATER-CHANGE: PROGRAM-1, studio flip enablers
   (await import('./studio-dual-lookup-strip.mjs')).DUAL_LOOKUP_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, flip enablers dual lookup
   // one line per later change, above this comment
@@ -173,6 +176,8 @@ export const LATER_STRIPS = [
   (await import('./studio-template-match-strip.mjs')).stripStudioTemplateMatch, // LATER-CHANGE: FRONTEND-2, W2 P4-7/8 template match (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH)
   (await import('./studio-phone-landscape-strip.mjs')).stripPhoneLandscape, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape, PR 1 (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   (await import('./studio-phone-hints-strip.mjs')).stripPhoneHints, // LATER-CHANGE: FRONTEND-1, F-13 phone hints, PR 2 (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
+  (await import('./studio-tier-update-guard-strip.mjs')).stripTierUpdateGuard, // LATER-CHANGE: FRONTEND-1, security P0 H4-01: server-side tier/entitlement only (no flag: security)
+  (await import('./studio-director-rest-sign-strip.mjs')).stripDirectorRestSign, // LATER-CHANGE: FRONTEND-1, program1 Director REST sign all (STUDIO_DIRECTOR_REST_SIGN_ALL_ENABLED)
   (await import('./studio-flip-enablers-strip.mjs')).stripFlipEnablers, // LATER-CHANGE: PROGRAM-1, studio flip enablers
   (await import('./studio-dual-lookup-strip.mjs')).stripDualLookup, // LATER-CHANGE: FRONTEND-1, flip enablers dual lookup
   // one line per later change, above this comment

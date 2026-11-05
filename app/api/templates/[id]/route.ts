@@ -1,5 +1,6 @@
 import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
-import { resolveDirectorUserId, directorRestSignHeaders } from '@/lib/studio-director-rest-sign'
+import { directorRestSignHeaders } from '@/lib/studio-director-rest-sign' // DIRECTOR-REST-SIGN
+import { resolveDirectorUserId } from '@/lib/studio-director-rest-sign'
 import { directorEmailFallbackRead, missOnNotFound } from '@/lib/studio-director-email-fallback' // DUAL-LOOKUP
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
@@ -24,7 +25,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const r = await fetch(
       `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}`,
-      { cache: 'no-store', headers: await directorRestSignHeaders(userId, 'GET') },
+      { cache: 'no-store', headers: await directorRestSignHeaders(userId, 'GET', { path: `/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}` }) }, // DIRECTOR-REST-SIGN
     );
     const legacy = await directorEmailFallbackRead(r, userId, (uid, headers) => fetch(`${directorBaseUrl()}/api/users/${encodeURIComponent(uid)}/templates/${encodeURIComponent(id)}`, { cache: 'no-store', headers }), missOnNotFound) // DUAL-LOOKUP
     if (legacy) return NextResponse.json(await legacy.json(), { status: legacy.status }) // DUAL-LOOKUP
@@ -44,7 +45,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   try {
     const r = await fetch(
       `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}`,
-      { method: 'DELETE', headers: await directorRestSignHeaders(userId, 'DELETE') },
+      { method: 'DELETE', headers: await directorRestSignHeaders(userId, 'DELETE', { path: `/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}` }) }, // DIRECTOR-REST-SIGN
     );
     const body = await r.json();
     return NextResponse.json(body, { status: r.status });
@@ -72,7 +73,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     const r = await fetch(
       `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}`,
-      { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(await directorRestSignHeaders(userId, 'PATCH')) }, body: JSON.stringify({ name }) },
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(await directorRestSignHeaders(userId, 'PATCH', { path: `/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}` })) }, body: JSON.stringify({ name }) }, // DIRECTOR-REST-SIGN
     );
     const body = await r.json().catch(() => ({}));
     return NextResponse.json(body, { status: r.status });

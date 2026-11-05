@@ -4,7 +4,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 import { kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
 import { composeEntitlementHeaders } from '@/lib/studio-compose-entitlement'
-import { resolveDirectorUserId, directorRestSignHeaders, isStudioDirectorRestSignAllEnabled } from '@/lib/studio-director-rest-sign'
+import { directorRestSignHeaders, isStudioDirectorRestSignAllEnabled } from '@/lib/studio-director-rest-sign' // DIRECTOR-REST-SIGN
+import { resolveDirectorUserId } from '@/lib/studio-director-rest-sign'
 
 export const maxDuration = 300
 
@@ -75,10 +76,9 @@ export async function POST(req: NextRequest) {
   }
 
   // STUDIO_COMPOSE_ENTITLEMENT_ENABLED (stacked on #475): the signed X-Deckster-Entitlement Director !535 needs to bind this compose to its user. {} unless the flag is on, the id is canonical and valid.
-  // STUDIO_DIRECTOR_REST_SIGN_ALL_ENABLED (default off): sign compose-one for the DB-verified session id (supersedes the compose-only signer when on).
-  const entitlement = isStudioDirectorRestSignAllEnabled()
-    ? await directorRestSignHeaders(payload.user_id, 'POST')
-    : composeEntitlementHeaders(payload.user_id, canonicalUserId)
+  const entitlement = composeEntitlementHeaders(payload.user_id, canonicalUserId)
+  // STUDIO_DIRECTOR_REST_SIGN_ALL_ENABLED (default off): sign compose-one for the DB-verified session id instead (supersedes the compose-only signer when on). // DIRECTOR-REST-SIGN
+  if (isStudioDirectorRestSignAllEnabled()) { for (const key of Object.keys(entitlement)) delete entitlement[key]; Object.assign(entitlement, await directorRestSignHeaders(payload.user_id, 'POST', { path: '/api/v1/slides/compose-one' })) } // DIRECTOR-REST-SIGN
 
   try {
     const response = await fetch(`${directorBaseUrl()}/api/v1/slides/compose-one`, {

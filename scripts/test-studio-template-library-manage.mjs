@@ -20,7 +20,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { LIBRARY_MANAGE_ADDITIONS, ENV_FILE, LIBRARY_MANAGE_NEW_FILES, TEMPLATES_WORKSPACE, THEME_HOOK, THEMES_WORKSPACE, stripLibraryManage } from './studio-library-manage-strip.mjs'
-import { stripLaterChanges } from './studio-later-changes.mjs' // stacked: the later-changes registry (a change stacked after this one registers its files, its .env.example block and its strip there; every read of an app file or .env.example goes through it first)
+import { LATER_CHANGE_FILES, stripLaterChanges } from './studio-later-changes.mjs' // stacked: the later-changes registry (a change stacked after this one registers its files, its .env.example block and its strip there; every read of an app file or .env.example goes through it first)
 import { BASE_COMMIT, STACKED_P2_FILES, STACKED_PASS3_FILES, baseSource, createRuntime, deferred, isBaseFile, jsxRuntime, loadSource, makeReader, plain, root, sha, text, tick } from './studio-library-manage-harness.mjs'
 
 const here = fileURLToPath(import.meta.url)
@@ -108,15 +108,20 @@ const MUTATIONS = [
   { name: 'a blocked Rename still opens the field', file: ROW, from: 'onSelect={() => { if (renameBlockedReason) return; startRename() }}', to: 'onSelect={() => { startRename() }}' },
   { name: 'the Rename reason is not shown', file: ROW, from: '{onRename && renameBlockedReason && <p id={renameNoteId}', to: '{false && <p id={renameNoteId}' },
 ]
-const readFile = makeReader(MUTATIONS, 'TEMPLATE_MANAGE_TEST_MUTATION')
-const read = rel => stripLaterChanges(rel, readFile(rel)) // stacked: a later change's lines and .env.example block come out first (scripts/studio-later-changes.mjs)
+const readFile = makeReader([], 'TEMPLATE_MANAGE_TEST_MUTATION') // the mutation is applied below, AFTER the later changes' lines are out (a later change that replaces a base line, as #577 does in the proxy, would otherwise leave the mutant's text nowhere)
+const MUTATION = process.env.TEMPLATE_MANAGE_TEST_MUTATION === undefined ? null : MUTATIONS[Number(process.env.TEMPLATE_MANAGE_TEST_MUTATION)]
+const read = rel => { // stacked: a later change's lines and .env.example block come out first (scripts/studio-later-changes.mjs)
+  let source = stripLaterChanges(rel, readFile(rel))
+  if (MUTATION && MUTATION.file === rel) { assert.ok(source.includes(MUTATION.from), `mutation "${MUTATION.name}" no longer applies; update MUTATIONS`); source = source.replace(MUTATION.from, () => MUTATION.to) }
+  return source
+}
 // A mutant is judged by behaviour: with one applied, the byte-for-byte "without this change's lines it is the base's file" pins are skipped (they would trip on any edit of a pinned line and hide whether the behaviour checks notice it). The normal run keeps them.
 const MUTATING = process.env.TEMPLATE_MANAGE_TEST_MUTATION !== undefined
 
 if (process.argv.includes('--mutation-check')) {
   let caught = 0, invalid = 0
   MUTATIONS.forEach((mutation, index) => {
-    const occurrences = fs.readFileSync(path.join(root, mutation.file), 'utf8').split(mutation.from).length - 1
+    const occurrences = stripLaterChanges(mutation.file, fs.readFileSync(path.join(root, mutation.file), 'utf8')).split(mutation.from).length - 1
     if (occurrences !== 1) { console.error(`INVALID: ${mutation.name} (its text occurs ${occurrences} times in ${mutation.file}, not once)`); invalid++; process.exitCode = 1; return }
     const child = spawnSync(process.execPath, [...process.execArgv, here], { env: { ...process.env, TEMPLATE_MANAGE_TEST_MUTATION: String(index) }, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
     if (child.status === 0) { console.error(`NOT CAUGHT: ${mutation.name}`); process.exitCode = 1 } else if (/no longer applies/.test(child.stderr)) { console.error(`INVALID: ${mutation.name} (its text no longer applies)`); invalid++; process.exitCode = 1 } else { caught++; console.log(`ok   mutant caught: ${mutation.name}`) }
@@ -524,7 +529,7 @@ function mountWorkspace({ source = WORKSPACE_SOURCE, flag, templates = [QBR, BOA
     const changed = spawnSync('git', ['diff', '--name-only', BASE_COMMIT, '--', 'app', 'components', 'lib', 'hooks', 'middleware.ts'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(Boolean)
     const allowed = new Set([THEMES_WORKSPACE, TEMPLATES_WORKSPACE, THEME_HOOK, USE_TEMPLATES, PROXY, ...LIBRARY_MANAGE_NEW_FILES, ...STACKED_PASS3_FILES, ...STACKED_P2_FILES])
     ok(changed.every(file => allowed.has(file)), `this change touches only the two workspaces, the theme hook, the template hook and proxy (the rename) and its own three new files (the other Pass 3 changes' files and the Pass 2 pages' files may be stacked on it): ${changed.filter(file => !allowed.has(file)).join(', ') || 'ok'}`)
-    ok(!changed.filter((later => file => !later.has(file))((await import('./studio-later-changes.mjs')).LATER_CHANGE_FILES)).some(file => (/^app\/api\/(templates|themes)\//.test(file) && file !== PROXY) || /admission/i.test(file)), 'no API proxy but the template one (the rename) and nothing of the admission report is touched') // LATER-CHANGES: registry read (DUAL-LOOKUP): the strips registered after this change (the flip enablers' whole-text pin edits, chained on this change's taught lines) are put back first, newest first
+    ok(!changed.some(file => (/^app\/api\/(templates|themes)\//.test(file) && file !== PROXY && !LATER_CHANGE_FILES.has(file)) || /admission/i.test(file)), 'no API proxy but the template one (the rename) and nothing of the admission report is touched')
   }
 
   // ---- flag on: who gets a menu --------------------------------------------------------------------------------------------------------------------------------------------

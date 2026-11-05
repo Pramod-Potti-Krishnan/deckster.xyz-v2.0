@@ -1,5 +1,6 @@
 import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
-import { resolveDirectorUserId, directorRestSignHeaders } from '@/lib/studio-director-rest-sign'
+import { directorRestSignHeaders } from '@/lib/studio-director-rest-sign' // DIRECTOR-REST-SIGN
+import { resolveDirectorUserId } from '@/lib/studio-director-rest-sign'
 import { directorEmailFallbackRead, missOnEmpty } from '@/lib/studio-director-email-fallback' // DUAL-LOOKUP
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
@@ -21,7 +22,7 @@ export async function GET() {
   try {
     const r = await fetch(
       `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes/standard`,
-      { cache: 'no-store', headers: await directorRestSignHeaders(userId, 'GET') },
+      { cache: 'no-store', headers: await directorRestSignHeaders(userId, 'GET', { path: `/api/users/${encodeURIComponent(userId)}/themes/standard` }) }, // DIRECTOR-REST-SIGN
     )
     const legacy = await directorEmailFallbackRead(r, userId, (id, headers) => fetch(`${directorBaseUrl()}/api/users/${encodeURIComponent(id)}/themes/standard`, { cache: 'no-store', headers }), missOnEmpty('theme')) // DUAL-LOOKUP
     if (legacy) return NextResponse.json(await legacy.json(), { status: legacy.status }) // DUAL-LOOKUP
@@ -39,7 +40,7 @@ export async function DELETE() {
   try {
     const r = await fetch(
       `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes/standard`,
-      { method: 'DELETE', headers: await directorRestSignHeaders(userId, 'DELETE') },
+      { method: 'DELETE', headers: await directorRestSignHeaders(userId, 'DELETE', { path: `/api/users/${encodeURIComponent(userId)}/themes/standard` }) }, // DIRECTOR-REST-SIGN
     )
     const body = await r.json()
     return NextResponse.json(body, { status: r.status })

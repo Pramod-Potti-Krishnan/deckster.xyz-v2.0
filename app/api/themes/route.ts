@@ -1,5 +1,6 @@
 import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
-import { resolveDirectorUserId, directorRestSignHeaders } from '@/lib/studio-director-rest-sign'
+import { directorRestSignHeaders } from '@/lib/studio-director-rest-sign' // DIRECTOR-REST-SIGN
+import { resolveDirectorUserId } from '@/lib/studio-director-rest-sign'
 import { directorEmailFallbackRead, missOnEmpty } from '@/lib/studio-director-email-fallback' // DUAL-LOOKUP
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
@@ -21,7 +22,7 @@ export async function GET() {
   try {
     const r = await fetch(
       `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes`,
-      { cache: 'no-store', headers: await directorRestSignHeaders(userId, 'GET') },
+      { cache: 'no-store', headers: await directorRestSignHeaders(userId, 'GET', { path: `/api/users/${encodeURIComponent(userId)}/themes` }) }, // DIRECTOR-REST-SIGN
     )
     const legacy = await directorEmailFallbackRead(r, userId, (id, headers) => fetch(`${directorBaseUrl()}/api/users/${encodeURIComponent(id)}/themes`, { cache: 'no-store', headers }), missOnEmpty('themes')) // DUAL-LOOKUP
     if (legacy) return NextResponse.json(await legacy.json(), { status: legacy.status }) // DUAL-LOOKUP
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
       `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(await directorRestSignHeaders(userId, 'POST')) },
+        headers: { 'Content-Type': 'application/json', ...(await directorRestSignHeaders(userId, 'POST', { path: `/api/users/${encodeURIComponent(userId)}/themes` })) }, // DIRECTOR-REST-SIGN
         body: JSON.stringify(payload),
       },
     )
