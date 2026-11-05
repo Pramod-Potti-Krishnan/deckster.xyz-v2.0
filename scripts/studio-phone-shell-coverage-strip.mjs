@@ -39,8 +39,9 @@ export const PHONE_SHELL_COVERAGE_PIN_EDITS = {
     ["  const family = ['lib', 'components/layout', 'scripts'].flatMap(dir => fs.readdirSync(path.join(root, dir)).filter(name => /phone-shell|phone-tab/.test(name) && !/builder-top|phone-shell-coverage/.test(name)).map(name => `${dir}/${name}`)) // LATER-CHANGES: registry read (PHONE-SHELL-COVERAGE): the coverage change's own files (it has its own proof and list) are not this family\n",
      "  const family = ['lib', 'components/layout', 'scripts'].flatMap(dir => fs.readdirSync(path.join(root, dir)).filter(name => /phone-shell|phone-tab/.test(name) && !/builder-top/.test(name)).map(name => `${dir}/${name}`))\n"],
   ],
-  // FRONTEND-1 lane, taught with FRONTEND-1's OK (4 Nov 11:08Z): both read components/help/studio-help.tsx raw, so they strip later changes first
-  "scripts/test-studio-p2-docs.mjs": [["import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (PHONE-SHELL-COVERAGE)\n", ""], ["const read = rel => stripLaunchWording(rel, stripLaterChanges(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))) // LATER-CHANGES: registry read (PHONE-SHELL-COVERAGE)\n", "const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))\n"]],
+  // FRONTEND-1 lane, taught with FRONTEND-1's OK (4 Nov 11:08Z): both read components/help/studio-help.tsx raw, so they strip later changes first.
+  // Restack onto dev b823b230 (5 Nov): #575 already put the same stripLaterChanges import into test-studio-p2-docs, so this change keeps only its read line there
+  "scripts/test-studio-p2-docs.mjs": [["const read = rel => stripLaunchWording(rel, stripLaterChanges(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))) // LATER-CHANGES: registry read (PHONE-SHELL-COVERAGE)\n", "const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))\n"]],
   "scripts/test-atlas-help-recovery.mjs": [["import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (PHONE-SHELL-COVERAGE)\n", ""], ["const read = path => stripLaunchWording(path, stripLaterChanges(path, fs.readFileSync(new URL(path, root), 'utf8'))) // LATER-CHANGES: registry read (PHONE-SHELL-COVERAGE)\n", "const read = path => stripLaunchWording(path, fs.readFileSync(new URL(path, root), 'utf8'))\n"]],
 }
 
