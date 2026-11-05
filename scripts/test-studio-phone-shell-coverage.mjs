@@ -380,7 +380,7 @@ function provePins(readNow = read, at = '') {
 await check('the two files without their marked lines are the base\'s, byte for byte (idempotent); three marked pure insertions each, gated on the constant and the screen\'s own rail condition; the older proofs taught put back to the base', () => { provePins() })
 await check('the strip is plain data: nothing but the marker, the lists and the functions; any other file comes back untouched', () => {
   const text = read('scripts/studio-phone-shell-coverage-strip.mjs')
-  assert.doesNotMatch(text.replace(/\/\/.*$/gm, ''), /^import |require\(|readFileSync|execFileSync/m, 'no imports, nothing read from disk or git')
+  assert.doesNotMatch(text.replace(/"(?:[^"\\\n]|\\.)*"/g, '""').replace(/'(?:[^'\\\n]|\\.)*'/g, "''").replace(/\/\/.*$/gm, ''), /^import |require\(|readFileSync|execFileSync/m, 'no imports, nothing read from disk or git') // string literals (the pin table's data) are blanked first, then comments
   assert.equal(stripPhoneShellCoverage('app/builder/page.tsx', 'x // PHONE-SHELL-COVERAGE\n'), 'x // PHONE-SHELL-COVERAGE\n', 'a file this change does not own is returned as it is')
   assert.equal(stripPhoneShellCoverage(HELP, 'a\nb // PHONE-SHELL-COVERAGE-X\nc // X-PHONE-SHELL-COVERAGE\nd // PHONE-SHELL-NAV\n'), 'a\nb // PHONE-SHELL-COVERAGE-X\nc // X-PHONE-SHELL-COVERAGE\nd // PHONE-SHELL-NAV\n', 'the marker is a whole token')
   assert.equal(stripPhoneShellCoverage(HELP, 1), 1)

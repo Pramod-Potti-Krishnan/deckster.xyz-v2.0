@@ -10,7 +10,7 @@
 // (scripts/test-studio-p2-docs.mjs pins it to the base commit; scripts/test-atlas-help-recovery.mjs loads it with a closed list of imports): they are NOT edited here (their owner adds the registry-read lines; the PR body names them).
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '3e1ce88eec23fbfd33f249332d06a65ad05ffc40' // studio-v4-dev-preparation-code at #564 (Template match P4-7c proof), the branch this change is made on
+export const BASE_COMMIT = 'b823b2301ac6bc9c0eba6dd7dc959d90a7ea2f0b' // restacked 5 Nov onto dev b823b230 (#575, #583, #587 in); was 3e1ce88e; // studio-v4-dev-preparation-code at #564 (Template match P4-7c proof), the branch this change is made on
 export const PHONE_SHELL_COVERAGE_FLAG = 'NEXT_PUBLIC_STUDIO_PHONE_SHELL_COVERAGE'
 export const PHONE_SHELL_COVERAGE_MARKER = 'PHONE-SHELL-COVERAGE'
 /** The marker as a WHOLE token: PHONE-SHELL-COVERAGE is this change's; PHONE-SHELL-NAV, PHONE-SHELL-TOP and any other prefix or suffix are not. */
