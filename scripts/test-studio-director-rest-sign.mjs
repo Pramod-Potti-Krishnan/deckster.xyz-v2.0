@@ -203,15 +203,15 @@ async function suite() {
   async function expectNone(label) { fresh(); for (const c of await runAll()) eq(header(c.f), null, `${label}: ${c.rel} ${c.method}`) }
   state.dbRows.clear(); await expectNone('no DB row')
   state.session = { user: { email: 'b@example.test' } }; state.dbRows.set('email:b@example.test', 'cm-other'); state.warns = []
-  fresh()
-  const jobs = ROUTES.find(r => r[0] === 'app/api/slides/jobs/[jobId]/route.ts')
-  state.fetches = []; await jobs[2](load(jobs[0]))
-  eq(header(state.fetches[0]), null, 'e-mail fallback: no header (fail-closed)')
-  eq(sentUserId(state.fetches[0]), 'b@example.test', 'e-mail fallback: the proxy sent the e-mail')
+  fresh() // LATER-CHANGES: flip enablers: an e-mail-only session resolves to its DB id at the proxy, so the routes send AND sign it; the e-mail fallback is reached at the signer
+  for (const c of await runAll()) { const h = header(c.f); ok(h, `${c.rel} ${c.method} e-mail session signed`); eq(verify(h, SECRET, c.method).sub, 'cm-other', `${c.rel}: sub is the DB id`); eq(sentUserId(c.f), 'cm-other', `${c.rel}: e-mail session sends the DB id`) } // LATER-CHANGES: flip enablers
+  state.warns = []; fresh() // LATER-CHANGES: flip enablers
+  eq(Object.keys(await signer().directorRestSignHeaders('b@example.test', 'GET')), [], 'e-mail fallback: no header (fail-closed)') // LATER-CHANGES: flip enablers
   eq(state.warns.length, 1, 'e-mail fallback: one log line')
   ok(/e-mail fallback/.test(state.warns[0]) && /DIRECTOR_REST_AUTH_ALL_ENABLED/.test(state.warns[0]), 'the line names the fallback and the Director flag')
   ok(!state.warns[0].includes('b@example.test') && !state.warns[0].includes(SECRET), 'the line holds neither the e-mail nor the secret')
-  await expectNone('e-mail fallback, DB id differs from sent id')
+  state.dbRows.delete('email:b@example.test'); await expectNone('e-mail session, no DB row') // LATER-CHANGES: flip enablers
+  env.STUDIO_DIRECTOR_REST_SIGN_ALL_ENABLED = 'false'; fresh(); for (const c of await runAll()) { eq(header(c.f), null, `${c.rel}: flag off, no header`); eq(sentUserId(c.f), 'b@example.test', `${c.rel}: flag off sends the e-mail as before`) } env.STUDIO_DIRECTOR_REST_SIGN_ALL_ENABLED = 'true' // LATER-CHANGES: flip enablers
   state.session = { user: { id: UID } }; state.dbRows.set(`id:${UID}`, 'someone-else'); state.warns = []; await expectNone('DB id mismatch')
   eq(state.warns, [], 'an id mismatch is not the e-mail fallback: no line')
   state.dbRows.set(`id:${UID}`, UID); state.dbThrows = true; await expectNone('DB error')
@@ -265,26 +265,6 @@ function housePattern(stripFn) {
   ok(regAdded.every(l => l.startsWith('+') && l.includes('LATER-CHANGE') && l.includes('studio-director-rest-sign-strip.mjs')), 'registry: each line is a LATER-CHANGE line naming this strip')
   ok(registry.LATER_STRIPS.includes(strip.stripDirectorRestSign) && registry.LATER_ENV_BLOCKS.includes(strip.DIRECTOR_REST_SIGN_ENV_BLOCK) && [...strip.DIRECTOR_REST_SIGN_SCOPE_FILES].every(f => registry.LATER_CHANGE_FILES.has(f)), 'registry: the strip, the block and the files are registered')
 }
-
-// ---- 4. flag on, no header
-async function expectNone(label) { for (const c of await runAll()) assert.equal(header(c.f), null, `${label}: ${c.rel} ${c.method}`) }
-state.dbRows.clear(); await expectNone('no DB row')
-// program1/studio-flip-enablers gap 1: an e-mail-only session now sends AND signs its DB id (flag on); unresolvable e-mail stays unsigned.
-state.session = { user: { email: 'b@example.test' } }; state.dbRows.set('email:b@example.test', 'cm-other')
-for (const c of await runAll()) {
-  const h = header(c.f)
-  assert.ok(h, `${c.rel} ${c.method} e-mail session signed`)
-  const claims = verify(h, SECRET, c.method)
-  assert.equal(claims.sub, 'cm-other')
-  assert.equal(sentUserId(c.f), 'cm-other', `${c.rel}: e-mail session sends the DB id`)
-}
-state.dbRows.delete('email:b@example.test'); await expectNone('e-mail session, no DB row')
-env.STUDIO_DIRECTOR_REST_SIGN_ALL_ENABLED = 'false'
-for (const c of await runAll()) { assert.equal(header(c.f), null); assert.equal(sentUserId(c.f), 'b@example.test', `${c.rel}: flag off sends the e-mail as before`) }
-env.STUDIO_DIRECTOR_REST_SIGN_ALL_ENABLED = 'true'
-state.session = { user: { id: UID } }; state.dbRows.set(`id:${UID}`, 'someone-else'); await expectNone('DB id mismatch')
-state.dbRows.set(`id:${UID}`, UID); state.dbThrows = true; await expectNone('DB error')
-state.dbThrows = false; delete env.DIRECTOR_WS_AUTH_SECRET; await expectNone('secret unset')
 
 // ---- statics: client code never imports the signer
 for (const dir of ['components', 'hooks']) {

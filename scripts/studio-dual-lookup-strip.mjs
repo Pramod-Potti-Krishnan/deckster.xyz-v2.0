@@ -67,12 +67,14 @@ export const DUAL_LOOKUP_EDITS = {
   ],
 }
 export const DUAL_LOOKUP_PIN_FILES = Object.keys(DUAL_LOOKUP_EDITS)
+/** Pins this change taught that no longer need a put-back: stacked on #577, its own registry read of test-studio-template-library-manage already skips registered files, so the merge kept #577's line. Still in this change's commit scope. */
+export const DUAL_LOOKUP_RETIRED_PIN_FILES = ['scripts/test-studio-template-library-manage.mjs']
 
 /** New files (no base text to put back). */
 export const DUAL_LOOKUP_NEW_FILES = ['lib/studio-director-email-fallback.ts', 'scripts/studio-dual-lookup-strip.mjs', 'scripts/test-studio-dual-lookup.mjs']
 
 /** Files this change edits that are neither marked app code nor new. Run the proof with `node scripts/test-studio-dual-lookup.mjs`. */
-export const DUAL_LOOKUP_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', ...DUAL_LOOKUP_PIN_FILES]
+export const DUAL_LOOKUP_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', ...DUAL_LOOKUP_PIN_FILES, ...DUAL_LOOKUP_RETIRED_PIN_FILES]
 
 /** Every file this change's commit touches. */
 export const DUAL_LOOKUP_SCOPE_FILES = new Set([...DUAL_LOOKUP_FILES, ...DUAL_LOOKUP_NEW_FILES, ...DUAL_LOOKUP_OWN_EDITS])
