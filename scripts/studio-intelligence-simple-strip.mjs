@@ -5,7 +5,7 @@
 // Three older proofs read that page raw (not through scripts/studio-later-changes.mjs); each is taught ONE line (its read also takes this change's marked lines out, innermost), registry-read marks, tests only.
 // Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = 'ae40049e451c2dcc888246c9cfb4bacf00dfeba3' // restacked 6 Nov onto frontend1/model-picker-simple ae40049e (#565 on dev fb1e2aaf); was cc161f7e (#565 on dev 1bb42d7f) and 9ef18900: frontend1/model-picker-simple (F-14), the branch this change is stacked on
+export const BASE_COMMIT = '0d350ae685078c9f1bec2b09b90b1c1658afc981' // restacked 6 Nov onto frontend1/model-picker-simple 0d350ae6 (#565 on dev 21b5fc08); was ae40049e (#565 on dev fb1e2aaf), cc161f7e (#565 on dev 1bb42d7f) and 9ef18900: frontend1/model-picker-simple (F-14), the branch this change is stacked on
 export const INTELLIGENCE_SIMPLE_FLAG = 'NEXT_PUBLIC_STUDIO_INTELLIGENCE_SIMPLE'
 export const INTELLIGENCE_SIMPLE_MARKER = 'INTELLIGENCE-SIMPLE'
 /** The marker as a WHOLE token. */
@@ -29,14 +29,14 @@ export const INTELLIGENCE_SIMPLE_PIN_MARK = 'LATER-CHANGES: registry read (INTEL
 const TAUGHT = "const { stripIntelligenceSimple } = await import('./studio-intelligence-simple-strip.mjs') // LATER-CHANGES: registry read (INTELLIGENCE-SIMPLE): the Intelligence page's two marked imports and one marked return (a later change, stacked) are taken out of what this proof reads\n"
 export const INTELLIGENCE_SIMPLE_PIN_EDITS = {
   'scripts/test-studio-model-catalog.mjs': [
-    [TAUGHT + "const read = rel => stripLaunchWording(rel, stripIntelligenceSimple(rel, fs.readFileSync(path.join(ROOT, rel), 'utf8'))) // LATER-CHANGES: registry read (INTELLIGENCE-SIMPLE)\n", "const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(ROOT, rel), 'utf8'))\n"],
+    [TAUGHT + "const read = rel => stripLaunchWording(rel, stripLaterChanges(rel, stripIntelligenceSimple(rel, fs.readFileSync(path.join(ROOT, rel), 'utf8')))) // LATER-CHANGES: registry read (INTELLIGENCE-SIMPLE)\n", "const read = rel => stripLaunchWording(rel, stripLaterChanges(rel, fs.readFileSync(path.join(ROOT, rel), 'utf8')))\n"],
     ["    const text = rel in sources ? sources[rel] : stripIntelligenceSimple(rel, fs.readFileSync(path.join(ROOT, rel), 'utf8')) // LATER-CHANGES: registry read (INTELLIGENCE-SIMPLE)\n", "    const text = rel in sources ? sources[rel] : fs.readFileSync(path.join(ROOT, rel), 'utf8')\n"],
   ],
   'scripts/test-studio-p2-polish.mjs': [
-    [TAUGHT + "const read = rel => stripLaunchWording(rel, stripIntelligenceSimple(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))) // LATER-CHANGES: registry read (INTELLIGENCE-SIMPLE)\n", "const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))\n"],
+    [TAUGHT + "const read = rel => stripLaunchWording(rel, stripLaterChanges(rel, stripIntelligenceSimple(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))) // LATER-CHANGES: registry read (INTELLIGENCE-SIMPLE)\n", "const read = rel => stripLaunchWording(rel, stripLaterChanges(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))\n"],
   ],
   'scripts/test-studio-p2-intelligence.mjs': [
-    [TAUGHT + "const read = rel => stripP2Polish(rel, stripLaunchWording(rel, stripIntelligenceSimple(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))) // LATER-CHANGES: registry read (INTELLIGENCE-SIMPLE)\n", "const read = rel => stripP2Polish(rel, stripLaunchWording(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))\n"],
+    [TAUGHT + "const read = rel => stripP2Polish(rel, stripLaunchWording(rel, stripLaterChanges(rel, stripIntelligenceSimple(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))))) // LATER-CHANGES: registry read (INTELLIGENCE-SIMPLE)\n", "const read = rel => stripP2Polish(rel, stripLaunchWording(rel, stripLaterChanges(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))))\n"],
   ],
   'scripts/test-studio-model-choice.mjs': [
     [TAUGHT + "const read = rel => (rel in overrides ? overrides[rel] : stripIntelligenceSimple(rel, fs.readFileSync(path.join(root, rel), 'utf8'))) // LATER-CHANGES: registry read (INTELLIGENCE-SIMPLE)\n", "const read = rel => (rel in overrides ? overrides[rel] : fs.readFileSync(path.join(root, rel), 'utf8'))\n"],
