@@ -351,6 +351,7 @@ export const API_HARDENING_SCOPE_FILES = new Set([
   'scripts/test-studio-uat-marketing.mjs',
   'scripts/test-studio-template-library-manage.mjs',
   'scripts/test-studio-tl-signed-requests.mjs',
+  'scripts/test-studio-dev-token-gate.mjs', // restack onto 21b5fc08: the proof's known-scripts list names this change's strip and proof (one marked line)
 ])
 
 export const API_HARDENING_ENV_BLOCK = `# STUDIO API HARDENING V1 (PROGRAM-1 / FRONTEND-1; security audit items 2, 5, 6, 7, 9, 10). Server only; on for the exact value "true", default off, and then every route behaves as before.
