@@ -19,6 +19,7 @@ import path from 'node:path'
 import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
+import { stripApiHardening } from './studio-api-hardening-strip.mjs' // LATER-CHANGE: PROGRAM-1 API hardening (STUDIO_API_HARDENING_V1_ENABLED): its route lines come out before this pin reads them
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const USERS_ROUTE = 'app/api/admin/users/route.ts'
@@ -31,7 +32,7 @@ let checks = 0
 const ok = (cond, label) => { assert.ok(cond, label); checks += 1 }
 const eq = (actual, expected, label) => { assert.deepEqual(actual, expected, label); checks += 1 }
 
-const read = relative => fs.readFileSync(path.join(REPO, relative), 'utf8')
+const read = relative => stripApiHardening(relative, fs.readFileSync(path.join(REPO, relative), 'utf8'))
 const transpile = source => ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText
