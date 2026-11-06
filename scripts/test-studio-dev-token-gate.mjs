@@ -24,6 +24,7 @@ const SOURCE_EXT = /\.(tsx?|jsx?|mjs|cjs|json)$/
 // non-app files that still name the route: this proof, the registry strip, and the older pins that name it (reported, not app code)
 const KNOWN_SCRIPTS = ['scripts/test-studio-dev-token-gate.mjs', 'scripts/studio-prepromo-strip.mjs', 'scripts/test-studio-dev-server.mjs', 'scripts/test-studio-dev-deployment.mjs',
   'scripts/test-studio-d1-debug-routes.mjs', 'scripts/test-studio-build-provenance.mjs', 'scripts/test-studio-jose-candidate.mjs']
+KNOWN_SCRIPTS.push('scripts/studio-api-hardening-strip.mjs', 'scripts/test-studio-api-hardening.mjs') // LATER-CHANGES: known scripts (API-HARDENING, restack onto 21b5fc08): #581's strip and its proof name the deleted route (its pin reads the registered deletion); two exact names, no pattern
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'ignore'] })
 const gitOk = (...args) => { try { git(...args); return true } catch { return false } }
 

@@ -5,7 +5,18 @@ import {
   unlockCookieName,
   unlockCookieValue,
   verifyPasscode,
+  MIN_PASSCODE_LENGTH,
 } from '@/lib/publish/passcode';
+import { clientIpFrom, hashAskerIp } from '@/lib/publish/qa-limits';
+import {
+  RATE_BUCKET_UNLOCK,
+  UNLOCK_WINDOW_MS,
+  countRateEvents,
+  isApiHardeningEnabled,
+  passcodeLengthPlausible,
+  recordRateEvent,
+  unlockVerdict,
+} from '@/lib/api-hardening';
 
 // Small fixed delay on failed attempts — cheap brute-force damper.
 // NOTE: this delay is per-request only (an attacker can parallelize it) and
@@ -51,7 +62,29 @@ export async function POST(
       return NextResponse.json({ success: true });
     }
 
-    if (!passcode || !verifyPasscode(passcode, deck.passcodeHash)) {
+    // STUDIO_API_HARDENING_V1_ENABLED (server, default off): shared per-IP and per-deck failure counters with a
+    // 15-minute lockout (fe_api_rate_events), and implausible-length passcodes skip the scrypt work. Off, unchanged.
+    const hardened = isApiHardeningEnabled();
+    let ipHash = '';
+    if (hardened) {
+      ipHash = hashAskerIp(clientIpFrom(req.headers));
+      const since = new Date(Date.now() - UNLOCK_WINDOW_MS);
+      const [ipFailures, slugFailures] = await Promise.all([
+        countRateEvents({ bucket: RATE_BUCKET_UNLOCK, scope: deck.id, subject: ipHash, since }),
+        countRateEvents({ bucket: RATE_BUCKET_UNLOCK, scope: deck.id, since }),
+      ]);
+      const verdict = unlockVerdict({ ipFailures, slugFailures });
+      if (!verdict.allowed) {
+        return NextResponse.json(
+          { error: 'Too many attempts. Try again later.' },
+          { status: 429, headers: { 'Retry-After': String(verdict.retryAfterSeconds) } }
+        );
+      }
+    }
+
+    const plausible = !hardened || passcodeLengthPlausible(passcode, MIN_PASSCODE_LENGTH);
+    if (!passcode || !plausible || !verifyPasscode(passcode, deck.passcodeHash)) {
+      if (hardened) await recordRateEvent(RATE_BUCKET_UNLOCK, deck.id, ipHash);
       await delay(FAILURE_DELAY_MS);
       return NextResponse.json(
         { error: 'Incorrect passcode' },
