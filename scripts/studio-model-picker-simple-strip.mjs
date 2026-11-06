@@ -7,7 +7,7 @@
 // A new fixture, scripts/fixtures/studio-model-choice/catalogue-router-map.json, carries ROUTER-1's preset map of 3 Nov (21:45Z); catalogue-five-presets.json is left as it is because the model-choice proofs pin its values.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '21b5fc08089eb0f4fd1db80f5eb954cc787df748' // restacked 6 Nov onto dev 21b5fc08 (#570, #571, #591 in); was fb1e2aaf (#570 in), 1bb42d7f (#588 in) and 3e1ce88e: origin/studio-v4-dev-preparation-code (#564 merged) at the start of this change
+export const BASE_COMMIT = 'ac8ea5ecea56bc27deb565e710852624968117f7' // Option L chain, 6 Nov: #568's head ac8ea5ec (dev 21b5fc08 + #568, which this change now merges); was dev 21b5fc08 (#570, #571, #591 in), fb1e2aaf (#570 in), 1bb42d7f (#588 in) and 3e1ce88e: origin/studio-v4-dev-preparation-code (#564 merged) at the start of this change
 export const MODEL_PICKER_SIMPLE_FLAG = 'NEXT_PUBLIC_STUDIO_MODEL_PICKER_SIMPLE'
 export const MODEL_PICKER_SIMPLE_MARKER = 'MODEL-PICKER-SIMPLE'
 /** The marker as a WHOLE token: MODEL-PICKER-SIMPLE-X and X-MODEL-PICKER-SIMPLE are not it. */
