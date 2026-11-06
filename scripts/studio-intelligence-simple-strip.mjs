@@ -5,7 +5,7 @@
 // Three older proofs read that page raw (not through scripts/studio-later-changes.mjs); each is taught ONE line (its read also takes this change's marked lines out, innermost), registry-read marks, tests only.
 // Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '9ef18900bc5d3120412baa568bdd9e7c9c3c4119' // frontend1/model-picker-simple (F-14), the branch this change is stacked on
+export const BASE_COMMIT = 'cc161f7ee36c006d1276e3d38587010be921044a' // restacked 6 Nov onto frontend1/model-picker-simple cc161f7e (#565 on dev 1bb42d7f); was 9ef18900: frontend1/model-picker-simple (F-14), the branch this change is stacked on
 export const INTELLIGENCE_SIMPLE_FLAG = 'NEXT_PUBLIC_STUDIO_INTELLIGENCE_SIMPLE'
 export const INTELLIGENCE_SIMPLE_MARKER = 'INTELLIGENCE-SIMPLE'
 /** The marker as a WHOLE token. */
