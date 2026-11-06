@@ -7919,6 +7919,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                     ) // STRAWMAN-CHAT
                   )}
                   {flowControl.bar}{/* FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_AMEND): the calm line and Resume / Rebuild while the build is held; off, null */}
+                  <BuilderQuotaRefusal />{/* BILLING-F5-USAGE (NEXT_PUBLIC_STUDIO_QUOTA_SCREENS): out of credits / plan refusal screen; off, null */}
 
                   {chatCleanOn ? <StudioChatCleanBar composer={chatCleanComposer} onContinue={chatCleanContinue} /> : null}{/* CHAT-CLEAN: the slim "Stopped at slide N · slides 1–N kept · Continue" bar above the composer while the build is held (the flow bar above it is hidden by the stylesheet); off, null */}
                   {workflowBrief && <div className="studio-brief-handoff" role="region" aria-label="Brief ready">
@@ -8554,3 +8555,4 @@ export default function BuilderPage() {
     </WebSocketErrorBoundary>
   )
 }
+import { BuilderQuotaRefusal } from '@/components/billing/builder-quota-refusal' // BILLING-F5-USAGE

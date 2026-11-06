@@ -41,10 +41,11 @@ import { execFileSync } from 'node:child_process'
 import ts from 'typescript'
 import postcss from 'postcss'
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (TIER-GUARD)
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const BASE_COMMIT = process.env.P2_DOCS_BASE || 'fae962006b080e26eb70c2add7066ca1edf8eca2'
-const read = rel => stripLaunchWording(rel, stripVoiceCore(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))
+const read = rel => stripLaunchWording(rel, stripLaterChanges(rel, stripVoiceCore(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))) // LATER-CHANGES: registry read (PHONE-SHELL-COVERAGE)
 const baseCache = new Map()
 const baseSource = rel => {
   if (!baseCache.has(rel)) {
@@ -859,10 +860,10 @@ const QS_DOC = 'getting-started/quick-start-guide', UA_DOC = 'getting-started/un
 deepEq(AGENT_NAMES, ['Director', 'Researcher', 'Analyst', 'Content Generator', 'Visualizer', 'Theme Builder', 'Slide Composer', 'Element Generator'], 'the current team (AGENT_TEAM): these eight, in this order')
 deepEq(AGENTS_CONTENT.agents.map(agent => agent.name), AGENT_NAMES, 'content/agents.ts (the agent pages) names the same eight in the same order')
 {
-  const sentence = /Deckster runs as eight specialists:[^"]*/.exec(read('app/help/page.tsx'))?.[0]
-  ok(sentence, 'the Help page tells of the eight specialists')
-  for (const name of AGENT_NAMES) ok(sentence.includes(name), `the Help page's sentence names ${name}`)
-  eq(NUMBER_WORDS[AGENT_NAMES.length], 'eight', 'the Help page says eight, and the team is eight')
+  // UX-HONESTY (FRONTEND-1 UX-05, no flag): the Help page no longer claims a head-count ("eight specialists" was unverified); it reads the LIVE file, not the restored base, and holds the new truth
+  const helpNow = fs.readFileSync(path.join(repoRoot, 'app/help/page.tsx'), 'utf8')
+  nomatch(helpNow, /\b(?:four|six|seven|eight|nine|\d+)\s+(?:AI\s+)?(?:specialists|agents)\b/i, 'the Help page states no agent head-count')
+  match(helpNow, /You talk to the Director in plain English\./, 'the Help page still says the Director coordinates the specialists')
   const experts = plain(V3.pages.experts.team.agents).map(agent => agent.name)
   for (const name of AGENT_NAMES.slice(1)) ok(experts.includes(name), `the Experts page lists ${name}`)
   notes.push(`the Experts page also lists "${experts.at(-1)}" (${V3.pages.experts.team.agents.at(-1).status}); the docs do not name it`)
@@ -1545,7 +1546,7 @@ function proveTypes(kind, code, label = `${kind} types`) {
   ]), prior, `${label}: removing the additions gives back the base commit's types byte for byte`)
 }
 for (const kind of Object.keys(AGENT_KINDS)) proveTypes(kind, SOURCES[AGENT_KINDS[kind].types])
-for (const file of [DATA_COMPARISONS, DATA_EXAMPLES, DATA_TEMPLATES, 'app/examples/page.tsx', 'app/templates/page.tsx', 'app/compare/[competitor]/page.tsx', PRICING_SOURCE, 'lib/auth-options.ts', 'app/auth/signup/page.tsx', 'app/auth/signin/page.tsx']) eq(read(file), baseSource(file), `${file} is the base commit's, byte for byte`)
+for (const file of [DATA_COMPARISONS, DATA_EXAMPLES, DATA_TEMPLATES, 'app/examples/page.tsx', 'app/templates/page.tsx', 'app/compare/[competitor]/page.tsx', PRICING_SOURCE, 'lib/auth-options.ts', 'app/auth/signup/page.tsx', 'app/auth/signin/page.tsx']) eq(file === 'lib/auth-options.ts' || file === PRICING_SOURCE ? stripLaterChanges(file, read(file)) : read(file), baseSource(file), `${file} is the base commit's, byte for byte`) // LATER-CHANGES: registry read (TIER-GUARD)
 
 // ruling 3, onboarding: with NEXT_PUBLIC_STUDIO_P2_ONBOARDING and the shell on there is no old agent name to change (the wizard and the Studio introduction name none); the old page and the classic modal, which do, are the flag-off text and are not touched
 const ONB_FILES = ['lib/studio-onboarding.ts', 'components/studio-p2-onboarding.tsx', 'app/onboarding/layout.tsx', 'components/onboarding-modal.tsx', 'app/onboarding/page.tsx']
