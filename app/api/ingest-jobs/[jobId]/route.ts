@@ -1,4 +1,5 @@
 import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
+import { directorRestSignHeaders } from '@/lib/studio-director-rest-sign' // DIRECTOR-REST-SIGN
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
@@ -30,7 +31,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ job
   try {
     const r = await fetch(
       `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/ingest-jobs/${encodeURIComponent(jobId)}`,
-      { cache: 'no-store' },
+      { cache: 'no-store', headers: await directorRestSignHeaders(userId, 'GET', { path: `/api/users/${encodeURIComponent(userId)}/ingest-jobs/${encodeURIComponent(jobId)}` }) }, // DIRECTOR-REST-SIGN
     );
     const body = await r.json();
     return NextResponse.json(body, { status: r.status });

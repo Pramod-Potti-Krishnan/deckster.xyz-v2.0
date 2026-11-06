@@ -1,4 +1,5 @@
 import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
+import { directorRestSignHeaders } from '@/lib/studio-director-rest-sign' // DIRECTOR-REST-SIGN
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
@@ -45,7 +46,7 @@ export async function GET(
   try {
     const response = await fetch(
       `${directorBaseUrl()}/api/v1/slides/compose-jobs/${encodeURIComponent(jobId)}?${query.toString()}`,
-      { cache: 'no-store' },
+      { cache: 'no-store', headers: await directorRestSignHeaders(userId, 'GET', { path: `/api/v1/slides/compose-jobs/${encodeURIComponent(jobId)}` }) }, // DIRECTOR-REST-SIGN
     )
     const text = await response.text()
     let data: unknown = null
