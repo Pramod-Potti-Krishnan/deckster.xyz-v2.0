@@ -750,8 +750,10 @@ await check('identity: reducer / cache / history-restore / send paths hash-equal
   const hs = declarations(stripChatElementRefine(HOOK, stripChatThemeExport(HOOK, head)), STRIPPED_HOOK)
   for (const name of STRIPPED_HOOK) { assert.notEqual(sha(h[name]), sha(b[name]), `${name} carries the flag branch`); assert.equal(sha(hs[name]), sha(b[name]), name); identityHashes[`hook.${name}(stripped)`] = sha(hs[name]) }
   // The reducer: the onmessage setState through the transcript exclusion list is untouched text (it sits inside startConnection).
+  { const head = stripBulkEditUndo(HOOK, read(HOOK)) // LATER-CHANGES: registry read (CHAT-CAPS-META), stacked after #475: the reducer below is read through the registry (a later change's marked line in the sync_response case, chat caps, comes out); a base text has none
   const reducer = text => text.slice(text.indexOf('            // Turn gate: any reply-bearing frame unlocks the input.'), text.indexOf("            if ((message.type as string) === 'session_directive') {"))
   assert.ok(reducer(head).length > 2000); assert.equal(sha(reducer(head)), sha(reducer(base))); identityHashes['hook.reducer'] = sha(reducer(head))
+  } // LATER-CHANGES: registry read (CHAT-CAPS-META), stacked after #475: the end of the block above
   for (const rel of ['hooks/use-session-cache.ts', 'hooks/use-builder-session.ts', 'components/builder/message-list.tsx', 'lib/director-chat-history.ts', 'lib/mdc-element-directive.ts', 'components/presentation-viewer.tsx', 'lib/element-command-router.ts']) {
     if (stripBulkEditUndo(rel, read(rel)) !== read(rel)) { assert.equal(sha(stripBulkEditUndo(rel, read(rel))), sha(baseFile(rel)), rel); identityHashes[rel] = sha(baseFile(rel)); continue } // stacked after #475: the bulk edit + chat undo change's marked lines (NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO) in a file it shares with the chat hard rule come out first; flags off, the file is this base's byte for byte
     assert.equal(sha(read(rel)), sha(baseFile(rel)), rel); identityHashes[rel] = sha(read(rel))

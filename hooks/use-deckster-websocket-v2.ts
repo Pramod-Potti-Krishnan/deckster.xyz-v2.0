@@ -23,6 +23,7 @@ import { STUDIO_TEMPLATE_MATCH_ENABLED, isTemplateMatchMessage } from '@/lib/stu
 import { addTemplateMatchCap, templateMatchBaseCaps } from '@/lib/studio-template-match-wire'; // STUDIO-TEMPLATE-MATCH
 import { templateMatchFrameReceived, templateMatchSocketOpened } from '@/hooks/use-studio-template-match'; // STUDIO-TEMPLATE-MATCH
 import { STUDIO_FLOW_AMEND_ENABLED, STUDIO_FLOW_FOCUS_ENABLED, flowBus, isFlowFocusFrameType, isFlowSettledPhase, takeFlowInstructions } from '@/lib/studio-flow-control'; // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_FOCUS / _FLOW_AMEND, default off)
+import { STUDIO_CHAT_CAPS_META_ENABLED, chatCapsSyncReceived } from '@/lib/studio-chat-caps'; // CHAT-CAPS-META (NEXT_PUBLIC_STUDIO_CHAT_CAPS_META, default off): Director's sync_response chat_capabilities, read into a read-only snapshot
 import type { ManualDeckContext } from '@/lib/manual-deck-workflow';
 import type { DeckFooterConfig, DeckIdentity } from '@/lib/deck-identity';
 import {
@@ -2257,6 +2258,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   break;
 
                 case 'sync_response':
+                  if (STUDIO_CHAT_CAPS_META_ENABLED) chatCapsSyncReceived(message.payload, { frameSessionId: message.session_id, socketSessionId, currentSessionId: sessionIdRef.current, isCurrent: isCurrentSocket }); // CHAT-CAPS-META: this socket's current-session sync replaces the read-only snapshot (lib/studio-chat-caps.ts: legacy true or C-D1 {confirm, client_directive}); nothing is sent and no state changes. Off: not read
                   if (COMPOSER_LIBRARY_ENABLED && socketSessionId === sessionIdRef.current &&
                       (!message.session_id || message.session_id === sessionIdRef.current)) {
                     const themeState = composerThemeFromSync(message.payload.composer_adoption, message.payload.presentation_id, Boolean(blockedIngress));
