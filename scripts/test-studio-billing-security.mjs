@@ -31,9 +31,13 @@ const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 let checks = 0
 const eq = (a, b, m) => { assert.deepEqual(a, b, m); checks++ }
 const ok = (v, m) => { assert.ok(v, m); checks++ }
+const laterStrips = (rel, text) => registry.LATER_STRIPS.slice(registry.LATER_STRIPS.indexOf(strip.stripBillingSecurity) + 1).reduce((out, fn) => { const next = typeof fn === 'function' ? fn(rel, out) : out; return typeof next === 'string' ? next : out }, text) // LATER-CHANGES: registry read (BILLING-SECURITY, Option L chain): a file is read as this change left it, whatever the changes registered AFTER it marked in it (#581's schema model, #581's p2-admin pin)
 
 const WEBHOOK = 'app/api/webhooks/stripe/route.ts', REDEEM = 'app/api/coupons/redeem/route.ts', WALLET = 'lib/wallet.ts'
 const MODULE = 'lib/billing/stripe-webhook.ts', SECURITY = 'lib/billing/security.ts', PLAN = 'lib/stripe/subscription-plan.ts'
+
+/** The two lines #581 (API hardening, registered after this change) taught the p2-admin pin: put back, so this change's own pin edit is compared with the base alone. */
+const laterPins = (rel, text) => rel !== 'scripts/test-studio-p2-admin.mjs' ? text : text.split('\n').filter(line => !/^import \{ stripApiHardening \} from '\.\/studio-api-hardening-strip\.mjs'/.test(line)).join('\n').replace("const read = rel => stripApiHardening(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))", "const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')") // LATER-CHANGES: registry read (BILLING-SECURITY, Option L chain): #581's two p2-admin pin lines
 
 // ---------------------------------------------------------------- mutants (in memory; `from` must occur exactly once)
 const MUTANTS = {
@@ -113,13 +117,13 @@ if (process.argv.includes('--mutation-check')) {
   for (const rel of strip.BILLING_SECURITY_FILES) {
     const head = read(rel), base = git('show', `${BASE}:${rel}`)
     ok(head !== base, `${rel}: the change is there`)
-    eq(strip.stripBillingSecurity(rel, head), base, `${rel}: stripped, the base byte for byte`)
+    eq(strip.stripBillingSecurity(rel, laterStrips(rel, head)), base, `${rel}: stripped, the base byte for byte`) // LATER-CHANGES: registry read (BILLING-SECURITY, Option L chain): later changes' marked lines come out first
     eq(registry.stripLaterChanges(rel, head), registry.stripLaterChanges(rel, base), `${rel}: through the registry, the base`)
     const lines = head.split('\n'), i = lines.findIndex(l => l.trim() && !strip.BILLING_SECURITY_MARKER_RE.test(l) && !/^\s*(\/\/|\*|$)/.test(l) && l.length > 12)
     const stray = [...lines.slice(0, i), lines[i] + ' ', ...lines.slice(i + 1)].join('\n')
     ok(strip.stripBillingSecurity(rel, stray) !== base, `${rel}: an unmarked edit is caught`)
   }
-  for (const rel of strip.BILLING_SECURITY_PIN_FILES) eq(strip.stripBillingSecurity(rel, read(rel)), git('show', `${BASE}:${rel}`), `${rel}: the taught pin, put back, is the base`)
+  for (const rel of strip.BILLING_SECURITY_PIN_FILES) eq(strip.stripBillingSecurity(rel, laterPins(rel, laterStrips(rel, read(rel)))), git('show', `${BASE}:${rel}`), `${rel}: the taught pin, put back, is the base`) // LATER-CHANGES: registry read (BILLING-SECURITY, Option L chain): later changes' marked lines come out first
   eq(registry.stripLaterEnvBlocks('.env.example', read('.env.example')), registry.stripLaterEnvBlocks('.env.example', git('show', `${BASE}:.env.example`)), '.env.example: the base plus the block')
   ok(/^STUDIO_BILLING_COUPON_TIER_HARDENING="false"$/m.test(strip.BILLING_SECURITY_ENV_BLOCK), 'the block sets the flag off')
   eq((read(SECURITY).match(/=== "true"/g) || []).length, 1, 'the flag is read once, for an exact "true"')
