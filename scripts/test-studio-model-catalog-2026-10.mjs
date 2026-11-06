@@ -193,7 +193,11 @@ for (const id of RETIRED) assert.ok(!onHtml.includes(`value="${id}"`), `${id} is
 assert.ok(!/google\/gemini-2\.5-(pro|flash-lite|flash)(?![-\w])/.test(onHtml), 'a retired id is rendered')
 for (const name of ['Gemini 2.5 Pro', 'Gemini 2.5 Flash Lite', 'Gemini 2.5 Flash']) assert.ok(!onHtml.includes(`>${name}<`) && !onHtml.includes(`· ${name}<`), `${name} is rendered`)
 for (const name of ['Gemini 3 Flash Preview', 'Gemini 3.1 Pro Preview', 'Gemini 3.1 Flash Lite', 'Gemini 2.5 Flash Image']) assert.ok(onHtml.includes(name), `${name} is missing`)
-for (const text of ['Release status', 'Input types', 'Structured output', 'Price per 1M tokens', '$0.50 in / $3.00 out', '$2.00 in / $12.00 out', 'Snapshot specifications and public list prices only.']) assert.ok(onHtml.includes(text), `${text} is missing`)
+for (const text of ['Release status', 'Input types', 'Structured output', 'Snapshot specifications only. Speed, quality, and live availability have not been verified.']) assert.ok(onHtml.includes(text), `${text} is missing`)
+// taught (FRONTEND-1, pre-promo UX-01, PK rule: Studio never shows provider cost): the price row and the "public list prices" note were removed.
+// The old presence pins are inverted, not dropped: no price row, no $ figure, no list-price wording renders (the data stays in the JSON snapshot).
+for (const text of ['Price per 1M tokens', '$0.50 in / $3.00 out', '$2.00 in / $12.00 out', 'list prices', 'Billed per generated image']) assert.ok(!onHtml.includes(text), `${text} must not render (UX-01)`)
+assert.ok(!/\$\d/.test(onHtml), 'no dollar figure renders (UX-01)')
 assert.ok(!onHtml.includes('pricing, and live availability'), 'the old "pricing not verified" note must be replaced')
 
 // draft mapping: a retired id (e.g. a draft saved before the refresh) resolves to its successor; nothing dangles
@@ -227,8 +231,8 @@ assert.ok(!onHtml.includes('pricing, and live availability'), 'the old "pricing 
     assert.ok(!RETIRED_SET.has(value))
   }
   // the comparison rows show the metadata of what is picked
-  const prices = row(nodes, text, tree, 'Price per 1M tokens')
-  assert.ok(prices && prices.every(cell => /^\$\d+\.\d\d in \/ \$\d+\.\d\d out$/.test(cell)), `price cells: ${JSON.stringify(prices)}`)
+  // taught (UX-01): there is no price row; the inverted pin is that the row is absent
+  assert.equal(row(nodes, text, tree, 'Price per 1M tokens'), undefined, 'no price row (UX-01)')
   assert.deepEqual(row(nodes, text, tree, 'Release status'), ['Preview', 'Preview'])
   // scrolled rows must not show through a disabled sticky action: it is fully opaque (and enabled stays on the stylesheet's opaque tint)
   assert.equal(useButton(nodes, text, tree).props.disabled, true)
