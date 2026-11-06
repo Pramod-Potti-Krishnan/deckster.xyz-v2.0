@@ -8,7 +8,7 @@
 // phone hints did). No proof in FRONTEND-1's or COMPOSER-2's lane is edited.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = 'fb1e2aaf9559ec7d420a617b48c65a976798486f' // restacked 6 Nov onto dev fb1e2aaf (#570, #588, #567, #587, #583, #575 in); was 3e1ce88e (#564), the branch this change was made on
+export const BASE_COMMIT = '21b5fc08089eb0f4fd1db80f5eb954cc787df748' // restacked 6 Nov onto dev 21b5fc08 (#591, #571, #570 in); was fb1e2aaf
 export const REDEEM_V4_FLAG = 'NEXT_PUBLIC_STUDIO_REDEEM_V4'
 export const REDEEM_V4_MARKER = 'REDEEM-V4'
 /** The marker as a WHOLE token: REDEEM-V4 is this change's; REDEEM-V4-X and X-REDEEM-V4 are not. */
