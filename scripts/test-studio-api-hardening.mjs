@@ -209,7 +209,7 @@ assert.ok(stripFailures(files, deleting).length > 0, 'mutant survived: strip lis
 const regText = read('scripts/studio-later-changes.mjs')
 const regMutants = {
   'strip line removed': regText.replace(/\n.*\.stripApiHardening, \/\/ LATER-CHANGE.*/, ''),
-  'env line not last': regText.replace(/(\n.*PHONE_HINTS_ENV_BLOCK, \/\/ LATER-CHANGE.*)(\n.*\.API_HARDENING_ENV_BLOCK, \/\/ LATER-CHANGE.*)/, '$2$1'),
+  'env line not last': regText.replace(/(\n.*\.[A-Z0-9_]+_ENV_BLOCK, \/\/ LATER-CHANGE.*)(\n.*\.API_HARDENING_ENV_BLOCK, \/\/ LATER-CHANGE.*)/, '$2$1'), // LATER-CHANGES: registry read (API-HARDENING, restack onto 1bb42d7f): swap with whichever registered block line sits just above
   'scope line doubled': regText.replace(/(\n.*\.API_HARDENING_SCOPE_FILES, \/\/ LATER-CHANGE.*)/, '$1$1'),
 }
 for (const [name, text] of Object.entries(regMutants)) { assert.notEqual(text, regText, name); assert.ok(registryFailures(text).length > 0, `mutant survived: ${name}`) }
