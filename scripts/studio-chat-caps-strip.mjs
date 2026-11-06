@@ -29,11 +29,12 @@ export const CHAT_CAPS_NEW_FILES = [
 export const CHAT_CAPS_PIN_MARK = '// LATER-CHANGES: registry read (CHAT-CAPS-META)'
 const FIRST_PARENT_LINE = "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Chat caps:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (CHAT-CAPS-META): on a branch stacked after this change (chat caps, C-D1's Studio reader), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files\n"
 const REDUCER_BASE_LINE = "  const reducer = text => text.slice(text.indexOf('            // Turn gate: any reply-bearing frame unlocks the input.'), text.indexOf(\"            if ((message.type as string) === 'session_directive') {\"))\n"
-const reducerLine = strip => `  const reducer = raw => { const text = ${strip}(HOOK, raw); return text.slice(text.indexOf('            // Turn gate: any reply-bearing frame unlocks the input.'), text.indexOf("            if ((message.type as string) === 'session_directive') {")) } // LATER-CHANGES: registry read (CHAT-CAPS-META): a later change's marked line inside the sync_response case (chat caps, C-D1's reader) comes out first (the registry); a base text has none\n`
+const reducerLine = strip => `  const reducer = raw => { const text = ${strip}(HOOK, raw); return text.slice(text.indexOf('            // Turn gate: any reply-bearing frame unlocks the input.'), text.indexOf("            if ((message.type as string) === 'session_directive') {")) } // LATER-CHANGES: registry read (CHAT-CAPS-META), stacked after #475: a later change's marked line inside the sync_response case (chat caps, C-D1's reader) comes out first (the registry); a base text has none\n`
 export const CHAT_CAPS_PIN_EDITS = {
   'scripts/test-studio-deck-sync-truth.mjs': [[FIRST_PARENT_LINE, '']],
   'scripts/test-studio-chat-element-edit.mjs': [[FIRST_PARENT_LINE, '']],
-  // the two proofs that hash the hook's reducer (the onmessage setState) as RAW text: they read it through the registry first (stripBulkEditUndo runs stripLaterChanges innermost; theme-export imports stripLaterChanges itself)
+  // the two proofs that hash the hook's reducer (the onmessage setState) as RAW text: they read it through the registry first (stripBulkEditUndo runs stripLaterChanges innermost; theme-export imports stripLaterChanges itself).
+  // The line says "stacked after #475": the older stacked-scope checks of #472 / #473 / #475 take a sibling test's added line that names it (as the other later changes' lines in these two proofs do).
   'scripts/test-studio-chat-element-refine.mjs': [[reducerLine('stripBulkEditUndo'), REDUCER_BASE_LINE]],
   'scripts/test-studio-chat-theme-export.mjs': [[reducerLine('stripLaterChanges'), REDUCER_BASE_LINE]],
 }
