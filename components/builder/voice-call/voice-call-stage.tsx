@@ -178,11 +178,6 @@ export function VoiceCallStage({ snapshot, pack, choices, onChooseCompanion, get
                 {choices.length > 2 ? <span className="studio-voice-pack-dots" aria-hidden>{choices.map(choice => <i key={choice} data-choice={choice} data-on={choice === pack ? 'true' : 'false'} />)}</span> : null}
               </button>
             ) : null}
-            {mode === 'video' ? (
-              <button type="button" className="studio-voice-icon" data-studio-voice-framing={videoFraming} aria-pressed={videoFraming === 'full'} onClick={() => setVideoFraming(videoFraming === 'full' ? 'chest' : 'full')} aria-label={videoFraming === 'full' ? 'Show close-up' : 'Show full length'} title={videoFraming === 'full' ? 'Close-up' : 'Full length'}>
-                {videoFraming === 'full' ? <Minimize2 aria-hidden className="h-4 w-4" /> : <Maximize2 aria-hidden className="h-4 w-4" />}
-              </button>
-            ) : null}
             <button type="button" className="studio-voice-icon" disabled={!controls.stop} onClick={onStop} aria-label="Stop" title="Stop">
               <Square aria-hidden className="h-3.5 w-3.5 fill-current" />
             </button>
@@ -195,6 +190,11 @@ export function VoiceCallStage({ snapshot, pack, choices, onChooseCompanion, get
           </div>
         </div>
         {noticeBlock}
+        {mode === 'video' ? (
+              <button type="button" className="studio-voice-icon studio-voice-framing" data-studio-voice-framing={videoFraming} aria-pressed={videoFraming === 'full'} onClick={() => setVideoFraming(videoFraming === 'full' ? 'chest' : 'full')} aria-label={videoFraming === 'full' ? 'Show close-up' : 'Show full length'} title={videoFraming === 'full' ? 'Close-up' : 'Full length'}>
+                {videoFraming === 'full' ? <Minimize2 aria-hidden className="h-4 w-4" /> : <Maximize2 aria-hidden className="h-4 w-4" />}
+              </button>
+            ) : null}
         <div className="studio-voice-figure">
           {mode === 'video' ? (
             <div ref={ringRef} className="studio-voice-actor" data-ring={snapshot.scene}>

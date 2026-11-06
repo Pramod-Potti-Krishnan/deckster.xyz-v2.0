@@ -71,7 +71,9 @@
 
 /* the figure: video, the character large in the setting and sitting on the bottom of the picture; audio, the face centred in a level ring */
 [data-studio-voice-call="stage"] .studio-voice-figure { position: absolute; inset: 0; display: flex; justify-content: center; pointer-events: none; }
-[data-studio-voice-call="stage"][data-voice-mode="video"] .studio-voice-figure { align-items: flex-end; }
+[data-studio-voice-call="stage"][data-voice-mode="video"] .studio-voice-figure { align-items: flex-end; padding-bottom: 92px; }
+/* the video framing toggle (close-up <-> full length): a small round button at the right, above the talk button */
+[data-studio-voice-call="stage"] .studio-voice-framing { position: absolute; z-index: 3; right: 14px; bottom: 92px; }
 [data-studio-voice-call="stage"][data-voice-mode="audio"] .studio-voice-figure { align-items: center; padding-bottom: 56px; }
 [data-studio-voice-call="stage"] .studio-voice-actor { line-height: 0; filter: drop-shadow(0 14px 18px rgb(0 0 0 / 0.16)); }
 [data-studio-voice-call="stage"] .studio-voice-companion { position: relative; display: block; }
