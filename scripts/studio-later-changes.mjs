@@ -85,6 +85,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-redeem-v4-strip.mjs')).REDEEM_V4_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B60 redeem v4: /redeem in the Studio v4 frame, same words and request (NEXT_PUBLIC_STUDIO_REDEEM_V4)
   ...(await import('./studio-billing-f4-f6-strip.mjs')).BILLING_F4F6_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, L-BILLING F4 debit switch + F6 single price source (WALLET_DEBIT_SOURCE)
   ...(await import('./studio-billing-f5-usage-strip.mjs')).BILLING_F5_USAGE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, L-BILLING F5 quota and refusal screens + Usage page (NEXT_PUBLIC_STUDIO_USAGE_PAGE)
+  ...(await import('./studio-usage-credits-strip.mjs')).USAGE_CREDITS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B62 usage credits: Studio's server read of the Model Router's usage read API and a credits view for the Usage page (NEXT_PUBLIC_STUDIO_USAGE_CREDITS)
   // one line per later change, above this comment
 ])
 
@@ -139,6 +140,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-billing-f4-f6-strip.mjs')).BILLING_F4F6_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, L-BILLING F4 debit switch + F6 single price source (WALLET_DEBIT_SOURCE)
   (await import('./studio-billing-f5-usage-strip.mjs')).BILLING_F5_USAGE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, L-BILLING Usage page (NEXT_PUBLIC_STUDIO_USAGE_PAGE)
   (await import('./studio-billing-f5-usage-strip.mjs')).BILLING_F5_QUOTA_SCREENS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, L-BILLING F5 quota and refusal screens (NEXT_PUBLIC_STUDIO_QUOTA_SCREENS)
+  (await import('./studio-usage-credits-strip.mjs')).USAGE_CREDITS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B62 usage credits (NEXT_PUBLIC_STUDIO_USAGE_CREDITS / MODEL_ROUTER_USAGE_READ_KEY)
   // one line per later change, above this comment
 ]
 
@@ -205,6 +207,7 @@ export const LATER_STRIPS = [
   (await import('./studio-redeem-v4-strip.mjs')).stripRedeemV4, // LATER-CHANGE: FRONTEND-2, B60 redeem v4 (NEXT_PUBLIC_STUDIO_REDEEM_V4)
   (await import('./studio-billing-f4-f6-strip.mjs')).stripBillingF4F6, // LATER-CHANGE: FRONTEND-1, L-BILLING F4 debit switch + F6 single price source (WALLET_DEBIT_SOURCE)
   (await import('./studio-billing-f5-usage-strip.mjs')).stripBillingF5Usage, // LATER-CHANGE: FRONTEND-1, L-BILLING F5 quota and refusal screens + Usage page (NEXT_PUBLIC_STUDIO_USAGE_PAGE)
+  (await import('./studio-usage-credits-strip.mjs')).stripUsageCredits, // LATER-CHANGE: FRONTEND-2, B62 usage credits (NEXT_PUBLIC_STUDIO_USAGE_CREDITS)
   // one line per later change, above this comment
 ]
 
