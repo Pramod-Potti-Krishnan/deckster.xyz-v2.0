@@ -655,3 +655,18 @@ model MediaSegment {
   @@index([userId, createdAt(sort: Desc)])
   @@map("fe_media_segments")
 }
+// BILLING-SECURITY begin schema-model
+// Stripe webhook idempotency + ordering (SECURITY-AUDIT-BILLING B7).
+// One row per processed Stripe event id; objectId/eventCreated let subscription
+// handlers ignore events older than one already applied.
+model StripeWebhookEvent {
+  id           String   @id // Stripe event.id (evt_...)
+  type         String
+  objectId     String?  @map("object_id")
+  eventCreated BigInt   @map("event_created") // Stripe event.created (unix seconds; BIGINT past 2038)
+  processedAt  DateTime @default(now()) @map("processed_at")
+
+  @@index([objectId, eventCreated])
+  @@map("fe_stripe_webhook_events")
+}
+// BILLING-SECURITY end schema-model

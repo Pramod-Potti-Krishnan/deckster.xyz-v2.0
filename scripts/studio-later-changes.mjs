@@ -80,6 +80,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-proofs-after-merge-strip.mjs')).PROOFS_AFTER_MERGE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, older proofs robust after merge (tests only): #475 narration-router reads its siblings, #521 model-choice its route set, at their own heads
   ...(await import('./studio-phone-polish-strip.mjs')).PHONE_POLISH_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B59 phone polish: the More sheet's hint and Escape, the landscape buttons clear of the page number (NEXT_PUBLIC_STUDIO_PHONE_POLISH)
   ...(await import('./studio-model-picker-simple-strip.mjs')).MODEL_PICKER_SIMPLE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, F-14 simplified model picker: the composer's slider picker as a calmer popover or phone sheet, the preset's name, the router's writing model, a reset icon (NEXT_PUBLIC_STUDIO_MODEL_PICKER_SIMPLE)
+  ...(await import('./studio-billing-security-strip.mjs')).BILLING_SECURITY_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1 for PROGRAM-1, billing security B4-B9: webhook claim in one transaction, price-mapped tier, coupon claim (STUDIO_BILLING_COUPON_TIER_HARDENING)
   // one line per later change, above this comment
 ])
 
@@ -128,6 +129,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-ux-honesty-strip.mjs')).PAGE_HEADINGS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, UX-09 page headings (NEXT_PUBLIC_STUDIO_PAGE_HEADINGS)
   (await import('./studio-phone-polish-strip.mjs')).PHONE_POLISH_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B59 phone polish (NEXT_PUBLIC_STUDIO_PHONE_POLISH)
   (await import('./studio-model-picker-simple-strip.mjs')).MODEL_PICKER_SIMPLE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-14 simplified model picker (NEXT_PUBLIC_STUDIO_MODEL_PICKER_SIMPLE)
+  (await import('./studio-billing-security-strip.mjs')).BILLING_SECURITY_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1 for PROGRAM-1, billing security B4-B9: webhook claim in one transaction, price-mapped tier, coupon claim (STUDIO_BILLING_COUPON_TIER_HARDENING)
   // one line per later change, above this comment
 ]
 
@@ -189,6 +191,7 @@ export const LATER_STRIPS = [
   (await import('./studio-proofs-after-merge-strip.mjs')).stripProofsAfterMerge, // LATER-CHANGE: FRONTEND-2, older proofs robust after merge (tests only)
   (await import('./studio-phone-polish-strip.mjs')).stripPhonePolish, // LATER-CHANGE: FRONTEND-2, B59 phone polish (NEXT_PUBLIC_STUDIO_PHONE_POLISH)
   (await import('./studio-model-picker-simple-strip.mjs')).stripModelPickerSimple, // LATER-CHANGE: FRONTEND-1, F-14 simplified model picker (NEXT_PUBLIC_STUDIO_MODEL_PICKER_SIMPLE)
+  (await import('./studio-billing-security-strip.mjs')).stripBillingSecurity, // LATER-CHANGE: FRONTEND-1 for PROGRAM-1, billing security B4-B9: webhook claim in one transaction, price-mapped tier, coupon claim (STUDIO_BILLING_COUPON_TIER_HARDENING)
   // one line per later change, above this comment
 ]
 
