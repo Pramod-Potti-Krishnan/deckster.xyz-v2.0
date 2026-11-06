@@ -53,7 +53,8 @@ const FIX = 'scripts/fixtures/studio-model-choice', FIXTURE = `${FIX}/catalogue-
 const SNAPSHOT = 'components/studio-personal/model-catalog-snapshot.json', SNAPSHOT_10 = 'components/studio-personal/model-catalog-snapshot-2026-10.json'
 
 let overrides = {}
-const read = rel => (rel in overrides ? overrides[rel] : fs.readFileSync(path.join(root, rel), 'utf8'))
+const { stripIntelligenceSimple } = await import('./studio-intelligence-simple-strip.mjs') // LATER-CHANGES: registry read (INTELLIGENCE-SIMPLE): the Intelligence page's two marked imports and one marked return (a later change, stacked) are taken out of what this proof reads
+const read = rel => (rel in overrides ? overrides[rel] : stripIntelligenceSimple(rel, fs.readFileSync(path.join(root, rel), 'utf8'))) // LATER-CHANGES: registry read (INTELLIGENCE-SIMPLE)
 const json = rel => JSON.parse(read(rel))
 const stripModule = async () => import(`data:text/javascript,${encodeURIComponent(read(STRIP))}`)
 const BASE = process.env.MODEL_CHOICE_BASE || (await stripModule()).BASE_COMMIT

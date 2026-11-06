@@ -72,7 +72,8 @@ const STACK_PKG_CHANGES = [['    "test:studio-model-catalog": "node scripts/test
 const STACK_SHOWN = new Map(), stackShow = (commit, rel) => { const key = `${commit}:${rel}`; if (!STACK_SHOWN.has(key)) STACK_SHOWN.set(key, git('show', key)); return STACK_SHOWN.get(key) } // stacked after #475: a commit's file, read once (the strip is held to fixed inputs, whatever HEAD carries)
 const OWN = [LIB, ROUTE, UI, CSS, LAYOUT, ENV, PKG, STRIP]
 for (const rel of [LIB, ROUTE, UI, CSS, LAYOUT, STRIP]) assert.ok(fs.existsSync(path.join(ROOT, rel)), `${rel} exists`)
-const read = rel => stripLaunchWording(rel, stripLaterChanges(rel, fs.readFileSync(path.join(ROOT, rel), 'utf8')))
+const { stripIntelligenceSimple } = await import('./studio-intelligence-simple-strip.mjs') // LATER-CHANGES: registry read (INTELLIGENCE-SIMPLE): the Intelligence page's two marked imports and one marked return (a later change, stacked) are taken out of what this proof reads
+const read = rel => stripLaunchWording(rel, stripLaterChanges(rel, stripIntelligenceSimple(rel, fs.readFileSync(path.join(ROOT, rel), 'utf8')))) // LATER-CHANGES: registry read (INTELLIGENCE-SIMPLE)
 const SOURCES = Object.fromEntries(OWN.map(rel => [rel, read(rel)]))
 const stripComments = text => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\'"`])\/\/[^\n]*/g, '$1')
 const git = (...args) => execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
@@ -136,7 +137,7 @@ function load(entry, { sources = SOURCES, env = {}, react = React, jsx = jsxRunt
     if (cache.has(rel)) return cache.get(rel).exports
     const mod = { exports: {} }
     cache.set(rel, mod)
-    const text = rel in sources ? sources[rel] : fs.readFileSync(path.join(ROOT, rel), 'utf8')
+    const text = rel in sources ? sources[rel] : stripIntelligenceSimple(rel, fs.readFileSync(path.join(ROOT, rel), 'utf8')) // LATER-CHANGES: registry read (INTELLIGENCE-SIMPLE)
     if (rel.endsWith('.json')) { mod.exports = JSON.parse(text); return mod.exports }
     vm.runInNewContext(compile(text, rel), {
       module: mod, exports: mod.exports, process: { env }, JSON, Math, Object, Array, Set, Map, Promise, Number, String, Boolean, Error, TypeError, URL, URLSearchParams, Date, RegExp, Symbol, console, ...globals,

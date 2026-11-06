@@ -451,14 +451,14 @@ await check('H: stripping the marked lines gives the base\'s model-picker.tsx an
 await check('H: nothing else mounts the picker differently: the chat clean composer still mounts <ModelPicker variant="slider"> as it shipped (no edit of it), and no other app file names the new modules', () => {
   const mount = 'components/builder/chat/studio-chat-clean.tsx'; eq(otherStrips(mount, disk(mount)), otherStrips(mount, baseText(mount)), 'the composer mount is the base\'s, byte for byte')
   assert.match(disk(mount), /<ModelPicker variant="slider" sessionId=\{picker\.sessionId\} disabled=\{picker\.disabled\} className="studio-chat-clean-model" \/>/)
-  const hits = git('grep', '-l', '-E', 'model-picker-simple|studio-model-picker-simple', '--', 'app', 'components', 'lib', 'hooks').split('\n').filter(Boolean); assert.ok(hits.includes(PICKER) && hits.includes(COMPONENT), 'the picker and its component'); eq(hits.filter(rel => ![PICKER, COMPONENT, LIB, CSS].includes(rel)), [], 'no other file names the new modules')
+  const hits = git('grep', '-l', '-E', 'model-picker-simple|studio-model-picker-simple', '--', 'app', 'components', 'lib', 'hooks').split('\n').filter(Boolean); assert.ok(hits.includes(PICKER) && hits.includes(COMPONENT), 'the picker and its component'); eq(hits.filter(rel => ![PICKER, COMPONENT, LIB, CSS].includes(rel) && !/intelligence-simple/.test(rel)), [], 'no other file names the new modules') // LATER-CHANGES: registry read (INTELLIGENCE-SIMPLE): the Intelligence page's simple picker (a later change, stacked) reuses them
 })
 await check('H: .env.example holds this change\'s block and nothing else of it, the registry names this change on three lines, the older proofs it teaches get one inserted line each, and every one of them puts back', () => {
-  const env = disk(ENV), was = baseText(ENV)
+  const env = disk(ENV).replace('\n' + registry.LATER_ENV_BLOCKS.find(block => block.includes('NEXT_PUBLIC_STUDIO_INTELLIGENCE_SIMPLE=')), ''), was = baseText(ENV) // LATER-CHANGES: registry read (INTELLIGENCE-SIMPLE)
   eq(env, was.replace(/\n*$/, '\n') + '\n' + ENV_BLOCK, '.env.example: the base plus a blank line and the block'); eq(registry.stripLaterEnvBlocks(ENV, env), registry.stripLaterEnvBlocks(ENV, was), 'the registry takes the block out again')
   assert.match(ENV_BLOCK, /NEXT_PUBLIC_STUDIO_MODEL_PICKER_SIMPLE="false"\n$/, 'default off'); for (const other of [/NEXT_PUBLIC_STUDIO_MODEL_CATALOG\b/, /NEXT_PUBLIC_CHAT_ELEMENT_REFINE\b/, /LAUNCH_WORDING/, /NARRATION_VIA_ROUTER|MODEL_ROUTER_URL|MODEL_ROUTER_STUDIO_KEY/, /STRIPE_REAL_TIER/]) assert.ok(!other.test(ENV_BLOCK), `the block names no flag another proof takes for its own left-behind block (${other})`); assert.ok(registry.LATER_ENV_BLOCKS.includes(ENV_BLOCK) && registry.LATER_STRIPS.includes(stripModelPickerSimple), 'the registry carries the block and the strip'); for (const rel of SCOPE_FILES) assert.ok(registry.LATER_CHANGE_FILES.has(rel), `${rel} is in the registry's scope list`)
   const reg = disk(REGISTRY), regLines = reg.split('\n').filter(line => line.includes('studio-model-picker-simple-strip.mjs')); eq(regLines.length, 3); for (const line of regLines) assert.match(line, /\/\/ LATER-CHANGE: FRONTEND-1, F-14 simplified model picker/)
-  eq(reg.split('\n').filter(line => !line.includes('studio-model-picker-simple-strip.mjs')).join('\n'), baseText(REGISTRY), 'the registry is the base plus those three lines')
+  eq(reg.split('\n').filter(line => !line.includes('studio-model-picker-simple-strip.mjs') && !line.includes('studio-intelligence-simple-strip.mjs')).join('\n'), baseText(REGISTRY), 'the registry is the base plus those three lines') // LATER-CHANGES: registry read (INTELLIGENCE-SIMPLE)
   for (const rel of PIN_FILES) {
     const now = disk(rel), edits = PIN_EDITS[rel]; eq(now.split(edits[0][0]).length - 1, 1, `${rel}: the taught line is there once`); eq(stripModule.putBackPin(rel, now), baseText(rel), `${rel}: putting it back gives the base's proof`); eq(stripModelPickerSimple(rel, now), baseText(rel))
     for (const line of edits[0][0].split('\n').filter(Boolean)) assert.ok(line.includes(PIN_MARK), 'the taught line carries the registry-read mark')
@@ -472,7 +472,7 @@ await check('H: .env.example holds this change\'s block and nothing else of it, 
 console.log('scope over the committed diff (own commits by subject across `rev-list --no-merges BASE..head`)')
 const subjectOf = c => git('log', '-1', '--format=%s', c).trim()
 const parentsOf = rev => git('rev-list', '--parents', '-n', '1', rev).trim().split(/\s+/).slice(1)
-const ownOf = head => git('rev-list', '--no-merges', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean).filter(c => subjectOf(c).startsWith(SUBJECT))
+const ownOf = head => git('rev-list', '--no-merges', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean).filter(c => subjectOf(c).startsWith(SUBJECT) && !subjectOf(c).startsWith('Model picker: Intelligence page')) // LATER-CHANGES: registry read (INTELLIGENCE-SIMPLE): a stacked change that shares the subject prefix is not this change's
 /** GATE-SAFE head: the gate's merge has dev as its FIRST parent (none of this change's commits) and this change's head as its SECOND parent. On a branch (HEAD is this change's tip, or dev merged INTO it) HEAD itself. */
 function scopeHead(ref = 'HEAD') { const head = git('rev-parse', `${ref}^{commit}`).trim(), parents = parentsOf(head); return parents.length === 2 && ownOf(parents[0]).length === 0 && ownOf(parents[1]).length > 0 ? parents[1] : head }
 await check('I: the committed files: this change\'s own commits ("Model picker: ...") touch exactly its files; each commit carries the attribution line; no other change\'s subject is among them', () => {
@@ -587,7 +587,7 @@ for (const [label, from, to] of [
 }
 // the git-side mutant: a gate rule that is not applied would read the wrong head
 if (!process.env.CHECK_ONLY) {
-  const own = ownOf(scopeHead()); const firstParentOnly = git('rev-list', '--first-parent', '--no-merges', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean).filter(c => subjectOf(c).startsWith(SUBJECT))
+  const own = ownOf(scopeHead()); const firstParentOnly = git('rev-list', '--first-parent', '--no-merges', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean).filter(c => subjectOf(c).startsWith(SUBJECT) && !subjectOf(c).startsWith('Model picker: Intelligence page')) // LATER-CHANGES: registry read (INTELLIGENCE-SIMPLE)
   assert.ok(own.length >= firstParentOnly.length, 'the subject query sees at least what a first-parent walk sees'); caught++; console.log('CAUGHT mutant scope: an own commit is found by subject, not by position')
 }
 
