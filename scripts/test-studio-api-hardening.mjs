@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { stripLaterEnvBlocks } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (API-HARDENING, restack onto 1bb42d7f): the later changes' .env.example blocks
 
 // Studio API hardening v1 (security audit items 2, 5, 6, 7, 9, 10; item 4, the mock-token deletion, lives in #571). Pure decisions are executed from
 // lib/api-hardening-core.ts; the route wiring is pinned by reading the route sources. No network, no database.
@@ -145,7 +146,7 @@ function stripFailures(files, mod = strip) {
     const now = files[rel]
     if (typeof now !== 'string') { out.push(`${rel}: missing`); continue }
     if (now === baseOf(rel)) out.push(`${rel}: not changed by this change`)
-    if (mod.stripApiHardening(rel, now) !== baseOf(rel)) out.push(`${rel}: strip does not give the base byte for byte`)
+    if ((rel === '.env.example' ? stripLaterEnvBlocks(rel, mod.stripApiHardening(rel, now)) : mod.stripApiHardening(rel, now)) !== (rel === '.env.example' ? stripLaterEnvBlocks(rel, baseOf(rel)) : baseOf(rel))) out.push(`${rel}: strip does not give the base byte for byte`) // LATER-CHANGES: registry read (API-HARDENING): .env.example is compared without the blocks other registered changes appended after BASE
   }
   for (const rel of mod.API_HARDENING_NEW_FILES) if (baseOf(rel) !== null) out.push(`${rel}: listed as new but in the base`)
   if (mod.API_HARDENING_DELETED.length) out.push('this branch deletes nothing (the mock-token deletion lives in #571)')
