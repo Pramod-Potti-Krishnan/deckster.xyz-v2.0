@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
-import { LATER_CHANGE_FILES, stripLaterEnvBlocks } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (API-HARDENING, restack onto 1bb42d7f): the later changes' .env.example blocks
+import { LATER_CHANGE_FILES, LATER_STRIPS, stripLaterEnvBlocks } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (API-HARDENING, restack onto 1bb42d7f): the later changes' .env.example blocks; LATER_STRIPS (Option L chain): the marked lines of the changes registered before this one
 import { PREPROMO_BASE, PREPROMO_DELETED } from './studio-prepromo-strip.mjs' // LATER-CHANGES: registry read (API-HARDENING, restack onto 21b5fc08): #571 deletes the mock-token route (C-07), so this pin reads the route's base text from git at PREPROMO_BASE
 
 // Studio API hardening v1 (security audit items 2, 5, 6, 7, 9, 10; item 4, the mock-token deletion, lives in #571). Pure decisions are executed from
@@ -139,6 +139,7 @@ const repo = new URL('..', import.meta.url).pathname
 const git = (...args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] })
 const BASE = process.env.API_HARDENING_BASE || strip.BASE_COMMIT
 const baseOf = rel => { try { return git('show', `${BASE}:${rel}`) } catch { return null } }
+const otherStrips = (rel, text) => typeof text !== 'string' || rel !== 'prisma/schema.prisma' ? text : LATER_STRIPS.filter(fn => fn !== strip.stripApiHardening).reduce((out, fn) => { const next = typeof fn === 'function' ? fn(rel, out) : out; return typeof next === 'string' ? next : out }, text) // LATER-CHANGES: registry read (API-HARDENING, Option L chain): the schema is read as this change left it, whatever the changes registered before it marked in it (#576's schema model, added after BASE); every other owned file is compared as before, because the registered strips of changes already in BASE put back older text this change's pairs do not expect
 
 /** Every failure of the strip / registry contract for a file map (rel -> text now). Empty = holds. */
 function stripFailures(files, mod = strip) {
@@ -147,7 +148,7 @@ function stripFailures(files, mod = strip) {
     const now = files[rel]
     if (typeof now !== 'string') { out.push(`${rel}: missing`); continue }
     if (now === baseOf(rel)) out.push(`${rel}: not changed by this change`)
-    if ((rel === '.env.example' ? stripLaterEnvBlocks(rel, mod.stripApiHardening(rel, now)) : mod.stripApiHardening(rel, now)) !== (rel === '.env.example' ? stripLaterEnvBlocks(rel, baseOf(rel)) : baseOf(rel))) out.push(`${rel}: strip does not give the base byte for byte`) // LATER-CHANGES: registry read (API-HARDENING): .env.example is compared without the blocks other registered changes appended after BASE
+    if ((rel === '.env.example' ? stripLaterEnvBlocks(rel, mod.stripApiHardening(rel, now)) : mod.stripApiHardening(rel, otherStrips(rel, now))) !== (rel === '.env.example' ? stripLaterEnvBlocks(rel, baseOf(rel)) : otherStrips(rel, baseOf(rel)))) out.push(`${rel}: strip does not give the base byte for byte`) // LATER-CHANGES: registry read (API-HARDENING): .env.example is compared without the blocks other registered changes appended after BASE
   }
   for (const rel of mod.API_HARDENING_NEW_FILES) if (baseOf(rel) !== null) out.push(`${rel}: listed as new but in the base`)
   if (mod.API_HARDENING_DELETED.length) out.push('this branch deletes nothing (the mock-token deletion lives in #571)')
