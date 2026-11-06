@@ -87,6 +87,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-billing-f5-usage-strip.mjs')).BILLING_F5_USAGE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, L-BILLING F5 quota and refusal screens + Usage page (NEXT_PUBLIC_STUDIO_USAGE_PAGE)
   ...(await import('./studio-usage-credits-strip.mjs')).USAGE_CREDITS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B62 usage credits: Studio's server read of the Model Router's usage read API and a credits view for the Usage page (NEXT_PUBLIC_STUDIO_USAGE_CREDITS)
   ...(await import('./studio-chat-caps-strip.mjs')).CHAT_CAPS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B61 chat caps: C-D1's Studio reader, Director's sync chat_capabilities read into a read-only snapshot (NEXT_PUBLIC_STUDIO_CHAT_CAPS_META)
+  ...(await import('./studio-chain-test-fix-strip.mjs')).CHAIN_TEST_FIX_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, Option L chain test fix (tests only)
   // one line per later change, above this comment
 ])
 
@@ -211,6 +212,7 @@ export const LATER_STRIPS = [
   (await import('./studio-billing-f5-usage-strip.mjs')).stripBillingF5Usage, // LATER-CHANGE: FRONTEND-1, L-BILLING F5 quota and refusal screens + Usage page (NEXT_PUBLIC_STUDIO_USAGE_PAGE)
   (await import('./studio-usage-credits-strip.mjs')).stripUsageCredits, // LATER-CHANGE: FRONTEND-2, B62 usage credits (NEXT_PUBLIC_STUDIO_USAGE_CREDITS)
   (await import('./studio-chat-caps-strip.mjs')).stripChatCaps, // LATER-CHANGE: FRONTEND-2, B61 chat caps (NEXT_PUBLIC_STUDIO_CHAT_CAPS_META)
+  (await import('./studio-chain-test-fix-strip.mjs')).stripChainTestFix, // LATER-CHANGE: FRONTEND-1, Option L chain test fix (tests only)
   // one line per later change, above this comment
 ]
 

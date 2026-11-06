@@ -59,7 +59,8 @@ for (const rel of strip.BILLING_F5_USAGE_FILES) {
   const head = registry.stripLaterChanges(rel, git('show', `${HEAD}:${rel}`)), base = registry.stripLaterChanges(rel, git('show', `${BASE2}:${rel}`))
   ok(strip.stripBillingF5Usage(rel, git('show', `${HEAD}:${rel}`)) === git('show', `${BASE2}:${rel}`) || head === base, `F: ${rel} minus marked lines is the base (flag-off identity)`)
   const added = git('diff', '-U0', `${BASE2}..${HEAD}`, '--', rel).split('\n').filter(l => /^[+-]/.test(l) && !/^(\+\+\+|---) /.test(l))
-  ok(added.every(l => l.startsWith('+') && strip.BILLING_F5_USAGE_MARKER_RE.test(l)), `F: ${rel} changes are marked insertions only`)
+  const laterOnly = (() => { const t = git('show', `${HEAD}:${rel}`), after = registry.LATER_STRIPS.slice(registry.LATER_STRIPS.indexOf(strip.stripBillingF5Usage) + 1).reduce((x, f) => f(rel, x), t).split('\n'); return new Set(t.split('\n').filter(l => !after.includes(l))) })() // LATER-CHANGES: registry read (CHAIN-TEST-FIX): lines a change registered after this one added are its, not a stray
+  ok(added.filter(l => !(l.startsWith('+') && laterOnly.has(l.slice(1)))).every(l => l.startsWith('+') && strip.BILLING_F5_USAGE_MARKER_RE.test(l)), `F: ${rel} changes are marked insertions only`) // LATER-CHANGES: registry read (CHAIN-TEST-FIX)
 }
 const hook = readFileSync('hooks/use-deckster-websocket-v2.ts', 'utf8')
 ok(/if \(rawMessage\.type === 'error'\) announceQuotaRefusal\(payload\.code\)/.test(hook), 'F: error frame code goes to the refusal screen')

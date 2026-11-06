@@ -11,6 +11,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAIN-TEST-FIX)
 
 const root = path.resolve(new URL('..', import.meta.url).pathname)
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
@@ -44,6 +45,7 @@ function checkSurfaces(files) {
 }
 
 function checkBilling(text) {
+  text = stripLaterChanges('app/(app)/billing/page.tsx', text) // LATER-CHANGES: registry read (CHAIN-TEST-FIX): later changes' lines on Billing (F4/F6 widened the pricing import) are put back first
   ok(/import \{ PRICING_TIERS \} from "@\/lib\/marketing\/homepage-v2-pricing"/.test(text), 'Billing reads the pricing source')
   ok(/\n  const plan = studioPlanForTier\(PRICING_TIERS, user\.tier\)\n/.test(text), 'Billing: the plan always comes from the pricing source (no flag)')
   ok(/\{studioBillingPriceLine\(PRICING_TIERS, user\.tier, subscription\?\.billingCycle\)\}/.test(text), 'Billing: the price line always comes from the pricing source')
