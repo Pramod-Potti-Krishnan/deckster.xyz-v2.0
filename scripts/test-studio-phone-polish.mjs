@@ -27,7 +27,7 @@ import postcss from 'postcss'
 import {
   BASE_COMMIT, PHONE_POLISH_ENV_BLOCK, PHONE_POLISH_FILES, PHONE_POLISH_LINE_EDITS, PHONE_POLISH_MARKER_RE, PHONE_POLISH_NEW_FILES, PHONE_POLISH_PIN_EDITS, PHONE_POLISH_PIN_FILES, PHONE_POLISH_PIN_MARK, PHONE_POLISH_SCOPE_FILES, PHONE_POLISH_SUBJECT, stripPhonePolish,
 } from './studio-phone-polish-strip.mjs'
-import { stripLaterChanges, stripLaterEnvBlocks } from './studio-later-changes.mjs'
+import { LATER_ENV_BLOCKS, LATER_STRIPS, stripLaterChanges, stripLaterEnvBlocks } from './studio-later-changes.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const nodeRequire = createRequire(import.meta.url)
@@ -42,6 +42,10 @@ const baseOf = rel => { const ref = `${BASE}:${rel}`; if (!showCache.has(ref)) s
 let overrides = {} // in-memory mutations: every section reads its sources through read()
 const read = rel => (rel in overrides ? overrides[rel] : fs.readFileSync(path.join(root, rel), 'utf8'))
 const sha = value => crypto.createHash('sha256').update(value).digest('hex')
+/** Only the changes registered AFTER this one, in the registry's order: on a branch stacked after this change their own lines and their .env.example blocks are undone first, so a file reads as this change left it. */
+const laterStrips = (rel, text) => { const at = LATER_STRIPS.indexOf(stripPhonePolish); return (at === -1 ? [] : LATER_STRIPS.slice(at + 1)).reduce((out, fn) => { const next = typeof fn === 'function' ? fn(rel, out) : out; return typeof next === 'string' ? next : out }, text) }
+const laterEnv = text => { const at = LATER_ENV_BLOCKS.indexOf(PHONE_POLISH_ENV_BLOCK); return (at === -1 ? [] : LATER_ENV_BLOCKS.slice(at + 1)).reduce((out, block) => { const b = String(block).replace(/^\n+/, '').replace(/\n+$/, ''); return b ? out.replace(`\n\n${b}`, () => '') : out }, text) }
+const LATER = { files: laterStrips, env: laterEnv }
 
 let checks = 0
 const count = fn => (...args) => { checks += 1; return fn(...args) }
@@ -492,10 +496,10 @@ function proveStageAttribute(at = '') {
 }
 
 // ---------------------------------------------------------------- 5. pins: flag off, the files are the base's
-function provePin(strip = stripPhonePolish, at = '') {
+function provePin(strip = stripPhonePolish, at = '', later = LATER) {
   const a = message => (at ? `${at}: pin: ${message}` : `pin: ${message}`)
   for (const rel of PHONE_POLISH_FILES) {
-    const now = read(rel), base = baseOf(rel)
+    const now = later.files(rel, read(rel)), base = baseOf(rel)
     ok(now !== base, a(`${rel}: this change edits it`))
     eq(strip(rel, now), base, a(`${rel}: without this change's lines it is the base commit's file, byte for byte`))
     eq(strip(rel, strip(rel, now)), base, a(`${rel}: stripping twice changes nothing more (idempotent)`))
@@ -514,7 +518,7 @@ function provePin(strip = stripPhonePolish, at = '') {
     ok(baseOf(rel).split('\n').filter(line => line.trim() === was).length === 1, a(`${rel}: the base line is unique`))
   }
   // .env.example, registry, taught proofs
-  const env = read('.env.example'), baseEnv = baseOf('.env.example')
+  const env = later.env(read('.env.example')), baseEnv = baseOf('.env.example')
   eq(env.split(PHONE_POLISH_ENV_BLOCK).length - 1, 1, a('.env.example: the block is there exactly once, verbatim'))
   ok(env.startsWith(baseEnv) && env === `${baseEnv}\n${PHONE_POLISH_ENV_BLOCK}`, a('.env.example: appended after the last block, with one blank line before it, and nothing else changed'))
   match(PHONE_POLISH_ENV_BLOCK, /\nNEXT_PUBLIC_STUDIO_PHONE_POLISH="false"\n$/, a('.env.example: default "false"'))
@@ -525,7 +529,7 @@ function provePin(strip = stripPhonePolish, at = '') {
   deep(own.map(line => /\)\.(\w+), \/\//.exec(line)?.[1]), ['PHONE_POLISH_SCOPE_FILES', 'PHONE_POLISH_ENV_BLOCK', 'stripPhonePolish'], a('its files, its block, its strip'))
   ok(own.every(line => line.includes('// LATER-CHANGE:')), a('each carries the registry marker'))
   for (const rel of PHONE_POLISH_PIN_FILES) {
-    const taught = read(rel)
+    const taught = later.files(rel, read(rel))
     eq(strip(rel, taught), baseOf(rel), a(`${rel}: an older proof taught one line: putting it back gives the base commit's proof byte for byte`))
     for (const [has, was2] of PHONE_POLISH_PIN_EDITS[rel]) {
       eq(taught.split(has).length - 1, 1, a(`${rel}: the taught line is there exactly once`)); if (was2 !== '') { eq(baseOf(rel).split(was2).length - 1, 1, a(`${rel}: a taught replacement stands in for exactly one line of the base's proof`)); ok(!was2.includes(PHONE_POLISH_PIN_MARK), a(`${rel}: the replaced line is the base's own (no mark)`)) } // a pure insertion, or (FRONTEND-1's account-menu pins, owner OK 4 Nov 14:48Z) a marked line in place of one base line
@@ -614,15 +618,21 @@ await check('5. pin: the app files without this change\'s lines are the base\'s;
 
 console.log('scope over the committed diff (own commits by subject across `rev-list --no-merges BASE..head`, HEAD^2 on the gate\'s merge)')
 const HEAD = scopeHead('HEAD')
-await check(`6a. this change's own commits (subject starts "${PHONE_POLISH_SUBJECT}", found across the whole line, no merges) exist, with the co-author line; none could be taken for an older change's`, () => { scopeOwnCommits(HEAD) })
-await check('6b. the committed files are exactly this change\'s; every line added to an app file carries the marker; the one rewritten line is pinned; the strip gives the base back byte for byte; the pinned libs, the stage\'s stylesheet, the hint and the shared dropdown are not touched', () => scopeCommittedFiles(HEAD))
-await check('6c. .env.example is the base plus the block (after one blank line); the registry gains exactly its three marked lines and loses none; no secret-shaped literal in the new files', () => {
+/** This change's own commits on the FIRST-PARENT line of `head` from BASE. Merged into dev, its commits come in by a merge's second parent and that line has none of them: dev past the merge, a branch stacked after this change, a later change's gate merge. */
+const ownOnLine = head => git('rev-list', '--first-parent', '--no-merges', `${BASE}..${head}`).split('\n').filter(Boolean).filter(c => isOwnSubject(subjectOf(c)))
+/** There the committed diff from BASE holds the later changes' work too, so the scope checks stand down; the pins (read past the later changes' strips) and every other section still run. On this change's own branch, and on its gate merge through HEAD^2, they all run. */
+const ON_OWN_LINE = ownOnLine(HEAD).length > 0
+const scopeCheck = (name, fn) => (ON_OWN_LINE ? check(name, fn) : undefined)
+if (!ON_OWN_LINE) console.log('  NOTE scope: no commit of this change on the first-parent line from BASE (merged into dev: its commits are on a second parent); the scope checks stand down, section 5\'s pins cover the files')
+await scopeCheck(`6a. this change's own commits (subject starts "${PHONE_POLISH_SUBJECT}", found across the whole line, no merges) exist, with the co-author line; none could be taken for an older change's`, () => { scopeOwnCommits(HEAD) })
+await scopeCheck('6b. the committed files are exactly this change\'s; every line added to an app file carries the marker; the one rewritten line is pinned; the strip gives the base back byte for byte; the pinned libs, the stage\'s stylesheet, the hint and the shared dropdown are not touched', () => scopeCommittedFiles(HEAD))
+await scopeCheck('6c. .env.example is the base plus the block (after one blank line); the registry gains exactly its three marked lines and loses none; no secret-shaped literal in the new files', () => {
   scopeEnvAndRegistry(HEAD)
   for (const rel of PHONE_POLISH_NEW_FILES) assert.doesNotMatch(fs.readFileSync(path.join(root, rel), 'utf8'), /(sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{12,}|eyJ[A-Za-z0-9_-]{20,}\.|-----BEGIN [A-Z ]*PRIVATE KEY)/, rel)
 })
 const gateMerge = (dev, head) => plumb(['commit-tree', plumb(['merge-tree', '--write-tree', dev, head]).split('\n')[0], '-p', dev, '-p', head, '-m', 'gate-style merge (local, no ref)'])
 const GATE = ownOf(HEAD).length ? gateMerge(BASE, HEAD) : null
-await check('6d. GATE-SAFE: on a gate-style merge (first parent BASE, second parent this change\'s head) the scope head is HEAD^2 and the whole scope section passes against it', () => {
+await scopeCheck('6d. GATE-SAFE: on a gate-style merge (first parent BASE, second parent this change\'s head) the scope head is HEAD^2 and the whole scope section passes against it', () => {
   assert.ok(GATE, 'no own commit yet')
   assert.deepEqual(parentsOf(GATE), [BASE, HEAD])
   assert.deepEqual(git('log', '--format=%H', '--first-parent', '--no-merges', `${BASE}..${GATE}`).split('\n').filter(Boolean), [], 'the gate\'s first-parent, no-merges line from BASE is empty: why HEAD itself cannot be used')
@@ -631,12 +641,27 @@ await check('6d. GATE-SAFE: on a gate-style merge (first parent BASE, second par
   for (const rel of PHONE_POLISH_FILES) assert.equal(stripPhonePolish(rel, git('show', `${GATE}:${rel}`)), git('show', `${BASE}:${rel}`), `the merged tree, without this change's lines, is the base's ${rel}`)
   assert.equal(scopeHead(HEAD), HEAD, 'a branch head is used as it is'); assert.equal(scopeHead(BASE), BASE, 'BASE itself is used as it is')
 })
-await check('6e. mutant caught: the first-parent own-commit query finds no own commit on the gate-style merge, and without the HEAD^2 rule the scope head is the merge itself', () => {
+await scopeCheck('6e. mutant caught: the first-parent own-commit query finds no own commit on the gate-style merge, and without the HEAD^2 rule the scope head is the merge itself', () => {
   assert.ok(GATE, 'no own commit yet')
   const head = scopeHead(GATE, { gateRule: false })
   assert.equal(head, GATE)
   assert.throws(() => scopeOwnCommits(head, { firstParentOnly: true }), /no own commit yet/)
   assert.doesNotThrow(() => scopeOwnCommits(head), 'the subject query across the line finds them on the merge itself')
+})
+
+// a branch stacked after this change: dev's merge brings it in by its SECOND parent, then a later change adds its subject filter beside this one's in a taught proof and its .env.example block after this one's
+const SYN = { file: 'scripts/test-studio-deck-sync-truth.mjs', mark: 'registry read (SYNTHETIC-LATER)', block: '# SYNTHETIC LATER (a made-up change stacked after this one)\nNEXT_PUBLIC_SYNTHETIC_LATER="false"\n' }
+const SYN_LATER = { files: (rel, text) => laterStrips(rel, rel === SYN.file ? text.split('\n').filter(line => !line.includes(SYN.mark)).join('\n') : text), env: text => laterEnv(text).replace(`\n${SYN.block}`, () => '') }
+await scopeCheck('6f. ROBUST AFTER MERGE: dev\'s merge of this change has none of its commits on the first-parent line (a branch on top of it stands the scope checks down), and with a later change\'s subject filter in a taught proof and its .env.example block after this one\'s, the pins, read past the later change\'s strips, still pass', () => {
+  assert.ok(GATE, 'no own commit yet')
+  assert.deepEqual(ownOnLine(GATE), [], 'none of this change\'s commits on the first-parent line of dev\'s merge'); assert.equal(ownOf(GATE).length, ownOf(HEAD).length, 'all of them there by the second parent')
+  const taught = read(SYN.file).split('\n'), at = taught.findIndex(line => line.includes('registry read (PHONE-POLISH)')); assert.ok(at > 0, 'this change\'s subject filter is in the taught proof')
+  taught.splice(at + 1, 0, `  shas.splice(0, shas.length, ...shas.filter(sha => !/^Synthetic later:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: ${SYN.mark}: a made-up change stacked after this one`)
+  overrides = { [SYN.file]: taught.join('\n'), '.env.example': `${read('.env.example')}\n${SYN.block}` }
+  try {
+    provePin(stripPhonePolish, 'stacked after', SYN_LATER)
+    assert.throws(() => provePin(stripPhonePolish, 'stacked after, not told'), /putting it back gives|appended after the last block/, 'mutant caught: without the later change\'s strips its lines break the pins')
+  } finally { overrides = {} }
 })
 
 // ---------------------------------------------------------------- 7. mutants: each must make sections 1-5 fail
