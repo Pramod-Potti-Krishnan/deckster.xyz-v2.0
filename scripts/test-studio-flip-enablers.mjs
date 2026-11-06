@@ -3,7 +3,7 @@
 //   node scripts/test-studio-flip-enablers.mjs     # offline: transpile + vm; next-auth, Prisma, fetch stubbed; secrets made up at run time
 //
 // Proves, on the REAL handlers / helpers:
-//  1. Director library proxy: 401 signed-out, 404 not-owner / deleted, owner -> GET <director>/sessions/{id}/library, signed for the DB id (flag on), unsigned (flag off).
+//  1. Director library proxy: flag off 404 not_enabled before any read (plus a mutant without the gate); flag on: 401 signed-out, 404 not-owner / deleted, owner -> GET <director>/sessions/{id}/library, signed for the DB id (flag on), unsigned (flag off).
 //  2. Researcher upload proxy: server flag off -> 404 + no fetch; unknown step 404; not-owner 404; key/secret unset 503; owner -> X-API-Key +
 //     a session token an independent verifier accepts for (Researcher session, own e-mail); create's user_id overwritten; URL helper off = direct URL.
 //  3. Layout viewer ticket: flag off 404; on -> X-Layout-Service-Token + X-Deckster-User-Id (DB id); withViewerTicket keeps other params; renew delay.
@@ -45,11 +45,11 @@ const stubs = {
   'react': { useEffect() {}, useRef: v => ({ current: v }), useState: v => [v, () => {}] },
 }
 const cache = new Map()
-function load(rel) {
-  if (cache.has(rel)) return cache.get(rel)
+function load(rel, source) {
+  if (source === undefined && cache.has(rel)) return cache.get(rel)
   const module = { exports: {} }
-  cache.set(rel, module.exports)
-  const out = ts.transpileModule(read(rel), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
+  if (source === undefined) cache.set(rel, module.exports)
+  const out = ts.transpileModule(source ?? read(rel), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
   const req = spec => {
     if (stubs[spec]) return stubs[spec]
     if (spec.startsWith('@/')) return load(spec.slice(2) + '.ts')
@@ -60,7 +60,7 @@ function load(rel) {
     module, exports: module.exports, require: req, process: { env }, Buffer, URL, URLSearchParams, AbortSignal, console, Date, JSON, Math, Response, Number,
     fetch: async (url, init = {}) => { state.fetches.push({ url, init }); return { ok: state.reply.status < 400, status: state.reply.status, headers: { get: () => 'application/json' }, json: async () => JSON.parse(state.reply.body), text: async () => state.reply.body } },
   })
-  cache.set(rel, module.exports)
+  if (source === undefined) cache.set(rel, module.exports)
   return module.exports
 }
 const ctx = obj => ({ params: Promise.resolve(obj) })
@@ -76,7 +76,30 @@ env.DIRECTOR_WS_AUTH_SECRET = 'director-secret-made-up-at-test-time'
 
 // ---- 1. library proxy
 {
-  const lib = load('app/api/director/sessions/[sourceSessionId]/library/route.ts')
+  const LIB = 'app/api/director/sessions/[sourceSessionId]/library/route.ts'
+  const lib = load(LIB)
+  // flag off: 404 not_enabled first, for a signed-out caller and an owner alike; no session, DB or Director read
+  const offCase = async route => {
+    const reads = { db: 0 }, find = stubs['@/lib/prisma'].prisma.chatSession.findUnique, auth = stubs['next-auth'].getServerSession
+    stubs['@/lib/prisma'].prisma.chatSession.findUnique = async q => { reads.db++; return find(q) }
+    stubs['next-auth'].getServerSession = async () => { reads.db++; return auth() }
+    try {
+      for (const session of [null, { user: { id: UID } }]) {
+        state.session = session; reset()
+        const res = await route.GET({}, ctx({ sourceSessionId: CHAT }))
+        if (res.status !== 404 || res.body?.error !== 'not_enabled' || state.fetches.length !== 0 || reads.db !== 0) return false
+      }
+      return true
+    } finally { stubs['@/lib/prisma'].prisma.chatSession.findUnique = find; stubs['next-auth'].getServerSession = auth }
+  }
+  assert.equal(await offCase(lib), true, 'flag off: 404 not_enabled, nothing read or sent')
+  const gate = "  if (!isStudioDirectorRestSignAllEnabled()) return NextResponse.json({ error: 'not_enabled' }, { status: 404, headers: NO_STORE })\n"
+  assert.ok(read(LIB).includes(gate), 'the gate line is in the route')
+  for (const [name, text] of [['gate removed', read(LIB).replace(gate, '')], ['gate inverted', read(LIB).replace(gate, gate.replace('if (!is', 'if (is'))], ['gate after the auth read', read(LIB).replace(gate, '').replace("  if (!userId) return", gate + "  if (!userId) return")]]) {
+    assert.notEqual(text, read(LIB), `mutant ${name} applies`)
+    assert.equal(await offCase(load(LIB, text)), false, `mutant caught: ${name}`)
+  }
+  env.STUDIO_DIRECTOR_REST_SIGN_ALL_ENABLED = 'true'
   state.session = null; reset()
   assert.equal((await lib.GET({}, ctx({ sourceSessionId: CHAT }))).status, 401)
   state.session = { user: { email: EMAIL } }  // e-mail-only session resolves to the DB id
@@ -84,9 +107,6 @@ env.DIRECTOR_WS_AUTH_SECRET = 'director-secret-made-up-at-test-time'
   reset(); assert.equal((await lib.GET({}, ctx({ sourceSessionId: '../x' }))).status, 400)
   reset(); let r = await lib.GET({}, ctx({ sourceSessionId: CHAT }))
   assert.equal(r.status, 200); assert.equal(state.fetches[0].url, 'https://director.test/sessions/chat-1/library')
-  assert.deepEqual({ ...state.fetches[0].init.headers }, {}, 'flag off: unsigned')
-  env.STUDIO_DIRECTOR_REST_SIGN_ALL_ENABLED = 'true'
-  reset(); r = await lib.GET({}, ctx({ sourceSessionId: CHAT }))
   const h = state.fetches[0].init.headers['X-Deckster-Entitlement']; assert.ok(h)
   const [p, s] = h.split('.')
   assert.equal(s, crypto.createHmac('sha256', env.DIRECTOR_WS_AUTH_SECRET).update('deckster-rest-v1.' + p).digest('base64url'))

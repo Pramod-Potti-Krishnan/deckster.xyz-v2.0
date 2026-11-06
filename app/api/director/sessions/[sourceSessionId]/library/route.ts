@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
 import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
-import { dbVerifiedSessionUserId, directorRestSignHeaders } from '@/lib/studio-director-rest-sign'
+import { dbVerifiedSessionUserId, directorRestSignHeaders, isStudioDirectorRestSignAllEnabled } from '@/lib/studio-director-rest-sign'
 import { directorEmailFallbackRead, missOnForbiddenOrNotFound } from '@/lib/studio-director-email-fallback' // DUAL-LOOKUP
 
 export const runtime = 'nodejs'
@@ -18,8 +18,10 @@ const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,254}$/
  * 2. The chat session must belong to that user and not be deleted (not found and not yours read the same: 404).
  * 3. The Director call carries X-Deckster-Entitlement for that DB id (STUDIO_DIRECTOR_REST_SIGN_ALL_ENABLED; off = unsigned).
  * The Director answer is returned unchanged.
+ * Dark: STUDIO_DIRECTOR_REST_SIGN_ALL_ENABLED off -> 404 not_enabled before anything is read or sent.
  */
 export async function GET(_req: Request, { params }: { params: Promise<{ sourceSessionId: string }> }) {
+  if (!isStudioDirectorRestSignAllEnabled()) return NextResponse.json({ error: 'not_enabled' }, { status: 404, headers: NO_STORE })
   const { sourceSessionId: sessionId } = await params
   if (!ID_PATTERN.test(sessionId)) {
     return NextResponse.json({ error: 'invalid_session_id' }, { status: 400, headers: NO_STORE })
