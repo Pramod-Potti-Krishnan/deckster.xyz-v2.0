@@ -1,0 +1,8 @@
+/* UX-09 (NEXT_PUBLIC_STUDIO_PAGE_HEADINGS, default off): one page container and one heading style on the Studio account pages. Every rule is scoped to <html data-studio-page-headings="true">. */
+html[data-studio-page-headings="true"] [data-studio-v4-shell-workspace="true"] [data-studio-page-container="outer"] { box-sizing: border-box; width: 100%; max-width: 1152px !important; margin-left: auto !important; margin-right: auto !important; padding-left: 32px !important; padding-right: 32px !important; }
+html[data-studio-page-headings="true"] [data-studio-v4-shell-workspace="true"] [data-studio-page-container="inner"] { max-width: none !important; margin-left: 0 !important; margin-right: 0 !important; padding-left: 0 !important; padding-right: 0 !important; }
+html[data-studio-page-headings="true"] [data-studio-v4-shell-workspace="true"] h1[data-studio-page-heading="true"] { font-size: 28px !important; line-height: 1.25 !important; font-weight: 600 !important; letter-spacing: -0.02em !important; }
+@media (max-width: 640px) {
+  html[data-studio-page-headings="true"] [data-studio-v4-shell-workspace="true"] [data-studio-page-container="outer"] { padding-left: 16px !important; padding-right: 16px !important; }
+  html[data-studio-page-headings="true"] [data-studio-v4-shell-workspace="true"] h1[data-studio-page-heading="true"] { font-size: 24px !important; }
+}
