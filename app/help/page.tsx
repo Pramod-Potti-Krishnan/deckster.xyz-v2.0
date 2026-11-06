@@ -65,12 +65,12 @@ export default function HelpPage() {
     {
       category: "Getting Started",
       question: "How do I create my first presentation?",
-      answer: "Click the 'New Presentation' button from your dashboard or builder page. Then, simply describe what you want to create in the chat interface, and our AI agents will generate slides for you."
+      answer: "Click \"New deck\" (on some pages it reads \"+ Presentation\") from the Decks page or the builder. Then, simply describe what you want to create in the chat interface, and our AI agents will generate slides for you."
     },
     {
       category: "Getting Started",
       question: "What are AI agents and how do they work?",
-      answer: "Deckster runs as eight specialists: the Director orchestrates, while the Researcher, Analyst, Content Generator, Visualizer, Theme Builder, Slide Composer, and Element Generator each own one part of the deck. They work together to build your presentation."
+      answer: "You talk to the Director in plain English. It plans the deck and hands each part (research, writing, charts and visuals, theme, layout) to a specialist agent, and they work together to build your presentation."
     },
     {
       category: "Features",
@@ -85,12 +85,12 @@ export default function HelpPage() {
     {
       category: "Billing",
       question: "How do plans and credits work?",
-      answer: "Every plan includes a monthly pool of credits the agents draw on as they build. Starter is $20/user/mo; Pro and Max add more capability and credits. Top up anytime in a busy month."
+      answer: "Every plan includes a monthly pool of credits the agents draw on as they build. See the pricing page for the current plans and prices. Top up anytime in a busy month."
     },
     {
       category: "Billing",
       question: "How do I upgrade my subscription?",
-      answer: "Go to your Profile > Billing & Subscription, or see the pricing page. Choose Starter ($20), Pro ($50), or Max ($100) per user / month."
+      answer: "Go to your Profile > Billing & Subscription, or see the pricing page for the current plans and prices."
     },
     {
       category: "Troubleshooting",
@@ -358,8 +358,8 @@ export default function HelpPage() {
                         2
                       </div>
                       <div>
-                        <h4 className="font-medium">Create a New Presentation</h4>
-                        <p className="text-sm text-muted-foreground">Click "New Presentation" from your dashboard</p>
+                        <h4 className="font-medium">Start a new deck</h4>
+                        <p className="text-sm text-muted-foreground">Click "New deck" (or "+ Presentation") from the Decks page</p>
                       </div>
                     </div>
                     <div className="flex gap-3">
