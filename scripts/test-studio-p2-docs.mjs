@@ -44,7 +44,7 @@ import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES:
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const BASE_COMMIT = process.env.P2_DOCS_BASE || 'fae962006b080e26eb70c2add7066ca1edf8eca2'
-const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))
+const read = rel => stripLaunchWording(rel, stripLaterChanges(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))) // LATER-CHANGES: registry read (PHONE-SHELL-COVERAGE)
 const baseCache = new Map()
 const baseSource = rel => {
   if (!baseCache.has(rel)) {
