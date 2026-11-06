@@ -4,7 +4,7 @@
 // Every line this change adds to an EXISTING app file is a pure insertion that carries the marker CHAT-CAPS-META (a WHOLE token): in the hook one import (after the flow-control import, clear of #585's BILLING-F5-USAGE lines) and one
 // line in the sync_response case; in types/mdc.ts the C-D1 entry type, one union line under chat_capabilities and the two sibling fields. Strip the marked lines and each file is its base, byte for byte (stripChatCaps(rel, text)).
 // The older proofs this change teaches (PIN_EDITS, tests only, every line carries the registry-read mark): the two that read the first-parent line of BASE..HEAD for their own commits' subjects get one more inserted line each,
-// for "Chat caps:", as #567 / #568 did. How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
+// for "Chat caps:", as #567 / #568 did; the two that hash the hook's reducer as raw text (chat element refine #470, chat theme/export #472) read it through the registry first (one line each, its base text kept here). How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
 export const BASE_COMMIT = 'f36e9f8506b16cc0bb13f8f8020a2b9cd85b0f09' // studio-v4-dev-preparation-code at #567 (Phone shell coverage), the branch this change is made on
 export const CHAT_CAPS_FLAG = 'NEXT_PUBLIC_STUDIO_CHAT_CAPS_META'
@@ -28,10 +28,17 @@ export const CHAT_CAPS_NEW_FILES = [
 /** The older proofs this change teaches: [text the proof has now, text the base commit's proof has] per edit, whole lines, so putting them back gives the base file byte for byte. Every line the proof has now carries CHAT_CAPS_PIN_MARK. */
 export const CHAT_CAPS_PIN_MARK = '// LATER-CHANGES: registry read (CHAT-CAPS-META)'
 const FIRST_PARENT_LINE = "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Chat caps:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (CHAT-CAPS-META): on a branch stacked after this change (chat caps, C-D1's Studio reader), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files\n"
+const REDUCER_BASE_LINE = "  const reducer = text => text.slice(text.indexOf('            // Turn gate: any reply-bearing frame unlocks the input.'), text.indexOf(\"            if ((message.type as string) === 'session_directive') {\"))\n"
+const reducerLine = strip => `  const reducer = raw => { const text = ${strip}(HOOK, raw); return text.slice(text.indexOf('            // Turn gate: any reply-bearing frame unlocks the input.'), text.indexOf("            if ((message.type as string) === 'session_directive') {")) } // LATER-CHANGES: registry read (CHAT-CAPS-META): a later change's marked line inside the sync_response case (chat caps, C-D1's reader) comes out first (the registry); a base text has none\n`
 export const CHAT_CAPS_PIN_EDITS = {
   'scripts/test-studio-deck-sync-truth.mjs': [[FIRST_PARENT_LINE, '']],
   'scripts/test-studio-chat-element-edit.mjs': [[FIRST_PARENT_LINE, '']],
+  // the two proofs that hash the hook's reducer (the onmessage setState) as RAW text: they read it through the registry first (stripBulkEditUndo runs stripLaterChanges innermost; theme-export imports stripLaterChanges itself)
+  'scripts/test-studio-chat-element-refine.mjs': [[reducerLine('stripBulkEditUndo'), REDUCER_BASE_LINE]],
+  'scripts/test-studio-chat-theme-export.mjs': [[reducerLine('stripLaterChanges'), REDUCER_BASE_LINE]],
 }
+/** The pins that gain the "Chat caps:" subject filter (inserted after the phone shell coverage's); the other pins rewrite one line. */
+export const CHAT_CAPS_FIRST_PARENT_PINS = ['scripts/test-studio-deck-sync-truth.mjs', 'scripts/test-studio-chat-element-edit.mjs']
 /** Where each taught line goes: right after the base proof's last subject filter, the phone shell coverage's (the line that starts with this text). */
 export const CHAT_CAPS_PIN_AFTER = "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Phone shell coverage:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (PHONE-SHELL-COVERAGE)"
 

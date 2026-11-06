@@ -13,7 +13,7 @@
 //     client_caps), every callback and the hook's state are the flag-off run's and the run of the hook without this change's lines: parsing emits NO action and changes NO client capability or handshake;
 //  5. Part B: the inventory found no capability for Studio to confirm (see the PR body), so nothing is built: no app or component file, no card, no sender;
 //  6. the pins: the hook and types/mdc.ts without their marked lines are the base's, byte for byte (the strip is idempotent); the marked lines are pure insertions, the hook's one logic line inside the sync_response case,
-//     its import clear of #585's BILLING-F5-USAGE lines; the two older proofs taught put back to the base; read past the strips of changes registered after this one (laterStrips);
+//     its import clear of #585's BILLING-F5-USAGE lines; the four older proofs taught (two subject filters, two reducer reads through the registry) put back to the base; read past the strips of changes registered after this one (laterStrips);
 //  7. scope over the COMMITTED diff, GATE-SAFE (own commits by subject across `rev-list --no-merges BASE..head`, HEAD^2 on the gate's merge, no hash-object --stdin), standing down once merged (ON_OWN_LINE), ROBUST AFTER MERGE;
 //  8. mutants are caught.
 import assert from 'node:assert/strict'
@@ -30,7 +30,7 @@ import { createEnvironment } from './studio-chat-harness/fake-env.mjs'
 import { createModuleLoader } from './studio-chat-harness/module-loader.mjs'
 import { BASE_ENV } from './studio-chat-harness/profiles.mjs'
 import {
-  BASE_COMMIT, CHAT_CAPS_FILES, CHAT_CAPS_NEW_FILES, CHAT_CAPS_PIN_EDITS, CHAT_CAPS_PIN_FILES, CHAT_CAPS_PIN_MARK, CHAT_CAPS_PIN_AFTER, CHAT_CAPS_SCOPE_FILES,
+  BASE_COMMIT, CHAT_CAPS_FILES, CHAT_CAPS_NEW_FILES, CHAT_CAPS_PIN_EDITS, CHAT_CAPS_PIN_FILES, CHAT_CAPS_PIN_MARK, CHAT_CAPS_PIN_AFTER, CHAT_CAPS_FIRST_PARENT_PINS, CHAT_CAPS_SCOPE_FILES,
   CHAT_CAPS_ENV_BLOCK, CHAT_CAPS_MARKER_RE, CHAT_CAPS_SUBJECT, CHAT_CAPS_FLAG, stripChatCaps,
 } from './studio-chat-caps-strip.mjs'
 import * as registry from './studio-later-changes.mjs'
@@ -340,8 +340,12 @@ function provePins(readNow = read, at = '', later = laterStrips) {
     assert.equal(stripChatCaps(rel, now), base, a(`${rel}: an older proof taught: put back it is the base's, byte for byte`))
     assert.equal(stripChatCaps(rel, stripChatCaps(rel, now)), base, a(`${rel}: put back twice changes nothing more`))
     for (const [has, was] of CHAT_CAPS_PIN_EDITS[rel]) { assert.equal(now.split(has).length - 1, 1, a(`${rel}: a taught line is there exactly once`)); for (const line of has.split('\n').filter(Boolean)) assert.ok(line.includes(CHAT_CAPS_PIN_MARK), a(`${rel}: a taught line carries the registry-read mark`)); assert.ok(!was.includes(CHAT_CAPS_PIN_MARK)) }
-    const added = lineDiff(base, now).filter(l => l.startsWith('+')); assert.ok(added.length === 1 && added.every(l => l.includes(CHAT_CAPS_PIN_MARK)), a(`${rel}: one line added to the proof, with the mark`))
-    const lines = now.split('\n'), taught = lines.findIndex(l => l.includes(CHAT_CAPS_PIN_MARK)); assert.ok(lines[taught - 1].startsWith(CHAT_CAPS_PIN_AFTER), a(`${rel}: right after the phone shell coverage's subject filter`))
+    const diff = lineDiff(base, now), added = diff.filter(l => l.startsWith('+')), removed = diff.filter(l => l.startsWith('-'))
+    const has = CHAT_CAPS_PIN_EDITS[rel].flatMap(([h]) => h.split('\n').filter(Boolean)), was = CHAT_CAPS_PIN_EDITS[rel].flatMap(([, w]) => w.split('\n').filter(Boolean))
+    assert.deepEqual(added, has.map(l => `+${l}`), a(`${rel}: exactly the taught lines are added, each with the mark`)); assert.deepEqual(removed, was.map(l => `-${l}`), a(`${rel}: only the base lines they replace are gone`))
+    const lines = now.split('\n'), taught = lines.findIndex(l => l.includes(CHAT_CAPS_PIN_MARK))
+    if (CHAT_CAPS_FIRST_PARENT_PINS.includes(rel)) assert.ok(was.length === 0 && lines[taught - 1].startsWith(CHAT_CAPS_PIN_AFTER), a(`${rel}: an insertion right after the phone shell coverage's subject filter`))
+    else assert.ok(was.length === 1 && /^  const reducer = raw => \{ const text = (stripBulkEditUndo|stripLaterChanges)\(HOOK, raw\); return text\.slice\(/.test(lines[taught]) && now.includes(`import { ${/(stripBulkEditUndo|stripLaterChanges)/.exec(lines[taught])[1]} } from`), a(`${rel}: the reducer is read through the registry (a strip the proof already imports)`))
   }
   for (const rel of [LIB, ...CHAT_CAPS_NEW_FILES]) assert.doesNotMatch(readNow(rel), /(sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{12,}|eyJ[A-Za-z0-9_-]{20,}\.|-----BEGIN [A-Z ]*PRIVATE KEY)/, `${rel}: no secret-shaped literal`)
 }
@@ -532,6 +536,7 @@ await mutant('pins: the import put before the first import (#585\'s spot)', () =
   const lines = read(HOOK).split('\n'), at = lines.findIndex(l => CHAT_CAPS_MARKER_RE.test(l) && l.startsWith('import ')), [line] = lines.splice(at, 1); lines.unshift(line); return lines.join('\n')
 }))
 await mutant('pins: a taught proof keeps a second, unmarked line', () => provePins(rel => (rel === CHAT_CAPS_PIN_FILES[0] ? read(rel).replace(CHAT_CAPS_PIN_EDITS[rel][0][0], `${CHAT_CAPS_PIN_EDITS[rel][0][0]}  // stray\n`) : read(rel))))
+await mutant('pins: a reducer pin reads the hook raw again (its taught line lost its strip)', () => provePins(rel => (rel === 'scripts/test-studio-chat-theme-export.mjs' ? read(rel).replace('{ const text = stripLaterChanges(HOOK, raw); return', '{ const text = raw; return') : read(rel))))
 await mutant('pins: types/mdc.ts rewrites its base line instead of adding one', () => provePins(rel => (rel === MDC ? swap(read(MDC), '  chat_capabilities?: Record<string, boolean>\n    | Record<string, MdcChatCapabilityMeta>', '  chat_capabilities?: Record<string, boolean | MdcChatCapabilityMeta> // CHAT-CAPS-META: rewritten\n    | Record<string, MdcChatCapabilityMeta>') : read(rel))))
 
 console.log(`\n${passed} passed, ${failed.length} failed; mutants ${caught} caught, ${missed.length} missed`)

@@ -714,7 +714,7 @@ await check('identity: reducer / cache / history-restore / send / theme paths ha
   for (const name of UNCHANGED_HOOK) { assert.equal(sha(h[name]), sha(b[name]), name); identityHashes[`hook.${name}`] = sha(h[name]) }
   const hs = declarations(stripChatThemeExport(HOOK, head), STRIPPED_HOOK)
   for (const name of STRIPPED_HOOK) { assert.notEqual(sha(h[name]), sha(b[name]), `${name} carries the flag branch`); assert.equal(sha(hs[name]), sha(b[name]), name); identityHashes[`hook.${name}(stripped)`] = sha(hs[name]) }
-  const reducer = text => text.slice(text.indexOf('            // Turn gate: any reply-bearing frame unlocks the input.'), text.indexOf("            if ((message.type as string) === 'session_directive') {"))
+  const reducer = raw => { const text = stripLaterChanges(HOOK, raw); return text.slice(text.indexOf('            // Turn gate: any reply-bearing frame unlocks the input.'), text.indexOf("            if ((message.type as string) === 'session_directive') {")) } // LATER-CHANGES: registry read (CHAT-CAPS-META): a later change's marked line inside the sync_response case (chat caps, C-D1's reader) comes out first (the registry); a base text has none
   assert.ok(reducer(head).length > 2000); assert.equal(sha(reducer(head)), sha(reducer(base))); identityHashes['hook.reducer'] = sha(reducer(head))
   for (const rel of ['hooks/use-session-cache.ts', 'hooks/use-builder-session.ts', 'components/builder/message-list.tsx', 'lib/director-chat-history.ts', 'lib/theme-sync.ts',
     'lib/theme-builder.ts', 'lib/api/download-service.ts', 'components/presentation-download-controls.tsx', 'components/builder/presentation-area.tsx', 'components/theme-panel.tsx',
