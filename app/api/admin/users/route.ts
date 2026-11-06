@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
+import { isAdminEmail } from '@/lib/api-hardening-core';
 import { studioP2AdminOn, studioP2AdminPageWindow, studioP2AdminUsersQuery, studioP2AdminUsersWhere } from '@/lib/studio-p2-admin';
 
 export async function GET(request: NextRequest) {
@@ -17,7 +18,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Check if user is admin (must match DEV_BYPASS_EMAIL)
-    const isAdmin = !!session.user.email && session.user.email === process.env.DEV_BYPASS_EMAIL;
+    // STUDIO_API_HARDENING_V1_ENABLED: on, admin = ADMIN_EMAILS only (DEV_BYPASS_EMAIL no longer doubles as admin); off, unchanged.
+    const isAdmin = isAdminEmail(session.user.email);
 
     if (!isAdmin) {
       return NextResponse.json(

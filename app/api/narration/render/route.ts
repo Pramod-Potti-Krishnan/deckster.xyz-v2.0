@@ -44,6 +44,7 @@ import {
 import { debitWallet, InsufficientFundsError } from '@/lib/wallet';
 import { narrationCallContext } from '@/lib/narration/model-router';
 import { DEFAULT_CLOSING_LINE } from '@/lib/narration/spoken';
+import { requireApprovedUser } from '@/lib/api-hardening'
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -69,6 +70,9 @@ interface Job {
 }
 
 export async function POST(request: NextRequest) {
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): approved users only, read from the DB. Off, this returns null and nothing changes.
+  const notApproved = await requireApprovedUser()
+  if (notApproved) return notApproved
   try {
     const auth = await getServerSession(authOptions);
     if (!auth?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

@@ -3,9 +3,11 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth-options"
 import { prisma } from "@/lib/prisma"
 import { studioP2AdminOn, studioP2AdminParseExpiry } from "@/lib/studio-p2-admin"
+import { isAdminEmail } from "@/lib/api-hardening-core"
 
 function isAdmin(email: string | null | undefined): boolean {
-  return !!email && email === process.env.DEV_BYPASS_EMAIL
+  // STUDIO_API_HARDENING_V1_ENABLED: on, ADMIN_EMAILS only (comma list, any case; empty = nobody); off, DEV_BYPASS_EMAIL as before.
+  return isAdminEmail(email)
 }
 
 export async function PATCH(
