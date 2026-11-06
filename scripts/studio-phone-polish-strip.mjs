@@ -7,7 +7,7 @@
 // The older proofs this change teaches (PIN_EDITS, tests only, every line carries the registry-read mark): the two that read the first-parent line of BASE..HEAD for their own commits' subjects (one more inserted line each, for "Phone polish:", as the phone hints did).
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '1bb42d7f04cf9e0484f18fda1097d9e5fc2611e5' // restacked 6 Nov onto dev 1bb42d7f (#588, #567, #587, #583, #575 in); was 3e1ce88e (#564), the branch this change was made on
+export const BASE_COMMIT = 'c89d1495964823e4608460531f4f0f019fe67709' // the carrier stack's base (6 Nov): dev 1bb42d7f + #584/#585 733a187c; was 1bb42d7f, first made on 3e1ce88e (#564)
 export const PHONE_POLISH_FLAG = 'NEXT_PUBLIC_STUDIO_PHONE_POLISH'
 export const PHONE_POLISH_MARKER = 'PHONE-POLISH'
 /** The marker as a WHOLE token: PHONE-POLISH is this change's; PHONE-POLISH-X and X-PHONE-POLISH are not. */
