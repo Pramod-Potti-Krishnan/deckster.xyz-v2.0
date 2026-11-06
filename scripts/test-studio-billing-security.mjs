@@ -82,13 +82,27 @@ if (process.argv.includes('--mutation-check')) {
 
 // ---------------------------------------------------------------- 1. own commits
 {
-  const own = git('rev-list', '--no-merges', '--first-parent', 'HEAD', `^${BASE}`).split('\n').filter(Boolean) // LATER-CHANGES: registry read (BILLING-SECURITY, restack onto 1bb42d7f): own commits are this branch's first-parent line; a merged dev's commits arrive on a second parent
+  // LATER-CHANGES: registry read (BILLING-SECURITY, restack onto fb1e2aaf; robust after merge): own commits are read from the line that carries them
+  const subjectOf = sha => git('log', '-1', '--format=%s', sha).trim()
+  const isOwn = sha => sha.startsWith(P1_COMMIT) || subjectOf(sha).startsWith('Billing security: ')
+  const line = tip => git('rev-list', '--no-merges', '--first-parent', tip, `^${BASE}`).split('\n').filter(Boolean)
+  const has = rev => spawnSync('git', ['rev-parse', '--verify', '-q', `${rev}^{commit}`], { cwd: ROOT }).status === 0
+  const isAncestor = (a, b) => spawnSync('git', ['merge-base', '--is-ancestor', a, b], { cwd: ROOT }).status === 0
+  const headLine = line('HEAD')
+  const isMerge = has('HEAD^2')
+  let own = headLine, from = 'HEAD (this branch)'
+  if (!headLine.some(isOwn) && isMerge && !isAncestor(P1_COMMIT, 'HEAD^1')) { own = line('HEAD^2'); from = 'HEAD^2 (gate merge: the PR is the second parent)' }
+  const merged = !own.some(isOwn) && isAncestor(P1_COMMIT, 'HEAD') && (!isMerge || isAncestor(P1_COMMIT, 'HEAD^1'))
+  if (merged) console.log('NOTE own commits: this change is already in dev\'s first-parent history (merged, or the registry is past it); its commits are on a second parent, so the own-commit scope checks stand down; the registry checks below still run')
+  else {
+  console.log(`own commits read from ${from}`)
   ok(own.length >= 2, 'the branch carries PROGRAM-1\'s commit and this change\'s')
   for (const sha of own) {
     const subject = git('log', '-1', '--format=%s', sha).trim()
     ok(sha.startsWith(P1_COMMIT) || subject.startsWith('Billing security: '), `own commit ${sha.slice(0, 8)} is PROGRAM-1's or starts "Billing security:" (${subject})`)
     const files = git('show', '--name-only', '--format=', sha).split('\n').filter(Boolean)
     for (const f of files) ok(strip.BILLING_SECURITY_SCOPE_FILES.has(f), `${sha.slice(0, 8)} touches only this change's files (${f})`)
+  }
   }
   ok(registry.LATER_CHANGE_FILES.has(WEBHOOK) && registry.LATER_CHANGE_FILES.has('lib/billing/stripe-webhook.ts'), 'the registry names this change\'s files')
   ok(registry.LATER_ENV_BLOCKS.includes(strip.BILLING_SECURITY_ENV_BLOCK) && registry.LATER_STRIPS.includes(strip.stripBillingSecurity), 'the registry holds the block and the strip')
