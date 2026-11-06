@@ -135,8 +135,8 @@ export const UX_HONESTY_SCOPE_FILES = new Set([...Object.keys(UX_HONESTY_EDITS),
 export function stripUxHonesty(rel, text) {
   if (typeof text !== 'string') return text
   let out = text
-  for (const [now, was] of UX_HONESTY_EDITS[rel] || []) out = out.replace(now, () => was)
-  for (const [now, was] of UX_HONESTY_PIN_EDITS[rel] || []) out = out.replace(now, () => was) // UX-HONESTY: its own p2-docs rewrite put back too (restack onto 1bb42d7f)
+  for (const [now, was] of UX_HONESTY_EDITS[rel] || []) if (!(was.includes(now) && out.includes(was))) out = out.replace(now, () => was) // UX-HONESTY: idempotent (restack onto 1bb42d7f: p2-docs now reads through the registry AND stripLaunchWording, so this runs twice; a pair whose old text holds its new text is not put back twice)
+  for (const [now, was] of UX_HONESTY_PIN_EDITS[rel] || []) if (!(was.includes(now) && out.includes(was))) out = out.replace(now, () => was) // UX-HONESTY: its own p2-docs rewrite put back too (restack onto 1bb42d7f)
   if (PAGE_HEADINGS_FILES.includes(rel)) out = out.split('\n').filter(line => !PAGE_HEADINGS_MARKER_RE.test(line)).join('\n')
   return out
 }
