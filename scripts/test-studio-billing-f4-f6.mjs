@@ -22,6 +22,13 @@ for (const rel of [...m.BILLING_F4F6_FILES, ...Object.keys(m.BILLING_F4F6_EDITS)
 const env = readFileSync('.env.example', 'utf8')
 ok(env === `${git(`show ${m.BASE_COMMIT}:.env.example`)}\n${m.BILLING_F4F6_ENV_BLOCK}` || env.includes(m.BILLING_F4F6_ENV_BLOCK), 'A: env block present')
 
+// A (older proofs this change taught): the line it widened comes back as the base's, one line and nothing else, and putting it back twice changes nothing more
+for (const [rel, pairs] of Object.entries(m.BILLING_F4F6_PIN_EDITS)) {
+  const now = readFileSync(rel, 'utf8'), back = m.stripBillingF4F6(rel, now), nowLines = now.split('\n'), backLines = back.split('\n')
+  ok(pairs.every(([has, was]) => now.split(has).length === 2 && has.includes('LATER-CHANGES: registry read') && has !== was), `A: ${rel}: a taught line is there exactly once and carries the registry-read mark`)
+  ok(back === pairs.reduce((acc, [has, was]) => acc.replace(has, () => was), now) && backLines.length === nowLines.length && backLines.filter((line, i) => line !== nowLines[i]).length === pairs.length && m.stripBillingF4F6(rel, back) === back, `A: ${rel}: put back changes only the taught lines, and put back twice changes nothing more`)
+}
+
 // B
 for (const rel of Object.keys(m.BILLING_F4F6_EDITS)) ok(!/"\$(10|20|25|50|100)(\/month)?"/.test(readFileSync(rel, 'utf8')), `B: no price literal left in ${rel}`)
 const pricing = readFileSync('lib/marketing/homepage-v2-pricing.ts', 'utf8')
