@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { ArrowDownUp, AudioLines, CheckCircle2, AlertCircle, Info, RotateCcw } from "lucide-react"
-import { catalog, catalogRefreshed, DISABLED_ACTION_OPAQUE, draftStorageKey, inputsLabel, IntelligenceReadiness, IntelligenceScope, ManagedByDeckster, parseSavedDraft, priceLabel, provenanceText, releaseLabel, taskDetails } from "./intelligence-workspace"
+import { catalog, catalogRefreshed, DISABLED_ACTION_OPAQUE, draftStorageKey, inputsLabel, IntelligenceReadiness, IntelligenceScope, ManagedByDeckster, parseSavedDraft, provenanceText, releaseLabel, taskDetails } from "./intelligence-workspace"
 import {
   P2_DEFAULT_CHOICE, P2_ONE_LINE, P2_ONE_LINE_NO_STORAGE, P2_RESET_FEEDBACK, P2_RESET_LABEL, P2_TASKS, P2_VOICE_MODELS,
   isP2Choice, p2ChangedCount, p2ChoiceFeedback, p2ComparisonFor, p2DefaultChoices, p2FromLegacyDraft, p2OriginLine, p2Options, p2Parse, p2Resolve, p2Serialize, p2StorageKey, p2Status,
@@ -144,13 +144,12 @@ function ModelComparison({ task, choice, comparison, onCompare, onUse }: { task:
         <tr><th scope="row">Tool support</th><td>{chosen.tools ? "Yes" : "No"}</td><td>{alternative.tools ? "Yes" : "No"}</td></tr>
         {catalogRefreshed && <>
           <tr><th scope="row">Release status</th><td>{releaseLabel(chosen.releaseStage)}</td><td>{releaseLabel(alternative.releaseStage)}</td></tr>
-          <tr><th scope="row">Price per 1M tokens</th><td>{priceLabel(chosen)}</td><td>{priceLabel(alternative)}</td></tr>
           <tr><th scope="row">Structured output</th><td>{chosen.structuredOutput === undefined ? "Not listed" : chosen.structuredOutput ? "Yes" : "No"}</td><td>{alternative.structuredOutput === undefined ? "Not listed" : alternative.structuredOutput ? "Yes" : "No"}</td></tr>
           <tr><th scope="row">Input types</th><td>{inputsLabel(chosen.inputModalities)}</td><td>{inputsLabel(alternative.inputModalities)}</td></tr>
         </>}
       </tbody>
     </table>
-    <p className="sp-comparison-note">{catalogRefreshed ? "Snapshot specifications and public list prices only. Speed, quality, and live availability have not been verified." : "Snapshot specifications only. Speed, quality, pricing, and live availability have not been verified."}</p>
+    <p className="sp-comparison-note">{catalogRefreshed ? "Snapshot specifications only. Speed, quality, and live availability have not been verified." : "Snapshot specifications only. Speed, quality, pricing, and live availability have not been verified."}</p>
     <button type="button" className="sp-button sp-button-accent" style={same ? DISABLED_ACTION_OPAQUE : undefined} disabled={same} onClick={() => onUse(comparison)}>Use this model</button>
   </>
 }
