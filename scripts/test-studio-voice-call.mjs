@@ -324,9 +324,9 @@ function uiSuite(ui, over = {}) {
     const big = { size: { width: 1536, height: 1536 }, bbox: { x: 280, y: 250, width: 1056, height: 1162 } }
     eq(ui.framingRect(big, 'chest'), { sx: -32, sy: 96, sw: 1600, sh: 1120 }, 'framing: Garud\'s window scales with the pack\'s own size (no 768 assumed)')
     // the painter's head transform is uniform (one k), the same k as the body
-    ok(/ctx\.setTransform\(k, 0, 0, k,/.test(SOURCES[LAYERED]) && !/\bkx\b|\bky\b/.test(SOURCES[LAYERED]), 'no-stretch: the layered face uses the body\'s one scale k for its head anchor and patches')
-    ok(SOURCES[PLAYER].includes('containPlan(rect, loaded.manifest.size, canvas.width, canvas.height)') && ![SOURCES[PLAYER], SOURCES[LAYERED]].some(t => /drawImage\([^)]*, 0, 0, canvas\.width, canvas\.height\)/.test(t)), 'no-stretch: the player draws through containPlan, never over the whole canvas')
-    ok(!/object-fit:\s*(fill|cover)/.test(SOURCES[CSS]), 'no-stretch: no companion image is filled or covered')
+    ok(({ ...SOURCES, ...over })[LAYERED].includes('ctx.setTransform(k, 0, 0, k, ox, oy + plan.breathY * k)') && !/\bkx\b|\bky\b/.test(({ ...SOURCES, ...over })[LAYERED]), 'no-stretch: the layered face uses the body\'s one scale k for its head anchor and patches')
+    ok(({ ...SOURCES, ...over })[PLAYER].includes('containPlan(rect, loaded.manifest.size, canvas.width, canvas.height)') && ![({ ...SOURCES, ...over })[PLAYER], ({ ...SOURCES, ...over })[LAYERED]].some(t => /drawImage\([^)]*, 0, 0, canvas\.width, canvas\.height\)/.test(t)), 'no-stretch: the player draws through containPlan, never over the whole canvas')
+    ok(!/object-fit:\s*(fill|cover)/.test(({ ...SOURCES, ...over })[CSS]), 'no-stretch: no companion image is filled or covered')
   }
   // -- the call buttons' placement (NEXT_PUBLIC_STUDIO_VOICE_CALL_BUTTONS) ---------------------------------------------------------------------------
   eq([undefined, '', 'a', 'b', 'c', 'C', 'd', ' a'].map(ui.callButtonsVariantFrom), ['c', 'c', 'a', 'b', 'c', 'c', 'c', 'c'], 'buttons: a, b or c; the default and anything else is c')
@@ -1243,8 +1243,9 @@ async function stageSuiteBody(over = {}) {
   ok(b({ buttons: 'c', place: 'under' }).includes('>Call<') && b({ buttons: 'c', place: 'under' }).includes('>Video<') && b({ buttons: 'b', place: 'under' }).includes('studio-voice-pill') && !b({ buttons: 'c', place: 'under' }).includes('data-studio-v4-send'), 'buttons: b and c are pills with an icon and a short label; Send is not one of them')
   ok((b({ busy: true }).match(/disabled=""/g) ?? []).length === 2 && (b({ disabled: true }).match(/disabled=""/g) ?? []).length === 2 && !/disabled=""/.test(b({})), 'buttons: both off while the microphone is asked for')
   ok(!b({ studio: true }).includes('title=') && b({ studio: false }).includes('title="Start an audio call"') && b({ studio: false }).includes('title="Start a video call"'), 'buttons: a tooltip in the shell, a title elsewhere')
-  {
-    const rootNode = new Root(); rootNode.setElement(React.createElement(buttons.VoiceCallButtons, { active: false, busy: false, disabled: false, onStart: mode => starts.push(mode), studio: true, buttons: 'a', place: 'toolbar' })); await settleRoot(rootNode)
+  for (const [variant, place] of [['a', 'toolbar'], ['b', 'under'], ['c', 'under']]) {
+    ok((b({ buttons: variant, place, busy: true }).match(/disabled=""/g) ?? []).length === 2, `buttons: ${variant}: both off while the microphone is asked for`)
+    const rootNode = new Root(); rootNode.setElement(React.createElement(buttons.VoiceCallButtons, { active: false, busy: false, disabled: false, onStart: mode => starts.push(mode), studio: true, buttons: variant, place })); await settleRoot(rootNode)
     starts.length = 0; for (const node of hostNodes(rootNode.tree, n => n.type === 'button')) node.props.onClick()
     eq(starts, ['audio', 'video'], 'buttons: Audio starts an audio call, Video a video call')
     let kept = 0; for (const node of hostNodes(rootNode.tree, n => n.type === 'button')) node.props.onMouseDown({ preventDefault: () => { kept++ } })
