@@ -5,9 +5,15 @@
 
 /** Existing app files: [text now, text before] per edit (whole lines, with unchanged context lines at the start). */
 export const FLIP_ENABLERS_EDITS = {
+  "scripts/test-studio-model-choice.mjs": [
+    [
+      "    const after = routesOf(git('ls-files', '-co', '--exclude-standard', '--', 'app').split('\\n').filter(Boolean))\n    after.splice(0, after.length, ...after.filter(route => before.includes(route) || !['/api/director/sessions/[sourceSessionId]/library', '/api/downloads/access-token', '/api/presentations/[id]/viewer-ticket', '/api/researcher/upload/[step]'].includes(route))) // LATER-CHANGES: registry read (FLIP-ENABLERS): program1/studio-flip-enablers, registered after this change, adds four routes of its own (library, Downloads access token, viewer ticket, Researcher upload); past them the route set is this change's\n",
+      "    const after = routesOf(git('ls-files', '-co', '--exclude-standard', '--', 'app').split('\\n').filter(Boolean))\n"
+    ]
+  ],
   "components/presentation-viewer.tsx": [
     [
-      "} from '@/lib/studio-slide-count-sync'\nimport { useLayoutViewerTicketSrc } from '@/lib/studio-layout-viewer-ticket' // LAYOUT-TICKET (NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED, default off)\n",
+      "} from '@/lib/studio-slide-count-sync'\nimport { useLayoutViewerTicketSrc } from '@/lib/studio-layout-viewer-ticket-client' // LAYOUT-TICKET (NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED, default off)\n",
       "} from '@/lib/studio-slide-count-sync'\n"
     ],
     [
@@ -182,6 +188,7 @@ export const FLIP_ENABLERS_NEW_FILES = [
   'app/api/downloads/access-token/route.ts',
   'lib/researcher-upload-proxy.ts',
   'lib/studio-layout-viewer-ticket.ts',
+  'lib/studio-layout-viewer-ticket-client.ts',
   'lib/downloads-access-token.ts',
   'lib/downloads-auth-client.ts',
   'scripts/studio-flip-enablers-strip.mjs',

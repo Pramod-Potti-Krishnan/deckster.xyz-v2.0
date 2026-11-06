@@ -168,7 +168,7 @@ import {
   syncedFooterTotal,
   visualTotalAfterCommit,
 } from '@/lib/studio-slide-count-sync'
-import { useLayoutViewerTicketSrc } from '@/lib/studio-layout-viewer-ticket' // LAYOUT-TICKET (NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED, default off)
+import { useLayoutViewerTicketSrc } from '@/lib/studio-layout-viewer-ticket-client' // LAYOUT-TICKET (NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED, default off)
 import { STUDIO_DECK_SYNC_TRUTH_ENABLED, syncTruthSettledTotals } from '@/lib/studio-deck-sync-truth' // DECK-SYNC-TRUTH (NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH, default off): after a poll the totals are the viewer's own count, not a floor restored too high
 
 const DEFAULT_BUILD_THEME_SELECTION: BuildThemeSelection = { mode: 'auto' }

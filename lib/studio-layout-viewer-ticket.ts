@@ -7,14 +7,15 @@
  * (service token server-side), loads the base URL with ?t=<ticket>, and before expiry mints a fresh one and posts
  * {type:"deckster:viewer-ticket", ticket} to the viewer window (targetOrigin = the viewer's origin). The iframe src never
  * changes for a renewal, so the deck is not reloaded.
+ *
+ * Server-safe: no React here (a server route imports isStudioLayoutTicketEnabled). The hook is in
+ * lib/studio-layout-viewer-ticket-client.ts ('use client').
  */
-import { useEffect, useState } from 'react'
-
 export const VIEWER_TICKET_MESSAGE_TYPE = 'deckster:viewer-ticket'
 /** Renew at this fraction of the ticket lifetime. */
 export const VIEWER_TICKET_RENEW_FRACTION = 0.75
+export const VIEWER_TICKET_RETRY_MS = 15_000
 const MIN_RENEW_MS = 15_000
-const RETRY_MS = 15_000
 
 export function isStudioLayoutTicketEnabled(): boolean {
   return process.env.NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED === 'true'
@@ -67,42 +68,4 @@ export function postViewerTicket(frame: HTMLIFrameElement | null, ticket: string
   if (!target) return false
   target.postMessage({ type: VIEWER_TICKET_MESSAGE_TYPE, ticket }, new URL(viewerUrl).origin)
   return true
-}
-
-/**
- * The iframe src to use. Flag off: `baseUrl` itself. On: null until the first ticket, then the ticketed URL (stable for
- * this baseUrl/presentation; renewals go by postMessage).
- */
-export function useLayoutViewerTicketSrc(
-  baseUrl: string | null,
-  presentationId: string | null | undefined,
-): string | null {
-  const enabled = isStudioLayoutTicketEnabled()
-  const [src, setSrc] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!enabled || !baseUrl || !presentationId) { setSrc(null); return }
-    let cancelled = false
-    let timer: ReturnType<typeof setTimeout> | null = null
-    let first = true
-    let loadedSrc: string | null = null
-    setSrc(null)
-    const run = async () => {
-      const minted = await fetchViewerTicket(presentationId)
-      if (cancelled) return
-      if (!minted) { timer = setTimeout(run, RETRY_MS); return }
-      if (first) {
-        first = false
-        loadedSrc = withViewerTicket(baseUrl, minted.ticket)
-        setSrc(loadedSrc)
-      } else {
-        postViewerTicket(findViewerFrame(loadedSrc), minted.ticket, baseUrl)
-      }
-      timer = setTimeout(run, renewDelayMs(minted.expiresIn))
-    }
-    void run()
-    return () => { cancelled = true; if (timer) clearTimeout(timer) }
-  }, [enabled, baseUrl, presentationId])
-
-  return enabled ? src : baseUrl
 }
