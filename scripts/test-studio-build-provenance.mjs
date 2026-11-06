@@ -6,6 +6,8 @@ import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 import { execFileSync, spawnSync } from 'node:child_process';
 import assert from 'node:assert/strict';
+import { LATER_CHANGE_FILES } from './studio-later-changes.mjs'; // taught (FRONTEND-1, pre-promo C-07 deletion): through the later-changes registry
+import { PREPROMO_BASE, PREPROMO_DELETED } from './studio-prepromo-strip.mjs';
 
 const root = process.cwd();
 const out = path.join(root, 'docs/studio-v4/overnight-fidelity-20261002/evidence/build-compatibility-provenance');
@@ -208,13 +210,17 @@ save('application-import-edges.json', importEdges);
 save('candidate-delete-unused-context.patch', `diff --git a/${contextPath} b/${contextPath}\ndeleted file mode 100644\n--- a/${contextPath}\n+++ /dev/null\n@@ -1,${context.split('\n').length - 1} +0,0 @@\n${context.split('\n').slice(0, -1).map(l => '-' + l).join('\n')}\n`);
 
 const mockPath = 'app/api/dev/mock-token/route.ts';
-const mockOriginal = diagnostics([mockPath]);
+// taught (FRONTEND-1, pre-promo C-07 deletion): a registered later change deletes the route, so its base text is read from git and compiled as a virtual file; every assertion below is unchanged
+const mockDeletedLater = PREPROMO_DELETED.includes(mockPath) && LATER_CHANGE_FILES.has(mockPath) && !fs.existsSync(path.resolve(root, mockPath));
+const mockText = mockDeletedLater ? execFileSync('git', ['show', `${PREPROMO_BASE}:${mockPath}`], { cwd: root, encoding: 'utf8' }) : read(mockPath);
+const mockVirtual = mockDeletedLater ? { [mockPath]: mockText } : {};
+const mockOriginal = diagnostics([mockPath], mockVirtual);
 const joseVersions = ['4.15.9', '6.1.2'];
 const mockCandidates = {};
 for (const version of joseVersions) {
   const dir = path.join(root, `node_modules/.pnpm/jose@${version}/node_modules/jose`);
   const manifest = JSON.parse(read(path.join(dir, 'package.json')));
-  const mapped = diagnostics([mockPath], {}, { paths: { ...options.paths, jose: [path.join(dir, manifest.types)] } });
+  const mapped = diagnostics([mockPath], mockVirtual, { paths: { ...options.paths, jose: [path.join(dir, manifest.types)] } });
   assert.equal(mapped.length, 0, `actual route typechecks with ${version} declarations`);
   mockCandidates[version] = { manifestHash: sha(read(path.join(dir, 'package.json'))), type: manifest.type ?? 'commonjs', exports: manifest.exports['.'], isolatedDiagnostics: mapped };
 }
@@ -224,7 +230,7 @@ try { rootJose = { resolvable: true, path: require.resolve('jose') }; } catch (e
 assert.equal(rootJose.resolvable, false);
 save('jose-provenance.json', {
   directDependency: pkg.dependencies.jose ?? null, directDevDependency: pkg.devDependencies.jose ?? null,
-  rootJose, routeSourceHash: sha(read(mockPath)), originalDiagnostics: mockOriginal, candidates: mockCandidates,
+  rootJose, routeSourceHash: sha(mockText), originalDiagnostics: mockOriginal, candidates: mockCandidates,
   existingLockConsumers: { 'next-auth@4.24.13': '4.15.9', 'openid-client@5.7.1': '4.15.9', '@auth/core@0.41.1': '6.1.2' },
   routeReferences: sourceFiles.filter(f => f !== mockPath && /mock-token/.test(read(f))),
   emittedSourceChange: false, witnessLimit: 'Declaration-resolution proof only; no route call, JWT construction, signing or cryptographic behavior proof.',

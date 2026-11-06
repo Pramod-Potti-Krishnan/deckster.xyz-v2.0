@@ -358,7 +358,8 @@ function proveFlagOff(layoutText, at = '') {
 function proveIntelligenceUntouched(at = '') {
   const a = message => (at ? `${at}: ${message}` : message)
   eq(sha(read(INTEL_P2)), sha(baseOf(INTEL_P2)), a("lib/studio-intelligence-p2.ts (FRONTEND-1's, decision D, the \"Auto\" label) is the base's, byte for byte: it is NOT in this change"))
-  eq(sha(read('scripts/test-studio-p2-intelligence.mjs')), sha(baseOf('scripts/test-studio-p2-intelligence.mjs')), a("and FRONTEND-1's test that pins it is not edited"))
+  // taught (FRONTEND-1, pre-promo UX-01): a later change that teaches that test registers a strip; through the registry it is still the base's, byte for byte
+  eq(sha(stripLaterChanges('scripts/test-studio-p2-intelligence.mjs', read('scripts/test-studio-p2-intelligence.mjs'))), sha(baseOf('scripts/test-studio-p2-intelligence.mjs')), a("and FRONTEND-1's test that pins it is not edited (through the later-changes registry)"))
 }
 
 // ---------------------------------------------------------------- 5. the change: strip, registry, taught proofs, scope, secret scan

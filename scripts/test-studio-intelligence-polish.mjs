@@ -5,6 +5,7 @@ import path from 'node:path'
 import vm from 'node:vm'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
+import { stripLaterChanges } from './studio-later-changes.mjs' // taught (FRONTEND-1, pre-promo UX-01): a later change's lines come out first, through the later-changes registry
 
 // NEXT_PUBLIC_STUDIO_INTELLIGENCE_POLISH (default off), independent of NEXT_PUBLIC_STUDIO_MODEL_CATALOG_2026_10. Offline: no DOM, auth, socket or service.
 //   1. flag OFF (with the catalog flag off AND on): the Intelligence workspace renders to the exact bytes of its base (SHA-256 of react-dom/server
@@ -36,7 +37,7 @@ const BASE_RENDER_SHA256 = {
 }
 
 // ---- harness: the component source, compiled; its imports mocked --------------------------------------------------------------------
-const source = fs.readFileSync(path.join(workspaceDir, 'intelligence-workspace.tsx'), 'utf8')
+const source = stripLaterChanges('components/studio-personal/intelligence-workspace.tsx', fs.readFileSync(path.join(workspaceDir, 'intelligence-workspace.tsx'), 'utf8'))
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX }, reportDiagnostics: true })
 assert.equal(compiled.diagnostics.length, 0)
 

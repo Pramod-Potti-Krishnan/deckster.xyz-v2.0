@@ -27,6 +27,7 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { stripP2Polish } from './studio-p2-polish-strip.mjs'
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
+import { stripLaterChanges } from './studio-later-changes.mjs' // taught (FRONTEND-1, pre-promo UX-01): a later change's lines come out first, through the later-changes registry
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const require = createRequire(path.join(repoRoot, 'package.json'))
@@ -39,7 +40,7 @@ const reactJsxRuntime = require('react/jsx-runtime')
 const BASE_COMMIT = process.env.P2_INTEL_BASE || 'fbc77c0430099ec7e11a188307ee5521b6937719'
 // the Pass 2 polish change (scripts/test-studio-p2-polish.mjs) is put back out first: this test holds the files as this page's change left them
 const { stripIntelligenceSimple } = await import('./studio-intelligence-simple-strip.mjs') // LATER-CHANGES: registry read (INTELLIGENCE-SIMPLE): the Intelligence page's two marked imports and one marked return (a later change, stacked) are taken out of what this proof reads
-const read = rel => stripP2Polish(rel, stripLaunchWording(rel, stripIntelligenceSimple(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))) // LATER-CHANGES: registry read (INTELLIGENCE-SIMPLE)
+const read = rel => stripP2Polish(rel, stripLaunchWording(rel, stripLaterChanges(rel, stripIntelligenceSimple(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))))) // LATER-CHANGES: registry read (INTELLIGENCE-SIMPLE)
 const baseSource = rel => {
   try { return execFileSync('git', ['show', `${BASE_COMMIT}:${rel}`], { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }) }
   catch (error) { throw new Error(`base commit ${BASE_COMMIT} is not in this clone (fetch the full history): ${error.message}`) }

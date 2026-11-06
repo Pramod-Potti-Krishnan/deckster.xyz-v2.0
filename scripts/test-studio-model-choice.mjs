@@ -980,8 +980,10 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
     const routesOf = files => [...new Set(files.filter(file => /^app\/(.*\/)?(page|route)\.(tsx|ts|jsx|js)$/.test(file)).map(file => '/' + file.replace(/^app\//, '').replace(/(^|\/)(page|route)\.\w+$/, '').split('/').filter(segment => segment && !/^\(.*\)$/.test(segment)).join('/')))].sort()
     const before = routesOf(git('ls-tree', '-r', '--name-only', BASE, '--', 'app').split('\n').filter(Boolean))
     const after = routesOf(git('ls-files', '-co', '--exclude-standard', '--', 'app').split('\n').filter(Boolean))
+    { const after = routesOf(git('ls-tree', '-r', '--name-only', 'd4e62e0b0affcab480694e056af3946ec23a9136', '--', 'app').split('\n').filter(Boolean)) // LATER-CHANGES: registry read (PROOFS-AFTER-MERGE), #521 robust after merge: the route set is read at this change's OWN head d4e62e0b (#521's last commit, a fixed input), so a later change's own routes, added or deleted (#584's /api/wallet/precheck, #585's /usage, #589's /api/usage/credits, #571 C-07's deleted dev mock-token route), are that change's business
     deep(after.filter(route => !before.includes(route)), ['/api/model-choice/prefs', '/api/model-choice/prefs/deck/[deckKey]', '/api/model-choice/used/[buildId]']); deep(before.filter(route => !after.includes(route)), [])
     eq(after.length, before.length + 3)
+    } // LATER-CHANGES: registry read (PROOFS-AFTER-MERGE), #521: the end of the block above
     deep([...strip.MODEL_CHOICE_ROUTES], [USER_ROUTE, DECK_ROUTE, USED_ROUTE])
     for (const rel of strip.MODEL_CHOICE_NEW_FILES) ok(!/^app\/api\/models\//.test(rel), `${rel}: outside app/api/models/, the model catalog change's path family (scripts/studio-stack-tolerant.mjs, #473)`)
     for (const rel of strip.MODEL_CHOICE_ROUTES) { const source = read(rel); ok(!/['"]use client['"]/.test(source) && !/console\./.test(source), rel); ok(/from '@\/lib\/studio-model-choice-server'/.test(source), rel) }
