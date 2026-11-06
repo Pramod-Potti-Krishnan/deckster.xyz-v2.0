@@ -82,6 +82,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-model-picker-simple-strip.mjs')).MODEL_PICKER_SIMPLE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, F-14 simplified model picker: the composer's slider picker as a calmer popover or phone sheet, the preset's name, the router's writing model, a reset icon (NEXT_PUBLIC_STUDIO_MODEL_PICKER_SIMPLE)
   ...(await import('./studio-billing-security-strip.mjs')).BILLING_SECURITY_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1 for PROGRAM-1, billing security B4-B9: webhook claim in one transaction, price-mapped tier, coupon claim (STUDIO_BILLING_COUPON_TIER_HARDENING)
   ...(await import('./studio-api-hardening-strip.mjs')).API_HARDENING_SCOPE_FILES, // LATER-CHANGE: PROGRAM-1, Studio API hardening v1: approved-user gate, session owners, body allow-lists, unlock lockout, spoken-answer cache, admin = ADMIN_EMAILS (users, coupons, cleanup-sessions, /admin); activate id fix (STUDIO_API_HARDENING_V1_ENABLED / ADMIN_EMAILS)
+  ...(await import('./studio-redeem-v4-strip.mjs')).REDEEM_V4_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B60 redeem v4: /redeem in the Studio v4 frame, same words and request (NEXT_PUBLIC_STUDIO_REDEEM_V4)
   // one line per later change, above this comment
 ])
 
@@ -132,6 +133,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-model-picker-simple-strip.mjs')).MODEL_PICKER_SIMPLE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-14 simplified model picker (NEXT_PUBLIC_STUDIO_MODEL_PICKER_SIMPLE)
   (await import('./studio-billing-security-strip.mjs')).BILLING_SECURITY_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1 for PROGRAM-1, billing security B4-B9: webhook claim in one transaction, price-mapped tier, coupon claim (STUDIO_BILLING_COUPON_TIER_HARDENING)
   (await import('./studio-api-hardening-strip.mjs')).API_HARDENING_ENV_BLOCK, // LATER-CHANGE: PROGRAM-1, Studio API hardening v1 (STUDIO_API_HARDENING_V1_ENABLED / ADMIN_EMAILS)
+  (await import('./studio-redeem-v4-strip.mjs')).REDEEM_V4_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B60 redeem v4 (NEXT_PUBLIC_STUDIO_REDEEM_V4)
   // one line per later change, above this comment
 ]
 
@@ -195,6 +197,7 @@ export const LATER_STRIPS = [
   (await import('./studio-model-picker-simple-strip.mjs')).stripModelPickerSimple, // LATER-CHANGE: FRONTEND-1, F-14 simplified model picker (NEXT_PUBLIC_STUDIO_MODEL_PICKER_SIMPLE)
   (await import('./studio-billing-security-strip.mjs')).stripBillingSecurity, // LATER-CHANGE: FRONTEND-1 for PROGRAM-1, billing security B4-B9: webhook claim in one transaction, price-mapped tier, coupon claim (STUDIO_BILLING_COUPON_TIER_HARDENING)
   (await import('./studio-api-hardening-strip.mjs')).stripApiHardening, // LATER-CHANGE: PROGRAM-1, Studio API hardening v1 (STUDIO_API_HARDENING_V1_ENABLED / ADMIN_EMAILS)
+  (await import('./studio-redeem-v4-strip.mjs')).stripRedeemV4, // LATER-CHANGE: FRONTEND-2, B60 redeem v4 (NEXT_PUBLIC_STUDIO_REDEEM_V4)
   // one line per later change, above this comment
 ]
 

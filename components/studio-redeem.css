@@ -1,0 +1,87 @@
+/* REDEEM-V4 (NEXT_PUBLIC_STUDIO_REDEEM_V4). /redeem in the Studio v4 frame: the Studio shell's tokens (components/layout/studio-shell.css: --ss-*, light then dark), the 18px card of the 404 and the onboarding card, the shell's brand tile and its ink primary button.
+   This page is outside the builder, where the shell's stylesheet is not loaded, so every token reads the shell's variable first and carries the shell's own value as its fallback (the way the 404 does). Every colour literal below is in the two token blocks; every rule after them reads a token.
+   Every rule is scoped to the page's own marker. */
+[data-studio-redeem="true"] {
+  --sr-frame: var(--ss-frame, #e8f0ed); --sr-panel: var(--ss-panel, #ffffff); --sr-line: var(--ss-line, #dde5e2); --sr-text: var(--ss-text, #243438); --sr-muted: var(--ss-muted, #566965);
+  --sr-accent: var(--ss-accent, #6a4fc0); --sr-field: var(--ss-field, #f5f7f6); --sr-soft: var(--ss-soft, #edf2f0); --sr-active: var(--ss-active, #e8f2f0); --sr-teal: var(--ss-teal, #1f6f72);
+  --sr-action: var(--ss-action, #223a3f); --sr-action-hover: var(--ss-action-hover, color-mix(in srgb, #223a3f 86%, #000)); --sr-on-action: var(--ss-on-action, #ffffff);
+  --sr-brand: #6a4fc0; --sr-on-brand: #ffffff; --sr-brand-shadow: 0 3px 10px rgb(106 79 192 / 18%); --sr-shadow: 0 14px 44px rgb(36 52 56 / 7%); --sr-danger: #b03f35;
+  box-sizing: border-box; display: flex; flex-direction: column; width: 100%; min-height: 100dvh;
+  background: var(--sr-frame); color: var(--sr-text); color-scheme: light; font-size: 13px; line-height: 1.5;
+}
+.dark [data-studio-redeem="true"] {
+  --sr-frame: var(--ss-frame, #1a2624); --sr-panel: var(--ss-panel, #1b2426); --sr-line: var(--ss-line, #334245); --sr-text: var(--ss-text, #e2ebe8); --sr-muted: var(--ss-muted, #a0b1ad);
+  --sr-accent: var(--ss-accent, #b4a0f2); --sr-field: var(--ss-field, #222d30); --sr-soft: var(--ss-soft, #243034); --sr-active: var(--ss-active, #1d3634); --sr-teal: var(--ss-teal, #83c4bd);
+  --sr-action: var(--ss-action, #3d5c63); --sr-action-hover: var(--ss-action-hover, color-mix(in srgb, #3d5c63 86%, #000)); --sr-on-action: var(--ss-on-action, #ffffff);
+  --sr-danger: #ef9a8f; color-scheme: dark;
+}
+[data-studio-redeem="true"] *, [data-studio-redeem="true"] *::before, [data-studio-redeem="true"] *::after { box-sizing: border-box; }
+[data-studio-redeem="true"] :is(h1, p) { margin: 0; }
+
+/* top bar: the brand tile and "Deckster" */
+[data-studio-redeem="true"] .sr-bar { flex: none; display: flex; align-items: center; padding: 14px 20px; }
+[data-studio-redeem="true"] .sr-brand { display: inline-flex; align-items: center; gap: 10px; border-radius: 9px; color: var(--sr-text); text-decoration: none; }
+[data-studio-redeem="true"] .sr-brand-tile { display: grid; flex: none; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: var(--sr-brand); color: var(--sr-on-brand); box-shadow: var(--sr-brand-shadow); }
+[data-studio-redeem="true"] .sr-brand-tile svg { width: 20px; height: 20px; }
+[data-studio-redeem="true"] .sr-brand-name { font-size: 17px; font-weight: 600; line-height: 1.2; letter-spacing: -.02em; }
+[data-studio-redeem="true"] .sr-brand:focus-visible { outline: 2px solid var(--sr-accent); outline-offset: 3px; }
+
+/* the card */
+[data-studio-redeem="true"] .sr-main { flex: 1; display: flex; align-items: center; justify-content: center; min-width: 0; padding: 16px 16px 48px; }
+[data-studio-redeem="true"] .sr-card { width: min(440px, 100%); min-width: 0; overflow: hidden; border: 1px solid var(--sr-line); border-radius: 18px; background: var(--sr-panel); box-shadow: var(--sr-shadow); }
+[data-studio-redeem="true"] .sr-head { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 32px 32px 22px; text-align: center; }
+[data-studio-redeem="true"] .sr-badge { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; background: var(--sr-active); color: var(--sr-teal); }
+[data-studio-redeem="true"] .sr-badge svg { width: 24px; height: 24px; }
+[data-studio-redeem="true"] .sr-title { font-size: 24px; font-weight: 600; line-height: 1.25; letter-spacing: -.025em; color: var(--sr-text); text-wrap: balance; }
+[data-studio-redeem="true"] .sr-desc { margin-top: 8px; font-size: 13px; line-height: 1.65; color: var(--sr-muted); }
+[data-studio-redeem="true"] .sr-body { padding: 0 32px 26px; }
+
+/* the coupon form */
+[data-studio-redeem="true"] .sr-form { display: grid; gap: 14px; }
+[data-studio-redeem="true"] .sr-field { min-width: 0; }
+[data-studio-redeem="true"] .sr-input { display: block; width: 100%; height: 48px; padding: 0 14px; border: 1px solid var(--sr-line); border-radius: 10px; background: var(--sr-field); color: var(--sr-text); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 18px; font-weight: 500; letter-spacing: .12em; text-align: center; text-transform: uppercase; }
+[data-studio-redeem="true"] .sr-input::placeholder { color: var(--sr-muted); font-size: 15px; letter-spacing: .02em; text-transform: none; opacity: .8; }
+[data-studio-redeem="true"] .sr-input:focus-visible { outline: 2px solid var(--sr-accent); outline-offset: 1px; border-color: var(--sr-accent); }
+[data-studio-redeem="true"] .sr-input:disabled { opacity: .6; cursor: not-allowed; }
+[data-studio-redeem="true"] .sr-error { margin-top: 10px; font-size: 13px; line-height: 1.5; text-align: center; color: var(--sr-danger); }
+[data-studio-redeem="true"] .sr-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 44px; padding: 0 20px; border: 1px solid var(--sr-action); border-radius: 10px; background: var(--sr-action); color: var(--sr-on-action); font-family: inherit; font-size: 14px; font-weight: 500; line-height: 1; cursor: pointer; }
+[data-studio-redeem="true"] .sr-primary:hover:not(:disabled) { background: var(--sr-action-hover); border-color: var(--sr-action-hover); }
+[data-studio-redeem="true"] .sr-primary:disabled { opacity: .45; cursor: not-allowed; }
+[data-studio-redeem="true"] .sr-primary:focus-visible { outline: 2px solid var(--sr-accent); outline-offset: 2px; }
+[data-studio-redeem="true"] .sr-primary svg { width: 16px; height: 16px; }
+[data-studio-redeem="true"] .sr-spin { animation: sr-spin 1s linear infinite; }
+
+/* success */
+[data-studio-redeem="true"] .sr-success { display: grid; gap: 6px; padding: 16px; border: 1px solid color-mix(in srgb, var(--sr-teal) 45%, var(--sr-line)); border-radius: 12px; background: var(--sr-active); text-align: center; }
+[data-studio-redeem="true"] .sr-success p { font-size: 13px; line-height: 1.6; color: var(--sr-muted); }
+[data-studio-redeem="true"] .sr-success .sr-success-title { font-size: 15px; font-weight: 600; color: var(--sr-text); }
+[data-studio-redeem="true"] .sr-success .sr-success-note { font-size: 12px; }
+[data-studio-redeem="true"] .sr-success strong { font-weight: 600; color: var(--sr-text); }
+
+/* signed in as ... / sign out */
+[data-studio-redeem="true"] .sr-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; padding: 12px 32px 14px; border-top: 1px solid var(--sr-line); font-size: 12px; color: var(--sr-muted); }
+[data-studio-redeem="true"] .sr-foot > span { min-width: 0; overflow-wrap: anywhere; }
+[data-studio-redeem="true"] .sr-signout { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; margin-right: -10px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--sr-muted); font-family: inherit; font-size: 12px; cursor: pointer; }
+[data-studio-redeem="true"] .sr-signout:hover { background: var(--sr-soft); color: var(--sr-text); }
+[data-studio-redeem="true"] .sr-signout:focus-visible { outline: 2px solid var(--sr-accent); outline-offset: 2px; }
+[data-studio-redeem="true"] .sr-signout svg { width: 13px; height: 13px; }
+
+/* loading: the page's spinner on the frame */
+[data-studio-redeem="true"] .sr-loading { flex: 1; display: grid; place-items: center; }
+[data-studio-redeem="true"] .sr-spinner { width: 32px; height: 32px; border: 3px solid var(--sr-line); border-top-color: var(--sr-accent); border-radius: 50%; animation: sr-spin 1s linear infinite; }
+@keyframes sr-spin { to { transform: rotate(360deg); } }
+
+/* a phone (375 wide and narrower): the card fills the width, no sideways scroll */
+@media (max-width: 520px) {
+  [data-studio-redeem="true"] .sr-bar { padding: 12px 16px; }
+  [data-studio-redeem="true"] .sr-main { padding: 8px 12px 32px; }
+  [data-studio-redeem="true"] .sr-card { border-radius: 14px; }
+  [data-studio-redeem="true"] .sr-head { gap: 14px; padding: 24px 20px 18px; }
+  [data-studio-redeem="true"] .sr-title { font-size: 22px; }
+  [data-studio-redeem="true"] .sr-body { padding: 0 20px 22px; }
+  [data-studio-redeem="true"] .sr-primary { height: 46px; }
+  [data-studio-redeem="true"] .sr-foot { padding: 10px 20px 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-studio-redeem="true"] .sr-spin, [data-studio-redeem="true"] .sr-spinner { animation-duration: 2.4s; }
+}
