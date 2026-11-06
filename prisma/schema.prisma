@@ -670,3 +670,18 @@ model StripeWebhookEvent {
   @@map("fe_stripe_webhook_events")
 }
 // BILLING-SECURITY end schema-model
+
+/// Studio API hardening v1 (STUDIO_API_HARDENING_V1_ENABLED): shared attempt counters for public endpoints
+/// (publish unlock failures, spoken-answer renders). One row per counted event; `subject` is an HMAC of the IP.
+/// Read only while the flag is on; apply prisma/sql/20261104_api_rate_events.sql before turning it on.
+model ApiRateEvent {
+  id        String   @id @default(cuid())
+  bucket    String
+  scope     String
+  subject   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([bucket, scope, createdAt])
+  @@index([bucket, subject, createdAt])
+  @@map("fe_api_rate_events")
+}

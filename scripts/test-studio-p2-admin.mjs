@@ -30,6 +30,7 @@ import { execFileSync } from 'node:child_process'
 import ts from 'typescript'
 import postcss from 'postcss'
 import { stripLaterChanges } from './studio-later-changes.mjs' // FRONTEND-2's registry: a later registered change's lines (D1 in the cleanup-sessions route) come out before the byte pin
+import { stripApiHardening } from './studio-api-hardening-strip.mjs' // LATER-CHANGE: PROGRAM-1 API hardening (STUDIO_API_HARDENING_V1_ENABLED): its route lines come out before this pin reads them
 
 // the time zone of the admin's browser in every date check below (the machine's own would make the expiry and the "Expires" words depend on where this runs)
 process.env.TZ = 'America/New_York'
@@ -37,7 +38,7 @@ const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const requireFromRepo = createRequire(path.join(repoRoot, 'package.json'))
 const { format: dateFnsFormat } = requireFromRepo('date-fns')
 const BASE_COMMIT = process.env.P2_ADMIN_BASE || 'fae962006b080e26eb70c2add7066ca1edf8eca2'
-const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
+const read = rel => stripApiHardening(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))
 const baseCache = new Map()
 const baseSource = rel => {
   if (!baseCache.has(rel)) {
