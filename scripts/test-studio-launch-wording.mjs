@@ -24,7 +24,6 @@ import ts from 'typescript'
 import { BASE_COMMIT, LAUNCH_FILES, LAUNCH_NEW_FILES, LAUNCH_PAIRS, stripLaunchWording } from './studio-launch-wording-strip.mjs'
 import { sameOrTolerant, stackScope } from './studio-stack-tolerant.mjs'
 import { sameAsBase } from './studio-env-append-tolerant.mjs'
-import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (BILLING-F4F6)
 import { stripJobDeadlines } from './studio-job-deadlines-strip.mjs' // P3-4b (NEXT_PUBLIC_STUDIO_JOB_DEADLINES) is in the base and edits components/narration-voice-picker.tsx too: its lines come out first
 import { stripLaterChanges } from './studio-later-changes.mjs' // taught (FRONTEND-1, pre-promo UX-01): a later change's lines come out first, through the later-changes registry
 
