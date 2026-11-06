@@ -467,7 +467,8 @@ await scopeCheck('mutant caught: a stray file in a "Chat caps:" commit, an own c
   const noTrailer = commitWith(HEAD, {}, `${CHAT_CAPS_SUBJECT} no trailer`)
   assert.throws(() => scopeOwnCommits(noTrailer), error => /^[0-9a-f]{8}$/.test(error.message), 'the commit without the trailer is named')
   for (const rel of CHAT_CAPS_FILES) {
-    const sneaky = commitWith(HEAD, { [rel]: git('show', `${HEAD}:${rel}`).replace(/^(import [^\n]*\n)/m, '$1const sneaky = 1\n') }, `${CHAT_CAPS_SUBJECT} a sneaky line${TRAILER}`)
+    const sneaky = commitWith(HEAD, { [rel]: git('show', `${HEAD}:${rel}`).replace(/^([^\n]*\n)/, '$1const sneaky = 1\n') }, `${CHAT_CAPS_SUBJECT} a sneaky line${TRAILER}`)
+    assert.notEqual(git('show', `${sneaky}:${rel}`), git('show', `${HEAD}:${rel}`), `positive control: the sneaky line is in ${rel}`)
     assert.throws(() => scopeCommittedFiles(sneaky), /added lines|exactly its scope/, rel)
   }
   for (const rel of ['app/builder/page.tsx', 'components/builder/message-list.tsx']) {
