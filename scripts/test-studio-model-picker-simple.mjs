@@ -474,7 +474,7 @@ const subjectOf = c => git('log', '-1', '--format=%s', c).trim()
 const parentsOf = rev => git('rev-list', '--parents', '-n', '1', rev).trim().split(/\s+/).slice(1)
 const ownOf = head => git('rev-list', '--no-merges', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean).filter(c => subjectOf(c).startsWith(SUBJECT))
 /** GATE-SAFE head: the gate's merge has dev as its FIRST parent (none of this change's commits) and this change's head as its SECOND parent. On a branch (HEAD is this change's tip, or dev merged INTO it) HEAD itself. */
-function scopeHead(ref = 'HEAD') { const head = git('rev-parse', `${ref}^{commit}`).trim(), parents = parentsOf(head); return parents.length === 2 && ownOf(parents[0]).length === 0 && ownOf(parents[1]).length > 0 ? parents[1] : head }
+function scopeHead(ref = 'HEAD') { const head = git('rev-parse', `${ref}^{commit}`).trim(), parents = parentsOf(head); return parents.length === 2 && (() => { try { git('merge-base', '--is-ancestor', parents[0], BASE_COMMIT); return true } catch { return false } })() && ownOf(parents[0]).length === 0 && ownOf(parents[1]).length > 0 ? parents[1] : head } // LATER-CHANGES: registry read (BILLING-F4F6): a gate merge's first parent is dev, which is under this change's base; a chain step that merged this change's line into another branch (a56ad7bd ...) is an ordinary tip, its own scope head
 await check('I: the committed files: this change\'s own commits ("Model picker: ...") touch exactly its files; each commit carries the attribution line; no other change\'s subject is among them', () => {
   git('cat-file', '-e', `${BASE_COMMIT}^{commit}`)
   const head = scopeHead(), own = ownOf(head); assert.ok(own.length >= 1, 'no own commit yet')
