@@ -6,7 +6,7 @@
 // read the first-parent commits of BASE..HEAD for their own subjects (the pin table below, tests only, every line carries the registry-read mark), exactly as the phone shell coverage did.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '21b5fc08089eb0f4fd1db80f5eb954cc787df748' // restacked 6 Nov onto dev 21b5fc08 (#591, #571, #570 in); was f36e9f85
+export const BASE_COMMIT = 'a56ad7bdf78a7ae1b952ab406174df7791f0bb76' // Option L carrier chain (6 Nov): the previous step a56ad7bd; was 21b5fc08
 export const USAGE_CREDITS_FLAG = 'NEXT_PUBLIC_STUDIO_USAGE_CREDITS'
 export const USAGE_CREDITS_KEY_NAME = 'MODEL_ROUTER_USAGE_READ_KEY'
 export const USAGE_CREDITS_MARKER = 'USAGE-CREDITS'
