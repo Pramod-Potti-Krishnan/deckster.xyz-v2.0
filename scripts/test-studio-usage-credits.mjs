@@ -684,7 +684,9 @@ await scopeCheck('mutant caught: a stray file in a "Usage credits:" commit, an o
   assert.ok(ownOf(stray).includes(stray)); assert.doesNotThrow(() => scopeCommittedFiles(HEAD)); assert.throws(() => scopeCommittedFiles(stray), /exactly its scope/)
   const noTrailer = commitWith(HEAD, {}, `${USAGE_CREDITS_SUBJECT} no trailer`)
   assert.throws(() => scopeOwnCommits(noTrailer), error => /^[0-9a-f]{8}$/.test(error.message), 'the commit without the trailer is named')
-  for (const rel of ['package.json', 'app/(app)/usage/page.tsx', 'lib/narration/model-router.ts', 'components/layout/studio-rail.tsx', 'app/builder/page.tsx']) {
+  const usagePage = commitWith(HEAD, { 'app/(app)/usage/page.tsx': 'x\n' }, `${USAGE_CREDITS_SUBJECT} adds the Usage page${TRAILER}`) // FRONTEND-1's #585 owns it; it is not in dev yet
+  assert.throws(() => scopeCommittedFiles(usagePage), /exactly its scope|is not touched/, 'the Usage page')
+  for (const rel of ['package.json', 'app/(app)/billing/page.tsx', 'lib/narration/model-router.ts', 'components/layout/studio-rail.tsx', 'app/builder/page.tsx']) {
     const foreign = commitWith(HEAD, { [rel]: `${git('show', `${HEAD}:${rel}`)}\n` }, `${USAGE_CREDITS_SUBJECT} touches ${rel}${TRAILER}`)
     assert.throws(() => scopeCommittedFiles(foreign), /exactly its scope|is not touched/, rel)
   }
