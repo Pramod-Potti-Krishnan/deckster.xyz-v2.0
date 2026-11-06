@@ -28,6 +28,11 @@ export const USAGE_CREDITS_NEW_FILES = [
   'scripts/test-studio-usage-credits.mjs',
 ]
 
+/** The two lines the Usage page gets once FRONTEND-1's #585 is merged: a LATER step, NOT in this change (it touches none of #585's files). Both carry the marker; the JSX line goes in <main>, after the page's first <section>, and draws nothing with the flag off (the
+ * className lands on the credits view's own root, so there is no wrapper element for flag off to leave behind). This change only proves they are clean against #585's own regex pins (no token / cost / model words, no daily / weekly / today). */
+export const USAGE_CREDITS_DISPATCH_IMPORT = 'import { StudioUsageCredits } from "@/components/studio-usage-credits" // USAGE-CREDITS'
+export const USAGE_CREDITS_DISPATCH_JSX = '      <StudioUsageCredits className="mt-6" />{/* USAGE-CREDITS */}'
+
 /** The older proofs this change teaches: [text the proof has now, text the base commit's proof has] per edit, whole lines, so putting them back gives the base file byte for byte. Every line the proof has now carries USAGE_CREDITS_PIN_MARK. None is in FRONTEND-1's or COMPOSER-2's lane. */
 export const USAGE_CREDITS_PIN_MARK = '// LATER-CHANGES: registry read (USAGE-CREDITS)'
 const FIRST_PARENT_LINE = "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Usage credits:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (USAGE-CREDITS): on a branch stacked after this change (the usage credits'), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files\n"
@@ -52,7 +57,7 @@ export const USAGE_CREDITS_SCOPE_FILES = new Set([...USAGE_CREDITS_FILES, ...USA
 
 /** The whole .env.example block: its comments and its two lines (appended at the end of the file, after one blank line). The key's value is EMPTY: nothing secret is written down. */
 export const USAGE_CREDITS_ENV_BLOCK = `# STUDIO USAGE CREDITS (FRONTEND-2; B62; the Model Router's usage read API for the Usage page). On for the exact value "true"; default off, and then nothing changes: no element is drawn and the new route GET /api/usage/credits answers 404. Build-time value: change it on Vercel and redeploy.
-# On, that route (signed in) reads the Model Router's usage read API, GET /v1/usage/user/{the session's user id}/credits, at the router address the narration block above sets, and returns this UTC month's credits: the day-by-day chart, the plan's used-of-granted with its reset date, top-up credits left and total spendable credits. The Usage page that draws them is a later step.
+# On, that route (signed in) reads the Model Router's usage read API, GET /v1/usage/user/{the session's user id}/credits, at the router address the narration block above sets, and returns this UTC month's credits: the day-by-day chart, the plan's used-of-granted with its reset date, top-up credits left and total spendable credits. The Usage page that draws them is a later step. Credits only (FRONTEND-1's rule): nothing but the credit fields of the router's answer is returned or shown.
 # MODEL_ROUTER_USAGE_READ_KEY is SERVER-ONLY (never a NEXT_PUBLIC_ name; never sent to the browser or logged): a Model Router key with the read scope, minted by the router's owner, sent as Authorization: Bearer. A read key can read ANY person's usage, so Studio binds the path to the session:
 # the user id comes from the signed-in session only, never from a query, a body or a header. Leave it empty until the router's MODEL_ROUTER_USAGE_READ_ENABLED is on; while it or the router address is empty the route answers 503 usage_read_unconfigured.
 NEXT_PUBLIC_STUDIO_USAGE_CREDITS="false"

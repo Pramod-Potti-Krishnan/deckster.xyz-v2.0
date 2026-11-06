@@ -2,6 +2,7 @@
 // (GET /v1/usage/user/{user_id}/credits; contract: streams/router/USAGE-READ-API.md, CODEX-8) and the words and numbers the credits view shows. No I/O and no environment other than the flag: the route
 // (app/api/usage/credits/route.ts) reads the router address and the server-only key, the view (components/studio-usage-credits.tsx) draws what this file returns.
 //
+// CREDITS ONLY (FRONTEND-1's rule for the Usage page, 5 Nov): the view model holds the contract's credit fields and nothing else. A router answer that carried cost, USD, token, model or provider fields would lose them here: unknown fields are ignored, never copied.
 // What the parser keeps, and what it refuses:
 //   - every credit amount is a decimal string with exactly six places ("3.000000") and stays a STRING: no float ever touches an amount that is shown. The meter and the bars need ratios only, and those are
 //     computed from the amounts as exact integers (millionths of a credit, BigInt); the display trims trailing zeros of the string itself;

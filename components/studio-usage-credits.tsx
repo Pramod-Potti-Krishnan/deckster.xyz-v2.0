@@ -1,7 +1,7 @@
 'use client'
 
 // STUDIO USAGE CREDITS (FRONTEND-2; B62), the view. Flag NEXT_PUBLIC_STUDIO_USAGE_CREDITS (exact "true", default off): off, <StudioUsageCredits /> draws nothing.
-// It fetches /api/usage/credits ITSELF (the route reads the Model Router's usage read API for the signed-in person), so the Usage page needs no state, no effect and no fetch of its own: ONE JSX line, <StudioUsageCredits />,
+// It fetches /api/usage/credits ITSELF (the route reads the Model Router's usage read API for the signed-in person), so the Usage page needs no state, no effect and no fetch of its own: ONE JSX line, <StudioUsageCredits className="mt-6" />,
 // plus its import. <StudioUsageCreditsView state={...} /> is the same drawing from a state (the proof renders every state through it; a page that already holds the state can use it too).
 // What it shows: the plan's used-of-granted meter with the reset date (balance_period.end), plan credits left, top-up credits left and total spendable credits, and a bar chart labelled "This UTC month"
 // (one CSS bar per elapsed UTC day, no chart library). States: loading, ok, a real zero-usage month (not the same as unavailable), plans unavailable, credit balance unavailable, rate limited, not switched on, an answer
@@ -97,15 +97,16 @@ function Chart({ view }: { view: UsageCreditsView }) {
 }
 
 /** The credits drawn from a state: the proof renders every state through this. */
-export function StudioUsageCreditsView({ state, onRetry }: { state: UsageCreditsState; onRetry?: () => void }) {
+export function StudioUsageCreditsView({ state, onRetry, className }: { state: UsageCreditsState; onRetry?: () => void; className?: string }) {
   const name = usageCreditsStateName(state)
+  const root = className ? `suc ${className}` : 'suc'
   if (state.kind === 'loading') {
-    return <section className="suc" data-studio-usage-credits="true" data-state={name} aria-label="Credits" aria-busy="true"><p className="suc-note" role="status">Loading your credits…</p></section>
+    return <section className={root} data-studio-usage-credits="true" data-state={name} aria-label="Credits" aria-busy="true"><p className="suc-note" role="status">Loading your credits…</p></section>
   }
   if (state.kind === 'error') {
     const words = errorWords(state)
     return (
-      <section className="suc" data-studio-usage-credits="true" data-state={name} aria-label="Credits">
+      <section className={root} data-studio-usage-credits="true" data-state={name} aria-label="Credits">
         <div className="suc-card suc-problem" role="alert">
           <h3>{words.title}</h3>
           <p>{words.body}</p>
@@ -116,7 +117,7 @@ export function StudioUsageCreditsView({ state, onRetry }: { state: UsageCredits
   }
   const view = state.view
   return (
-    <section className="suc" data-studio-usage-credits="true" data-state={name} aria-label="Credits">
+    <section className={root} data-studio-usage-credits="true" data-state={name} aria-label="Credits">
       <header className="suc-head"><h2>Credits</h2><span className="suc-plan" data-suc-value="plan">{usagePlanLabel(view.plan)} plan</span></header>
       <Meter view={view} />
       <dl className="suc-balances">
@@ -129,7 +130,7 @@ export function StudioUsageCreditsView({ state, onRetry }: { state: UsageCredits
   )
 }
 
-function StudioUsageCreditsLoader() {
+function StudioUsageCreditsLoader({ className }: { className?: string }) {
   const [state, setState] = useState<UsageCreditsState>({ kind: 'loading' })
   const [attempt, setAttempt] = useState(0)
   useEffect(() => {
@@ -141,10 +142,10 @@ function StudioUsageCreditsLoader() {
       .catch(() => { if (live) setState({ kind: 'error', code: 'usage_read_network', retryAfterSeconds: null }) })
     return () => { live = false }
   }, [attempt])
-  return <StudioUsageCreditsView state={state} onRetry={() => setAttempt(count => count + 1)} />
+  return <StudioUsageCreditsView state={state} onRetry={() => setAttempt(count => count + 1)} className={className} />
 }
 
-/** The credits view for the Usage page: fetches /api/usage/credits itself. Flag off: nothing is drawn. */
-export function StudioUsageCredits() {
-  return STUDIO_USAGE_CREDITS_ENABLED ? <StudioUsageCreditsLoader /> : null
+/** The credits view for the Usage page: fetches /api/usage/credits itself. `className` lands on its root (the page's spacing, e.g. "mt-6"), so the page needs no wrapper element that flag off would leave behind. Flag off: nothing is drawn. */
+export function StudioUsageCredits({ className }: { className?: string }) {
+  return STUDIO_USAGE_CREDITS_ENABLED ? <StudioUsageCreditsLoader className={className} /> : null
 }

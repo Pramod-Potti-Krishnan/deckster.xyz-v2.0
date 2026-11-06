@@ -9,6 +9,7 @@
 //     different person's id can never be requested (query, body, header and an echoed foreign user_id are all ignored or refused); 401 without a session; 404 with the flag off (before the session is read); 503 unconfigured; every router error mapped to its own code
 //     with Retry-After passed through; the key and the router's body appear in no answer and no log; malformed JSON, a body that is not the contract and a network failure each have their own code;
 //  3. the parser: the contract's own example, amounts kept as exact six-place strings (no float), timestamps, at most 31 ascending real days, a missing or malformed required field is invalid (never zeros), unknown fields ignored, a real zero-usage month is not unavailable;
+//  3b. CREDITS ONLY (FRONTEND-1's rule, 5 Nov): no provider cost, no USD, no token counts, no model or provider names in the view, its markup or the route's answer; only the contract's credit fields reach the browser (a router answer padded with such fields comes out as the same view);
 //  4. the view (react-dom/server of every state): loading, ok, zero usage, each unavailable kind, rate limited, unconfigured, invalid, signed out; the chart is labelled "This UTC month"; the stylesheet (postcss): Studio v4 tokens light and dark, no purple, no gradient, phone 375 wide;
 //  5. the pins: .env.example (one block after the last, the flag "false", the key's value EMPTY), the registry (three lines at the true end), the two older proofs taught (put back they are the base's, byte for byte), the strip is plain data;
 //  6. scope over the COMMITTED diff, GATE-SAFE and ROBUST AFTER MERGE (own commits by subject across `rev-list --no-merges BASE..head`, HEAD^2 on the gate's merge, `laterStrips`, ON_OWN_LINE, no hash-object --stdin); 7. mutants are caught.
@@ -27,7 +28,7 @@ import ts from 'typescript'
 import postcss from 'postcss'
 import {
   BASE_COMMIT, USAGE_CREDITS_ENV_BLOCK, USAGE_CREDITS_FILES, USAGE_CREDITS_FLAG, USAGE_CREDITS_KEY_NAME, USAGE_CREDITS_MARKER_RE, USAGE_CREDITS_NEW_FILES, USAGE_CREDITS_PIN_EDITS, USAGE_CREDITS_PIN_FILES, USAGE_CREDITS_PIN_MARK,
-  USAGE_CREDITS_SCOPE_FILES, USAGE_CREDITS_SUBJECT, stripUsageCredits,
+  USAGE_CREDITS_SCOPE_FILES, USAGE_CREDITS_SUBJECT, USAGE_CREDITS_DISPATCH_IMPORT, USAGE_CREDITS_DISPATCH_JSX, stripUsageCredits,
 } from './studio-usage-credits-strip.mjs'
 import * as registry from './studio-later-changes.mjs'
 
@@ -133,6 +134,11 @@ function withField(pathText, value, base = EXAMPLE) {
   if (value === undefined) delete node[keys[keys.length - 1]]; else node[keys[keys.length - 1]] = value
   return copy
 }
+/** CREDITS ONLY: what must never appear in the view, its markup, the lib's or the route's code, or the route's answer. */
+const CREDITS_ONLY_LEAK = /\busd\b|_usd\b|\$\d|dollar|\bcosts?\b|\btokens?\b|\bmodels?\b|provider|openrouter|margin|\bcents?\b|\b(gpt|claude|gemini|llama|sonnet|opus|haiku)\b/i
+/** Fields a router answer must never carry into the browser, at every level: dropped by the parser, shown nowhere. */
+const FOREIGN_FIELDS = { cost_usd: '9.990000', provider_cost: '1.230000', usd: '1.00', margin: '0.5', tokens: 123, total_tokens: 456, model: 'a-model', provider: 'a-provider', model_id: 'a-model-id', credit_limit_usd: '10.000000', by_model: [{ model: 'm', tokens: 7, cost_usd: '1.000000' }] }
+const padded = () => { const body = { ...clone(EXAMPLE), ...FOREIGN_FIELDS }; body.month = { ...body.month, ...FOREIGN_FIELDS }; body.balance_period = { ...body.balance_period, ...FOREIGN_FIELDS }; body.daily = body.daily.map(day => ({ ...day, ...FOREIGN_FIELDS })); return body }
 const days = (from, count, amount = '1.000000') => Array.from({ length: count }, (_, i) => ({ date: new Date(Date.UTC(2026, 9, from + i)).toISOString().slice(0, 10), credits_used: amount }))
 
 // ===== 1. the flag ======================================================================================================================================
@@ -290,6 +296,15 @@ const routeScenarios = {
     }
     assert.equal((await R.call({ reply: answer(429, '', { 'retry-after': '0' }) })).headers['retry-after'], '0')
   },
+  async creditsOnly(R) {
+    const res = await R.call({ reply: answer(200, padded()) })
+    assert.equal(res.status, 200); assert.deepEqual(res.body, { ok: true, view: EXAMPLE_VIEW }, 'a router answer padded with cost, token, model and provider fields comes out as the same credits view')
+    assert.doesNotMatch(JSON.stringify(res.body), CREDITS_ONLY_LEAK, 'no cost, token, model or provider word in the answer')
+    const view = res.body.view
+    assert.deepEqual(Object.keys(view).sort(), ['asOf', 'balancePeriod', 'creditsLeft', 'creditsUsed', 'daily', 'month', 'plan', 'planCreditsGranted', 'planCreditsLeft', 'planCreditsUsed', 'planSource', 'topupCreditsLeft', 'zeroUsage'], 'exactly the contract\'s credit fields (user_id is not even returned)')
+    assert.deepEqual(Object.keys(view.month).sort(), ['end', 'start']); assert.deepEqual(Object.keys(view.balancePeriod).sort(), ['end', 'key', 'start']); for (const day of view.daily) assert.deepEqual(Object.keys(day).sort(), ['creditsUsed', 'date'])
+    for (const rel of [ROUTE, LIB, COMP]) assert.doesNotMatch(code(read(rel)), CREDITS_ONLY_LEAK, `${rel}: no cost, token, model or provider word in the code`)
+  },
   async leaks(R) {
     assert.ok(R.seen.length >= (R.minSeen ?? 1), `the leak check saw many answers (${R.seen.length})`)
     for (const out of R.seen) {
@@ -315,6 +330,7 @@ const ROUTE_SRC = read(ROUTE), LIB_SRC = read(LIB), COMP_SRC = read(COMP), CSS_S
     session: '401 without a session (every shape of none, the e-mail is not used); the session is checked before the configuration; a failing session read is 500 usage_read_failed',
     unconfigured: '503 usage_read_unconfigured while the router address or the key is missing or unusable (13 variants), before anything is sent; a padded key is trimmed',
     errors: 'every router answer maps to its own code (401/403, 422, 429 with Retry-After, 503 plans / credit store, network, malformed JSON, not the contract, any other), none leaks the router\'s text',
+    creditsOnly: 'CREDITS ONLY: a router answer padded with cost_usd, provider cost, tokens, model and provider fields (top level, month, balance period, every day) comes out as exactly the credits view; no such word is in the answer or in the route\'s, the lib\'s or the view\'s code',
     leaks: 'the key and the router\'s body are in no answer and no log across every answer above; every answer is no-store',
   }
   R.minSeen = 60
@@ -421,7 +437,7 @@ const viewHtml = (state, { env = ENV_ON, text, libText, retry = true } = {}) => 
 }
 const ZERO_VIEW = lib.parseUsageCredits({ ...EXAMPLE, credits_used: '0.000000', daily: [{ date: '2026-11-01', credits_used: '0.000000' }, { date: '2026-11-02', credits_used: '0.000000' }] }, 'user_123').view
 function proveStates(compText, libText) {
-  const html = state => viewHtml(state, { text: compText, libText })
+  const html = state => { const out = viewHtml(state, { text: compText, libText }); assert.doesNotMatch(out, CREDITS_ONLY_LEAK, 'CREDITS ONLY: no cost, USD, token, model or provider word in any state\'s markup'); return out }
   const BAD_WORDS = /undefined|NaN|\[object|null|usage_read_|usage_plans|usage_credit|MODEL_ROUTER|Bearer|router|unauthorized|test-usage-read-key/i
   // loading
   const loading = html({ kind: 'loading' }); wellFormed(loading)
@@ -472,6 +488,9 @@ function proveGate(compText) {
   const off = load(COMP, { env: {}, text: compText }), on = load(COMP, { env: ENV_ON, text: compText })
   assert.equal(renderToStaticMarkup(h(off.StudioUsageCredits)), '', 'flag off: nothing'); assert.match(renderToStaticMarkup(h(on.StudioUsageCredits)), /data-state="loading"/, 'flag on: the loading state first')
   assert.equal(renderToStaticMarkup(h(load(COMP, { env: { [FLAG]: 'TRUE' }, text: compText }).StudioUsageCredits)), '', 'a mis-spelled flag is off')
+  assert.equal(renderToStaticMarkup(h(off.StudioUsageCredits, { className: 'mt-6' })), '', 'flag off with a className: still nothing (no wrapper is left behind)'); assert.match(renderToStaticMarkup(h(on.StudioUsageCredits, { className: 'mt-6' })), /<section class="suc mt-6" data-studio-usage-credits="true" data-state="loading"/, 'the className lands on the view\'s own root')
+  for (const state of [ready(GOOD), errorState('usage_read_network')]) assert.match(renderToStaticMarkup(h(on.StudioUsageCreditsView, { state: plain(state), className: 'mt-6' })), /^<section class="suc mt-6" /, 'every state takes the className on its root')
+  assert.match(renderToStaticMarkup(h(on.StudioUsageCreditsView, { state: { kind: 'loading' } })), /^<section class="suc" /, 'no className: the root class is as it was')
 }
 await check('the view: the flag gates the Usage page entry (flag off draws nothing, on draws the loading state first, fetching /api/usage/credits itself); the view imports only react, the lib and its stylesheet and does no other I/O', () => {
   const on = load(COMP, { env: ENV_ON }); proveGate(COMP_SRC)
@@ -562,6 +581,29 @@ await check('the strip is plain data: nothing but the marker, the lists and the 
   assert.ok(USAGE_CREDITS_MARKER_RE.test('a // USAGE-CREDITS') && !USAGE_CREDITS_MARKER_RE.test('a // USAGE-CREDITS-X') && !USAGE_CREDITS_MARKER_RE.test('a // X-USAGE-CREDITS') && !USAGE_CREDITS_MARKER_RE.test('a // STUDIO_USAGE_PAGE'), 'the marker is a whole token')
   assert.deepEqual([...USAGE_CREDITS_SCOPE_FILES].sort(), [...USAGE_CREDITS_NEW_FILES, '.env.example', 'scripts/studio-later-changes.mjs', ...USAGE_CREDITS_PIN_FILES].sort())
   assert.equal(USAGE_CREDITS_SUBJECT, 'Usage credits:'); assert.equal(BASE_COMMIT, 'f36e9f8506b16cc0bb13f8f8020a2b9cd85b0f09')
+})
+
+// ---- the dispatch the Usage page gets later (after FRONTEND-1's #585 merges; NOT in this change) --------------------------------------------------------
+// #585's own regex pins on its page (scripts/test-studio-billing-f5-usage.mjs, B and K), copied here so that the two lines are proven clean against them before anything of theirs is touched.
+const F5_LEAK = /\btokens?\b|provider[_ ]?cost|margin|\bstripe\b|\b(gpt|claude|gemini|llama|sonnet|opus|haiku)\b|model[_ ]?id|_usd\b|monthTokens|lifetimeSpend/i
+const F5_SHORT = /daily|weekly|today|cap_reached"|"cap_reached/i
+/** A page in #585's style (one <main>, sections with mt-6), with and without the two dispatch lines, rendered with the flag off and on. */
+function proveDispatch(importLine, jsxLine, compText) {
+  const page = withLines => `"use client"\nimport { useState } from "react"\n${withLines ? `${importLine}\n` : ''}\nexport default function UsagePage() {\n  return (\n    <main className="mx-auto max-w-2xl p-6" data-testid="studio-usage-page">\n      <h1 className="text-2xl font-semibold">Usage</h1>\n      <section className="mt-6 rounded-lg border p-5">plan</section>\n${withLines ? `${jsxLine}\n` : ''}      <section className="mt-6 rounded-lg border p-5">box</section>\n    </main>\n  )\n}\n`
+  const render = (withLines, env) => {
+    const text = page(withLines), out = ts.transpileModule(text, { fileName: 'page.tsx', reportDiagnostics: true, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } })
+    assert.deepEqual(out.diagnostics.map(d => d.messageText), [], 'the page parses')
+    return renderToStaticMarkup(h(load('page.tsx', { env, text, overrides: { '@/components/studio-usage-credits': load(COMP, { env, text: compText }) } }).default))
+  }
+  const off = render(true, {}), plainPage = render(false, {})
+  assert.equal(off, plainPage, 'flag off: the page with the two lines is the page without them, byte for byte (no wrapper, no space left behind)'); assert.equal(sha(off), sha(plainPage))
+  const on = render(true, ENV_ON); assert.match(on, /<\/section><section class="suc mt-6" data-studio-usage-credits="true" data-state="loading"/, 'flag on: the credits view comes right after the first section, with the page\'s own spacing'); assert.equal(count(on, 'data-studio-usage-credits="true"'), 1)
+  for (const line of [importLine, jsxLine]) { assert.ok(USAGE_CREDITS_MARKER_RE.test(line), 'both lines carry the marker as a whole token'); assert.doesNotMatch(line, F5_LEAK, 'clean against #585\'s leak pin'); assert.doesNotMatch(line, F5_SHORT, 'clean against #585\'s daily/weekly pin') }
+  assert.equal(count(jsxLine, '<'), 1, 'one JSX element and a comment: nothing wraps it'); assert.match(jsxLine, /^\s*<StudioUsageCredits [^<>]*\/>\{\/\* USAGE-CREDITS \*\/\}$/, 'the component alone, then the marker')
+}
+await check('the two dispatch lines for the Usage page (a later step, after #585 merges): a page in #585\'s style renders byte for byte the same with the flag off, shows the credits view with the flag on, and both lines are clean against #585\'s own regex pins (no token / cost / model words, no daily / weekly / today)', () => {
+  assert.equal(USAGE_CREDITS_DISPATCH_IMPORT, 'import { StudioUsageCredits } from "@/components/studio-usage-credits" // USAGE-CREDITS'); assert.equal(USAGE_CREDITS_DISPATCH_JSX, '      <StudioUsageCredits className="mt-6" />{/* USAGE-CREDITS */}')
+  proveDispatch(USAGE_CREDITS_DISPATCH_IMPORT, USAGE_CREDITS_DISPATCH_JSX, COMP_SRC)
 })
 
 // ===== 6. scope =========================================================================================================================================
@@ -780,7 +822,7 @@ await mutant('an unavailable state draws zeros', () => comp("          <h3>{word
 await mutant('a month with usage and no day rows is called empty', () => comp('{view.zeroUsage ? (', '{view.zeroUsage || view.daily.length === 0 ? ('))
 await mutant('Try again is offered when not switched on', () => comp("name !== 'unconfigured' && name !== 'signed-out' ? ", 'true ? '))
 await mutant('the view\'s error words show the route\'s code', () => comp('<h3>{words.title}</h3>', '<h3>{words.title} {state.code}</h3>'))
-await mutant('the view draws with the flag off', () => proveGate(swap(COMP_SRC, 'return STUDIO_USAGE_CREDITS_ENABLED ? <StudioUsageCreditsLoader /> : null', 'return <StudioUsageCreditsLoader />')))
+await mutant('the view draws with the flag off', () => proveGate(swap(COMP_SRC, 'return STUDIO_USAGE_CREDITS_ENABLED ? <StudioUsageCreditsLoader className={className} /> : null', 'return <StudioUsageCreditsLoader className={className} />')))
 await mutant('the plan name is not escaped', () => comp('{usagePlanLabel(view.plan)} plan', '<i dangerouslySetInnerHTML={{ __html: usagePlanLabel(view.plan) }} /> plan'))
 // the stylesheet
 await mutant('the bars use the purple accent', () => proveCss(swap(CSS_SRC, '--suc-bar: var(--ss-teal, #1f6f72);', '--suc-bar: var(--ss-accent, #6a4fc0);')))
@@ -793,6 +835,17 @@ await mutant('the bars cannot shrink (no flex basis of zero)', () => proveCss(sw
 await mutant('a row may not wrap', () => proveCss(swap(CSS_SRC, '.suc-row { display: flex; flex-wrap: wrap;', '.suc-row { display: flex; flex-wrap: nowrap;')))
 await mutant('a grid column cannot shrink', () => proveCss(swap(CSS_SRC, '.suc-balances { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));', '.suc-balances { display: grid; grid-template-columns: repeat(3, 1fr);')))
 await mutant('an unscoped global rule is added', () => proveCss(`${CSS_SRC}\nbody { margin: 0; }\n`))
+// the view is credits only
+await mutant('the view carries a cost field (the parser keeps cost_usd)', () => proveRoute(ROUTE_SRC, swap(LIB_SRC, '    daily,\n    zeroUsage: micro(body.credits_used as string) === BigInt(0),\n  }', '    daily,\n    zeroUsage: micro(body.credits_used as string) === BigInt(0),\n    costUsd: body.cost_usd,\n  } as UsageCreditsView'), ['creditsOnly']))
+await mutant('the route returns the router\'s model rows next to the view', () => routeProof(swap(ROUTE_SRC, 'respond(200, { ok: true, view: parsed.view })', 'respond(200, { ok: true, view: parsed.view, by_model: (body as { by_model?: unknown }).by_model })'), ['creditsOnly']))
+await mutant('the view shows a dollar figure', () => comp('{credits(view.creditsUsed)} used</span>', '{credits(view.creditsUsed)} used (USD)</span>'))
+await mutant('the view names a model', () => comp('<h2>Credits</h2>', '<h2>Credits by model</h2>'))
+await mutant('the view shows tokens', () => comp('Plan credits left</dt>', 'Plan tokens left</dt>'))
+// the dispatch
+await mutant('the dispatch wraps the view in a div (flag off would leave an empty spaced box)', () => proveDispatch(USAGE_CREDITS_DISPATCH_IMPORT, '      <div className="mt-6"><StudioUsageCredits /></div>{/* USAGE-CREDITS */}', COMP_SRC))
+await mutant('the dispatch line has no marker', () => proveDispatch(USAGE_CREDITS_DISPATCH_IMPORT, '      <StudioUsageCredits className="mt-6" />', COMP_SRC))
+await mutant('the dispatch line names a daily chart (trips #585\'s pin)', () => proveDispatch(USAGE_CREDITS_DISPATCH_IMPORT, '      <StudioUsageCredits className="mt-6" />{/* USAGE-CREDITS daily */}', COMP_SRC))
+await mutant('the view\'s className is dropped (the page\'s spacing is lost)', () => proveDispatch(USAGE_CREDITS_DISPATCH_IMPORT, USAGE_CREDITS_DISPATCH_JSX, swap(COMP_SRC, "const root = className ? `suc ${className}` : 'suc'", "const root = 'suc'")))
 // the pins
 await mutant('a second subject filter is added to a taught proof', () => provePins(rel => rel === USAGE_CREDITS_PIN_FILES[0] ? `${read(rel)}  shas.splice(0, 1) // LATER-CHANGES: registry read (USAGE-CREDITS)\n` : read(rel)))
 await mutant('the taught line loses its mark', () => provePins(rel => rel === USAGE_CREDITS_PIN_FILES[0] ? swap(read(rel), '// LATER-CHANGES: registry read (USAGE-CREDITS): on a branch', '// LATER-CHANGES: reg read (USAGE-CREDITS): on a branch') : read(rel)))
