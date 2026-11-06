@@ -13,7 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CreditCard, Calendar, Crown, Sparkles, Shield, Check, X, AlertCircle, Download, Wallet, Plus, Loader2 } from "lucide-react"
 import { useWallet } from "@/hooks/use-wallet"
 import { features } from "@/lib/config"
-import { PRICING_TIERS, TOPUP_PACKS, planMonthlyPriceLabel } from "@/lib/marketing/homepage-v2-pricing" // BILLING-F4F6
+import { PRICING_TIERS, TOPUP_PACKS } from "@/lib/marketing/homepage-v2-pricing" // BILLING-F4F6
 import { studioBillingPriceLine, studioNextPlan, studioPlanForTier, studioPlanLines, type StudioBillingQuota } from "@/lib/studio-billing"
 import { StudioBillingCapacity } from "@/components/billing/studio-billing-capacity"
 import "@/components/billing/studio-billing.css"
@@ -130,7 +130,8 @@ function BillingPageContent() {
   }
 
   // ACC-13/14: the plan for the account's tier from the shared list (null: free, or a tier no plan carries) and the plan after it.
-  const plan = STUDIO_P2_ACCOUNT ? studioPlanForTier(PRICING_TIERS, user.tier) : null
+  // UX-06 (honesty, no flag): the plan words always come from the shared plan list (PRICING_TIERS, pricing v2), so Billing never states a plan fact that list does not.
+  const plan = studioPlanForTier(PRICING_TIERS, user.tier)
   const nextPlan = studioNextPlan(PRICING_TIERS, plan)
 
   const handleTopUp = async (packId: string) => {
@@ -198,19 +199,7 @@ function BillingPageContent() {
                         : "Free Plan"}
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    {STUDIO_P2_ACCOUNT
-                      ? studioBillingPriceLine(PRICING_TIERS, user.tier, subscription?.billingCycle)
-                      : subscription
-                      ? subscription.billingCycle === "yearly"
-                        ? "$290/year"
-                        : "$29/month"
-                      : user.tier === "premium"
-                        ? planMonthlyPriceLabel("premium") // BILLING-F4F6
-                        : user.tier === "pro"
-                          ? planMonthlyPriceLabel("pro") // BILLING-F4F6
-                          : user.tier === "starter"
-                            ? planMonthlyPriceLabel("starter") // BILLING-F4F6
-                            : "No charge"}
+                    {studioBillingPriceLine(PRICING_TIERS, user.tier, subscription?.billingCycle)}
                   </p>
                 </div>
               </div>
@@ -256,30 +245,11 @@ function BillingPageContent() {
                       <Feature key={line.text} included text={line.text} />
                     ),
                   )
-                ) : user.tier === "premium" ? (
-                  <>
-                    <Feature included text="Unlimited presentations" />
-                    <Feature included text="All 4 AI agents" />
-                    <Feature included text="Custom branding" />
-                    <Feature included text="Knowledge Graph" />
-                    <Feature included text="Priority generation queue" />
-                    <Feature included text="Advanced analytics" />
-                  </>
-                ) : user.tier === "pro" ? (
-                  <>
-                    <Feature included text="Unlimited presentations" />
-                    <Feature included text="All 4 AI agents" />
-                    <Feature included text="Custom branding" />
-                    <Feature included text="Advanced analytics" />
-                    <Feature text="Knowledge Graph (upgrade to Max)" />
-                  </>
                 ) : (
-                  <>
-                    <Feature included text="3 presentations" />
-                    <Feature included text="2 AI agents" />
-                    <Feature text="Custom branding (upgrade to Pro)" />
-                    <Feature text="Advanced features (upgrade to Pro)" />
-                  </>
+                  <p data-studio-billing-free-plan="true" className="text-sm text-muted-foreground">
+                    No paid plan yet. The plans and what each includes are on the{" "}
+                    <a href="/pricing" className="underline underline-offset-2">pricing page</a>.
+                  </p>
                 )}
               </div>
             </div>
@@ -287,9 +257,9 @@ function BillingPageContent() {
             {isPro && subscription && (
               <div className="flex gap-2 pt-2" data-studio-billing-plan-actions={studioShell ? "true" : undefined}>
                 <ManageSubscriptionButton />
-                {user.tier === "pro" && (STUDIO_P2_ACCOUNT ? nextPlan : true) && (
+                {user.tier === "pro" && nextPlan && (
                   <Button variant="outline" onClick={handleUpgrade}>
-                    {STUDIO_P2_ACCOUNT ? `Upgrade to ${nextPlan?.name}` : "Upgrade to Enterprise"}
+                    {`Upgrade to ${nextPlan.name}`}
                   </Button>
                 )}
               </div>
@@ -535,7 +505,7 @@ function BillingPageContent() {
                   Unlock all features
                 </p>
                 <p className="mt-1 text-sm text-purple-700 dark:text-purple-400">
-                  Upgrade to Pro for unlimited presentations and advanced features
+                  Compare the plans and what each includes on the pricing page
                 </p>
               </div>
               <Button className="ml-4" onClick={handleUpgrade}>

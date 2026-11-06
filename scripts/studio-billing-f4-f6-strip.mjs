@@ -6,7 +6,7 @@
 // One older proof (scripts/test-studio-p2-docs.mjs) has one line widened to read lib/marketing/homepage-v2-pricing.ts through the registry; BILLING_F4F6_PIN_EDITS holds [text now, text before] and stripBillingF4F6 puts the old line back, so the base's proof is the file byte for byte once this change is stripped.
 // Plain node, no imports.
 
-export const BASE_COMMIT = '3e1ce88eec23fbfd33f249332d06a65ad05ffc40' // origin/studio-v4-dev-preparation-code at the start of this change (stacked on #575, frontend1/tier-update-guard)
+export const BASE_COMMIT = '21b5fc08089eb0f4fd1db80f5eb954cc787df748' // origin/studio-v4-dev-preparation-code (#570, #571, #576, #591 and UX-06 in) when this change was restacked; it was 3e1ce88e (stacked on #575, frontend1/tier-update-guard)
 export const BILLING_F4F6_MARKER_RE = /(?<![\w-])BILLING-F4F6(?![\w-])/
 export const BILLING_F4F6_FILES = ['app/api/wallet/debit/route.ts', 'lib/marketing/homepage-v2-pricing.ts', 'lib/quota/quota.ts']
 export const BILLING_F4F6_EDITS = {
@@ -33,12 +33,8 @@ export const BILLING_F4F6_EDITS = {
  ],
  "app/(app)/billing/page.tsx": [
   [
-   "import { PRICING_TIERS, TOPUP_PACKS, planMonthlyPriceLabel } from \"@/lib/marketing/homepage-v2-pricing\" // BILLING-F4F6\n",
+   "import { PRICING_TIERS, TOPUP_PACKS } from \"@/lib/marketing/homepage-v2-pricing\" // BILLING-F4F6\n",
    "import { PRICING_TIERS } from \"@/lib/marketing/homepage-v2-pricing\"\n"
-  ],
-  [
-   "                        ? planMonthlyPriceLabel(\"premium\") // BILLING-F4F6\n                        : user.tier === \"pro\"\n                          ? planMonthlyPriceLabel(\"pro\") // BILLING-F4F6\n                          : user.tier === \"starter\"\n                            ? planMonthlyPriceLabel(\"starter\") // BILLING-F4F6",
-   "                        ? \"$100/month\"\n                        : user.tier === \"pro\"\n                          ? \"$50/month\"\n                          : user.tier === \"starter\"\n                            ? \"$20/month\""
   ],
   [
    "                  {TOPUP_PACKS.map((pack) => ( // BILLING-F4F6",
