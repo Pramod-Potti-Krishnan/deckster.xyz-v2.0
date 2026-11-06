@@ -5,6 +5,7 @@
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and its strip in scripts/studio-later-changes.mjs (three lines, at the end of each list).
 // The strip puts back each edited file's base text: API_HARDENING_EDITS holds, per file, [the text this change left, the base text it replaced] (each with a line of context, each present exactly once),
 // applied in order, only when every one of them is there; .env.example loses exactly API_HARDENING_ENV_BLOCK. Any other file comes back as it is. Plain node, no I/O.
+// Option L (6 Nov, FRONTEND-1's #584): the two lines this change added to the older proof scripts/test-studio-legal-short-links.mjs are put back too (a pure insertion and one replaced line), so an older pin that holds that proof to its base reads it through the registry as it was.
 
 export const BASE_COMMIT = '3e1ce88eec23fbfd33f249332d06a65ad05ffc40' // origin/studio-v4-dev-preparation-code when FRONTEND-1 completed this change
 export const API_HARDENING_SUBJECT = 'API hardening' // own commits: "Studio API hardening v1 ..." and "API hardening: ..."
@@ -329,6 +330,16 @@ export const API_HARDENING_EDITS = {
   [
    "\n/// Studio API hardening v1 (STUDIO_API_HARDENING_V1_ENABLED): shared attempt counters for public endpoints\n/// (publish unlock failures, spoken-answer renders). One row per counted event; `subject` is an HMAC of the IP.\n/// Read only while the flag is on; apply prisma/sql/20261104_api_rate_events.sql before turning it on.\nmodel ApiRateEvent {\n  id        String   @id @default(cuid())\n  bucket    String\n  scope     String\n  subject   String\n  createdAt DateTime @default(now()) @map(\"created_at\")\n\n  @@index([bucket, scope, createdAt])\n  @@index([bucket, subject, createdAt])\n  @@map(\"fe_api_rate_events\")\n}\n",
    ""
+  ]
+ ],
+ "scripts/test-studio-legal-short-links.mjs": [
+  [
+   "import { stripApiHardening } from './studio-api-hardening-strip.mjs' // LATER-CHANGE: PROGRAM-1 API hardening (STUDIO_API_HARDENING_V1_ENABLED): its route lines come out before this pin reads them\n",
+   ""
+  ],
+  [
+   "  for (const rel of UNTOUCHED) eq(sha(stripApiHardening(rel, read(rel))), sha(baseOf(rel)), a(`${rel} is the base commit's, byte for byte`))\n",
+   "  for (const rel of UNTOUCHED) eq(sha(read(rel)), sha(baseOf(rel)), a(`${rel} is the base commit's, byte for byte`))\n"
   ]
  ]
 }

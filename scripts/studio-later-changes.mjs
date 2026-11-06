@@ -83,6 +83,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-billing-security-strip.mjs')).BILLING_SECURITY_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1 for PROGRAM-1, billing security B4-B9: webhook claim in one transaction, price-mapped tier, coupon claim (STUDIO_BILLING_COUPON_TIER_HARDENING)
   ...(await import('./studio-api-hardening-strip.mjs')).API_HARDENING_SCOPE_FILES, // LATER-CHANGE: PROGRAM-1, Studio API hardening v1: approved-user gate, session owners, body allow-lists, unlock lockout, spoken-answer cache, admin = ADMIN_EMAILS (users, coupons, cleanup-sessions, /admin); activate id fix (STUDIO_API_HARDENING_V1_ENABLED / ADMIN_EMAILS)
   ...(await import('./studio-redeem-v4-strip.mjs')).REDEEM_V4_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B60 redeem v4: /redeem in the Studio v4 frame, same words and request (NEXT_PUBLIC_STUDIO_REDEEM_V4)
+  ...(await import('./studio-billing-f4-f6-strip.mjs')).BILLING_F4F6_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, L-BILLING F4 debit switch + F6 single price source (WALLET_DEBIT_SOURCE)
   // one line per later change, above this comment
 ])
 
@@ -134,6 +135,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-billing-security-strip.mjs')).BILLING_SECURITY_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1 for PROGRAM-1, billing security B4-B9: webhook claim in one transaction, price-mapped tier, coupon claim (STUDIO_BILLING_COUPON_TIER_HARDENING)
   (await import('./studio-api-hardening-strip.mjs')).API_HARDENING_ENV_BLOCK, // LATER-CHANGE: PROGRAM-1, Studio API hardening v1 (STUDIO_API_HARDENING_V1_ENABLED / ADMIN_EMAILS)
   (await import('./studio-redeem-v4-strip.mjs')).REDEEM_V4_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B60 redeem v4 (NEXT_PUBLIC_STUDIO_REDEEM_V4)
+  (await import('./studio-billing-f4-f6-strip.mjs')).BILLING_F4F6_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, L-BILLING F4 debit switch + F6 single price source (WALLET_DEBIT_SOURCE)
   // one line per later change, above this comment
 ]
 
@@ -198,6 +200,7 @@ export const LATER_STRIPS = [
   (await import('./studio-billing-security-strip.mjs')).stripBillingSecurity, // LATER-CHANGE: FRONTEND-1 for PROGRAM-1, billing security B4-B9: webhook claim in one transaction, price-mapped tier, coupon claim (STUDIO_BILLING_COUPON_TIER_HARDENING)
   (await import('./studio-api-hardening-strip.mjs')).stripApiHardening, // LATER-CHANGE: PROGRAM-1, Studio API hardening v1 (STUDIO_API_HARDENING_V1_ENABLED / ADMIN_EMAILS)
   (await import('./studio-redeem-v4-strip.mjs')).stripRedeemV4, // LATER-CHANGE: FRONTEND-2, B60 redeem v4 (NEXT_PUBLIC_STUDIO_REDEEM_V4)
+  (await import('./studio-billing-f4-f6-strip.mjs')).stripBillingF4F6, // LATER-CHANGE: FRONTEND-1, L-BILLING F4 debit switch + F6 single price source (WALLET_DEBIT_SOURCE)
   // one line per later change, above this comment
 ]
 

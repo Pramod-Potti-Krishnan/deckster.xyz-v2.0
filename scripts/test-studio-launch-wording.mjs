@@ -87,7 +87,7 @@ function proveFlag({ heads }) {
 // ---------------------------------------------------------------- 2. flag off is the base
 function proveOff({ heads, bases }, strip = stripLaunchWording) {
   for (const rel of LAUNCH_FILES) {
-    const head = stripJobDeadlines(rel, heads[rel]) // the base's P3-4b lines out first (they change a base line in narration-voice-picker.tsx); a text without them is returned as it is
+    const head = stripJobDeadlines(rel, rel === 'app/(app)/billing/page.tsx' ? stripLaterChanges(rel, heads[rel]) : heads[rel]) // LATER-CHANGES: registry read (BILLING-F4F6); the base's P3-4b lines out first (they change a base line in narration-voice-picker.tsx); a text without them is returned as it is
     const stripped = strip(rel, head)
     if (rel === '.env.example') { assert.ok(sameAsBase(rel, stripped, bases[rel], /LAUNCH_WORDING/), `${rel}: with this change's block out the file is the base's (or a later flag block was added after it)`); continue }
     const verdict = sameOrTolerant(rel, head, stripped, bases[rel], LAUNCH_PAIRS[rel])
