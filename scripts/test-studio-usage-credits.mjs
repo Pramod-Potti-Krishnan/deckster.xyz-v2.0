@@ -548,6 +548,7 @@ function provePins(readNow = read, at = '', later = laterStrips) {
   assert.deepEqual(block.split('\n').filter(l => l && !l.startsWith('#')), [`${FLAG}="false"`, `${KEY_NAME}=`], a('two lines of settings, no more'))
   assert.match(block, /SERVER-ONLY/, a('says the key is server-only')); assert.match(block, /read scope/, a('says it is a read-scope key')); assert.match(block, /binds the path to the session/, a('says Studio binds the path to the session')); assert.match(block, /never a NEXT_PUBLIC_ name/)
   assert.doesNotMatch(block, SECRET_SHAPE, a('no secret-shaped text in the block'))
+  assert.doesNotMatch(block, /NARRATION_VIA_ROUTER|MODEL_ROUTER_URL|MODEL_ROUTER_STUDIO_KEY/, a('the block names none of the narration change\'s variables (its proof takes any later line that does for that change\'s own block left behind)'))
   assert.equal(registry.stripLaterEnvBlocks('.env.example', env), registry.stripLaterEnvBlocks('.env.example', baseText('.env.example')), a('.env.example without the registered blocks is the base\'s, byte for byte (flag off: nothing else changed)'))
   // the registry reaches this change
   for (const [list, what] of [[registry.LATER_STRIPS, stripUsageCredits], [registry.LATER_ENV_BLOCKS, USAGE_CREDITS_ENV_BLOCK]]) assert.ok(list.includes(what) && list.indexOf(what) > (list === registry.LATER_STRIPS ? registry.LATER_STRIPS.findIndex(s => s.name === 'stripPhoneShellCoverage') : list.findIndex(b => /PHONE_SHELL_COVERAGE=/.test(b))), a('the registry holds this change after the phone shell coverage'))
@@ -795,6 +796,7 @@ await mutant('an unscoped global rule is added', () => proveCss(`${CSS_SRC}\nbod
 // the pins
 await mutant('a second subject filter is added to a taught proof', () => provePins(rel => rel === USAGE_CREDITS_PIN_FILES[0] ? `${read(rel)}  shas.splice(0, 1) // LATER-CHANGES: registry read (USAGE-CREDITS)\n` : read(rel)))
 await mutant('the taught line loses its mark', () => provePins(rel => rel === USAGE_CREDITS_PIN_FILES[0] ? swap(read(rel), '// LATER-CHANGES: registry read (USAGE-CREDITS): on a branch', '// LATER-CHANGES: reg read (USAGE-CREDITS): on a branch') : read(rel)))
+await mutant('the env block names the narration router address variable', () => provePins(rel => rel === '.env.example' ? swap(read(rel), 'at the router address the narration block above sets', 'at MODEL_ROUTER_URL, the address the narration block above sets') : read(rel)))
 await mutant('the env block gains a value for the key', () => provePins(rel => rel === '.env.example' ? swap(read(rel), `${KEY_NAME}=\n`, `${KEY_NAME}=abc\n`) : read(rel)))
 await mutant('the env block turns the flag on', () => provePins(rel => rel === '.env.example' ? swap(read(rel), `${FLAG}="false"`, `${FLAG}="true"`) : read(rel)))
 await mutant('the env block is joined to the last block without a blank line', () => provePins(rel => rel === '.env.example' ? swap(read(rel), `\n\n${USAGE_CREDITS_ENV_BLOCK.split('\n')[0]}`, `\n${USAGE_CREDITS_ENV_BLOCK.split('\n')[0]}`) : read(rel)))

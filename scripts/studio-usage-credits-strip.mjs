@@ -52,9 +52,9 @@ export const USAGE_CREDITS_SCOPE_FILES = new Set([...USAGE_CREDITS_FILES, ...USA
 
 /** The whole .env.example block: its comments and its two lines (appended at the end of the file, after one blank line). The key's value is EMPTY: nothing secret is written down. */
 export const USAGE_CREDITS_ENV_BLOCK = `# STUDIO USAGE CREDITS (FRONTEND-2; B62; the Model Router's usage read API for the Usage page). On for the exact value "true"; default off, and then nothing changes: no element is drawn and the new route GET /api/usage/credits answers 404. Build-time value: change it on Vercel and redeploy.
-# On, that route (signed in) reads GET {MODEL_ROUTER_URL}/v1/usage/user/{the session's user id}/credits and returns this UTC month's credits: the day-by-day chart, the plan's used-of-granted with its reset date, top-up credits left and total spendable credits. The Usage page that draws them is a later step.
+# On, that route (signed in) reads the Model Router's usage read API, GET /v1/usage/user/{the session's user id}/credits, at the router address the narration block above sets, and returns this UTC month's credits: the day-by-day chart, the plan's used-of-granted with its reset date, top-up credits left and total spendable credits. The Usage page that draws them is a later step.
 # MODEL_ROUTER_USAGE_READ_KEY is SERVER-ONLY (never a NEXT_PUBLIC_ name; never sent to the browser or logged): a Model Router key with the read scope, minted by the router's owner, sent as Authorization: Bearer. A read key can read ANY person's usage, so Studio binds the path to the session:
-# the user id comes from the signed-in session only, never from a query, a body or a header. Leave it empty until the router's MODEL_ROUTER_USAGE_READ_ENABLED is on; while it or MODEL_ROUTER_URL is empty the route answers 503 usage_read_unconfigured.
+# the user id comes from the signed-in session only, never from a query, a body or a header. Leave it empty until the router's MODEL_ROUTER_USAGE_READ_ENABLED is on; while it or the router address is empty the route answers 503 usage_read_unconfigured.
 NEXT_PUBLIC_STUDIO_USAGE_CREDITS="false"
 MODEL_ROUTER_USAGE_READ_KEY=
 `
