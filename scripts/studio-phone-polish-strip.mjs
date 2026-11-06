@@ -7,7 +7,7 @@
 // The older proofs this change teaches (PIN_EDITS, tests only, every line carries the registry-read mark): the two that read the first-parent line of BASE..HEAD for their own commits' subjects (one more inserted line each, for "Phone polish:", as the phone hints did).
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '3e1ce88eec23fbfd33f249332d06a65ad05ffc40' // studio-v4-dev-preparation-code at #564 (Template match P4-7c proof), the branch this change is made on
+export const BASE_COMMIT = 'f36e9f8506b16cc0bb13f8f8020a2b9cd85b0f09' // restacked 6 Nov onto dev f36e9f85 (#567, #587, #583, #575 in); was 3e1ce88e (#564), the branch this change was made on
 export const PHONE_POLISH_FLAG = 'NEXT_PUBLIC_STUDIO_PHONE_POLISH'
 export const PHONE_POLISH_MARKER = 'PHONE-POLISH'
 /** The marker as a WHOLE token: PHONE-POLISH is this change's; PHONE-POLISH-X and X-PHONE-POLISH are not. */
