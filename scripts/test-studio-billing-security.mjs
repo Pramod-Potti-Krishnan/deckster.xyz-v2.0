@@ -82,7 +82,7 @@ if (process.argv.includes('--mutation-check')) {
 
 // ---------------------------------------------------------------- 1. own commits
 {
-  const own = git('rev-list', '--no-merges', 'HEAD', `^${BASE}`).split('\n').filter(Boolean)
+  const own = git('rev-list', '--no-merges', '--first-parent', 'HEAD', `^${BASE}`).split('\n').filter(Boolean) // LATER-CHANGES: registry read (BILLING-SECURITY, restack onto 1bb42d7f): own commits are this branch's first-parent line; a merged dev's commits arrive on a second parent
   ok(own.length >= 2, 'the branch carries PROGRAM-1\'s commit and this change\'s')
   for (const sha of own) {
     const subject = git('log', '-1', '--format=%s', sha).trim()
