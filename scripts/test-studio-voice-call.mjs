@@ -1884,7 +1884,7 @@ const mutants = [
   [HOOK, 'blocked storage breaks the page', 'try { return typeof window !== \'undefined\' ? window.localStorage : null } catch { return null }', 'return typeof window !== \'undefined\' ? window.localStorage : null'],
   [HOOK, 'the mute button does nothing', 'onMute: muted => controller.setMuted(muted)', 'onMute: () => {}'],
   [STAGE, 'the chip is not shown', '<span className="studio-voice-chip" data-chip={snapshot.chip} role="status"><i aria-hidden />{snapshot.chip}</span>', ''],
-  [STAGE, 'video draws the disc', 'framing={videoFraming} size={videoCharacterPx(height)}', 'framing="disc" size={videoCharacterPx(height)}'],
+  [STAGE, 'video draws the disc', 'framing={videoFraming} tight={phone} size={videoCharacterPx(height)}', 'framing="disc" tight={phone} size={videoCharacterPx(height)}'],
   [STAGE, 'video ignores the call\'s height', 'size={videoCharacterPx(height)}', 'size={240}'],
   [STAGE, 'the disc is not smaller on a phone', 'const discPx = phone ? AUDIO_DISC_PX_PHONE : AUDIO_DISC_PX', 'const discPx = AUDIO_DISC_PX'],
   [STAGE, 'audio has no ring', '<i className="studio-voice-ring" aria-hidden />', ''],
