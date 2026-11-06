@@ -580,7 +580,7 @@ await check('the strip is plain data: nothing but the marker, the lists and the 
   assert.deepEqual(USAGE_CREDITS_FILES, [], 'no existing app file carries a marked line'); assert.equal(stripUsageCredits('app/builder/page.tsx', 'x // USAGE-CREDITS\n'), 'x // USAGE-CREDITS\n'); assert.equal(stripUsageCredits('scripts/studio-later-changes.mjs', 'abc\n'), 'abc\n'); assert.equal(stripUsageCredits('scripts/test-studio-deck-sync-truth.mjs', 1), 1)
   assert.ok(USAGE_CREDITS_MARKER_RE.test('a // USAGE-CREDITS') && !USAGE_CREDITS_MARKER_RE.test('a // USAGE-CREDITS-X') && !USAGE_CREDITS_MARKER_RE.test('a // X-USAGE-CREDITS') && !USAGE_CREDITS_MARKER_RE.test('a // STUDIO_USAGE_PAGE'), 'the marker is a whole token')
   assert.deepEqual([...USAGE_CREDITS_SCOPE_FILES].sort(), [...USAGE_CREDITS_NEW_FILES, '.env.example', 'scripts/studio-later-changes.mjs', ...USAGE_CREDITS_PIN_FILES].sort())
-  assert.equal(USAGE_CREDITS_SUBJECT, 'Usage credits:'); assert.equal(BASE_COMMIT, 'f36e9f8506b16cc0bb13f8f8020a2b9cd85b0f09')
+  assert.equal(USAGE_CREDITS_SUBJECT, 'Usage credits:'); assert.match(BASE_COMMIT, /^[0-9a-f]{40}$/); git('merge-base', '--is-ancestor', BASE_COMMIT, 'HEAD') // the base is a full sha this branch is built on (it moves with each restack onto dev)
 })
 
 // ---- the dispatch the Usage page gets later (after FRONTEND-1's #585 merges; NOT in this change) --------------------------------------------------------
@@ -662,7 +662,7 @@ const scopeEnvAndRegistry = head => {
   const lines = regText.split('\n'), END = '  // one line per later change, above this comment'
   for (const [name, marker] of [['LATER_CHANGE_FILES', 'USAGE_CREDITS_SCOPE_FILES'], ['LATER_ENV_BLOCKS', 'USAGE_CREDITS_ENV_BLOCK'], ['LATER_STRIPS', 'stripUsageCredits']]) {
     const at = lines.findIndex(l => l.includes(`).${marker}, // LATER-CHANGE:`)); assert.ok(at > 0, name); assert.equal(lines[at + 1], END, `${name}: the line is the true end of its list (right above the end comment)`)
-    assert.ok(/PHONE_SHELL_COVERAGE|stripPhoneShellCoverage/.test(lines[at - 1]), `${name}: right after the phone shell coverage's line`)
+    assert.ok(baseText('scripts/studio-later-changes.mjs').split('\n').includes(lines[at - 1]) && lines[at - 1].includes('// LATER-CHANGE:'), `${name}: right after a registered line its base already has (the last change before it, whichever that is)`)
   }
 }
 const scopeAll = head => { scopeOwnCommits(head); scopeCommittedFiles(head); scopeEnvAndRegistry(head) }
