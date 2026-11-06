@@ -19,8 +19,8 @@ const stray = changed.filter(f => !strip.BILLING_F5_USAGE_SCOPE_FILES.has(f) && 
 ok(stray.length === 0, `A: only own files changed (stray: ${stray.join(', ')})`)
 const env = git('show', `${HEAD}:.env.example`)
 const ownEnv = [strip.BILLING_F5_USAGE_ENV_BLOCK, strip.BILLING_F5_QUOTA_SCREENS_ENV_BLOCK], baseEnv = git('show', `${BASE}:.env.example`)
-const stackedEnv = registry.LATER_ENV_BLOCKS.filter(b => !ownEnv.includes(b) && !baseEnv.includes(b) && env.includes(b)).map(b => `${String(b).replace(/\n+$/, '')}\n`) // LATER-CHANGES: registry read (BILLING-F4F6): the env blocks of the changes this one is stacked on, in registry order, sit between the base and this change's two
-ok(env === [baseEnv, ...stackedEnv, ...ownEnv].join('\n'), 'A: .env.example is the base plus the two blocks')
+const stackedAt = registry.LATER_ENV_BLOCKS.indexOf(ownEnv[0]), presentEnv = registry.LATER_ENV_BLOCKS.map((b, i) => ({ b, i })).filter(({ b }) => !ownEnv.includes(b) && !baseEnv.includes(b) && env.includes(b)).map(({ b, i }) => ({ text: `${String(b).replace(/\n+$/, '')}\n`, after: i > stackedAt })) // LATER-CHANGES: registry read (BILLING-F4F6): the env blocks of the changes this one is stacked on sit between the base and this change's two, in registry order; a block registered after this change's own follows its two in the file
+ok(stackedAt >= 0 && env === [baseEnv, ...presentEnv.filter(e => !e.after).map(e => e.text), ...ownEnv, ...presentEnv.filter(e => e.after).map(e => e.text)].join('\n'), 'A: .env.example is the base plus the two blocks') // LATER-CHANGES: registry read (BILLING-F4F6)
 ok(/^NEXT_PUBLIC_STUDIO_QUOTA_SCREENS="false"$/m.test(strip.BILLING_F5_QUOTA_SCREENS_ENV_BLOCK), 'A: quota screens env default "false"')
 ok(/^NEXT_PUBLIC_STUDIO_USAGE_PAGE="false"$/m.test(strip.BILLING_F5_USAGE_ENV_BLOCK), 'A: env default "false"')
 ok(registry.LATER_CHANGE_FILES.has('lib/studio-billing-usage.ts'), 'A: registered in studio-later-changes')
