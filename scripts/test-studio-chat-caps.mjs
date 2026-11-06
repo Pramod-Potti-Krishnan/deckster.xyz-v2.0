@@ -397,7 +397,7 @@ const scopeCommittedFiles = head => {
   for (const c of own) for (const rel of git('show', '--name-only', '--format=', c).split('\n').filter(Boolean)) touched.add(rel)
   const net = new Set(git('diff', '--name-only', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)); for (const rel of [...touched]) if (!net.has(rel)) touched.delete(rel)
   assert.deepEqual([...touched].sort(), [...CHAT_CAPS_SCOPE_FILES].sort(), 'the files this change\'s own commits touch (net of what they put back) are exactly its scope')
-  assert.deepEqual([...net].sort(), [...CHAT_CAPS_SCOPE_FILES].sort(), 'and the whole committed diff from BASE is nothing else')
+  assert.deepEqual([...net].filter(rel => CHAT_CAPS_SCOPE_FILES.has(rel) || !registry.LATER_CHANGE_FILES.has(rel)).sort(), [...CHAT_CAPS_SCOPE_FILES].sort(), 'and the whole committed diff from BASE is nothing else (a file the registry names for a later change, like the after-merge proof fix stacked on this head, is left to that change; an unregistered file still fails)')
   for (const rel of CHAT_CAPS_FILES) {
     const now = git('show', `${head}:${rel}`), diff = lineDiff(baseText(rel), now)
     assert.ok(diff.length === MARKED_COUNT[rel] && diff.every(line => line.startsWith('+') && CHAT_CAPS_MARKER_RE.test(line)), `${rel}: ${MARKED_COUNT[rel]} added lines, each with the marker, none removed`)
@@ -483,6 +483,8 @@ await scopeCheck('mutant caught: a stray file in a "Chat caps:" commit, an own c
     const foreign = commitWith(HEAD, { [rel]: git('show', `${HEAD}:${rel}`) + '\n' }, `${CHAT_CAPS_SUBJECT} touches ${rel}${TRAILER}`)
     assert.throws(() => scopeCommittedFiles(foreign), /exactly its scope|is not touched/, rel)
   }
+  const unregistered = commitWith(HEAD, { 'stray-later-change.txt': 'stray\n' }, `Proofs after merge: an unregistered file${TRAILER}`)
+  assert.throws(() => scopeCommittedFiles(unregistered), /nothing else/, 'a later commit stacked on this head that touches a file the registry does not name still fails the whole-diff check')
 })
 // a branch stacked after this change: dev's merge brings it in by its SECOND parent, then a later change adds its own subject filter beside this change's in a taught proof
 const SYN = { file: 'scripts/test-studio-deck-sync-truth.mjs', mark: 'registry read (SYNTHETIC-LATER)' }
