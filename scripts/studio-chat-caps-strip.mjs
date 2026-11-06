@@ -6,7 +6,7 @@
 // The older proofs this change teaches (PIN_EDITS, tests only, every line carries the registry-read mark): the two that read the first-parent line of BASE..HEAD for their own commits' subjects get one more inserted line each,
 // for "Chat caps:", as #567 / #568 did; the two that hash the hook's reducer as raw text (chat element refine #470, chat theme/export #472) read it through the registry first (two inserted lines each: a block with a stripped head). How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '96b3839cb1d6c155279fd7a06da1e9d9598f9aa4' // Option L carrier chain (6 Nov): the previous step 96b3839c; was 21b5fc08
+export const BASE_COMMIT = '3ea3de056cfbfe257ca7872e784c2d8eeefcdac3' // Option L carrier chain (6 Nov): the previous step 3ea3de05; was 96b3839c
 export const CHAT_CAPS_FLAG = 'NEXT_PUBLIC_STUDIO_CHAT_CAPS_META'
 export const CHAT_CAPS_MARKER = 'CHAT-CAPS-META'
 /** The marker as a WHOLE token: CHAT-CAPS-META is this change's; any other prefix or suffix (CHAT-CAPS-META-X, X-CHAT-CAPS-META) is not. */
