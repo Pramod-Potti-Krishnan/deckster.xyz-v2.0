@@ -27,9 +27,11 @@ import ts from 'typescript'
 import postcss from 'postcss'
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (BILLING-F4F6)
+
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const BASE_COMMIT = process.env.P2_ACCOUNT_BASE || 'fbc77c0430099ec7e11a188307ee5521b6937719'
-const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))
+const read = rel => stripLaunchWording(rel, rel === 'app/(app)/billing/page.tsx' || rel === 'lib/marketing/homepage-v2-pricing.ts' ? stripLaterChanges(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')) : fs.readFileSync(path.join(repoRoot, rel), 'utf8')) // LATER-CHANGES: registry read (BILLING-F4F6)
 const baseCache = new Map()
 const baseSource = rel => {
   if (!baseCache.has(rel)) {

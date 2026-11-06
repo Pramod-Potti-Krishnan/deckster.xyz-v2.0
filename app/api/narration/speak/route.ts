@@ -27,6 +27,16 @@ import {
 } from '@/lib/narration/spoken';
 import { isNarrationConfigured } from '@/lib/narration/tts';
 import { narrationCallContext } from '@/lib/narration/model-router';
+import { contentKey, getMedia, putMedia } from '@/lib/narration/media-store';
+import { getVoice } from '@/lib/narration/voices';
+import { clientIpFrom, evaluateLimits, hashAskerIp, IP_BURST_WINDOW_MS, startOfUtcDay, startOfUtcMonth } from '@/lib/publish/qa-limits';
+import {
+  RATE_BUCKET_SPEAK,
+  countRateEvents,
+  isApiHardeningEnabled,
+  recordRateEvent,
+  spokenAnswerCachePath,
+} from '@/lib/api-hardening';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,6 +63,10 @@ export async function POST(request: NextRequest) {
         visibility: true,
         passcodeHash: true,
         narrationEnabled: true,
+        qaDailyCap: true,
+        qaMonthlyCap: true,
+        qaVisitorBurstLimit: true,
+        qaVisitorDailyLimit: true,
       },
     });
     if (!deck || deck.revokedAt || !deck.narrationEnabled) {
@@ -118,8 +132,67 @@ export async function POST(request: NextRequest) {
     // Said short, and pointed at the written answer for the rest. A minute of
     // speech to answer one question costs more of the session than the question
     // was worth, and the full text is already on screen with its citations.
-    const spoken = await speakAnswer(spokenPrecis(text), voice, routed);
+    const precis = spokenPrecis(text);
+
+    // STUDIO_API_HARDENING_V1_ENABLED (server, default off): a replayed answer is served from storage (one render per
+    // answer text + voice), and a fresh render is bounded by the same per-visitor and per-deck limits as /ask, counted
+    // in fe_api_rate_events. Off, every call renders and bills exactly as before.
+    let cachePath: string | null = null;
+    if (isApiHardeningEnabled()) {
+      const spec = getVoice(voice);
+      cachePath = spokenAnswerCachePath(
+        spec.id,
+        contentKey({ text: precis, model: spec.model, providerVoice: spec.providerVoice }),
+        spec.responseFormat === 'pcm' ? 'wav' : 'mp3'
+      );
+      const stored = await getMedia(cachePath);
+      if (stored) {
+        return new NextResponse(new Uint8Array(stored.body), {
+          headers: { 'Content-Type': stored.contentType, 'Cache-Control': 'no-store' },
+        });
+      }
+      const ipHash = hashAskerIp(clientIpFrom(request.headers));
+      const now = new Date();
+      const [ipInWindow, ipToday, deckToday, deckThisMonth] = await Promise.all([
+        countRateEvents({ bucket: RATE_BUCKET_SPEAK, subject: ipHash, since: new Date(now.getTime() - IP_BURST_WINDOW_MS) }),
+        countRateEvents({ bucket: RATE_BUCKET_SPEAK, subject: ipHash, since: startOfUtcDay(now) }),
+        countRateEvents({ bucket: RATE_BUCKET_SPEAK, scope: deck.id, since: startOfUtcDay(now) }),
+        countRateEvents({ bucket: RATE_BUCKET_SPEAK, scope: deck.id, since: startOfUtcMonth(now) }),
+      ]);
+      const verdict = evaluateLimits({
+        blocked: 0,
+        ipInWindow,
+        ipToday,
+        deckToday,
+        deckThisMonth,
+        deckDailyCap: deck.qaDailyCap,
+        deckMonthlyCap: deck.qaMonthlyCap,
+        visitorBurstLimit: deck.qaVisitorBurstLimit,
+        visitorDailyLimit: deck.qaVisitorDailyLimit,
+      });
+      if (!verdict.allowed) {
+        return NextResponse.json(
+          { error: 'Too many requests' },
+          {
+            status: 429,
+            headers: verdict.reason === 'rate_limited' && verdict.retryAfterSeconds
+              ? { 'Retry-After': String(verdict.retryAfterSeconds) }
+              : undefined,
+          }
+        );
+      }
+      await recordRateEvent(RATE_BUCKET_SPEAK, deck.id, ipHash);
+    }
+
+    const spoken = await speakAnswer(precis, voice, routed);
     if (!spoken) return NextResponse.json({ error: 'Could not speak that' }, { status: 502 });
+    if (cachePath) {
+      try {
+        await putMedia(cachePath, spoken.body, spoken.contentType);
+      } catch (error) {
+        console.error('[Narration] could not cache a spoken answer:', error);
+      }
+    }
 
     // Metered against the publisher, like every other model call this deck
     // makes on a viewer's behalf. Failure to bill must not withhold audio the
