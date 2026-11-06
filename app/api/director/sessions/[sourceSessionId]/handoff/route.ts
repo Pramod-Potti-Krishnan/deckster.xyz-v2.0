@@ -1,14 +1,17 @@
+import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
+import { HANDOFF_BODY_KEYS, isApiHardeningEnabled, pickAllowedKeys, requireApprovedUser, requireSessionOwner } from '@/lib/api-hardening'
 
 export const maxDuration = 60
 
-const DIRECTOR_API_URL = (
-  process.env.DIRECTOR_API_URL ||
-  process.env.NEXT_PUBLIC_DIRECTOR_API_URL ||
-  'https://directorv33-production.up.railway.app'
-).replace(/\/+$/, '')
+function directorBaseUrl(): string {
+  return requireServiceUrl('Director', [
+    { name: 'DIRECTOR_API_URL', value: process.env.DIRECTOR_API_URL },
+    { name: 'NEXT_PUBLIC_DIRECTOR_API_URL', value: process.env.NEXT_PUBLIC_DIRECTOR_API_URL },
+  ], { stripTrailingSlash: true })
+}
 
 type SessionUser = {
   id?: string | null
@@ -19,6 +22,9 @@ export async function POST(
   req: NextRequest,
   context: { params: Promise<{ sourceSessionId: string }> },
 ) {
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): approved users only, read from the DB. Off, this returns null and nothing changes.
+  const notApproved = await requireApprovedUser()
+  if (notApproved) return notApproved
   const session = await getServerSession(authOptions)
   const sessionUser = session?.user as SessionUser | undefined
   const userId = sessionUser?.id || sessionUser?.email
@@ -47,8 +53,12 @@ export async function POST(
   }
 
   const { sourceSessionId } = await context.params
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): only the owner of the source session may hand it off. Off, null.
+  const notOwner = await requireSessionOwner(sessionUser?.id, sourceSessionId)
+  if (notOwner) return notOwner
   const payload = {
-    ...body,
+    // Hardening on: only the keys the Studio sends are forwarded.
+    ...(isApiHardeningEnabled() ? pickAllowedKeys(body, HANDOFF_BODY_KEYS) : body),
     // Never trust a browser-provided owner id. This must exactly match the id
     // used by the authenticated Director WebSocket session.
     user_id: userId,
@@ -58,7 +68,7 @@ export async function POST(
 
   try {
     const response = await fetch(
-      `${DIRECTOR_API_URL}/api/sessions/${encodeURIComponent(sourceSessionId)}/handoff`,
+      `${directorBaseUrl()}/api/sessions/${encodeURIComponent(sourceSessionId)}/handoff`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -77,6 +87,7 @@ export async function POST(
     }
     return NextResponse.json(data, { status: response.status })
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     return NextResponse.json(
       {
         error: 'director_unreachable',

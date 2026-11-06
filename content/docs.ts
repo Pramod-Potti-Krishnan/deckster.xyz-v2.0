@@ -12,7 +12,7 @@ export const docSections: DocSection[] = [
         category: 'getting-started',
         content: `# Quick Start Guide
 
-Welcome to deckster! This guide will help you create your first AI-powered presentation in just 5 minutes.
+Welcome to Deckster! This guide will help you create your first AI-powered presentation in just 5 minutes.
 
 ## Step 1: Sign Up
 
@@ -20,9 +20,9 @@ Welcome to deckster! This guide will help you create your first AI-powered prese
 2. Enter your email and create a password
 3. Verify your email address
 
-## Step 2: Start a New Presentation
+## Step 2: Start a New Deck
 
-1. From your dashboard, click "New Presentation"
+1. From the Decks page, click "New deck" (on some pages it reads "+ Presentation")
 2. You'll see the builder interface with two main areas:
    - **Left**: Chat interface to communicate with AI agents
    - **Right**: Live preview of your presentation
@@ -94,7 +94,7 @@ You have three options:
 ### 1. Start from Scratch
 Best for: Unique presentations with specific requirements
 
-Click "New Presentation" and describe your needs in detail to the AI agents.
+Click "New deck" and describe your needs in detail to the AI agents.
 
 ### 2. Use a Template
 Best for: Common presentation types (pitch decks, reports, etc.)
@@ -210,7 +210,7 @@ Ready to get started? [Create your first presentation →](/builder)
         category: 'getting-started',
         content: `# Understanding Your AI Team
 
-deckster uses a multi-agent AI system where specialized agents collaborate to create your presentation. Think of them as your virtual creative team.
+Deckster uses a multi-agent AI system where specialized agents collaborate to create your presentation. Think of them as your virtual creative team.
 
 ## The Four AI Agents
 
@@ -294,7 +294,7 @@ Agents don't work in isolation - they collaborate:
 
 ## Agent Transparency: Chain of Thought
 
-Unlike black-box AI, deckster shows you **how** agents think:
+Unlike black-box AI, Deckster shows you **how** agents think:
 
 - See agent reasoning in real-time
 - Understand why decisions were made
@@ -737,6 +737,22 @@ Export your presentations in multiple formats and share them with others.
 2. Select quality option
 3. Download PDF file
 
+### Images (PNG/JPEG)
+**Best for:** Social media, websites, individual slides
+
+**Features:**
+- Per-slide images
+- Custom dimensions
+- High resolution
+- Transparent backgrounds (PNG)
+
+**How to export:**
+1. Click "Export" → "Images"
+2. Select format (PNG or JPEG)
+3. Choose slides (all or selection)
+4. Set resolution
+5. Download zip file
+
 ### Web Link (Hosted)
 **Best for:** Online sharing, embedding
 
@@ -840,7 +856,7 @@ Share within your organization:
 
 ## Presentation Mode
 
-Present directly from deckster:
+Present directly from Deckster:
 1. Click "Present"
 2. Choose mode:
    - **Full screen**: Standard presentation

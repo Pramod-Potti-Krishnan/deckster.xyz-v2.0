@@ -1,0 +1,28 @@
+/* Native Master fields only; classic and shared dialog geometry stay unchanged. */
+[data-studio-v4-dialog="master"] [data-studio-master-part="header"], [data-studio-v4-dialog="master"] [data-studio-master-part="footer"] { flex-shrink: 0; }
+[data-studio-v4-dialog="master"] [data-studio-master-part="body"] { min-width: 0; overflow-x: hidden; }
+[data-studio-v4-dialog="master"] [data-studio-master-part="section"] { min-width: 0; }
+[data-studio-v4-dialog="master"] [data-studio-master-part="presets"] { gap: 6px; }
+[data-studio-v4-dialog="master"] [data-studio-master-preset] { height: auto; min-height: 30px; padding: 5px 9px; border: 1px solid var(--se-line); border-radius: 6px; background: var(--se-surface); color: var(--se-muted); font-size: 11px; line-height: 1.5; white-space: normal; text-align: left; }
+[data-studio-v4-dialog="master"] [data-studio-master-preset][aria-pressed="true"] { border-color: var(--se-teal); background: color-mix(in srgb, var(--se-teal) 10%, var(--se-panel)); color: var(--se-ink); }
+[data-studio-v4-dialog="master"] [data-studio-master-preset]:hover { border-color: var(--se-teal); color: var(--se-ink); }
+[data-studio-v4-dialog="master"] [data-studio-master-part="preview"] { min-width: 0; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--se-ink); }
+[data-studio-v4-dialog="master"] [data-studio-master-part="logo-file"] { min-width: 0; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; font-size: 11px; line-height: 1.6; }
+[data-studio-v4-dialog="master"] [data-studio-master-part="logo-image"] { flex-shrink: 0; }
+[data-studio-v4-dialog="master"] [data-studio-master-part="logo-actions"] { flex-wrap: wrap; }
+[data-studio-v4-dialog="master"] [data-studio-master-part="logo-actions"] > button { min-height: 32px; height: auto; padding: 6px 10px; border-color: var(--se-line); background: var(--se-panel); color: var(--se-ink); font-size: 11px; }
+[data-studio-v4-dialog="master"] [data-studio-master-part="footer"] { background: var(--se-surface); border-color: var(--se-line); padding: 11px 16px; }
+[data-studio-v4-dialog="master"] [data-studio-master-part="footer"] button { min-height: 32px; height: auto; padding: 6px 10px; font-size: 11px; white-space: normal; }
+[data-studio-v4-dialog="master"] [data-studio-master-part="footer"] [data-studio-master-action="save"] { border: 1px solid var(--se-teal); background: var(--se-teal); color: var(--se-panel); }
+[data-studio-v4-dialog="master"] [data-studio-master-part="footer"] [data-studio-master-action="cancel"] { border-color: var(--se-line); background: var(--se-panel); color: var(--se-ink); }
+[data-studio-v4-dialog="master"] [data-studio-master-part="footer"] [data-studio-master-action="clear"] { color: #a04438; }
+.dark [data-studio-v4-dialog="master"] [data-studio-master-part="footer"] [data-studio-master-action="clear"] { color: #e3a095; }
+[data-studio-v4-dialog="master"] [data-studio-master-part="footer"] button:disabled { opacity: .5; }
+[data-studio-v4-dialog="master"] :is([data-studio-master-preset], [data-studio-master-action], [data-studio-master-part="close"]):focus-visible { outline: 2px solid var(--se-violet); outline-offset: 2px; }
+@media (max-height: 600px) { [data-studio-v4-dialog="master"] [data-studio-master-part="header"] { padding-block: 11px; } [data-studio-v4-dialog="master"] [data-studio-master-part="footer"] { padding-block: 8px; } }
+
+/* Studio settings-read recovery only; native fields and classic surfaces are unchanged. */
+[data-studio-v4-dialog="master"] [data-studio-master-part="read-error"] { border-color: var(--se-line); background: var(--se-surface); color: var(--se-ink); overflow-wrap: anywhere; }
+[data-studio-v4-dialog="master"] [data-studio-master-action="retry-read"] { min-height: 32px; border-color: var(--se-line); background: var(--se-panel); color: var(--se-ink); white-space: normal; }
+/* Fit the actual Stage container, which is narrower than the page beside the rail. */
+@media (max-width: 780px) { [data-studio-v4-viewer] [data-studio-v4-dialog="master"] { max-width: calc(100% - 24px); } }

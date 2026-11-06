@@ -1,0 +1,800 @@
+{
+ "name": "chat-clean-order",
+ "description": "E2E-2 live run c737ffe5 (Studio dev, 27 Oct): the frames the v3.1 chat clean thread sees from plan approval to the outline card, the build start, a pause / resume and a stop. The outline-gate order is DIRECTOR-2's, 27 Oct (relayed by FRONTEND-2): status_update → build_phase planning → progress chat_messages + deck-scope build_events (the last 'Packaging…') → slide_context → build_phase strawman → slide_update → outline chat line → action_request → token_usage.",
+ "source": {
+  "order": "DIRECTOR-2's frame order from plan approval to the outline card, 27 Oct 2026 (FRONTEND-2's resume message to B31). Director's code: backend/director src/handlers/websocket.py _build_progress_emitter (idx 0-5: the chat line, then a deck-scope build_event with _PROGRESS_IDX_STAGES), the strawman build_phase before _send_slide_update.",
+  "shapes": "every frame is a recorded Director frame's shape: build_phase / build_event / slide_built / presentation_url / chat_message / slide_context from scripts/fixtures/build-resume/j7-stop-resume.json (Director's real code, keyless); status_update, slide_update, action_request, token_usage, pause_ack, resume_ack from scripts/fixtures/build-failure-end/outline-gate-typed-approval-failure.json. Changed from the recordings: message ids, session id, ascending timestamps from 2026-10-27T16:59:00Z, one build id (bld_46a5295c9574) on every typed frame, slide_count 5 (the outline's), the deck-scope build_events (scope 'deck', stage per the canned line, no slide_index) and the six canned progress texts (websocket.py PROGRESS_MESSAGES).",
+  "not_recorded": "DIRECTOR-2's own recording of this turn had not landed when this was written; the order is theirs, the shapes are the recorded ones."
+ },
+ "session": {
+  "id": "synthetic-5e2675b8",
+  "userId": "synthetic-user"
+ },
+ "frames": {
+  "outline_gate": [
+   {
+    "message_id": "msg_cco_01",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:00.100000Z",
+    "type": "status_update",
+    "role": "assistant",
+    "payload": {
+     "status": "thinking",
+     "text": "Generating presentation outline...",
+     "progress": null,
+     "estimated_time": null
+    },
+    "name": "status_update: Generating presentation outline..."
+   },
+   {
+    "message_id": "msg_cco_02",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:00.200000Z",
+    "type": "build_phase",
+    "role": "assistant",
+    "payload": {
+     "build_id": "bld_46a5295c9574",
+     "phase": "planning",
+     "label": "Designing your deck plan…",
+     "slide_count": null,
+     "slides_done": 0,
+     "auto_proceed": null,
+     "presentation_id": null,
+     "control_request_id": null
+    },
+    "name": "build_phase planning"
+   },
+   {
+    "message_id": "msg_cco_03",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:00.300000Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Reviewing your topic and audience…",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": true
+    },
+    "name": "progress chat 0"
+   },
+   {
+    "message_id": "msg_cco_04",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:00.400000Z",
+    "type": "build_event",
+    "role": "assistant",
+    "payload": {
+     "build_id": "bld_46a5295c9574",
+     "seq": 0,
+     "scope": "deck",
+     "stage": "framing",
+     "status": "progress",
+     "text": "Reviewing your topic and audience…",
+     "detail": null,
+     "slide_index": null,
+     "job_id": null,
+     "ts": "2026-10-27T16:59:00.400000Z"
+    },
+    "name": "deck build_event framing"
+   },
+   {
+    "message_id": "msg_cco_05",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:00.500000Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Researching the topic for context…",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": true
+    },
+    "name": "progress chat 1"
+   },
+   {
+    "message_id": "msg_cco_06",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:00.600000Z",
+    "type": "build_event",
+    "role": "assistant",
+    "payload": {
+     "build_id": "bld_46a5295c9574",
+     "seq": 1,
+     "scope": "deck",
+     "stage": "research",
+     "status": "progress",
+     "text": "Researching the topic for context…",
+     "detail": null,
+     "slide_index": null,
+     "job_id": null,
+     "ts": "2026-10-27T16:59:00.600000Z"
+    },
+    "name": "deck build_event research"
+   },
+   {
+    "message_id": "msg_cco_07",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:00.700000Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Drafting the deck outline…",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": true
+    },
+    "name": "progress chat 2"
+   },
+   {
+    "message_id": "msg_cco_08",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:00.800000Z",
+    "type": "build_event",
+    "role": "assistant",
+    "payload": {
+     "build_id": "bld_46a5295c9574",
+     "seq": 2,
+     "scope": "deck",
+     "stage": "outline",
+     "status": "progress",
+     "text": "Drafting the deck outline…",
+     "detail": null,
+     "slide_index": null,
+     "job_id": null,
+     "ts": "2026-10-27T16:59:00.800000Z"
+    },
+    "name": "deck build_event outline"
+   },
+   {
+    "message_id": "msg_cco_09",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:00.900000Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Choosing layouts for each slide…",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": true
+    },
+    "name": "progress chat 3"
+   },
+   {
+    "message_id": "msg_cco_10",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:01.000000Z",
+    "type": "build_event",
+    "role": "assistant",
+    "payload": {
+     "build_id": "bld_46a5295c9574",
+     "seq": 3,
+     "scope": "deck",
+     "stage": "slide_layouts",
+     "status": "progress",
+     "text": "Choosing layouts for each slide…",
+     "detail": null,
+     "slide_index": null,
+     "job_id": null,
+     "ts": "2026-10-27T16:59:01.000000Z"
+    },
+    "name": "deck build_event slide_layouts"
+   },
+   {
+    "message_id": "msg_cco_11",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:01.100000Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Researching each slide in detail…",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": true
+    },
+    "name": "progress chat 4"
+   },
+   {
+    "message_id": "msg_cco_12",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:01.200000Z",
+    "type": "build_event",
+    "role": "assistant",
+    "payload": {
+     "build_id": "bld_46a5295c9574",
+     "seq": 4,
+     "scope": "deck",
+     "stage": "slide_research",
+     "status": "progress",
+     "text": "Researching each slide in detail…",
+     "detail": null,
+     "slide_index": null,
+     "job_id": null,
+     "ts": "2026-10-27T16:59:01.200000Z"
+    },
+    "name": "deck build_event slide_research"
+   },
+   {
+    "message_id": "msg_cco_13",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:01.300000Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Packaging your outline and picking a theme…",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": true
+    },
+    "name": "progress chat 5"
+   },
+   {
+    "message_id": "msg_cco_14",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:01.400000Z",
+    "type": "build_event",
+    "role": "assistant",
+    "payload": {
+     "build_id": "bld_46a5295c9574",
+     "seq": 5,
+     "scope": "deck",
+     "stage": "package",
+     "status": "progress",
+     "text": "Packaging your outline and picking a theme…",
+     "detail": null,
+     "slide_index": null,
+     "job_id": null,
+     "ts": "2026-10-27T16:59:01.400000Z"
+    },
+    "name": "deck build_event package"
+   },
+   {
+    "message_id": "msg_cco_15",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:01.500000Z",
+    "type": "slide_context",
+    "role": "assistant",
+    "payload": {
+     "deck": {
+      "deck_arc": null,
+      "presentation_brief": null,
+      "theme_session_id": "theme-sess-1",
+      "theme_chrome_policy": null,
+      "deck_composition_guidance": null,
+      "color_application_policy": null,
+      "deck_identity": null,
+      "footer": null
+     },
+     "slides": [
+      {
+       "slide_index": 0,
+       "narrative_role": "support",
+       "key_message": null,
+       "content_type": "text",
+       "subtype": null,
+       "content": null,
+       "research_status": null,
+       "research_ready": null,
+       "research_issues": [],
+       "citation_count": null,
+       "source_types": [],
+       "chart_epistemic_mode": null,
+       "chart_data_asset_id": null,
+       "chart_disclosure": null,
+       "chart_assumptions": [],
+       "chart_methodology": null
+      },
+      {
+       "slide_index": 1,
+       "narrative_role": "support",
+       "key_message": null,
+       "content_type": "text",
+       "subtype": null,
+       "content": null,
+       "research_status": null,
+       "research_ready": null,
+       "research_issues": [],
+       "citation_count": null,
+       "source_types": [],
+       "chart_epistemic_mode": null,
+       "chart_data_asset_id": null,
+       "chart_disclosure": null,
+       "chart_assumptions": [],
+       "chart_methodology": null
+      },
+      {
+       "slide_index": 2,
+       "narrative_role": "support",
+       "key_message": null,
+       "content_type": "text",
+       "subtype": null,
+       "content": null,
+       "research_status": null,
+       "research_ready": null,
+       "research_issues": [],
+       "citation_count": null,
+       "source_types": [],
+       "chart_epistemic_mode": null,
+       "chart_data_asset_id": null,
+       "chart_disclosure": null,
+       "chart_assumptions": [],
+       "chart_methodology": null
+      }
+     ]
+    },
+    "name": "slide_context"
+   },
+   {
+    "message_id": "msg_cco_16",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:01.600000Z",
+    "type": "build_phase",
+    "role": "assistant",
+    "payload": {
+     "build_id": "bld_46a5295c9574",
+     "phase": "strawman",
+     "label": "Outline ready — shaping your slides…",
+     "slide_count": 5,
+     "slides_done": 0,
+     "auto_proceed": null,
+     "presentation_id": null,
+     "control_request_id": null
+    },
+    "name": "build_phase strawman"
+   },
+   {
+    "message_id": "msg_cco_17",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:01.700000Z",
+    "type": "slide_update",
+    "role": "assistant",
+    "payload": {
+     "operation": "full_update",
+     "metadata": {
+      "main_title": "Cutting food waste with smarter ordering",
+      "overall_theme": "professional",
+      "design_suggestions": "",
+      "target_audience": "general",
+      "presentation_duration": 15,
+      "preview_url": "https://layout.synthetic.invalid/p/synthetic-5e2675b8-outline",
+      "preview_presentation_id": "synthetic-5e2675b8-outline"
+     },
+     "slides": [
+      {
+       "slide_id": "s1",
+       "slide_number": 1,
+       "slide_type": "content",
+       "title": "Cutting Food Waste With Smarter Ordering",
+       "subtitle": null,
+       "narrative": "Key content about Cutting Food Waste With Smarter Ordering",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      },
+      {
+       "slide_id": "s2",
+       "slide_number": 2,
+       "slide_type": "content",
+       "title": "Precision Ordering",
+       "subtitle": null,
+       "narrative": "Key content about Precision Ordering",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      },
+      {
+       "slide_id": "s3",
+       "slide_number": 3,
+       "slide_type": "content",
+       "title": "The Three-Step Protocol",
+       "subtitle": null,
+       "narrative": "Key content about The Three-Step Protocol",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      },
+      {
+       "slide_id": "s4",
+       "slide_number": 4,
+       "slide_type": "content",
+       "title": "The Risks of Cutting Orders Too Deep",
+       "subtitle": null,
+       "narrative": "Key content about The Risks of Cutting Orders Too Deep",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      },
+      {
+       "slide_id": "s5",
+       "slide_number": 5,
+       "slide_type": "content",
+       "title": "Next Steps",
+       "subtitle": null,
+       "narrative": "Key content about Next Steps",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      }
+     ],
+     "affected_slides": null,
+     "is_blank": false
+    },
+    "name": "slide_update (the outline, 5 slides)"
+   },
+   {
+    "message_id": "msg_cco_18",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:01.800000Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Here's the outline I'd build. Take a look and tell me what to change.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    },
+    "name": "outline chat line"
+   },
+   {
+    "message_id": "msg_cco_19",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:01.900000Z",
+    "type": "action_request",
+    "role": "assistant",
+    "payload": {
+     "prompt_text": "Does this outline look good, or would you like to make changes?",
+     "actions": [
+      {
+       "label": "Looks perfect!",
+       "value": "accept_strawman",
+       "primary": true,
+       "requires_input": false
+      },
+      {
+       "label": "Make some changes",
+       "value": "request_refinement",
+       "primary": false,
+       "requires_input": false
+      }
+     ]
+    },
+    "name": "action_request (Does this outline look good...)"
+   },
+   {
+    "message_id": "msg_cco_20",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:02.000000Z",
+    "type": "token_usage",
+    "role": "assistant",
+    "payload": {
+     "turn": {
+      "tokens_in": 1500,
+      "tokens_out": 120,
+      "total_tokens": 1620,
+      "cached_tokens_in": 0,
+      "reasoning_tokens": 0,
+      "per_stage": []
+     },
+     "session": {
+      "tokens_in": 21665,
+      "tokens_out": 3220,
+      "total_tokens": 24885,
+      "cached_tokens_in": 0,
+      "reasoning_tokens": 0,
+      "per_stage": []
+     },
+     "coverage": "partial",
+     "action_type": "invoke_tools"
+    },
+    "name": "token_usage"
+   }
+  ],
+  "build_start": [
+   {
+    "message_id": "msg_cco_21",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:02.100000Z",
+    "type": "status_update",
+    "role": "assistant",
+    "payload": {
+     "status": "thinking",
+     "text": "Generating presentation content...",
+     "progress": null,
+     "estimated_time": null
+    },
+    "name": "status_update Generating presentation content..."
+   },
+   {
+    "message_id": "msg_cco_22",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:02.200000Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Preparing your approved outline for slide generation…",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": true
+    },
+    "name": "progress chat"
+   },
+   {
+    "message_id": "msg_cco_23",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:02.300000Z",
+    "type": "build_phase",
+    "role": "assistant",
+    "payload": {
+     "build_id": "bld_46a5295c9574",
+     "phase": "building",
+     "label": "Building your slides…",
+     "slide_count": 5,
+     "slides_done": 0,
+     "auto_proceed": null,
+     "presentation_id": null,
+     "control_request_id": null
+    },
+    "name": "build_phase building"
+   },
+   {
+    "message_id": "msg_cco_24",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:02.400000Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Handing 5 slides to the Slide Builder…",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": true
+    },
+    "name": "progress chat"
+   },
+   {
+    "message_id": "msg_cco_25",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:02.500000Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Slide 1: rendering 3 element(s)…",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": true
+    },
+    "name": "progress chat"
+   },
+   {
+    "message_id": "msg_cco_26",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:02.600000Z",
+    "type": "build_event",
+    "role": "assistant",
+    "payload": {
+     "build_id": "bld_46a5295c9574",
+     "seq": 0,
+     "scope": "slide",
+     "stage": "render",
+     "status": "started",
+     "text": "Slide 1: rendering 3 element(s)…",
+     "detail": null,
+     "slide_index": 0,
+     "job_id": null,
+     "ts": "2026-10-14T04:20:53.628931Z"
+    },
+    "name": "slide-scope build_event started"
+   }
+  ],
+  "pause_ack": [
+   {
+    "message_id": "msg_cco_34",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:03.400000Z",
+    "type": "build_phase",
+    "role": "assistant",
+    "payload": {
+     "build_id": "bld_46a5295c9574",
+     "phase": "paused",
+     "label": "Paused",
+     "slide_count": 5,
+     "slides_done": 0,
+     "auto_proceed": null,
+     "presentation_id": null,
+     "control_request_id": "synthetic-stop-request-1"
+    },
+    "name": "build_phase paused (the ack)"
+   }
+  ],
+  "resume_ack": [
+   {
+    "message_id": "msg_cco_35",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:03.500000Z",
+    "type": "build_phase",
+    "role": "assistant",
+    "payload": {
+     "build_id": "bld_46a5295c9574",
+     "phase": "building",
+     "label": "Building your slides…",
+     "slide_count": 5,
+     "slides_done": 0,
+     "auto_proceed": null,
+     "presentation_id": null,
+     "control_request_id": "synthetic-stop-request-1"
+    },
+    "name": "build_phase building (the resume ack)"
+   }
+  ],
+  "stop": [
+   {
+    "message_id": "msg_cco_27",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:02.700000Z",
+    "type": "build_phase",
+    "role": "assistant",
+    "payload": {
+     "build_id": "bld_46a5295c9574",
+     "phase": "stopped",
+     "label": "Stopped — your progress is saved",
+     "slide_count": 5,
+     "slides_done": 0,
+     "auto_proceed": null,
+     "presentation_id": null,
+     "control_request_id": "synthetic-stop-request-1"
+    },
+    "name": "build_phase stopped (the ack)"
+   },
+   {
+    "message_id": "msg_cco_28",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:02.800000Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Building slide 1/5 — text heavy rows…",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": true
+    },
+    "name": "progress chat"
+   },
+   {
+    "message_id": "msg_cco_29",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:02.900000Z",
+    "type": "build_event",
+    "role": "assistant",
+    "payload": {
+     "build_id": "bld_46a5295c9574",
+     "seq": 1,
+     "scope": "slide",
+     "stage": "render",
+     "status": "done",
+     "text": "Building slide 1/5 — text heavy rows…",
+     "detail": null,
+     "slide_index": 0,
+     "job_id": null,
+     "ts": "2026-10-14T04:20:53.629054Z"
+    },
+    "name": "slide-scope build_event done"
+   },
+   {
+    "message_id": "msg_cco_30",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:03.000000Z",
+    "type": "slide_built",
+    "role": "assistant",
+    "payload": {
+     "presentation_id": "synthetic-5e2675b8-deck",
+     "slide_index": 0,
+     "slide_count": 5,
+     "thumbnail_url": null,
+     "qa_verdict": null,
+     "qa_skipped_reason": null,
+     "session_id": "synthetic-5e2675b8",
+     "build_id": "bld_46a5295c9574"
+    },
+    "name": "slide_built"
+   },
+   {
+    "message_id": "msg_cco_31",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:03.100000Z",
+    "type": "build_phase",
+    "role": "assistant",
+    "payload": {
+     "build_id": "bld_46a5295c9574",
+     "phase": "stopped",
+     "label": "Stopped — your progress is saved",
+     "slide_count": 5,
+     "slides_done": 1,
+     "auto_proceed": null,
+     "presentation_id": "synthetic-5e2675b8-deck",
+     "control_request_id": null
+    },
+    "name": "build_phase stopped 1/5"
+   },
+   {
+    "message_id": "msg_cco_32",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:03.200000Z",
+    "type": "presentation_url",
+    "role": "assistant",
+    "payload": {
+     "url": "https://layout.synthetic.invalid/p/synthetic-5e2675b8-deck",
+     "presentation_id": "synthetic-5e2675b8-deck",
+     "slide_count": 1,
+     "message": "Your presentation is ready!",
+     "citations_by_slide": null
+    },
+    "name": "presentation_url (the partial deck)"
+   },
+   {
+    "message_id": "msg_cco_33",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T16:59:03.300000Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Stopped. The slides that finished are saved in your deck.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    },
+    "name": "Director stop reply"
+   }
+  ]
+ }
+}

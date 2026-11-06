@@ -1,0 +1,6 @@
+/* NEXT_PUBLIC_STUDIO_DUPLICATE_DECK (default off): the deck list's copy status line and error alert, in the Studio shell's palette. Nothing here matches unless the flag renders
+   these elements, so with the flag off this file changes no page. Classic (non-shell) pages use the elements' own utility classes. */
+[data-studio-v4-shell="true"] [data-studio-deck-duplicate-status] { flex-basis: 100%; color: var(--ss-muted); font-size: 12px; line-height: 20px; }
+[data-studio-v4-shell="true"] [data-studio-deck-duplicate-error] { flex-basis: 100%; min-width: 0; border-color: var(--ss-line); border-left: 3px solid #ad4248; background: var(--ss-panel); color: var(--ss-text); font-size: 12px; line-height: 19px; overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-deck-duplicate-error] button { color: var(--ss-teal); }
+.dark [data-studio-v4-shell="true"] [data-studio-deck-duplicate-error] { border-left-color: #ef9a8f; }

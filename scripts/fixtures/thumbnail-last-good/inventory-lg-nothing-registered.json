@@ -1,0 +1,90 @@
+{
+  "presentation_id": "deck-canon3-identity",
+  "slide_count": 7,
+  "slides": [
+    {
+      "slide_index": 0,
+      "slide_id": "slide_03400405ce3a",
+      "layout": "H1s",
+      "title": "Northwind Engineering Operating Model Board Review",
+      "content_version": "cv3-6977bc6269fa2bd2",
+      "thumbnail_url": null,
+      "thumbnail_stale": false,
+      "thumbnail_status": "none",
+      "last_good_thumbnail_url": null,
+      "thumbnail_stale_reason": null
+    },
+    {
+      "slide_index": 1,
+      "slide_id": "slide_41170322d855",
+      "layout": "I1",
+      "title": "Optimizing Cycle Time and Wait States",
+      "content_version": "cv3-a9aaf2ba8bc145ee",
+      "thumbnail_url": null,
+      "thumbnail_stale": false,
+      "thumbnail_status": "none",
+      "last_good_thumbnail_url": null,
+      "thumbnail_stale_reason": null
+    },
+    {
+      "slide_index": 2,
+      "slide_id": "slide_bd3319db1836",
+      "layout": "I2",
+      "title": "Reducing Governance Latency in Delivery",
+      "content_version": "cv3-de624b7296a33f6f",
+      "thumbnail_url": null,
+      "thumbnail_stale": false,
+      "thumbnail_status": "none",
+      "last_good_thumbnail_url": null,
+      "thumbnail_stale_reason": null
+    },
+    {
+      "slide_index": 3,
+      "slide_id": "slide_43b201c73320",
+      "layout": "C1",
+      "title": "Eliminating Structural Friction in Delivery",
+      "content_version": "cv3-31567669576e8a47",
+      "thumbnail_url": null,
+      "thumbnail_stale": false,
+      "thumbnail_status": "none",
+      "last_good_thumbnail_url": null,
+      "thumbnail_stale_reason": null
+    },
+    {
+      "slide_index": 4,
+      "slide_id": "slide_51f6389579d6",
+      "layout": "C1",
+      "title": "Queue Inflation Throttles Delivery Velocity",
+      "content_version": "cv3-405c2f92f7f110d8",
+      "thumbnail_url": null,
+      "thumbnail_stale": false,
+      "thumbnail_status": "none",
+      "last_good_thumbnail_url": null,
+      "thumbnail_stale_reason": null
+    },
+    {
+      "slide_index": 5,
+      "slide_id": "slide_fb0c0a40f6a7",
+      "layout": "H3",
+      "title": "Idle wait time increases costs and reduces velocity.",
+      "content_version": "cv3-32ead183263d4e55",
+      "thumbnail_url": null,
+      "thumbnail_stale": false,
+      "thumbnail_status": "none",
+      "last_good_thumbnail_url": null,
+      "thumbnail_stale_reason": null
+    },
+    {
+      "slide_index": 6,
+      "slide_id": "slide_72466c5712df",
+      "layout": "C1",
+      "title": "Where the delivery time goes",
+      "content_version": "cv3-19ed88b6a9a4ab81",
+      "thumbnail_url": null,
+      "thumbnail_stale": false,
+      "thumbnail_status": "none",
+      "last_good_thumbnail_url": null,
+      "thumbnail_stale_reason": null
+    }
+  ]
+}

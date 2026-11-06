@@ -1,0 +1,38 @@
+/* Only the literal Studio leaves render this marker. Classic has no notice. */
+[data-studio-format-failure="true"] {
+  flex: 0 0 auto;
+  min-width: 0;
+  max-height: min(136px, 25dvh);
+  margin: 12px 16px 0;
+  padding: 10px 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  border: 1px solid #bd764d;
+  border-radius: 8px;
+  background: var(--sp-field, #f5f8f7);
+  color: var(--sp-ink, #283d40);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+[data-studio-format-failure="true"]:focus-visible {
+  outline: 2px solid var(--sp-violet, #7b68ad);
+  outline-offset: 2px;
+}
+[data-studio-format-failure="true"] strong { display: block; }
+[data-studio-format-failure="true"] p { margin: 4px 0 0; white-space: pre-wrap; }
+[data-studio-format-failure="true"] small {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 16px;
+}
+.dark [data-studio-format-failure="true"] {
+  background: var(--sp-field, #263b37);
+  color: var(--sp-ink, #e0ebe7);
+  border-color: #cd946d;
+}
+.dark [data-studio-format-failure="true"]:focus-visible {
+  outline: 2px solid #baace0;
+}

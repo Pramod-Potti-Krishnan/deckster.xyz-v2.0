@@ -1,0 +1,32 @@
+/* PASS2 DET-01..06 (flag NEXT_PUBLIC_STUDIO_P2_DETAILS, default off; the page below only exists with it on). Every rule is scoped to [data-studio-p2-details] and uses the shell tokens, so dark mode follows the shell. */
+[data-studio-p2-details] .sp-p2-scope { display: flex; margin: -4px 0 8px; }
+[data-studio-p2-details] .sp-p2-scope-pill { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 14px; border: 1px solid var(--sp-teal); border-radius: 8px; background: var(--sp-active); color: var(--sp-teal); font-size: 12px; font-weight: 600; }
+[data-studio-p2-details] .sp-p2-scope-note { margin: 0 0 12px; font-size: 12px; color: var(--sp-muted); overflow-wrap: anywhere; }
+[data-studio-p2-details] .sp-p2-scope-note strong { color: var(--sp-text); font-weight: 600; }
+/* The mockup's underline tabs: above the card, one rule under the whole row. */
+[data-studio-p2-details] .sp-p2-tabs { display: flex; gap: 6px; margin: 0 0 16px; border-bottom: 1px solid var(--sp-line); }
+[data-studio-p2-details] .sp-p2-tabs button { display: inline-flex; align-items: center; gap: 8px; min-height: 42px; margin-bottom: -1px; padding: 0 14px; border: 0; border-bottom: 2px solid transparent; border-radius: 7px 7px 0 0; background: none; color: var(--sp-muted); font-size: 13px; font-weight: 500; }
+[data-studio-p2-details] .sp-p2-tabs button:hover { color: var(--sp-text); }
+[data-studio-p2-details] .sp-p2-tabs button[aria-selected="true"] { color: var(--sp-text); font-weight: 600; border-bottom-color: var(--sp-teal); background: var(--sp-active); }
+[data-studio-p2-details] .sp-p2-tabs button:focus-visible { outline-offset: -2px; }
+[data-studio-p2-details] .sp-p2-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+[data-studio-p2-details] .sp-p2-card-head .sp-form-intro h2 { margin-bottom: 0; }
+[data-studio-p2-details] .sp-p2-check { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; color: var(--sp-text); white-space: nowrap; }
+[data-studio-p2-details] .sp-p2-check input { width: 16px; height: 16px; accent-color: var(--sp-teal); }
+[data-studio-p2-details] .sp-p2-presets { display: flex; flex-wrap: wrap; gap: 8px; }
+[data-studio-p2-details] .sp-p2-presets .sp-button[aria-pressed="true"] { border-color: var(--sp-teal); background: var(--sp-active); color: var(--sp-teal); }
+[data-studio-p2-details] .sp-p2-fields > summary { cursor: pointer; width: fit-content; color: var(--sp-teal); font-size: 12px; font-weight: 500; }
+[data-studio-p2-details] .sp-p2-tokens { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+[data-studio-p2-details] .sp-p2-tokens button { min-height: 28px; padding: 3px 9px; border: 1px solid var(--sp-line); border-radius: 6px; background: var(--sp-surface); color: var(--sp-text); font-size: 11px; }
+[data-studio-p2-details] .sp-p2-tokens button:not(:disabled):hover { border-color: var(--sp-teal); background: var(--sp-active); }
+[data-studio-p2-details] .sp-p2-tokens button:disabled, [data-studio-p2-details] .sp-p2-presets button:disabled { opacity: .55; }
+[data-studio-p2-details] .sp-p2-hint { color: var(--sp-muted); font-size: 11px; }
+[data-studio-p2-details] .sp-field input:disabled { opacity: .6; cursor: not-allowed; }
+[data-studio-p2-details] .sp-field input[aria-invalid="true"] { border-color: #a24133; }
+.dark [data-studio-p2-details] .sp-field input[aria-invalid="true"] { border-color: #f4aaa0; }
+[data-studio-p2-details] .sp-sample-footer > span:first-child:empty { display: none; }
+@media (max-width: 620px) {
+  [data-studio-p2-details] .sp-p2-tabs { overflow-x: auto; scrollbar-width: none; }
+  [data-studio-p2-details] .sp-p2-tabs button { padding: 0 11px; white-space: nowrap; }
+  [data-studio-p2-details] .sp-p2-card-head { flex-wrap: wrap; }
+}

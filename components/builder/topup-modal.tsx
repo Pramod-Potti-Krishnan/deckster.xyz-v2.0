@@ -10,13 +10,11 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
+import { PAYMENTS_OPEN_SOON_LINE, STUDIO_PAYMENTS_OPEN_SOON_ENABLED } from "@/lib/studio-payments-open-soon" // NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON (default off): the packs are disabled and the modal says so
+import "@/components/builder/studio-usage-topup.css"
+import { TOPUP_PACKS } from "@/lib/marketing/homepage-v2-pricing" // BILLING-F4F6
 
-const CREDIT_PACKS = [
-  { id: "pack_10", label: "$10", amountCents: 1000 },
-  { id: "pack_25", label: "$25", amountCents: 2500 },
-  { id: "pack_50", label: "$50", amountCents: 5000 },
-  { id: "pack_100", label: "$100", amountCents: 10000 },
-] as const
+const CREDIT_PACKS = TOPUP_PACKS // BILLING-F4F6: the one pack list, lib/marketing/homepage-v2-pricing.ts
 
 interface TopUpModalProps {
   open: boolean
@@ -30,10 +28,12 @@ interface TopUpModalProps {
  * once a plan cap is reached. Reuses the existing Stripe checkout session.
  */
 export function TopUpModal({ open, onOpenChange, reason }: TopUpModalProps) {
+  const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true"
   const [loadingPack, setLoadingPack] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const startCheckout = async (packId: string) => {
+    if (STUDIO_PAYMENTS_OPEN_SOON_ENABLED) return // NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON: no request is made (the route refuses too)
     setLoadingPack(packId)
     setError(null)
     try {
@@ -57,8 +57,8 @@ export function TopUpModal({ open, onOpenChange, reason }: TopUpModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-md" data-studio-topup={studioShell ? "true" : undefined}>
+        <DialogHeader data-studio-topup-header={studioShell ? "true" : undefined}>
           <DialogTitle className="flex items-center gap-2">
             <Wallet className="h-4 w-4 text-purple-600" />
             Add reserve credits
@@ -69,12 +69,14 @@ export function TopUpModal({ open, onOpenChange, reason }: TopUpModalProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-2 gap-3 pt-2">
+        <div className="grid grid-cols-2 gap-3 pt-2" data-studio-topup-packs={studioShell ? "true" : undefined}>
           {CREDIT_PACKS.map((pack) => (
             <button
               key={pack.id}
               type="button"
-              disabled={loadingPack !== null}
+              data-studio-topup-pack={studioShell ? pack.id : undefined}
+              aria-label={studioShell ? `Start checkout for ${pack.label} reserve credits` : undefined}
+              disabled={loadingPack !== null || STUDIO_PAYMENTS_OPEN_SOON_ENABLED}
               onClick={() => startCheckout(pack.id)}
               className={cn(
                 "flex items-center justify-center gap-2 rounded-lg border border-gray-200 px-4 py-3 text-sm font-semibold transition-colors hover:border-purple-400 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:hover:bg-purple-950/30",
@@ -89,7 +91,9 @@ export function TopUpModal({ open, onOpenChange, reason }: TopUpModalProps) {
           ))}
         </div>
 
-        {error && <p className="pt-1 text-xs text-red-600">{error}</p>}
+        {STUDIO_PAYMENTS_OPEN_SOON_ENABLED && <p className="pt-1 text-xs text-muted-foreground" role="note" data-studio-payments-soon-note="true">{PAYMENTS_OPEN_SOON_LINE}</p>}
+
+        {error && <p className="pt-1 text-xs text-red-600" role={studioShell ? "alert" : undefined} data-studio-topup-error={studioShell ? "true" : undefined}>{error}</p>}
       </DialogContent>
     </Dialog>
   )

@@ -1,0 +1,29 @@
+{
+  "kind": "targeted native baseline/candidate first-failure inspection; no changed assertions",
+  "interpreter": "/opt/homebrew/bin/node v24.4.1",
+  "command": "/opt/homebrew/bin/node scripts/test-studio-theme-refusal-readiness.mjs",
+  "baseline_commit": "18e0446073d62b042a9470fd4524994d3dd82e8e",
+  "candidate_commit": "d50b129d122fe7ca04052820199d650d546c9f24",
+  "test_pinned_ref": "c17cb12ba82517662a279b29db90d07e305bab77",
+  "first_assertion": "exact reverse of guard restores pinned readiness body",
+  "first_assertion_line": 54,
+  "baseline": {
+    "exit": 1,
+    "category": "AssertionError ERR_ASSERTION",
+    "difference": "layoutServiceUrl: getLayoutServiceUrl() versus pinned LAYOUT_SERVICE_URL"
+  },
+  "candidate": {
+    "exit": 1,
+    "category": "AssertionError ERR_ASSERTION",
+    "difference": "same earlier Layout URL change plus intended default-off retry parameter, request identity guarded handshake and failure-sync capture additions"
+  },
+  "conclusion": "Legacy callback source identity test fails on pristine18e before this patch. Candidate intentionally changes callback body behind new flags. Native runtime proof requires the separate actual18e OFF comparison; no existing test assertion is removed or loosened.",
+  "queued_full_pair": {
+    "session": 10370,
+    "ready_sentinel": "/private/tmp/element3-j3-fe-studio-native-ready-20261008",
+    "proof_directory": "/private/tmp/element3-j3-fe-studio-native-proof-20261008",
+    "baseline_root": "/private/tmp/element3-j3-fe-studio-native-base-20261008",
+    "candidate_root": "/Users/pk1980/Software/Deckster/.worktrees/element3-j3-text-p0-studio-20261008",
+    "status": "queued; no header or proof directory yet at targeted inspection"
+  }
+}

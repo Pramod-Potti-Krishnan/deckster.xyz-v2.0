@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
+import '@/components/build-narration/studio-stage-leafs.css'
 
 export interface StagePlaceholderProps {
   /** overlay: absolute inset-0 inside the sized 16:9 slide box (blank deck
@@ -18,13 +19,15 @@ export interface StagePlaceholderProps {
  * it tracks chat-drawer resizes for free.
  */
 export function StagePlaceholder({ mode, onDismiss, className }: StagePlaceholderProps) {
+  const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   const reduced = useReducedMotion()
 
   const inner = (
-    <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-sm border border-border/60 bg-card text-center shadow-2xl">
+    <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-sm border border-border/60 bg-card text-center shadow-2xl" data-studio-stage-placeholder-inner={studioShell ? 'true' : undefined}>
       {/* quiet grid backdrop, matching the narration family */}
       <div
         aria-hidden
+        data-studio-stage-placeholder-grid={studioShell ? 'true' : undefined}
         className="pointer-events-none absolute inset-0 opacity-[0.35]"
         style={{
           backgroundImage:
@@ -36,6 +39,7 @@ export function StagePlaceholder({ mode, onDismiss, className }: StagePlaceholde
       />
       <motion.div
         className="relative flex flex-col items-center px-8"
+        data-studio-stage-placeholder-guidance={studioShell ? 'true' : undefined}
         animate={reduced ? undefined : { y: [0, -6, 0] }}
         transition={reduced ? undefined : { duration: 5, repeat: Infinity, ease: 'easeInOut' }}
       >
@@ -51,6 +55,7 @@ export function StagePlaceholder({ mode, onDismiss, className }: StagePlaceholde
           onClick={onDismiss}
           className="absolute bottom-3 right-4 rounded-md px-2 py-1 text-xs text-muted-foreground/80 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
           data-testid="bn-placeholder-dismiss"
+          data-studio-stage-placeholder-dismiss={studioShell ? 'true' : undefined}
         >
           Start on this blank canvas
         </button>
@@ -60,7 +65,7 @@ export function StagePlaceholder({ mode, onDismiss, className }: StagePlaceholde
 
   if (mode === 'overlay') {
     return (
-      <div className={['absolute inset-0 z-30', className || ''].join(' ')} data-testid="bn-stage-placeholder">
+      <div className={['absolute inset-0 z-30', className || ''].join(' ')} data-testid="bn-stage-placeholder" data-studio-stage-placeholder={studioShell ? mode : undefined} data-has-dismiss={studioShell ? onDismiss ? 'true' : 'false' : undefined}>
         {inner}
       </div>
     )
@@ -69,6 +74,8 @@ export function StagePlaceholder({ mode, onDismiss, className }: StagePlaceholde
     <div
       className={['aspect-video w-full max-w-5xl', className || ''].join(' ')}
       data-testid="bn-stage-placeholder"
+      data-studio-stage-placeholder={studioShell ? mode : undefined}
+      data-has-dismiss={studioShell ? onDismiss ? 'true' : 'false' : undefined}
     >
       {inner}
     </div>

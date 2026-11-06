@@ -1,0 +1,72 @@
+[
+  {
+    "checkpoint": "01-connected-one-turn-sent",
+    "controls": [
+      {"disabled":false,"handlers":["onDragLeave","onDragOver","onDrop"],"label":null,"tag":"div","type":null},
+      {"disabled":false,"handlers":["onChange"],"label":null,"tag":"input","type":"file"},
+      {"disabled":false,"handlers":["onSubmit"],"label":null,"tag":"form","type":null},
+      {"disabled":false,"handlers":["onChange","onKeyDown"],"label":"Message Director","tag":"textarea","type":null},
+      {"disabled":false,"handlers":["onClick"],"label":"Upload a file","tag":"button","type":"button"}
+    ]
+  },
+  {
+    "checkpoint": "02-evicted-by-another-tab",
+    "controls": [
+      {"disabled":false,"handlers":["onDragLeave","onDragOver","onDrop"],"label":null,"tag":"div","type":null},
+      {"disabled":false,"handlers":["onChange"],"label":null,"tag":"input","type":"file"},
+      {"disabled":false,"handlers":["onSubmit"],"label":null,"tag":"form","type":null},
+      {"disabled":false,"handlers":["onChange","onKeyDown"],"label":"Message Director","tag":"textarea","type":null},
+      {"disabled":false,"handlers":["onClick"],"label":"Upload a file","tag":"button","type":"button"}
+    ]
+  },
+  {
+    "checkpoint": "03-a-minute-later",
+    "controls": [
+      {"disabled":false,"handlers":["onDragLeave","onDragOver","onDrop"],"label":null,"tag":"div","type":null},
+      {"disabled":false,"handlers":["onChange"],"label":null,"tag":"input","type":"file"},
+      {"disabled":false,"handlers":["onSubmit"],"label":null,"tag":"form","type":null},
+      {"disabled":false,"handlers":["onChange","onKeyDown"],"label":"Message Director","tag":"textarea","type":null},
+      {"disabled":false,"handlers":["onClick"],"label":"Upload a file","tag":"button","type":"button"}
+    ]
+  },
+  {
+    "checkpoint": "04-send-in-the-paused-tab",
+    "controls": [
+      {"disabled":false,"handlers":["onDragLeave","onDragOver","onDrop"],"label":null,"tag":"div","type":null},
+      {"disabled":false,"handlers":["onChange"],"label":null,"tag":"input","type":"file"},
+      {"disabled":false,"handlers":["onSubmit"],"label":null,"tag":"form","type":null},
+      {"disabled":false,"handlers":["onChange","onKeyDown"],"label":"Message Director","tag":"textarea","type":null},
+      {"disabled":false,"handlers":["onClick"],"label":"Upload a file","tag":"button","type":"button"}
+    ]
+  },
+  {
+    "checkpoint": "05-offline-and-online-while-paused",
+    "controls": [
+      {"disabled":false,"handlers":["onDragLeave","onDragOver","onDrop"],"label":null,"tag":"div","type":null},
+      {"disabled":false,"handlers":["onChange"],"label":null,"tag":"input","type":"file"},
+      {"disabled":false,"handlers":["onSubmit"],"label":null,"tag":"form","type":null},
+      {"disabled":false,"handlers":["onChange","onKeyDown"],"label":"Message Director","tag":"textarea","type":null},
+      {"disabled":false,"handlers":["onClick"],"label":"Upload a file","tag":"button","type":"button"}
+    ]
+  },
+  {
+    "checkpoint": "06-two-more-minutes",
+    "controls": [
+      {"disabled":false,"handlers":["onDragLeave","onDragOver","onDrop"],"label":null,"tag":"div","type":null},
+      {"disabled":false,"handlers":["onChange"],"label":null,"tag":"input","type":"file"},
+      {"disabled":false,"handlers":["onSubmit"],"label":null,"tag":"form","type":null},
+      {"disabled":false,"handlers":["onChange","onKeyDown"],"label":"Message Director","tag":"textarea","type":null},
+      {"disabled":false,"handlers":["onClick"],"label":"Upload a file","tag":"button","type":"button"}
+    ]
+  },
+  {
+    "checkpoint": "07-final",
+    "controls": [
+      {"disabled":false,"handlers":["onDragLeave","onDragOver","onDrop"],"label":null,"tag":"div","type":null},
+      {"disabled":false,"handlers":["onChange"],"label":null,"tag":"input","type":"file"},
+      {"disabled":false,"handlers":["onSubmit"],"label":null,"tag":"form","type":null},
+      {"disabled":false,"handlers":["onChange","onKeyDown"],"label":"Message Director","tag":"textarea","type":null},
+      {"disabled":false,"handlers":["onClick"],"label":"Upload a file","tag":"button","type":"button"}
+    ]
+  }
+]

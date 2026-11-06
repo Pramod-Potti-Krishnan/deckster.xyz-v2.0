@@ -1,0 +1,345 @@
+{
+ "body": {
+  "admission_report": {
+   "changes": [
+    {
+     "count": 1,
+     "key": "R2:tracking_normal:text",
+     "kind": "text",
+     "outcome": "simplified",
+     "rank": 7,
+     "slides": [
+      1
+     ],
+     "slides_total": 1,
+     "text": "On slide 1, letter spacing is set to normal in 1 text box."
+    },
+    {
+     "count": 1,
+     "key": "R2:dash_solid:shape",
+     "kind": "shape",
+     "outcome": "simplified",
+     "rank": 7,
+     "slides": [
+      4
+     ],
+     "slides_total": 1,
+     "text": "On slide 4, a dashed outline is drawn solid."
+    }
+   ],
+   "changes_more": 0,
+   "headline": "Template ready: 6 slides. All 107 pieces of text are editable. 85 of 85 elements are editable. 2 small changes are listed below.",
+   "slides": [
+    {
+     "changed": 1,
+     "changes": 1,
+     "dropped": 0,
+     "editable": 14,
+     "elements": 14,
+     "floor": false,
+     "picture": 0,
+     "slide": 1,
+     "text_editable": 9,
+     "text_listed": 0,
+     "text_pieces": 9
+    }
+   ],
+   "stage": "S3",
+   "totals": {
+    "changed": 2,
+    "changes": 2,
+    "dropped": 0,
+    "editable": 85,
+    "elements": 85,
+    "floor_slides": 0,
+    "picture": 0,
+    "slides": 6,
+    "text_editable": 107,
+    "text_listed": 0,
+    "text_pieces": 107
+   },
+   "version": "composer-admission-report-v1"
+  },
+  "capabilities": {
+   "new_topic": {
+    "invocation": "job",
+    "reason_code": "SEMANTIC_NOT_RUN",
+    "state": "unavailable"
+   },
+   "use_original": {
+    "state": "available"
+   }
+  },
+  "checkpoint": {
+   "admission_report": {
+    "changes": [
+     {
+      "count": 1,
+      "key": "R2:tracking_normal:text",
+      "kind": "text",
+      "outcome": "simplified",
+      "rank": 7,
+      "slides": [
+       1
+      ],
+      "slides_total": 1,
+      "text": "On slide 1, letter spacing is set to normal in 1 text box."
+     },
+     {
+      "count": 1,
+      "key": "R2:dash_solid:shape",
+      "kind": "shape",
+      "outcome": "simplified",
+      "rank": 7,
+      "slides": [
+       4
+      ],
+      "slides_total": 1,
+      "text": "On slide 4, a dashed outline is drawn solid."
+     }
+    ],
+    "changes_more": 0,
+    "headline": "Template ready: 6 slides. All 107 pieces of text are editable. 85 of 85 elements are editable. 2 small changes are listed below.",
+    "slides": [
+     {
+      "changed": 1,
+      "changes": 1,
+      "dropped": 0,
+      "editable": 14,
+      "elements": 14,
+      "floor": false,
+      "picture": 0,
+      "slide": 1,
+      "text_editable": 9,
+      "text_listed": 0,
+      "text_pieces": 9
+     }
+    ],
+    "stage": "S3",
+    "totals": {
+     "changed": 2,
+     "changes": 2,
+     "dropped": 0,
+     "editable": 85,
+     "elements": 85,
+     "floor_slides": 0,
+     "picture": 0,
+     "slides": 6,
+     "text_editable": 107,
+     "text_listed": 0,
+     "text_pieces": 107
+    },
+    "version": "composer-admission-report-v1"
+   },
+   "deck_import": {
+    "composer": {
+     "as_is_only": true,
+     "deployed_git_sha": "c1b0712553",
+     "health_read": true,
+     "template_progress": true
+    },
+    "notes": {
+     "copied": 2,
+     "message": null,
+     "reason": null,
+     "slides_not_kept": [],
+     "state": "copied"
+    },
+    "path": "as_is_only",
+    "phase": "ready",
+    "title": "Q3 Board Review",
+    "version": "director-deck-import-v1",
+    "waiting": null,
+    "what_changed": {
+     "headline": "Template ready: 6 slides. All 107 pieces of text are editable. 85 of 85 elements are editable. 2 small changes are listed below.",
+     "items": [
+      {
+       "count": 1,
+       "kind": "text",
+       "outcome": "simplified",
+       "slides": [
+        1
+       ],
+       "slides_total": 1,
+       "source": "composer",
+       "text": "On slide 1, letter spacing is set to normal in 1 text box."
+      },
+      {
+       "count": 1,
+       "kind": "shape",
+       "outcome": "simplified",
+       "slides": [
+        4
+       ],
+       "slides_total": 1,
+       "source": "composer",
+       "text": "On slide 4, a dashed outline is drawn solid."
+      }
+     ]
+    }
+   },
+   "operation": "deck_import",
+   "result": {
+    "model_calls": 0,
+    "owner_html_replay": "BYTE_IDENTICAL",
+    "presentation_id": "5f0c7a52-6f5e-4c55-9a51-0d2b8f3a9c11",
+    "session_id": "fresh-session",
+    "slide_count": 3,
+    "spend_usd": 0,
+    "template_id": "1ef92485-89f1-48b6-847f-7476060a687c",
+    "template_sha256": "401ffe3f25ad084a25cdc2dea47069b0f2371b56cb10de935f203866020426fb",
+    "viewer_url": "http://127.0.0.1:8544/p/5f0c7a52-6f5e-4c55-9a51-0d2b8f3a9c11"
+   },
+   "session_adoption": "verified",
+   "template_progress": {
+    "as_is": {
+     "changes": {
+      "misses": [
+       {
+        "count": 1,
+        "kind": "k",
+        "rule": "r1",
+        "rung": "S1"
+       }
+      ],
+      "slides_with_misses": [
+       1
+      ],
+      "totals": {
+       "misses": 1
+      }
+     },
+     "element_count": 4,
+     "slide_count": 1
+    },
+    "eta_s": 100,
+    "heartbeat_at": "2026-10-22T21:15:38.204806+00:00",
+    "locking": null,
+    "seq": 2,
+    "slide_count": 1,
+    "slides": [],
+    "slides_done": 0,
+    "stage": "checking",
+    "updated_at": "2026-10-22T21:15:38.204806+00:00",
+    "version": "director-template-progress-v1"
+   }
+  },
+  "completed_at": "2026-10-22T21:15:38.208267Z",
+  "created_at": null,
+  "deck_import": {
+   "error": null,
+   "notes": {
+    "copied": 2,
+    "message": null,
+    "reason": null,
+    "slides_not_kept": [],
+    "state": "copied"
+   },
+   "phase": "ready",
+   "progress": null,
+   "result": {
+    "composer_adoption": {
+     "frozen_theme": true,
+     "presentation_id": "5f0c7a52-6f5e-4c55-9a51-0d2b8f3a9c11",
+     "schema_version": "composer-adoption-v1",
+     "template_id": "1ef92485-89f1-48b6-847f-7476060a687c"
+    },
+    "presentation_id": "5f0c7a52-6f5e-4c55-9a51-0d2b8f3a9c11",
+    "session_id": "fresh-session",
+    "slide_count": 3,
+    "template_id": "1ef92485-89f1-48b6-847f-7476060a687c",
+    "title": "Q3 Board Review",
+    "viewer_url": "http://127.0.0.1:8544/p/5f0c7a52-6f5e-4c55-9a51-0d2b8f3a9c11"
+   },
+   "stage": "ready",
+   "title": "Q3 Board Review",
+   "version": "director-deck-import-v1",
+   "waiting": null,
+   "what_changed": {
+    "headline": "Template ready: 6 slides. All 107 pieces of text are editable. 85 of 85 elements are editable. 2 small changes are listed below.",
+    "items": [
+     {
+      "count": 1,
+      "kind": "text",
+      "outcome": "simplified",
+      "slides": [
+       1
+      ],
+      "slides_total": 1,
+      "source": "composer",
+      "text": "On slide 1, letter spacing is set to normal in 1 text box."
+     },
+     {
+      "count": 1,
+      "kind": "shape",
+      "outcome": "simplified",
+      "slides": [
+       4
+      ],
+      "slides_total": 1,
+      "source": "composer",
+      "text": "On slide 4, a dashed outline is drawn solid."
+     }
+    ]
+   }
+  },
+  "errors": [],
+  "job_id": "stage-import-50b26aee-7a38-47f2-a77f-60de75a5afbb",
+  "per_slide_fidelity": [],
+  "poll": null,
+  "presentation_id": "5f0c7a52-6f5e-4c55-9a51-0d2b8f3a9c11",
+  "session_id": "fresh-session",
+  "slide_count": 3,
+  "status": "complete",
+  "template_id": "1ef92485-89f1-48b6-847f-7476060a687c",
+  "template_progress": {
+   "as_is": {
+    "changes": {
+     "misses": [
+      {
+       "count": 1,
+       "kind": "k",
+       "rule": "r1",
+       "rung": "S1"
+      }
+     ],
+     "slides_with_misses": [
+      1
+     ],
+     "totals": {
+      "misses": 1
+     }
+    },
+    "element_count": 4,
+    "ready": true,
+    "slide_count": 3,
+    "template_id": "1ef92485-89f1-48b6-847f-7476060a687c"
+   },
+   "eta_s": 0,
+   "heartbeat_at": "2026-10-22T21:15:38.204806+00:00",
+   "kept_as_is": [],
+   "locking": null,
+   "slide_count": 3,
+   "slides": [],
+   "slides_done": 0,
+   "stage": "ready",
+   "updated_at": "2026-10-22T21:15:38.204806+00:00",
+   "version": "director-template-progress-v1"
+  },
+  "updated_at": null,
+  "upload_ref": {
+   "bytes": 3073,
+   "file_name": "Q3 Board Review.pptx",
+   "kind": "pptx",
+   "purpose": "deck_import",
+   "researcher_session_id": "fresh-session",
+   "session_id": "fresh-session",
+   "sha256": "929dadecc03ec5eaac4385bc7fe634f20fb3a4935c12908381d6145a7f02f79c",
+   "storage_path": "fresh-session/1_Q3 Board Review.pptx"
+  },
+  "user_id": "owner",
+  "viewer_url": "http://127.0.0.1:8544/p/5f0c7a52-6f5e-4c55-9a51-0d2b8f3a9c11"
+ },
+ "description": "GET jobs/{id} complete: result, notes copied, What changed (admission report on)",
+ "status": 200
+}

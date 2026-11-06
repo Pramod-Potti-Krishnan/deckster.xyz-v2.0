@@ -38,6 +38,7 @@ import {
   type TemplateModeElement,
 } from '@/lib/template-mode'
 import { updateElement } from './template-params-panel'
+import './studio-template-overlay.css'
 
 interface TemplateModeOverlayProps {
   snapshot: TemplateSnapshot | null
@@ -51,6 +52,7 @@ interface TemplateModeOverlayProps {
 
 const GRID_COLUMNS = 32
 const GRID_ROWS = 18
+const STUDIO_TEMPLATE_OVERLAY = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
 
 type AtomGroup = 'TEXT' | 'IMAGE' | 'CHART' | 'DIAGRAM' | 'INFOGRAPHIC' | 'METRIC' | 'TABLE' | 'KANBAN' | 'UNKNOWN'
 
@@ -550,7 +552,7 @@ function LegacyTemplateModeOverlay({
   const showLockedChip = !loading && snapshot && elements.length === 0
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden rounded-sm">
+    <div data-studio-template-overlay={STUDIO_TEMPLATE_OVERLAY ? 'true' : undefined} className="pointer-events-none absolute inset-0 z-20 overflow-hidden rounded-sm">
       <div className="absolute left-3 top-3 z-30 flex max-w-[70%] flex-wrap items-center gap-2">
         <div className="rounded-full border border-white/70 bg-slate-950/75 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white shadow-lg backdrop-blur">
           Template overlay
@@ -596,7 +598,7 @@ function LegacyTemplateModeOverlay({
 
       {showLockedChip && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="rounded-full border border-violet-200 bg-white/95 px-4 py-2 text-sm font-semibold text-violet-700 shadow-xl backdrop-blur dark:border-violet-800 dark:bg-slate-950/95 dark:text-violet-200">
+          <div data-studio-template-part={STUDIO_TEMPLATE_OVERLAY ? 'locked' : undefined} className="rounded-full border border-violet-200 bg-white/95 px-4 py-2 text-sm font-semibold text-violet-700 shadow-xl backdrop-blur dark:border-violet-800 dark:bg-slate-950/95 dark:text-violet-200">
             <span className="inline-flex items-center gap-2">
               <Rows3 className="h-4 w-4" />
               {slot?.canvas_type?.toUpperCase().startsWith('H') ? 'Hero design locked' : 'Design locked'}
@@ -614,6 +616,7 @@ function LegacyTemplateModeOverlay({
         return (
           <button
             key={element.overrideKey}
+            data-studio-template-part={STUDIO_TEMPLATE_OVERLAY ? 'legacy-element' : undefined}
             type="button"
             className={cn(
               "pointer-events-auto absolute overflow-hidden rounded-md px-2 py-1 text-left text-[10px] leading-tight shadow-lg transition",
@@ -752,7 +755,7 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
   }
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-20 overflow-visible rounded-sm">
+    <div data-studio-template-overlay={STUDIO_TEMPLATE_OVERLAY ? 'true' : undefined} className="pointer-events-none absolute inset-0 z-20 overflow-visible rounded-sm">
       <div className="absolute left-3 top-3 z-30 flex max-w-[70%] flex-wrap items-center gap-2">
         <div className="rounded-full border border-white/70 bg-white/90 px-2.5 py-1 text-[10px] font-medium text-slate-700 shadow-lg backdrop-blur dark:bg-slate-950/90 dark:text-slate-200">
           Slide {currentSlideIndex + 1}
@@ -770,6 +773,7 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
 
       {slideDetailsOpen ? (
         <div
+          data-studio-template-part={STUDIO_TEMPLATE_OVERLAY ? 'details' : undefined}
           className="pointer-events-auto absolute bottom-3 left-3 max-h-[48%] w-[min(520px,calc(100%-1.5rem))] overflow-y-auto rounded-lg border border-white/70 bg-white/95 text-xs text-slate-700 shadow-xl backdrop-blur dark:bg-slate-950/95 dark:text-slate-200"
           style={{ zIndex: activeOverlayKey === slideDetailsOverlayKey ? 84 : 74 }}
           onClick={(event) => {
@@ -822,6 +826,7 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
       ) : (
         <button
           type="button"
+          data-studio-template-part={STUDIO_TEMPLATE_OVERLAY ? 'details-toggle' : undefined}
           className="pointer-events-auto absolute bottom-3 left-3 z-40 inline-flex items-center gap-1.5 rounded-full border border-white/70 bg-white/95 px-3 py-2 text-xs font-semibold text-slate-700 shadow-lg backdrop-blur hover:bg-white dark:bg-slate-950/95 dark:text-slate-200"
           onClick={(event) => {
             event.stopPropagation()
@@ -844,7 +849,7 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
 
       {showLockedChip && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="rounded-full border border-violet-200 bg-white/95 px-4 py-2 text-sm font-semibold text-violet-700 shadow-xl backdrop-blur dark:border-violet-800 dark:bg-slate-950/95 dark:text-violet-200">
+          <div data-studio-template-part={STUDIO_TEMPLATE_OVERLAY ? 'locked' : undefined} className="rounded-full border border-violet-200 bg-white/95 px-4 py-2 text-sm font-semibold text-violet-700 shadow-xl backdrop-blur dark:border-violet-800 dark:bg-slate-950/95 dark:text-violet-200">
             <span className="inline-flex items-center gap-2">
               <Rows3 className="h-4 w-4" />
               {slot?.canvas_type?.toUpperCase().startsWith('H') ? 'Hero design locked' : 'Design locked'}
@@ -860,6 +865,8 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
         return (
           <div
             key={box.overrideKey}
+            data-studio-template-intent={STUDIO_TEMPLATE_OVERLAY ? (open ? 'expanded' : 'collapsed') : undefined}
+            data-studio-template-selected={STUDIO_TEMPLATE_OVERLAY ? String(selected) : undefined}
             className={cn(
               "pointer-events-auto absolute text-left shadow-lg backdrop-blur transition",
               open
@@ -905,12 +912,13 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
                 </p>
               </>
             ) : (
-              <span className="flex min-w-0 items-center gap-1.5">
+              <span data-studio-template-part={STUDIO_TEMPLATE_OVERLAY ? 'intent-row' : undefined} className="flex min-w-0 items-center gap-1.5">
                 <span className="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full bg-slate-500" />
                 {isTitle ? <Type className="h-3.5 w-3.5 shrink-0" /> : <Pencil className="h-3.5 w-3.5 shrink-0" />}
                 <span className="truncate">{box.label}</span>
                 <button
                   type="button"
+                  data-studio-template-part={STUDIO_TEMPLATE_OVERLAY ? 'intent-expand' : undefined}
                   className="ml-auto inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-violet-50 text-violet-600 dark:bg-violet-950 dark:text-violet-200"
                   onClick={(event) => {
                     event.stopPropagation()
@@ -958,6 +966,8 @@ export function TemplateModeOverlay(props: TemplateModeOverlayProps) {
         return (
           <div
             key={element.overrideKey}
+            data-studio-template-atom={STUDIO_TEMPLATE_OVERLAY ? group : undefined}
+            data-studio-template-selected={STUDIO_TEMPLATE_OVERLAY ? String(selected) : undefined}
             role="button"
             tabIndex={0}
             className={cn(

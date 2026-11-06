@@ -1,0 +1,223 @@
+{
+  "schema": 1,
+  "purpose": "Exact historical baseline and negative-control source bytes; never product imports or service fixtures",
+  "release_predecessor": "83e75149b9b23b3fea3aaa6007e9065c28375bb9",
+  "sources": [
+    {
+      "original_specifier": "014d716:components/template-ingest-dialog.tsx",
+      "origin_commit": "014d71656df091f2e24ad22939b4cc8d7d5590b0",
+      "origin_path": "components/template-ingest-dialog.tsx",
+      "origin": "014d71656df091f2e24ad22939b4cc8d7d5590b0:components/template-ingest-dialog.tsx",
+      "sha256": "287bd11002ce39f4f4ee23cb37d2e500bd704c213d8893c46979f7c7aef9ee9d",
+      "bytes": 13109,
+      "fixture": "blobs/287bd11002ce39f4f4ee23cb37d2e500bd704c213d8893c46979f7c7aef9ee9d.txt",
+      "used_by_witnesses": [
+        "scripts/test-studio-template-ingest-ownership.mjs"
+      ]
+    },
+    {
+      "original_specifier": "0f690ec:components/studio-libraries/templates-workspace.tsx",
+      "origin_commit": "0f690ecf238a15d4584aaeaed611e68529b0a3d3",
+      "origin_path": "components/studio-libraries/templates-workspace.tsx",
+      "origin": "0f690ecf238a15d4584aaeaed611e68529b0a3d3:components/studio-libraries/templates-workspace.tsx",
+      "sha256": "2f895140c053d50831052936c5709eb131a058dd424fadfb694e3f373f8670a0",
+      "bytes": 37286,
+      "fixture": "blobs/2f895140c053d50831052936c5709eb131a058dd424fadfb694e3f373f8670a0.txt",
+      "used_by_witnesses": [
+        "scripts/test-atlas-templates-render-corrections.mjs"
+      ]
+    },
+    {
+      "original_specifier": "3f6e8ce:components/studio-libraries/studio-workflow-action.tsx",
+      "origin_commit": "3f6e8ce338a83f0ab4bcb7ccbc5a38e371a8da1d",
+      "origin_path": "components/studio-libraries/studio-workflow-action.tsx",
+      "origin": "3f6e8ce338a83f0ab4bcb7ccbc5a38e371a8da1d:components/studio-libraries/studio-workflow-action.tsx",
+      "sha256": "c72e467f5ffc55fe0e20a78a2420180f49ead2d2ed5e2deccc664261aa38e442",
+      "bytes": 1936,
+      "fixture": "blobs/c72e467f5ffc55fe0e20a78a2420180f49ead2d2ed5e2deccc664261aa38e442.txt",
+      "used_by_witnesses": [
+        "scripts/test-atlas-workflow-continuations.mjs"
+      ]
+    },
+    {
+      "original_specifier": "3f6e8ce:hooks/use-templates.ts",
+      "origin_commit": "3f6e8ce338a83f0ab4bcb7ccbc5a38e371a8da1d",
+      "origin_path": "hooks/use-templates.ts",
+      "origin": "3f6e8ce338a83f0ab4bcb7ccbc5a38e371a8da1d:hooks/use-templates.ts",
+      "sha256": "f32b13d88c57e13f1d100ce9508367bbb1ce52578814c7e3f209710b03b2eae8",
+      "bytes": 15438,
+      "fixture": "blobs/f32b13d88c57e13f1d100ce9508367bbb1ce52578814c7e3f209710b03b2eae8.txt",
+      "used_by_witnesses": [
+        "scripts/test-atlas-template-watch.mjs"
+      ]
+    },
+    {
+      "original_specifier": "4894987:components/studio-libraries/themes-workspace.tsx",
+      "origin_commit": "4894987188d9146fb51e7aa97e98815588ac4b96",
+      "origin_path": "components/studio-libraries/themes-workspace.tsx",
+      "origin": "4894987188d9146fb51e7aa97e98815588ac4b96:components/studio-libraries/themes-workspace.tsx",
+      "sha256": "9bbcf2975db6cd08d67216ae754b5ef95613651d63db72151089e993a5bc9331",
+      "bytes": 24139,
+      "fixture": "blobs/9bbcf2975db6cd08d67216ae754b5ef95613651d63db72151089e993a5bc9331.txt",
+      "used_by_witnesses": [
+        "scripts/test-studio-theme-draft-ownership.mjs"
+      ]
+    },
+    {
+      "original_specifier": "536dbd2:components/studio-libraries/library-controls.tsx",
+      "origin_commit": "536dbd280f1c6a335e0104991c468da411f3db73",
+      "origin_path": "components/studio-libraries/library-controls.tsx",
+      "origin": "536dbd280f1c6a335e0104991c468da411f3db73:components/studio-libraries/library-controls.tsx",
+      "sha256": "878a83d2084415933e8645a71c43a0f67fbd94b1f8450c739092aedf782126e1",
+      "bytes": 4547,
+      "fixture": "blobs/878a83d2084415933e8645a71c43a0f67fbd94b1f8450c739092aedf782126e1.txt",
+      "used_by_witnesses": [
+        "scripts/test-studio-template-readiness-warning.mjs"
+      ]
+    },
+    {
+      "original_specifier": "63e0eb2:components/studio-libraries/templates-workspace.tsx",
+      "origin_commit": "63e0eb28364ed69c7cfdd5c8c1e199726ca59cb9",
+      "origin_path": "components/studio-libraries/templates-workspace.tsx",
+      "origin": "63e0eb28364ed69c7cfdd5c8c1e199726ca59cb9:components/studio-libraries/templates-workspace.tsx",
+      "sha256": "c6af03d6f16935e42bede1e56eeadac4391ce199d63a8a6d51ea4fc4b833d9a7",
+      "bytes": 30534,
+      "fixture": "blobs/c6af03d6f16935e42bede1e56eeadac4391ce199d63a8a6d51ea4fc4b833d9a7.txt",
+      "used_by_witnesses": [
+        "scripts/test-atlas-templates-recovery.mjs"
+      ]
+    },
+    {
+      "original_specifier": "63e0eb2:hooks/use-templates.ts",
+      "origin_commit": "63e0eb28364ed69c7cfdd5c8c1e199726ca59cb9",
+      "origin_path": "hooks/use-templates.ts",
+      "origin": "63e0eb28364ed69c7cfdd5c8c1e199726ca59cb9:hooks/use-templates.ts",
+      "sha256": "a2d92ef6651220e94c740b21e5371c7221ba3c5e743b2b197cf6d064268f6da0",
+      "bytes": 15438,
+      "fixture": "blobs/a2d92ef6651220e94c740b21e5371c7221ba3c5e743b2b197cf6d064268f6da0.txt",
+      "used_by_witnesses": [
+        "scripts/test-atlas-template-watch.mjs"
+      ]
+    },
+    {
+      "original_specifier": "63e0eb2:hooks/use-theme-profiles.ts",
+      "origin_commit": "63e0eb28364ed69c7cfdd5c8c1e199726ca59cb9",
+      "origin_path": "hooks/use-theme-profiles.ts",
+      "origin": "63e0eb28364ed69c7cfdd5c8c1e199726ca59cb9:hooks/use-theme-profiles.ts",
+      "sha256": "c64e42746a4aa94d575cf641f848d6162111741cf3646b8c2201286d2ea416dd",
+      "bytes": 4027,
+      "fixture": "blobs/c64e42746a4aa94d575cf641f848d6162111741cf3646b8c2201286d2ea416dd.txt",
+      "used_by_witnesses": [
+        "scripts/test-atlas-theme-read-errors.mjs"
+      ]
+    },
+    {
+      "original_specifier": "a8a0667:components/studio-libraries/templates-workspace.tsx",
+      "origin_commit": "a8a0667b0dcb2cbb6669d93b1b5d2b8f2f519834",
+      "origin_path": "components/studio-libraries/templates-workspace.tsx",
+      "origin": "a8a0667b0dcb2cbb6669d93b1b5d2b8f2f519834:components/studio-libraries/templates-workspace.tsx",
+      "sha256": "dc592168b2b867544c9a8acade80e0c1c9c773964c0f3ede4fecb9a30a39eb3f",
+      "bytes": 32441,
+      "fixture": "blobs/dc592168b2b867544c9a8acade80e0c1c9c773964c0f3ede4fecb9a30a39eb3f.txt",
+      "used_by_witnesses": [
+        "scripts/test-atlas-templates-account-boundary.mjs"
+      ]
+    },
+    {
+      "original_specifier": "a8a0667:components/studio-libraries/themes-workspace.tsx",
+      "origin_commit": "a8a0667b0dcb2cbb6669d93b1b5d2b8f2f519834",
+      "origin_path": "components/studio-libraries/themes-workspace.tsx",
+      "origin": "a8a0667b0dcb2cbb6669d93b1b5d2b8f2f519834:components/studio-libraries/themes-workspace.tsx",
+      "sha256": "1925f26041e28887493873a00679fe2e14c7056937c47734d560e2487abab95a",
+      "bytes": 26406,
+      "fixture": "blobs/1925f26041e28887493873a00679fe2e14c7056937c47734d560e2487abab95a.txt",
+      "used_by_witnesses": [
+        "scripts/test-atlas-themes-account-boundary.mjs"
+      ]
+    },
+    {
+      "original_specifier": "af16640:components/studio-libraries/themes-workspace.tsx",
+      "origin_commit": "af1664059342ceae6173bfaa29121219951aea1c",
+      "origin_path": "components/studio-libraries/themes-workspace.tsx",
+      "origin": "af1664059342ceae6173bfaa29121219951aea1c:components/studio-libraries/themes-workspace.tsx",
+      "sha256": "87a2dd4eca84b7d9fe9a88a1c31363d732922cac8c3e4f2e27bb8b8e742c7d7e",
+      "bytes": 22195,
+      "fixture": "blobs/87a2dd4eca84b7d9fe9a88a1c31363d732922cac8c3e4f2e27bb8b8e742c7d7e.txt",
+      "used_by_witnesses": [
+        "scripts/test-studio-theme-support-access.mjs"
+      ]
+    },
+    {
+      "original_specifier": "b1e8370:components/studio-libraries/themes-workspace.tsx",
+      "origin_commit": "b1e8370f8786e420ab8fcc4b043834e868388500",
+      "origin_path": "components/studio-libraries/themes-workspace.tsx",
+      "origin": "b1e8370f8786e420ab8fcc4b043834e868388500:components/studio-libraries/themes-workspace.tsx",
+      "sha256": "8ab360aa1cd66cecadb7f907c5f8243af3b3813ff662a19a331c63f795216e3d",
+      "bytes": 24304,
+      "fixture": "blobs/8ab360aa1cd66cecadb7f907c5f8243af3b3813ff662a19a331c63f795216e3d.txt",
+      "used_by_witnesses": [
+        "scripts/test-atlas-themes-recovery.mjs"
+      ]
+    },
+    {
+      "original_specifier": "b386174:app/(app)/settings/security/page.tsx",
+      "origin_commit": "b3861749f1e7cf35b7e3b4f8ed065e3eda60689e",
+      "origin_path": "app/(app)/settings/security/page.tsx",
+      "origin": "b3861749f1e7cf35b7e3b4f8ed065e3eda60689e:app/(app)/settings/security/page.tsx",
+      "sha256": "bddd0a371b91c5ecfbff8082bcda8f3263fbaece04d212e3cb5935af7cc04d90",
+      "bytes": 8001,
+      "fixture": "blobs/bddd0a371b91c5ecfbff8082bcda8f3263fbaece04d212e3cb5935af7cc04d90.txt",
+      "used_by_witnesses": [
+        "scripts/test-atlas-security-lifecycle.mjs"
+      ]
+    },
+    {
+      "original_specifier": "d8f5325:components/studio-libraries/library-controls.tsx",
+      "origin_commit": "d8f53258ea9be5a02dcdb111dbe8ad3c07658617",
+      "origin_path": "components/studio-libraries/library-controls.tsx",
+      "origin": "d8f53258ea9be5a02dcdb111dbe8ad3c07658617:components/studio-libraries/library-controls.tsx",
+      "sha256": "74e47e16c61c4dc919dbf581e7e21cf185949c5ae082102cab4edb7d69a4520e",
+      "bytes": 4851,
+      "fixture": "blobs/74e47e16c61c4dc919dbf581e7e21cf185949c5ae082102cab4edb7d69a4520e.txt",
+      "used_by_witnesses": [
+        "scripts/test-atlas-library-identity.mjs"
+      ]
+    },
+    {
+      "original_specifier": "e3b118a:components/studio-libraries/templates-workspace.tsx",
+      "origin_commit": "e3b118af7898b06727ecbfbe9961836df41f56fb",
+      "origin_path": "components/studio-libraries/templates-workspace.tsx",
+      "origin": "e3b118af7898b06727ecbfbe9961836df41f56fb:components/studio-libraries/templates-workspace.tsx",
+      "sha256": "dc592168b2b867544c9a8acade80e0c1c9c773964c0f3ede4fecb9a30a39eb3f",
+      "bytes": 32441,
+      "fixture": "blobs/dc592168b2b867544c9a8acade80e0c1c9c773964c0f3ede4fecb9a30a39eb3f.txt",
+      "used_by_witnesses": [
+        "scripts/test-studio-template-readiness-warning.mjs"
+      ]
+    },
+    {
+      "original_specifier": "fffd023:app/help/layout.tsx",
+      "origin_commit": "fffd02386519534d496e82410e0fb4105861075b",
+      "origin_path": "app/help/layout.tsx",
+      "origin": "fffd02386519534d496e82410e0fb4105861075b:app/help/layout.tsx",
+      "sha256": "6162e57c0a72ecb9b08e85a8ad820a3bb81355f175793b1e44f4b4275df98796",
+      "bytes": 328,
+      "fixture": "blobs/6162e57c0a72ecb9b08e85a8ad820a3bb81355f175793b1e44f4b4275df98796.txt",
+      "used_by_witnesses": [
+        "scripts/test-atlas-help-recovery.mjs"
+      ]
+    },
+    {
+      "original_specifier": "fffd023:app/help/page.tsx",
+      "origin_commit": "fffd02386519534d496e82410e0fb4105861075b",
+      "origin_path": "app/help/page.tsx",
+      "origin": "fffd02386519534d496e82410e0fb4105861075b:app/help/page.tsx",
+      "sha256": "f65d4d076c41b2bdf8ac24217bd3a12586e5b858f5e2433eb06c0a522dcb157c",
+      "bytes": 28494,
+      "fixture": "blobs/f65d4d076c41b2bdf8ac24217bd3a12586e5b858f5e2433eb06c0a522dcb157c.txt",
+      "used_by_witnesses": [
+        "scripts/test-atlas-help-recovery.mjs"
+      ]
+    }
+  ]
+}

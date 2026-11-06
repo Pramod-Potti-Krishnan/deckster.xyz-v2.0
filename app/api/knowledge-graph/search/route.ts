@@ -1,7 +1,12 @@
+import { ServiceUrlConfigError } from '@/lib/service-url'
 import { NextRequest, NextResponse } from 'next/server'
-import { KG_BASE, kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
+import { getKgBaseUrl, kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
+import { requireApprovedUser } from '@/lib/api-hardening'
 
 export async function POST(request: NextRequest) {
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): approved users only, read from the DB. Off, this returns null and nothing changes.
+  const notApproved = await requireApprovedUser()
+  if (notApproved) return notApproved
   const gate = await requireKgEntitled()
   if (gate.error) return gate.error
 
@@ -16,8 +21,9 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const kgBaseUrl = getKgBaseUrl()
     const resp = await fetch(
-      `${KG_BASE}/api/v1/kg/${gate.userId}/search`,
+      `${kgBaseUrl}/api/v1/kg/${gate.userId}/search`,
       {
         method: 'POST',
         headers: kgHeaders({ 'Content-Type': 'application/json' }),
@@ -32,6 +38,7 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json(await resp.json())
   } catch (e) {
+    if (e instanceof ServiceUrlConfigError) return NextResponse.json({ error: e.message, code: e.code, service_unavailable: true }, { status: 503 })
     console.error('[KG Proxy] Search error:', e)
     return NextResponse.json(
       { error: 'Knowledge graph service is temporarily unavailable', service_unavailable: true },

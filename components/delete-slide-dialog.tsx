@@ -10,6 +10,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import './studio-slide-delete.css'
 
 interface DeleteSlideDialogProps {
   open: boolean
@@ -33,6 +34,7 @@ export function DeleteSlideDialog({
   onConfirm,
   isDeleting = false
 }: DeleteSlideDialogProps) {
+  const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   const count = slideNumbers.length
   const isSingle = count === 1
 
@@ -59,14 +61,22 @@ export function DeleteSlideDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
+      <AlertDialogContent data-studio-slide-delete={studio ? 'true' : undefined} aria-busy={studio ? isDeleting : undefined}>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
+        {studio && count > 0 && (
+          <div data-studio-slide-delete-part="targets" aria-label="Slides selected for deletion">
+            <span>{isSingle ? 'Selected slide' : `${count} selected slides`}</span>
+            <p>{[...slideNumbers].sort((a, b) => a - b).map(number => `Slide ${number}`).join(' · ')}</p>
+          </div>
+        )}
+        {studio && isDeleting && <p data-studio-slide-delete-part="busy" role="status">Deleting selected slides…</p>}
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel data-studio-slide-delete-part={studio ? 'cancel' : undefined} disabled={isDeleting}>Cancel</AlertDialogCancel>
           <AlertDialogAction
+            data-studio-slide-delete-part={studio ? 'confirm' : undefined}
             onClick={onConfirm}
             disabled={isDeleting}
             className="bg-red-600 hover:bg-red-700 focus:ring-red-600"

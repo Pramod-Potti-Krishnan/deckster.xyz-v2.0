@@ -162,13 +162,18 @@ export function slotMetadataForRequest(slot: TemplateTextSlot | null): TextSlotM
 export function selectionForExistingTarget(
   catalog: TemplateSlotCatalog,
   target?: { semanticRole?: TextSemanticRole | null; slotName?: string | null; accessoryType?: string | null } | null,
+  studio = false,
 ): string {
   if (!target) return BODY_TEXT_AUTO_SLOT
   if (target.slotName && catalog.slots.some(slot => slot.slot_name === target.slotName)) {
     return `slot:${target.slotName}`
   }
-  const matchingRole = catalog.slots.find(slot => slot.role === target.semanticRole)
+  const matchingRole = (!studio || target.semanticRole)
+    ? catalog.slots.find(slot => slot.role === target.semanticRole)
+    : undefined
   if (matchingRole) return slotSelectionValue(matchingRole)
-  const matchingAccessory = catalog.slots.find(slot => slot.accessory_type === target.accessoryType)
+  const matchingAccessory = (!studio || target.accessoryType)
+    ? catalog.slots.find(slot => slot.accessory_type === target.accessoryType)
+    : undefined
   return matchingAccessory ? slotSelectionValue(matchingAccessory) : BODY_TEXT_AUTO_SLOT
 }

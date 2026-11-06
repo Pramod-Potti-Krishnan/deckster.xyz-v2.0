@@ -34,66 +34,96 @@ interface Props {
 }
 
 export function SlideScriptPreview({ presentationId, slideId, refreshToken }: Props) {
-  const [audio, setAudio] = useState<SlideAudio | null>(null)
-  const [voiceName, setVoiceName] = useState<string | null>(null)
+  const scopeKey = JSON.stringify([presentationId, slideId, refreshToken ?? null])
+  const scopeRef = useRef({ key: scopeKey })
+  if (scopeRef.current.key !== scopeKey) scopeRef.current = { key: scopeKey }
+  const scope = scopeRef.current
+  const mountedRef = useRef(true)
+  const requestRef = useRef<object | null>(null)
+  const [recording, setRecording] = useState<{
+    scope: typeof scope; request: object; audio: SlideAudio | null; voiceName: string | null
+  } | null>(null)
+  const recordingIsCurrent = recording?.scope === scope && requestRef.current === recording.request
+  const audio = recordingIsCurrent ? recording.audio : null
+  const voiceName = recordingIsCurrent ? recording.voiceName : null
   const [loading, setLoading] = useState(false)
-  const [playing, setPlaying] = useState(false)
+  const [playback, setPlayback] = useState<{ scope: typeof scope; playing: boolean } | null>(null)
+  const playing = playback?.scope === scope && playback.playing === true
   const elementRef = useRef<HTMLAudioElement | null>(null)
+  const scopeIsCurrent = () => mountedRef.current && scopeRef.current === scope
 
   useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      requestRef.current = null
+      elementRef.current?.pause()
+      elementRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    const request = {}
+    requestRef.current = request
+    let cancelled = false
+    const isCurrent = () => !cancelled && scopeIsCurrent() && requestRef.current === request
     if (!presentationId) {
-      setAudio(null)
+      setRecording(previous => isCurrent() ? null : previous)
       return
     }
-    let cancelled = false
-    setLoading(true)
+    setLoading(previous => isCurrent() ? true : previous)
     ;(async () => {
       try {
         const response = await fetch(
           `/api/narration/manifest?presentationId=${encodeURIComponent(presentationId)}`
         )
+        if (!isCurrent()) return
         if (!response.ok) {
-          if (!cancelled) setAudio(null)
+          setRecording(previous => isCurrent() ? null : previous)
           return
         }
         const data = await response.json()
-        if (cancelled) return
-        setVoiceName(data.voiceName ?? null)
-        setAudio(
-          (data.slides ?? []).find((s: SlideAudio) => s.slideId === slideId) ?? null
-        )
+        if (!isCurrent()) return
+        const audio = (data.slides ?? []).find((s: SlideAudio) => s.slideId === slideId) ?? null
+        setRecording(previous => isCurrent() ? { scope, request, audio, voiceName: data.voiceName ?? null } : previous)
+      } catch {
+        // A failed read has no playable recording; retain the script editor.
+        setRecording(previous => isCurrent() ? null : previous)
       } finally {
-        if (!cancelled) setLoading(false)
+        setLoading(previous => isCurrent() ? false : previous)
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [presentationId, slideId, refreshToken])
+  }, [presentationId, slideId, refreshToken, scope])
 
   // Stop on slide change. Otherwise the previous slide keeps talking over the
   // one now on screen, which is disorienting in a way silence never is.
   useEffect(() => {
     elementRef.current?.pause()
-    setPlaying(false)
-  }, [slideId])
-
-  useEffect(() => () => elementRef.current?.pause(), [])
+    elementRef.current = null
+    setPlayback(previous => scopeIsCurrent() ? { scope, playing: false } : previous)
+  }, [scope])
 
   const toggle = useCallback(() => {
-    if (!audio?.full) return
+    if (!scopeIsCurrent() || recording?.scope !== scope || requestRef.current !== recording.request
+      || !audio?.full || audio.stale) return
     if (playing) {
       elementRef.current?.pause()
-      setPlaying(false)
+      elementRef.current = null
+      setPlayback(previous => scopeIsCurrent() ? { scope, playing: false } : previous)
       return
     }
     const element = new Audio(`/api/narration/segment/${audio.full}`)
     elementRef.current = element
-    element.addEventListener('ended', () => setPlaying(false))
-    element.addEventListener('error', () => setPlaying(false))
-    setPlaying(true)
-    void element.play().catch(() => setPlaying(false))
-  }, [audio, playing])
+    const isCurrent = () => scopeIsCurrent() && elementRef.current === element
+    const stopped = () => setPlayback(previous => isCurrent() ? { scope, playing: false } : previous)
+    element.addEventListener('ended', stopped)
+    element.addEventListener('error', stopped)
+    setPlayback(previous => isCurrent() ? { scope, playing: true } : previous)
+    void element.play().catch(stopped)
+  }, [audio, playing, recording, scope])
 
   if (!presentationId || !slideId) return null
 

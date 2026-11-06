@@ -1,0 +1,136 @@
+{
+  "scenario": "e-add-nocaps",
+  "description": "Add a slide after slide 3: receipt, then the compose job: slide_ready, deck_mutation slide_added (mdc1 only), Done line (sc_compose).",
+  "client_caps": null,
+  "director_commit": "19d09d603095e263ea87ab55af79fa59a8ad2370",
+  "flags": {
+    "MULTI_INTENT_ENABLED": "true",
+    "DIRECTOR_MDC_HONEST_REPLIES_ENABLED": "true",
+    "DIRECTOR_MDC_SESSION_SCOPE_ENABLED": "true",
+    "DIRECTOR_MDC_COMPOSER_FLAG_GATE_ENABLED": "true",
+    "SLIDE_COMPOSER_ENABLED": "true",
+    "SLIDE_COMPOSER_ASYNC_ENABLED": "true"
+  },
+  "recorded_by": "preview-b/record.py (offline harness of tests/test_mdc_chat_e2e.py: real _process_message + real DecisionEngine.decide over a scripted model output; Layout DELETE and compose stubbed by that harness)",
+  "scripted_model_output": [
+    {
+      "action_type": "compose_slide",
+      "response_text": "On it.",
+      "target_slide_indices": [
+        2
+      ],
+      "op_brief": "Competitor pricing comparison",
+      "new_topic": null,
+      "questions": null,
+      "structured_questions": []
+    }
+  ],
+  "stubbed_outside_world": {
+    "layout_deletes": [],
+    "composes": [
+      {
+        "insert_after_index": 2,
+        "instruction": "Competitor pricing comparison"
+      }
+    ]
+  },
+  "session_at_start": {
+    "id": "s_e2e",
+    "presentation_id": "pres-e2e",
+    "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+    "slide_titles": [
+      "Q4 Revenue Overview",
+      "Pipeline Health",
+      "Churn Drivers",
+      "Regional Mix",
+      "Next Quarter Plan"
+    ]
+  },
+  "frame_counts": {
+    "in": 1,
+    "out": 3,
+    "total": 4
+  },
+  "outbound_frame_types_per_turn": [
+    [
+      "chat_message",
+      "slide_ready",
+      "chat_message"
+    ]
+  ],
+  "frames": [
+    {
+      "seq": 1,
+      "turn": 0,
+      "direction": "in",
+      "frame": {
+        "type": "user_message",
+        "data": {
+          "text": "Add a slide on competitor pricing after slide 3"
+        }
+      }
+    },
+    {
+      "seq": 2,
+      "turn": 0,
+      "direction": "out",
+      "frame": {
+        "message_id": "msg_f1160402",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-22T16:32:34.838438Z",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "On it — I'm building a new slide after slide 3: \"Competitor pricing comparison\". You can keep chatting while it builds; I'll confirm when it lands.",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      }
+    },
+    {
+      "seq": 3,
+      "turn": 0,
+      "direction": "out",
+      "frame": {
+        "message_id": "msg_slide_ready_5fcd215d",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-22T16:32:34.844314Z",
+        "type": "slide_ready",
+        "role": "assistant",
+        "payload": {
+          "job_id": "mdc_60160e7d397f",
+          "kind": "compose",
+          "presentation_id": "pres-e2e",
+          "slide_index": 3,
+          "inserted_at_index": 3,
+          "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+          "real_slide_id": "real-new-1",
+          "replaced_slide_id": null,
+          "thumbnail_url": null,
+          "status": "built"
+        }
+      }
+    },
+    {
+      "seq": 4,
+      "turn": 0,
+      "direction": "out",
+      "frame": {
+        "message_id": "msg_75b78d79",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-22T16:32:34.844369Z",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Done — the new slide is in as slide 4.",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      }
+    }
+  ]
+}

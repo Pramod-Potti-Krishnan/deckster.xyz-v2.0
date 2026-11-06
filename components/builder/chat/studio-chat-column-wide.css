@@ -1,0 +1,23 @@
+/* STUDIO-CHAT-COLUMN-WIDE (B51, PK's UAT feedback F-10; flag NEXT_PUBLIC_STUDIO_CHAT_COLUMN_WIDE). Every rule below is keyed to [data-studio-chat-column-wide="true"], an attribute the Director header carries only with the flag on, so with the flag off
+   none of it matches anything. The values are lib/studio-chat-column-wide.ts's, word for word (scripts/test-studio-chat-column-wide.mjs checks). */
+
+/* The two shared tokens, on the Studio shell so the welcome, the composer and the conversation column (PR #554) can all read them. */
+[data-studio-v4-shell="true"]:has([data-studio-chat-column-wide="true"]) {
+  --studio-chat-welcome-column: min(clamp(640px, 44vw, 880px), 100% - 8px);
+  --studio-chat-conversation-column: min(clamp(640px, 50vw, 1000px), 100% - 8px);
+}
+
+/* The full-width first-run welcome (the same stage studio-first-run.css lays out; the docked chat panel has none of these attributes, so it keeps its width). Each selector is today's chain plus the marker plus [data-studio-director-welcome],
+   so it is more specific than today's 620 / 668 rules and than the 560 rules (data-studio-first-run-width) and wins whatever the order: the column of PK decision #6 is superseded while the flag is on. */
+[data-studio-v4-shell="true"]:has([data-studio-chat-column-wide="true"]) [data-studio-v4-shell-workspace]:has(> [data-studio-v4-shell-presentation][data-studio-first-run-stage="true"]):has([data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"] [data-studio-first-run][data-studio-director-welcome]) div:has(> [data-studio-first-run]) > * {
+  width: var(--studio-chat-welcome-column);
+}
+[data-studio-v4-shell="true"]:has([data-studio-chat-column-wide="true"]) [data-studio-v4-shell-workspace]:has(> [data-studio-v4-shell-presentation][data-studio-first-run-stage="true"]):has([data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"] [data-studio-first-run][data-studio-director-welcome]) [data-studio-director-welcome][data-studio-first-run] {
+  max-width: var(--studio-chat-welcome-column);
+}
+/* The composer's VISIBLE box is the column. The composer element's own side padding is 12 px (p-3) on its own and 16 px with the chat-clean flag (studio-chat-clean.css), so "column + the padding" would leave the box 8 px short in the live build: instead the
+   element spans the chat area and its side padding is whatever centres a box of exactly the column's width (never under 16 px, the gutter of a narrow window). A percentage in padding is relative to the element's containing block, as the token's 100% is. */
+[data-studio-v4-shell="true"]:has([data-studio-chat-column-wide="true"]) [data-studio-v4-shell-workspace]:has(> [data-studio-v4-shell-presentation][data-studio-first-run-stage="true"]):has([data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"] [data-studio-first-run][data-studio-director-welcome]) [data-studio-v4-composer] {
+  width: 100%;
+  padding-inline: max(16px, calc((100% - var(--studio-chat-welcome-column)) / 2));
+}

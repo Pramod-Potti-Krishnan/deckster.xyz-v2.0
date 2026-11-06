@@ -6,6 +6,7 @@ import type { NarrationState } from '@/lib/build-narration-heuristics'
 import { StageIcon } from './stage-icons'
 import { StageDots } from './stage-dots'
 import { COT_LINE_ENTER_S } from './motion'
+import './studio-build-status.css'
 
 export interface StageProgressFooterProps {
   narration: NarrationState
@@ -34,11 +35,15 @@ export function StageProgressFooter({ narration: n, researchCard, className }: S
     <div
       className={['px-4 pb-1.5 pt-1', className || ''].join(' ')}
       data-testid="bn-progress-footer"
+      data-studio-build-footer={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'true' : undefined}
+      role={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'region' : undefined}
+      aria-label={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'Build updates' : undefined}
+      tabIndex={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && (lines.length > 0 || focusEvents.length > 0) ? 0 : undefined}
     >
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-1">
         {/* focus-slide row: dots + its latest beat */}
         {focus !== null && focusEvents.length > 0 && (
-          <div className="flex min-w-0 items-center gap-3 text-xs text-muted-foreground">
+          <div data-studio-build-part={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'slide-update' : undefined} className="flex min-w-0 items-center gap-3 text-xs text-muted-foreground">
             <span className="flex-none font-medium text-foreground/80">Slide {focus + 1}</span>
             <StageDots
               events={focusEvents}

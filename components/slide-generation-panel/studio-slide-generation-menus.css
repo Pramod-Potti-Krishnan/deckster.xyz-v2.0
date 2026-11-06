@@ -1,0 +1,34 @@
+/* Native slide choices render in portals, so they own the literal Studio palette. */
+[data-studio-slide-menu] {
+  --sgm-panel: #fff; --sgm-surface: #f5f7f6; --sgm-line: #d6e1dc;
+  --sgm-text: #243438; --sgm-muted: #566965; --sgm-accent: #6a4fc0; --sgm-active: #f1edfb;
+  background: var(--sgm-panel); color: var(--sgm-text); border-color: var(--sgm-line);
+  max-width: calc(100vw - 24px); scrollbar-width: thin; overscroll-behavior: contain;
+}
+.dark [data-studio-slide-menu] {
+  --sgm-panel: #1b2426; --sgm-surface: #222d30; --sgm-line: #334245;
+  --sgm-text: #e2ebe8; --sgm-muted: #a0b1ad; --sgm-accent: #b4a0f2; --sgm-active: #2a2540;
+}
+[data-studio-slide-menu="choices"] {
+  max-height: min(340px, var(--radix-popover-content-available-height, calc(100dvh - 24px)));
+  overflow-y: auto;
+}
+[data-studio-slide-menu="choices"] > div { min-width: 0; }
+[data-studio-slide-menu="choices"] button {
+  min-width: 0; color: var(--sgm-text); border-color: var(--sgm-line); background: var(--sgm-panel);
+}
+[data-studio-slide-menu="choices"] button > div {
+  color: var(--sgm-muted); background: var(--sgm-surface); border-color: var(--sgm-line);
+}
+[data-studio-slide-menu="choices"] button > span { overflow-wrap: anywhere; line-height: 1.5; }
+[data-studio-slide-menu="choices"] button[aria-pressed="true"] {
+  color: var(--sgm-accent); border-color: var(--sgm-accent); background: var(--sgm-active);
+}
+[data-studio-slide-menu="choices"] button:not(:disabled):hover { background: var(--sgm-active); border-color: var(--sgm-accent); }
+[data-studio-slide-menu="choices"] button:focus-visible { outline: 2px solid var(--sgm-accent); outline-offset: -2px; box-shadow: none; }
+[data-studio-slide-menu="select"] {
+  max-height: min(340px, var(--radix-select-content-available-height, calc(100dvh - 24px)));
+}
+[data-studio-slide-menu="select"] [role="option"] { color: var(--sgm-text); font-size: 11px; line-height: 1.5; }
+[data-studio-slide-menu="select"] [role="option"][data-highlighted] { color: var(--sgm-text); background: var(--sgm-active); }
+[data-studio-slide-menu="select"] [role="option"][data-state="checked"] { color: var(--sgm-accent); background: var(--sgm-active); }

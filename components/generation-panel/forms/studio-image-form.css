@@ -1,0 +1,92 @@
+/* Native Image options and geometry only; service defaults and swatch values stay native. */
+[data-studio-v4-shell="true"] [data-studio-image-form="true"] {
+  min-width: 0;
+  color: var(--ss-text, #243438);
+}
+[data-studio-v4-shell="true"] [data-studio-image-form="true"] label {
+  color: var(--ss-text, #243438);
+  overflow-wrap: anywhere;
+}
+[data-studio-v4-shell="true"] [data-studio-image-summary="true"] {
+  flex-wrap: wrap;
+  gap: 8px;
+  border-color: var(--ss-line, #d6e1dc);
+  background: var(--ss-surface, #f5f7f6);
+}
+[data-studio-v4-shell="true"] [data-studio-image-summary="true"] > div {
+  flex: 1 1 175px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+[data-studio-v4-shell="true"] [data-studio-image-summary="true"] > div > div:last-child {
+  color: var(--ss-muted, #566965);
+  font-size: 11px;
+  line-height: 1.5;
+}
+[data-studio-v4-shell="true"] [data-studio-image-summary="true"] > button {
+  min-height: 28px;
+  flex-shrink: 0;
+  border-color: var(--ss-line, #d6e1dc);
+  color: var(--ss-accent, #6a4fc0);
+  font-size: 11px;
+  white-space: normal;
+}
+[data-studio-v4-shell="true"] [data-studio-image-group] {
+  grid-template-columns: repeat(auto-fit, minmax(min(86px, 100%), 1fr));
+}
+[data-studio-v4-shell="true"] [data-studio-image-group] > button {
+  min-width: 0;
+  min-height: 29px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  padding: 6px;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--ss-muted, #566965);
+  background: var(--ss-surface, #f5f7f6);
+  border-color: var(--ss-line, #d6e1dc);
+}
+[data-studio-v4-shell="true"] [data-studio-image-form="true"] [data-studio-image-group] > button[aria-pressed="true"] {
+  color: var(--ss-text, #243438);
+  background: var(--ss-active, #e8f2f0);
+  border-color: var(--ss-accent, #6a4fc0);
+  box-shadow: inset 0 -2px 0 var(--ss-accent, #6a4fc0);
+}
+.dark [data-studio-v4-shell="true"] [data-studio-image-form="true"] [data-studio-image-group] > button[aria-pressed="true"] {
+  color: var(--ss-text, #e2ebe8);
+  background: var(--ss-active, #1d3634);
+  border-color: var(--ss-accent, #b4a0f2);
+}
+[data-studio-v4-shell="true"] [data-studio-image-size="true"] {
+  padding: 7px 9px;
+  border: 1px solid var(--ss-line, #d6e1dc);
+  border-radius: 6px;
+  background: var(--ss-surface, #f5f7f6);
+  color: var(--ss-muted, #566965);
+  font-size: 11px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+[data-studio-v4-shell="true"] [data-studio-image-pair="true"] {
+  grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr));
+}
+[data-studio-v4-shell="true"] [data-studio-image-pair="true"] > div {
+  min-width: 0;
+}
+[data-studio-v4-shell="true"] [data-studio-image-unit="grid"]::after {
+  content: ' · grid';
+  color: var(--ss-muted, #566965);
+  font-size: 10px;
+  font-weight: 400;
+}
+[data-studio-v4-shell="true"] [data-studio-image-form="true"] :is(input, select) {
+  min-width: 0;
+  max-width: 100%;
+}
+[data-studio-v4-shell="true"] [data-studio-image-form="true"] select {
+  min-height: 32px;
+}
+[data-studio-v4-shell="true"] [data-studio-image-form="true"] :is(input, select, button):focus-visible {
+  outline: 2px solid var(--ss-accent, #6a4fc0);
+  outline-offset: 2px;
+}

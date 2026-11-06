@@ -1,0 +1,4 @@
+/* VERSION-HISTORY-V2: the Version history panel in the Studio shell takes the shared Studio dialog look (studio-editor-dialogs.css) and the Theme / Master dialogs' place, top right of the canvas. */
+[data-studio-v4-dialog="versions"] { left:auto; right:18px; top:60px; bottom:18px; width:min(380px,calc(100vw - 32px)); border:1px solid var(--se-line); }
+@media(max-height:650px) { [data-studio-v4-dialog="versions"] { top:54px; bottom:12px; } }
+[data-studio-v4-viewer] [data-studio-v4-dialog="versions"] { position:absolute; top:12px; bottom:12px; z-index:150; }

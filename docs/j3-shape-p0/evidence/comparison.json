@@ -1,0 +1,23 @@
+{
+  "base": "bb26903c5ab9e0313380691c7c3789bd93a07e0e",
+  "candidate": "4e8f4f14c1fa0e545b070ea0bb5eb4cb8c5b8fb2",
+  "native_status_changes": [
+    {
+      "script": "test-diagram-catalog-drift.mjs",
+      "exit": 1,
+      "signal": null,
+      "message": "Error: Unexpected catalog import: @/lib/service-url"
+    }
+  ],
+  "new_native_files": [
+    {
+      "script": "test-shape-typed-failure.mjs",
+      "exit": 0,
+      "signal": null,
+      "message": null
+    }
+  ],
+  "typecheck_multiset_equal": false,
+  "base_diagnostic_count": 119,
+  "candidate_diagnostic_count": 120
+}

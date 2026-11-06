@@ -1,5 +1,9 @@
 'use client'
 
+import './studio-generation-context.css'
+
+const STUDIO_GENERATION_CONTEXT = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+
 const FONT_SIZES = ['12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '36px', '40px', '48px']
 const FONT_FAMILIES = ['Poppins', 'Inter', 'Roboto', 'Open Sans', 'Montserrat', 'Lato', 'Source Sans Pro']
 
@@ -49,12 +53,13 @@ export function FontOverrideSection({
   const thirdField = `${prefix}_${thirdToggle}`
 
   return (
-    <div className="space-y-2">
+    <div data-studio-generation-context={STUDIO_GENERATION_CONTEXT ? 'font' : undefined} className="space-y-2">
       <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300">{label}</label>
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
           <label className="text-[10px] text-gray-400 dark:text-slate-500">Size</label>
           <select
+            aria-label={STUDIO_GENERATION_CONTEXT ? `${label} size` : undefined}
             value={(config[sizeField] as string) || ''}
             onChange={(e) => onChange(sizeField, e.target.value || null)}
             className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
@@ -68,6 +73,7 @@ export function FontOverrideSection({
         <div className="space-y-1">
           <label className="text-[10px] text-gray-400 dark:text-slate-500">Family</label>
           <select
+            aria-label={STUDIO_GENERATION_CONTEXT ? `${label} family` : undefined}
             value={(config[familyField] as string) || ''}
             onChange={(e) => onChange(familyField, e.target.value || null)}
             className="w-full px-2 py-1 rounded bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
@@ -85,6 +91,9 @@ export function FontOverrideSection({
           {(colorPresets ?? FONT_COLOR_PRESETS).map(preset => (
             <button
               key={preset.label}
+              data-studio-generation-control={STUDIO_GENERATION_CONTEXT ? (preset.hex ? 'color' : 'auto-color') : undefined}
+              aria-label={STUDIO_GENERATION_CONTEXT ? `${label} color: ${preset.label}` : undefined}
+              aria-pressed={STUDIO_GENERATION_CONTEXT ? (config[colorField] || null) === preset.value : undefined}
               onClick={() => onChange(colorField, preset.value)}
               style={preset.hex ? { backgroundColor: preset.hex } : undefined}
               className={`h-6 w-6 rounded-full border transition-all ${
@@ -109,6 +118,9 @@ export function FontOverrideSection({
         ].map(({ field, label: btnLabel, style }) => (
           <button
             key={field}
+            data-studio-generation-control={STUDIO_GENERATION_CONTEXT ? 'font-toggle' : undefined}
+            aria-label={STUDIO_GENERATION_CONTEXT ? `${label} ${field === boldField ? 'bold' : field === italicField ? 'italic' : thirdToggle === 'allcaps' ? 'all caps' : 'underline'}` : undefined}
+            aria-pressed={STUDIO_GENERATION_CONTEXT ? Boolean(config[field]) : undefined}
             onClick={() => onChange(field, config[field] ? null : true)}
             className={`w-6 h-6 rounded text-xs ${style} transition-colors ${
               config[field]

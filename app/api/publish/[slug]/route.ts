@@ -1,3 +1,4 @@
+import { ServiceUrlConfigError } from '@/lib/service-url'
 import { NextRequest, NextResponse } from 'next/server';
 import { after } from 'next/server';
 import { getServerSession } from 'next-auth';
@@ -6,6 +7,7 @@ import { prisma } from '@/lib/prisma';
 import { hashPasscode, MIN_PASSCODE_LENGTH } from '@/lib/publish/passcode';
 import { deletePresentationSnapshot, retryDeleteStaleSnapshots } from '@/lib/publish/layout';
 import { isPublishVisibility, serializePublishedDeck } from '@/lib/publish/serialize';
+import { linkOriginOf } from '@/lib/studio-p2-publish';
 import { refreshQaCorpus, teardownQaCorpus } from '@/lib/publish/qa-corpus';
 import { clampVisitorBurst, clampVisitorDaily } from '@/lib/publish/qa-limits';
 
@@ -243,9 +245,10 @@ export async function PATCH(
       after(() => refreshQaCorpus(updated.id));
     }
 
-    return NextResponse.json({ deck: serializePublishedDeck(updated) });
+    return NextResponse.json({ deck: serializePublishedDeck(updated, linkOriginOf(req)) });
 
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     console.error('Error updating published deck:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -397,9 +400,10 @@ export async function DELETE(
     // deliberately revoked is not a defensible default.
     after(() => teardownQaCorpus(revoked.id));
 
-    return NextResponse.json({ deck: serializePublishedDeck(revoked), snapshotDeleted });
+    return NextResponse.json({ deck: serializePublishedDeck(revoked, linkOriginOf(req)), snapshotDeleted });
 
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     console.error('Error unpublishing deck:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

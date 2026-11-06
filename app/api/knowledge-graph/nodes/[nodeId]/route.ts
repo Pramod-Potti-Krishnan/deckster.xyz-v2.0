@@ -1,4 +1,5 @@
-import { KG_BASE, kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
+import { ServiceUrlConfigError } from '@/lib/service-url'
+import { getKgBaseUrl, kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
 import { NextResponse } from 'next/server'
 
 export async function GET(
@@ -11,8 +12,9 @@ export async function GET(
   const { nodeId } = await params
 
   try {
+    const kgBaseUrl = getKgBaseUrl()
     const resp = await fetch(
-      `${KG_BASE}/api/v1/kg/${gate.userId}/nodes/${encodeURIComponent(nodeId)}`,
+      `${kgBaseUrl}/api/v1/kg/${gate.userId}/nodes/${encodeURIComponent(nodeId)}`,
       { headers: kgHeaders({ Accept: 'application/json' }) }
     )
     if (!resp.ok) {
@@ -20,6 +22,7 @@ export async function GET(
     }
     return NextResponse.json(await resp.json())
   } catch (e) {
+    if (e instanceof ServiceUrlConfigError) return NextResponse.json({ error: e.message, code: e.code, service_unavailable: true }, { status: 503 })
     console.error('[KG Proxy] Node detail error:', e)
     return NextResponse.json(
       { error: 'Knowledge graph service is temporarily unavailable', service_unavailable: true },

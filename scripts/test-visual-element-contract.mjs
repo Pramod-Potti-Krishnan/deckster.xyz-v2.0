@@ -1,3 +1,4 @@
+import { serviceUrl, textLabsEnv } from './service-url-harness.mjs'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
@@ -12,8 +13,8 @@ function compile(file, requireImplementation = () => ({})) {
   vm.runInNewContext(compiled.outputText, {
     module: mod,
     exports: mod.exports,
-    process: { env: {} },
-    require: requireImplementation,
+    process: { env: { ...textLabsEnv } },
+    require: id => id === '@/lib/service-url' ? serviceUrl : requireImplementation(id),
   })
   return mod.exports
 }

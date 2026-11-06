@@ -1,0 +1,64 @@
+{
+  "note": "Flag on, text-set on, the client's caps full, but DIRECTOR_MDC_ELEMENT_EDIT_ENABLED / CHAT_CAP_ELEMENT_EDIT off: edit_element cannot run, so the exact-words offer is left off (the by-hand line alone).",
+  "flags": {
+    "DIRECTOR_MDC_REFINE_UNSUPPORTED_LINE_ENABLED": "true",
+    "DIRECTOR_MDC_ELEMENT_TEXT_SET_ENABLED": "true",
+    "DIRECTOR_MDC_ELEMENT_EDIT_ENABLED": null,
+    "CHAT_CAP_ELEMENT_EDIT": null
+  },
+  "user_message": {
+    "type": "user_message",
+    "data": {
+      "text": "Make this punchier",
+      "client_caps": [
+        "mdc1",
+        "element_edit1",
+        "element_text1",
+        "element_refine1"
+      ],
+      "references": [
+        {
+          "kind": "element",
+          "element_id": "textbox_title_1",
+          "element_type": "TEXT_BOX",
+          "slide_index": 2,
+          "slide_id": "L2",
+          "label": "Title · slide 3"
+        }
+      ]
+    }
+  },
+  "director_frames_for_the_refine": [
+    {
+      "message_id": "msg_erdir_76346747",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-29T11:27:33.579623Z",
+      "type": "element_refine_directive",
+      "role": "assistant",
+      "payload": {
+        "directive_id": "elr_e0be893ea15f",
+        "presentation_id": "pres-e2e",
+        "slide_index": 2,
+        "slide_id": "L2",
+        "element_id": "textbox_title_1",
+        "element_type": "TEXT_BOX",
+        "instruction": "make it punchier"
+      }
+    }
+  ],
+  "director_chat_line_1_the_receipt": [
+    "Refining the text box on slide 3: \"make it punchier\". One moment while it regenerates on the canvas."
+  ],
+  "studio_inbound_result_frame": {
+    "type": "element_directive_result",
+    "data": {
+      "directive_id": "elr_e0be893ea15f",
+      "status": "failed",
+      "element_id": "textbox_title_1",
+      "error_code": "unsupported_type"
+    }
+  },
+  "director_chat_line_2_the_closing_line": [
+    "I can't refine this text box from chat yet, so it is unchanged. To change the words yourself: in the toolbar choose Mode → Edit, then click into the text box and type."
+  ]
+}

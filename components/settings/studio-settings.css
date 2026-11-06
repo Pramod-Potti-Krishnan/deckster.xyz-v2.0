@@ -1,0 +1,63 @@
+/* Native Settings navigation and original Profile controls; literal shell rollback. */
+[data-studio-v4-shell="true"] [data-studio-settings="true"] { max-width: 1280px; padding: 24px clamp(16px,2.8vw,32px) 28px; color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-settings-heading] { margin-bottom: 22px; }
+[data-studio-v4-shell="true"] [data-studio-settings-heading] h1 { font-size: 24px; line-height: 32px; font-weight: 600; letter-spacing: -.025em; margin-bottom: 5px; }
+[data-studio-v4-shell="true"] [data-studio-settings-heading] p { color: var(--ss-muted); font-size: 12px; line-height: 20px; }
+[data-studio-v4-shell="true"] [data-studio-settings-layout] { gap: 20px; }
+[data-studio-v4-shell="true"] [data-studio-settings-sidebar] { top: 16px; }
+[data-studio-v4-shell="true"] [data-studio-settings-nav] { gap: 4px; padding-bottom: 0; }
+[data-studio-v4-shell="true"] [data-studio-settings-nav] a { min-height: 36px; gap: 8px; padding: 8px 10px; border-radius: 7px; color: var(--ss-muted); background: transparent; font-size: 12px; font-weight: 500; }
+[data-studio-v4-shell="true"] [data-studio-settings-nav] a:hover { color: var(--ss-text); background: var(--ss-panel); }
+[data-studio-v4-shell="true"] [data-studio-settings-nav] a[aria-current="page"] { color: var(--ss-teal); background: var(--ss-active); }
+[data-studio-v4-shell="true"] [data-studio-settings-nav] a > svg { width: 15px; height: 15px; flex-shrink: 0; }
+[data-studio-v4-shell="true"] [data-studio-settings] :is(button,a,input):focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; box-shadow: none; }
+[data-studio-v4-shell="true"] [data-studio-settings-profile="true"] { color: var(--ss-text); background: var(--ss-panel); border-color: var(--ss-line); border-radius: 12px; box-shadow: none; overflow: hidden; }
+[data-studio-v4-shell="true"] [data-studio-settings-profile-header] { padding: 20px 22px 16px; border-bottom: 1px solid var(--ss-line); gap: 5px; }
+[data-studio-v4-shell="true"] [data-studio-settings-profile-header] > div:first-child { flex-wrap: wrap; gap: 12px; }
+[data-studio-v4-shell="true"] [data-studio-settings-profile-header] h3 { font-size: 17px; line-height: 24px; font-weight: 600; }
+[data-studio-v4-shell="true"] [data-studio-settings-profile-header] > p { color: var(--ss-muted); font-size: 12px; line-height: 20px; }
+[data-studio-v4-shell="true"] [data-studio-settings-profile-body] { padding: 20px 22px; }
+[data-studio-v4-shell="true"] [data-studio-settings-profile-body] > :not([hidden]) ~ :not([hidden]) { margin-top: 20px; }
+[data-studio-v4-shell="true"] [data-studio-settings-profile] :is(button,a) { font-size: 12px; border-radius: 7px; min-height: 32px; }
+[data-studio-v4-shell="true"] [data-studio-settings-profile] :is([data-studio-settings-profile-outline],[data-studio-settings-profile-cancel]) { color: var(--ss-text); border-color: var(--ss-line); background: var(--ss-panel); }
+[data-studio-v4-shell="true"] [data-studio-settings-profile-save] { color: var(--ss-panel); background: var(--ss-accent); }
+[data-studio-v4-shell="true"] [data-studio-settings-profile-identity] { gap: 16px; align-items: center; }
+[data-studio-v4-shell="true"] [data-studio-settings-profile-identity] > :not([hidden]) ~ :not([hidden]) { margin-left: 0; }
+[data-studio-v4-shell="true"] [data-studio-settings-profile-identity] > div:first-child { flex-shrink: 0; }
+[data-studio-v4-shell="true"] [data-studio-settings-profile-identity] > div:last-child { min-width: 0; }
+[data-studio-v4-shell="true"] [data-studio-settings-profile-identity] h3 { font-size: 16px; font-weight: 500; line-height: 23px; overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-settings-profile-identity] > div:last-child > div { flex-wrap: wrap; }
+[data-studio-v4-shell="true"] [data-studio-settings-profile-identity] p { color: var(--ss-muted); font-size: 12px; line-height: 20px; overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-settings-profile-upload] { border-radius: 50% !important; }
+[data-studio-v4-shell="true"] [data-studio-settings-profile-upload]:is(:focus-visible,:disabled) { opacity: 1; }
+[data-studio-v4-shell="true"] [data-studio-settings-profile-fields] label { font-size: 12px; line-height: 20px; font-weight: 500; color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-settings-profile-fields] label svg { color: var(--ss-muted); width: 14px; height: 14px; }
+[data-studio-v4-shell="true"] [data-studio-settings-profile-fields] input { background: var(--ss-panel); color: var(--ss-text); border-color: var(--ss-line); border-radius: 7px; font-size: 13px; height: 36px; }
+[data-studio-v4-shell="true"] [data-studio-settings-profile-fields] p { font-size: 12px; line-height: 20px; overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-settings-profile-fields] p.text-muted-foreground, [data-studio-v4-shell="true"] [data-studio-settings-profile-help] { color: var(--ss-muted); font-size: 11px !important; }
+[data-studio-v4-shell="true"] [data-studio-settings-profile] [data-orientation="horizontal"] { background: var(--ss-line); }
+[data-studio-v4-shell="true"] [data-studio-settings-profile-plan] { gap: 16px; align-items: flex-start; }
+[data-studio-v4-shell="true"] [data-studio-settings-profile-plan] p { font-size: 12px; line-height: 20px; }
+[data-studio-v4-shell="true"] [data-studio-settings-profile-plan] p:last-child { color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-settings-profile-error] { color: #ad4248 !important; }
+.dark [data-studio-v4-shell="true"] [data-studio-settings-profile-error] { color: #ef9a8f !important; }
+[data-studio-v4-shell="true"] [data-studio-settings-profile-status] { color: var(--ss-teal); font-size: 11px; line-height: 19px; }
+@media (min-width: 768px) {
+  [data-studio-v4-shell="true"] [data-studio-settings-layout] { grid-template-columns: 178px minmax(0,1fr); }
+}
+@media (max-width: 767px) {
+  [data-studio-v4-shell="true"] [data-studio-settings] { padding: 20px 16px; }
+  [data-studio-v4-shell="true"] [data-studio-settings-heading] { margin-bottom: 16px; }
+  [data-studio-v4-shell="true"] [data-studio-settings-layout] { gap: 16px; }
+  [data-studio-v4-shell="true"] [data-studio-settings-nav] { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); overflow: visible; gap: 4px; }
+  [data-studio-v4-shell="true"] [data-studio-settings-nav] a { white-space: normal; min-width: 0; line-height: 18px; border: 1px solid var(--ss-line); }
+  [data-studio-v4-shell="true"] :is([data-studio-settings-profile-header],[data-studio-settings-profile-body]) { padding: 16px; }
+  [data-studio-v4-shell="true"] [data-studio-settings-profile-plan] { flex-wrap: wrap; }
+}
+@media (min-width: 768px) and (max-height: 760px) {
+  [data-studio-v4-shell="true"] [data-studio-settings] { padding-top: 16px; }
+  [data-studio-v4-shell="true"] [data-studio-settings-heading] { margin-bottom: 16px; }
+  [data-studio-v4-shell="true"] [data-studio-settings-profile-header] { padding: 14px 18px 12px; }
+  [data-studio-v4-shell="true"] [data-studio-settings-profile-body] { padding: 16px 18px; }
+  [data-studio-v4-shell="true"] [data-studio-settings-profile-body] > :not([hidden]) ~ :not([hidden]) { margin-top: 16px; }
+}

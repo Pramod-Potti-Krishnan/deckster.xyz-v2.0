@@ -1,0 +1,1217 @@
+{
+  "case": "on-renamed-alias-new-user-attempt-held",
+  "cases": [
+    {
+      "name": "off-wire-state:TEXT_BOX:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:TEXT_BOX:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:TEXT_BOX:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:TEXT_BOX:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:TEXT_BOX:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:METRICS:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:METRICS:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:METRICS:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:METRICS:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:METRICS:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:TABLE:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:TABLE:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:TABLE:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:TABLE:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:TABLE:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CHART:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CHART:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CHART:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CHART:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CHART:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:IMAGE:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:IMAGE:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:IMAGE:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:IMAGE:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:IMAGE:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:ICON_LABEL:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:ICON_LABEL:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:ICON_LABEL:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:ICON_LABEL:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:ICON_LABEL:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:SHAPE:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:SHAPE:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:SHAPE:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:SHAPE:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:SHAPE:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:INFOGRAPHIC:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:INFOGRAPHIC:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:INFOGRAPHIC:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:INFOGRAPHIC:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:INFOGRAPHIC:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DIAGRAM:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DIAGRAM:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DIAGRAM:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DIAGRAM:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DIAGRAM:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CODE_DISPLAY:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CODE_DISPLAY:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CODE_DISPLAY:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CODE_DISPLAY:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CODE_DISPLAY:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:KANBAN_BOARD:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:KANBAN_BOARD:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:KANBAN_BOARD:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:KANBAN_BOARD:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:KANBAN_BOARD:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:GANTT_CHART:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:GANTT_CHART:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:GANTT_CHART:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:GANTT_CHART:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:GANTT_CHART:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CHEVRON_MATURITY:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CHEVRON_MATURITY:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CHEVRON_MATURITY:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CHEVRON_MATURITY:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CHEVRON_MATURITY:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:IDEA_BOARD:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:IDEA_BOARD:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:IDEA_BOARD:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:IDEA_BOARD:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:IDEA_BOARD:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CLOUD_ARCHITECTURE:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CLOUD_ARCHITECTURE:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CLOUD_ARCHITECTURE:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CLOUD_ARCHITECTURE:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CLOUD_ARCHITECTURE:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:LOGICAL_ARCHITECTURE:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:LOGICAL_ARCHITECTURE:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:LOGICAL_ARCHITECTURE:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:LOGICAL_ARCHITECTURE:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:LOGICAL_ARCHITECTURE:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DATA_ARCHITECTURE:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DATA_ARCHITECTURE:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DATA_ARCHITECTURE:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DATA_ARCHITECTURE:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DATA_ARCHITECTURE:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CUSTOM:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CUSTOM:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CUSTOM:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CUSTOM:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CUSTOM:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DIAGRAM_AUTO:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DIAGRAM_AUTO:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DIAGRAM_AUTO:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DIAGRAM_AUTO:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DIAGRAM_AUTO:",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"restore\"}:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"restore\"}:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"restore\"}:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"restore\"}:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"restore_delete_fail\"}:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"restore_delete_fail\"}:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"restore_delete_fail\"}:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"restore_delete_fail\"}:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"restore_insert_fail\"}:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"restore_insert_fail\"}:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"restore_insert_fail\"}:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"restore_insert_fail\"}:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"partial\"}:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"partial\"}:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"partial\"}:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"partial\"}:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"partial_rollback_fail\"}:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"partial_rollback_fail\"}:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"partial_rollback_fail\"}:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"partial_rollback_fail\"}:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"overlay\",\"cleanupDelay\":5000}:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"overlay\",\"cleanupDelay\":5000}:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"overlay\",\"cleanupDelay\":5000}:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"overlay\",\"cleanupDelay\":5000}:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"overlay\",\"cleanupDelay\":5000,\"refine\":true}:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"overlay\",\"cleanupDelay\":5000,\"refine\":true}:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"overlay\",\"cleanupDelay\":5000,\"refine\":true}:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"overlay\",\"cleanupDelay\":5000,\"refine\":true}:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"refine_delete\",\"refine\":true}:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"refine_delete\",\"refine\":true}:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"refine_delete\",\"refine\":true}:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"refine_delete\",\"refine\":true}:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"refine_delete_rollback_fail\",\"refine\":true}:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"refine_delete_rollback_fail\",\"refine\":true}:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"refine_delete_rollback_fail\",\"refine\":true}:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"refine_delete_rollback_fail\",\"refine\":true}:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"none\",\"backend\":\"transport\",\"cleanupDelay\":5000}:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"none\",\"backend\":\"transport\",\"cleanupDelay\":5000}:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"none\",\"backend\":\"transport\",\"cleanupDelay\":5000}:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"none\",\"backend\":\"transport\",\"cleanupDelay\":5000}:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"none\",\"backend\":\"abort\",\"cleanupDelay\":5000}:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"none\",\"backend\":\"abort\",\"cleanupDelay\":5000}:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"none\",\"backend\":\"abort\",\"cleanupDelay\":5000}:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"none\",\"backend\":\"abort\",\"cleanupDelay\":5000}:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"none\",\"backend\":\"session\"}:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"none\",\"backend\":\"session\"}:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"none\",\"backend\":\"session\"}:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"none\",\"backend\":\"session\"}:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:TEXT_BOX:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:TEXT_BOX:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:TEXT_BOX:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:TEXT_BOX:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:TEXT_BOX:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:METRICS:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:METRICS:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:METRICS:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:METRICS:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:METRICS:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:TABLE:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:TABLE:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:TABLE:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:TABLE:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:TABLE:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CHART:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CHART:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CHART:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CHART:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CHART:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:IMAGE:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:IMAGE:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:IMAGE:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:IMAGE:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:IMAGE:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:ICON_LABEL:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:ICON_LABEL:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:ICON_LABEL:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:ICON_LABEL:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:ICON_LABEL:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:SHAPE:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:SHAPE:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:SHAPE:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:SHAPE:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:SHAPE:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:INFOGRAPHIC:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:INFOGRAPHIC:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:INFOGRAPHIC:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:INFOGRAPHIC:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:INFOGRAPHIC:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DIAGRAM:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DIAGRAM:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DIAGRAM:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DIAGRAM:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DIAGRAM:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CODE_DISPLAY:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CODE_DISPLAY:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CODE_DISPLAY:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CODE_DISPLAY:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CODE_DISPLAY:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:KANBAN_BOARD:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:KANBAN_BOARD:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:KANBAN_BOARD:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:KANBAN_BOARD:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:KANBAN_BOARD:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:GANTT_CHART:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:GANTT_CHART:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:GANTT_CHART:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:GANTT_CHART:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:GANTT_CHART:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CHEVRON_MATURITY:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CHEVRON_MATURITY:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CHEVRON_MATURITY:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CHEVRON_MATURITY:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CHEVRON_MATURITY:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:IDEA_BOARD:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:IDEA_BOARD:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:IDEA_BOARD:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:IDEA_BOARD:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:IDEA_BOARD:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CLOUD_ARCHITECTURE:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CLOUD_ARCHITECTURE:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CLOUD_ARCHITECTURE:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CLOUD_ARCHITECTURE:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CLOUD_ARCHITECTURE:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:LOGICAL_ARCHITECTURE:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:LOGICAL_ARCHITECTURE:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:LOGICAL_ARCHITECTURE:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:LOGICAL_ARCHITECTURE:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:LOGICAL_ARCHITECTURE:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DATA_ARCHITECTURE:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DATA_ARCHITECTURE:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DATA_ARCHITECTURE:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DATA_ARCHITECTURE:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DATA_ARCHITECTURE:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CUSTOM:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CUSTOM:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CUSTOM:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CUSTOM:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CUSTOM:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DIAGRAM_AUTO:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DIAGRAM_AUTO:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DIAGRAM_AUTO:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DIAGRAM_AUTO:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DIAGRAM_AUTO:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-await-boundary:{\"scenario\":\"restore\"}",
+      "status": "passed"
+    },
+    {
+      "name": "on-await-boundary:{\"scenario\":\"restore_delete_fail\"}",
+      "status": "passed"
+    },
+    {
+      "name": "on-await-boundary:{\"scenario\":\"restore_insert_fail\"}",
+      "status": "passed"
+    },
+    {
+      "name": "on-await-boundary:{\"scenario\":\"partial\"}",
+      "status": "passed"
+    },
+    {
+      "name": "on-await-boundary:{\"scenario\":\"partial_rollback_fail\"}",
+      "status": "passed"
+    },
+    {
+      "name": "on-await-boundary:{\"scenario\":\"overlay\",\"cleanupDelay\":5000}",
+      "status": "passed"
+    },
+    {
+      "name": "on-await-boundary:{\"scenario\":\"overlay\",\"cleanupDelay\":5000,\"refine\":true}",
+      "status": "passed"
+    },
+    {
+      "name": "on-await-boundary:{\"scenario\":\"refine_delete\",\"refine\":true}",
+      "status": "passed"
+    },
+    {
+      "name": "on-await-boundary:{\"scenario\":\"refine_delete_rollback_fail\",\"refine\":true}",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:TEXT_BOX",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:METRICS",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:TABLE",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:CHART",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:IMAGE",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:ICON_LABEL",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:SHAPE",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:INFOGRAPHIC",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:DIAGRAM",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:CODE_DISPLAY",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:KANBAN_BOARD",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:GANTT_CHART",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:CHEVRON_MATURITY",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:IDEA_BOARD",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:CLOUD_ARCHITECTURE",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:LOGICAL_ARCHITECTURE",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:DATA_ARCHITECTURE",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:CUSTOM",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:DIAGRAM_AUTO",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:partial:different_target",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:partial:same_id_reopen",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:partial:close",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:partial:edit",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:partial:snapshot_lag",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:partial:unmount",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:partial:lease_retired",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:partial:deck_epoch",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:restore:different_target",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:restore:same_id_reopen",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:restore:close",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:restore:edit",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:restore:snapshot_lag",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:restore:unmount",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:restore:lease_retired",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:restore:deck_epoch",
+      "status": "passed"
+    },
+    {
+      "name": "on-newer-attempt-different-target",
+      "status": "passed"
+    },
+    {
+      "name": "on-renamed-placeholder-recovery",
+      "status": "passed"
+    },
+    {
+      "name": "on-explicit-retry-after-recovery",
+      "status": "passed"
+    },
+    {
+      "name": "on-session-deadline-before-provider",
+      "status": "passed"
+    },
+    {
+      "name": "on-grounded-chart-recovery",
+      "status": "passed"
+    },
+    {
+      "name": "on-failure-preserves-pristine-reason:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-failure-preserves-pristine-reason:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-failure-preserves-pristine-reason:session",
+      "status": "passed"
+    },
+    {
+      "name": "on-failure-preserves-pristine-reason:abort",
+      "status": "passed"
+    },
+    {
+      "name": "classic-true-exact-parity:application",
+      "status": "passed"
+    },
+    {
+      "name": "classic-true-exact-parity:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "classic-true-exact-parity:transport",
+      "status": "passed"
+    },
+    {
+      "name": "classic-true-exact-parity:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-closed-chat-add:{\"backend\":\"application\",\"scenario\":\"none\"}",
+      "status": "passed"
+    },
+    {
+      "name": "on-closed-chat-add:{\"backend\":\"success\",\"scenario\":\"partial\"}",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-preflight-toast:no_native_lease",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-preflight-toast:custom_limit",
+      "status": "passed"
+    },
+    {
+      "name": "on-stale-overlay-failed-ACK",
+      "status": "passed"
+    },
+    {
+      "name": "on-renamed-alias-new-user-attempt-held",
+      "status": "failed",
+      "failure_name": "AssertionError"
+    }
+  ],
+  "failed": 1,
+  "name": "AssertionError",
+  "message": "Expected values to be strictly equal:\n+ actual - expected\n\n+ 'inserted'\n- 'failed'\n",
+  "unhandled_rejections": [],
+  "external_socket_attempts": 0,
+  "source_hook_sha256": "6ceb9b93e37606f99558abacaf4aceb94b9a3bb83fbc3354545e245a312b6b3b",
+  "interpretation": "Explicit renamed-alias attempted admission before tracking callback returned; private lease was not registered until later resume. Fixed in subsequent source checkpoint."
+}

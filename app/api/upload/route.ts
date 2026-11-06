@@ -1,3 +1,5 @@
+import { ServiceUrlConfigError } from '@/lib/service-url'
+import { getKnowledgeServiceUrl } from '@/lib/config'
 /**
  * File Upload API Route
  *
@@ -21,10 +23,14 @@ import {
   uploadFile,
   KnowledgeServiceError,
 } from '@/lib/knowledge-service-client';
+import { requireApprovedUser } from '@/lib/api-hardening'
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
 
 export async function POST(req: NextRequest) {
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): approved users only, read from the DB. Off, this returns null and nothing changes.
+  const notApproved = await requireApprovedUser()
+  if (notApproved) return notApproved
   try {
     // 1. Authenticate user
     const session = await getServerSession(authOptions);
@@ -116,6 +122,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Configuration is checked after existing auth/owner/file validations and
+    // before creating an uploading record or dispatching a service request.
+    getKnowledgeServiceUrl()
+
     // 8. Get or create Knowledge Service session
     let storeName = chatSession.geminiStoreName;
     let storeId = chatSession.geminiStoreId;
@@ -144,6 +154,7 @@ export async function POST(req: NextRequest) {
 
         console.log(`[Upload] Knowledge Service session created: ${storeId} / ${storeName}`);
       } catch (storeError) {
+        if (storeError instanceof ServiceUrlConfigError) return NextResponse.json({ error: storeError.message, code: storeError.code }, { status: 503 })
         console.error('[Upload] Error creating Knowledge Service session:', storeError);
         const detail = storeError instanceof KnowledgeServiceError
           ? `${storeError.message} — ${storeError.body}`
@@ -230,6 +241,7 @@ export async function POST(req: NextRequest) {
       );
     }
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     console.error('[Upload] Unexpected error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Upload failed' },

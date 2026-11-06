@@ -1,21 +1,28 @@
 import type { CSSProperties } from "react"
-import Link from "next/link"
 import { V3_CONTENT } from "@/lib/marketing/v3-content"
-import { v3Metadata } from "@/lib/marketing/v3-metadata"
 import styles from "./learn.module.css"
 import type { Metadata } from "next"
 import { FooterV3 } from "@/components/marketing/v3/FooterV3"
 import { SlideChip } from "@/components/marketing/v3/SlideChip"
 import { BuildCta } from "@/components/marketing/v3/BuildCta"
+import { uatMarketingMetadata } from "@/components/marketing/v3-uat/pages/metadata"
 
 const copy = V3_CONTENT.pages.learn
 
-export const metadata: Metadata = v3Metadata({ path: "/learn", title: copy.metadata.title, description: copy.metadata.description })
+// NEXT_PUBLIC_STUDIO_UAT_MARKETING (default off): with the flag on this page is the UAT design (components/marketing/v3-uat). Off: the page below, as it was.
+export const metadata: Metadata = process.env.NEXT_PUBLIC_STUDIO_UAT_MARKETING === "true" ? uatMarketingMetadata.learn : {
+  title: { absolute: copy.metadata.title },
+  alternates: { canonical: "/learn" },
+}
 
-export default function LearnV3Page() {
+export default async function LearnV3Page() {
+  if (process.env.NEXT_PUBLIC_STUDIO_UAT_MARKETING === "true") {
+    const { UatLearnPage } = await import("@/components/marketing/v3-uat/pages/learn")
+    return <UatLearnPage />
+  }
   return (
     <main>
-      <section className="slide slide--paper is-in" id="start" data-snap="slide" data-slide-label={copy.start.label} data-label={copy.start.label}>
+      <section className="slide slide--paper" id="start" data-snap="slide" data-slide-label={copy.start.label} data-label={copy.start.label}>
         <div className="grain" />
         <div className="slide__inner">
           <div className="center">
@@ -62,17 +69,11 @@ export default function LearnV3Page() {
             <h2 className="h2 balance" data-reveal style={{ "--d": 1 } as CSSProperties}>{copy.guides.title}</h2>
           </div>
           <div className="grid3" style={{ marginTop: 30 }}>
-            {copy.guides.cards.map((item, index) => "href" in item
-              ? <Link className="card" href={item.href} key={item.title} data-reveal style={{ "--d": index + 2 } as CSSProperties}>
-                <span className="pill">{item.tag}</span>
-                <h3 className="h3">{item.title}</h3>
-                <p>{item.body}</p>
-              </Link>
-              : <div className="card is-soon" key={item.title} data-reveal style={{ "--d": index + 2 } as CSSProperties}>
-                <span className="pill">{item.tag}</span>
-                <h3 className="h3">{item.title}</h3>
-                <p>{item.body}</p>
-              </div>)}
+            {copy.guides.cards.map((item, index) => <div className="card" key={item.tag} data-reveal style={{ "--d": index + 2 } as CSSProperties}>
+              <span className={`pill${item.tag === "Help" ? " pill--live" : ""}`}>{item.tag}</span>
+              <h3 className="h3">{item.title}</h3>
+              <p>{item.body}</p>
+            </div>)}
           </div>
         </div>
         <SlideChip number={3} total={4} label={copy.guides.label} />

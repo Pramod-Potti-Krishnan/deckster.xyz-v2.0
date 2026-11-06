@@ -1,0 +1,22 @@
+{
+  "case": "405-flag-off",
+  "what": "Flag off (default): the route does not exist, so Director answers exactly as uat did before it: the framework's 405 for a PATCH on a path that has GET and DELETE only. (Not a 404: the path exists for other methods.)",
+  "request": {
+    "method": "PATCH",
+    "path": "/api/users/user-a/templates/t-plain",
+    "json_body": {
+      "name": "Fresh name"
+    },
+    "entitlement_header": "(none)"
+  },
+  "response": {
+    "status": 405,
+    "headers": {
+      "allow": "GET",
+      "content-type": "application/json"
+    },
+    "json_body": {
+      "detail": "Method Not Allowed"
+    }
+  }
+}

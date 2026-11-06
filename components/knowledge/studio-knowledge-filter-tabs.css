@@ -1,0 +1,18 @@
+/* Second Brain filter tabs (NEXT_PUBLIC_STUDIO_KNOWLEDGE_FILTER_TABS): the accepted mock's `km-kind-row`, on the shell's own tokens.
+   Every rule hangs on data-studio-knowledge-filter-tabs, which exists only with the flag on, so the flag-off page is untouched. */
+[data-studio-v4-shell="true"] [data-studio-knowledge-filter-tabs="true"] { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; }
+[data-studio-v4-shell="true"] [data-studio-knowledge-filter-tabs="true"] .skft-tab {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--ss-line); border-radius: 20px;
+  background: var(--ss-panel); color: var(--ss-muted); font-size: 11px; line-height: 16px; cursor: pointer; transition: border-color .12s, color .12s, background .12s;
+}
+[data-studio-v4-shell="true"] [data-studio-knowledge-filter-tabs="true"] .skft-tab:hover { border-color: var(--ss-accent); color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-knowledge-filter-tabs="true"] .skft-tab.is-selected {
+  background: var(--ss-accent-soft); border-color: var(--ss-accent); color: var(--ss-accent); font-weight: 600; box-shadow: none;
+}
+[data-studio-v4-shell="true"] [data-studio-knowledge-filter-tabs="true"] .skft-tab:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; }
+[data-studio-v4-shell="true"] [data-studio-knowledge-filter-tabs="true"] .skft-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+[data-studio-v4-shell="true"] [data-studio-knowledge-filter-tabs="true"] .skft-count { font-size: 10px; font-weight: 400; opacity: .7; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  [data-studio-v4-shell="true"] [data-studio-knowledge-filter-tabs="true"] { gap: 5px; margin-top: 8px; }
+  [data-studio-v4-shell="true"] [data-studio-knowledge-filter-tabs="true"] .skft-tab { padding: 5px 10px; }
+}

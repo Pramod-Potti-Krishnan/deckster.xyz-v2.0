@@ -1,0 +1,134 @@
+{
+  "deckster_session_v2_synthetic-user-01_synthetic-session-composer-send": {
+    "activeVersion": "final",
+    "blankPresentationId": "synthetic-blank-01",
+    "blankPresentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+    "currentStatus": null,
+    "deckContext": null,
+    "finalPresentationId": "synthetic-final-01",
+    "finalPresentationUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+    "isBlankPresentation": false,
+    "lastUpdated": 1791201617000,
+    "messages": [
+      {
+        "clientTimestamp": 1791201602000,
+        "message_id": "msg-greeting",
+        "payload": {
+          "format": "markdown",
+          "list_items": null,
+          "sub_title": null,
+          "text": "Hello! I'm your presentation assistant. What would you like to build today?"
+        },
+        "role": "assistant",
+        "session_id": "synthetic-session-composer-send",
+        "timestamp": "2026-10-05T12:00:02Z",
+        "type": "chat_message"
+      },
+      {
+        "clientTimestamp": 1791201605500,
+        "message_id": "msg-reply-1",
+        "payload": {"format":"markdown","list_items":null,"sub_title":null,"text":"On it. I will start with an outline."},
+        "role": "assistant",
+        "session_id": "synthetic-session-composer-send",
+        "timestamp": "2026-10-05T12:00:03Z",
+        "type": "chat_message"
+      },
+      {
+        "clientTimestamp": 1791201607000,
+        "message_id": "msg-outline-1",
+        "payload": {
+          "metadata": {
+            "design_suggestions": "Minimal",
+            "main_title": "Ocean currents, explained",
+            "overall_theme": "Clear and calm",
+            "presentation_duration": 8,
+            "preview_presentation_id": "synthetic-final-01",
+            "preview_url": "https://layout.synthetic.invalid/p/synthetic-final-01",
+            "target_audience": "General audience"
+          },
+          "operation": "full_update",
+          "slides": [
+            {
+              "key_points": [],
+              "slide_id": "s1",
+              "slide_number": 1,
+              "slide_type": "title_slide",
+              "title": "Ocean currents, explained"
+            },
+            {"key_points":[],"slide_id":"s2","slide_number":2,"slide_type":"content","title":"Why they matter"},
+            {"key_points":[],"slide_id":"s3","slide_number":3,"slide_type":"content","title":"How gyres form"}
+          ]
+        },
+        "role": "assistant",
+        "session_id": "synthetic-session-composer-send",
+        "timestamp": "2026-10-05T12:00:04Z",
+        "type": "slide_update"
+      },
+      {
+        "clientTimestamp": 1791201607500,
+        "message_id": "msg-url-final",
+        "payload": {
+          "message": "Your presentation is ready.",
+          "presentation_id": "synthetic-final-01",
+          "slide_count": 3,
+          "url": "https://layout.synthetic.invalid/p/synthetic-final-01"
+        },
+        "role": "assistant",
+        "session_id": "synthetic-session-composer-send",
+        "timestamp": "2026-10-05T12:00:05Z",
+        "type": "presentation_url"
+      },
+      {
+        "clientTimestamp": 1791201612500,
+        "message_id": "msg-reply-2",
+        "payload": {"format":"markdown","list_items":null,"sub_title":null,"text":"Done. The title on slide 3 is shorter."},
+        "role": "assistant",
+        "session_id": "synthetic-session-composer-send",
+        "timestamp": "2026-10-05T12:00:06Z",
+        "type": "chat_message"
+      }
+    ],
+    "ownerUserId": "synthetic-user-01",
+    "presentationId": "synthetic-final-01",
+    "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+    "slideContextByIndex": null,
+    "slideCount": 3,
+    "slideStructure": {
+      "metadata": {
+        "design_suggestions": "Minimal",
+        "main_title": "Ocean currents, explained",
+        "overall_theme": "Clear and calm",
+        "presentation_duration": 8,
+        "preview_presentation_id": "synthetic-final-01",
+        "preview_url": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "target_audience": "General audience"
+      },
+      "operation": "full_update",
+      "slides": [
+        {
+          "key_points": [],
+          "slide_id": "s1",
+          "slide_number": 1,
+          "slide_type": "title_slide",
+          "title": "Ocean currents, explained"
+        },
+        {"key_points":[],"slide_id":"s2","slide_number":2,"slide_type":"content","title":"Why they matter"},
+        {"key_points":[],"slide_id":"s3","slide_number":3,"slide_type":"content","title":"How gyres form"}
+      ]
+    },
+    "strawmanPresentationId": "synthetic-final-01",
+    "strawmanPreviewUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+    "tokenUsage": null,
+    "tokenUsageMessageId": null,
+    "userMessages": [
+      {
+        "attachments": [],
+        "id": "synthetic-uuid-0001",
+        "text": "Build a four slide deck about synthetic ocean currents",
+        "timestamp": 1791201604000
+      },
+      {"attachments":[],"id":"synthetic-uuid-0002","text":"Shorten the title on slide 3","timestamp":1791201611000}
+    ],
+    "version": 2
+  }
+}

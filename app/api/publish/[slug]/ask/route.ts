@@ -1,3 +1,4 @@
+import { ServiceUrlConfigError } from '@/lib/service-url'
 /**
  * POST /api/publish/[slug]/ask — the public Q&A endpoint.
  *
@@ -448,6 +449,7 @@ export async function POST(
       },
     })
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     console.error('[Publish QA] ask failed:', error)
     return NextResponse.json({ error: 'Could not process that question' }, { status: 500 })
   }

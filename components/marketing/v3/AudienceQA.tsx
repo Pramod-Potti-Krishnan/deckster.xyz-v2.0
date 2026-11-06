@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useRef, useState, type CSSProperties } from "react"
+import { useEffect, useState, type CSSProperties } from "react"
+import { Waveform } from "./Waveform"
 
 export interface QAEntry {
   who: "viewer" | "deck"
@@ -10,51 +11,38 @@ export interface QAEntry {
 }
 
 export interface AudienceQACopy {
+  live: string
   title: string
   input: string
   sequence: readonly QAEntry[]
 }
 
-/** Scripted demo of text answers (the beta Q&A). Starts filled, cycles only while on screen. */
-export function AudienceQA({ copy, status, style, dataRevealDelay, keep = 3 }: {
-  copy: AudienceQACopy
-  status: { status: string; word: string }
-  style?: CSSProperties
-  dataRevealDelay?: number
-  keep?: number
-}) {
-  const [messages, setMessages] = useState(() => copy.sequence.slice(0, keep).map((entry, index) => ({ index, entry })))
-  const rootRef = useRef<HTMLDivElement>(null)
+export function AudienceQA({ copy, style, dataRevealDelay }: { copy: AudienceQACopy; style?: CSSProperties; dataRevealDelay?: number }) {
+  const [messages, setMessages] = useState<{ index: number; entry: QAEntry }[]>([])
 
   useEffect(() => {
-    const root = rootRef.current
-    if (!root || copy.sequence.length <= keep) return
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
-    let visible = false
-    let count = keep
-    const io = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting })
-    io.observe(root)
-    const timer = setInterval(() => {
-      if (!visible) return
+    if (!copy.sequence.length) return
+    let count = 0
+    let timer: ReturnType<typeof setTimeout>
+    const push = () => {
       const entry = copy.sequence[count % copy.sequence.length]
       const item = { index: count, entry }
-      setMessages((previous) => [...previous, item].slice(-keep))
+      setMessages((previous) => [...previous, item].slice(-3))
       count += 1
-    }, 2600)
-    return () => {
-      clearInterval(timer)
-      io.disconnect()
+      timer = setTimeout(push, entry.who === "viewer" ? 1600 : 4200)
     }
-  }, [copy.sequence, keep])
+    timer = setTimeout(push, 600)
+    return () => clearTimeout(timer)
+  }, [copy.sequence])
 
   return (
-    <div ref={rootRef} className="qa" style={dataRevealDelay === undefined ? style : { ...style, "--d": dataRevealDelay } as CSSProperties} data-reveal={dataRevealDelay === undefined ? undefined : ""}>
-      <div className="qa__hd"><span className={`st st--${status.status}`}>{status.word}</span>{copy.title}</div>
-      <div className="qa__log" aria-hidden="true">
+    <div className="qa" style={dataRevealDelay === undefined ? style : { ...style, "--d": dataRevealDelay } as CSSProperties} data-reveal={dataRevealDelay === undefined ? undefined : ""}>
+      <div className="qa__hd"><span className="pill pill--live">{copy.live}</span>{copy.title}</div>
+      <div className="qa__log" data-qa aria-live="polite" aria-label={copy.title}>
         {messages.map(({ index, entry }) => (
           <div className={`msg msg--${entry.who}`} key={index}>
             <span className="k">{entry.kicker}</span>{entry.text}
-            {entry.who === "deck" && entry.source && <span className="src">{entry.source}</span>}
+            {entry.who === "deck" && <><Waveform count={22} /><span className="src">{entry.source}</span></>}
           </div>
         ))}
       </div>

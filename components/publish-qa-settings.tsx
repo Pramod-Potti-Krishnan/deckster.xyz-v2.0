@@ -148,7 +148,7 @@ function CorpusStatusRow({
 
   if (status === 'ready' || status === 'partial') {
     return (
-      <div className="space-y-1.5">
+      <div className="space-y-1.5 studio-publish-corpus">
         {status === 'ready' ? (
           <p className="flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400">
             <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" />
@@ -183,7 +183,7 @@ function CorpusStatusRow({
 
   if (status === 'building') {
     return (
-      <div className="space-y-1 text-xs text-slate-600 dark:text-slate-400">
+      <div className="studio-publish-corpus space-y-1 text-xs text-slate-600 dark:text-slate-400">
         <p className="flex items-center gap-1.5">
           <Loader2 className="h-3.5 w-3.5 flex-shrink-0 animate-spin" />
           Preparing this deck&apos;s content — questions asked meanwhile go to you.
@@ -209,7 +209,7 @@ function CorpusStatusRow({
   }
 
   return (
-    <div className="flex items-start gap-1.5 rounded-md bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+    <div className="studio-publish-corpus flex items-start gap-1.5 rounded-md bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300">
       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
       <div className="space-y-1">
         <p>
@@ -388,8 +388,9 @@ export function PublishQaSettings({
   const busy = disabled || saving !== null
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-start justify-between gap-3">
+    <div className="space-y-4 studio-publish-qa">
+      {process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && saving && <p role="status" className="studio-publish-saving"><Loader2 size={12} className="animate-spin" />Saving question settings…</p>}
+      <div className="flex items-start justify-between gap-3 studio-publish-qa-master">
         <div className="space-y-0.5">
           <Label htmlFor="publish-qa-enabled" className="font-normal">
             Answer questions from viewers
@@ -427,7 +428,7 @@ export function PublishQaSettings({
               <SelectTrigger id="publish-qa-tone">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent data-studio-v4-shell={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'} data-studio-publish-popup={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'}>
                 {TONE_PRESETS.map((preset) => (
                   <SelectItem key={preset.value} value={preset.value}>
                     {preset.label}
@@ -476,7 +477,7 @@ export function PublishQaSettings({
               <SelectTrigger id="publish-qa-visitor-rate">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent data-studio-v4-shell={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'} data-studio-publish-popup={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'}>
                 {VISITOR_LIMIT_PRESETS.map((preset) => (
                   <SelectItem key={preset.value} value={preset.value}>
                     {preset.label}
@@ -499,7 +500,7 @@ export function PublishQaSettings({
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 studio-publish-qa-caps">
             <div className="space-y-1.5">
               <Label htmlFor="publish-qa-daily">Questions per day</Label>
               <Input
@@ -540,7 +541,7 @@ export function PublishQaSettings({
             spend.
           </p>
 
-          <div className="rounded-md border border-gray-200 dark:border-slate-700">
+          <div className="rounded-md border border-gray-200 dark:border-slate-700 studio-publish-sources">
             <button
               type="button"
               onClick={() => setSourcesOpen((value) => !value)}
@@ -588,6 +589,7 @@ export function PublishQaSettings({
                           )}
                         </div>
                         <Switch
+                          aria-label={`Use ${source.sourceLabel || source.sourceRef} to answer viewer questions`}
                           checked={source.allowedForQa}
                           onCheckedChange={(next) => toggleSource(source, next)}
                           disabled={disabled}

@@ -1,0 +1,301 @@
+{
+  "subscription": {
+    "subscription": {
+      "tier": "pro",
+      "status": "active",
+      "billingCycle": "monthly",
+      "currentPeriodEnd": "2026-11-01T00:00:00.000Z",
+      "cancelAtPeriodEnd": false
+    }
+  },
+  "reads": {
+    "/api/knowledge-graph/settings": {
+      "user_id": "studio-v4-cp0-local",
+      "subscribed": true,
+      "cross_session_enabled": true,
+      "consent_version": "fixture-v1",
+      "consent_at": "2026-10-01T12:00:00.000Z",
+      "created_at": "2026-10-01T12:00:00.000Z",
+      "updated_at": "2026-10-01T12:00:00.000Z",
+      "capability": {
+        "source": "knowledge_graph",
+        "configured": true,
+        "available": true,
+        "code": null,
+        "reason": null
+      }
+    },
+    "/api/knowledge-graph/stats": {
+      "node_count": 6,
+      "edge_count": 5,
+      "evidence_count": 2,
+      "sessions_consolidated": 2,
+      "nodes_by_type": [
+        {
+          "entity_type": "ORG",
+          "count": 1
+        },
+        {
+          "entity_type": "CONCEPT",
+          "count": 2
+        },
+        {
+          "entity_type": "PRODUCT",
+          "count": 1
+        },
+        {
+          "entity_type": "METRIC",
+          "count": 1
+        },
+        {
+          "entity_type": "PERSON",
+          "count": 1
+        }
+      ],
+      "top_entities": [
+        {
+          "node_id": "strategy",
+          "name": "Product strategy",
+          "entity_type": "CONCEPT",
+          "salience": 8,
+          "mention_count": 7
+        },
+        {
+          "node_id": "team",
+          "name": "Planning team",
+          "entity_type": "ORG",
+          "salience": 6,
+          "mention_count": 5
+        }
+      ],
+      "last_updated_at": "2026-10-01T12:00:00.000Z"
+    },
+    "/api/knowledge-graph/graph": {
+      "nodes": [
+        {
+          "node_id": "strategy",
+          "name": "Product strategy",
+          "entity_type": "CONCEPT",
+          "description": "Local fixture entity for layout review.",
+          "salience": 8,
+          "mention_count": 7
+        },
+        {
+          "node_id": "team",
+          "name": "Planning team",
+          "entity_type": "ORG",
+          "description": "Local fixture planning group.",
+          "salience": 6,
+          "mention_count": 5
+        },
+        {
+          "node_id": "growth",
+          "name": "Sustainable growth",
+          "entity_type": "CONCEPT",
+          "description": "Local fixture planning topic.",
+          "salience": 5,
+          "mention_count": 4
+        },
+        {
+          "node_id": "product",
+          "name": "Presentation platform",
+          "entity_type": "PRODUCT",
+          "description": "Local fixture product.",
+          "salience": 4,
+          "mention_count": 3
+        },
+        {
+          "node_id": "metric",
+          "name": "Quarterly adoption",
+          "entity_type": "METRIC",
+          "description": "Local fixture measurement.",
+          "salience": 3,
+          "mention_count": 2
+        },
+        {
+          "node_id": "lead",
+          "name": "Project lead",
+          "entity_type": "PERSON",
+          "description": "Local fixture role.",
+          "salience": 2,
+          "mention_count": 1
+        }
+      ],
+      "edges": [
+        {
+          "src_node_id": "team",
+          "dst_node_id": "strategy",
+          "relation": "DEVELOPS",
+          "weight": 1
+        },
+        {
+          "src_node_id": "strategy",
+          "dst_node_id": "growth",
+          "relation": "SUPPORTS",
+          "weight": 0.8
+        },
+        {
+          "src_node_id": "product",
+          "dst_node_id": "strategy",
+          "relation": "ALIGNS_WITH",
+          "weight": 0.9
+        },
+        {
+          "src_node_id": "metric",
+          "dst_node_id": "growth",
+          "relation": "MEASURES",
+          "weight": 0.7
+        },
+        {
+          "src_node_id": "lead",
+          "dst_node_id": "team",
+          "relation": "LEADS",
+          "weight": 1
+        }
+      ],
+      "total_nodes": 6
+    },
+    "/api/knowledge-graph/nodes/strategy": {
+      "node": {
+        "node_id": "strategy",
+        "name": "Product strategy",
+        "entity_type": "CONCEPT",
+        "description": "Local fixture entity for layout review. Evidence below is synthetic and does not represent connected service proof.",
+        "salience": 8,
+        "mention_count": 7
+      },
+      "evidence": [
+        {
+          "snippet": "Local fixture passage: product strategy connects planning priorities with measurable outcomes.",
+          "source_type": "chunk",
+          "session_id": "fixture-session-a",
+          "document_filename": "Local fixture \u2014 planning notes.pdf",
+          "page_number": 2,
+          "created_at": "2026-10-01T12:00:00.000Z"
+        },
+        {
+          "snippet": "Local fixture passage: the team evaluates adoption alongside sustainable growth.",
+          "source_type": "researcher_context",
+          "session_id": "fixture-session-b",
+          "document_filename": null,
+          "page_number": null,
+          "created_at": "2026-10-01T12:00:00.000Z"
+        },
+        {
+          "snippet": "Local review passage 3: The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. Full passage ending retained.",
+          "source_type": "chunk",
+          "session_id": "fixture-session-a",
+          "document_filename": "Local review source 3 \u2014 long planning evidence.pdf",
+          "page_number": 3,
+          "created_at": "2026-10-01T12:00:00.000Z"
+        },
+        {
+          "snippet": "Local review passage 4: The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. Full passage ending retained.",
+          "source_type": "chunk",
+          "session_id": "fixture-session-a",
+          "document_filename": "Local review source 4 \u2014 long planning evidence.pdf",
+          "page_number": 4,
+          "created_at": "2026-10-01T12:00:00.000Z"
+        },
+        {
+          "snippet": "Local review passage 5: The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. Full passage ending retained.",
+          "source_type": "chunk",
+          "session_id": "fixture-session-a",
+          "document_filename": "Local review source 5 \u2014 long planning evidence.pdf",
+          "page_number": 5,
+          "created_at": "2026-10-01T12:00:00.000Z"
+        },
+        {
+          "snippet": "Local review passage 6: The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. Full passage ending retained.",
+          "source_type": "chunk",
+          "session_id": "fixture-session-a",
+          "document_filename": "Local review source 6 \u2014 long planning evidence.pdf",
+          "page_number": 6,
+          "created_at": "2026-10-01T12:00:00.000Z"
+        },
+        {
+          "snippet": "Local review passage 7: The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. Full passage ending retained.",
+          "source_type": "chunk",
+          "session_id": "fixture-session-a",
+          "document_filename": "Local review source 7 \u2014 long planning evidence.pdf",
+          "page_number": 7,
+          "created_at": "2026-10-01T12:00:00.000Z"
+        },
+        {
+          "snippet": "Local review passage 8: The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. The planning team connects priorities, evidence, and the next decision. Full passage ending retained.",
+          "source_type": "chunk",
+          "session_id": "fixture-session-a",
+          "document_filename": "Local review source 8 \u2014 long planning evidence.pdf",
+          "page_number": 8,
+          "created_at": "2026-10-01T12:00:00.000Z"
+        }
+      ],
+      "provenance_session_ids": [
+        "fixture-session-a",
+        "fixture-session-b"
+      ],
+      "edges": [
+        {
+          "src_name": "Planning team",
+          "dst_name": "Product strategy",
+          "relation": "DEVELOPS",
+          "weight": 1
+        },
+        {
+          "src_name": "Product strategy",
+          "dst_name": "Sustainable growth",
+          "relation": "SUPPORTS",
+          "weight": 0.8
+        },
+        {
+          "src_name": "Product strategy",
+          "dst_name": "Local relationship 3",
+          "relation": "SUPPORTS",
+          "weight": 0.8
+        },
+        {
+          "src_name": "Product strategy",
+          "dst_name": "Local relationship 4",
+          "relation": "SUPPORTS",
+          "weight": 0.8
+        },
+        {
+          "src_name": "Product strategy",
+          "dst_name": "Local relationship 5",
+          "relation": "SUPPORTS",
+          "weight": 0.8
+        },
+        {
+          "src_name": "Product strategy",
+          "dst_name": "Local relationship 6",
+          "relation": "SUPPORTS",
+          "weight": 0.8
+        },
+        {
+          "src_name": "Product strategy",
+          "dst_name": "Local relationship 7",
+          "relation": "SUPPORTS",
+          "weight": 0.8
+        },
+        {
+          "src_name": "Product strategy",
+          "dst_name": "Local relationship 8",
+          "relation": "SUPPORTS",
+          "weight": 0.8
+        },
+        {
+          "src_name": "Product strategy",
+          "dst_name": "Local relationship 9",
+          "relation": "SUPPORTS",
+          "weight": 0.8
+        },
+        {
+          "src_name": "Product strategy",
+          "dst_name": "Local relationship 10",
+          "relation": "SUPPORTS",
+          "weight": 0.8
+        }
+      ]
+    }
+  }
+}

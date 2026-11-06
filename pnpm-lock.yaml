@@ -17,6 +17,9 @@ importers:
       '@hookform/resolvers':
         specifier: ^3.9.1
         version: 3.10.0(react-hook-form@7.66.1(react@19.2.1))
+      '@prisma/client':
+        specifier: ^6.19.0
+        version: 6.19.0(prisma@6.19.0(typescript@5.9.3))(typescript@5.9.3)
       '@radix-ui/react-accordion':
         specifier: 1.2.2
         version: 1.2.2(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
@@ -143,6 +146,9 @@ importers:
       input-otp:
         specifier: 1.4.1
         version: 1.4.1(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+      jose:
+        specifier: 6.2.12
+        version: 6.2.12
       jsonwebtoken:
         specifier: ^9.0.2
         version: 9.0.2
@@ -189,8 +195,8 @@ importers:
         specifier: ^1.7.1
         version: 1.7.4(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       stripe:
-        specifier: ^20.0.0
-        version: 20.0.0(@types/node@22.19.1)
+        specifier: 17.4.0
+        version: 17.4.0
       tailwind-merge:
         specifier: ^2.5.5
         version: 2.6.0
@@ -204,9 +210,6 @@ importers:
         specifier: ^3.24.1
         version: 3.25.76
     devDependencies:
-      '@prisma/client':
-        specifier: ^6.19.0
-        version: 6.19.0(prisma@6.19.0(typescript@5.9.3))(typescript@5.9.3)
       '@tailwindcss/typography':
         specifier: ^0.5.19
         version: 0.5.19(tailwindcss@3.4.18)
@@ -1944,6 +1947,9 @@ packages:
   jose@6.1.2:
     resolution: {integrity: sha512-MpcPtHLE5EmztuFIqB0vzHAWJPpmN1E6L4oo+kze56LIs3MyXIj9ZHMDxqOvkP38gBR7K1v3jqd4WU2+nrfONQ==}
 
+  jose@6.2.12:
+    resolution: {integrity: sha512-9NiFmJEex0sy2Dk58j2UGBSHgUs2ypF9eZSu4L6vjOX3Dp96Sw1F3uL+H+D1sx02jZZdzUT0HgvCy59CuvXcWw==}
+
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
 
@@ -2654,14 +2660,9 @@ packages:
     resolution: {integrity: sha512-gmBGslpoQJtgnMAvOVqGZpEz9dyoKTCzy2nfz/n8aIFhN/jCE/rCmcxabB6jOOHV+0WNnylOxaxBQPSvcWklhA==}
     engines: {node: '>=12'}
 
-  stripe@20.0.0:
-    resolution: {integrity: sha512-EaZeWpbJOCcDytdjKSwdrL5BxzbDGNueiCfHjHXlPdBQvLqoxl6AAivC35SPzTmVXJb5duXQlXFGS45H0+e6Gg==}
-    engines: {node: '>=16'}
-    peerDependencies:
-      '@types/node': '>=16'
-    peerDependenciesMeta:
-      '@types/node':
-        optional: true
+  stripe@17.4.0:
+    resolution: {integrity: sha512-sQQGZguPxe7/QYXJKtDpfzT2OAH9F8nyE2SOsVdTU793iiU33/dpaKgWaJEGJm8396Yy/6NvTLblgdHlueGLhA==}
+    engines: {node: '>=12.*'}
 
   style-to-js@1.1.21:
     resolution: {integrity: sha512-RjQetxJrrUJLQPHbLku6U/ocGtzyjbJMP9lCNK7Ag0CNh690nSH8woqWH9u16nMjYBAok+i7JO1NP2pOy8IsPQ==}
@@ -4521,6 +4522,8 @@ snapshots:
 
   jose@6.1.2: {}
 
+  jose@6.2.12: {}
+
   js-tokens@4.0.0: {}
 
   json-bigint@1.0.0:
@@ -5482,11 +5485,10 @@ snapshots:
     dependencies:
       ansi-regex: 6.2.2
 
-  stripe@20.0.0(@types/node@22.19.1):
+  stripe@17.4.0:
     dependencies:
-      qs: 6.14.0
-    optionalDependencies:
       '@types/node': 22.19.1
+      qs: 6.14.0
 
   style-to-js@1.1.21:
     dependencies:

@@ -1,6 +1,8 @@
+import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
+import { requireApprovedUser } from '@/lib/api-hardening'
 
 /**
  * Template Builder proxy → Director CRUD (TEMPLATE_PLAN.md §5 C2).
@@ -12,8 +14,9 @@ import { authOptions } from '@/lib/auth-options';
  *
  * DIRECTOR_API_URL points at the Director HTTP host (local UAT: http://localhost:8000).
  */
-const DIRECTOR_API_URL =
-  process.env.DIRECTOR_API_URL || 'https://directorv33-production.up.railway.app';
+function directorBaseUrl(): string {
+  return requireServiceUrl('Director', [{ name: 'DIRECTOR_API_URL', value: process.env.DIRECTOR_API_URL }])
+}
 
 async function resolveUserId(): Promise<string | null> {
   const session = await getServerSession(authOptions);
@@ -29,12 +32,13 @@ export async function GET() {
   }
   try {
     const r = await fetch(
-      `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/templates`,
+      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/templates`,
       { cache: 'no-store' },
     );
     const body = await r.json();
     return NextResponse.json(body, { status: r.status });
-  } catch {
+  } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     return NextResponse.json(
       { error: 'director_unreachable', templates: [], count: 0 },
       { status: 502 },
@@ -44,6 +48,9 @@ export async function GET() {
 
 // POST /api/templates → save the agreed deck as a template ({name, source_session_id})
 export async function POST(req: NextRequest) {
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): approved users only, read from the DB. Off, this returns null and nothing changes.
+  const notApproved = await requireApprovedUser()
+  if (notApproved) return notApproved
   const userId = await resolveUserId();
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -56,7 +63,7 @@ export async function POST(req: NextRequest) {
   }
   try {
     const r = await fetch(
-      `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/templates`,
+      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/templates`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -65,7 +72,8 @@ export async function POST(req: NextRequest) {
     );
     const body = await r.json();
     return NextResponse.json(body, { status: r.status });
-  } catch {
+  } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     return NextResponse.json({ error: 'director_unreachable' }, { status: 502 });
   }
 }

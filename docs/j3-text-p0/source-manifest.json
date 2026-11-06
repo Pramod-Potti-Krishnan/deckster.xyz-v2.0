@@ -1,0 +1,149 @@
+{
+  "reported_deployed_source_attribution": "OPS-1 readiness readback, streams/ops/RUN-READY-EVIDENCE-THU8.md, deploymentb6ieckx1l at12:29Z; not independent runtimeSHA",
+  "files": [
+    {
+      "label": "uat",
+      "ref": "ee532fab4b84a6883f8a5b50675ccab692b62240",
+      "file": "lib/element-generation-timeout.ts",
+      "sha256": "b9228e2f77a76d90dd4f680b7c4d79035ba8ba8b71fa86e17dfbd59c97ad1139"
+    },
+    {
+      "label": "uat",
+      "ref": "ee532fab4b84a6883f8a5b50675ccab692b62240",
+      "file": "lib/theme-sync.ts",
+      "sha256": "a42343696f08a92d569c64e978a3abd3d5cf896870b0d6f238780a60ac2795c4"
+    },
+    {
+      "label": "uat",
+      "ref": "ee532fab4b84a6883f8a5b50675ccab692b62240",
+      "file": "hooks/use-textlabs-generation.ts",
+      "sha256": "7ba0c15cf8f7a82647980674e05e0fff9463e284f7b793e66791d9c247ab72b2"
+    },
+    {
+      "label": "uat",
+      "ref": "ee532fab4b84a6883f8a5b50675ccab692b62240",
+      "file": "components/generation-panel/forms/text-box-form.tsx",
+      "sha256": "903ef4e6f148fe02dc6f9a25ea617dc5507882e4235c5147f634c0cbb41b1716"
+    },
+    {
+      "label": "uat",
+      "ref": "ee532fab4b84a6883f8a5b50675ccab692b62240",
+      "file": "lib/textlabs-client.ts",
+      "sha256": "c030dfe4f4aef33b77511fc605ced6b9d76afa1e005abb7b462a6959c88754fa"
+    },
+    {
+      "label": "uat",
+      "ref": "ee532fab4b84a6883f8a5b50675ccab692b62240",
+      "file": "components/builder/chat-input.tsx",
+      "sha256": "4883670a6e6b6b7c2d12c7e84eda57b295e6dddf0e4b62c720c8a37243eec427"
+    },
+    {
+      "label": "preflip_studio",
+      "ref": "6d47cae43fa406c31b2c5da21c9d2ce7de3b7872",
+      "file": "lib/element-generation-timeout.ts",
+      "sha256": "b9228e2f77a76d90dd4f680b7c4d79035ba8ba8b71fa86e17dfbd59c97ad1139"
+    },
+    {
+      "label": "preflip_studio",
+      "ref": "6d47cae43fa406c31b2c5da21c9d2ce7de3b7872",
+      "file": "lib/theme-sync.ts",
+      "sha256": "083872ea4afd4e473d6499b89ea83ecf10b2bd6d628cdf06f0485e2832f705f8"
+    },
+    {
+      "label": "preflip_studio",
+      "ref": "6d47cae43fa406c31b2c5da21c9d2ce7de3b7872",
+      "file": "hooks/use-textlabs-generation.ts",
+      "sha256": "d26aaadd4a0d785d5812e60366c15621c4aa6b23683ed6c9b83c9a2867920044"
+    },
+    {
+      "label": "preflip_studio",
+      "ref": "6d47cae43fa406c31b2c5da21c9d2ce7de3b7872",
+      "file": "components/generation-panel/forms/text-box-form.tsx",
+      "sha256": "42f263e8ae4224578a50500781164440fbd35bd09ad825996eb44fe6ad07174e"
+    },
+    {
+      "label": "preflip_studio",
+      "ref": "6d47cae43fa406c31b2c5da21c9d2ce7de3b7872",
+      "file": "lib/textlabs-client.ts",
+      "sha256": "fed212dad56a7058aebd5dad64b6d604fee5fe7407b85666507eacfd1045eb94"
+    },
+    {
+      "label": "preflip_studio",
+      "ref": "6d47cae43fa406c31b2c5da21c9d2ce7de3b7872",
+      "file": "components/builder/chat-input.tsx",
+      "sha256": "db5ac9914d144ccdab525dce2347e1ee0bd17f784e1557ead9a7d752dd221ac7"
+    },
+    {
+      "label": "reported_deployed",
+      "ref": "18e0446073d62b042a9470fd4524994d3dd82e8e",
+      "file": "lib/element-generation-timeout.ts",
+      "sha256": "b9228e2f77a76d90dd4f680b7c4d79035ba8ba8b71fa86e17dfbd59c97ad1139"
+    },
+    {
+      "label": "reported_deployed",
+      "ref": "18e0446073d62b042a9470fd4524994d3dd82e8e",
+      "file": "lib/theme-sync.ts",
+      "sha256": "083872ea4afd4e473d6499b89ea83ecf10b2bd6d628cdf06f0485e2832f705f8"
+    },
+    {
+      "label": "reported_deployed",
+      "ref": "18e0446073d62b042a9470fd4524994d3dd82e8e",
+      "file": "hooks/use-textlabs-generation.ts",
+      "sha256": "b36929ed296a4562874344292d2feb25fa95fd4772f861e4197e73b961b669eb"
+    },
+    {
+      "label": "reported_deployed",
+      "ref": "18e0446073d62b042a9470fd4524994d3dd82e8e",
+      "file": "components/generation-panel/forms/text-box-form.tsx",
+      "sha256": "382151fc21c0c168861d5fe24a708a55a008a46d7e7eaf9e5173df529056c821"
+    },
+    {
+      "label": "reported_deployed",
+      "ref": "18e0446073d62b042a9470fd4524994d3dd82e8e",
+      "file": "lib/textlabs-client.ts",
+      "sha256": "85b13a044472116b44f6b1f6f773aaf01b6c23400a8f0a08fb6f53a6fda95864"
+    },
+    {
+      "label": "reported_deployed",
+      "ref": "18e0446073d62b042a9470fd4524994d3dd82e8e",
+      "file": "components/builder/chat-input.tsx",
+      "sha256": "db5ac9914d144ccdab525dce2347e1ee0bd17f784e1557ead9a7d752dd221ac7"
+    },
+    {
+      "label": "uat",
+      "ref": "ee532fab4b84a6883f8a5b50675ccab692b62240",
+      "file": "app/builder/page.tsx",
+      "sha256": "dd98a309b41a548776140f69e561fb9d4763670453dc470f0729ad480c497812"
+    },
+    {
+      "label": "uat",
+      "ref": "ee532fab4b84a6883f8a5b50675ccab692b62240",
+      "file": "hooks/use-deckster-websocket-v2.ts",
+      "sha256": "f0baac83f40ce7962b54a5f5a5d609c029ccc95fde595aff6a78e4b59851e24f"
+    },
+    {
+      "label": "preflip_studio",
+      "ref": "6d47cae43fa406c31b2c5da21c9d2ce7de3b7872",
+      "file": "app/builder/page.tsx",
+      "sha256": "949b707f8864497f997e1ada19686ac420dfdc6152590f240b4fd40a540b9812"
+    },
+    {
+      "label": "preflip_studio",
+      "ref": "6d47cae43fa406c31b2c5da21c9d2ce7de3b7872",
+      "file": "hooks/use-deckster-websocket-v2.ts",
+      "sha256": "a8869897d6a6dbe648b1e4e0b55766c216189fbdc03a1c9c7b812b733ebc2502"
+    },
+    {
+      "label": "reported_deployed",
+      "ref": "18e0446073d62b042a9470fd4524994d3dd82e8e",
+      "file": "app/builder/page.tsx",
+      "sha256": "e3bc115ad4a1747b7c227859280de8a2a5930f37c04c1807867481768d967d2d"
+    },
+    {
+      "label": "reported_deployed",
+      "ref": "18e0446073d62b042a9470fd4524994d3dd82e8e",
+      "file": "hooks/use-deckster-websocket-v2.ts",
+      "sha256": "a8869897d6a6dbe648b1e4e0b55766c216189fbdc03a1c9c7b812b733ebc2502"
+    }
+  ]
+}

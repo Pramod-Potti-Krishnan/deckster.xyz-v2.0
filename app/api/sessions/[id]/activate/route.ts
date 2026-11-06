@@ -11,20 +11,22 @@ import { prisma } from '@/lib/prisma'
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // 1. Authenticate user
     const session = await getServerSession(authOptions)
 
-    if (!session?.user?.email) {
+    // ChatSession.userId holds the user's id, never the e-mail (security audit #10: comparing with the e-mail 403'd everyone).
+    const userId = (session?.user as { id?: string | null } | undefined)?.id
+    if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       )
     }
 
-    const sessionId = params.id
+    const sessionId = (await params).id
 
     // 2. Verify session exists and belongs to user
     const chatSession = await prisma.chatSession.findUnique({
@@ -45,7 +47,7 @@ export async function POST(
       )
     }
 
-    if (chatSession.userId !== session.user.email) {
+    if (chatSession.userId !== userId) {
       return NextResponse.json(
         { error: 'Unauthorized - session belongs to different user' },
         { status: 403 }

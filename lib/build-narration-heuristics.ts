@@ -335,14 +335,14 @@ export function exportControlsAllowed(active: boolean, phase: NarrationPhase): b
 export type NarrationAction =
   | { type: 'reset' }
   | { type: 'dismiss' }
-  | { type: 'session_start'; ts: number } // user sent a message / status went thinking pre-deck
+  | { type: 'session_start'; ts: number; fresh?: boolean } // fresh is a local generation edge, never history/prose
   | { type: 'status'; status: string; text: string; ts: number }
   | { type: 'ephemeral'; id: string; text: string; ts: number }
   | { type: 'strawman'; ghosts: GhostSlide[]; ts: number }
   | { type: 'awaiting_user'; ts: number }
   | { type: 'accepted'; ts: number } // accept clicked / isGeneratingFinal flipped
   | { type: 'planning_resumed'; ts: number } // plan gate answered; strawman generation started
-  | { type: 'final_url'; ts: number }
+  | { type: 'final_url'; ts: number; presentationId?: string | null; keepStopped?: boolean }
   | { type: 'pin'; slideIndex: number | null }
   | { type: 'control'; control: NarrationControl; ts: number }
   | { type: 'control_timeout'; requested: NarrationControl; fallback: NarrationControl; ts: number }
@@ -350,6 +350,7 @@ export type NarrationAction =
   | { type: 'typed_event'; payload: BuildEventPayload; ts: number }
   | { type: 'typed_slide_built'; payload: SlideBuiltPayload; ts: number }
   | { type: 'typed_sync'; buildState: unknown; ts: number; pendingControl?: NarrationControl }
+  | { type: 'status_ended'; ts: number } // BUILD-FAILURE-END: the transient status that opened the building phase has ended (the hook sends it only with NEXT_PUBLIC_STUDIO_BUILD_FAILURE_END)
   | { type: 'hydrate'; state: NarrationState };
 
 function capList<T>(list: T[], cap: number): T[] {
@@ -460,17 +461,25 @@ function normalizeNarrationState(state: NarrationState): NarrationState {
 function typedStateForBuild(state: NarrationState, buildId?: string | null): NarrationState | null {
   const retiredBuildIds = normalizedRetiredBuildIds(state);
   if (buildId && retiredBuildIds.includes(buildId)) return null;
-  if (buildId && state.buildId && state.buildId !== buildId) {
+  if (buildId && state.buildId !== buildId && (state.buildId || state.phase === 'complete')) {
     return {
       ...initialNarrationState(),
       source: 'typed',
       buildId,
-      retiredBuildIds: capList([...retiredBuildIds, state.buildId], RETIRED_BUILD_ID_CAP),
+      retiredBuildIds: state.buildId
+        ? capList([...retiredBuildIds, state.buildId], RETIRED_BUILD_ID_CAP)
+        : retiredBuildIds,
     };
   }
   return { ...state, source: 'typed', buildId: buildId ?? state.buildId, retiredBuildIds };
 }
 
+// BUILD-FAILURE-END (NEXT_PUBLIC_STUDIO_BUILD_FAILURE_END): a "building" with nothing built behind it: not paused or stopped (or asked to be), no slide started, built or failed, no per-slide event. Director's legacy
+// BUILD-FAILURE-END: invoke_tools turn opens one with status_update "Generating presentation content..." and, when its tools fail, closes with one chat_message and no terminal frame (streams/director2/build-failure-frames/FINDINGS.md).
+// BUILD-FAILURE-END: Only the hook decides that a status is what opened it (use-build-narration.ts); this is the reducer's own last guard.
+export function isUnbackedBuilding(state: NarrationState): boolean { // BUILD-FAILURE-END
+  return state.active && state.phase === 'building' && state.control === 'running' && state.slidesDone === 0 && Object.keys(state.slideEvents).length === 0 && !Object.values(state.slideStates).some((s) => s !== 'pending') // BUILD-FAILURE-END
+} // BUILD-FAILURE-END
 export function narrationReducer(state: NarrationState, action: NarrationAction): NarrationState {
   switch (action.type) {
     case 'reset':
@@ -480,14 +489,25 @@ export function narrationReducer(state: NarrationState, action: NarrationAction)
       return normalizeNarrationState(action.state);
 
     case 'dismiss':
-      return { ...state, active: false, phase: state.phase === 'complete' ? 'idle' : state.phase };
+      // Retain terminal truth so delayed outline/history frames cannot reopen
+      // a settled build. A new typed build identity starts with fresh state.
+      return { ...state, active: false };
 
     case 'session_start': {
+      if (state.phase === 'complete' && action.fresh) {
+        return toPhase({
+          ...initialNarrationState(),
+          retiredBuildIds: state.buildId
+            ? capList([...normalizedRetiredBuildIds(state), state.buildId], RETIRED_BUILD_ID_CAP)
+            : normalizedRetiredBuildIds(state),
+        }, 'planning', action.ts);
+      }
       if (state.active || state.phase === 'complete') return state;
       return toPhase({ ...state, startedAt: action.ts }, 'planning', action.ts);
     }
 
     case 'status': {
+      if (state.phase === 'complete') return state;
       const interp = interpretStatus(action.text, action.status);
       let next = state;
       // A status while idle activates planning (pre-deck thinking).
@@ -528,6 +548,7 @@ export function narrationReducer(state: NarrationState, action: NarrationAction)
     }
 
     case 'ephemeral': {
+      if (state.phase === 'complete') return state;
       if (state.source === 'typed') return state; // typed frames supersede
       if (state.seenEphemeralIds.includes(action.id)) return state;
       const parsed = parseEphemeralText(action.text);
@@ -561,7 +582,11 @@ export function narrationReducer(state: NarrationState, action: NarrationAction)
     }
 
     case 'strawman': {
-      let next = toPhase(state, 'strawman', action.ts);
+      // Structure is metadata, also replayed after sync/restoration. It may
+      // advance planning but must not rewind an active or terminal build.
+      let next = state.phase === 'idle' || state.phase === 'planning' || state.phase === 'strawman'
+        ? toPhase(state, 'strawman', action.ts)
+        : state;
       next = {
         ...next,
         ghosts: action.ghosts,
@@ -570,9 +595,9 @@ export function narrationReducer(state: NarrationState, action: NarrationAction)
       // Seed pending states without clobbering already-known ones.
       const slideStates = { ...next.slideStates };
       for (const g of action.ghosts) {
-        if (!slideStates[g.index]) slideStates[g.index] = 'pending';
+        if (!slideStates[g.index]) slideStates[g.index] = next.phase === 'complete' ? 'built' : 'pending';
       }
-      return { ...next, slideStates };
+      return { ...next, slideStates, slidesDone: Object.values(slideStates).filter((v) => v === 'built').length };
     }
 
     case 'awaiting_user':
@@ -582,6 +607,19 @@ export function narrationReducer(state: NarrationState, action: NarrationAction)
 
     case 'accepted':
       if (!state.active && state.ghosts.length === 0) return state;
+      if (state.phase === 'complete') {
+        // Unlike a transcript replay, this action is a new local acceptance
+        // edge. Preserve the outline while retiring the finished typed build.
+        return toPhase({
+          ...initialNarrationState(),
+          ghosts: state.ghosts,
+          slideCount: state.ghosts.length,
+          slideStates: Object.fromEntries(state.ghosts.map(g => [g.index, 'pending' as SlideBuildState])),
+          retiredBuildIds: state.buildId
+            ? capList([...normalizedRetiredBuildIds(state), state.buildId], RETIRED_BUILD_ID_CAP)
+            : normalizedRetiredBuildIds(state),
+        }, 'building', action.ts);
+      }
       return toPhase(state, 'building', action.ts);
 
     case 'planning_resumed':
@@ -591,8 +629,16 @@ export function narrationReducer(state: NarrationState, action: NarrationAction)
       return toPhase(state, 'planning', action.ts);
 
     case 'final_url': {
-      if (!state.active) return state;
-      let next = toPhase(state, 'complete', action.ts);
+      // J7-RESUME-LOOP-P1 (NEXT_PUBLIC_STUDIO_BUILD_RESUME_FIX; the hook sets keepStopped): Director publishes the
+      // partial deck's URL after a Stop. It updates the deck only; the build stays stopped (Resume stays) until a
+      // later build_phase or a new build id. Without the flag this is today's completion.
+      if (action.keepStopped === true && state.phase === 'stopped') return state;
+      if (action.presentationId && state.buildPresentationId && action.presentationId !== state.buildPresentationId) {
+        return state;
+      }
+      // A durable final URL also establishes completion on a cold restore,
+      // before any outline or local progress snapshot has arrived.
+      let next = { ...toPhase(state, 'complete', action.ts), active: state.active };
       // Everything not errored/skipped lands as built at completion.
       const slideStates: Record<number, SlideBuildState> = { ...next.slideStates };
       for (const k of Object.keys(slideStates)) {
@@ -632,6 +678,7 @@ export function narrationReducer(state: NarrationState, action: NarrationAction)
       const p = action.payload;
       let next = typedStateForBuild(state, p.build_id);
       if (!next) return state;
+      if (next.phase === 'complete') return next;
       next = toPhase(next, p.phase as NarrationPhase, action.ts, p.label);
       if (typeof p.slide_count === 'number' && p.slide_count > 0) {
         next = { ...next, slideCount: p.slide_count };
@@ -650,6 +697,7 @@ export function narrationReducer(state: NarrationState, action: NarrationAction)
       const p = action.payload;
       let next = typedStateForBuild(state, p.build_id);
       if (!next) return state;
+      if (next.phase === 'complete') return next;
       if (!next.active) next = toPhase(next, 'planning', action.ts);
       const ev: NarrationEvent = {
         id: `${p.build_id}-${p.seq}`,
@@ -697,6 +745,7 @@ export function narrationReducer(state: NarrationState, action: NarrationAction)
       if (terminal && !bs.build_id && !state.buildId) return state;
       let next = typedStateForBuild(state, bs.build_id);
       if (!next) return state;
+      if (next.phase === 'complete' && bs.phase !== 'complete') return next;
       next = toPhase(next, bs.phase as NarrationPhase, action.ts);
       const slideStates: Record<number, SlideBuildState> = { ...next.slideStates };
       const slides = bs.slides && typeof bs.slides === 'object' ? bs.slides : {};
@@ -743,6 +792,9 @@ export function narrationReducer(state: NarrationState, action: NarrationAction)
       return next;
     }
 
+    case 'status_ended': // BUILD-FAILURE-END: leave an unbacked "building" (the outline and its ghosts stay, so a retry or an Accept starts from them); every other phase is untouched
+      if (!isUnbackedBuilding(state)) return state // BUILD-FAILURE-END
+      return { ...state, active: false, phase: 'idle', phaseLabel: '', startedAt: null, waitingSince: null, deckEvents: [], lastEventAt: null } // BUILD-FAILURE-END
     default:
       return state;
   }

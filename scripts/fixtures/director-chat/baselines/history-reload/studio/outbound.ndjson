@@ -1,0 +1,3 @@
+{"kind":"handshake","socket":0,"url":"wss://director.synthetic.invalid/ws?session_id=synthetic-session-history-reload&user_id=synthetic-user-01&skip_history=true&message_count=20&build_control_capability=1","subprotocols":0,"at":1500}
+{"kind":"json:user_message","n":0,"socket":0,"at":4500,"sha256":"0d77663684b432b870d663a8f9a505d018658c576d1d8de71a6005b266f35876","bytes":"{\"type\":\"user_message\",\"data\":{\"text\":\"Thanks, one more change please\",\"store_name\":null,\"deep_research\":false,\"web_search\":false,\"extended_generation\":true,\"file_upload\":false,\"use_knowledge_graph\":false}}"}
+{"kind":"client-close","socket":0,"code":1005,"reason":""}

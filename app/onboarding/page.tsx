@@ -70,6 +70,46 @@ export default function OnboardingPage() {
     { id: "large", label: "50+ people", description: "Enterprise team" }
   ]
 
+  const getPromptSuggestions = (useCase: string) => {
+    const prompts: Record<string, string[]> = {
+      sales: [
+        "Create a product pitch deck for a B2B SaaS platform",
+        "Build a sales proposal for enterprise clients",
+        "Make a customer success story presentation"
+      ],
+      marketing: [
+        "Create a Q4 marketing campaign results presentation",
+        "Build a social media strategy deck for 2025",
+        "Make a brand positioning presentation"
+      ],
+      education: [
+        "Create a lecture on Introduction to Machine Learning",
+        "Build a training workshop on effective communication",
+        "Make a course overview presentation for students"
+      ],
+      business: [
+        "Create a quarterly business review for executives",
+        "Build a project status report with timeline",
+        "Make a strategic planning presentation for 2025"
+      ],
+      creative: [
+        "Create a creative portfolio showcasing recent work",
+        "Build a design case study presentation",
+        "Make an agency capabilities deck"
+      ],
+      startup: [
+        "Create a Series A fundraising pitch deck",
+        "Build a product roadmap presentation for investors",
+        "Make a startup overview for potential partners"
+      ]
+    }
+    return prompts[useCase] || [
+      "Create a professional presentation about...",
+      "Build a compelling deck for...",
+      "Make an engaging presentation on..."
+    ]
+  }
+
   const steps = [
     {
       title: "Welcome to Deckster",
@@ -291,46 +331,6 @@ export default function OnboardingPage() {
       )
     }
   ]
-
-  const getPromptSuggestions = (useCase: string) => {
-    const prompts: Record<string, string[]> = {
-      sales: [
-        "Create a product pitch deck for a B2B SaaS platform",
-        "Build a sales proposal for enterprise clients",
-        "Make a customer success story presentation"
-      ],
-      marketing: [
-        "Create a Q4 marketing campaign results presentation",
-        "Build a social media strategy deck for 2025",
-        "Make a brand positioning presentation"
-      ],
-      education: [
-        "Create a lecture on Introduction to Machine Learning",
-        "Build a training workshop on effective communication",
-        "Make a course overview presentation for students"
-      ],
-      business: [
-        "Create a quarterly business review for executives",
-        "Build a project status report with timeline",
-        "Make a strategic planning presentation for 2025"
-      ],
-      creative: [
-        "Create a creative portfolio showcasing recent work",
-        "Build a design case study presentation",
-        "Make an agency capabilities deck"
-      ],
-      startup: [
-        "Create a Series A fundraising pitch deck",
-        "Build a product roadmap presentation for investors",
-        "Make a startup overview for potential partners"
-      ]
-    }
-    return prompts[useCase] || [
-      "Create a professional presentation about...",
-      "Build a compelling deck for...",
-      "Make an engaging presentation on..."
-    ]
-  }
 
   const handleNext = () => {
     if (currentStep < steps.length - 1) {

@@ -1,3 +1,4 @@
+import { serviceUrl, textLabsEnv } from './service-url-harness.mjs'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
@@ -12,9 +13,9 @@ function compile(file, requireImplementation = () => ({}), extraContext = {}) {
   vm.runInNewContext(compiled.outputText, {
     module: mod,
     exports: mod.exports,
-    process: { env: {} },
+    process: { env: { ...textLabsEnv } },
     Date,
-    require: requireImplementation,
+    require: id => id === '@/lib/service-url' ? serviceUrl : requireImplementation(id),
     ...extraContext,
   })
   return mod.exports
@@ -182,13 +183,61 @@ assert.match(
   'every TABLE insert uses the generalized atomic cited-element path',
 )
 assert.match(generationSource, /resolvedTableProfile/)
-assert.match(generationSource, /150_000/, 'researched table generation timeout allows Researcher bounded retries')
+const timeoutPolicy = compile(new URL('../lib/element-generation-timeout.ts', import.meta.url))
+assert.equal(timeoutPolicy.resolveElementGenerationTimeoutMs('TABLE', 'on'), 150_000,
+  'researched table generation timeout allows Researcher bounded retries')
+assert.equal(timeoutPolicy.resolveElementGenerationTimeoutMs('TABLE', 'off'), 30_000,
+  'non-researched table generation retains the existing short timeout')
+assert.match(generationSource, /const generationTimeoutMs = resolveElementGenerationTimeoutMs\(\s*formData\.componentType,\s*effectiveResearchMode,?\s*\)/,
+  'the generation hook uses the actual shared timeout policy')
 assert.match(generationSource, /restoredBlankElementId = await restoreBlankElementAfterFailure/)
-assert.match(
-  generationSource,
-  /openPanelForElement\(currentBlankInfo\.componentType, restoredBlankElementId\)/,
-  'failed generation reopens the restored placeholder panel before publishing the error',
-)
+// Recovery now routes through an ownership-safe helper, and ON publishes before
+// awaited cleanup. Check the actual helper handoff and the legacy OFF ordering
+// separately instead of assuming every error is first published after recovery.
+const generationAst = ts.createSourceFile('generation.ts', generationSource, ts.ScriptTarget.Latest, true)
+function findNode(root, predicate) {
+  if (predicate(root)) return root
+  let found
+  ts.forEachChild(root, child => { found ??= findNode(child, predicate) })
+  return found
+}
+const resumeHelper = findNode(generationAst, node => ts.isVariableDeclaration(node)
+  && node.name.getText(generationAst) === 'resumeFailedPanel')
+assert.ok(resumeHelper && ts.isArrowFunction(resumeHelper.initializer))
+const resumeCall = findNode(resumeHelper, node => ts.isCallExpression(node)
+  && node.expression.getText(generationAst) === 'generationPanel.resumePanelForElement')
+assert.ok(resumeCall, 'recovered TABLE placeholders can reopen their persisted draft')
+assert.deepEqual(resumeCall.arguments.map(argument => argument.getText(generationAst)), ['type', 'elementId'])
+const helperErrorRestore = findNode(resumeHelper, node => ts.isCallExpression(node)
+  && node.expression.getText(generationAst) === 'setGenerationError'
+  && node.arguments[0]?.getText(generationAst) === 'message')
+const helperRetryRestore = findNode(resumeHelper, node => ts.isCallExpression(node)
+  && node.expression.getText(generationAst) === 'generationPanel.setRetryStrategy'
+  && node.arguments[0]?.getText(generationAst) === 'retryStrategy')
+assert.ok(helperErrorRestore && helperErrorRestore.pos > resumeCall.pos,
+  'immediate error is restored after resume clears the panel')
+assert.ok(helperRetryRestore && helperRetryRestore.pos > resumeCall.pos,
+  'retry/recovery strategy survives the resume handoff')
+const recoveryResume = findNode(generationAst, node => ts.isCallExpression(node)
+  && node.expression.getText(generationAst) === 'resumeFailedPanel'
+  && node.arguments[1]?.getText(generationAst) === 'restoredBlankElementId')
+assert.ok(recoveryResume, 'the restored identity, not the deleted placeholder, resumes')
+assert.deepEqual(recoveryResume.arguments.map(argument => argument.getText(generationAst)),
+  ['recoveryBlankInfo.componentType', 'restoredBlankElementId', 'errorMessage', 'errorRetryStrategy'])
+const restoreCall = findNode(generationAst, node => ts.isCallExpression(node)
+  && node.expression.getText(generationAst) === 'restoreBlankElementAfterFailure')
+const publicationBranch = findNode(generationAst, node => ts.isIfStatement(node)
+  && node.expression.getText(generationAst) === 'immediateFailureFeedbackEnabled'
+  && node.elseStatement
+  && Boolean(findNode(node.thenStatement, child => ts.isCallExpression(child)
+    && child.expression.getText(generationAst) === 'publishImmediateFailure'
+    && child.arguments[0]?.getText(generationAst) === 'errorMessage')))
+assert.ok(restoreCall && publicationBranch && publicationBranch.pos > restoreCall.pos,
+  'legacy OFF error publication remains after attempted restoration')
+assert.ok(findNode(publicationBranch.elseStatement, node => ts.isCallExpression(node)
+  && node.expression.getText(generationAst) === 'setGenerationError'
+  && node.arguments[0]?.getText(generationAst) === 'errorMessage'),
+  'OFF still publishes the original failure after recovery')
 assert.match(generationPanelHookSource, /draftsRef = useRef<Map<string, GenerationPanelDraft>>/)
 assert.match(generationPanelHookSource, /`blank:\$\{elementId\}`/)
 assert.match(generationPanelHookSource, /`element:\$\{elementId\}`/)
@@ -198,7 +247,11 @@ assert.match(panelSource, /onDraftChange\?\.\(\{\s*prompt: formData\.prompt/)
 assert.match(formSource, /initialDraft\?: GenerationPanelDraft/)
 assert.match(formSource, /initialTableFormData\?\.tableConfig/)
 assert.match(formSource, /onDraftChange\?\.\(\{\s*formData:/)
-assert.match(generationSource, /rememberDraftForElement\(insertedElementId, formData\)/)
+assert.match(
+  generationSource,
+  /rememberDraftForElement\(insertedElementId, formData,\s*studio && insertionComponentType === 'METRICS'\s*\? \{ elementId: insertedElementId, elementType: 'METRICS' \}\s*: undefined\)/,
+  'table draft remains unchanged; only Studio Metrics receives the per-card target',
+)
 assert.doesNotMatch(
   generationSource,
   /generationPanel\.closePanel\(\)\s*generationPanel\.setIsGenerating\(false\)\s*\/\/ Grounded generation/,

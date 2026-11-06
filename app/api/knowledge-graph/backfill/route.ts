@@ -1,6 +1,8 @@
+import { ServiceUrlConfigError } from '@/lib/service-url'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { KG_BASE, kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
+import { getKgBaseUrl, kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
+import { requireApprovedUser } from '@/lib/api-hardening'
 
 export const maxDuration = 300
 
@@ -26,6 +28,9 @@ const BACKFILL_BATCH_SIZE = 3
  * consolidation of that id).
  */
 export async function POST(request: Request) {
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): approved users only, read from the DB. Off, this returns null and nothing changes.
+  const notApproved = await requireApprovedUser()
+  if (notApproved) return notApproved
   const gate = await requireKgEntitled()
   if (gate.error) return gate.error
   const userId = gate.userId
@@ -86,7 +91,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const resp = await fetch(`${KG_BASE}/api/v1/kg/backfill`, {
+    const kgBaseUrl = getKgBaseUrl()
+    const resp = await fetch(`${kgBaseUrl}/api/v1/kg/backfill`, {
       method: 'POST',
       headers: kgHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ user_id: userId, session_ids: sessionIds }),
@@ -108,6 +114,7 @@ export async function POST(request: Request) {
       total_candidates: allSessionIds.length,
     })
   } catch (e) {
+    if (e instanceof ServiceUrlConfigError) return NextResponse.json({ error: e.message, code: e.code, service_unavailable: true }, { status: 503 })
     console.error('[KG Proxy] Backfill network error:', e)
     return NextResponse.json(
       { error: 'Knowledge graph service is temporarily unavailable', service_unavailable: true },

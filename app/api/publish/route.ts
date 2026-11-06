@@ -1,3 +1,5 @@
+import { getLayoutServiceBaseUrl } from '@/lib/publish/service-urls'
+import { ServiceUrlConfigError } from '@/lib/service-url'
 import { NextRequest, NextResponse } from 'next/server';
 import { after } from 'next/server';
 import { getServerSession } from 'next-auth';
@@ -16,6 +18,7 @@ import {
   snapshotPresentation,
 } from '@/lib/publish/layout';
 import { isPublishVisibility, serializePublishedDeck } from '@/lib/publish/serialize';
+import { linkOriginOf } from '@/lib/studio-p2-publish';
 import { refreshQaCorpus } from '@/lib/publish/qa-corpus';
 
 /**
@@ -124,6 +127,10 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Mandatory snapshot work requires explicit configuration before any
+    // advisory read, service dispatch or publish-state persistence.
+    getLayoutServiceBaseUrl();
 
     // Staleness baseline, part 1: read the SOURCE deck's updated_at BEFORE the
     // snapshot is taken. Reading it only afterwards opens a false-NEGATIVE
@@ -323,9 +330,10 @@ export async function POST(req: NextRequest) {
       after(() => refreshQaCorpus(record.id));
     }
 
-    return NextResponse.json({ deck: serializePublishedDeck(record), snapshotDeleted });
+    return NextResponse.json({ deck: serializePublishedDeck(record, linkOriginOf(req)), snapshotDeleted });
 
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     console.error('Error publishing deck:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

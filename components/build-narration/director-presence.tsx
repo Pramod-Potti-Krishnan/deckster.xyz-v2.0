@@ -5,11 +5,14 @@ import { motion, useReducedMotion } from 'framer-motion'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import type { NarrationState } from '@/lib/build-narration-heuristics'
 import { PRESENCE_SHUFFLE_S } from './motion'
+import './studio-director-presence.css'
+import { flowBus, flowHeldLineSuppressed } from '@/lib/studio-flow-control' // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_AMEND, default off)
 
 export interface DirectorPresenceProps {
   narration: NarrationState
   currentStatus: { status: string; text: string } | null
   className?: string
+  loadingSession?: boolean
 }
 
 /**
@@ -19,13 +22,17 @@ export interface DirectorPresenceProps {
  * Visible whenever a build narration is active OR the Director is
  * thinking/generating on an ordinary turn.
  */
-export function DirectorPresence({ narration, currentStatus, className }: DirectorPresenceProps) {
+export function DirectorPresence({ narration, currentStatus, className, loadingSession = false }: DirectorPresenceProps) {
+  const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   const reduced = useReducedMotion()
   const [logOpen, setLogOpen] = useState(false)
 
   const statusActive = currentStatus?.status === 'thinking' || currentStatus?.status === 'generating'
   const visible = narration.active || statusActive
   if (!visible) return null
+  if (studioShell && process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true') return null // CHAT-CLEAN: the inline job card in the thread stands in for this row
+  const flowHeld = flowHeldLineSuppressed({ barVisible: flowBus.amendBarVisible, active: narration.active, phase: narration.phase }) // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_AMEND, default off): a held build, and the amend bar under this row says so (with its buttons): one line, the bar's. This row drops its dot and its words and keeps its Build log toggle
+  if (flowHeld && narration.deckEvents.length === 0) return null // FLOW-CONTROL: with no Build log to toggle, nothing of this row is left
 
   const line =
     (narration.active && narration.phaseLabel) ||
@@ -41,15 +48,22 @@ export function DirectorPresence({ narration, currentStatus, className }: Direct
         className || '',
       ].join(' ')}
       data-testid="bn-presence"
+      hidden={studioShell && loadingSession ? true : undefined}
+      data-studio-director-presence={studioShell ? "true" : undefined}
     >
       <div className="flex items-center gap-2.5">
-        <DeckShuffle reduced={!!reduced} paused={narration.phase === 'paused' || narration.phase === 'stopped'} />
-        <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground" aria-live="polite">
+        {flowHeld ? <span className="min-w-0 flex-1" aria-hidden /> : <>{/* FLOW-CONTROL */}
+        <DeckShuffle reduced={!!reduced} paused={narration.phase === 'paused' || narration.phase === 'stopped'
+          || (studioShell && narration.active && ['awaiting_user', 'error', 'complete'].includes(narration.phase))} />
+        <span data-studio-director-status={studioShell ? "true" : undefined} tabIndex={studioShell ? 0 : undefined} role={studioShell ? "region" : undefined} aria-label={studioShell ? "Current Director status" : undefined} className="min-w-0 flex-1 truncate text-xs text-muted-foreground" aria-live="polite">
           {line}
         </span>
+        </>}{/* FLOW-CONTROL */}
         {narration.deckEvents.length > 0 && (
           <button
             type="button"
+            data-studio-director-log-toggle={studioShell ? "true" : undefined}
+            aria-expanded={studioShell ? logOpen : undefined}
             onClick={() => setLogOpen((v) => !v)}
             className="flex shrink-0 items-center gap-0.5 rounded text-[11px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
@@ -59,7 +73,7 @@ export function DirectorPresence({ narration, currentStatus, className }: Direct
         )}
       </div>
       {logOpen && (
-        <ul className="mt-2 max-h-36 space-y-1 overflow-y-auto pl-1">
+        <ul data-studio-director-log={studioShell ? "true" : undefined} tabIndex={studioShell ? 0 : undefined} aria-label={studioShell ? "Director build log" : undefined} className="mt-2 max-h-36 space-y-1 overflow-y-auto pl-1">
           {logLines.map((ev) => (
             <li key={ev.id} className="text-[11px] leading-4 text-muted-foreground">
               {ev.text}

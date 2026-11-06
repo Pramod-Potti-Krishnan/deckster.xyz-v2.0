@@ -1,0 +1,5 @@
+[data-studio-v4-shell="true"].studio-header-intro-replay { display:inline-flex; flex:0 0 auto; align-items:center; justify-content:center; width:32px; height:32px; margin-inline:6px; border:1px solid #d6e1dc; border-radius:8px; color:#1f6f72; background:#fff; }
+[data-studio-v4-shell="true"].studio-header-intro-replay span { display:none; }
+.dark [data-studio-v4-shell="true"].studio-header-intro-replay { border-color:#334245; background:#222d30; color:#83c4bd; }
+[data-studio-v4-shell="true"].studio-header-intro-replay:focus-visible { outline:2px solid #8a70d3; outline-offset:2px; }
+[data-studio-v4-shell="true"].studio-header-intro-replay:disabled { opacity:.45; cursor:default; }

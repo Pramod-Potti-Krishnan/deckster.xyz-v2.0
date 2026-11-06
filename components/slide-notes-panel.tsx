@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -9,6 +9,8 @@ import { useToast } from '@/hooks/use-toast'
 import { getPresentation, updateSlideNarration, SlideNarrationFields } from '@/lib/layout-service-client'
 import { DeckQaInbox } from '@/components/deck-qa-inbox'
 import { SlideScriptPreview } from '@/components/slide-script-preview'
+import { CHAT_ELEMENT_EDIT_ENABLED, NOTES_UPDATED_EVENT } from '@/lib/chat-element-edit-wire' // CHAT-ELEMENT-EDIT (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off): Director wrote a slide's notes from chat
+import './studio-slide-notes.css'
 
 // localStorage keys for panel UI state (shared across sessions)
 const COLLAPSED_STORAGE_KEY = 'deckster.notesPanel.collapsed'
@@ -132,6 +134,7 @@ export function SlideNotesPanel({
   slideStructure,
   sessionId = null,
 }: SlideNotesPanelProps) {
+  const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   const { toast } = useToast()
 
   // --- UI state (persisted) ---------------------------------------------
@@ -428,6 +431,35 @@ export function SlideNotesPanel({
     window.addEventListener('deckster:narration-script-written', onExternalWrite)
     return () => window.removeEventListener('deckster:narration-script-written', onExternalWrite)
   }, [])
+  // CHAT-ELEMENT-EDIT: Director wrote a slide's notes (deck_mutation notes_updated, routed by the Director socket hook as a window event). The deck is read again, which fills every field the user
+  // CHAT-ELEMENT-EDIT: has not edited; a notes field the user edited and has no unsaved change in is let go first, so Director's notes show (an unsaved edit of the user's stays). Flag off: no listener.
+  useEffect(() => { // CHAT-ELEMENT-EDIT
+    if (!CHAT_ELEMENT_EDIT_ENABLED) return // CHAT-ELEMENT-EDIT
+    const onNotesUpdated = (event: Event) => { // CHAT-ELEMENT-EDIT
+      const detail = (event as CustomEvent<{ presentationId?: unknown; slideIndex?: unknown }>).detail // CHAT-ELEMENT-EDIT
+      const pid = presentationIdRef.current // CHAT-ELEMENT-EDIT
+      if (!pid || !detail || detail.presentationId !== pid || typeof detail.slideIndex !== 'number') return // CHAT-ELEMENT-EDIT
+      const slideId = slideIdsRef.current[detail.slideIndex] // CHAT-ELEMENT-EDIT
+      if (slideId && !saversRef.current.get(pid)?.pending.get(slideId)?.has('notes')) editedFieldsRef.current.delete(`${slideId}:notes`) // CHAT-ELEMENT-EDIT
+      setReloadToken((token) => token + 1) // CHAT-ELEMENT-EDIT
+    } // CHAT-ELEMENT-EDIT
+    window.addEventListener(NOTES_UPDATED_EVENT, onNotesUpdated) // CHAT-ELEMENT-EDIT
+    return () => window.removeEventListener(NOTES_UPDATED_EVENT, onNotesUpdated) // CHAT-ELEMENT-EDIT
+  }, []) // CHAT-ELEMENT-EDIT
+  // CHAT-PARITY (rows 106 / 108): Director's notes_updated may name a slide's script or references (its `fields`); the socket hook raises 'deckster:chat-notes-fields' with them just before #522's
+  // CHAT-PARITY: event above, so those saved drafts are let go the same way as the notes and #522's reload then shows Director's text. No reload here, no second import: the name and the flag are inlined.
+  useEffect(() => { // CHAT-PARITY
+    if (process.env.NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT !== 'true') return // CHAT-PARITY
+    const onNotesFields = (event: Event) => { // CHAT-PARITY
+      const detail = (event as CustomEvent<{ presentationId?: unknown; slideIndex?: unknown; fields?: unknown }>).detail // CHAT-PARITY
+      const pid = presentationIdRef.current // CHAT-PARITY
+      if (!pid || !detail || detail.presentationId !== pid || typeof detail.slideIndex !== 'number' || !Array.isArray(detail.fields)) return // CHAT-PARITY
+      const slideId = slideIdsRef.current[detail.slideIndex] // CHAT-PARITY
+      if (slideId) for (const field of ['script', 'references'] as const) if (detail.fields.includes(field) && !saversRef.current.get(pid)?.pending.get(slideId)?.has(field)) editedFieldsRef.current.delete(`${slideId}:${field}`) // CHAT-PARITY
+    } // CHAT-PARITY
+    window.addEventListener('deckster:chat-notes-fields', onNotesFields) // CHAT-PARITY
+    return () => window.removeEventListener('deckster:chat-notes-fields', onNotesFields) // CHAT-PARITY
+  }, []) // CHAT-PARITY
 
   // --- Saving --------------------------------------------------------------
   // Re-queue a slide's dirty fields onto ITS presentation's saver so a later drain
@@ -748,12 +780,22 @@ export function SlideNotesPanel({
     ? draft.notes
     : draft.notes || wsNotesByIndex[currentSlideIndex] || ''
   const disabled = !presentationId
+  const fieldHelpId = useId()
+  const saveHelp = !disabled && (saveState === 'error' || saveState === 'syncing')
+    ? `${saveState === 'error' ? 'Changes are not saved yet.' : 'Changes are still waiting to save.'} Studio will retry while this workspace stays open.`
+    : null
+  const describedBy = (field: string) => studioShell
+    ? `${fieldHelpId}-${field}${saveHelp && activeTab !== 'qa' ? ` ${fieldHelpId}-save` : ''}`
+    : undefined
 
   return (
     <>
       {/* Handle — zero-height context so the tab floats over the slide area */}
-      <div className="relative h-0 flex-shrink-0 z-10">
+      <div data-studio-notes-handle={studioShell ? 'true' : undefined} className="relative h-0 flex-shrink-0 z-10">
         <button
+          type="button"
+          aria-expanded={expanded}
+          aria-label={expanded ? 'Hide script and notes' : 'Show script and notes'}
           onClick={handleToggleExpanded}
           className={cn(
             "absolute left-1/2 -translate-x-1/2 bottom-0",
@@ -780,6 +822,8 @@ export function SlideNotesPanel({
           fit-contain shrinks the 16:9 slide to make room. */}
       {expanded && (
         <div
+          data-studio-slide-notes={studioShell ? 'true' : undefined}
+          data-studio-notes-tab={studioShell ? activeTab : undefined}
           className={cn(
             // The narration tabs are single textareas and 240px is plenty. A
             // question QUEUE is not — at that height it shows one item and a
@@ -795,7 +839,7 @@ export function SlideNotesPanel({
             onValueChange={handleTabChange}
             className="flex-1 flex flex-col min-h-0 px-4 pt-2 pb-3"
           >
-            <div className="flex-shrink-0 flex items-center justify-between gap-2">
+            <div data-studio-notes-header={studioShell ? 'true' : undefined} className="flex-shrink-0 flex items-center justify-between gap-2">
               <TabsList className="h-8">
                 <TabsTrigger value="script" className="text-xs px-2.5 py-1">Script</TabsTrigger>
                 <TabsTrigger value="notes" className="text-xs px-2.5 py-1">Notes</TabsTrigger>
@@ -812,7 +856,7 @@ export function SlideNotesPanel({
                   )}
                 </TabsTrigger>
               </TabsList>
-              <div className="flex items-center gap-3 text-xs text-slate-400 dark:text-slate-500">
+              <div data-studio-notes-status={studioShell ? 'true' : undefined} role="status" aria-live="polite" className="flex items-center gap-3 text-xs text-slate-400 dark:text-slate-500">
                 {saveState === 'saving' && (
                   <span className="flex items-center gap-1">
                     <span className="h-3 w-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
@@ -838,7 +882,21 @@ export function SlideNotesPanel({
               </div>
             </div>
 
-            <TabsContent value="script" className="flex-1 min-h-0 mt-2 flex flex-col">
+            {studioShell && activeTab !== 'qa' && saveHelp && (
+              <p
+                id={`${fieldHelpId}-save`}
+                data-studio-notes-save-help={saveState}
+                role={saveState === 'error' ? 'alert' : undefined}
+              >
+                {saveHelp}
+              </p>
+            )}
+            <TabsContent value="script" data-studio-notes-editor={studioShell ? 'true' : undefined} className="flex-1 min-h-0 mt-2 flex flex-col">
+              {studioShell && (
+                <p id={`${fieldHelpId}-script`} data-studio-notes-field-help="true">
+                  {disabled ? 'Open a presentation to write its slide script.' : `Spoken words for slide ${currentSlideIndex + 1}. Changes save automatically.`}
+                </p>
+              )}
               {/* Above the words, not below: the question "does this sound
                   right?" occurs while reading them, and the answer should not
                   require leaving the tab. */}
@@ -848,6 +906,8 @@ export function SlideNotesPanel({
                 refreshToken={reloadToken}
               />
               <Textarea
+                aria-label="Slide script"
+                aria-describedby={describedBy('script')}
                 value={draft.script}
                 onChange={(e) => handleFieldChange('script', e.target.value)}
                 disabled={disabled}
@@ -855,8 +915,15 @@ export function SlideNotesPanel({
                 className="flex-1 min-h-0 resize-none text-sm"
               />
             </TabsContent>
-            <TabsContent value="notes" className="flex-1 min-h-0 mt-2">
+            <TabsContent value="notes" data-studio-notes-editor={studioShell ? 'true' : undefined} className="flex-1 min-h-0 mt-2">
+              {studioShell && (
+                <p id={`${fieldHelpId}-notes`} data-studio-notes-field-help="true">
+                  {disabled ? 'Open a presentation to write its speaker notes.' : `Cues and talking points for slide ${currentSlideIndex + 1}. Changes save automatically.`}
+                </p>
+              )}
               <Textarea
+                aria-label="Speaker notes"
+                aria-describedby={describedBy('notes')}
                 value={notesValue}
                 onChange={(e) => handleFieldChange('notes', e.target.value)}
                 disabled={disabled}
@@ -864,8 +931,15 @@ export function SlideNotesPanel({
                 className="h-full min-h-0 resize-none text-sm"
               />
             </TabsContent>
-            <TabsContent value="references" className="flex-1 min-h-0 mt-2">
+            <TabsContent value="references" data-studio-notes-editor={studioShell ? 'true' : undefined} className="flex-1 min-h-0 mt-2">
+              {studioShell && (
+                <p id={`${fieldHelpId}-references`} data-studio-notes-field-help="true">
+                  {disabled ? 'Open a presentation to add its sources and citations.' : 'One source or citation per line. Changes save automatically.'}
+                </p>
+              )}
               <Textarea
+                aria-label="Slide references"
+                aria-describedby={describedBy('references')}
                 value={draft.references}
                 onChange={(e) => handleFieldChange('references', e.target.value)}
                 disabled={disabled}

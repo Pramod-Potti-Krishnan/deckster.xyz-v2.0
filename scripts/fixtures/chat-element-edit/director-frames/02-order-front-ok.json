@@ -1,0 +1,119 @@
+{
+  "case": "02-order-front-ok",
+  "user_message": {
+    "text": "Bring this to the front",
+    "client_caps": [
+      "mdc1",
+      "element_edit1",
+      "notes1",
+      "undo1"
+    ],
+    "references": [
+      {
+        "kind": "element",
+        "element_id": "textbox_a1",
+        "element_type": "TEXT_BOX",
+        "slide_index": 2,
+        "slide_id": "L2",
+        "label": "Text \u00b7 slide 3"
+      }
+    ]
+  },
+  "decision": {
+    "action_type": "edit_element",
+    "reasoning": "scripted",
+    "confidence": 0.95,
+    "requires_approval": false,
+    "target_slide_indices": [
+      2
+    ],
+    "edit_op": "order",
+    "edit_order": "front"
+  },
+  "frames_in": [
+    {
+      "type": "element_edit_result",
+      "payload": {
+        "directive_id": "ele_ae5bb517ca6d",
+        "ok": true
+      }
+    }
+  ],
+  "frames_out": [
+    [
+      {
+        "message_id": "msg_eedit_01ef8b7b",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:21:58.095381Z",
+        "type": "element_edit",
+        "role": "assistant",
+        "payload": {
+          "directive_id": "ele_ae5bb517ca6d",
+          "session_id": "s_e2e",
+          "presentation_id": "pres-e2e",
+          "slide_id": "L2",
+          "slide_index": 2,
+          "element_id": "textbox_a1",
+          "op": "order",
+          "order": "front"
+        }
+      },
+      {
+        "message_id": "msg_12ee4403",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:21:58.097184Z",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Bringing the text box on slide 3 to the front.",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      }
+    ],
+    [
+      {
+        "message_id": "msg_a1ea16f0",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:21:58.102446Z",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Done. The text box on slide 3 is now in front.",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      },
+      {
+        "message_id": "msg_chg_9f5894eb",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:21:58.109522Z",
+        "type": "change_recorded",
+        "role": "assistant",
+        "payload": {
+          "change_id": "chg_719673c56850",
+          "label": "Edited the text box on slide 3",
+          "kind": "element_edited",
+          "presentation_id": "pres-e2e",
+          "undoable": true,
+          "anchor_message_id": "msg_a1ea16f0"
+        }
+      }
+    ]
+  ],
+  "chat_lines": [
+    "Bringing the text box on slide 3 to the front.",
+    "Done. The text box on slide 3 is now in front."
+  ],
+  "layout_calls": [
+    "GET /api/presentations/pres-e2e",
+    "PUT /api/presentations/pres-e2e",
+    "GET /api/presentations/pres-e2e/versions",
+    "GET /api/presentations/pres-e2e",
+    "GET /api/presentations/pres-e2e/versions"
+  ]
+}

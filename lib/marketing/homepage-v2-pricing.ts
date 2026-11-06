@@ -103,3 +103,14 @@ export const PRICING_COPY = {
   topUpBlurb:
     "Top-up credits available on every tier — no commitment. Actual usage depends on the length and visual richness of each deck.",
 } as const
+/** BILLING-F4F6: the plan's monthly list price in words ("$50/month"), read from PRICING_TIERS: the only place a plan price is written. */ // BILLING-F4F6
+export function planMonthlyPriceLabel(id: PricingTier["id"]): string { return `${PRICING_TIERS.find(t => t.id === id)!.price}/month` } // BILLING-F4F6
+/** BILLING-F4F6: a plan's list price ("$50"), from PRICING_TIERS. */ // BILLING-F4F6
+export function planPrice(id: PricingTier["id"]): string { return PRICING_TIERS.find(t => t.id === id)!.price } // BILLING-F4F6
+/** BILLING-F4F6: the ONE list of top-up packs (Billing, the top-up modal and the Stripe top-up route read it). Users see the pack price only, never provider cost. */ // BILLING-F4F6
+export const TOPUP_PACKS = [ // BILLING-F4F6
+  { id: "pack_10", label: "$10", amountCents: 1000 }, // BILLING-F4F6
+  { id: "pack_25", label: "$25", amountCents: 2500 }, // BILLING-F4F6
+  { id: "pack_50", label: "$50", amountCents: 5000 }, // BILLING-F4F6
+  { id: "pack_100", label: "$100", amountCents: 10000 }, // BILLING-F4F6
+] as const // BILLING-F4F6

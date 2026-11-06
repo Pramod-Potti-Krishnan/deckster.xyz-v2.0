@@ -43,6 +43,7 @@ export function PauseStopControl({
 }: PauseStopControlProps) {
   const [confirmStop, setConfirmStop] = useState(false)
   if (!enabled) return null
+  if (process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true') return null // CHAT-CLEAN: one stop concept; the composer's Send <-> Stop and the slim Continue bar replace these
 
   const pausing = control === 'pause_requested'
   const paused = control === 'paused'

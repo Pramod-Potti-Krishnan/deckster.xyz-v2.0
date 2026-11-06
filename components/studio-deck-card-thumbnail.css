@@ -1,0 +1,25 @@
+/* NEXT_PUBLIC_STUDIO_DECK_CARD_THUMBNAILS_ENABLED (default off): the "May lag" cue on a Decks-page card whose first-slide image is the slide's last good one, not a fresh one.
+   Scoped by its own attribute (data-studio-deck-card-thumbnail), never the Studio rail's [data-studio-thumbnail-strip]. It lies over the preview's top-right corner, takes no pointer
+   events (the card's and the link's clicks stay as they were), and never wraps. The colours are the Studio shell's tokens (--ss-*), which switch with light and dark, with plain
+   fallbacks for the classic page; the badge carries its own opaque-ish panel, so it reads over any image. */
+[data-studio-deck-card-thumbnail] .studio-deck-card-lag-cue {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  max-width: calc(100% - 12px);
+  padding: 1px 6px;
+  border: 1px solid var(--ss-line, #cbd5e1);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ss-panel, #ffffff) 92%, transparent);
+  color: var(--ss-muted, #475569);
+  box-shadow: 0 1px 2px rgb(10 26 24 / 18%);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: .1px;
+  white-space: nowrap;
+  pointer-events: none;
+}

@@ -1,8 +1,33 @@
 "use client"
 
+import './studio-v4.css'
+import './studio-v4-type.css'
+import '@/components/builder/studio-pass2b-chat.css'
+import '@/components/layout/studio-shell.css'
+import '@/components/builder/studio-workspace.css'
+import '@/components/builder/studio-canvas.css'
+import { allocateStudioWorkspace, resizeStudioPane, studioChatPreference, studioChatStage, type StudioWorkspacePane, type StudioInspector } from '@/lib/studio-workspace-layout'
+import { StudioIntroductionProvider, StudioIntroductionButton } from '@/components/builder/studio-introduction'
+import { StudioFirstRunActions } from '@/components/builder/studio-first-run-actions'
+import { historicalActionStatuses } from '@/lib/director-history-presentation'
+import { askGatesLocked, lockApprovalGateStatuses } from '@/lib/director-ask-identity'
+import { StudioRail } from '@/components/layout/studio-rail'
+import { StudioPhoneTabBar } from '@/components/layout/studio-phone-tab-bar' // PHONE-SHELL-NAV (NEXT_PUBLIC_STUDIO_PHONE_SHELL, default off): on a phone the rail gives way to a bottom tab bar
+import { STUDIO_PHONE_SHELL_ENABLED } from '@/lib/studio-phone-shell' // PHONE-SHELL-NAV
+import { StudioPhoneBuilderTop } from '@/components/builder/studio-phone-builder-top' // PHONE-SHELL-TOP (NEXT_PUBLIC_STUDIO_PHONE_SHELL, default off): on a phone one top row, the switch below it with a Director dot
+import { StudioPhoneLandscape } from '@/components/builder/studio-phone-landscape' // PHONE-LANDSCAPE (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE, default off, with the phone shell): a phone turned sideways gets a viewing stage
+import { STUDIO_PHONE_LANDSCAPE_ENABLED } from '@/lib/studio-phone-landscape' // PHONE-LANDSCAPE
+import { useStudioPhoneWorkspaceClamp } from '@/hooks/use-studio-phone-landscape' // PHONE-LANDSCAPE
+import { StudioPhoneHints } from '@/components/builder/studio-phone-hints' // PHONE-HINTS (NEXT_PUBLIC_STUDIO_PHONE_HINTS, default off, needs the landscape flag too): the portrait rotate and swipe hints, Full screen
+import { STUDIO_PHONE_HINTS_ENABLED } from '@/lib/studio-phone-hints' // PHONE-HINTS
+
 import { composerThemeSyncBlocked } from '@/lib/composer-theme-policy'
 
 import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from "react"
+import { ThemePanel } from "@/components/theme-panel"
+import { TemplatePickerContent } from "@/components/builder/template-picker"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { draftKey, parseStudioWorkflowAction, parseStudioWorkflowDraft } from "@/lib/studio-workflow"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 import { useDecksterWebSocketV2, INGEST_JOB_KEY_PREFIX, type DirectorMessage, type ActionRequest, type SlideUpdate, type SlideComposeProgress, type SlideBuilt, type SlideComposeReady, type SlideComposeFailed, type TemplateIngestReady, type TemplateIngestFailed, type IngestUploadRef } from "@/hooks/use-deckster-websocket-v2"
@@ -16,13 +41,61 @@ import { useFileUpload } from '@/hooks/use-file-upload'
 import type { UploadedFile } from '@/components/file-chip'
 import { features } from '@/lib/config'
 import { useBuildNarration } from '@/hooks/use-build-narration'
+import { useStudioOutlinePreview } from '@/hooks/use-studio-outline-preview'
+import { STUDIO_OUTLINE_CANVAS_BUSY_PHASES, STUDIO_OUTLINE_CANVAS_ENABLED, selectStudioOutlineCanvas } from '@/lib/studio-outline-canvas'
+import { StudioOutlineCanvas } from '@/components/builder/studio-outline-canvas'
+import { useStageFThumbnailCache } from '@/hooks/use-stage-f-thumbnail-cache'
 import { centerStageFor, effectiveNarrationEnabled } from '@/lib/build-narration-heuristics'
+import {
+  captureStudioPartialBuildReceipt, captureStudioPartialStageVersionIntent,
+  hasStudioPartialStageVersionIntent, prepareStudioPartialStageTransition,
+  prepareStudioInitialPartialStageTransition,
+  settleStudioPartialStageTransition, isStudioSettledPartialStageCurrent,
+  type StudioPartialStageAuthority, type StudioPartialStageAssignment,
+  type StudioPartialBuildReceipt, type StudioPartialStageVersionIntent,
+  type StudioSettledPartialStageReceipt, type StudioPartialStageTransitionInput,
+} from '@/lib/studio-partial-stage-admission'
+import type { DirectorTransportOwner } from '@/hooks/use-deckster-websocket-v2'
 import { DirectorPresence } from '@/components/build-narration/director-presence'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
-import { SlideGenerationPanel, type SlideComposeAcceptedJob, type SlideComposeBuiltResult, type SlideComposePanelEvent } from '@/components/slide-generation-panel'
+import { STUDIO_PASS3_POLISH_B_ENABLED, STUDIO_POLISH_COPY, deckStartErrorDescription } from '@/lib/studio-pass3-polish-b' // PASS3-POLISH-B (NEXT_PUBLIC_STUDIO_PASS3_POLISH, default off): audit #7, the Studio toast instead of the browser's alert
+import { STUDIO_PASS3_POLISH_D_ENABLED, builderHeading, useStudioPass3PolishDMain } from '@/lib/studio-pass3-polish-d' // PASS3-POLISH-D (NEXT_PUBLIC_STUDIO_PASS3_POLISH, default off): a main landmark and one hidden h1 for /builder
+import { SlideGenerationPanel, type SlideComposeAcceptedJob, type SlideComposeBuiltResult, type SlideComposePanelEvent, type StudioSlideBuiltSelection } from '@/components/slide-generation-panel'
+import { createAddSlideV2Hooks } from '@/lib/studio-add-slide-v2-submit'
+import { createAddSlideV2RegenerateHooks } from '@/lib/studio-add-slide-v2-submit'
+import { createAddSlideV2GeneratedStore, rememberAddSlideV2Failed, rememberAddSlideV2Generated } from '@/lib/studio-add-slide-v2'
+import { STUDIO_ADD_SLIDE_STATUS_ENABLED, createAddSlideV2StatusSettings } from '@/lib/studio-add-slide-status'
+import { StudioFormatInspector, type StudioFormatTarget, type StudioFormatCommand } from '@/components/builder/studio-format-inspector'
+import type { StudioFormatSelectionHandle } from '@/lib/studio-format-native'
 import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
-import { TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi } from '@/components/presentation-viewer'
+import {
+  STUDIO_DECK_MUTATION_REFRESH_ENABLED,
+  createDeckMutationSeen,
+  planDeckMutationRefresh,
+  requestSlideRailRefresh,
+} from '@/lib/studio-deck-mutation-refresh'
+import { createDeckMutationCountSettler } from '@/lib/studio-deck-mutation-dedupe'
+import { fetchSlideInventory } from '@/lib/slide-rail-identity'
+import { createSettledRowCountWriter } from '@/lib/studio-deck-sync-truth' // DECK-SYNC-TRUTH (NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH, default off): after a chat change to a settled deck the session row takes the deck's real slide count
+import { STUDIO_DECK_CHANGED_NOTICE_ENABLED, reportDeckChange, themeAnnounceDecision } from '@/lib/studio-deck-changed-notice'
+import { useDeckChangedNotice } from '@/hooks/use-deck-changed-notice'
+import { StudioDeckChangedNotice } from '@/components/builder/studio-deck-changed-notice'
+import { TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi, type StudioIntroductionSafety, type StudioComposeSelectionContext, type StudioElementGenerationLease, type StudioPartialNativeReadback } from '@/components/presentation-viewer'
+import { parseStudioNativeSlideOrder, type StudioNativeSlideOrder } from '@/lib/studio-native-slide-order'
+import { STUDIO_PANEL_KEEP_CANVAS_ENABLED, presentationWrapperTransition } from '@/lib/studio-panel-keep-canvas'
+import { STUDIO_PANEL_FOCUS_ENABLED, STUDIO_PANEL_FOCUS_NONE, studioPanelFocusActive, studioPanelFocusChatOpen, studioPanelFocusRailCollapsed } from '@/lib/studio-panel-focus'
+import {
+  STUDIO_GOTO_NEW_SLIDE_ENABLED,
+  goToNewSlideIntent,
+  resolveGoToNewSlideTarget,
+  shouldArmGoToNewSlide,
+  type GoToNewSlideIntent,
+} from '@/lib/studio-goto-new-slide'
+import {
+  createStudioComposeRestoreTarget, resolveStudioComposeRestore, verifyStudioComposeRestoreSelection,
+  type StudioComposeRestoreOwner, type StudioComposeRestoreTarget, type StudioComposeRestoreState,
+} from '@/lib/studio-compose-selection-restore'
 import { ElementFormatPanel } from '@/components/element-format-panel'
 import { ElementType, ElementProperties, SlideLayoutType } from '@/types/elements'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -31,7 +104,17 @@ import type { ElementGenerationSubmitIntent } from '@/lib/element-generation-ret
 import { useGenerationPanel } from '@/hooks/use-generation-panel'
 import { useElementRefinement } from '@/hooks/use-element-refinement'
 import { shouldOpenAsBlankPlaceholder } from '@/lib/element-blank-policy'
+// NEXT_PUBLIC_CHAT_ELEMENT_REFINE (default off): refine the selected element from chat (lib/chat-element-refine.ts).
+import { CHAT_ELEMENT_REFINE_ENABLED, chatElementReferenceFor, runElementRefineDirective, type ChatElementSelection, type ElementRefineDirectiveMessage, type ElementRefineDirectiveOwner } from '@/lib/chat-element-refine'
+import { CHAT_ELEMENT_EDIT_ENABLED, createElementEditGate, runElementEditDirective, type ElementEditDirectiveMessage, type ElementEditDirectiveOwner, type ElementEditGate } from '@/lib/chat-element-edit' // CHAT-ELEMENT-EDIT (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off): edit an element from chat
+import { NOTES_UPDATED_EVENT } from '@/lib/chat-element-edit-wire' // CHAT-ELEMENT-EDIT
+import { getChatEditViewer, subscribeViewerSaveEvents } from '@/lib/chat-element-edit-save' // CHAT-ELEMENT-EDIT
+import { CHAT_ELEMENT_EDIT_2_ENABLED, chatElementSelectionFor, dropChatElementSelection, dropChatElementSelectionOffSlide, referenceWithoutOutlineId, shownSlidesFromInventory } from '@/lib/chat-element-edit-2' // CHAT-ELEMENT-EDIT-2
+import { CHAT_STALE_VIEWER_GUARD_ENABLED, createChatStaleViewerGuard, ensureViewerMatchesServer, type ChatStaleViewerGuard, type ChatStaleViewerGuardDeps } from '@/lib/chat-stale-viewer-guard' // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2 (NEXT_PUBLIC_STUDIO_CHAT_STALE_VIEWER_GUARD, default off): a chat add or edit after a chat deck change lands on the right slide or says so
 import { isTextLabsMappable } from '@/lib/element-type-mapping'
+// NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (each default off): change the theme / export the deck from chat (lib/chat-theme-export.ts).
+import { runExportDirective, runThemeDirective, type ThemeExportDirectiveMessage, type ThemeExportDirectiveOwner, type ThemeExportResultData } from '@/lib/chat-theme-export'
+import { downloadPDF, downloadPPTX } from '@/lib/api/download-service'
 import { useBlankElements } from '@/hooks/use-blank-elements'
 import { useTextLabsSession } from '@/hooks/use-textlabs-session'
 import type {
@@ -42,12 +125,67 @@ import type {
 // Extracted components
 import { MessageList } from '@/components/builder/message-list'
 import { ChatInput } from '@/components/builder/chat-input'
+import { StudioDirectorNotice } from '@/components/builder/studio-director-notice'
+import { studioComposerContextLabel } from '@/lib/studio-chat-composer-context'
+import { studioChatEditPromptActive } from '@/lib/studio-pass2b-chat'
+import { useStudioStaleErrorNotice } from '@/hooks/use-studio-stale-error-notice'
+import { StudioBlockedSendNotice } from '@/components/builder/studio-blocked-send-notice'
+// NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4c, default off): Director's failed or timed-out jobs as calm cards at the end of the chat (lib/studio-job-ledger.ts).
+import { STUDIO_JOB_LEDGER_ENABLED } from '@/lib/studio-job-ledger'
+import { StudioJobLedgerCards, studioJobLedger } from '@/components/builder/chat/studio-job-ledger-card'
+// NEXT_PUBLIC_STUDIO_PUBLISH_REVIEW_FIT (default off): the Publish wizard's setup grid does not scroll sideways at phone width (hooks/use-studio-publish-review-fit.ts, components/studio-publish.css).
+import { useStudioPublishReviewFit } from '@/hooks/use-studio-publish-review-fit'
+// NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND (default off): Director's new-deck handoff sends its brief on the NEW session's socket, once (hooks/use-studio-new-deck-handoff-send.ts).
+import { STUDIO_NEW_DECK_HANDOFF_SEND_ENABLED, useStudioNewDeckHandoffSend } from '@/hooks/use-studio-new-deck-handoff-send'
+// NEXT_PUBLIC_STUDIO_VERSION_HISTORY_DECK_ONLY (default off): the profile menu's Version history row shows only while a deck is on stage, not under the welcome (hooks/use-studio-version-history-deck-only.ts).
+import { useStudioVersionHistoryDeckOnly } from '@/hooks/use-studio-version-history-deck-only'
+// NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON (default off): the Builder's account menu upgrade row says "Payments open soon" (hooks/use-studio-payments-open-soon.ts); the top-up modal gates itself.
+import { useStudioPaymentsOpenSoon } from '@/hooks/use-studio-payments-open-soon'
+// NEXT_PUBLIC_STUDIO_PASS3_POLISH (default off): the Pass 3 polish set; with the flag on <html> carries data-studio-pass3-polish="true" and the set's stylesheet (every rule scoped to it) applies to the Builder (hooks/use-studio-pass3-polish.ts). // PASS3-POLISH
+import { useStudioPass3Polish } from '@/hooks/use-studio-pass3-polish' // PASS3-POLISH
+import '@/components/studio-pass3-polish/studio-pass3-polish-e.css' // PASS3-POLISH-E (NEXT_PUBLIC_STUDIO_PASS3_POLISH, default off): every rule is scoped to data-studio-pass3-polish="true"; on a phone the prompt's empty hint fits one line
+import { useStudioPass3PolishGViewport } from '@/lib/studio-pass3-polish-g' // PASS3-POLISH-G (NEXT_PUBLIC_STUDIO_PASS3_POLISH, default off): on iPhone and iPad the viewport meta gets maximum-scale=1, so a focused text control does not zoom the page
+// NEXT_PUBLIC_STUDIO_DUPLICATE_COPY_TITLE (default off): a copied deck's header shows its own title, not "Studio" (hooks/use-studio-duplicate-copy-title.ts).
+import { useStudioDuplicateCopyTitleProps } from '@/hooks/use-studio-duplicate-copy-title'
+import { StudioSupersededNotice } from '@/components/builder/studio-superseded-notice'
+import { StudioCopiedFromNote } from '@/components/builder/studio-copied-from-note'
+// NEXT_PUBLIC_STUDIO_DECK_IMPORT (default off): the note on an imported deck, loaded only when it is drawn (a build or page that does not draw it ships nothing of it).
+import nextDynamic from 'next/dynamic' // (this file already exports a route segment `dynamic`)
+const StudioDeckImportNote = nextDynamic(() => import('@/components/studio-deck-import/studio-deck-import-note').then(module => module.StudioDeckImportNote), { ssr: false })
+import {
+  STUDIO_ONE_LIVE_TAB_ENABLED,
+  SUPERSEDED_NOTICE_DETAIL,
+  SUPERSEDED_NOTICE_TEXT,
+  SUPERSEDED_NOTICE_TITLE,
+  isTabSuperseded,
+} from '@/lib/studio-one-live-tab'
 import { ComposerLibraryDialog } from '@/components/builder/composer-library-dialog'
+import { StudioWorkspaceSwitchV2 } from '@/components/builder/studio-workspace-switch-v2'
 import { COMPOSER_READY_KEY_PREFIX, type ComposerReady } from '@/lib/composer-library'
+import type { ComposerLibraryRequest } from '@/lib/studio-composer-popups'
 import { BuilderHeader } from '@/components/builder/builder-header'
 import { PresentationArea } from '@/components/builder/presentation-area'
 import { TemplateParamsPanel, TEMPLATE_PANEL_COLLAPSED_WIDTH } from '@/components/builder/template-params-panel'
 import { TokenUsageStrip } from '@/components/builder/token-usage-strip'
+import { StudioDirectorHeader } from '@/components/builder/chat/studio-director-header'
+import { DirectorCallEntry, DirectorCallPanel } from '@/components/builder/voice-interactive/director-call'
+import { useStudioDirectorCall } from '@/hooks/use-studio-director-call'
+import { STUDIO_VOICE_INTERACTIVE_ENABLED } from '@/lib/studio-voice-interactive'
+import {
+  STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED,
+  nextBlockedSendNotice,
+  quotaBlockedSendNotice,
+  templateBlockedSendNotice,
+  uploadBlockedSendNotice,
+  type BlockedSendNotice,
+  type BlockedSendSource,
+} from '@/lib/studio-blocked-send'
+import { classifyDirectorMessage } from '@/lib/studio-director-message-policy'
+import { createStudioVoiceOwner } from '@/lib/studio-voice-owner'
+import { classifyStudioCanvasLifecycle } from '@/lib/studio-canvas-lifecycle'
+import { studioSlideEdgeTabHidden } from '@/lib/studio-welcome-polish'
+import { StudioWaitingState } from '@/components/builder/studio-waiting-state'
+import { StudioBuilderSkeleton, StudioSessionProblemView } from '@/components/builder/studio-session-hygiene'
 import { TemplateIngestReviewCards } from '@/components/template-ingest-review-cards'
 import { INGEST_INTENT_KEY_PREFIX, type IngestIntentPayload } from '@/components/template-ingest-dialog'
 import { TopUpModal } from '@/components/builder/topup-modal'
@@ -73,14 +211,21 @@ import {
   resolveSlideComposeSessionId,
 } from '@/lib/slide-compose-job-recovery'
 import {
-  mergeStageFInsertedThumbnailUrl,
+  mergeStageFReadyThumbnailUrl,
   mergeStageFPresentationThumbnailUrl,
-  type SlideThumbnailUrlsByPresentation,
 } from '@/lib/stage-f-thumbnails'
+import {
+  COMPOSE_JOB_FAILSAFE_TOAST_TITLE,
+  STUDIO_COMPOSE_JOB_FAILSAFE_ENABLED,
+} from '@/lib/studio-compose-job-failsafe'
+import { STUDIO_COMPOSER_DRAFT_ENABLED } from '@/lib/studio-composer-draft'
 
 // Extracted hooks
 import { useBuilderSession } from '@/hooks/use-builder-session'
-import { useTextLabsGeneration } from '@/hooks/use-textlabs-generation'
+import { useSaveSessionOnFirstAction } from '@/hooks/use-save-session-on-first-action'
+import { useStudioComposeJobFailsafe } from '@/hooks/use-studio-compose-job-failsafe'
+import { useStudioComposerDraft } from '@/hooks/use-studio-composer-draft'
+import { useTextLabsGeneration, type TextLabsGenerationResult } from '@/hooks/use-textlabs-generation'
 import { useKnowledgeGraph } from '@/hooks/use-knowledge-graph'
 import { useQuota } from '@/hooks/use-quota'
 import { useThemeProfiles } from '@/hooks/use-theme-profiles'
@@ -96,7 +241,30 @@ import {
   themeSelectionFingerprint,
   type BuildThemeSelection,
 } from '@/lib/theme-builder'
-import { LAYOUT_SERVICE_URL, getPresentationViewerUrl } from '@/lib/layout-service-client'
+import { themeFontFields, themeFontsEqual } from '@/lib/theme-fonts'
+import { carryPaletteMode, presetPaletteModeField } from '@/lib/studio-theme-dark-toggle'
+import {
+  advanceThemeRestoreGate,
+  isFreshThemeRestoreGate,
+  restoredAdoptedSelection,
+  restoredThemeSync,
+  recordOwnThemeChoice, // THEME-OWN-CHOICE
+  themeOwnChoiceRestore, // THEME-OWN-CHOICE
+  themeRestoreGateFor,
+  themeRestoreHoldsSocketSync,
+  type ThemeRestoreGate,
+} from '@/lib/studio-theme-restore'
+import { getLayoutServiceUrl, LAYOUT_URL_CONFIG_ERROR, LAYOUT_VIEWER_URL_POLICY, getPresentationViewerUrl } from '@/lib/layout-service-client'
+import { ServiceUrlConfigError } from '@/lib/service-url'
+import { evaluateLayoutViewerUrl } from '@/lib/layout-viewer-url-policy'
+import { shouldDeferStudioInitialNative, type StudioInitialStageTarget } from '@/lib/studio-initial-stage-admission'
+import {
+  initialStudioInitialStageOwnerState,
+  reconcileStudioInitialStageOwner,
+  createStudioInitialRouteAdoptionIntent,
+  type StudioInitialRouteAdoptionIntent,
+  type StudioInitialStageOwnerObservation,
+} from '@/lib/studio-initial-stage-owner'
 import type { TemplateModeOverride, TemplateOverrides } from '@/lib/template-mode'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
 import {
@@ -108,6 +276,12 @@ import {
   isPresentationCallbackCurrent,
   resolveEffectivePresentation,
 } from '@/lib/builder-presentation-ownership'
+import {
+  STUDIO_BLANK_DECK_RELOAD_FIX_ENABLED,
+  deckSlotUpdates,
+  restoreOwnsOverride,
+  shouldPersistLayoutCount,
+} from '@/lib/studio-blank-deck-reload'
 import { normalizeSemanticComponentType } from '@/lib/element-semantic-type'
 import {
   IDLE_THEME_SYNC,
@@ -120,6 +294,7 @@ import {
   waitForAuthoritativeTheme,
   type ThemeSyncRequestResult,
   type ThemeSyncState,
+  type ElementThemePreflightRetry,
 } from '@/lib/theme-sync'
 import {
   buildSessionHandoffRequest,
@@ -134,6 +309,19 @@ import {
   type PendingHandoffSubmission,
 } from '@/lib/manual-deck-workflow'
 import { lastBuilderSessionKey, unsavedBuilderSessionKey } from '@/lib/last-builder-session'
+import { STUDIO_SESSION_HYGIENE_ENABLED, shouldRememberLastSession } from '@/lib/studio-session-hygiene'
+import { isLocalUnsavedRoute, isStudioSessionRestoring } from '@/lib/studio-first-run-restoring'
+import { STUDIO_BLANK_START_NEW_SESSION_ENABLED } from '@/lib/studio-blank-start-new-session'
+import { useStudioBlankStart } from '@/hooks/use-studio-blank-start'
+import {
+  absorbStudioHandoffStatus,
+  canAutomaticallySubmitStudioHandoff,
+  getExpectedStudioHandoffRequest,
+  markStudioHandoffSubmitted,
+} from '@/lib/studio-handoff-status'
+import type { DirectorHandoffRequestOwner, DirectorHandoffRequestStatus } from '@/hooks/use-deckster-websocket-v2'
+import { useStudioSpeedPerceivedEcho } from '@/hooks/use-studio-speed-perceived-echo' // SPEED-PERCEIVED (NEXT_PUBLIC_STUDIO_SPEED_PERCEIVED, default off): the user's message shows at once as a quiet "Sending…" echo
+import { StudioSpeedEcho } from '@/components/builder/studio-speed-echo' // SPEED-PERCEIVED
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
@@ -143,6 +331,8 @@ const MIN_DRAWER_WIDTH = 320
 const MAX_DRAWER_WIDTH_RATIO = 0.5
 const BUILDER_SESSION_OPTIONS_VERSION = 2
 const THEME_SYNC_TIMEOUT_MS = 20_000
+// NEXT_PUBLIC_STUDIO_CHAT_WIDTH_V2 (default off): the chat column's default width follows the v4 mockup per stage (lib/studio-workspace-layout.ts).
+const STUDIO_CHAT_WIDTH_V2_ENABLED = process.env.NEXT_PUBLIC_STUDIO_CHAT_WIDTH_V2 === 'true'
 const isAttachedUpload = (file: UploadedFile) => (
   file.status === 'success'
   || file.status === 'stored'
@@ -218,7 +408,7 @@ function normalizeStoredBuildThemeSelection(value: unknown): BuildThemeSelection
   const raw = value as Partial<BuildThemeSelection>
   if (raw.mode === 'preset') {
     return typeof raw.preset_id === 'string'
-      ? { mode: 'preset', preset_id: raw.preset_id }
+      ? { mode: 'preset', preset_id: raw.preset_id, ...presetPaletteModeField(raw), ...themeFontFields(raw) }
       : { mode: 'auto' }
   }
 
@@ -243,6 +433,7 @@ function normalizeStoredBuildThemeSelection(value: unknown): BuildThemeSelection
     if (raw.color_overrides && typeof raw.color_overrides === 'object') {
       next.color_overrides = raw.color_overrides
     }
+    Object.assign(next, themeFontFields(raw))
     return next.primary_hex || next.secondary_hex || next.tertiary_hex || next.color_overrides ? next : { mode: 'auto' }
   }
 
@@ -292,7 +483,7 @@ function stableStringifyRecord(value: Record<string, string> | undefined): strin
 function buildThemeSelectionsEqual(a: BuildThemeSelection, b: BuildThemeSelection): boolean {
   if (a.mode !== b.mode) return false
   if (a.mode === 'auto') return true
-  if (a.mode === 'preset') return a.preset_id === b.preset_id
+  if (a.mode === 'preset') return a.preset_id === b.preset_id && themeFontsEqual(a, b)
 
   return (
     (a.primary_hex || '').toLowerCase() === (b.primary_hex || '').toLowerCase() &&
@@ -301,7 +492,8 @@ function buildThemeSelectionsEqual(a: BuildThemeSelection, b: BuildThemeSelectio
     (a.neutral_hex || '').toLowerCase() === (b.neutral_hex || '').toLowerCase() &&
     (a.harmony_preference || 'auto') === (b.harmony_preference || 'auto') &&
     (a.palette_mode || 'light') === (b.palette_mode || 'light') &&
-    stableStringifyRecord(a.color_overrides) === stableStringifyRecord(b.color_overrides)
+    stableStringifyRecord(a.color_overrides) === stableStringifyRecord(b.color_overrides) &&
+    themeFontsEqual(a, b)
   )
 }
 
@@ -461,6 +653,30 @@ function extractPresentationIdFromViewerUrl(url: string | null): string | null {
   }
 }
 
+interface StudioSyncSelectionRecord {
+  sequence: number
+  lane: 'compose' | 'refine'
+  owner: StudioComposeRestoreOwner
+  isOwnerCurrent: () => boolean
+  context: StudioComposeSelectionContext | null
+  priorOrder: StudioNativeSlideOrder | null
+  consumed: boolean
+  persistCount: (count: number) => void
+  /** Flag NEXT_PUBLIC_STUDIO_GOTO_NEW_SLIDE_ENABLED only: the slide on stage when the request started (the go-to's user-move baseline). */
+  startVisualIndex?: number
+}
+interface StudioSyncPendingSelection {
+  request: StudioSyncSelectionRecord
+  target: StudioComposeRestoreTarget | null
+  restoreSelection: boolean
+  /** Flag NEXT_PUBLIC_STUDIO_GOTO_NEW_SLIDE_ENABLED only: go to the inserted slide after the reload. */
+  goToNewSlide?: GoToNewSlideIntent | null
+  refreshRevision: number
+  refreshToken: number
+  expectedUrl: string
+  observedRefresh: boolean
+}
+
 function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: string }) {
   const { user, isLoading: isAuthLoading } = useAuth()
   // This component is keyed by authScopeUserId at the boundary below. Account
@@ -472,7 +688,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const themeSearchOverride = searchParams.get('theme')
 
   // Session management
-  const { loadSession, createSession } = useChatSessions()
+  const { loadSession, loadSessionResult, createSession } = useChatSessions()
 
   // UI state
   const [inputMessage, setInputMessage] = useState("")
@@ -482,6 +698,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const templateBuilderEnabled = process.env.NEXT_PUBLIC_TEMPLATE_BUILDER_ENABLED === 'true'
   const composerLibraryEnabled = process.env.NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED === 'true'
   const [showComposerLibrary, setShowComposerLibrary] = useState(false)
+  // PASS2-COMPOSER-POPUPS fix (flag NEXT_PUBLIC_STUDIO_COMPOSER_POPUPS_V2): an action picked in the composer's template popup, for the library dialog to run.
+  const [composerLibraryRequest, setComposerLibraryRequest] = useState<ComposerLibraryRequest | null>(null)
   const blueprintEditorV2Enabled = templateBuilderEnabled && process.env.NEXT_PUBLIC_BLUEPRINT_EDITOR_V2 === 'true'
   // Template Builder (reuse): the locked-in template, carried on every send.
   const [activeTemplate, setActiveTemplate] = useState<BuilderTemplateSelection | null>(null)
@@ -491,8 +709,24 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   // MDC P8: late-bound element-directive runner (defined after the Text Labs
   // hook below; the WS options are declared earlier).
   const elementDirectiveRunnerRef = useRef<((payload: import('@/types/mdc').ElementDirectivePayload) => void) | null>(null)
+  // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: the late-bound refine runner (beside the add runner below) and the selection a send names.
+  const elementRefineDirectiveRunnerRef = useRef<((message: ElementRefineDirectiveMessage, owner: ElementRefineDirectiveOwner) => void) | null>(null)
+  const chatElementSelectionRef = useRef<ChatElementSelection | null>(null)
+  const chatStaleViewerGuardRef = useRef<ChatStaleViewerGuard<import('@/types/mdc').ElementDirectivePayload, ElementEditDirectiveMessage, ElementEditDirectiveOwner> | null>(null) // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: the guard in front of the add and edit runners (null with the flag off)
+  const chatStaleViewerDepsRef = useRef<ChatStaleViewerGuardDeps<import('@/types/mdc').ElementDirectivePayload, ElementEditDirectiveMessage, ElementEditDirectiveOwner> | null>(null) // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: what the guard reads, set on every render below
   const templateSelectionLockedRef = useRef(false)
+  // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT: the late-bound theme / export directive runner (defined beside the K5 add runner below).
+  const themeExportDirectiveRunnerRef = useRef<((message: ThemeExportDirectiveMessage, owner: ThemeExportDirectiveOwner) => void) | null>(null)
+  // CHAT-ELEMENT-EDIT: the late-bound element_edit runner (defined after the theme / export runner below) and this tab's single-flight gate.
+  const elementEditDirectiveRunnerRef = useRef<((message: ElementEditDirectiveMessage, owner: ElementEditDirectiveOwner) => void) | null>(null) // CHAT-ELEMENT-EDIT
+  const chatElementEditGateRef = useRef<ElementEditGate | null>(null) // CHAT-ELEMENT-EDIT
   const [templateModeOn, setTemplateModeOn] = useState(false)
+  const studioFormatTemplateModeRef = useRef(templateModeOn)
+  const studioFormatTemplateModeObservedRef = useRef(templateModeOn)
+  if (studioFormatTemplateModeObservedRef.current !== templateModeOn) {
+    studioFormatTemplateModeObservedRef.current = templateModeOn
+    studioFormatTemplateModeRef.current = templateModeOn
+  }
   const [templateSnapshot, setTemplateSnapshot] = useState<TemplateSnapshot | null>(null)
   const [templateSnapshotLoading, setTemplateSnapshotLoading] = useState(false)
   const [templateBlueprintDirty, setTemplateBlueprintDirty] = useState(false)
@@ -510,6 +744,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const latestThemeSyncKeyRef = useRef<string | null>(null)
   const themeSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const themeSelectionChangedLocallyRef = useRef(false)
+  // NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE: when the user last picked a theme in this tab (waiting for Director to confirm it).
+  const themePickedAtRef = useRef<number | null>(null)
   const commitThemeSync = useCallback((next: ThemeSyncState) => {
     themeSyncRef.current = next
     setThemeSync(next)
@@ -519,6 +755,62 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     clearTimeout(themeSyncTimeoutRef.current)
     themeSyncTimeoutRef.current = null
   }, [])
+  // THEME-RESET-ON-RECONNECT-P1 (NEXT_PUBLIC_STUDIO_THEME_RESTORE, default off; lib/studio-theme-restore.ts): adopt the
+  // theme Director restores on connect. The gate (per socket and session) holds the socket-ready set_theme until the
+  // restore, or the fallback for a Director that sends none, has arrived. Off: never updated, never read.
+  const [themeRestoreGate, setThemeRestoreGate] = useState<ThemeRestoreGate>(() => themeRestoreGateFor(null))
+  const themeRestoreGateRef = useRef(themeRestoreGate)
+  const themeRestoreSessionRef = useRef<string | null>(null)
+  const commitThemeRestoreGate = useCallback((next: ThemeRestoreGate) => {
+    if (next === themeRestoreGateRef.current) return
+    themeRestoreGateRef.current = next
+    setThemeRestoreGate(next)
+  }, [])
+  // Every frame the socket delivers passes here first (flag on). Returns true for a `restored` theme_sync, which the
+  // ordinary theme_sync handling must not see. A restore never counts as a user pick (themeSelectionChangedLocallyRef).
+  const observeThemeRestoreFrame = useCallback((message: DirectorMessage): boolean => {
+    const step = advanceThemeRestoreGate(themeRestoreGateRef.current, themeRestoreSessionRef.current, message)
+    commitThemeRestoreGate(step.gate)
+    const restore = step.restore
+    // A pick the user made before the restore arrived wins: it was sent once, and this restore changes nothing.
+    if (!restore || themeSelectionChangedLocallyRef.current) return step.consumed
+    // THEME-OWN-CHOICE (NEXT_PUBLIC_STUDIO_THEME_OWN_CHOICE, default off; lib/studio-theme-own-choice.ts): Director's resolved default is not the user's pick; an Auto tab keeps Auto.
+    if (process.env.NEXT_PUBLIC_STUDIO_THEME_OWN_CHOICE === 'true') { // THEME-OWN-CHOICE
+      const ownKept = themeOwnChoiceRestore(themeRestoreSessionRef.current, buildThemeSelectionRef.current, restoredAdoptedSelection(restore)) // THEME-OWN-CHOICE
+      const ownSync = ownKept ? restoredThemeSync(restore, ownKept) : null // THEME-OWN-CHOICE
+      if (ownKept) { // THEME-OWN-CHOICE
+        if (ownSync) { // THEME-OWN-CHOICE
+          clearThemeSyncTimeout() // THEME-OWN-CHOICE
+          latestThemeSyncRequestRef.current = ownSync.requestId // THEME-OWN-CHOICE
+          latestThemeSyncKeyRef.current = `${ownSync.presentationId}:${ownSync.themeFingerprint}` // THEME-OWN-CHOICE
+          commitThemeSync(ownSync) // THEME-OWN-CHOICE
+        } // THEME-OWN-CHOICE
+        return step.consumed // THEME-OWN-CHOICE
+      } // THEME-OWN-CHOICE
+    } // THEME-OWN-CHOICE
+    // `restore:<session id>:none` (the user never picked): Director's default theme is not a choice, so this stays Auto and
+    // the state committed below is applied for the Auto fingerprint (restoredAdoptedSelection).
+    const selection = restoredAdoptedSelection(restore)
+    if (!selection) {
+      // Nothing stored: show Auto, send nothing.
+      setActiveBuildThemeProfile(null)
+      setBuildThemeSelection(current => (current.mode === 'auto' && Object.keys(current).length === 1 ? current : { mode: 'auto' }))
+      return step.consumed
+    }
+    setActiveBuildThemeProfile(current => (buildThemeProfileMatchesSelection(current, selection) ? current : null))
+    setBuildThemeSelection(selection)
+    const sync = restoredThemeSync(restore, selection)
+    if (sync) {
+      // The deck-theme effect then finds this theme current for the presentation and sends nothing.
+      clearThemeSyncTimeout()
+      latestThemeSyncRequestRef.current = sync.requestId
+      latestThemeSyncKeyRef.current = `${sync.presentationId}:${sync.themeFingerprint}`
+      commitThemeSync(sync)
+      // No timer: restoredThemeSync commits applied or failed, never syncing. Another tab's apply in flight is settled
+      // (Director acknowledges an apply only on the socket that asked for it, so this tab would wait for nothing).
+    }
+    return step.consumed
+  }, [clearThemeSyncTimeout, commitThemeRestoreGate, commitThemeSync])
   const standardThemeLoadedRef = useRef(false)
   const buildThemeSelectionRef = useRef(buildThemeSelection)
   const { getStandardTheme } = useThemeProfiles()
@@ -563,8 +855,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     ? templateSnapshot?.source_presentation_id ?? null
     : null
   const templateModeSourcePresentationUrl = useMemo(
-    () => templateModeSourcePresentationId
-      ? `${LAYOUT_SERVICE_URL}/p/${encodeURIComponent(templateModeSourcePresentationId)}`
+    () => templateModeSourcePresentationId && !LAYOUT_URL_CONFIG_ERROR
+      ? `${getLayoutServiceUrl()}/p/${encodeURIComponent(templateModeSourcePresentationId)}`
       : null,
     [templateModeSourcePresentationId],
   )
@@ -695,15 +987,25 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       knowledge_graph: knowledgeGraph,
     }
   }, [kgCapability, kgIsLoading, kgIsPremium, kgSubscribed, sessionStoreName])
-  const [pendingActionInput, setPendingActionInput] = useState<{
+  const [pendingActionInput, setPendingActionInputState] = useState<{
     action: ActionRequest['payload']['actions'][0];
     messageId: string;
     timestamp: number;
   } | null>(null)
+  const pendingActionIntentRef = useRef({ action: pendingActionInput, revision: 0 })
+  const setPendingActionInput = useCallback((next: typeof pendingActionInput) => {
+    // Cancel/replacement intent retires reconnect waits in the same event,
+    // before React commits the updated composer.
+    if (pendingActionIntentRef.current.action !== next) {
+      pendingActionIntentRef.current = { action: next, revision: pendingActionIntentRef.current.revision + 1 }
+    }
+    setPendingActionInputState(next)
+  }, [])
   const [showSidebar, setShowSidebar] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showVersions, setShowVersions] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [studioViewerEditing, setStudioViewerEditing] = useState(false)
   const [showFormatPanel, setShowFormatPanel] = useState(false)
   const [slideGenerationMode, setSlideGenerationMode] = useState<'compose' | 'refine'>('compose')
   const [slideRefineTarget, setSlideRefineTarget] = useState<SlideRefineTarget | null>(null)
@@ -715,6 +1017,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   // user-profile menu both call setTheme(), so they stay in sync. No
   // local builder-only theme state.
   // Text box selection state
+  const [studioFormatOpen, setStudioFormatOpen] = useState(false)
+  const [studioFormatTarget, setStudioFormatTarget] = useState<StudioFormatTarget | null>(null)
+  const [studioFormatLoading, setStudioFormatLoading] = useState(false)
+  const [studioFormatError, setStudioFormatError] = useState<string | null>(null)
+  const studioFormatRequestRef = useRef<{ selection: StudioFormatSelectionHandle; scope: object & { busy: boolean; presentationId: string | null; slideIndex: number } } | null>(null)
+  const studioFormatCommandIntentRef = useRef<object | null>(null)
   const [showTextBoxPanel, setShowTextBoxPanel] = useState(false)
   const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null)
   const [selectedTextBoxFormatting, setSelectedTextBoxFormatting] = useState<TextBoxFormatting | null>(null)
@@ -730,8 +1038,61 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     sendTextBoxCommand: (action: string, params: Record<string, any>) => Promise<any>
     sendElementCommand: (action: string, params: Record<string, any>) => Promise<any>
     goToSlide: (slideIndex: number) => Promise<void>
+    getStudioIntroductionSafety?: () => StudioIntroductionSafety
+    captureStudioElementGeneration?: () => StudioElementGenerationLease | null
+    getStudioSaveStatus?: () => 'saved' | 'unsaved' | 'saving' | 'error' // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
   } | null>(null)
+  const [studioViewerSafety, setStudioViewerSafety] = useState<StudioIntroductionSafety | null>(null)
+  const chatStaleViewerApisRef = useRef<typeof layoutServiceApis>(null) // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: the viewer's latest api, read after a reload (a closure of an earlier render holds the retired one)
+  const studioInitialBlankProofRef = useRef(initialStudioInitialStageOwnerState())
+  const studioInitialOwnerObservationRef = useRef<StudioInitialStageOwnerObservation | null>(null)
+  const studioInitialRouteAdoptionRef = useRef<StudioInitialRouteAdoptionIntent | null>(null)
+  const studioNativeAdmittedOwnerRef = useRef<object | null>(null)
+  const studioExplicitBlankOwnerRef = useRef<object | null>(null)
+  const handleStudioViewerSafety = useCallback((next: StudioIntroductionSafety | null) => {
+    setStudioViewerSafety(previous => previous && next && Object.keys(next).every(key =>
+      previous[key as keyof StudioIntroductionSafety] === next[key as keyof StudioIntroductionSafety]) ? previous : next)
+  }, [])
   const composeViewerApiRef = useRef<SlideComposeViewerApi | null>(null)
+  const studioPartialScopeRef = useRef<{ key: string; authority: StudioPartialStageAuthority } | null>(null)
+  const studioPartialMountedRef = useRef(false)
+  const studioPartialAssignmentRef = useRef<StudioPartialStageAssignment | null>(null)
+  const studioPartialAssignmentObservationRef = useRef<{ scope: object; key: string } | null>(null)
+  const studioPartialCandidateRef = useRef<StudioPartialBuildReceipt | null>(null)
+  const studioPartialCandidatesRef = useRef<{ scope: object; receipts: Map<string, StudioPartialBuildReceipt> } | null>(null)
+  const studioPartialVersionIntentRef = useRef<StudioPartialStageVersionIntent | null>(null)
+  const studioPartialVersionHandlerRef = useRef<((version: 'blank' | 'strawman' | 'final') => void) | null>(null)
+  const studioPartialVersionInputsRef = useRef<{
+    authority: StudioPartialStageAuthority; owner: object; buildId: string | null; observation: object
+  } | null>(null)
+  const studioPartialNativeReadbackHandlerRef = useRef<((readback: StudioPartialNativeReadback) => void) | null>(null)
+  const studioPartialIngressRef = useRef<((message: SlideBuilt, owner?: DirectorTransportOwner) => void) | null>(null)
+  const [studioPartialRevision, setStudioPartialRevision] = useState(0)
+  const [studioPartialDisplayed, setStudioPartialDisplayed] = useState<StudioSettledPartialStageReceipt | null>(null)
+  const studioPartialNativeRegistrationRef = useRef<{
+    scope: object; owner: object; presentationId: string | null; presentationUrl: string | null
+    layout: typeof layoutServiceApis; compose: SlideComposeViewerApi | null
+  } | null>(null)
+  const studioPartialReadCurrentRef = useRef<((context: StudioComposeSelectionContext | null) => StudioPartialStageTransitionInput) | null>(null)
+  const studioPartialNativeSeenScopeRef = useRef<object | null>(null)
+  const studioPartialNativeAbsenceRef = useRef<(() => boolean) | null>(null)
+  const [studioPartialNativeIndex, setStudioPartialNativeIndex] = useState<{
+    owner: object; presentationId: string; presentationUrl: string; count: number; index: number
+    isFrameCurrent: () => boolean; isCurrent: () => boolean
+  } | null>(null)
+  const studioPartialLocalWorkRef = useRef(new Set<object>())
+  const studioPartialRenderedWorkRef = useRef(false)
+  useEffect(() => {
+    if (process.env.NEXT_PUBLIC_STUDIO_V4_SHELL !== 'true') return
+    studioPartialMountedRef.current = true
+    setStudioPartialRevision(revision => revision + 1)
+    return () => {
+      studioPartialMountedRef.current = false
+      studioPartialScopeRef.current = null
+      studioPartialIngressRef.current = null
+      studioPartialNativeRegistrationRef.current = null
+    }
+  }, [])
 
 
   // Toast notifications
@@ -753,7 +1114,6 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     slideCount: number | null
     refreshToken: number
   } | null>(null)
-  const [slideThumbnailUrlsByPresentation, setSlideThumbnailUrlsByPresentation] = useState<SlideThumbnailUrlsByPresentation>({})
   const [slideComposeJobs, setSlideComposeJobs] = useState<Record<string, SlideComposeJobState>>({})
   const [slideComposePanelEvent, setSlideComposePanelEvent] = useState<SlideComposePanelEvent | null>(null)
   const slideComposerPresentationRef = useRef<{
@@ -770,6 +1130,30 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     refreshToken: 0,
   })
   const slideComposeJobsRef = useRef<Record<string, SlideComposeJobState>>({})
+  const deckMutationSeenRef = useRef(createDeckMutationSeen())
+  // NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE: a deck_mutation's count comes from Layout's slide inventory (the rail list's read), so a chat
+  // add-slide that slide_ready already counted is not counted again. Off: null, and the handler below commits the plan as before.
+  // The flag is read inline (not imported), so a harness that stubs the page's imports never switches the settler on.
+  const deckMutationCountSettlerRef = useRef(process.env.NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE === 'true' ? createDeckMutationCountSettler({
+    readLayoutCount: async id => {
+      const result = await fetchSlideInventory({ baseUrl: getLayoutServiceUrl(), presentationId: id, fetchImpl: (input, init) => fetch(input, init) })
+      return result.kind === 'ok' ? result.inventory.slideCount : null
+    },
+    getDisplayed: () => slideComposerPresentationRef.current,
+    commit: override => {
+      slideComposerPresentationRef.current = { ...slideComposerPresentationRef.current, ...override }
+      setSlideComposerOverride(override)
+      requestSlideRailRefresh(override.presentationId)
+      reportDeckChange('slide')
+    },
+  }) : null)
+  const studioSlideComposeOwnerRef = useRef({
+    key: '',
+    sessionId: null as string | null,
+    presentationId: null as string | null,
+    activeVersion: null as string | null,
+  })
+  const studioSlideComposeCountsRef = useRef<Record<string, number>>({})
   useEffect(() => {
     slideComposeJobsRef.current = slideComposeJobs
   }, [slideComposeJobs])
@@ -779,12 +1163,35 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     visualIndex?: number
     slideId?: string | null
     replaceJobId?: string
+    presentationId?: string | null
+    sessionId?: string
   }>>(new Map())
   const slideComposeWatchdogsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const slideComposePollersRef = useRef<Record<string, ReturnType<typeof setInterval>>>({})
+  const studioSlideComposePollerOwnersRef = useRef<Record<string, object>>({})
+  const studioSlideComposeWatchdogsRef = useRef<Record<string, {
+    owner: object
+    deadline: number
+    reason: string
+    fired: boolean
+  }>>({})
   const slideComposeReconcileQueuesRef = useRef<Record<string, Promise<void>>>({})
   const slideComposeFallbackReloadInFlightRef = useRef(false)
-  const pendingComposeSelectionRestoreRef = useRef<number | null>(null)
+  const pendingComposeSelectionRestoreRef = useRef<{
+    visualIndex: number
+    isCurrentOwner: () => boolean
+  } | null>(null)
+  const composeSelectionAttemptRef = useRef<object | null>(null)
+  const studioSyncSequenceRef = useRef(0)
+  const studioSyncRefreshRevisionRef = useRef(0)
+  const studioSyncRefreshTokenRef = useRef(0)
+  const studioSyncRequestRef = useRef<StudioSyncSelectionRecord | null>(null)
+  const studioSyncProofsRef = useRef(new WeakMap<object, StudioSyncSelectionRecord>())
+  const studioSyncPendingRef = useRef<StudioSyncPendingSelection | null>(null)
+  function queueComposeSelectionRestore(visualIndex: number | null) {
+    pendingComposeSelectionRestoreRef.current = visualIndex === null ? null
+      : { visualIndex, isCurrentOwner: captureStudioSlideComposeOwner() }
+  }
   const slideComposerLayoutCountReconcileRef = useRef<string | null>(null)
 
   const clearSlideComposerWork = useCallback(() => {
@@ -794,12 +1201,23 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     slideComposeWatchdogsRef.current = {}
     Object.values(slideComposePollersRef.current).forEach(clearInterval)
     slideComposePollersRef.current = {}
+    studioSlideComposePollerOwnersRef.current = {}
+    studioSlideComposeWatchdogsRef.current = {}
     pendingComposePlaceholdersRef.current.clear()
     slideComposeReconcileQueuesRef.current = {}
     slideComposeFallbackReloadInFlightRef.current = false
     pendingComposeSelectionRestoreRef.current = null
+    composeSelectionAttemptRef.current = null
+    studioSyncSequenceRef.current += 1
+    studioSyncRefreshRevisionRef.current += 1
+    studioSyncRequestRef.current = null
+    studioSyncPendingRef.current = null
     slideComposerLayoutCountReconcileRef.current = null
   }, [])
+
+  // J2V2-REGENERATE (flag NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED): which slides this session generated, and how the
+  // regenerate jobs ended. A finished job leaves slideComposeJobs, so this is the only record of it. Inert with the flag off.
+  const [addSlideV2Generated] = useState(createAddSlideV2GeneratedStore)
 
   const clearSlideComposeWatchdog = useCallback((jobId: string) => {
     const timer = slideComposeWatchdogsRef.current[jobId]
@@ -807,6 +1225,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       clearTimeout(timer)
       delete slideComposeWatchdogsRef.current[jobId]
     }
+    delete studioSlideComposeWatchdogsRef.current[jobId]
   }, [])
 
   const clearSlideComposePoller = useCallback((jobId: string) => {
@@ -815,10 +1234,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       clearInterval(timer)
       delete slideComposePollersRef.current[jobId]
     }
+    delete studioSlideComposePollerOwnersRef.current[jobId]
   }, [])
 
-  const triggerCoalescedSlideComposeReload = useCallback((reason: string) => {
-    if (slideComposeFallbackReloadInFlightRef.current) return
+  const triggerCoalescedSlideComposeReload = useCallback((reason: string, options?: { force?: boolean }) => {
+    if (slideComposeFallbackReloadInFlightRef.current && !options?.force) return
     slideComposeFallbackReloadInFlightRef.current = true
     const snapshot = slideComposerPresentationRef.current
     scTrace('builder.reload_fallback.trigger', {
@@ -877,7 +1297,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const fetchSlideComposePresentationSnapshot = useCallback(async (presentationId: string | null | undefined) => {
     if (!presentationId) return null
     try {
-      const response = await fetch(`${LAYOUT_SERVICE_URL}/api/presentations/${encodeURIComponent(presentationId)}`, {
+      const response = await fetch(`${getLayoutServiceUrl()}/api/presentations/${encodeURIComponent(presentationId)}`, {
         cache: 'no-store',
       })
       if (!response.ok) return null
@@ -894,10 +1314,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   }, [])
 
   const confirmSlideComposeJobAfterRefresh = useCallback(async (jobId: string) => {
+    const isCurrentOwner = captureStudioSlideComposeOwner()
+    if (!isCurrentOwner()) return false
     const job = slideComposeJobsRef.current[jobId]
     if (!job) return false
     const snapshot = slideComposerPresentationRef.current
     const presentation = await fetchSlideComposePresentationSnapshot(snapshot.presentationId)
+    if (!isCurrentOwner()) return false
     if (!presentation) return false
 
     const hasExpectedSlide = job.kind === 'refine' && !job.real_slide_id
@@ -917,6 +1340,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
     if (!hasExpectedSlide) return false
 
+    if (process.env.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'true' && job.real_slide_id) {
+      rememberAddSlideV2Generated(addSlideV2Generated, {
+        jobId,
+        realSlideId: job.real_slide_id,
+        replacedSlideId: job.kind === 'refine' ? (job.target_slide_id ?? null) : null,
+        request: job.request,
+      })
+    }
     removeSlideComposeJob(jobId)
     const nextOverride = {
       presentationUrl: snapshot.presentationUrl,
@@ -930,11 +1361,15 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     }
     setSlideComposerOverride(nextOverride)
     return true
-  }, [fetchSlideComposePresentationSnapshot, removeSlideComposeJob])
+  }, [addSlideV2Generated, fetchSlideComposePresentationSnapshot, removeSlideComposeJob])
 
   const startSlideComposePoller = useCallback((jobId: string) => {
+    const isCurrentOwner = captureStudioSlideComposeOwner()
+    if (!isCurrentOwner()) return
     clearSlideComposePoller(jobId)
+    if (studioShell) studioSlideComposePollerOwnersRef.current[jobId] = studioSlideComposeOwnerRef.current
     const poll = async () => {
+      if (!isCurrentOwner()) return
       const job = slideComposeJobsRef.current[jobId]
       if (!job || job.status !== 'building') {
         clearSlideComposePoller(jobId)
@@ -953,10 +1388,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             sessionId: requestSessionId,
             presentationId: snapshot.presentationId,
           }), { cache: 'no-store' })
+          if (!isCurrentOwner()) return
           if (response.ok) {
             const recovered = normalizeSlideComposeJobRecoveryResult(
               await response.json().catch(() => null),
             )
+            if (!isCurrentOwner()) return
             if (recovered?.job_id === jobId) {
               if (recovered.status === 'building') return
 
@@ -968,6 +1405,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   : [`Slide Composer ${recovered.status}.`]
                 const recoveredKind: SlideComposeJobKind = recovered.kind
                 if (recoveredKind === 'refine') {
+                  if (process.env.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'true') rememberAddSlideV2Failed(addSlideV2Generated, jobId, errors[0])
                   void composeViewerApiRef.current?.refineOverlayClear(jobId).catch(error => {
                     console.warn('[Slide Composer] Failed to clear recovered refine overlay.', error)
                   })
@@ -1024,11 +1462,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   [jobId]: recoveredJob,
                 }
                 setSlideComposeJobs(prev => ({ ...prev, [jobId]: recoveredJob }))
-                pendingComposeSelectionRestoreRef.current = resolveSlideComposeSelectionAfterReady({
+                queueComposeSelectionRestore(resolveSlideComposeSelectionAfterReady({
                   currentSlideIndex: currentSlideIndexRef.current,
                   jobTargetVisualIndex: job.target_visual_index,
                   resolvedVisualIndex: recoveredLayoutIndex,
-                })
+                }))
                 scTrace('builder.poll.job_status_built', {
                   job_id: jobId,
                   session_id: recovered.session_id,
@@ -1040,11 +1478,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             }
           }
         } catch (error) {
+          if (!isCurrentOwner()) return
           console.warn('[Slide Composer] Durable job status poll failed.', error)
         }
       }
 
       const presentation = await fetchSlideComposePresentationSnapshot(snapshot.presentationId)
+      if (!isCurrentOwner()) return
       if (!presentation) return
 
       const foundById = canPollCompleteSlideComposeJob(recoveredRealSlideId)
@@ -1067,12 +1507,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     }
 
     slideComposePollersRef.current[jobId] = setTimeout(() => {
+      if (!isCurrentOwner()) return
       void poll()
       slideComposePollersRef.current[jobId] = setInterval(() => {
         void poll()
       }, 3_000)
     }, 2_000) as unknown as ReturnType<typeof setInterval>
   }, [
+    addSlideV2Generated,
     clearSlideComposeWatchdog,
     clearSlideComposePoller,
     confirmSlideComposeJobAfterRefresh,
@@ -1081,6 +1523,23 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     triggerCoalescedSlideComposeReload,
   ])
 
+  const startStudioSlideComposeWatchdog = useCallback((jobId: string, reason: string, deadline = Date.now() + SLIDE_COMPOSE_WATCHDOG_MS, targetPresentationId?: string | null) => {
+    const isCurrentOwner = captureStudioSlideComposeOwner()
+    if (!isCurrentOwner()) return
+    clearSlideComposeWatchdog(jobId)
+    const state = { owner: studioSlideComposeOwnerRef.current, deadline, reason, fired: false }
+    studioSlideComposeWatchdogsRef.current[jobId] = state
+    if (studioSlideComposeOwnerRef.current.presentationId && targetPresentationId !== undefined && targetPresentationId !== studioSlideComposeOwnerRef.current.presentationId) return
+    slideComposeWatchdogsRef.current[jobId] = setTimeout(() => {
+      if (!isCurrentOwner() || studioSlideComposeWatchdogsRef.current[jobId] !== state) return
+      state.fired = true
+      if (slideComposeJobsRef.current[jobId]?.status === 'building') {
+        triggerCoalescedSlideComposeReload(reason)
+        void confirmSlideComposeJobAfterRefresh(jobId)
+      }
+    }, Math.max(0, deadline - Date.now()))
+  }, [clearSlideComposeWatchdog, confirmSlideComposeJobAfterRefresh, triggerCoalescedSlideComposeReload])
+
   // Portal target for toolbar in header
   const [toolbarPortalTarget, setToolbarPortalTarget] = useState<HTMLDivElement | null>(null)
 
@@ -1088,24 +1547,99 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const generationPanel = useGenerationPanel()
   const blankElements = useBlankElements()
 
+  const studioVoiceOwnerRef = useRef<ReturnType<typeof createStudioVoiceOwner> | null>(null)
+  if (!studioVoiceOwnerRef.current) studioVoiceOwnerRef.current = createStudioVoiceOwner()
+  const retireStudioVoiceOwner = useCallback(() => studioVoiceOwnerRef.current?.retire(), [])
+  React.useLayoutEffect(() => {
+    if (!STUDIO_VOICE_INTERACTIVE_ENABLED) return
+    studioVoiceOwnerRef.current?.mount()
+    return () => studioVoiceOwnerRef.current?.unmount()
+  }, [])
+
+  const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+  // PASS2-COMPOSER-POPUPS (flag NEXT_PUBLIC_STUDIO_COMPOSER_POPUPS_V2, Studio shell only, default off): the narrow-window pane strip in plain words.
+  const studioPopupsV2 = studioShell && process.env.NEXT_PUBLIC_STUDIO_COMPOSER_POPUPS_V2 === 'true'
+  // Toolbar template picker fix-forward (flag NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE, Studio shell only, default off): its "Template ▾" lists the composer library's
+  // templates and hands an action (Use original, Rebuild, New topic) to the same library dialog, through the same request as the composer's template popup.
+  const studioTemplateWorkspace = studioShell && process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE === 'true'
+  const runComposerTemplateAction = (request: ComposerLibraryRequest) => { setComposerLibraryRequest(request); setShowComposerLibrary(true) }
+  const workspaceRef = useRef<HTMLDivElement>(null)
+  const [workspaceWidth, setWorkspaceWidth] = useState(1100)
+  const [workspaceInnerWidth, setWorkspaceInnerWidth] = useState(1100)
+  const [workspacePane, setWorkspacePane] = useState<StudioWorkspacePane>('chat')
+  const [studioStageSelected, setStudioStageSelected] = useState(false)
+  const [studioViewerFullscreen, setStudioViewerFullscreen] = useState(false)
+  const studioVoiceLayoutIntentRef = useRef({ studioShell, workspaceWidth })
+  studioVoiceLayoutIntentRef.current = { studioShell, workspaceWidth }
+  useEffect(() => {
+    if (!studioShell) return
+    const syncFullscreen = () => setStudioViewerFullscreen(Boolean(document.fullscreenElement && workspaceRef.current?.contains(document.fullscreenElement)))
+    syncFullscreen()
+    document.addEventListener('fullscreenchange', syncFullscreen)
+    return () => document.removeEventListener('fullscreenchange', syncFullscreen)
+  }, [studioShell])
+  useStudioPhoneWorkspaceClamp(workspaceWidth, setWorkspaceWidth) // PHONE-LANDSCAPE: on a phone turned sideways the workspace is never counted wider than 880 px (the stage hides the rail, so a 926 or 932 px phone would drop one pane at a time and the stage with it); nothing with the flag off
+  const studioOverlayWorkspace = studioShell && workspaceWidth <= 880
+  const selectWorkspacePane = useCallback((pane: StudioWorkspacePane) => {
+    const current = studioVoiceLayoutIntentRef.current
+    if (pane !== 'chat' && current.studioShell && current.workspaceWidth <= 880) retireStudioVoiceOwner()
+    setStudioStageSelected(false)
+    setWorkspacePane(pane)
+  }, [retireStudioVoiceOwner])
+  const revealStudioStage = useCallback(() => {
+    if (studioShell && workspaceWidth <= 880) { retireStudioVoiceOwner(); setStudioStageSelected(true) }
+  }, [studioShell, workspaceWidth, retireStudioVoiceOwner])
+  const [preferredInspector, setPreferredInspector] = useState<StudioInspector | null>(null)
+  const [chatWidth, setChatWidth] = useState<number | null>(null)
+  const studioResizeCleanupRef = useRef<(() => void) | null>(null)
+
+  useEffect(() => () => studioResizeCleanupRef.current?.(), [])
+
+  useEffect(() => {
+    if (!studioShell) return
+    const savedWidth = Number(window.localStorage.getItem('deckster_builder_chat_width'))
+    if (Number.isFinite(savedWidth) && savedWidth > 0) setChatWidth(savedWidth)
+  }, [studioShell])
+
+  useEffect(() => {
+    if (!studioShell || !workspaceRef.current) return
+    const workspace = workspaceRef.current
+    const measure = () => {
+      setWorkspaceWidth(workspace.getBoundingClientRect().width)
+      setWorkspaceInnerWidth(workspace.clientWidth)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(workspace)
+    return () => observer.disconnect()
+  }, [studioShell])
+
   // Z-index tracking for drawer stacking order
   const zCounterRef = useRef(0)
   const [panelZIndices, setPanelZIndices] = useState({ element: 0, slide: 0, deck: 0 })
+  // J2 v2 (flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED): the Add Slide side panel lives in the Element drawer.
+  // `addSlideV2Open` stays false, and the host is never rendered, while the flag is off.
+  const [addSlideV2Open, setAddSlideV2Open] = useState(false)
+  const [addSlideV2Host, setAddSlideV2Host] = useState<HTMLElement | null>(null)
+  const addSlideV2FollowRef = useRef<Map<string, number>>(new Map())
 
   const bringToFront = useCallback((panel: 'element' | 'slide' | 'deck') => {
     zCounterRef.current += 1
     const z = zCounterRef.current
     setPanelZIndices(prev => ({ ...prev, [panel]: z }))
-  }, [])
-
+    if (studioShell) {
+      selectWorkspacePane(panel === 'deck' ? 'chat' : 'inspector')
+      if (panel !== 'deck') setPreferredInspector(panel)
+    }
+  }, [studioShell, selectWorkspacePane])
   const clampDrawerWidth = useCallback((width: number) => {
     if (typeof window === 'undefined') {
       return Math.min(Math.max(width, MIN_DRAWER_WIDTH), DEFAULT_DRAWER_WIDTH)
     }
 
-    const maxWidth = Math.max(MIN_DRAWER_WIDTH, Math.floor(window.innerWidth * MAX_DRAWER_WIDTH_RATIO))
+    const maxWidth = Math.max(MIN_DRAWER_WIDTH, Math.floor((window.innerWidth - (studioShell ? 68 : 0)) * MAX_DRAWER_WIDTH_RATIO))
     return Math.min(Math.max(width, MIN_DRAWER_WIDTH), maxWidth)
-  }, [])
+  }, [studioShell])
 
   const handleDrawerResizeStart = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -1142,11 +1676,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   useEffect(() => {
     const savedWidth = Number(window.localStorage.getItem('deckster_builder_drawer_width'))
     if (Number.isFinite(savedWidth) && savedWidth > 0) {
-      setDrawerWidth(clampDrawerWidth(savedWidth))
+      setDrawerWidth(studioShell ? savedWidth : clampDrawerWidth(savedWidth))
     }
-  }, [clampDrawerWidth])
+  }, [clampDrawerWidth, studioShell])
 
   useEffect(() => {
+    if (studioShell) return
     const handleResize = () => {
       setDrawerWidth(prev => {
         const next = clampDrawerWidth(prev)
@@ -1157,12 +1692,22 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
-  }, [clampDrawerWidth])
+  }, [clampDrawerWidth, studioShell])
 
   // Drawer open conditions
-  const isElementDrawerOpen = generationPanel.isOpen || showTextBoxPanel || showElementPanel
+  const isElementDrawerOpen = generationPanel.isOpen || showTextBoxPanel || showElementPanel || (studioShell && studioFormatOpen) || addSlideV2Open
   const isSlideDrawerOpen = features.slideComposerEnabled && showFormatPanel
   const isDeckDrawerOpen = showChat
+  // PASS2 #3 (flag NEXT_PUBLIC_STUDIO_PANEL_FOCUS, default off): while Add Slide or Add Element is open, the chat and the
+  // slide rail step aside so the canvas keeps its size, and come back as they were when the panel closes (lib/studio-panel-focus).
+  const studioPanelFocus = studioPanelFocusActive({ enabled: STUDIO_PANEL_FOCUS_ENABLED, studioShell, overlay: studioOverlayWorkspace,
+    addSlideOpen: addSlideV2Open, addElementOpen: generationPanel.isOpen })
+  const [studioPanelFocusReveal, setStudioPanelFocusReveal] = useState(STUDIO_PANEL_FOCUS_NONE)
+  useEffect(() => { if (!studioPanelFocus) setStudioPanelFocusReveal(STUDIO_PANEL_FOCUS_NONE) }, [studioPanelFocus])
+  const studioWorkspaceChatOpen = studioPanelFocusChatOpen({ chatOpen: isDeckDrawerOpen, focus: studioPanelFocus,
+    workspaceWidth, revealed: studioPanelFocusReveal.chat })
+  const studioPanelFocusChatHidden = isDeckDrawerOpen && !studioWorkspaceChatOpen
+  const studioPanelFocusRevealRail = useCallback(() => setStudioPanelFocusReveal(reveal => ({ ...reveal, rail: true })), [])
   const isTemplateParamsDrawerOpen = templateBuilderEnabled
     && templateModeOn
     && (blueprintEditorV2Enabled || Boolean(selectedTemplateElementId))
@@ -1176,6 +1721,84 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         : 0
   const showDrawerResizeHandle = anyNonTemplateDrawerOpen || (isTemplateParamsDrawerOpen && !templateParamsCollapsed)
 
+  const availableInspectors: StudioInspector[] = [
+    ...(isElementDrawerOpen ? ['element' as const] : []),
+    ...(isSlideDrawerOpen ? ['slide' as const] : []),
+    ...(isTemplateParamsDrawerOpen ? ['template' as const] : []),
+  ]
+  const activeInspector = preferredInspector && availableInspectors.includes(preferredInspector)
+    ? preferredInspector
+    : isElementDrawerOpen && (!isSlideDrawerOpen || panelZIndices.element >= panelZIndices.slide)
+      ? 'element' : isSlideDrawerOpen ? 'slide' : isTemplateParamsDrawerOpen ? 'template' : null
+
+  // Opening a real inspector selects it on a compact workspace; changing width never closes it.
+  const previousInspectorOpenRef = useRef({ element: false, slide: false, template: false })
+  useEffect(() => {
+    const current = { element: isElementDrawerOpen, slide: isSlideDrawerOpen, template: isTemplateParamsDrawerOpen }
+    if (studioShell) {
+      const newlyOpened = (['element', 'slide', 'template'] as const).find(panel => current[panel] && !previousInspectorOpenRef.current[panel])
+      if (newlyOpened) {
+        setPreferredInspector(newlyOpened)
+        selectWorkspacePane('inspector')
+      }
+    }
+    previousInspectorOpenRef.current = current
+  }, [studioShell, isElementDrawerOpen, isSlideDrawerOpen, isTemplateParamsDrawerOpen, selectWorkspacePane])
+
+  const persistStudioPaneWidth = (side: StudioWorkspacePane, width: number) => {
+    const next = allocateStudioWorkspace({
+      width: workspaceWidth,
+      chatPreference: side === 'chat' ? width : chatWidth ?? studioChatWidth,
+      inspectorPreference: side === 'inspector' ? width : drawerWidth,
+      chatOpen: studioWorkspaceChatOpen,
+      inspectorOpen: Boolean(activeInspector),
+      inspectorCollapsed: activeInspector === 'template' && templateParamsCollapsed,
+      activePane: workspacePane,
+    })
+    if (side === 'chat') {
+      setChatWidth(next.chatWidth)
+      window.localStorage.setItem('deckster_builder_chat_width', String(next.chatWidth))
+    } else {
+      setDrawerWidth(next.inspectorWidth)
+      window.localStorage.setItem('deckster_builder_drawer_width', String(next.inspectorWidth))
+    }
+  }
+  const handleStudioResizeStart = (event: React.MouseEvent<HTMLDivElement>, side: StudioWorkspacePane) => {
+    event.preventDefault()
+    studioResizeCleanupRef.current?.()
+    const startX = event.clientX
+    const startWidth = side === 'chat' ? studioChatWidth : studioInspectorWidth
+    const cursor = document.body.style.cursor
+    const userSelect = document.body.style.userSelect
+    setIsResizingDrawer(true)
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    const move = (moveEvent: MouseEvent) => persistStudioPaneWidth(side, resizeStudioPane(startWidth, startX, moveEvent.clientX, side))
+    const cleanup = () => {
+      document.body.style.cursor = cursor
+      document.body.style.userSelect = userSelect
+      window.removeEventListener('mousemove', move)
+      window.removeEventListener('mouseup', stop)
+      studioResizeCleanupRef.current = null
+    }
+    const stop = (upEvent: MouseEvent) => {
+      move(upEvent)
+      setIsResizingDrawer(false)
+      cleanup()
+    }
+    studioResizeCleanupRef.current = cleanup
+    window.addEventListener('mousemove', move)
+    window.addEventListener('mouseup', stop)
+  }
+  const handleStudioResizeKey = (event: React.KeyboardEvent<HTMLDivElement>, side: StudioWorkspacePane) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Home') return
+    event.preventDefault()
+    event.stopPropagation()
+    const width = side === 'chat' ? studioChatWidth : studioInspectorWidth
+    const direction = (event.key === 'ArrowRight' ? 1 : -1) * (side === 'chat' ? 1 : -1)
+    persistStudioPaneWidth(side, event.key === 'Home' ? side === 'chat' ? 304 : DEFAULT_DRAWER_WIDTH : width + direction * (event.shiftKey ? 32 : 8))
+  }
+
   // FIXED: Track when generating final/strawman presentations
   const [isGeneratingFinal, setIsGeneratingFinal] = useState(false)
   const [templateReuseAwaitingInput, setTemplateReuseAwaitingInput] = useState(false)
@@ -1185,7 +1808,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   // narration hook exists, so typed-frame callbacks route through this ref
   // (populated in an effect after useBuildNarration below).
   const buildNarrationHandlersRef = useRef<{
-    onBuildPhase?: (payload: any) => void
+    onBuildPhase?: (payload: any, ownerSessionId?: string) => void
     onBuildEvent?: (payload: any) => void
     onSlideBuilt?: (payload: any) => void
     onBuildStateSync?: (buildState: unknown) => void
@@ -1208,18 +1831,25 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
   // Guard to prevent concurrent executions of handleSendMessage
   const isExecutingSendRef = useRef(false)
+  const questionSubmissionPendingRef = useRef(false)
+  const createdDirectorSessionRef = useRef<{ id: string; ownerId: string; sourceSessionId: string } | null>(null)
   const manualDeckInspectionInFlightRef = useRef(false)
   const handoffSubmissionInFlightRef = useRef<Set<string>>(new Set())
   const pendingHandoffMemoryRef = useRef<PendingHandoffSubmission | null>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [pendingHandoffRevision, setPendingHandoffRevision] = useState(0)
+  const [handoffStorageWarning, setHandoffStorageWarning] = useState<{ sessionId: string; text: string } | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const studioVoiceChatRootRef = useRef<HTMLDivElement>(null)
+  const studioVoiceTranscriptRootRef = useRef<HTMLDivElement>(null)
 
   // CRITICAL: currentSessionId must be declared here in page.tsx (not inside useBuilderSession)
   // so useSessionPersistence gets the correct sessionId synchronously — no multi-render delay.
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search)
-      const urlSessionId = params.get('session_id')
+      // Next's route params already represent the destination during client navigation;
+      // window.location can still represent the library being left on this render.
+      const urlSessionId = studioShell ? searchParams.get('session_id')
+        : typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('session_id') : null
       // The URL is the single source of truth for which session to show:
       //   ?session_id=<uuid> → resume that deck
       //   ?session_id=new  or  no param → fresh session (Director greets + blank canvas)
@@ -1231,8 +1861,62 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       // "new" session silently reopened the last deck with no greeting (empty chat + a
       // templated deck appearing unrequested). Restoring URL-only intent fixes it.
       if (urlSessionId && urlSessionId !== 'new') return urlSessionId
-    }
     return null
+  })
+
+  // A socket receipt can arrive before the submission effect. Keep the owned
+  // in-memory receipt ahead of an older staged copy in browser storage.
+  const readCurrentStudioHandoff = useCallback((sessionId: string | null) => {
+    if (!sessionId || typeof window === 'undefined') return null
+    let stored: PendingHandoffSubmission | null = null
+    try { stored = readPendingHandoff(window.sessionStorage, sessionId) } catch { /* Memory remains available. */ }
+    const memory = pendingHandoffMemoryRef.current
+    if (memory?.new_session_id === sessionId
+      && (memory.owner_user_id === undefined || memory.owner_user_id === authScopeUserId)
+      && (!stored || stored.idempotency_key === memory.idempotency_key)) {
+      const accountSession = { userId: authScopeUserId, sessionId }
+      // Neither storage nor memory may downgrade a known submitted/observed
+      // request to staged. Both directions must suppress uncertain replay.
+      if (stored && canAutomaticallySubmitStudioHandoff(memory, accountSession)
+        && !canAutomaticallySubmitStudioHandoff(stored, accountSession)) return stored
+      return memory
+    }
+    return stored
+  }, [authScopeUserId])
+  const expectedStudioHandoffRequest = useMemo(() => studioShell
+    ? getExpectedStudioHandoffRequest(readCurrentStudioHandoff(currentSessionId), {
+        userId: authScopeUserId, sessionId: currentSessionId,
+      })
+    : null, [studioShell, currentSessionId, authScopeUserId, readCurrentStudioHandoff, pendingHandoffRevision])
+  const expectedStudioHandoffRequestRef = useRef(expectedStudioHandoffRequest)
+  expectedStudioHandoffRequestRef.current = expectedStudioHandoffRequest
+  const handleStudioHandoffRequestStatus = useCallback((status: DirectorHandoffRequestStatus, owner: DirectorHandoffRequestOwner) => {
+    if (!studioShell || typeof window === 'undefined') return
+    const result = absorbStudioHandoffStatus(readCurrentStudioHandoff(currentSessionId), {
+      userId: authScopeUserId, sessionId: currentSessionId,
+    }, status, owner)
+    if (!result.accepted || !result.pending) return
+    pendingHandoffMemoryRef.current = result.pending
+    setPendingHandoffRevision(value => value + 1)
+    try {
+      savePendingHandoff(window.sessionStorage, result.pending)
+      setHandoffStorageWarning(null)
+    } catch {
+      setHandoffStorageWarning({ sessionId: result.pending.new_session_id,
+        text: 'Director reported this request, but its recovery record could not be saved in this browser. Keep this tab open to retain its recovery record. Reload recovery is uncertain.' })
+    }
+  }, [studioShell, currentSessionId, authScopeUserId, readCurrentStudioHandoff])
+
+  const {
+    thumbnailUrls: slideThumbnailUrlsByPresentation,
+    setThumbnailUrls: setSlideThumbnailUrlsByPresentation,
+    setReceivedThumbnailUrls: setReceivedSlideThumbnailUrlsByPresentation,
+    invalidateThumbnailUrls,
+    captureThumbnailMutation,
+  } = useStageFThumbnailCache({
+    enabled: studioShell,
+    ownerUserId: authScopeUserId,
+    sessionId: currentSessionId,
   })
 
   const persistence = useSessionPersistence({
@@ -1251,6 +1935,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     persistenceRef.current = persistence
   }, [persistence])
 
+  // NEXT_PUBLIC_STUDIO_BLANK_DECK_RELOAD_FIX: the first-message save (handleSendMessage, the only writer of createdDirectorSessionRef)
+  // has created this session's row; send, once, the blank deck Director gave it while it was unsaved, so a reload restores it.
+  useEffect(() => {
+    if (!STUDIO_BLANK_DECK_RELOAD_FIX_ENABLED || isUnsavedSession || !currentSessionId) return
+    if (createdDirectorSessionRef.current?.id !== currentSessionId) return
+    void persistenceRef.current.sendDeferredMetadata(currentSessionId)
+  }, [currentSessionId, isUnsavedSession])
+
   const currentSessionIdRef = useRef(currentSessionId)
   const previousKnowledgeGraphSessionRef = useRef(currentSessionId)
   useEffect(() => {
@@ -1265,6 +1957,15 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     }
     previousKnowledgeGraphSessionRef.current = currentSessionId
   }, [currentSessionId])
+  // PASS2D A1 (flag NEXT_PUBLIC_STUDIO_COMPOSER_DRAFT, default off; lib/studio-composer-draft.ts): the unsent composer text is kept per session
+  // in sessionStorage and put back after a reload; a completed send clears the box and with it the stored draft. Off, the hook does nothing.
+  useStudioComposerDraft({
+    enabled: STUDIO_COMPOSER_DRAFT_ENABLED,
+    owner: builderCacheOwner,
+    sessionId: currentSessionId,
+    value: inputMessage,
+    setValue: setInputMessage,
+  })
   const builderOptionsRestoredSessionRef = useRef<string | null>(null)
   const skipBuilderOptionsPersistRef = useRef<string | null>(null)
   const builderOptionsScope = builderCacheOwner && currentSessionId && currentSessionId !== 'new'
@@ -1277,14 +1978,15 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   useEffect(() => {
     if (typeof window === "undefined") return
     const userId = user?.id ?? user?.email
-    if (userId && currentSessionId && currentSessionId !== "new") {
+    // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: an unsaved session has no history row, so "Back to builder" must not point at it.
+    if (userId && currentSessionId && currentSessionId !== "new" && shouldRememberLastSession(STUDIO_SESSION_HYGIENE_ENABLED, isUnsavedSession)) {
       try {
         window.localStorage.setItem(lastBuilderSessionKey(userId), currentSessionId)
       } catch {
         // ignore storage errors (Safari private mode, quota)
       }
     }
-  }, [currentSessionId, user?.email, user?.id])
+  }, [currentSessionId, isUnsavedSession, user?.email, user?.id])
 
   useEffect(() => {
     standardThemeLoadedRef.current = false
@@ -1293,7 +1995,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setManualDeckHandoffBusy(false)
     setSlideComposerOverride(null)
     clearSlideComposerWork()
-    setSlideThumbnailUrlsByPresentation({})
+    if (!studioShell) setSlideThumbnailUrlsByPresentation({})
     setSlideComposeJobs({})
     Object.values(slideComposeWatchdogsRef.current).forEach(clearTimeout)
     slideComposeWatchdogsRef.current = {}
@@ -1426,6 +2128,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     }
   }, [getTemplate, toast])
 
+  // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the user's first state-changing action on an unsaved (blank-canvas) session saves the
+  // history row, so the session opens in a second tab. The callback is created after useBuilderSession (it wraps that hook's
+  // handleRequestSession) and parked in this ref; the handlers below run later, from clicks, and only ever call the ref.
+  // A no-op with the flag off, for a session that is already saved, and for a session that already started saving.
+  const saveSessionOnFirstActionRef = useRef<(() => Promise<boolean>) | null>(null)
+  const saveSessionOnFirstAction = useCallback(() => { void saveSessionOnFirstActionRef.current?.() }, [])
+
   const handleSelectTemplate = useCallback((template: BuilderTemplateSelection) => {
     if (templateSelectionLockedRef.current) {
       toast({
@@ -1435,6 +2144,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       return
     }
 
+    saveSessionOnFirstAction()
+    retireStudioVoiceOwner()
     setActiveTemplate(template)
     setTemplateOverrides({})
     setTemplateBlueprintDirty(false)
@@ -1451,7 +2162,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         description: templateGenerationUnavailableReason(template),
       })
     }
-  }, [currentSlideIndex, toast])
+  }, [currentSlideIndex, toast, retireStudioVoiceOwner, saveSessionOnFirstAction])
 
   const handleBuildThemeChange = useCallback((next: BuildThemeSelection) => {
     if (templateSelectionLockedRef.current) {
@@ -1461,12 +2172,17 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       })
       return
     }
+    saveSessionOnFirstAction()
+    // NEXT_PUBLIC_STUDIO_THEME_DARK_PERSIST: a pick (preset chip, brand colour, saved theme) that names no Light / Dark keeps the one chosen in the theme panel,
+    // and the active saved theme then holds the same payload, so it still matches. Flag off, `carried` is `next` itself and nothing below differs.
+    const carried = carryPaletteMode(next, buildThemeSelectionRef.current)
     setActiveBuildThemeProfile(current => (
-      buildThemeProfileMatchesSelection(current, next) ? current : null
+      buildThemeProfileMatchesSelection(current, next) ? (current && carried !== next ? { ...current, theme_payload: carried } : current) : null
     ))
     themeSelectionChangedLocallyRef.current = true
-    setBuildThemeSelection(next)
-  }, [toast])
+    setBuildThemeSelection(carried)
+    if (process.env.NEXT_PUBLIC_STUDIO_THEME_OWN_CHOICE === 'true') recordOwnThemeChoice(themeRestoreSessionRef.current, carried) // THEME-OWN-CHOICE: a real pick is the user's own choice
+  }, [toast, saveSessionOnFirstAction])
 
   const handleActiveBuildThemeProfileChange = useCallback((profile: ActiveBuildThemeProfile | null) => {
     if (templateSelectionLockedRef.current) {
@@ -1476,8 +2192,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       })
       return
     }
+    // Choosing a saved theme is an action; clearing the profile (also sent on every keystroke of the brand-colour field) is not.
+    if (profile) saveSessionOnFirstAction()
     setActiveBuildThemeProfile(profile)
-  }, [toast])
+  }, [toast, saveSessionOnFirstAction])
 
   const handleClearTemplate = useCallback(() => {
     if (templateSelectionLockedRef.current) {
@@ -1487,6 +2205,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       })
       return
     }
+    retireStudioVoiceOwner()
     setActiveTemplate(null)
     setTemplateModeOn(false)
     setTemplateSnapshot(null)
@@ -1497,9 +2216,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setTemplateOverrides({})
     setSelectedTemplateElementId(null)
     setTemplateSourceSlideIndex(0)
-  }, [toast])
+  }, [toast, retireStudioVoiceOwner])
 
   const handleTemplateOptimizationFailed = useCallback((templateId: string) => {
+    retireStudioVoiceOwner()
     setActiveTemplate((previous) => previous?.id === templateId ? null : previous)
     setTemplateModeOn(false)
     setTemplateSnapshot((previous) => previous?.id === templateId ? null : previous)
@@ -1509,7 +2229,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setTemplateParamsCollapsed(false)
     setTemplateOverrides({})
     setSelectedTemplateElementId(null)
-  }, [])
+  }, [retireStudioVoiceOwner])
 
   const handleTemplateOverrideChange = useCallback((
     slideIndex: number,
@@ -1583,6 +2303,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setSelectedTemplateElementId(overrideKey)
     if (!overrideKey) return
 
+    retireStudioVoiceOwner()
+
     setTemplateParamsCollapsed(false)
     setShowChat(false)
     setShowTextBoxPanel(false)
@@ -1594,13 +2316,20 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setSelectedElementProperties(null)
     setShowFormatPanel(false)
     generationPanel.closePanel()
-  }, [generationPanel])
+  }, [generationPanel, retireStudioVoiceOwner])
 
   const handleTemplateModeChange = useCallback(async (enabled: boolean) => {
+    if (enabled !== templateModeOn) retireStudioVoiceOwner()
     if (!enabled) {
+      if (studioShell) {
+        studioFormatRequestRef.current?.selection.retire()
+        studioFormatRequestRef.current = null
+        setStudioFormatOpen(false); setStudioFormatTarget(null); setStudioFormatLoading(false); setStudioFormatError(null)
+      }
       if (templateBlueprintDirty && templateSnapshot?.template_blueprint && activeTemplate) {
         await handleTemplateBlueprintSave()
       }
+      studioFormatTemplateModeRef.current = false
       setTemplateModeOn(false)
       setTemplateParamsCollapsed(false)
       setSelectedTemplateElementId(null)
@@ -1615,6 +2344,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       return
     }
 
+    if (studioShell) {
+      // Close and retire synchronously before the mode setter or any await.
+      // An old command callback cannot borrow the next render's selection.
+      studioFormatTemplateModeRef.current = true
+      studioFormatRequestRef.current?.selection.retire()
+      studioFormatRequestRef.current = null
+      setStudioFormatOpen(false); setStudioFormatTarget(null); setStudioFormatLoading(false); setStudioFormatError(null)
+    }
     setTemplateModeOn(true)
     setTemplateParamsCollapsed(false)
     setShowChat(false)
@@ -1630,9 +2367,15 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setTemplateSourceSlideIndex(currentSlideIndex)
     if (!templateSnapshot || templateSnapshot.id !== activeTemplate.id) {
       const snapshot = await loadTemplateSnapshot(activeTemplate)
-      if (!snapshot) setTemplateModeOn(false)
+      if (!snapshot) {
+        studioFormatTemplateModeRef.current = false
+        setTemplateModeOn(false)
+      }
     }
   }, [
+    studioShell,
+    templateModeOn,
+    retireStudioVoiceOwner,
     activeTemplate,
     currentSlideIndex,
     handleTemplateBlueprintSave,
@@ -1649,8 +2392,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     connecting,
     connectionState,
     reconnectStatus,
+    transportNotice,
+    handoffRequestStatus,
     error: wsError,
     messages,
+    studioVoiceTranscriptReceipt,
     presentationUrl,
     presentationId,
     slideCount,
@@ -1664,6 +2410,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     blankPresentationUrl,
     blankPresentationId,
     isBlankPresentation,
+    studioAutomaticBlankSelection,
     activeVersion,
     directorWorkflowState,
     slideContextByIndex,
@@ -1680,6 +2427,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     sendMessage,
     sendMessageWhenConnected,
     sendElementDirectiveResult,
+    sendElementEditResult, // CHAT-ELEMENT-EDIT
     sendControlMessage,
     sendThemeSelection,
     sendBuildControl,
@@ -1687,6 +2435,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     clearMessages,
     clearEphemeralIds,
     restoreMessages,
+    trackHandoffRequest,
     switchVersion,
     connect,
     ensureConnected,
@@ -1699,6 +2448,30 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     awaitingDirectorReply,
     stopAwaitingReply,
   } = useDecksterWebSocketV2({
+    getStudioVoiceAssistantAdmission: STUDIO_VOICE_INTERACTIVE_ENABLED ? message => !classifyDirectorMessage(message, {
+      userMessageIds: session.userMessageIdsRef.current,
+      userMessageContentMap: session.userMessageContentMapRef.current,
+    }).isUserMessage : undefined,
+    expectedHandoffRequest: expectedStudioHandoffRequest,
+    onHandoffRequestStatus: handleStudioHandoffRequestStatus,
+    // S-03: Director's deck_mutation (chat-driven add/delete/replace/reorder) reloads the displayed deck and
+    // re-reads the rail inventory. Flag off: no handler, so the hook drops the frame exactly as before.
+    ...(STUDIO_DECK_MUTATION_REFRESH_ENABLED && {
+      onDeckMutation: (message: import('@/types/mdc').DeckMutationMessage, owner: { isCurrent: () => boolean; presentationId: string }) => {
+        const displayed = slideComposerPresentationRef.current
+        const plan = planDeckMutationRefresh({
+          message, ownerIsCurrent: owner.isCurrent(), ownerPresentationId: owner.presentationId,
+          displayed, now: Date.now(), seen: deckMutationSeenRef.current,
+        })
+        if (!plan) return
+        deckSyncRowCountRef.current?.(plan.override.presentationId, owner.isCurrent) // DECK-SYNC-TRUTH: a chat change to the deck (an undo's deck_restored too) settles the session row's slide count (null with the flag off)
+        if (deckMutationCountSettlerRef.current) { void deckMutationCountSettlerRef.current(plan.override, owner.isCurrent); return } // NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE
+        slideComposerPresentationRef.current = { ...displayed, ...plan.override }
+        setSlideComposerOverride(plan.override)
+        requestSlideRailRefresh(plan.override.presentationId)
+        reportDeckChange('slide') // NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE: other tabs on this deck are told (no-op with the flag off)
+      },
+    }),
     // Don't auto-connect when restoring an existing session from URL.
     // The useBuilderSession hook will connect AFTER DB load + restoreMessages,
     // preventing Director's blank state from flashing before restored content.
@@ -1738,6 +2511,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             slideStructure: state.slideStructure
           }
         }
+        const deckSyncSettled = Boolean(deckSyncRowCountRef.current) && isFinal && Boolean(state.presentationId) && !deckSyncBuildingRef.current // DECK-SYNC-TRUTH (reconnect; NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH, default off): a Director state frame for a finished deck with no build in progress (the flag on)
+        if (deckSyncSettled) delete updates.slideCount // DECK-SYNC-TRUTH (reconnect): Director's slide_count is the build's and a reconnect re-sends it after a chat delete (3 for a 2-slide deck); it must not raise the row. Layout's inventory count is written below, once Layout answers
 
         if (isBlank) {
           updates.blankPresentationUrl = state.presentationUrl
@@ -1753,7 +2528,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           console.log('Saving final URLs:', { url: state.presentationUrl, id: state.presentationId, activeVersion: state.activeVersion })
         }
 
-        persistenceRef.current.updateMetadata(updates)
+        persistenceRef.current.updateMetadata(updates, { passive: true }) // NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: Director's own state frame
+        if (deckSyncSettled) { const deckSyncSession = currentSessionIdRef.current; void deckSyncRowCountRef.current?.(state.presentationId ?? '', () => currentSessionIdRef.current === deckSyncSession) } // DECK-SYNC-TRUTH (reconnect): the row takes the deck's real count (Layout's inventory), unless a build starts, the session or the deck changes, or Layout cannot answer: then the row keeps its count
       } else {
         console.error('PERSISTENCE BLOCKED:', {
           reason: !currentSessionIdRef.current ? 'No currentSessionId' : 'No persistenceRef.current',
@@ -1763,7 +2539,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       }
     },
     onMessage: (message) => {
+      // THEME-RESET-ON-RECONNECT-P1: the flag is read inline so every harness that runs this handler needs nothing new
+      // while it is off. On: the restore gate sees every frame first and takes Director's `restored` theme_sync.
+      if (process.env.NEXT_PUBLIC_STUDIO_THEME_RESTORE === 'true' && observeThemeRestoreFrame(message)) return
       if (message.type === 'theme_sync') {
+        // A `restored` frame never answers this tab's own request (its request id is Director's); off, it ends here.
+        if (message.payload.status === 'restored') return
         if (message.payload.request_id !== latestThemeSyncRequestRef.current) return
         const terminal = isThemeSyncTerminal(message.payload.status)
         if (terminal) clearThemeSyncTimeout()
@@ -1839,9 +2620,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           console.warn('[Slide Composer] Failed to update in-deck placeholder progress.', error)
         })
     },
-    onSlideBuilt: (message: SlideBuilt) => {
+    onSlideBuilt: (message: SlideBuilt, owner?: DirectorTransportOwner) => {
       const { presentation_id, slide_index, thumbnail_url } = message.payload
-      setSlideThumbnailUrlsByPresentation(prev =>
+      const ownsThumbnail = !studioShell || message.session_id === currentSessionIdRef.current
+      if (ownsThumbnail) setReceivedSlideThumbnailUrlsByPresentation(presentation_id, prev =>
         mergeStageFPresentationThumbnailUrl(
           prev,
           presentation_id,
@@ -1851,13 +2633,22 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       )
       // Build Narration (D1): the same shared frame feeds the canvas reducer.
       buildNarrationHandlersRef.current.onSlideBuilt?.(message.payload)
+      if (studioShell) studioPartialIngressRef.current?.(message, owner)
     },
     // MDC P4 (K3): Director-confirmed new-deck handoff. Start a fresh session
     // and auto-send the captured brief (section 12-Q2 LOCKED). The send goes
     // through sendMessageWhenConnected, which waits for the fresh socket.
     onElementDirective: (payload) => {
+      if (chatStaleViewerGuardRef.current) { chatStaleViewerGuardRef.current.add(payload); return } // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: a chat add after a chat deck change lands on the slide it means, or fails honestly
       elementDirectiveRunnerRef.current?.(payload)
     },
+    // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: the refine directive's runner and the element reference of a send. Off: not passed.
+    ...(CHAT_ELEMENT_REFINE_ENABLED ? {
+      onElementRefineDirective: (message: ElementRefineDirectiveMessage, owner: ElementRefineDirectiveOwner) => {
+        elementRefineDirectiveRunnerRef.current?.(message, owner)
+      },
+      getChatElementReference: () => chatElementReferenceFor(chatElementSelectionRef.current),
+    } : {}),
     onSessionDirective: (payload) => {
       if (payload.directive !== 'new_session') return
       const prefill = (payload.prefill_prompt || '').trim()
@@ -1865,6 +2656,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       if (prefill && payload.auto_send) {
         const ts = Date.now()
         session.setUserMessages(prev => [...prev, { id: `user-nd-${ts}`, text: prefill, timestamp: ts }])
+        // NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND: the brief goes out once the NEW session's socket is open, exactly once (the hook below). Off: the send below, as before.
+        if (STUDIO_NEW_DECK_HANDOFF_SEND_ENABLED) { armNewDeckHandoffSend({ sessionId: session.currentSessionIdRef.current, text: prefill, bubbleId: `user-nd-${ts}`, options: { ...(deckIdentityRef.current ? { deckIdentity: deckIdentityRef.current } : {}) } }); return }
         // Dedupe (I-D/F1): upstream's sendMessageWhenConnected owns the
         // closed-socket case — it reconnects, waits for OPEN, then sends.
         void sendMessageWhenConnected(prefill, undefined, undefined, {
@@ -1874,15 +2667,39 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         setInputMessage(prefill)
       }
     },
+    // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT: the runner of Director's theme_directive / export_directive. Both off: not passed.
+    ...(process.env.NEXT_PUBLIC_CHAT_THEME_CHANGE === 'true' || process.env.NEXT_PUBLIC_CHAT_EXPORT === 'true' ? {
+      onThemeExportDirective: (message: ThemeExportDirectiveMessage, owner: ThemeExportDirectiveOwner) => {
+        themeExportDirectiveRunnerRef.current?.(message, owner)
+      },
+    } : {}),
+    // CHAT-ELEMENT-EDIT: the element_edit runner, and the Notes panel refresh of deck_mutation notes_updated (a window event, the narration script precedent). Off: not passed.
+    ...(CHAT_ELEMENT_EDIT_ENABLED ? { // CHAT-ELEMENT-EDIT
+      onElementEditDirective: (message: ElementEditDirectiveMessage, owner: ElementEditDirectiveOwner) => { // CHAT-ELEMENT-EDIT
+        if (chatStaleViewerGuardRef.current) { chatStaleViewerGuardRef.current.edit(message, owner); return } // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: as above, for an edit
+        elementEditDirectiveRunnerRef.current?.(message, owner) // CHAT-ELEMENT-EDIT
+      }, // CHAT-ELEMENT-EDIT
+      onNotesUpdated: (update: { presentationId: string; slideIndex: number }, owner: { isCurrent: () => boolean }) => { // CHAT-ELEMENT-EDIT
+        if (owner.isCurrent()) window.dispatchEvent(new CustomEvent(NOTES_UPDATED_EVENT, { detail: update })) // CHAT-ELEMENT-EDIT
+      }, // CHAT-ELEMENT-EDIT
+    } : {}), // CHAT-ELEMENT-EDIT
+    ...(CHAT_ELEMENT_EDIT_2_ENABLED && CHAT_ELEMENT_REFINE_ENABLED ? { getChatElementReference: () => chatElementEdit2Reference() } : {}), // CHAT-ELEMENT-EDIT-2: the reference of a send names the slide by no id (Director fills Layout's), overriding the refine option above
+    // NEXT_PUBLIC_STUDIO_JOB_LEDGER: Director's job rows (job_update, sync_response jobs) go to this tab's ledger. Off: not passed.
+    ...(STUDIO_JOB_LEDGER_ENABLED ? { onJobUpdate: studioJobLedger.onJobUpdate, onJobsSync: studioJobLedger.onJobsSync } : {}),
     // Build Narration: typed-frame ref-forwarders (WS options precede the
     // useBuildNarration hook, so the handlers land via a ref).
-    onBuildPhase: (payload) => buildNarrationHandlersRef.current.onBuildPhase?.(payload),
+    onBuildPhase: (payload, ownerSessionId) => buildNarrationHandlersRef.current.onBuildPhase?.(payload, ownerSessionId),
     onBuildEvent: (payload) => buildNarrationHandlersRef.current.onBuildEvent?.(payload),
     onBuildStateSync: (buildState) => buildNarrationHandlersRef.current.onBuildStateSync?.(buildState),
     onSlideComposeReady: (message: SlideComposeReady) => {
       const payload = message.payload
       const readyJob = slideComposeJobsRef.current[payload.job_id]
       const callbackPresentationId = payload.presentation_id ?? readyJob?.target_presentation_id
+      const isCurrentReadyOrigin = captureStudioSlideComposeOwner()
+      if (studioShell && (!isCurrentReadyOrigin() || !isPresentationCallbackCurrent({
+        callbackPresentationId,
+        livePresentationId: studioSlideComposeOwnerRef.current.presentationId,
+      }))) return
       if (!isPresentationCallbackCurrent({
         callbackPresentationId,
         livePresentationId: presentationId,
@@ -1900,12 +2717,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         })
         return
       }
-      setSlideThumbnailUrlsByPresentation(prev =>
-        mergeStageFInsertedThumbnailUrl(
+      setReceivedSlideThumbnailUrlsByPresentation(payload.presentation_id, prev =>
+        mergeStageFReadyThumbnailUrl(
           prev,
           payload.presentation_id,
           payload.slide_index,
           payload.thumbnail_url,
+          payload.kind,
         ),
       )
       const presentationKey = payload.presentation_id
@@ -1931,6 +2749,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       })
 
       void enqueueSlideComposeReconcile(presentationKey, async () => {
+        if (!isCurrentReadyOrigin()) return
         clearSlideComposePoller(payload.job_id)
         const latest = slideComposerPresentationRef.current
         const targetPresentationUrl = payload.presentation_url ?? latest.presentationUrl
@@ -1945,6 +2764,15 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         let liveSwapSucceeded = false
         const job = slideComposeJobsRef.current[payload.job_id]
         const readyKind: SlideComposeJobKind = payload.kind ?? job?.kind ?? 'compose'
+        // J2V2-REGENERATE: remember the slide this job produced (its kind and original instruction) and that the job finished.
+        if (process.env.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'true' && payload.real_slide_id) {
+          rememberAddSlideV2Generated(addSlideV2Generated, {
+            jobId: payload.job_id,
+            realSlideId: payload.real_slide_id,
+            replacedSlideId: readyKind === 'refine' ? (payload.replaced_slide_id ?? job?.target_slide_id ?? null) : null,
+            request: job?.request ?? null,
+          })
+        }
 
         if (readyKind === 'refine') {
           const requestedSlideId = typeof job?.request.slide_id === 'string' ? job.request.slide_id : null
@@ -1972,6 +2800,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                 payload.real_slide_id,
                 targetPresentationId,
               )
+              if (!isCurrentReadyOrigin()) return
               scTrace('builder.refine_reconcile.result', {
                 job_id: payload.job_id,
                 old_slide_id: replacedSlideId,
@@ -1995,6 +2824,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               }
               liveSwapSucceeded = true
             } catch (error) {
+              if (!isCurrentReadyOrigin()) return
               scTrace('builder.refine_reconcile.error', {
                 job_id: payload.job_id,
                 real_slide_id: payload.real_slide_id,
@@ -2020,8 +2850,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               }
             })
             window.setTimeout(() => {
+              if (!isCurrentReadyOrigin()) return
               void (async () => {
                 const confirmed = await confirmSlideComposeJobAfterRefresh(payload.job_id)
+                if (!isCurrentReadyOrigin()) return
                 if (!confirmed && slideComposeJobsRef.current[payload.job_id]?.status === 'building') {
                   startSlideComposePoller(payload.job_id)
                 }
@@ -2077,13 +2909,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             const updates: any = {
               slideCount: nextSlideCount,
               lastMessageAt: new Date(),
-            }
-            if (latest.activeVersion === 'strawman') {
-              updates.strawmanPreviewUrl = nextPresentationUrl
-              updates.strawmanPresentationId = targetPresentationId
-            } else {
-              updates.finalPresentationUrl = nextPresentationUrl
-              updates.finalPresentationId = targetPresentationId
+              // NEXT_PUBLIC_STUDIO_BLANK_DECK_RELOAD_FIX: on, a blank deck's count goes to the blank slots (off: strawman, else final).
+              ...deckSlotUpdates(STUDIO_BLANK_DECK_RELOAD_FIX_ENABLED, latest.activeVersion, nextPresentationUrl, targetPresentationId),
             }
             persistenceRef.current.updateMetadata(updates)
           }
@@ -2111,6 +2938,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               payload.real_slide_id,
               targetPresentationId,
             )
+            if (!isCurrentReadyOrigin()) return
             scTrace('builder.reconcile.result', {
               job_id: payload.job_id,
               input_slide_index: payloadSlideIndex,
@@ -2130,6 +2958,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             }
             liveSwapSucceeded = true
           } catch (error) {
+            if (!isCurrentReadyOrigin()) return
             scTrace('builder.reconcile.error', {
               job_id: payload.job_id,
               real_slide_id: payload.real_slide_id,
@@ -2157,8 +2986,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             }
           })
           window.setTimeout(() => {
+            if (!isCurrentReadyOrigin()) return
             void (async () => {
               const confirmed = await confirmSlideComposeJobAfterRefresh(payload.job_id)
+              if (!isCurrentReadyOrigin()) return
               if (!confirmed && slideComposeJobsRef.current[payload.job_id]?.status === 'building') {
                 startSlideComposePoller(payload.job_id)
               }
@@ -2178,17 +3009,22 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           viewerSlideCount,
         })
         const composeJob = slideComposeJobsRef.current[payload.job_id]
+        // J2 v2 (DEC-P9): the slide an Add Slide panel job was started from; null for every other job.
+        const addSlideV2Follow = addSlideV2FollowRef.current.get(payload.job_id) ?? null
+        addSlideV2FollowRef.current.delete(payload.job_id)
         const selectionRestoreVisualIndex = composeJob
           ? resolveSlideComposeSelectionAfterReady({
               currentSlideIndex: currentSlideIndexRef.current,
               jobTargetVisualIndex: composeJob.target_visual_index,
               resolvedVisualIndex,
+              followVisualIndex: addSlideV2Follow,
             })
           : currentSlideIndexRef.current
         const navigate = !!composeJob && shouldNavigateToResolvedComposeSlide({
           currentSlideIndex: currentSlideIndexRef.current,
           jobTargetVisualIndex: composeJob.target_visual_index,
           resolvedVisualIndex,
+          followVisualIndex: addSlideV2Follow,
         })
         const nextPresentationUrl = shouldUseIncomingComposePresentationUrl(
           latest.presentationUrl,
@@ -2210,7 +3046,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           selection_restore_visual_index: selectionRestoreVisualIndex,
           live_swap_succeeded: liveSwapSucceeded,
         })
-        pendingComposeSelectionRestoreRef.current = selectionRestoreVisualIndex
+        queueComposeSelectionRestore(selectionRestoreVisualIndex)
         const nextOverride = {
           presentationUrl: nextPresentationUrl ?? targetPresentationUrl ?? null,
           presentationId: targetPresentationId ?? null,
@@ -2231,13 +3067,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           const updates: any = {
             slideCount: nextSlideCount,
             lastMessageAt: new Date(),
-          }
-          if (latest.activeVersion === 'strawman') {
-            updates.strawmanPreviewUrl = nextPresentationUrl
-            updates.strawmanPresentationId = targetPresentationId
-          } else {
-            updates.finalPresentationUrl = nextPresentationUrl
-            updates.finalPresentationId = targetPresentationId
+            // NEXT_PUBLIC_STUDIO_BLANK_DECK_RELOAD_FIX: on, a blank deck's count goes to the blank slots (off: strawman, else final).
+            ...deckSlotUpdates(STUDIO_BLANK_DECK_RELOAD_FIX_ENABLED, latest.activeVersion, nextPresentationUrl, targetPresentationId),
           }
           persistenceRef.current.updateMetadata(updates)
         }
@@ -2252,6 +3083,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       const payload = message.payload
       const errors = payload.errors?.filter(Boolean) ?? []
       const failedJob = slideComposeJobsRef.current[payload.job_id]
+      if (studioShell && failedJob && (!captureStudioSlideComposeOwner()() ||
+          failedJob.request.session_id !== studioSlideComposeOwnerRef.current.sessionId ||
+          (studioSlideComposeOwnerRef.current.presentationId && failedJob.target_presentation_id !== studioSlideComposeOwnerRef.current.presentationId))) return
       if (failedJob && !isPresentationCallbackCurrent({
         callbackPresentationId: failedJob.target_presentation_id,
         livePresentationId: presentationId,
@@ -2274,6 +3108,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       clearSlideComposeWatchdog(payload.job_id)
       clearSlideComposePoller(payload.job_id)
       if (failedKind === 'refine') {
+        if (process.env.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'true') rememberAddSlideV2Failed(addSlideV2Generated, payload.job_id, errors[0] ?? (payload.stage ? `Failed during ${payload.stage}.` : undefined))
         void composeViewerApiRef.current?.refineOverlayClear(payload.job_id).catch(error => {
           console.warn('[Slide Composer] Failed to clear refine overlay after error.', error)
         })
@@ -2330,9 +3165,29 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     },
   })
 
+  // MULTITAB J1 P1b (NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB, default off; lib/studio-one-live-tab.ts): Director keeps one live socket per
+  // session and closed this tab's because the session was opened in another tab. The hook then reconnects nothing (no timer, no
+  // ping, no set_theme); this tab is paused until the user takes the session back with "Use here" (the hook's explicit connect call).
+  // Always false with the flag off: the hook never reports `superseded` then.
+  const oneLiveTabSuperseded = isTabSuperseded(STUDIO_ONE_LIVE_TAB_ENABLED, reconnectStatus)
+
   const quota = useQuota(tokenUsage, tokenUsageMessageId ?? undefined)
   const [topUpOpen, setTopUpOpen] = useState(false)
   const [topUpReason, setTopUpReason] = useState<string | undefined>(undefined)
+  // Blocked-send feedback (flag NEXT_PUBLIC_STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED,
+  // default off): a send refused before it leaves also posts ONE client-only
+  // notice at the end of the chat. Never sent to the Director, never persisted;
+  // the draft is untouched (a refusal never cleared it).
+  const [blockedSendNotice, setBlockedSendNotice] = useState<BlockedSendNotice | null>(null)
+  const blockedSendNoticeRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED) setBlockedSendNotice(null)
+  }, [currentSessionId, wsSessionId])
+  useEffect(() => {
+    if (STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED && blockedSendNotice) {
+      blockedSendNoticeRef.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+    }
+  }, [blockedSendNotice?.id])
   const effectiveBuildNarrationEnabled = effectiveNarrationEnabled(
     features.buildNarrationEnabled,
     Boolean(activeTemplate),
@@ -2374,8 +3229,23 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     isGeneratingFinal,
     isGeneratingStrawman,
     finalPresentationUrl,
-    // Snapshot hydration already refuses inactive/complete states, so a
-    // restored finished session can never resurrect the canvas.
+    finalPresentationId,
+    // Durable final identity fences outline/history replay without suppressing
+    // a distinct newer typed build or its recovery controls.
+    // J7-RESUME-LOOP-P1 (NEXT_PUBLIC_STUDIO_BUILD_RESUME_FIX, default off): the URL Director sends after a Stop
+    // no longer ends the stopped build, so Resume stays.
+    keepStoppedOnFinalUrl: process.env.NEXT_PUBLIC_STUDIO_BUILD_RESUME_FIX === 'true',
+    endUnbackedBuild: process.env.NEXT_PUBLIC_STUDIO_BUILD_FAILURE_END === 'true', // BUILD-FAILURE-END (default off): a status-only "building" ends when Director's turn closes with a chat message and no build frame
+  })
+
+  const { showOutlinePreview, onNativeBuildPhase, cancelOutlinePreview } = useStudioOutlinePreview({
+    enabled: studioShell && effectiveBuildNarrationEnabled,
+    sessionId: currentSessionId,
+    buildId: buildNarration.buildId,
+    phase: buildNarration.phase,
+    slidesDone: buildNarration.slidesDone,
+    activeVersion,
+    templateModeOn,
   })
 
   // Route typed narration frames from the WS hook into the reducer. With the
@@ -2384,13 +3254,16 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   useEffect(() => {
     buildNarrationHandlersRef.current = effectiveBuildNarrationEnabled
       ? {
-          onBuildPhase: narrationOnBuildPhase,
+          onBuildPhase: (payload, ownerSessionId) => {
+            narrationOnBuildPhase(payload)
+            onNativeBuildPhase(payload, ownerSessionId ?? null)
+          },
           onBuildEvent: narrationOnBuildEvent,
           onSlideBuilt: narrationOnSlideBuilt,
           onBuildStateSync: narrationSyncBuildState,
       }
       : {}
-  }, [effectiveBuildNarrationEnabled, narrationOnBuildPhase, narrationOnBuildEvent, narrationOnSlideBuilt, narrationSyncBuildState])
+  }, [effectiveBuildNarrationEnabled, narrationOnBuildPhase, onNativeBuildPhase, narrationOnBuildEvent, narrationOnSlideBuilt, narrationSyncBuildState])
 
   const directorOwnedPresentation = useMemo(
     () => resolveEffectivePresentation({
@@ -2401,37 +3274,242 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     }),
     [presentationId, presentationUrl, slideComposerOverride, slideCount],
   )
+  // Display ownership excludes the presentation ID: admitting B must not
+  // retire its own logical session merely because A was previously selected.
+  const studioPartialScopeKey = JSON.stringify([authScopeUserId, user?.id, currentSessionId,
+    wsSessionId, searchParams.get('session_id'), templateModeOn, templateModeSourcePresentationId])
+  if (studioPartialScopeRef.current?.key !== studioPartialScopeKey) {
+    const scope = {}
+    const authority: StudioPartialStageAuthority = {
+      scope, userId: authScopeUserId, sessionId: currentSessionId || wsSessionId || '',
+      isCurrent: () => studioPartialMountedRef.current
+        && studioPartialScopeRef.current?.authority === authority,
+    }
+    studioPartialScopeRef.current = { key: studioPartialScopeKey, authority }
+  }
+  const studioPartialAuthority = studioPartialScopeRef.current.authority
+  if (studioPartialCandidatesRef.current?.scope !== studioPartialAuthority.scope) {
+    studioPartialCandidatesRef.current = { scope: studioPartialAuthority.scope, receipts: new Map() }
+  }
+  for (const retired of buildNarration.retiredBuildIds) studioPartialCandidatesRef.current.receipts.delete(retired)
+  studioPartialCandidateRef.current = buildNarration.buildId
+    ? studioPartialCandidatesRef.current.receipts.get(buildNarration.buildId) ?? null : null
+  const studioPartialDisplayInput = {
+    authority: studioPartialAuthority, assignment: studioPartialAssignmentRef.current,
+    buildId: buildNarration.buildId, buildPresentationId: buildNarration.buildPresentationId,
+    phase: buildNarration.phase, narrationEnabled: studioShell && effectiveBuildNarrationEnabled,
+    templateOverride: Boolean(templateModeOn || templateModeSourcePresentationUrl),
+    viewerUrlAllowed: !LAYOUT_URL_CONFIG_ERROR && Boolean(buildNarration.buildPresentationId
+      && evaluateLayoutViewerUrl(getPresentationViewerUrl(buildNarration.buildPresentationId), LAYOUT_VIEWER_URL_POLICY).status === 'allowed'),
+    versionIntent: studioPartialVersionIntentRef.current,
+  }
+  const studioPartialHeld = Boolean(studioShell && studioPartialDisplayed
+    && studioPartialDisplayInput.assignment
+    && isStudioSettledPartialStageCurrent(studioPartialDisplayed, {
+      ...studioPartialDisplayInput, assignment: studioPartialDisplayInput.assignment,
+      viewerUrlAllowed: !LAYOUT_URL_CONFIG_ERROR
+        && evaluateLayoutViewerUrl(getPresentationViewerUrl(studioPartialDisplayed.presentationId), LAYOUT_VIEWER_URL_POLICY).status === 'allowed',
+    }))
   // Canvas v2 R3 (amends D11): the stage always shows the real artifact. The
   // strawman shows AS a deck (with narration chrome around it), and from the
   // first slide_built the center swaps to the FILLING final deck, addressed by
   // the id the typed frames carry — long before the official presentation_url.
-  const narrationCenterStage = centerStageFor({
+  const legacyNarrationCenterStage = centerStageFor({
     narrationEnabled: effectiveBuildNarrationEnabled,
     templateOverride: Boolean(templateModeSourcePresentationUrl),
     phase: buildNarration.phase,
     buildPresentationId: buildNarration.buildPresentationId,
     finalPresentationUrl,
   })
+  // Studio uses a private admitted target. Classic retains its exact existing
+  // center-stage policy; raw narration/history is never display authority here.
+  const narrationCenterStage = studioShell
+    ? (studioPartialHeld && !(studioPartialDisplayed!.presentationId === directorOwnedPresentation.presentationId
+      && finalPresentationId === studioPartialDisplayed!.presentationId && activeVersion === 'final'
+      && finalPresentationUrl && finalPresentationUrl === directorOwnedPresentation.presentationUrl)
+      ? 'final_fill' : 'default')
+    : legacyNarrationCenterStage
+  const studioPartialTargetId = studioPartialHeld ? studioPartialDisplayed!.presentationId : null
   const effectivePresentationId = narrationCenterStage === 'final_fill'
-    ? buildNarration.buildPresentationId
+    ? (studioShell ? studioPartialTargetId : buildNarration.buildPresentationId)
     : (templateModeSourcePresentationId ?? directorOwnedPresentation.presentationId)
   const effectiveSlideCount = templateModeSourcePresentationId
     ? slideCount
-    : directorOwnedPresentation.slideCount
+    : studioShell && narrationCenterStage === 'final_fill'
+      ? (studioPartialNativeIndex?.presentationId === effectivePresentationId
+        && studioPartialNativeIndex.owner === studioSlideComposeOwnerRef.current
+        && studioPartialNativeIndex.isFrameCurrent() ? studioPartialNativeIndex.count : null)
+      : directorOwnedPresentation.slideCount
   const effectivePresentationUrl = useMemo(
     () => {
-      if (narrationCenterStage === 'final_fill' && buildNarration.buildPresentationId) {
-        // Same /p/{id} formula the Director uses for the official URL, so the
-        // final presentation_url handoff does not remount the iframe.
-        return getPresentationViewerUrl(buildNarration.buildPresentationId)
+      const fillingId = studioShell ? studioPartialTargetId : buildNarration.buildPresentationId
+      if (narrationCenterStage === 'final_fill' && fillingId) {
+        // Keep Director's canonical /p/{id}; the viewer separately admits a
+        // completed snapshot refresh when this mounted build frame is stale.
+        return LAYOUT_URL_CONFIG_ERROR ? null : getPresentationViewerUrl(fillingId)
       }
       return withSlideComposerRefreshToken(
         templateModeSourcePresentationUrl ?? directorOwnedPresentation.presentationUrl,
         templateModeSourcePresentationId ? 0 : directorOwnedPresentation.refreshToken,
       )
     },
-    [directorOwnedPresentation, templateModeSourcePresentationId, templateModeSourcePresentationUrl, narrationCenterStage, buildNarration.buildPresentationId],
+    [directorOwnedPresentation, templateModeSourcePresentationId, templateModeSourcePresentationUrl, narrationCenterStage, buildNarration.buildPresentationId, studioShell, studioPartialTargetId],
   )
+  const studioPartialMetadata = studioShell && narrationCenterStage === 'final_fill'
+  const effectiveSlideStructure = studioPartialMetadata ? null : slideStructure
+  const effectiveActiveVersion = studioPartialMetadata ? 'final' : activeVersion
+  const effectiveIsBlankPresentation = studioPartialMetadata ? false : isBlankPresentation
+  // MULTITAB J2 P1 (flag NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE, default off): "This deck changed in another tab". Reload deck is the
+  // deck-mutation reload that already exists (a new refresh token on the viewer URL + the rail's inventory re-read); it runs only on the
+  // user's click. Off: the hook creates no channel, listener or request and the notice renders nothing.
+  const reloadDeckFromOtherTab = useCallback(() => {
+    const displayed = slideComposerPresentationRef.current
+    const reloadPresentationId = displayed.presentationId
+    if (!reloadPresentationId) return
+    const override = {
+      presentationUrl: displayed.presentationUrl ?? presentationUrl,
+      presentationId: reloadPresentationId,
+      slideCount: displayed.slideCount,
+      refreshToken: Math.max(Date.now(), displayed.refreshToken + 1),
+    }
+    slideComposerPresentationRef.current = { ...displayed, ...override }
+    setSlideComposerOverride(override)
+    requestSlideRailRefresh(reloadPresentationId)
+  }, [presentationUrl])
+  const deckChangedNotice = useDeckChangedNotice({
+    enabled: STUDIO_DECK_CHANGED_NOTICE_ENABLED && studioShell && !studioPartialMetadata && !templateModeOn && !isGeneratingFinal && !isGeneratingStrawman,
+    sessionId: currentSessionId || wsSessionId,
+    presentationId: effectivePresentationId,
+    onReload: reloadDeckFromOtherTab,
+    connectionGeneration, // P3-4 NEXT_PUBLIC_STUDIO_RECONNECT_RESYNC: a reconnect resyncs the shown deck (the hook ignores it with the flag off)
+  })
+  // Applying a theme changes the shared deck: tell the other tabs once Director confirms it (the theme sync turns applied, within a minute
+  // of the pick). Only a theme picked here counts: the connect-time sync, a restored theme or another tab's pick never stamp a pick.
+  useEffect(() => {
+    // handleBuildThemeChange (the user's pick) raises themeSelectionChangedLocallyRef before it sets the selection; a restore never does.
+    if (!STUDIO_DECK_CHANGED_NOTICE_ENABLED || !themeSelectionChangedLocallyRef.current) return
+    themePickedAtRef.current = Date.now()
+  }, [buildThemeSelection])
+  useEffect(() => {
+    if (!STUDIO_DECK_CHANGED_NOTICE_ENABLED) return
+    const decision = themeAnnounceDecision(themePickedAtRef.current, Date.now(), themeSync)
+    if (decision === 'wait') return
+    themePickedAtRef.current = null
+    if (decision === 'announce') reportDeckChange('theme')
+  }, [themeSync.status, themeSync.requestId])
+  // PASS2 composer copy (flag NEXT_PUBLIC_STUDIO_COMPOSER_COPY, default off): the composer placeholder asks "is a deck open?" the same
+  // way the transcript does (MessageList presentationContext below). Read only for wording; undefined unless the flag is on.
+  const studioComposerDeckOpen = studioShell && process.env.NEXT_PUBLIC_STUDIO_COMPOSER_COPY === 'true'
+    ? Boolean(effectivePresentationUrl && (!isBlankPresentation || (slideStructure?.slides ?? []).length > 0))
+    : undefined
+
+  // Retire continuations on navigation/version intent, even if the same deck
+  // is selected again. Counts and composer refreshes keep the current owner.
+  const studioSlideComposeOwnerKey = JSON.stringify([
+    currentSessionId || wsSessionId,
+    authScopeUserId,
+    searchParams.get('session_id'),
+    effectivePresentationId,
+    effectiveActiveVersion,
+    templateModeOn,
+  ])
+  if (studioSlideComposeOwnerRef.current.key !== studioSlideComposeOwnerKey) {
+    studioSlideComposeOwnerRef.current = {
+      key: studioSlideComposeOwnerKey,
+      sessionId: currentSessionId || wsSessionId,
+      presentationId: effectivePresentationId,
+      activeVersion: effectiveActiveVersion,
+    }
+  }
+  if (studioShell && effectivePresentationId && effectiveSlideCount !== null) {
+    studioSlideComposeCountsRef.current[effectivePresentationId] = effectiveSlideCount
+  }
+  // Canonical selection excludes composer refresh tokens; private initial-stage
+  // proof below permits only an explicitly verified fresh route adoption.
+  const studioInitialSelectedTarget: StudioInitialStageTarget = {
+    owner: studioSlideComposeOwnerRef.current,
+    presentationId: effectivePresentationId,
+    presentationUrl: narrationCenterStage === 'final_fill' ? effectivePresentationUrl
+      : templateModeSourcePresentationUrl ?? directorOwnedPresentation.presentationUrl,
+    activeVersion: effectiveActiveVersion,
+  }
+
+
+  const studioCanvasLifecycle = classifyStudioCanvasLifecycle({
+    displayedSessionId: currentSessionId || wsSessionId,
+    deckOwnerSessionId,
+    selected: {
+      presentationId: effectivePresentationId,
+      presentationUrl: narrationCenterStage === 'final_fill'
+        ? effectivePresentationUrl
+        : templateModeSourcePresentationUrl ?? directorOwnedPresentation.presentationUrl,
+      activeVersion: effectiveActiveVersion,
+      slideCount: effectiveSlideCount,
+    },
+    finalPresentationId,
+    finalPresentationUrl,
+    hasAuthoredStructure: (effectiveSlideStructure?.slides ?? []).length > 0,
+    // Session loading has its own exclusive canvas branch below.
+    loading: false,
+    generating: isGeneratingFinal || isGeneratingStrawman,
+    phase: buildNarration.active ? buildNarration.phase : 'idle',
+    dismissed: blankPlaceholderDismissed,
+    connected,
+    connecting,
+  })
+  const studioWelcome = studioShell && !studioPartialMetadata && studioCanvasLifecycle.showLanding
+  // NEXT_PUBLIC_STUDIO_VERSION_HISTORY_DECK_ONLY (default off): while the welcome is on stage no deck is, so the profile menu's Version history row waits for one.
+  useStudioVersionHistoryDeckOnly(studioWelcome)
+  // The blank-canvas choice. One handler for the stage's own button and, with NEXT_PUBLIC_STUDIO_FIRST_RUN_V2, the first-run welcome's.
+  const handleDismissBlankPlaceholder = () => {
+    if (studioShell && studioSlideComposeOwnerRef.current !== studioInitialSelectedTarget.owner) return
+    studioExplicitBlankOwnerRef.current = studioInitialSelectedTarget.owner
+    setBlankPlaceholderDismissed(true)
+  }
+  // NEXT_PUBLIC_STUDIO_BLANK_START_NEW_SESSION (default off): a reload keeps a started blank canvas, and the first-run "Start on a blank
+  // canvas" on a session that already holds a started deck opens a new session instead of revealing that deck (hooks/use-studio-blank-start.ts).
+  const handleStartOnBlankCanvas = useStudioBlankStart({
+    enabled: STUDIO_BLANK_START_NEW_SESSION_ENABLED && studioShell,
+    ownerId: builderCacheOwner,
+    sessionId: currentSessionId,
+    unsavedSession: isUnsavedSession,
+    dismissed: blankPlaceholderDismissed,
+    setDismissed: setBlankPlaceholderDismissed,
+    hasOwnedSelection: studioCanvasLifecycle.hasOwnedSelection,
+    showLanding: studioCanvasLifecycle.showLanding,
+    hasRealDeck: studioCanvasLifecycle.hasGeneratedDeck || studioCanvasLifecycle.hasAuthoredDeck,
+    dismiss: handleDismissBlankPlaceholder,
+    startNewSession: () => handleNewChatWrappedRef.current?.(),
+  })
+  const studioChatWidthStage = studioChatStage({ welcome: studioWelcome, mode: studioCanvasLifecycle.mode })
+  const workspaceLayout = allocateStudioWorkspace({
+    width: studioOverlayWorkspace ? workspaceInnerWidth : workspaceWidth,
+    chatPreference: studioChatPreference({ saved: chatWidth, enabled: STUDIO_CHAT_WIDTH_V2_ENABLED && studioShell, stage: studioChatWidthStage,
+      width: workspaceWidth, inspectorOpen: Boolean(activeInspector) }),
+    inspectorPreference: drawerWidth,
+    chatOpen: studioWorkspaceChatOpen,
+    inspectorOpen: Boolean(activeInspector),
+    inspectorCollapsed: activeInspector === 'template' && templateParamsCollapsed,
+    collapsedWidth: TEMPLATE_PANEL_COLLAPSED_WIDTH,
+    activePane: workspacePane,
+    overlay: studioOverlayWorkspace,
+    // Fullscreen owns the foreground; newly opened native panes resume on exit.
+    stageSelected: studioStageSelected || studioViewerFullscreen,
+  })
+  const studioCanvasCovered = studioOverlayWorkspace && !studioViewerFullscreen && (workspaceLayout.chatVisible || (workspaceLayout.inspectorVisible && !(activeInspector === 'template' && templateParamsCollapsed)))
+  const inspectorIsVisible = (inspector: StudioInspector) => workspaceLayout.inspectorVisible && activeInspector === inspector
+  const studioElementVisible = inspectorIsVisible('element')
+  const studioSlideVisible = inspectorIsVisible('slide')
+  const studioTemplateVisible = inspectorIsVisible('template')
+  // PASS2B G02 (flag NEXT_PUBLIC_STUDIO_WELCOME_POLISH, default off): no collapsed Slide edge tab on the welcome screen or over the outline.
+  const studioSlideTabHidden = studioShell && studioSlideEdgeTabHidden({
+    enabled: process.env.NEXT_PUBLIC_STUDIO_WELCOME_POLISH === 'true', panelOpen: isSlideDrawerOpen || studioSlideVisible,
+    landing: studioWelcome, builtDeck: studioCanvasLifecycle.hasGeneratedDeck, activeVersion: effectiveActiveVersion,
+  })
+  const studioInspectorWidth = workspaceLayout.inspectorWidth
+  const studioChatWidth = workspaceLayout.chatWidth
+  const showStudioInspectorTabs = availableInspectors.length > 1 && !(activeInspector === 'template' && templateParamsCollapsed)
+
 
   const composerThemeBlocked = composerThemeSyncBlocked(composerLibraryEnabled,
     { composerAdoption, composerThemeResolved }, effectivePresentationId)
@@ -2543,7 +3621,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     return { ok: true, requestId, themeFingerprint }
   }, [clearThemeSyncTimeout, commitThemeSync, sendThemeSelection])
 
-  const ensureThemeReady = useCallback(async (targetPresentationId: string) => {
+  const ensureThemeReady = useCallback(async (targetPresentationId: string, retry?: ElementThemePreflightRetry) => {
     if (themeSyncTargetRef.current.composerThemeBlocked) {
       return { ready: false, code: 'failed', error: themeSyncTargetRef.current.composerThemeFrozen
         ? 'This template keeps its stored source theme.'
@@ -2564,12 +3642,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       return { ready: true, sync: current, source: 'director' } as const
     }
 
-    // A theme selected locally while Director is disconnected has not reached
-    // Layout yet. Do not render against the previously persisted palette (or
-    // neutral fallback) and silently misrepresent the user's new selection.
+    // A theme selected locally while Director is disconnected or has refused
+    // the change has not reached Layout yet. Do not render against the previously
+    // persisted palette (or neutral fallback) and silently misrepresent the user's new selection.
     if (
       current.status === 'failed'
-      && current.requestId === null
+      && (current.requestId === null || (studioShell && themeSelectionChangedLocallyRef.current))
       && current.presentationId === targetPresentationId
       && current.themeFingerprint === desiredFingerprint
     ) {
@@ -2579,6 +3657,31 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         error: current.error
           || 'This theme selection is pending. Reconnect so Director can apply it before generating themed elements.',
       } as const
+    }
+
+    // Only an explicit Retry of this failed handshake may request fresh
+    // authority. Existing local-theme/composer/template guards still apply.
+    if (
+      process.env.NEXT_PUBLIC_ELEMENT_THEME_PREFLIGHT_RECOVERY_ENABLED === 'true'
+      && retry
+      && retry.presentationId === targetPresentationId
+      && retry.themeFingerprint === desiredFingerprint
+      && current.presentationId === retry.presentationId
+      && current.themeFingerprint === retry.themeFingerprint
+      && current.requestId === retry.requestId
+      && current.status === 'failed'
+    ) {
+      const requested = requestThemeSyncForPresentation(targetPresentationId)
+      if (!requested.ok) return { ready: false, code: requested.code, error: requested.error } as const
+      return waitForAuthoritativeTheme({
+        presentationId: targetPresentationId,
+        themeFingerprint: desiredFingerprint,
+        getSyncState: getThemeSyncSnapshot,
+        isConnected: () => themeSyncTargetRef.current.isReady,
+        requestSync: requestThemeSyncForPresentation,
+        timeoutMs: THEME_SYNC_TIMEOUT_MS,
+        captureFailureSync: true,
+      })
     }
 
     // A theme mutation already accepted by Director must finish (or fail)
@@ -2614,12 +3717,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         isConnected: () => themeSyncTargetRef.current.isReady,
         requestSync: requestThemeSyncForPresentation,
         timeoutMs: THEME_SYNC_TIMEOUT_MS,
+        captureFailureSync: process.env.NEXT_PUBLIC_ELEMENT_THEME_PREFLIGHT_RECOVERY_ENABLED === 'true',
       })
     }
 
     const persisted = await probePersistedPresentationTheme({
       presentationId: targetPresentationId,
-      layoutServiceUrl: LAYOUT_SERVICE_URL,
+      layoutServiceUrl: getLayoutServiceUrl(),
     })
     return {
       ready: true,
@@ -2631,7 +3735,19 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       sync: persistedThemeSync(targetPresentationId, persisted.source, desiredFingerprint),
       ...(persisted.notice ? { notice: persisted.notice } : {}),
     } as const
-  }, [getThemeSyncSnapshot, requestThemeSyncForPresentation])
+  }, [studioShell, getThemeSyncSnapshot, requestThemeSyncForPresentation])
+
+  // THEME-RESET-ON-RECONNECT-P1 (NEXT_PUBLIC_STUDIO_THEME_RESTORE): the restore gate belongs to the displayed session and
+  // the current socket. A socket that is not ready (dropped, or not yet open) and a session change start a fresh gate, so
+  // the next socket waits for its own restore. Declared before the deck-theme effect so that, in one commit, it runs first.
+  const themeRestoreSession = currentSessionId || wsSessionId || null
+  themeRestoreSessionRef.current = themeRestoreSession
+  useEffect(() => {
+    if (process.env.NEXT_PUBLIC_STUDIO_THEME_RESTORE !== 'true') return
+    const gate = themeRestoreGateRef.current
+    if (isReady ? gate.sessionId === themeRestoreSession : isFreshThemeRestoreGate(gate, themeRestoreSession)) return
+    commitThemeRestoreGate(themeRestoreGateFor(themeRestoreSession))
+  }, [commitThemeRestoreGate, isReady, themeRestoreSession])
 
   useEffect(() => {
     if (composerThemeBlocked) {
@@ -2692,6 +3808,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       return
     }
 
+    // THEME-RESET-ON-RECONNECT-P1 (flag read inline, as in onMessage): no socket-ready set_theme until this socket's
+    // restore (nothing to send then) or the fallback (today's sync) has arrived; a real user pick always goes through.
+    if (
+      process.env.NEXT_PUBLIC_STUDIO_THEME_RESTORE === 'true'
+      && themeRestoreHoldsSocketSync(themeRestoreGateRef.current, themeRestoreSessionRef.current, themeSelectionChangedLocallyRef.current)
+    ) return
     requestThemeSyncForPresentation(effectivePresentationId)
   }, [
     buildThemeSelection,
@@ -2702,6 +3824,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     requestThemeSyncForPresentation,
     templateModeOn,
     composerThemeBlocked,
+    // Flag on: re-run when the gate opens (the fallback runs today's sync). Off: a constant, so nothing re-runs.
+    process.env.NEXT_PUBLIC_STUDIO_THEME_RESTORE === 'true' ? themeRestoreGate : null,
   ])
 
   useEffect(() => clearThemeSyncTimeout, [clearThemeSyncTimeout])
@@ -2724,7 +3848,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     slideComposerOverride,
   ])
   const templateSavePresentationId = useMemo(() => {
-    if (templateModeOn || activeVersion !== 'final') return null
+    if (studioPartialMetadata || templateModeOn || activeVersion !== 'final') return null
     return finalPresentationId
       ?? effectivePresentationId
       ?? extractPresentationIdFromViewerUrl(finalPresentationUrl)
@@ -2736,15 +3860,16 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     finalPresentationId,
     finalPresentationUrl,
     templateModeOn,
+    studioPartialMetadata,
   ])
 
   useEffect(() => {
     slideComposerPresentationRef.current = {
-      presentationUrl: directorOwnedPresentation.presentationUrl,
+      presentationUrl: studioPartialMetadata ? effectivePresentationUrl : directorOwnedPresentation.presentationUrl,
       presentationId: effectivePresentationId,
       slideCount: effectiveSlideCount,
-      activeVersion,
-      refreshToken: directorOwnedPresentation.refreshToken,
+      activeVersion: effectiveActiveVersion,
+      refreshToken: studioPartialMetadata ? 0 : directorOwnedPresentation.refreshToken,
     }
   }, [
     activeVersion,
@@ -2752,10 +3877,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     directorOwnedPresentation.refreshToken,
     effectivePresentationId,
     effectiveSlideCount,
+    effectivePresentationUrl,
+    effectiveActiveVersion,
+    studioPartialMetadata,
   ])
 
   useEffect(() => {
-    if (templateModeOn || !effectivePresentationId || !presentationUrl) return
+    if (studioPartialMetadata || templateModeOn || !effectivePresentationId || !presentationUrl) return
 
     const localSlideCount = Math.max(0, effectiveSlideCount ?? 0)
     const reconcileKey = `${effectivePresentationId}:${localSlideCount}`
@@ -2789,19 +3917,16 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       }
       setSlideComposerOverride(nextOverride)
 
-      if (currentSessionIdRef.current && persistenceRef.current) {
+      // NEXT_PUBLIC_STUDIO_BLANK_DECK_RELOAD_FIX: on, Director's untouched one-slide blank deck is never saved as the session's deck.
+      if (currentSessionIdRef.current && persistenceRef.current
+        && shouldPersistLayoutCount(STUDIO_BLANK_DECK_RELOAD_FIX_ENABLED, activeVersion, presentation.slideCount)) {
         const updates: any = {
           slideCount: presentation.slideCount,
           lastMessageAt: new Date(),
+          // NEXT_PUBLIC_STUDIO_BLANK_DECK_RELOAD_FIX: on, a blank deck's count goes to the blank slots (off: strawman, else final).
+          ...deckSlotUpdates(STUDIO_BLANK_DECK_RELOAD_FIX_ENABLED, activeVersion, nextPresentationUrl, effectivePresentationId),
         }
-        if (activeVersion === 'strawman') {
-          updates.strawmanPreviewUrl = nextPresentationUrl
-          updates.strawmanPresentationId = effectivePresentationId
-        } else {
-          updates.finalPresentationUrl = nextPresentationUrl
-          updates.finalPresentationId = effectivePresentationId
-        }
-        persistenceRef.current.updateMetadata(updates)
+        persistenceRef.current.updateMetadata(updates, { passive: true }) // NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: the page's own count reconcile
       }
     })()
 
@@ -2815,9 +3940,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     fetchSlideComposePresentationSnapshot,
     presentationUrl,
     templateModeOn,
+    studioPartialMetadata,
   ])
 
   const currentSlideLayout = useMemo<SlideLayoutType | undefined>(() => {
+    if (studioPartialMetadata) return undefined
     const ctx = slideContextByIndex?.[selectedLayoutSlideIndex]
     if (!ctx) return undefined
 
@@ -2836,93 +3963,42 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     if (contentType === 'infographic') return 'C4-infographic'
     if (contentType?.startsWith('diagram') || diagramSubtype) return 'C5-diagram'
     return 'C1-text'
-  }, [selectedLayoutSlideIndex, slideContextByIndex])
+  }, [selectedLayoutSlideIndex, slideContextByIndex, studioPartialMetadata])
 
-  const handleSlideComposerBuilt = useCallback((result: SlideComposeBuiltResult) => {
-    const nextSlideIndex = Math.max(0, result.slide_index)
-    const targetPresentationId = result.presentation_id
-    if (!isPresentationCallbackCurrent({
-      callbackPresentationId: targetPresentationId,
-      livePresentationId: presentationId,
-    })) {
-      scTrace('builder.http.slide_built.ignored_stale', {
-        callback_presentation_id: targetPresentationId,
-        live_presentation_id: presentationId,
-      })
-      return
-    }
-    const targetPresentationUrl = result.presentation_url ?? slideComposerOverride?.presentationUrl ?? presentationUrl
-    const existingDeck = !!effectivePresentationId && targetPresentationId === effectivePresentationId
-    const baseSlideCount = effectiveSlideCount ?? 0
-    const nextSlideCount = Math.max(
-      existingDeck ? baseSlideCount + 1 : (result.slides_built ?? 1),
-      nextSlideIndex + 1,
-    )
-
-    setSlideComposerOverride({
-      presentationUrl: targetPresentationUrl ?? null,
-      presentationId: targetPresentationId,
-      slideCount: nextSlideCount,
-      refreshToken: Date.now(),
-    })
-    setCurrentSlideIndex(nextSlideIndex)
-    setSelectedLayoutSlideIndex(nextSlideIndex)
-
-    if (persistence) {
-      const updates: any = {
-        slideCount: nextSlideCount,
-        lastMessageAt: new Date(),
-      }
-
-      if (activeVersion === 'strawman') {
-        updates.strawmanPreviewUrl = targetPresentationUrl
-        updates.strawmanPresentationId = targetPresentationId
-      } else {
-        updates.finalPresentationUrl = targetPresentationUrl
-        updates.finalPresentationId = targetPresentationId
-      }
-
-      persistence.updateMetadata(updates)
-    }
-
-    toast({
-      title: 'Slide built',
-      description: `Inserted slide ${nextSlideIndex + 1}.`,
-    })
-  }, [
-    activeVersion,
-    effectivePresentationId,
-    effectiveSlideCount,
-    persistence,
-    presentationId,
-    presentationUrl,
-    slideComposerOverride?.presentationUrl,
-    toast,
-  ])
 
   const handleComposeApiReady = useCallback((apis: SlideComposeViewerApi | null) => {
+    const isCurrentOwner = captureStudioSlideComposeOwner()
     composeViewerApiRef.current = apis
+    const attempt = {}
+    composeSelectionAttemptRef.current = attempt
     scTrace('builder.compose_api.ready', {
       ready: !!apis,
       queued_placeholders: pendingComposePlaceholdersRef.current.size,
     })
     if (!apis) return
+    const syncTarget = studioSyncPendingRef.current
+    if (studioShell && syncTarget) void restoreStudioSyncSelection(apis, syncTarget, attempt)
 
-    const selectionRestoreVisualIndex = pendingComposeSelectionRestoreRef.current
-    if (selectionRestoreVisualIndex !== null) {
-      pendingComposeSelectionRestoreRef.current = null
+    const selectionRestoreTarget = pendingComposeSelectionRestoreRef.current
+    if (selectionRestoreTarget !== null) {
+      const selectionRestoreVisualIndex = selectionRestoreTarget.visualIndex
+      const isCurrent = () => composeSelectionAttemptRef.current === attempt
+        && composeViewerApiRef.current === apis && pendingComposeSelectionRestoreRef.current === selectionRestoreTarget
+        && isCurrentOwner() && selectionRestoreTarget.isCurrentOwner()
       scTrace('builder.selection_restore.requested', {
         visual_index: selectionRestoreVisualIndex,
       })
-      void apis.composeGoToVisualIndex(selectionRestoreVisualIndex)
+      void apis.composeGoToVisualIndex(selectionRestoreVisualIndex, { isCurrent })
         .then(result => {
+          if (!isCurrent()) return
+          pendingComposeSelectionRestoreRef.current = null
           scTrace('builder.selection_restore.applied', {
             visual_index: selectionRestoreVisualIndex,
             result,
           })
         })
         .catch(error => {
-          pendingComposeSelectionRestoreRef.current = selectionRestoreVisualIndex
+          if (!isCurrent()) return
           console.warn('[Slide Composer] Failed to restore the selected slide after refresh.', error)
         })
     }
@@ -2930,12 +4006,21 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     const queued = Array.from(pendingComposePlaceholdersRef.current.values())
     pendingComposePlaceholdersRef.current.clear()
     queued.forEach(item => {
+      const queuedJob = slideComposeJobsRef.current[item.jobId]
+      if (studioShell && (!isCurrentOwner() ||
+          (item.sessionId ?? queuedJob?.request.session_id) !== questionSubmissionScopeRef.current.sessionId ||
+          (studioSlideComposeOwnerRef.current.presentationId &&
+            (item.presentationId ?? queuedJob?.target_presentation_id) !== studioSlideComposeOwnerRef.current.presentationId))) {
+        pendingComposePlaceholdersRef.current.set(item.jobId, item)
+        return
+      }
       if (item.kind === 'refine') {
         if (!item.slideId) {
           console.warn('[Slide Composer] Cannot flush refine overlay without a slide id.', item)
           return
         }
         void apis.refineOverlayMark(item.jobId, item.slideId).catch(error => {
+          if (studioShell && !isCurrentOwner()) return
           console.warn('[Slide Composer] Failed to flush queued refine overlay.', error)
           pendingComposePlaceholdersRef.current.set(item.jobId, item)
         })
@@ -2944,21 +4029,203 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
       if (typeof item.visualIndex !== 'number') return
       void apis.composePlaceholderAdd(item.jobId, item.visualIndex, item.replaceJobId).catch(error => {
+        if (studioShell && !isCurrentOwner()) return
         console.warn('[Slide Composer] Failed to flush queued in-deck placeholder.', error)
         pendingComposePlaceholdersRef.current.set(item.jobId, item)
       })
     })
-  }, [])
+  }, [studioShell])
+
+  // J2-F7 (flag NEXT_PUBLIC_STUDIO_GOTO_NEW_SLIDE_ENABLED): the reloaded viewer starts on slide 1 and the
+  // identity restore had no context to run from (the viewer was in edit mode or unsaved when Generate
+  // was clicked). Read the viewer's own slide order and go to the inserted slide through the verified
+  // go-to path. A user move, a newer request, or a changed deck retires it (sameRequest).
+  async function goToNewSlideAfterSync(apis: SlideComposeViewerApi, pending: StudioSyncPendingSelection, attempt: object) {
+    const request = pending.request
+    const intent = pending.goToNewSlide
+    // The slide the request started on (armed only if the user was still on it). Any other current slide
+    // is a user move, except this go-to's own target, which the viewer reports as current once it lands.
+    let landing: number | null = null
+    const userMoved = () => currentSlideIndexRef.current !== request.startVisualIndex && currentSlideIndexRef.current !== landing
+    const sameRequest = () => studioSyncPendingRef.current === pending && pending.observedRefresh
+      && studioSyncRequestRef.current === request && studioSyncSequenceRef.current === request.sequence
+      && studioSyncRefreshRevisionRef.current === pending.refreshRevision && request.isOwnerCurrent()
+      && composeSelectionAttemptRef.current === attempt && composeViewerApiRef.current === apis && !userMoved()
+    // A user move retires the go-to for good, so a later reload cannot run it again.
+    const retired = () => {
+      if (sameRequest()) return false
+      if (userMoved() && studioSyncPendingRef.current === pending) studioSyncPendingRef.current = null
+      return true
+    }
+    if (!intent || retired()) return
+    try {
+      // A freshly loaded viewer can take a moment to answer; a few short retries, never a guess.
+      let order: StudioNativeSlideOrder | null = null
+      for (let tries = 0; tries < 6 && !order; tries += 1) {
+        if (tries > 0) await new Promise(resolve => setTimeout(resolve, 500))
+        if (retired()) return
+        try { order = parseStudioNativeSlideOrder(await apis.composeGetState()) } catch { order = null }
+      }
+      if (retired()) return
+      if (!order) {
+        console.warn('[Slide Composer] The viewer did not report its slide order; choose the new slide in the rail.', intent)
+        if (studioSyncPendingRef.current === pending) studioSyncPendingRef.current = null
+        return
+      }
+      // The viewer's own count is authoritative whether or not the navigation below succeeds.
+      setSlideComposerOverride(previous => sameRequest() && previous?.refreshToken === pending.refreshToken
+        ? { ...previous, slideCount: order.nativeCount } : previous)
+      request.persistCount(order.nativeCount)
+      const target = resolveGoToNewSlideTarget(order, intent)
+      if (!target) {
+        console.warn('[Slide Composer] Could not find the new slide in the viewer; choose it in the rail.', intent)
+        if (studioSyncPendingRef.current === pending) studioSyncPendingRef.current = null
+        return
+      }
+      landing = target.visualIndex
+      await apis.composeGoToVisualIndex(target.visualIndex, { isCurrent: sameRequest })
+      if (retired()) return
+      currentSlideIndexRef.current = target.visualIndex
+      setCurrentSlideIndex(previous => sameRequest() ? target.visualIndex : previous)
+      setSelectedLayoutSlideIndex(previous => sameRequest() ? target.visualIndex : previous)
+      if (studioSyncPendingRef.current === pending) studioSyncPendingRef.current = null
+      scTrace('builder.goto_new_slide.verified', { visual_index: target.visualIndex, by: target.by, native_count: order.nativeCount })
+    } catch (error) {
+      if (retired()) return
+      if (studioSyncPendingRef.current === pending) studioSyncPendingRef.current = null
+      console.warn('[Slide Composer] Could not select the new slide; choose it in the rail.', error)
+    }
+  }
+
+  async function restoreStudioSyncSelection(apis: SlideComposeViewerApi, pending: StudioSyncPendingSelection, attempt: object) {
+    if (STUDIO_GOTO_NEW_SLIDE_ENABLED && pending.goToNewSlide) { await goToNewSlideAfterSync(apis, pending, attempt); return }
+    const request = pending.request
+    const context = apis.composeCaptureSelectionContext?.()
+    const sameRequest = () => studioSyncPendingRef.current === pending && pending.observedRefresh
+      && studioSyncRequestRef.current === request && studioSyncSequenceRef.current === request.sequence
+      && studioSyncRefreshRevisionRef.current === pending.refreshRevision && request.isOwnerCurrent()
+      && composeSelectionAttemptRef.current === attempt && composeViewerApiRef.current === apis
+    const priorContext = request.context
+    const priorOrder = request.priorOrder
+    const isCurrent = () => !!context && sameRequest() && context.isCurrent()
+      && context.presentationUrl === pending.expectedUrl
+      && (!pending.restoreSelection || (!!priorContext && !!priorOrder
+        && context.continuationKey === priorContext.continuationKey
+        && context.loadRevision === priorContext.loadRevision + 1))
+    if (!isCurrent() || !context) {
+      if (studioSyncPendingRef.current === pending && pending.observedRefresh) studioSyncPendingRef.current = null
+      return
+    }
+    const state = (): StudioComposeRestoreState => ({ owner: request.owner, active: isCurrent(),
+      latestRequestSequence: studioSyncSequenceRef.current, reloadRevision: studioSyncRefreshRevisionRef.current,
+      interactionRevision: context.interactionRevision, structureRevision: context.structureRevision,
+      frameEpoch: context.frameEpoch, templateMode: false, dirty: false, saving: false, structuralWork: false })
+    const read = async () => {
+      const captured = { ownerToken: request.owner.token, presentationId: request.owner.presentationId,
+        frameEpoch: context.frameEpoch, structureRevision: context.structureRevision }
+      if (!isCurrent()) throw new Error('Slide selection request retired')
+      const receipt = await context.readNativeOrder()
+      if (!isCurrent()) throw new Error('Slide selection request retired')
+      return { ...captured, receipt }
+    }
+    const proveInsertion = (order: StudioNativeSlideOrder) => {
+      if (!priorOrder) throw new Error('Prior native identity is unavailable')
+      const oldIds = priorOrder.slideIds
+      const newIds = order.slideIds.filter(id => !oldIds.includes(id))
+      if (order.nativeCount !== priorOrder.nativeCount + 1 || newIds.length !== 1
+        || order.slideIds.filter(id => oldIds.includes(id)).some((id, index) => id !== oldIds[index])) {
+        throw new Error('Native order does not prove a single owned insertion')
+      }
+      return newIds[0]
+    }
+    try {
+      const native = await read()
+      const order = parseStudioNativeSlideOrder(native.receipt)
+      if (!order) throw new Error('Native order is unavailable')
+      let verified: { slideId: string; visualIndex: number; nativeCount: number; verified: true } | null = null
+      let selectedGeneratedResult = false
+      if (pending.restoreSelection && priorOrder) {
+        const newId = proveInsertion(order)
+        const primary = pending.target && pending.target.slideId === newId
+          ? resolveStudioComposeRestore(pending.target, state(), native) : null
+        const restorePrevious = async () => {
+          const fresh = parseStudioNativeSlideOrder((await read()).receipt)
+          if (!fresh) throw new Error('Native order is unavailable')
+          proveInsertion(fresh)
+          const previousId = priorOrder.slideIds[priorOrder.currentVisualIndex]
+          const restored = await context.restoreIdentity({ slideId: previousId,
+            expectedNativeCount: fresh.nativeCount, isCurrent })
+          const final = parseStudioNativeSlideOrder((await read()).receipt)
+          if (!final || final.nativeCount !== restored.nativeCount
+            || final.currentVisualIndex !== restored.visualIndex
+            || final.slideIds[restored.visualIndex] !== previousId) throw new Error('Prior native selection was not verified')
+          proveInsertion(final)
+          return restored
+        }
+        if (primary?.kind === 'ready') {
+          try {
+            verified = await context.restoreIdentity({ slideId: primary.lease.slideId,
+              expectedNativeCount: primary.lease.nativeCount, isCurrent })
+            const final = await read()
+            if (verified.slideId !== primary.lease.slideId || verified.nativeCount !== primary.lease.nativeCount
+              || verified.visualIndex !== primary.lease.visualIndex
+              || !verifyStudioComposeRestoreSelection(primary.lease, pending.target, state(), final)) {
+              throw new Error('Native selection did not match the current request')
+            }
+            selectedGeneratedResult = true
+          } catch (error) {
+            if (!isCurrent()) throw error
+            verified = await restorePrevious()
+          }
+        } else verified = await restorePrevious()
+      }
+      if (!isCurrent()) return
+      const commitIsCurrent = () => studioSyncRequestRef.current === request
+        && studioSyncSequenceRef.current === request.sequence && request.isOwnerCurrent()
+        && context.isCurrent() && context.presentationUrl === pending.expectedUrl
+        && studioSyncRefreshRevisionRef.current === pending.refreshRevision
+      const nativeCount = verified?.nativeCount ?? order.nativeCount
+      if (verified) {
+        const visualIndex = verified.visualIndex
+        currentSlideIndexRef.current = visualIndex
+        setCurrentSlideIndex(previous => commitIsCurrent() ? visualIndex : previous)
+        setSelectedLayoutSlideIndex(previous => commitIsCurrent() ? visualIndex : previous)
+      }
+      setSlideComposerOverride(previous => commitIsCurrent() && previous?.refreshToken === pending.refreshToken
+        ? { ...previous, slideCount: nativeCount } : previous)
+      request.persistCount(nativeCount)
+      if (studioSyncPendingRef.current === pending) studioSyncPendingRef.current = null
+      scTrace('builder.sync_selection.verified', { visual_index: verified?.visualIndex ?? null,
+        native_count: nativeCount, selected_generated_result: selectedGeneratedResult })
+    } catch (error) {
+      if (!isCurrent()) return
+      // An old failure never replaces a newer target or requeues a numeric index.
+      if (studioSyncPendingRef.current === pending) studioSyncPendingRef.current = null
+      console.warn('[Slide Composer] Native selection could not be verified; choose the slide in the rail.', error)
+    }
+  }
 
   const handleSlideComposerAccepted = useCallback((job: SlideComposeAcceptedJob) => {
+    const isCurrentSession = captureStudioSlideComposeSessionOwner()
+    if (studioShell && (!isCurrentSession() || job.request.session_id !== questionSubmissionScopeRef.current.sessionId)) return
+    const isCurrentOwner = captureStudioSlideComposeOwner()
+    const targetPresentationId = (typeof job.request.presentation_id === 'string' ? job.request.presentation_id : null)
+      ?? (studioShell ? job.presentation_id ?? null : slideComposerPresentationRef.current.presentationId)
+    const canApplyToViewer = !studioShell || (isCurrentOwner() && (!studioSlideComposeOwnerRef.current.presentationId || targetPresentationId === studioSlideComposeOwnerRef.current.presentationId))
+    const targetJobs = studioShell
+      ? Object.fromEntries(Object.entries(slideComposeJobsRef.current).filter(([, item]) => item.target_presentation_id === targetPresentationId))
+      : slideComposeJobsRef.current
     const jobKind: SlideComposeJobKind = job.kind ?? 'compose'
     const targetLayoutIndex = Math.max(0, job.target_index)
     const targetVisualIndex = jobKind === 'refine'
       ? targetLayoutIndex
-      : getComposeVisualIndexForTarget(job.target_index, slideComposeJobsRef.current)
-    const activeComposeJobs = Object.values(slideComposeJobsRef.current)
+      : getComposeVisualIndexForTarget(job.target_index, targetJobs)
+    const activeComposeJobs = Object.values(targetJobs)
       .filter(item => item.status === 'building' && (item.kind ?? 'compose') === 'compose').length
-    const expectedSlideCount = (slideComposerPresentationRef.current.slideCount ?? 0) +
+    const sourceSlideCount = studioShell && !canApplyToViewer
+      ? (targetPresentationId ? studioSlideComposeCountsRef.current[targetPresentationId] : null) ?? targetLayoutIndex
+      : slideComposerPresentationRef.current.slideCount ?? 0
+    const expectedSlideCount = sourceSlideCount +
       (jobKind === 'compose' ? activeComposeJobs + 1 : 0)
     const requestedSlideId = typeof job.request.slide_id === 'string' ? job.request.slide_id : null
     const targetSlideId = jobKind === 'refine'
@@ -2982,7 +4249,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       })),
     })
     clearSlideComposeWatchdog(job.job_id)
-    setSlideComposePanelEvent({
+    if (canApplyToViewer) setSlideComposePanelEvent({
       jobId: job.job_id,
       status: 'building',
     })
@@ -2999,16 +4266,18 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         request: job.request,
         target_presentation_id:
           (typeof job.request.presentation_id === 'string' ? job.request.presentation_id : null)
-          ?? slideComposerPresentationRef.current.presentationId,
+          ?? (studioShell ? job.presentation_id ?? null : slideComposerPresentationRef.current.presentationId),
         expected_slide_count: expectedSlideCount,
       },
     }))
     const composeApi = composeViewerApiRef.current
 
-    if (jobKind === 'refine') {
-      const overlayMark = { jobId: job.job_id, kind: 'refine' as const, slideId: targetSlideId }
+    if (canApplyToViewer && jobKind === 'refine') {
+      const overlayMark = { jobId: job.job_id, kind: 'refine' as const, slideId: targetSlideId,
+        ...(studioShell ? { presentationId: targetPresentationId, sessionId: job.request.session_id as string } : {}) }
       if (composeApi && targetSlideId) {
         void composeApi.refineOverlayMark(job.job_id, targetSlideId).catch(error => {
+          if (studioShell && !isCurrentOwner()) return
           scTrace('builder.refine_overlay_mark.error', {
             job_id: job.job_id,
             target_slide_id: targetSlideId,
@@ -3025,10 +4294,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           target_index: job.target_index,
         })
       }
-    } else {
-      const placeholderAdd = { jobId: job.job_id, visualIndex: targetVisualIndex }
+    } else if (canApplyToViewer) {
+      const placeholderAdd = { jobId: job.job_id, visualIndex: targetVisualIndex,
+        ...(studioShell ? { presentationId: targetPresentationId, sessionId: job.request.session_id as string } : {}) }
       if (composeApi) {
         void composeApi.composePlaceholderAdd(job.job_id, targetVisualIndex).catch(error => {
+          if (studioShell && !isCurrentOwner()) return
           scTrace('builder.placeholder_add.error', {
             job_id: job.job_id,
             target_visual_index: targetVisualIndex,
@@ -3043,14 +4314,15 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     }
     // TODO: replace this timer with a backend heartbeat; for now it must exceed
     // Director's 300s same-target FIFO wait plus a long Slide Builder pass.
-    slideComposeWatchdogsRef.current[job.job_id] = setTimeout(() => {
+    if (studioShell) startStudioSlideComposeWatchdog(job.job_id, `${jobKind} job ${job.job_id} exceeded watchdog`, undefined, targetPresentationId)
+    else slideComposeWatchdogsRef.current[job.job_id] = setTimeout(() => {
       if (slideComposeJobsRef.current[job.job_id]?.status === 'building') {
         triggerCoalescedSlideComposeReload(`${jobKind} job ${job.job_id} exceeded watchdog`)
         void confirmSlideComposeJobAfterRefresh(job.job_id)
       }
     }, SLIDE_COMPOSE_WATCHDOG_MS)
-    startSlideComposePoller(job.job_id)
-    toast({
+    if (canApplyToViewer) startSlideComposePoller(job.job_id)
+    if (canApplyToViewer) toast({
       title: jobKind === 'refine' ? 'Slide refinement queued' : 'Slide queued',
       description: jobKind === 'refine'
         ? `Refining slide ${targetLayoutIndex + 1} in the background.`
@@ -3060,6 +4332,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     clearSlideComposeWatchdog,
     confirmSlideComposeJobAfterRefresh,
     startSlideComposePoller,
+    startStudioSlideComposeWatchdog,
+    studioShell,
     toast,
     triggerCoalescedSlideComposeReload,
   ])
@@ -3067,6 +4341,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const handleRetrySlideCompose = useCallback(async (jobId: string) => {
     const existing = slideComposeJobs[jobId]
     if (!existing) return
+    const isCurrentSession = captureStudioSlideComposeSessionOwner()
+    if (studioShell && (!isCurrentSession() || existing.request.session_id !== questionSubmissionScopeRef.current.sessionId)) return
+    const isCurrentOwner = captureStudioSlideComposeOwner()
+    const canApplyToViewer = () => !studioShell || (isCurrentOwner() && (!studioSlideComposeOwnerRef.current.presentationId || existing.target_presentation_id === studioSlideComposeOwnerRef.current.presentationId))
 
     const nextJobId = crypto.randomUUID()
     const retryRequest = {
@@ -3091,13 +4369,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     })
     // TODO: replace this timer with a backend heartbeat; for now it must exceed
     // Director's 300s same-target FIFO wait plus a long Slide Builder pass.
-    slideComposeWatchdogsRef.current[nextJobId] = setTimeout(() => {
+    if (studioShell) startStudioSlideComposeWatchdog(nextJobId, `compose retry ${nextJobId} exceeded watchdog`, undefined, existing.target_presentation_id ?? null)
+    else slideComposeWatchdogsRef.current[nextJobId] = setTimeout(() => {
       if (slideComposeJobsRef.current[nextJobId]?.status === 'building') {
         triggerCoalescedSlideComposeReload(`compose retry ${nextJobId} exceeded watchdog`)
         void confirmSlideComposeJobAfterRefresh(nextJobId)
       }
     }, SLIDE_COMPOSE_WATCHDOG_MS)
-    startSlideComposePoller(nextJobId)
+    if (canApplyToViewer()) startSlideComposePoller(nextJobId)
 
     try {
       const response = await fetch('/api/slides/compose', {
@@ -3105,6 +4384,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(retryRequest),
       })
+      if (!isCurrentSession()) return
       const data = await response.json().catch(() => null) as {
         status?: string
         job_id?: string
@@ -3112,6 +4392,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         error?: string
         errors?: string[]
       } | null
+      if (!isCurrentSession()) return
 
       if (!response.ok || data?.status !== 'accepted' || typeof data.target_index !== 'number') {
         const message = Array.isArray(data?.errors) && data.errors.length > 0
@@ -3129,21 +4410,27 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             ...current,
             target_layout_index: Math.max(0, data.target_index ?? current.target_layout_index),
             target_visual_index: existing.target_visual_index,
-            expected_slide_count: (slideComposerPresentationRef.current.slideCount ?? 0) +
-              Object.values(slideComposeJobsRef.current).filter(item => item.status === 'building').length,
+            expected_slide_count: studioShell && !canApplyToViewer()
+              ? current.expected_slide_count
+              : (slideComposerPresentationRef.current.slideCount ?? 0) +
+                Object.values(slideComposeJobsRef.current).filter(item => item.status === 'building' &&
+                  (!studioShell || item.target_presentation_id === existing.target_presentation_id)).length,
           },
         }
       })
+      if (!canApplyToViewer()) return
       const placeholderAdd = {
         jobId: nextJobId,
         visualIndex: existing.target_visual_index,
         replaceJobId: jobId,
+        ...(studioShell ? { presentationId: existing.target_presentation_id, sessionId: existing.request.session_id as string } : {}),
       }
       const composeApi = composeViewerApiRef.current
       if (composeApi) {
         void composeApi
           .composePlaceholderAdd(nextJobId, existing.target_visual_index, jobId)
           .catch(error => {
+            if (!canApplyToViewer()) return
             console.warn('[Slide Composer] Failed to reset in-deck placeholder for retry.', error)
             pendingComposePlaceholdersRef.current.set(nextJobId, placeholderAdd)
           })
@@ -3151,6 +4438,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         pendingComposePlaceholdersRef.current.set(nextJobId, placeholderAdd)
       }
     } catch (err) {
+      if (!isCurrentSession()) return
       clearSlideComposeWatchdog(nextJobId)
       clearSlideComposePoller(nextJobId)
       const message = err instanceof Error ? err.message : 'Slide Composer retry failed.'
@@ -3166,7 +4454,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           },
         }
       })
-      toast({
+      if (canApplyToViewer()) toast({
         title: 'Retry failed',
         description: message,
         variant: 'destructive',
@@ -3177,6 +4465,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     confirmSlideComposeJobAfterRefresh,
     slideComposeJobs,
     startSlideComposePoller,
+    startStudioSlideComposeWatchdog,
+    studioShell,
     toast,
     triggerCoalescedSlideComposeReload,
   ])
@@ -3195,10 +4485,42 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     bringToFront('slide')
   }, [bringToFront])
 
+  const handleOpenSlideCompose = useCallback(() => {
+    setSlideGenerationMode('compose')
+    setSlideRefineTarget(null)
+    setShowFormatPanel(true)
+    bringToFront('slide')
+  }, [bringToFront])
+
+  // J2-SILENT-FAIL (flag NEXT_PUBLIC_STUDIO_COMPOSE_JOB_FAILSAFE_ENABLED, default off): a compose job with no outcome for a
+  // bounded time becomes an error card (Retry / Dismiss), and in-flight jobs are restored after a reload. Off = inert.
+  const composeFailsafe = useStudioComposeJobFailsafe({
+    enabled: STUDIO_COMPOSE_JOB_FAILSAFE_ENABLED,
+    sessionId: (currentSessionId || wsSessionId) as string | null,
+    presentationId: effectivePresentationId,
+    ownerKey: studioSlideComposeOwnerKey,
+    jobs: slideComposeJobs,
+    setJobs: setSlideComposeJobs,
+    getViewerApi: () => composeViewerApiRef.current,
+    captureOwner: captureStudioSlideComposeOwner,
+    armJob: job => startSlideComposePoller(job.job_id),
+    disarmJob: jobId => { clearSlideComposeWatchdog(jobId); clearSlideComposePoller(jobId) },
+    onFailed: (job, message) => {
+      setSlideComposePanelEvent({ jobId: job.job_id, status: 'error', message })
+      toast({ title: COMPOSE_JOB_FAILSAFE_TOAST_TITLE, description: message, variant: 'destructive' })
+    },
+    // The viewer still draws the dismissed job's placeholder and has no command to remove it: reload it, back on the same slide.
+    onDismissed: (_job, visualIndex) => {
+      const current = currentSlideIndexRef.current
+      queueComposeSelectionRestore(current > visualIndex ? current - 1 : current)
+      triggerCoalescedSlideComposeReload('compose job dismissed', { force: true })
+    },
+  })
+
   const slideComposeThumbnailJobs = useMemo<SlideComposeThumbnailJob[]>(
     () => Object.values(slideComposeJobs)
       .filter(job => job.status === 'building' || job.status === 'error')
-      .map(job => ({
+      .map(job => composeFailsafe.decorate({
         jobId: job.job_id,
         targetIndex: job.target_layout_index,
         targetLayoutIndex: job.target_layout_index,
@@ -3210,9 +4532,305 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         errors: job.errors,
         onRetry: handleRetrySlideCompose,
         onSelect: handleSelectPendingSlideCompose,
-      })),
-    [handleRetrySlideCompose, handleSelectPendingSlideCompose, slideComposeJobs],
+      }, job)),
+    [composeFailsafe.decorate, handleRetrySlideCompose, handleSelectPendingSlideCompose, slideComposeJobs],
   )
+
+  // Retire pending answers as soon as navigation/account intent changes; an
+  // eventual transport completion must not echo into the newly displayed chat.
+  const [studioComposeMountGeneration, setStudioComposeMountGeneration] = useState(0)
+  const questionSubmissionScopeRef = useRef({
+    active: true,
+    generation: 0,
+    sessionId: (currentSessionId || wsSessionId) as string | null,
+    userId: authScopeUserId,
+    routeSessionId: searchParams.get('session_id'),
+    freshRouteSourceSessionId: null as string | null,
+  })
+  const questionRouteSessionId = searchParams.get('session_id')
+  if (questionSubmissionScopeRef.current.routeSessionId !== questionRouteSessionId) {
+    // A new/bare route may render while the loader still holds the old deck.
+    // Retire that deck's answers without assigning any native session/cache ID.
+    questionSubmissionScopeRef.current.freshRouteSourceSessionId =
+      !questionRouteSessionId || questionRouteSessionId === 'new'
+        ? currentSessionId || wsSessionId : null
+    questionSubmissionScopeRef.current.routeSessionId = questionRouteSessionId
+  }
+  const questionScopeSessionId = questionRouteSessionId && questionRouteSessionId !== 'new'
+    ? questionRouteSessionId
+    : questionSubmissionScopeRef.current.freshRouteSourceSessionId === (currentSessionId || wsSessionId)
+      ? null : currentSessionId || wsSessionId
+  if (questionSubmissionScopeRef.current.sessionId !== questionScopeSessionId ||
+      questionSubmissionScopeRef.current.userId !== authScopeUserId) {
+    questionSubmissionScopeRef.current.generation += 1
+    questionSubmissionScopeRef.current.sessionId = questionScopeSessionId
+    questionSubmissionScopeRef.current.userId = authScopeUserId
+  }
+  React.useLayoutEffect(() => {
+    questionSubmissionScopeRef.current.active = true
+    // Refresh render-captured callbacks after Strict Mode retires the first setup.
+    if (studioShell) setStudioComposeMountGeneration(questionSubmissionScopeRef.current.generation)
+    return () => {
+      questionSubmissionScopeRef.current.active = false
+      questionSubmissionScopeRef.current.generation += 1
+    }
+  }, [])
+
+  function captureStudioSlideComposeOwner() {
+    const presentationOwner = studioSlideComposeOwnerRef.current
+    const chatOwner = { ...questionSubmissionScopeRef.current }
+    return () => !studioShell || (
+      questionSubmissionScopeRef.current.active &&
+      questionSubmissionScopeRef.current.generation === chatOwner.generation &&
+      questionSubmissionScopeRef.current.sessionId === chatOwner.sessionId &&
+      questionSubmissionScopeRef.current.userId === chatOwner.userId &&
+      studioSlideComposeOwnerRef.current === presentationOwner &&
+      chatOwner.sessionId === presentationOwner.sessionId
+    )
+  }
+
+  function captureStudioSlideComposeSessionOwner() {
+    const chatOwner = { ...questionSubmissionScopeRef.current }
+    return () => !studioShell || (
+      questionSubmissionScopeRef.current.active &&
+      questionSubmissionScopeRef.current.generation === chatOwner.generation &&
+      questionSubmissionScopeRef.current.sessionId === chatOwner.sessionId &&
+      questionSubmissionScopeRef.current.userId === chatOwner.userId
+    )
+  }
+
+  // Capture before the child submits; sampling on result delivery would adopt
+  // an old synchronous result into the newly displayed session/version.
+  const isCurrentSlideBuiltOwner = useMemo(
+    () => studioShell ? captureStudioSlideComposeOwner() : () => true,
+    [studioShell, studioSlideComposeOwnerRef.current, studioComposeMountGeneration, questionSubmissionScopeRef.current.generation],
+  )
+
+  const syncPending = studioSyncPendingRef.current
+  if (syncPending) {
+    if (!syncPending.request.isOwnerCurrent()) studioSyncPendingRef.current = null
+    else if (directorOwnedPresentation.refreshToken === syncPending.refreshToken
+      && effectivePresentationUrl === syncPending.expectedUrl) syncPending.observedRefresh = true
+    else if (syncPending.observedRefresh) studioSyncPendingRef.current = null
+  }
+
+  const handleStudioSyncSelectionRequestStart = useCallback(async (lane: 'compose' | 'refine' = 'compose'): Promise<object | null> => {
+    if (!studioShell) return null
+    if (!isCurrentSlideBuiltOwner()) throw new Error('Slide request owner retired')
+    const sequence = ++studioSyncSequenceRef.current
+    studioSyncPendingRef.current = null
+    studioSyncRequestRef.current = null
+    const ownerToken = studioSlideComposeOwnerRef.current
+    const chatOwner = { ...questionSubmissionScopeRef.current }
+    const isOwnerCurrent = captureStudioSlideComposeOwner()
+    const context = composeViewerApiRef.current?.composeCaptureSelectionContext?.()
+    const version = ownerToken.activeVersion
+    // Every admitted request has a private lifetime, even when native identity
+    // is unavailable. Its late response cannot adopt a newer request's viewer.
+    const record: StudioSyncSelectionRecord = {
+      sequence, lane,
+      owner: { token: ownerToken, userId: chatOwner.userId ?? '', sessionId: chatOwner.sessionId ?? '',
+        presentationId: ownerToken.presentationId ?? '', activeVersion: version ?? '', mountGeneration: chatOwner.generation },
+      isOwnerCurrent, context: null, priorOrder: null, consumed: false,
+      persistCount: count => { if (isOwnerCurrent()) persistence?.updateMetadata({ slideCount: count, lastMessageAt: new Date() }) },
+      ...(STUDIO_GOTO_NEW_SLIDE_ENABLED ? { startVisualIndex: currentSlideIndexRef.current } : {}),
+    }
+    const proof = Object.freeze({})
+    studioSyncProofsRef.current.set(proof, record)
+    studioSyncRequestRef.current = record
+    if (lane === 'refine') return proof
+    if (!context || !ownerToken.presentationId || !chatOwner.sessionId || !chatOwner.userId
+      || !['blank', 'strawman', 'final'].includes(version ?? '')
+      || extractPresentationIdFromViewerUrl(context.presentationUrl) !== ownerToken.presentationId) return proof
+    try {
+      const priorOrder = parseStudioNativeSlideOrder(await context.readNativeOrder())
+      if (!isOwnerCurrent() || sequence !== studioSyncSequenceRef.current) throw new Error('Slide request owner retired')
+      if (priorOrder && context.isCurrent()) { record.context = context; record.priorOrder = priorOrder }
+      return proof
+    } catch (error) {
+      if (!isOwnerCurrent() || sequence !== studioSyncSequenceRef.current) throw new Error('Slide request owner retired')
+      // Unavailable native identity must not disable otherwise supported generation.
+      return proof
+    }
+  }, [studioShell, isCurrentSlideBuiltOwner, persistence])
+
+  const handleSlideComposerBuilt = useCallback((result: SlideComposeBuiltResult, selection?: StudioSlideBuiltSelection) => {
+    if (studioShell && !isCurrentSlideBuiltOwner()) return
+    const nextSlideIndex = Math.max(0, result.slide_index)
+    const targetPresentationId = result.presentation_id
+    if (!isPresentationCallbackCurrent({
+      callbackPresentationId: targetPresentationId,
+      livePresentationId: presentationId,
+    })) {
+      scTrace('builder.http.slide_built.ignored_stale', {
+        callback_presentation_id: targetPresentationId,
+        live_presentation_id: presentationId,
+      })
+      return
+    }
+    const targetPresentationUrl = result.presentation_url ?? slideComposerOverride?.presentationUrl ?? presentationUrl
+    const existingDeck = !!effectivePresentationId && targetPresentationId === effectivePresentationId
+    const baseSlideCount = effectiveSlideCount ?? 0
+    const nextSlideCount = studioShell && existingDeck ? baseSlideCount : Math.max(
+      existingDeck ? baseSlideCount + 1 : (result.slides_built ?? 1),
+      nextSlideIndex + 1,
+    )
+    const record = studioShell && selection?.proof ? studioSyncProofsRef.current.get(selection.proof) : null
+    // Studio callbacks with a private envelope require an issued lifetime.
+    // Current refine also receives one; an unknown/null late ingress cannot
+    // clear the newer compose receipt merely because its session still matches.
+    if (studioShell && selection && !record) return
+    if (record && (record.consumed || record !== studioSyncRequestRef.current
+      || record.sequence !== studioSyncSequenceRef.current || !record.isOwnerCurrent())) return
+    if (record) record.consumed = true
+    const refreshRevision = ++studioSyncRefreshRevisionRef.current
+    const refreshToken = Math.max(Date.now(), slideComposerPresentationRef.current.refreshToken + 1,
+      studioSyncRefreshTokenRef.current + 1, refreshRevision)
+    studioSyncRefreshTokenRef.current = refreshToken
+    const expectedUrl = withSlideComposerRefreshToken(targetPresentationUrl ?? null, refreshToken)
+    studioSyncPendingRef.current = null
+    if (studioShell && record && existingDeck && expectedUrl) {
+      const restoreSelection = Boolean(record.lane !== 'refine' && selection?.draftStillCurrent && record.context?.isCurrent() && record.priorOrder)
+      const target = restoreSelection && record.context ? createStudioComposeRestoreTarget({ owner: record.owner,
+        requestSequence: record.sequence, reloadRevision: refreshRevision,
+        interactionRevision: record.context.interactionRevision,
+        structureRevision: record.context.structureRevision, result }) : null
+      // Count-only receipts do not navigate. Missing/unsafe generation identity
+      // may preserve the captured prior real slide, never a positional guess.
+      studioSyncPendingRef.current = { request: record, restoreSelection,
+        target: target && !record.priorOrder?.slideIds.includes(target.slideId) ? target : null,
+        ...(STUDIO_GOTO_NEW_SLIDE_ENABLED && shouldArmGoToNewSlide({
+          enabled: true, lane: record.lane, existingDeck, restoreSelection,
+          draftStillCurrent: Boolean(selection?.draftStillCurrent),
+          startVisualIndex: record.startVisualIndex, currentVisualIndex: currentSlideIndexRef.current,
+        }) ? { goToNewSlide: goToNewSlideIntent(result) } : {}),
+        refreshRevision, refreshToken, expectedUrl, observedRefresh: false }
+    }
+
+    setSlideComposerOverride({
+      presentationUrl: targetPresentationUrl ?? null,
+      presentationId: targetPresentationId,
+      slideCount: nextSlideCount,
+      refreshToken,
+    })
+    if (!studioShell || !existingDeck) {
+      currentSlideIndexRef.current = nextSlideIndex
+      setCurrentSlideIndex(nextSlideIndex)
+      setSelectedLayoutSlideIndex(nextSlideIndex)
+    }
+
+    if (persistence) {
+      const updates: any = {
+        slideCount: nextSlideCount,
+        lastMessageAt: new Date(),
+        // NEXT_PUBLIC_STUDIO_BLANK_DECK_RELOAD_FIX: on, a blank deck's count goes to the blank slots (off: strawman, else final).
+        ...deckSlotUpdates(STUDIO_BLANK_DECK_RELOAD_FIX_ENABLED, activeVersion, targetPresentationUrl, targetPresentationId),
+      }
+
+      persistence.updateMetadata(updates)
+    }
+
+    toast({
+      title: 'Slide built',
+      description: `Inserted slide ${nextSlideIndex + 1}.`,
+    })
+  }, [
+    studioShell,
+    isCurrentSlideBuiltOwner,
+    activeVersion,
+    effectivePresentationId,
+    effectiveSlideCount,
+    persistence,
+    presentationId,
+    presentationUrl,
+    slideComposerOverride?.presentationUrl,
+    toast,
+  ])
+
+
+  React.useEffect(() => {
+    if (!studioShell) return
+    const owner = studioSlideComposeOwnerRef.current
+    const retireTimers = () => {
+      for (const [jobId, pollerOwner] of Object.entries(studioSlideComposePollerOwnersRef.current)) {
+        if (pollerOwner === owner) clearSlideComposePoller(jobId)
+      }
+      for (const [jobId, watchdog] of Object.entries(studioSlideComposeWatchdogsRef.current)) {
+        if (watchdog.owner !== owner) continue
+        const timer = slideComposeWatchdogsRef.current[jobId]
+        if (timer) clearTimeout(timer)
+        delete slideComposeWatchdogsRef.current[jobId]
+      }
+    }
+    if (!captureStudioSlideComposeOwner()()) return retireTimers
+    for (const job of Object.values(slideComposeJobsRef.current)) {
+      if (job.status !== 'building' || !owner.presentationId ||
+          job.target_presentation_id !== owner.presentationId ||
+          job.request.session_id !== owner.sessionId) continue
+      // Returning to the verified original version starts fresh recovery for
+      // the retained job. Its old continuations remain permanently retired.
+      startSlideComposePoller(job.job_id)
+      const watchdog = studioSlideComposeWatchdogsRef.current[job.job_id]
+      if (watchdog && !watchdog.fired) {
+        startStudioSlideComposeWatchdog(job.job_id, watchdog.reason, watchdog.deadline)
+      }
+    }
+    return retireTimers
+  }, [studioShell, studioSlideComposeOwnerRef.current, clearSlideComposePoller, startSlideComposePoller, startStudioSlideComposeWatchdog])
+
+  const actionSubmissionPendingRef = useRef(new Set<string>())
+  const studioManualHandoffRequestRef = useRef<{
+    generation: number
+    sessionId: string | null
+    userId: string | null
+  } | null>(null)
+  React.useLayoutEffect(() => {
+    if (!studioShell) return
+    const request = studioManualHandoffRequestRef.current
+    const scope = questionSubmissionScopeRef.current
+    if (request && (request.generation !== scope.generation ||
+        request.sessionId !== scope.sessionId || request.userId !== scope.userId)) {
+      studioManualHandoffRequestRef.current = null
+      setManualDeckHandoffBusy(false)
+    }
+  }, [studioShell, questionSubmissionScopeRef.current.generation])
+
+  // DB restore retires transport request owners. Re-prime only the still-owned
+  // durable key after that real restore, before the session hook connects. This
+  // observes a request; it sends/replays nothing and never runs on every render.
+  const studioHandoffRestoreOwner = useMemo(() => ({ ...questionSubmissionScopeRef.current }),
+    [studioShell, questionSubmissionScopeRef.current.generation])
+  const restoreBuilderSessionMessages = useCallback((
+    historicalMessages: Parameters<typeof restoreMessages>[0],
+    restoredSessionState?: Parameters<typeof restoreMessages>[1],
+    studioTranscriptRestoredIds?: Parameters<typeof restoreMessages>[2],
+  ) => {
+    const owner = studioHandoffRestoreOwner
+    const isCurrentRestore = () => {
+      const current = questionSubmissionScopeRef.current
+      return current.active && current.generation === owner.generation
+        && current.sessionId === owner.sessionId && current.userId === owner.userId
+        && current.userId === authScopeUserId && currentSessionIdRef.current === owner.sessionId
+    }
+    if (studioShell && !isCurrentRestore()) return
+    retireStudioVoiceOwner()
+    if (STUDIO_VOICE_INTERACTIVE_ENABLED) {
+      restoreMessages(historicalMessages, restoredSessionState,
+        [...(studioTranscriptRestoredIds || []), ...session.userMessageIdsRef.current])
+    } else restoreMessages(historicalMessages, restoredSessionState)
+    if (!studioShell || !isCurrentRestore() || !owner.sessionId
+      || restoredSessionState?.deckOwnerSessionId !== owner.sessionId) return
+    const currentExpected = getExpectedStudioHandoffRequest(readCurrentStudioHandoff(owner.sessionId), {
+      userId: owner.userId, sessionId: owner.sessionId,
+    })
+    const expected = expectedStudioHandoffRequestRef.current
+    if (!currentExpected || !expected
+      || currentExpected.sessionId !== expected.sessionId
+      || currentExpected.userId !== expected.userId
+      || currentExpected.idempotencyKey !== expected.idempotencyKey) return
+    trackHandoffRequest(currentExpected)
+  }, [studioShell, studioHandoffRestoreOwner, authScopeUserId, restoreMessages,
+    readCurrentStudioHandoff, trackHandoffRequest, retireStudioVoiceOwner])
 
   // Builder session hook (session init, loading, switching, persistence effects)
   const session = useBuilderSession({
@@ -3220,6 +4838,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     isAuthLoading,
     searchParams,
     loadSession,
+    loadSessionResult,
     createSession,
     persistence,
     connected,
@@ -3228,7 +4847,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     ensureConnected,
     disconnect,
     clearMessages,
-    restoreMessages,
+    restoreMessages: restoreBuilderSessionMessages,
     updateCacheUserMessages,
     messages,
     toast,
@@ -3239,7 +4858,98 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setSessionStoreName,
   })
 
+  // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the first-action row save (see saveSessionOnFirstAction above). Wraps the session hook's
+  // handleRequestSession (the uploads' draft-session creator) and the persistence hook's held blank-deck metadata.
+  saveSessionOnFirstActionRef.current = useSaveSessionOnFirstAction({
+    currentSessionId,
+    isUnsavedSession,
+    requestSession: session.handleRequestSession,
+    sendDeferredMetadata: persistence.sendDeferredMetadata,
+  })
+  // NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND (default off): the brief of Director's new-deck handoff, sent on the NEW session's socket once it opens, once; not sent: back in the box.
+  const armNewDeckHandoffSend = useStudioNewDeckHandoffSend({ currentSessionId, wsSessionId, socketSessionId, connected, connectionGeneration, sendMessageWhenConnected, setInputMessage, setUserMessages: session.setUserMessages, toast })
+  // NEXT_PUBLIC_STUDIO_PUBLISH_REVIEW_FIT (default off): marks the page so the Publish dialog's phone rule applies (the dialog is portalled out of the page).
+  useStudioPublishReviewFit()
+
+  // NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON (default off): the account menu's upgrade row is disabled and says "Payments open soon". Flag off, the hook returns before it reads the document.
+  useStudioPaymentsOpenSoon()
+  useStudioPass3Polish() // PASS3-POLISH: NEXT_PUBLIC_STUDIO_PASS3_POLISH (default off) sets data-studio-pass3-polish on <html>; flag off, the hook returns before it reads the document.
+  useStudioPass3PolishDMain(workspaceRef) // PASS3-POLISH-D: NEXT_PUBLIC_STUDIO_PASS3_POLISH (default off) sets role="main" on the workspace container; flag off, the effect returns before it reads the ref
+  useStudioPass3PolishGViewport() // PASS3-POLISH-G: NEXT_PUBLIC_STUDIO_PASS3_POLISH (default off) adds maximum-scale=1 to the viewport meta on iPhone and iPad and puts it back on unmount; flag off, the effect returns before it reads the document.
+
+  // NEXT_PUBLIC_STUDIO_DUPLICATE_COPY_TITLE (default off): a copied deck has no slideStructure, so its header said "Studio"; the open session's own title is read once, only while the header has none. Flag off: no props, nothing is read.
+  const studioDuplicateCopyTitleProps = useStudioDuplicateCopyTitleProps(currentSessionId, !isUnsavedSession && !slideStructure?.metadata?.main_title)
+
+  // NEXT_PUBLIC_STUDIO_BLANK_DECK_RELOAD_FIX: the session restore owns the deck. When it commits (a new transcript receipt, set in
+  // the same batch as the restored deck), retire a local override it did not restore, as the override-retire effect does: an
+  // override left over a restore with no deck would be the selection with no owner ("Loading your selected deck…" forever).
+  const blankDeckRestoreReceiptRef = useRef<unknown>(null)
+  useEffect(() => {
+    if (!STUDIO_BLANK_DECK_RELOAD_FIX_ENABLED) return
+    const receipt = session.studioFrontendTranscriptReceipt
+    if (!receipt || blankDeckRestoreReceiptRef.current === receipt) return
+    blankDeckRestoreReceiptRef.current = receipt
+    if (restoreOwnsOverride(slideComposerOverride, { presentationId, presentationUrl })) return
+    setSlideComposerOverride(null)
+    clearSlideComposerWork()
+  }, [clearSlideComposerWork, presentationId, presentationUrl, session.studioFrontendTranscriptReceipt, slideComposerOverride])
+
   // Text Labs session (depends on the currently displayed presentation)
+  const [dismissedWorkflowKey, setDismissedWorkflowKey] = useState<string | null>(null)
+  const workflowKey = searchParams.toString()
+  const workflowAction = studioShell ? parseStudioWorkflowAction(searchParams.get('studio_action')) : null
+  const savedThemeWorkflowId = workflowAction === 'theme' ? searchParams.get('studio_item') : null
+  const [workflowBrief, setWorkflowBrief] = useState<string | null>(null)
+  const briefLoadedRef = useRef(false)
+  useEffect(() => {
+    if (workflowAction !== 'brief' || session.isLoadingSession || briefLoadedRef.current) return
+    briefLoadedRef.current = true
+    try {
+      const text = parseStudioWorkflowDraft(window.sessionStorage.getItem(draftKey(authScopeUserId)))
+      if (text) setWorkflowBrief(text)
+    } catch { /* A blocked local store must not prevent normal Studio use. */ }
+  }, [workflowAction, session.isLoadingSession, authScopeUserId])
+  const resolveWorkflowBrief = (useBrief: boolean) => {
+    if (useBrief && workflowBrief) {
+      setInputMessage(workflowBrief)
+      setShowChat(true)
+      selectWorkspacePane('chat')
+      requestAnimationFrame(() => textareaRef.current?.focus())
+    }
+    try { window.sessionStorage.removeItem(draftKey(authScopeUserId)) } catch { /* Optional local handoff. */ }
+    setWorkflowBrief(null)
+  }
+  useEffect(() => {
+    if (!savedThemeWorkflowId) return
+    setShowChat(true)
+    selectWorkspacePane('chat')
+  }, [savedThemeWorkflowId])
+  const viewerWorkflowRequest = workflowAction && workflowAction !== 'brief' && !savedThemeWorkflowId
+    ? { action: workflowAction, key: searchParams.toString(), itemId: searchParams.get('studio_item') } : null
+  const viewerWorkflowKey = viewerWorkflowRequest?.key
+  useEffect(() => {
+    // A new navigation request opens its original viewer workflow on the visible Stage.
+    if (studioShell && viewerWorkflowKey) setStudioStageSelected(true)
+  }, [studioShell, viewerWorkflowKey])
+  // PASS2 #2 (flag NEXT_PUBLIC_STUDIO_FIRST_RUN_V2): the stage may step out of sight behind the first-run welcome only while nothing
+  // else needs it: not for a workflow link that opens a Stage dialog (theme, footer and logo, templates), not in fullscreen, and not
+  // while an inspector shows. The welcome's own state (nothing said yet) is read from the chat by the CSS.
+  const studioFirstRunStage = studioShell && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true' && studioWelcome
+    && !viewerWorkflowRequest && !studioViewerFullscreen && !workspaceLayout.inspectorVisible
+  // STUDIO-STAGE-OPEN-GATE (NEXT_PUBLIC_STUDIO_STAGE_OPEN_GATE, default off; PK UAT F-03): in a session that started fresh here, the stage stays out of sight after the first message, through Director's clarifying turns,
+  // STUDIO-STAGE-OPEN-GATE until the strawman or the build streams, the deck is ready or the user asks; then it stays open for the session. A workflow link, fullscreen or an inspector shows it as today. lib/studio-stage-open-gate.ts
+  const studioStageCanvasAsked = useStudioStageCanvasAsked(currentSessionId || wsSessionId) // STUDIO-STAGE-OPEN-GATE: the chat header's "Show canvas" was clicked (PK Q1; the store in the lib)
+  const studioStageGateRef = useRef<StudioStageGateState | null>(null) // STUDIO-STAGE-OPEN-GATE: the latch, kept per session
+  const studioStageGate = stepStudioStageGate(studioStageGateRef.current, { enabled: STUDIO_STAGE_OPEN_GATE_ENABLED && studioShell && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true', // STUDIO-STAGE-OPEN-GATE
+    sessionKey: currentSessionId || wsSessionId, landing: studioWelcome, // STUDIO-STAGE-OPEN-GATE
+    workflow: Boolean(viewerWorkflowRequest), fullscreen: studioViewerFullscreen, inspector: workspaceLayout.inspectorVisible, // STUDIO-STAGE-OPEN-GATE
+    historyLoading: session.isLoadingSession, resumed: session.isResumedSession, userMessages: session.userMessages, // STUDIO-STAGE-OPEN-GATE
+    generatingStrawman: isGeneratingStrawman, generatingFinal: isGeneratingFinal, phase: buildNarration.active ? buildNarration.phase : 'idle', // STUDIO-STAGE-OPEN-GATE
+    hasGeneratedDeck: studioCanvasLifecycle.hasGeneratedDeck, hasOwnedFinal: studioCanvasLifecycle.hasOwnedFinal, hasAuthoredDeck: studioCanvasLifecycle.hasAuthoredDeck, // STUDIO-STAGE-OPEN-GATE
+    blankChosen: blankPlaceholderDismissed, addSlideOpen: addSlideV2Open, canvasAsked: studioStageCanvasAsked }) // STUDIO-STAGE-OPEN-GATE
+  studioStageGateRef.current = studioStageGate.state // STUDIO-STAGE-OPEN-GATE
+  useStudioStageGatePublish(currentSessionId || wsSessionId, studioStageGate.closed) // STUDIO-STAGE-OPEN-GATE: after the render, for the chat header's "Show canvas" and useStudioStageOpen()
+
   useEffect(() => {
     if (!composerLibraryEnabled || session.isLoadingSession || !currentSessionId || currentSessionId === 'new' || !user) return
     const key = `${COMPOSER_READY_KEY_PREFIX}${currentSessionId}`
@@ -3258,12 +4968,28 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
   const textLabsSession = useTextLabsSession(effectivePresentationId)
   const buildRefineContext = useElementRefinement({
-    slideContextByIndex,
-    deckContext: deckContext as Record<string, unknown> | null | undefined,
+    slideContextByIndex: studioPartialMetadata ? null : slideContextByIndex,
+    deckContext: studioPartialMetadata ? null : deckContext as Record<string, unknown> | null | undefined,
     sessionStoreName,
     sessionId: currentSessionId || wsSessionId || null,
     currentSlideIndex,
   })
+
+  const generationElementContext = useMemo(() => {
+    const target = generationPanel.refineContext
+    if (!studioShell || generationPanel.mode !== 'refine'
+      || (generationPanel.elementType !== 'METRICS' && generationPanel.elementType !== 'TABLE' && generationPanel.elementType !== 'IMAGE' && generationPanel.elementType !== 'CHART' && generationPanel.elementType !== 'TEXT_BOX')
+      || !target?.gridPosition) return blankElements.activePosition
+
+    const position = target.gridPosition
+    return {
+      elementId: target.elementId,
+      startCol: position.start_col,
+      startRow: position.start_row,
+      width: position.position_width,
+      height: position.position_height,
+    }
+  }, [studioShell, generationPanel.mode, generationPanel.elementType, generationPanel.refineContext, blankElements.activePosition])
 
   // Track active blank element for real-time canvas<->modal position sync
   const trackElementRef = useRef(blankElements.trackElement)
@@ -3290,7 +5016,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     presentationId: effectivePresentationId,
     currentSlideIndex,
     getCurrentSlideIndex,
-    deckContext: deckContext as Record<string, unknown> | null | undefined,
+    deckContext: studioPartialMetadata ? null : deckContext as Record<string, unknown> | null | undefined,
     researchSessionId: currentSessionId || wsSessionId || null,
     researchStoreName: sessionStoreName,
     researchUserId: user?.id ?? null,
@@ -3300,6 +5026,118 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     toast,
   })
 
+  const studioFormatBusy = templateModeOn || generationPanel.isOpen || generationPanel.isGenerating
+    || isGeneratingFinal || isGeneratingStrawman || templateBlueprintSaving || templateReuseAwaitingInput
+    || (buildNarration.active && !['idle', 'complete'].includes(buildNarration.phase))
+    || Object.values(slideComposeJobs).some(job => job.status === 'building')
+    || !studioViewerSafety?.ready || Boolean(studioViewerSafety?.busy || studioViewerSafety?.error)
+  const studioFormatScopeRef = useRef({ userId: user?.id, sessionId: currentSessionId,
+    presentationId: effectivePresentationId, deckOwnerSessionId, activeVersion, busy: studioFormatBusy,
+    slideIndex: currentSlideIndex, templateModeOn })
+  const oldFormatScope = studioFormatScopeRef.current
+  if (oldFormatScope.userId !== user?.id || oldFormatScope.sessionId !== currentSessionId
+    || oldFormatScope.presentationId !== effectivePresentationId || oldFormatScope.deckOwnerSessionId !== deckOwnerSessionId
+    || oldFormatScope.activeVersion !== activeVersion || oldFormatScope.busy !== studioFormatBusy
+    || oldFormatScope.slideIndex !== currentSlideIndex || oldFormatScope.templateModeOn !== templateModeOn) {
+    studioFormatScopeRef.current = { userId: user?.id, sessionId: currentSessionId,
+      presentationId: effectivePresentationId, deckOwnerSessionId, activeVersion, busy: studioFormatBusy,
+      slideIndex: currentSlideIndex, templateModeOn }
+  }
+  const closeStudioFormat = useCallback(() => {
+    studioFormatRequestRef.current = null
+    setStudioFormatOpen(false); setStudioFormatTarget(null); setStudioFormatLoading(false); setStudioFormatError(null)
+  }, [])
+  // J2 v2: opening the Add Slide panel makes the other Element panels step aside (as activateElementPanel does),
+  // and any of them opening closes it, so the drawer shows one panel.
+  const handleAddSlideV2PanelOpenChange = useCallback((open: boolean) => {
+    if (!open) { setAddSlideV2Open(false); return }
+    generationPanel.closePanel()
+    setShowTextBoxPanel(false)
+    setShowElementPanel(false)
+    closeStudioFormat()
+    bringToFront('element')
+    setAddSlideV2Open(true)
+  }, [generationPanel.closePanel, closeStudioFormat, bringToFront])
+  useEffect(() => {
+    if (addSlideV2Open && (generationPanel.isOpen || showTextBoxPanel || showElementPanel || (studioShell && studioFormatOpen))) setAddSlideV2Open(false)
+  }, [addSlideV2Open, generationPanel.isOpen, showTextBoxPanel, showElementPanel, studioShell, studioFormatOpen])
+  const studioFormatMountedRef = useRef(false)
+  useEffect(() => { studioFormatMountedRef.current = true; return () => { studioFormatMountedRef.current = false; studioFormatRequestRef.current = null; studioFormatCommandIntentRef.current = null } }, [])
+  const studioFormatScope = studioFormatScopeRef.current
+  useEffect(() => {
+    const request = studioFormatRequestRef.current
+    if (request && (request.scope !== studioFormatScope || !request.selection.isCurrent())) closeStudioFormat()
+  }, [studioFormatScope, studioViewerSafety, closeStudioFormat])
+  const handleStudioFormatRequested = useCallback(async (selection: StudioFormatSelectionHandle) => {
+    const scope = studioFormatScopeRef.current
+    if (!studioShell || studioFormatTemplateModeRef.current || scope.busy || !scope.userId || !scope.sessionId || scope.sessionId === 'new'
+      || scope.deckOwnerSessionId !== scope.sessionId || selection.presentationId !== scope.presentationId
+      || selection.slideIndex !== scope.slideIndex || !selection.isCurrent()) return
+    const request = { selection, scope }
+    const partialWork = {}
+    if (studioShell) studioPartialLocalWorkRef.current.add(partialWork)
+    studioFormatRequestRef.current = request
+    const current = () => studioFormatMountedRef.current && studioFormatRequestRef.current === request
+      && studioFormatScopeRef.current === scope && selection.isCurrent()
+    setStudioFormatOpen(true); setStudioFormatLoading(true); setStudioFormatTarget(null); setStudioFormatError(null)
+    activateElementPanel()
+    try {
+      const target = await selection.read()
+      if (current()) setStudioFormatTarget(target)
+    } catch (error) {
+      if (current()) setStudioFormatError(error instanceof Error ? error.message : 'Formatting properties could not be confirmed.')
+    } finally {
+      studioPartialLocalWorkRef.current.delete(partialWork)
+      if (studioPartialMountedRef.current) setStudioPartialRevision(revision => revision + 1)
+      if (current()) setStudioFormatLoading(false)
+    }
+  }, [studioShell, activateElementPanel])
+  const handleStudioFormatCommand = useCallback(async (action: StudioFormatCommand, params: Record<string, unknown>, target: StudioFormatTarget) => {
+    const request = studioFormatRequestRef.current
+    if (!request || !studioFormatMountedRef.current || studioFormatScopeRef.current !== request.scope
+      || studioFormatTemplateModeRef.current || request.scope.busy || !request.selection.isCurrent() || target.selectionOwner !== request.selection.owner
+      || target.presentationId !== request.scope.presentationId || target.slideIndex !== request.scope.slideIndex) {
+      throw new Error('Select the element again before formatting.')
+    }
+    const intent = {}
+    studioFormatCommandIntentRef.current = intent
+    studioPartialLocalWorkRef.current.add(intent)
+    try {
+      const result = await request.selection.send(action, params, target)
+      if (!studioFormatMountedRef.current || studioFormatRequestRef.current !== request
+        || studioFormatScopeRef.current !== request.scope || !request.selection.isCurrent()) throw new Error('The selection changed before formatting was confirmed.')
+      // A confirmed primitive is followed by another strict native read. Attempted
+      // field values never become the source of the next formatting snapshot.
+      try {
+        const refreshed = await request.selection.read()
+        if (studioFormatMountedRef.current && studioFormatRequestRef.current === request
+          && studioFormatScopeRef.current === request.scope && request.selection.isCurrent()) setStudioFormatTarget(refreshed)
+      } catch {
+        if (studioFormatMountedRef.current && studioFormatRequestRef.current === request
+          && studioFormatScopeRef.current === request.scope && request.selection.isCurrent()) {
+          setStudioFormatTarget(null)
+          setStudioFormatError('The change was confirmed, but its updated properties could not be read. Select the element again.')
+        }
+      }
+      if (action === 'generateTextBoxContent' && (!studioFormatMountedRef.current
+        || studioFormatRequestRef.current !== request || studioFormatScopeRef.current !== request.scope
+        || !request.selection.isCurrent())) throw new Error('The AI edit was observed, but the current selection changed before its updated properties could be read.')
+      return result
+    } catch (error) {
+      // Native AI work cannot be unsent. A fixed uncertainty notice may outlive
+      // selection ownership only within this exact current Page scope/intent.
+      if (action === 'generateTextBoxContent' && studioFormatMountedRef.current
+        && studioFormatScopeRef.current === request.scope && studioFormatCommandIntentRef.current === intent
+        && (studioFormatRequestRef.current !== request || !request.selection.isCurrent())) {
+        toast({ title: 'Check AI text result',
+          description: 'An earlier AI edit could not be confirmed and may have applied to its original text box. Check before generating it again.' })
+      }
+      throw error
+    } finally {
+      studioPartialLocalWorkRef.current.delete(intent)
+      if (studioPartialMountedRef.current) setStudioPartialRevision(revision => revision + 1)
+    }
+  }, [toast])
   const handleOpenGenerationPanelInFront = useCallback(async (type: string) => {
     activateElementPanel()
     await handleOpenGenerationPanel(type)
@@ -3316,7 +5154,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const handleApprovedTextLabsGenerate = useCallback(async (
     formData: TextLabsFormData,
     submitIntent: ElementGenerationSubmitIntent,
-  ) => {
+    invocation?: { kind: 'chat-add'; slideIndex: number } | import('@/lib/chat-element-refine').ChatRefineInvocation, // chat-refine: NEXT_PUBLIC_CHAT_ELEMENT_REFINE
+  ): Promise<TextLabsGenerationResult> => {
     if (!layoutServiceApis?.sendElementCommand) {
       generationPanel.setError('The presentation viewer is unavailable. Reload the presentation and try again.')
       toast({
@@ -3324,11 +5163,21 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         description: 'Wait for an approved presentation viewer to load before generating an element.',
         variant: 'destructive',
       })
-      return
+      return { status: 'failed', presentationId: effectivePresentationId,
+        slideIndex: formData.slideIndex ?? null,
+        error: 'The presentation viewer is unavailable. Reload the presentation and try again.' }
     }
 
-    await handleTextLabsGenerate(formData, submitIntent)
-  }, [generationPanel, handleTextLabsGenerate, layoutServiceApis, toast])
+    // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: adding an element by hand is the user's first action on an unsaved blank canvas.
+    saveSessionOnFirstAction()
+    const partialWork = {}
+    if (studioShell) studioPartialLocalWorkRef.current.add(partialWork)
+    try { return await handleTextLabsGenerate(formData, submitIntent, invocation) }
+    finally {
+      studioPartialLocalWorkRef.current.delete(partialWork)
+      if (studioPartialMountedRef.current) setStudioPartialRevision(revision => revision + 1)
+    }
+  }, [generationPanel, handleTextLabsGenerate, layoutServiceApis, toast, effectivePresentationId, saveSessionOnFirstAction])
 
   const handleRefineElementRequested = useCallback((payload: RefineElementRequest) => {
     if (!features.useTextLabsGeneration) return
@@ -3365,22 +5214,49 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
   // MDC P8 (K5): execute a chat-invoked element add through the SAME pipeline
   // as the element panel, then report the outcome to the Director.
+  const elementDirectiveGenerationOwnerRef = useRef({ sessionId: currentSessionId || wsSessionId,
+    deckOwnerSessionId, presentationId: effectivePresentationId, epoch: 0 })
+  const previousDirectiveOwner = elementDirectiveGenerationOwnerRef.current
+  const nextDirectiveSessionId = currentSessionId || wsSessionId
+  const directiveOwnerChanged = previousDirectiveOwner.sessionId !== nextDirectiveSessionId
+    || previousDirectiveOwner.deckOwnerSessionId !== deckOwnerSessionId
+    || previousDirectiveOwner.presentationId !== effectivePresentationId
+  elementDirectiveGenerationOwnerRef.current = { sessionId: nextDirectiveSessionId,
+    deckOwnerSessionId, presentationId: effectivePresentationId,
+    epoch: previousDirectiveOwner.epoch + (directiveOwnerChanged ? 1 : 0) }
   elementDirectiveRunnerRef.current = (payload) => {
+    const owner = elementDirectiveGenerationOwnerRef.current
+    const ownsDirective = () => {
+      const current = elementDirectiveGenerationOwnerRef.current
+      return Boolean(owner.sessionId && owner.presentationId
+        && current.sessionId === owner.sessionId && current.deckOwnerSessionId === owner.sessionId
+        && current.presentationId === owner.presentationId && current.epoch === owner.epoch)
+    }
     void (async () => {
-      const report = (status: 'inserted' | 'failed' | 'dismissed', error?: string) =>
-        sendElementDirectiveResult({
+      const report = (status: 'inserted' | 'failed' | 'dismissed', error?: string, elementId?: string) =>
+        ownsDirective() && sendElementDirectiveResult({
           directive_id: payload.directive_id, status,
-          element_id: null, error: error ?? null,
+          element_id: status === 'inserted' ? elementId ?? null : null, error: error ?? null,
         })
       try {
         const { buildFormDataForDirective } = await import('@/lib/mdc-element-directive')
         const formData = buildFormDataForDirective(payload.element_type, payload.prompt)
+        if (formData) (await import('@/lib/mdc-element-directive')).applyDirectiveElementFields(formData, payload) // MDC-ELEMENT-FIELDS: NEXT_PUBLIC_STUDIO_MDC_ELEMENT_FIELDS (default off): the Director's label text / shape type, as the Element panel's form sends them
         if (!formData) {
           report('failed', `unsupported element type ${payload.element_type}`)
           return
         }
         const slideCount = slideStructure?.slides?.length ?? 0
         const target = payload.slide_index
+        if (!ownsDirective()) {
+          report('failed', 'The requested presentation is no longer owned by this chat.')
+          return
+        }
+        const panel = generationPanel.getSnapshot()
+        if (generationPanel.hasActiveGenerations || panel.isOpen) {
+          report('dismissed', 'Finish or close the active element draft before adding an element from chat.')
+          return
+        }
         if (target < 0 || (slideCount > 0 && target >= slideCount)) {
           report('failed', 'target slide out of range')
           return
@@ -3393,14 +5269,235 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           await layoutServiceApis.goToSlide(target)
           await new Promise(resolve => setTimeout(resolve, 400))
         }
-        await handleApprovedTextLabsGenerate(formData, 'generate')
-        report('inserted')
+        if (!ownsDirective() || currentSlideIndexRef.current !== target) {
+          report('failed', 'The requested slide could not be confirmed. No generation was started.')
+          return
+        }
+        const outcome = await handleApprovedTextLabsGenerate(formData, 'generate', { kind: 'chat-add', slideIndex: target })
+        if (outcome.status !== 'inserted') {
+          report('failed', outcome.error)
+          return
+        }
+        if (!ownsDirective() || outcome.presentationId !== owner.presentationId || outcome.slideIndex !== target
+          || !outcome.elementIds.length || outcome.elementIds.some(id => !id.trim())) {
+          report('failed', 'The requested slide insertion could not be confirmed. Inspect the slide before trying again.')
+          return
+        }
+        report('inserted', undefined, outcome.elementIds[0])
         toast({ title: 'Element added', description: `Added to slide ${target + 1} from chat.` })
       } catch (error) {
         report('failed', error instanceof Error ? error.message : 'generation failed')
       }
     })()
   }
+
+  // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: the selection a chat send names (one element reference), with the slide it was selected on. The
+  // viewer only lets you select on the slide it shows, so that slide is the element's. Cleared with the selection. Off: nothing is kept.
+  useEffect(() => {
+    if (!CHAT_ELEMENT_REFINE_ENABLED) return
+    if (selectedTextBoxId) {
+      const slideIndex = currentSlideIndexRef.current
+      const slideId = (slideStructure?.slides?.[slideIndex] as { slide_id?: unknown } | undefined)?.slide_id
+      chatElementSelectionRef.current = { elementId: selectedTextBoxId, elementType: 'TEXT_BOX', slideIndex, slideId: typeof slideId === 'string' ? slideId : null }
+    } else if (chatElementSelectionRef.current?.elementType === 'TEXT_BOX') chatElementSelectionRef.current = null
+  }, [selectedTextBoxId]) // eslint-disable-line react-hooks/exhaustive-deps -- recorded when the selection changes, not when the deck does
+  useEffect(() => {
+    if (!CHAT_ELEMENT_REFINE_ENABLED) return
+    if (selectedElementId) {
+      const slideIndex = currentSlideIndexRef.current
+      const slideId = (slideStructure?.slides?.[slideIndex] as { slide_id?: unknown } | undefined)?.slide_id
+      chatElementSelectionRef.current = { elementId: selectedElementId, elementType: selectedElementType, slideIndex, slideId: typeof slideId === 'string' ? slideId : null }
+    } else if (chatElementSelectionRef.current && chatElementSelectionRef.current.elementType !== 'TEXT_BOX') chatElementSelectionRef.current = null
+  }, [selectedElementId, selectedElementType]) // eslint-disable-line react-hooks/exhaustive-deps -- as above
+
+  // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: Director's element_refine_directive, beside the add runner above and on the same owner record. It reads
+  // the element's refine payload from the viewer (requestElementRefine, layout-builder !245), runs the Element panel's own refine
+  // (handleApprovedTextLabsGenerate with kind 'chat-refine') and answers element_directive_result on the socket that delivered it, with
+  // a known status every time. Studio adds no chat line of its own: Director closes the turn. Off: no runner.
+  const chatElementRefineInFlightRef = useRef(false)
+  elementRefineDirectiveRunnerRef.current = !CHAT_ELEMENT_REFINE_ENABLED ? null : (message, owner) => {
+    const another = chatElementRefineInFlightRef.current
+    if (!another) chatElementRefineInFlightRef.current = true
+    void runElementRefineDirective(message, owner, {
+      displayed: () => elementDirectiveGenerationOwnerRef.current,
+      isBusy: () => another || generationPanel.hasActiveGenerations || generationPanel.getSnapshot().isOpen,
+      slideCount: () => slideStructure?.slides?.length ?? 0,
+      currentSlideIndex: () => currentSlideIndexRef.current,
+      goToSlide: layoutServiceApis?.goToSlide ?? null,
+      sendElementCommand: layoutServiceApis?.sendElementCommand ?? null,
+      componentTypeOf: payload => normalizeTextLabsElementType(payload.componentType ?? payload.elementType),
+      isBlankPlaceholder: payload => shouldOpenAsBlankPlaceholder(payload as unknown as RefineElementRequest,
+        blankElements.getElement(String(payload.elementId))?.componentType),
+      buildRefineContext: (payload, componentType) => buildRefineContext(payload as unknown as RefineElementRequest, componentType),
+      generate: (formData, invocation) => handleApprovedTextLabsGenerate(formData, 'generate', invocation),
+      settle: () => new Promise(resolve => setTimeout(resolve, 400)),
+    }).then(result => {
+      if (owner.isCurrent()) sendElementDirectiveResult(result)
+    }).finally(() => {
+      if (!another) chatElementRefineInFlightRef.current = false
+    })
+  }
+
+  // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT: Director's theme_directive / export_directive, beside the add runner above and on
+  // the same owner record (lib/chat-theme-export.ts). Theme: the picker's own apply, handleBuildThemeChange's body WITHOUT its build-selection
+  // lock (Director sends the directive only for a built deck, which the picker locks; PROGRAM-1's E4a ruling), then the deck-theme effect's
+  // set_theme with Studio's own request id, answered from that request's terminal theme_sync. Export: the Download menu's downloadPDF /
+  // downloadPPTX with its default quality and enable rule. One of each at a time (a second is dismissed); answered on the delivering socket
+  // only. Studio adds no chat line of its own: Director closes the turn. Both flags off: no runner.
+  const chatThemeExportInFlightRef = useRef({ theme: false, export: false })
+  const applyChatThemeSelection = (next: BuildThemeSelection): BuildThemeSelection => {
+    saveSessionOnFirstAction()
+    const carried = carryPaletteMode(next, buildThemeSelectionRef.current)
+    setActiveBuildThemeProfile(current => (
+      buildThemeProfileMatchesSelection(current, next) ? (current && carried !== next ? { ...current, theme_payload: carried } : current) : null
+    ))
+    themeSelectionChangedLocallyRef.current = true
+    setBuildThemeSelection(carried)
+    if (process.env.NEXT_PUBLIC_STUDIO_THEME_OWN_CHOICE === 'true') recordOwnThemeChoice(themeRestoreSessionRef.current, carried) // THEME-OWN-CHOICE: a chat theme change is the user's own choice too
+    return carried
+  }
+  themeExportDirectiveRunnerRef.current = !(process.env.NEXT_PUBLIC_CHAT_THEME_CHANGE === 'true' || process.env.NEXT_PUBLIC_CHAT_EXPORT === 'true') ? null : (message, owner) => {
+    const kind = message.type === 'theme_directive' ? 'theme' : 'export'
+    const send = (result: ThemeExportResultData) => {
+      if (owner.isCurrent()) sendElementDirectiveResult(result as unknown as import('@/types/mdc').ElementDirectiveResult['data'])
+    }
+    if (chatThemeExportInFlightRef.current[kind]) {
+      send({ directive_id: String(message.payload?.directive_id), status: 'dismissed', error_code: null })
+      return
+    }
+    chatThemeExportInFlightRef.current[kind] = true
+    const run = message.type === 'theme_directive'
+      ? runThemeDirective(message, owner, {
+        displayed: () => elementDirectiveGenerationOwnerRef.current,
+        locks: () => ({ composerBlocked: themeSyncTargetRef.current.composerThemeBlocked, composerFrozen: themeSyncTargetRef.current.composerThemeFrozen,
+          templateMode: themeSyncTargetRef.current.templateModeOn, generating: isGeneratingFinal || isGeneratingStrawman || templateReuseAwaitingInput }),
+        apply: applyChatThemeSelection,
+        themeSync: () => themeSyncRef.current,
+        wait: () => new Promise<void>(resolve => setTimeout(resolve, 100)),
+        now: () => Date.now(),
+        timeoutMs: THEME_SYNC_TIMEOUT_MS + 5_000,
+      })
+      : runExportDirective(message, owner, {
+        displayed: () => elementDirectiveGenerationOwnerRef.current,
+        // What <PresentationArea> renders the Download menu with (presentationUrl, slideCount, currentStage, hasFinalDeck, studioPartialArtifact, buildNarration).
+        exportState: () => ({
+          presentationUrl: effectivePresentationUrl ?? null, slideCount: effectiveSlideCount ?? null, stage: currentStage,
+          hasFinalDeck: Boolean(finalPresentationId || finalPresentationUrl),
+          exportAfterBuild: process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && process.env.NEXT_PUBLIC_STUDIO_EXPORT_AFTER_BUILD === 'true',
+          partialArtifact: Boolean(studioShell && studioPartialMetadata),
+          narrationActive: Boolean(effectiveBuildNarrationEnabled && buildNarration?.active),
+          narrationPhase: (effectiveBuildNarrationEnabled ? buildNarration?.phase : null) ?? 'idle',
+        }),
+        downloadPDF,
+        downloadPPTX,
+      })
+    void run.then(send).finally(() => { chatThemeExportInFlightRef.current[kind] = false })
+  }
+  // CHAT-ELEMENT-EDIT: Director's element_edit (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off), after the theme / export runner and on the same owner record as the K5 add runner
+  // CHAT-ELEMENT-EDIT: (lib/chat-element-edit.ts). One edit of one element through the viewer's own element commands (delete, z-order, grid position, text format), never a PATCH; the answer
+  // CHAT-ELEMENT-EDIT: goes back on the socket that delivered it, ok:true only after the viewer's autosave acknowledged the change, and a stale socket or owner sends nothing. Off: no runner.
+  if (CHAT_ELEMENT_EDIT_ENABLED && !chatElementEditGateRef.current) chatElementEditGateRef.current = createElementEditGate() // CHAT-ELEMENT-EDIT
+  elementEditDirectiveRunnerRef.current = !CHAT_ELEMENT_EDIT_ENABLED ? null : (message, owner) => { // CHAT-ELEMENT-EDIT
+    void runElementEditDirective(message, owner, { // CHAT-ELEMENT-EDIT
+      displayed: () => elementDirectiveGenerationOwnerRef.current, // CHAT-ELEMENT-EDIT
+      gate: chatElementEditGateRef.current as ElementEditGate, // CHAT-ELEMENT-EDIT
+      paused: () => oneLiveTabSuperseded, // CHAT-ELEMENT-EDIT
+      templateMode: () => templateModeOn, // CHAT-ELEMENT-EDIT
+      slideCount: () => slideStructure?.slides?.length ?? 0, // CHAT-ELEMENT-EDIT
+      currentSlideIndex: () => currentSlideIndexRef.current, // CHAT-ELEMENT-EDIT
+      slideIdAt: slideIndex => { const id = (slideStructure?.slides?.[slideIndex] as { slide_id?: unknown } | undefined)?.slide_id; return typeof id === 'string' && id ? id : null }, // CHAT-ELEMENT-EDIT
+      shownSlides: presentationId => chatElementEdit2ShownSlides(presentationId), // CHAT-ELEMENT-EDIT-2: Layout's own ids and count for the shown deck (used only with the flag on)
+      goToSlide: layoutServiceApis?.goToSlide ?? null, // CHAT-ELEMENT-EDIT
+      sendElementCommand: layoutServiceApis?.sendElementCommand ?? null, // CHAT-ELEMENT-EDIT
+      sendTextBoxCommand: layoutServiceApis?.sendTextBoxCommand ?? null, // CHAT-ELEMENT-EDIT
+      ensureEditMode: () => getChatEditViewer()?.ensureEditMode() ?? Promise.resolve(false), // CHAT-ELEMENT-EDIT
+      subscribeSave: subscribeViewerSaveEvents, // CHAT-ELEMENT-EDIT
+      settle: () => new Promise<void>(resolve => setTimeout(resolve, 400)), // CHAT-ELEMENT-EDIT
+    }).then(result => { // CHAT-ELEMENT-EDIT
+      if (result && owner.isCurrent()) sendElementEditResult(result) // CHAT-ELEMENT-EDIT
+    }) // CHAT-ELEMENT-EDIT
+  } // CHAT-ELEMENT-EDIT
+  // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2 (NEXT_PUBLIC_STUDIO_CHAT_STALE_VIEWER_GUARD, default off; lib/chat-stale-viewer-guard.ts): in front of the add runner above and the edit runner, the viewer must show the deck Layout holds (slide ids from composeGetState against Layout's
+  // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: slide inventory); if it does not it is reloaded first (the page's Reload deck, never over unsaved work), else the directive is answered failed. The runners are called afterwards through their refs, so they are the latest render's.
+  chatStaleViewerApisRef.current = layoutServiceApis // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+  chatStaleViewerDepsRef.current = !CHAT_STALE_VIEWER_GUARD_ENABLED ? null : { // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+    addOwner: () => { const o = elementDirectiveGenerationOwnerRef.current; return { sessionId: o.sessionId, deckOwnerSessionId: o.deckOwnerSessionId, presentationId: o.presentationId, epoch: o.epoch } }, // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+    addPanelBusy: () => generationPanel.hasActiveGenerations || generationPanel.getSnapshot().isOpen, // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: the add runner answers an open element draft itself
+    ensure: owns => ensureViewerMatchesServer({ // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+      readServerSlideIds: async () => { // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+        const shownId = elementDirectiveGenerationOwnerRef.current.presentationId; if (!shownId) throw new Error('no deck on screen') // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+        const read = await fetchSlideInventory({ baseUrl: getLayoutServiceUrl(), presentationId: shownId, fetchImpl: (input, init) => fetch(input, init) }) // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: the read #538 makes
+        if (read.kind === 'unavailable') return read.reason === 'invalid_inventory' ? 'unusable' : null; if (read.kind !== 'ok') throw new Error('Layout could not answer the slide inventory') // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: an inventory with a slide that has no id (or two with one) cannot be compared by id: 'unusable'; no inventory route: null
+        return read.inventory.slides.map(row => row.slideId) // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+      }, // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+      readViewerSlideIds: async () => { // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+        const compose = composeViewerApiRef.current; if (!compose) throw new Error('The presentation viewer is not ready') // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: null while the viewer loads (a reload included)
+        const receipt = await compose.composeGetState(); const order = parseStudioNativeSlideOrder(receipt) // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+        return order ? order.slideIds : Array.isArray(receipt?.placeholders) && receipt.placeholders.length > 0 ? 'busy' : receipt?.success === true && Array.isArray(receipt.slides) && receipt.slides.length > 0 ? 'unusable' : null // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: 'unusable' = the viewer's slides are there but one has no id (or two share one)
+      }, // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+      readServerSignature: async () => { // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: for a deck whose ids cannot be compared: Layout's inventory as it is (each slide's layout, content version and id, in order)
+        const sigId = elementDirectiveGenerationOwnerRef.current.presentationId; if (!sigId) return null // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+        const sigRes = await fetch(`${getLayoutServiceUrl()}/api/presentations/${encodeURIComponent(sigId)}/slides/inventory`, { cache: 'no-store' }); if (!sigRes.ok) return null // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+        const sigBody = await sigRes.json(); if (!Array.isArray(sigBody?.slides)) return null // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+        return JSON.stringify(sigBody.slides.map((row: { layout?: unknown; content_version?: unknown; slide_id?: unknown }) => [row.layout ?? null, row.content_version ?? null, row.slide_id ?? null])) // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+      }, // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+      viewerSaveState: () => chatStaleViewerApisRef.current?.getStudioSaveStatus?.() ?? null, // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+      viewerBusy: () => Boolean(chatStaleViewerApisRef.current?.getStudioIntroductionSafety?.().busy), // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+      reloadViewer: () => deckChangedNotice.reload(), // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: Reload deck (a new refresh token on the viewer URL, and the rail's re-read)
+      owns, wait: ms => new Promise<void>(resolve => setTimeout(resolve, ms)), now: () => Date.now(), // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+    }), // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+    runAdd: payload => elementDirectiveRunnerRef.current?.(payload), // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+    reportAddFailed: (payload, error) => { sendElementDirectiveResult({ directive_id: payload.directive_id, status: 'failed', element_id: null, error }) }, // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+    runEdit: (message, owner) => elementEditDirectiveRunnerRef.current?.(message, owner), // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+    reportEditFailed: (directiveId, code) => { sendElementEditResult({ directive_id: directiveId, ok: false, error_code: code }) }, // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+  } // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+  if (CHAT_STALE_VIEWER_GUARD_ENABLED && !chatStaleViewerGuardRef.current) chatStaleViewerGuardRef.current = createChatStaleViewerGuard(() => chatStaleViewerDepsRef.current as NonNullable<typeof chatStaleViewerDepsRef.current>) // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: one guard per mount (its queue and answered set persist)
+  // CHAT-PARITY: the runner of Director's studio_action (lib/studio-chat-parity.ts reads and refuses, lib/studio-chat-parity-runners.ts runs the group's executor, the click path's own function, under its timeout).
+  // CHAT-PARITY: Answered on the delivering socket only; a group that is off or an action the build does not know is answered `failed` at once (flag_off / unsupported). Every flag off: no runner.
+  const chatParityThemeProfiles = useThemeProfiles() // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES): the composer palette's own writes (hooks/use-theme-profiles.ts) for the theme executors; a second instance of the hook, its own loading state
+  const chatParityTemplates = useTemplates() // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_TEMPLATES): the Templates page's and the Save Template dialog's own calls (hooks/use-templates.ts); a second instance, its own loading state
+  chatParityBus.request = !STUDIO_CHAT_PARITY_ANY_ENABLED ? null : (message, owner) => { // CHAT-PARITY
+    const request = chatParityRequest(message); if (!request) return // CHAT-PARITY
+    const refusal = chatParityRefusal(request); if (refusal) { if (owner.isCurrent()) chatParityBus.send?.(chatParityResult(request.requestId, 'failed', refusal)); return } // CHAT-PARITY
+    void runChatParityAction(request, owner, { displayed: () => elementDirectiveGenerationOwnerRef.current, // CHAT-PARITY
+      ...(STUDIO_CHAT_PARITY_THEMES_ENABLED ? { themes: { // CHAT-PARITY: the theme picker's own apply and sync (as the theme directive's deps above) and the palette's own library writes
+        listThemes: chatParityThemeProfiles.listThemes, saveTheme: chatParityThemeProfiles.saveTheme, setStandardTheme: chatParityThemeProfiles.setStandardTheme, clearStandardTheme: chatParityThemeProfiles.clearStandardTheme, renameTheme: chatParityThemeProfiles.renameTheme, // CHAT-PARITY
+        currentSelection: () => buildThemeSelectionRef.current, apply: applyChatThemeSelection, setActiveProfile: setActiveBuildThemeProfile, // CHAT-PARITY
+        locks: () => ({ composerBlocked: themeSyncTargetRef.current.composerThemeBlocked, composerFrozen: themeSyncTargetRef.current.composerThemeFrozen, templateMode: themeSyncTargetRef.current.templateModeOn, generating: isGeneratingFinal || isGeneratingStrawman || templateReuseAwaitingInput }), // CHAT-PARITY
+        themeSync: () => themeSyncRef.current, wait: () => new Promise<void>(resolve => setTimeout(resolve, 100)), now: () => Date.now(), timeoutMs: THEME_SYNC_TIMEOUT_MS + 5_000, // CHAT-PARITY
+      } } : {}), // CHAT-PARITY
+      ...(STUDIO_CHAT_PARITY_IDENTITY_ENABLED ? { identity: { now: () => Date.now(), masterTimeoutMs: 20_000 } } : {}), // CHAT-PARITY: the Master panel's own path (opened by the viewer, written by its Save); a paid logo generation was confirmed by the Director's cost card
+      ...(STUDIO_CHAT_PARITY_TEMPLATES_ENABLED ? { templates: { // CHAT-PARITY: the picker's own select, the composer library dialog's own runner, the Templates page's and Save Template dialog's own calls
+        listTemplates: chatParityTemplates.listTemplates, saveTemplate: chatParityTemplates.saveTemplate, reoptimizeTemplate: chatParityTemplates.reoptimizeTemplate, renameTemplate: chatParityTemplates.renameTemplate, // CHAT-PARITY
+        select: handleSelectTemplate, selectionLocked: () => templateSelectionLockedRef.current, // CHAT-PARITY
+        composer: composerLibraryEnabled && (studioPopupsV2 || studioTemplateWorkspace) ? { list: loadComposerTemplates, run: runComposerTemplateAction, actions: () => composerTemplateActions({ ditto: process.env.NEXT_PUBLIC_COMPOSER_STAGE1B_DITTO_ENABLED === 'true', newTopic: process.env.NEXT_PUBLIC_COMPOSER_STAGE1B_NEW_TOPIC_ENABLED === 'true' }).map(item => item.action) } : null, // CHAT-PARITY
+        saveSource: () => ({ sessionId: currentSessionId || wsSessionId || null, presentationId: templateSavePresentationId ?? null }), // CHAT-PARITY
+      } } : {}) }, message).then(result => { if (owner.isCurrent()) chatParityBus.send?.(result) }) // CHAT-PARITY
+  } // CHAT-PARITY
+  // CHAT-ELEMENT-EDIT-2 (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT_2, default off): the element edit's slide check reads the SHOWN deck's ids from Layout's slide inventory (the session slideStructure holds Director's outline ids, not Layout's), and the element
+  // CHAT-ELEMENT-EDIT-2: reference of a send is dropped when the deck changes under it (an Undo, a restored or mutated deck, another deck) or the shown slide is not the one it was selected on. Off: nothing below runs.
+  const chatElementEdit2ShownSlides = async (presentationId: string) => { // CHAT-ELEMENT-EDIT-2
+    const result = await fetchSlideInventory({ baseUrl: getLayoutServiceUrl(), presentationId, fetchImpl: (input, init) => fetch(input, init) }) // CHAT-ELEMENT-EDIT-2
+    return result.kind === 'ok' ? shownSlidesFromInventory(result.inventory) : null // CHAT-ELEMENT-EDIT-2
+  } // CHAT-ELEMENT-EDIT-2
+  const chatElementEdit2Reference = () => referenceWithoutOutlineId(chatElementReferenceFor(chatElementSelectionRef.current)) // CHAT-ELEMENT-EDIT-2: the one element reference of a send and of the "@" Element entry, slide_id null (the session slide list holds Director's outline ids, which Layout does not know)
+  useEffect(() => { // CHAT-ELEMENT-EDIT-2
+    if (CHAT_ELEMENT_EDIT_2_ENABLED) dropChatElementSelection(chatElementSelectionRef) // CHAT-ELEMENT-EDIT-2
+  }, [slideComposerOverride, effectivePresentationId]) // CHAT-ELEMENT-EDIT-2
+  useEffect(() => { // CHAT-ELEMENT-EDIT-2
+    if (CHAT_ELEMENT_EDIT_2_ENABLED) dropChatElementSelectionOffSlide(chatElementSelectionRef, currentSlideIndex) // CHAT-ELEMENT-EDIT-2
+  }, [currentSlideIndex]) // CHAT-ELEMENT-EDIT-2
+  // DECK-SYNC-TRUTH (NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH, default off; lib/studio-deck-sync-truth.ts): the session row's slide count (the Decks page card and the session list read it) is only ever raised by the build's frames, so after
+  // DECK-SYNC-TRUTH: a chat delete it still said the build's count. Settled (no build in progress, the final deck on screen), a chat change to the deck writes Layout's real count to the row through the page's existing session write.
+  const deckSyncBuildingRef = useRef(false) // DECK-SYNC-TRUTH
+  deckSyncBuildingRef.current = !studioShell || studioPartialMetadata || templateModeOn || isGeneratingFinal || isGeneratingStrawman || slideComposeThumbnailJobs.length > 0 // DECK-SYNC-TRUTH: the viewer's "a build is in progress" rule
+  const deckSyncRowCountRef = useRef<ReturnType<typeof createSettledRowCountWriter> | null>(null) // DECK-SYNC-TRUTH
+  if (process.env.NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH === 'true' && !deckSyncRowCountRef.current) deckSyncRowCountRef.current = createSettledRowCountWriter({ // DECK-SYNC-TRUTH: the flag is read inline, as the count settler's is
+    readLayoutCount: async id => { const result = await fetchSlideInventory({ baseUrl: getLayoutServiceUrl(), presentationId: id, fetchImpl: (input, init) => fetch(input, init) }); return result.kind === 'ok' ? result.inventory.slideCount : null }, // DECK-SYNC-TRUTH
+    getDisplayed: () => slideComposerPresentationRef.current, // DECK-SYNC-TRUTH
+    isBuilding: () => deckSyncBuildingRef.current, // DECK-SYNC-TRUTH
+    writeRowCount: count => { if (currentSessionIdRef.current && persistenceRef.current) persistenceRef.current.updateMetadata({ slideCount: count, lastMessageAt: new Date() }, { passive: true }) }, // DECK-SYNC-TRUTH: the existing write; passive as the Layout count reconcile's (NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY)
+  }) // DECK-SYNC-TRUTH
 
   // File upload state
   const {
@@ -3851,8 +5948,18 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
+    if (studioShell && messages.length === 0 && session.userMessages.length === 0) {
+      const viewport = messagesEndRef.current?.closest('[data-radix-scroll-area-viewport]')
+      if (viewport) viewport.scrollTop = 0
+      return
+    }
+    // PASS2 #2 (flag NEXT_PUBLIC_STUDIO_FIRST_RUN_V2): while the first-run welcome is up, Director's greeting arriving leaves it at its heading.
+    if (studioShell && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true') {
+      const viewport = messagesEndRef.current?.closest('[data-radix-scroll-area-viewport]')
+      if (viewport?.querySelector('[data-studio-first-run]')) { viewport.scrollTop = 0; return }
+    }
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages, session.userMessages])
+  }, [messages, session.userMessages, studioShell])
 
   // Check if user is new and should see onboarding
   useEffect(() => {
@@ -3874,28 +5981,34 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   // only the matching UI. `hasStrawman` is the Director's own signal, latched.
   const researchSettingsLocked = hasStrawman
 
-  const handleSendMessage = useCallback(async (
-    e?: React.FormEvent,
-    messageOverride?: string,
-    turnContext?: { manualDeck?: ManualDeckContext },
-  ) => {
-    if (e) e.preventDefault()
-    const messageText = (messageOverride ?? inputMessage).trim()
-    if (!messageText) return
-
+  // Typed messages and structured answers share synchronous readiness gates.
+  // Reconnection itself remains the transport's job; disconnected is not a blocker.
+  const preflightDirectorTurn = useCallback((source: BlockedSendSource = 'typed') => {
     if (!user) {
       console.warn('Cannot send message: user not authenticated')
-      return
+      return false
+    }
+
+    // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: this tab is paused (the session is live in another tab). A typed message, an answer or an
+    // action click shows the notice instead of silently reconnecting, which would only evict the live tab. Nothing is sent and the
+    // draft stays in the box; "Use here" takes the session back.
+    if (oneLiveTabSuperseded) {
+      toast({ title: SUPERSEDED_NOTICE_TITLE, description: SUPERSEDED_NOTICE_DETAIL })
+      return false
+    }
+
+    if (session.isLoadingSession || awaitingDirectorReply || isExecutingSendRef.current || questionSubmissionPendingRef.current) {
+      return false
     }
 
     if (activeTemplate && isGeneratingFinal) {
-      return
+      return false
     }
 
     // Raw-upload readiness gate. Background source enrichment is explicitly
     // non-blocking once the file is stored and linked to this session. The
     // composer disables Send only for transport/link failures, and this is
-    // the only place every send path converges, and it is the last point at
+    // shared preflight for typed messages and structured answers. It is the last point at
     // which we still know the truth: the Director is told uploads exist purely
     // via `fileUpload`/`storeName` below, so sending while a file is still
     // uploading silently builds the deck without that document.
@@ -3909,7 +6022,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           : `${failedUploadFile!.name} couldn't be uploaded. Remove it or try again before sending.`,
         variant: stillUploading ? 'default' : 'destructive',
       })
-      return
+      if (STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED) {
+        setBlockedSendNotice(previous => nextBlockedSendNotice(previous, uploadBlockedSendNotice(
+          { name: (stillUploading ?? failedUploadFile)!.name, status: stillUploading ? 'uploading' : 'error' }, source)))
+      }
+      return false
     }
 
     // Pre-flight quota gate: block a new turn only when a plan cap is fully
@@ -3931,7 +6048,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         description: `Your ${which} budget resets ${resetLabel}. Top up reserve credits to keep generating now.`,
         variant: 'destructive',
       })
-      return
+      if (STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED) {
+        setBlockedSendNotice(previous => nextBlockedSendNotice(previous, quotaBlockedSendNotice(
+          { which, resetLabel, caps: q.caps }, source)))
+      }
+      return false
     }
 
     if (activeTemplate && !isTemplateGenerationReady(activeTemplate)) {
@@ -3939,8 +6060,52 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         title: 'Template generation locked',
         description: templateGenerationUnavailableReason(activeTemplate),
       })
-      return
+      if (STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED) {
+        setBlockedSendNotice(previous => nextBlockedSendNotice(previous,
+          templateBlockedSendNotice(templateGenerationUnavailableReason(activeTemplate), source)))
+      }
+      return false
     }
+
+    if (STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED) setBlockedSendNotice(null)
+    return true
+  }, [user, oneLiveTabSuperseded, session.isLoadingSession, awaitingDirectorReply, activeTemplate,
+    isGeneratingFinal, uploadedFiles, quota.status, toast])
+
+  const handleSendMessage = useCallback(async (
+    e?: React.FormEvent,
+    messageOverride?: string,
+    turnContext?: { manualDeck?: ManualDeckContext },
+  ) => {
+    if (e) e.preventDefault()
+    const messageText = (messageOverride ?? inputMessage).trim()
+    if (!messageText) return
+    const submittedDraft = inputMessage
+    const submittedAction = pendingActionInput
+    const submittedActionRevision = pendingActionIntentRef.current.revision
+    const attachedFiles = uploadedFiles.filter(isAttachedUpload)
+    const messageAttachments = snapshotAttachedUploads(attachedFiles)
+    const messagePayload = messageAttachments.length > 0
+      ? { text: messageText, attachments: messageAttachments }
+      : { text: messageText }
+    const fileCount = attachedFiles.length
+
+    const origin = { ...questionSubmissionScopeRef.current }
+    const isCurrentSubmission = () => (
+      questionSubmissionScopeRef.current.active &&
+      questionSubmissionScopeRef.current.generation === origin.generation &&
+      questionSubmissionScopeRef.current.sessionId === origin.sessionId &&
+      questionSubmissionScopeRef.current.userId === origin.userId
+    )
+    const isCurrentActionIntent = () => !submittedAction || (
+      pendingActionIntentRef.current.action === submittedAction &&
+      pendingActionIntentRef.current.revision === submittedActionRevision
+    )
+    const mayDispatchSubmission = () => isCurrentSubmission() && isCurrentActionIntent()
+    if (!origin.active || origin.sessionId !== (currentSessionId || wsSessionId)) return
+    if (!isCurrentActionIntent()) return
+    if (!preflightDirectorTurn()) return
+    session.markStudioUserIntent()
 
     // A blank Layout presentation may already contain user-authored slides or
     // elements. Inspect the persisted source immediately before the first build
@@ -3961,11 +6126,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       manualDeckInspectionInFlightRef.current = true
       try {
         const response = await fetch(
-          `${LAYOUT_SERVICE_URL}/api/presentations/${encodeURIComponent(manualSourcePresentationId!)}`,
+          `${getLayoutServiceUrl()}/api/presentations/${encodeURIComponent(manualSourcePresentationId!)}`,
           { cache: 'no-store' },
         )
+        if (!mayDispatchSubmission()) return
         if (response.ok) {
           const body = await response.json().catch(() => null) as Record<string, unknown> | null
+          if (!mayDispatchSubmission()) return
           const snapshot = body?.presentation ?? body
           if (!snapshot || typeof snapshot !== 'object' || !Array.isArray((snapshot as Record<string, unknown>).slides)) {
             toast({
@@ -3982,7 +6149,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               messageText,
               presentationId: manualSourcePresentationId!,
               presentationUrl: effectivePresentationUrl
-                ?? `${LAYOUT_SERVICE_URL}/p/${encodeURIComponent(manualSourcePresentationId!)}`,
+                ?? `${getLayoutServiceUrl()}/p/${encodeURIComponent(manualSourcePresentationId!)}`,
               summary: inspection.summary,
               operationId: crypto.randomUUID(),
             })
@@ -3998,10 +6165,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           return
         }
       } catch (error) {
+        if (!mayDispatchSubmission()) return
         console.warn('[Manual Deck] Could not inspect presentation before build.', error)
         toast({
           title: 'Could not verify your current slides',
-          description: 'Your deck was left unchanged. Check your connection and retry before building.',
+          description: error instanceof ServiceUrlConfigError
+            ? error.message
+            : 'Your deck was left unchanged. Check your connection and retry before building.',
           variant: 'destructive',
         })
         return
@@ -4033,26 +6203,60 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         return
       }
 
-      const attachedFiles = uploadedFiles.filter(isAttachedUpload)
-      const messageAttachments = snapshotAttachedUploads(attachedFiles)
-      const messagePayload = messageAttachments.length > 0
-        ? { text: messageText, attachments: messageAttachments }
-        : { text: messageText }
-      const fileCount = attachedFiles.length
-
-      // Template reuse skips the strawman→accept step that normally turns on the
-      // build animation, so the right pane would sit static. Flip it on here so a
-      // reuse turn runs the SAME live slide-build animation as a normal build (the
-      // viewer's isGenerating overlay when a deck is shown, or the full loader
-      // otherwise). It auto-hides when the final URL arrives (finalPresentationUrl effect).
-      if (activeTemplate) {
-        setTemplateReuseAwaitingInput(false)
-        setIsGeneratingFinal(true)
+      const sendTypedTurn = async (options: Parameters<typeof sendMessageWhenConnected>[3]) => {
+        let success = false
+        try {
+          success = await sendMessageWhenConnected(messageText, undefined, fileCount,
+            options, undefined, mayDispatchSubmission)
+        } catch (error) {
+          console.warn('Could not send Director message:', error)
+        }
+        if (!isCurrentSubmission()) return false
+        if (success !== true) {
+          if (!isCurrentActionIntent()) return false
+          toast({
+            title: "Couldn't reach the Director",
+            description: 'Your message was not sent — the connection dropped and could not be reopened. It is still in the box; try again.',
+            variant: 'destructive',
+          })
+          return false
+        }
+        return true
+      }
+      const clearSubmittedComposer = () => {
+        // A completed send consumes its snapshot, not edits made while waiting.
+        if (submittedDraft.trim() === messageText) {
+          setInputMessage(current => current === submittedDraft ? '' : current)
+        }
+        if (submittedAction && isCurrentActionIntent()) setPendingActionInput(null)
+        for (const file of attachedFiles) removeFile(file.id)
+      }
+      const beginTemplateReuse = () => {
+        // Keep the native build animation, but never start it for unsent bytes.
+        if (activeTemplate) {
+          setTemplateReuseAwaitingInput(false)
+          setIsGeneratingFinal(true)
+        }
       }
 
       // Handle pending action input
-      if (pendingActionInput) {
-        const { action, messageId, timestamp } = pendingActionInput
+      if (submittedAction) {
+        const { action, messageId, timestamp } = submittedAction
+
+        const success = await sendTypedTurn({
+          deepResearch: researchEnabled,
+          webSearch: webSearchEnabled,
+          extendedGeneration: extendedGenerationEnabled,
+          useKnowledgeGraph: canUseKnowledgeGraph && knowledgeGraphEnabled,
+          fileUpload: !!sessionStoreName,
+          storeName: sessionStoreName,
+          actionValue: action.value,
+          actionLabel: action.label,
+          ...buildSendOptions,
+          manualDeck: turnContext?.manualDeck,
+        })
+        if (!success || !isCurrentSubmission()) return
+        beginTemplateReuse()
 
         session.userMessageIdsRef.current.add(messageId)
 
@@ -4077,29 +6281,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           } as unknown as DirectorMessage, messageText)
         }
 
-        const success = sendMessage(messageText, undefined, fileCount, {
-          deepResearch: researchEnabled,
-          webSearch: webSearchEnabled,
-          extendedGeneration: extendedGenerationEnabled,
-          useKnowledgeGraph: canUseKnowledgeGraph && knowledgeGraphEnabled,
-          fileUpload: !!sessionStoreName,
-          storeName: sessionStoreName,
-          actionValue: action.value,
-          actionLabel: action.label,
-          ...buildSendOptions,
-          manualDeck: turnContext?.manualDeck,
-        })
-        if (success) {
-          setInputMessage("")
-          setPendingActionInput(null)
-          if (attachedFiles.length > 0) {
-            clearAllFiles()
-          }
-        }
-
-        setTimeout(() => {
-          isExecutingSendRef.current = false
-        }, 500)
+        clearSubmittedComposer()
         return
       }
 
@@ -4109,9 +6291,19 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         const newSessionId = currentSessionId || wsSessionId
 
         try {
-          const dbSession = await createSession(newSessionId)
+          const created = createdDirectorSessionRef.current
+          const dbSession = created?.ownerId === origin.userId && created.sourceSessionId === newSessionId
+            ? created : await createSession(newSessionId)
+          if (!isCurrentSubmission()) return
 
           if (dbSession) {
+            // A confirmed history row is not a sent message. Retain it for retry
+            // even before React has rerendered isUnsavedSession/currentSessionId.
+            if (dbSession.id !== newSessionId) {
+              toast({ title: 'Could not verify the chat session', description: 'Your message is still in the composer. Retry after the current session is available.', variant: 'destructive' })
+              return
+            }
+            createdDirectorSessionRef.current = { id: dbSession.id, ownerId: origin.userId, sourceSessionId: newSessionId }
             session.justCreatedSessionRef.current = dbSession.id
             setIsUnsavedSession(false)
             try {
@@ -4120,10 +6312,30 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               }
             } catch {}
             if (!currentSessionId) {
+              // This branch confirms an existing transport ID before dispatch;
+              // it is not the session hook's fresh-assignment certificate.
+              retireStudioVoiceOwner()
+              const stageObservation = studioInitialOwnerObservationRef.current
+              studioInitialRouteAdoptionRef.current = stageObservation
+                ? createStudioInitialRouteAdoptionIntent(studioInitialBlankProofRef.current, stageObservation,
+                    { operationCurrent: isCurrentSubmission(), confirmedSessionId: dbSession.id }) : null
               setCurrentSessionId(dbSession.id)
               router.push(`/builder?session_id=${dbSession.id}`)
             }
             console.log('Database session created:', dbSession.id)
+
+            const success = await sendTypedTurn({
+              deepResearch: researchEnabled,
+              webSearch: webSearchEnabled,
+              extendedGeneration: extendedGenerationEnabled,
+              useKnowledgeGraph: canUseKnowledgeGraph && knowledgeGraphEnabled,
+              fileUpload: !!sessionStoreName,
+              storeName: sessionStoreName,
+              ...buildSendOptions,
+              manualDeck: turnContext?.manualDeck,
+            })
+            if (!success || !isCurrentSubmission()) return
+            beginTemplateReuse()
 
             const messageId = crypto.randomUUID()
             const timestamp = Date.now()
@@ -4136,6 +6348,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               timestamp: timestamp,
               attachments: messageAttachments,
             }])
+
+            clearSubmittedComposer()
 
             // FIX 11: Save first message directly via API
             try {
@@ -4166,6 +6380,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                 console.error('[FIX 11] Failed to save first message:', response.status)
               }
 
+              if (!isCurrentSubmission()) return
               if (persistence) {
                 const generatedTitle = persistence.generateTitle(messageText)
                 console.log('Setting initial title from first message:', generatedTitle)
@@ -4175,35 +6390,23 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ title: generatedTitle }),
                 })
-                session.hasTitleFromUserMessageRef.current = true
+                if (isCurrentSubmission()) session.hasTitleFromUserMessageRef.current = true
               }
             } catch (error) {
               console.error('[FIX 11] Error saving first message:', error)
             }
 
-            setInputMessage("")
-
-            sendMessage(messageText, undefined, fileCount, {
-              deepResearch: researchEnabled,
-              webSearch: webSearchEnabled,
-              extendedGeneration: extendedGenerationEnabled,
-              useKnowledgeGraph: canUseKnowledgeGraph && knowledgeGraphEnabled,
-              fileUpload: !!sessionStoreName,
-              storeName: sessionStoreName,
-              ...buildSendOptions,
-              manualDeck: turnContext?.manualDeck,
-            })
-            if (attachedFiles.length > 0) {
-              clearAllFiles()
-            }
             return
           } else {
             console.error('createSession returned null')
+            if (STUDIO_PASS3_POLISH_B_ENABLED) { toast({ ...STUDIO_POLISH_COPY.deckStartFailed, variant: 'destructive' }); return } // PASS3-POLISH-B (default off): the Studio toast says it, the same return follows
             alert('Failed to create session. Please check your connection and try again.')
             return
           }
         } catch (error) {
+          if (!isCurrentSubmission()) return
           console.error('Error creating session:', error)
+          if (STUDIO_PASS3_POLISH_B_ENABLED) { toast({ ...STUDIO_POLISH_COPY.deckStartError, description: deckStartErrorDescription(error), variant: 'destructive' }); return } // PASS3-POLISH-B (default off): the same message, as a Studio toast
           alert(`Failed to create session: ${error instanceof Error ? error.message : 'Unknown error'}. Please try refreshing the page.`)
           return
         }
@@ -4224,7 +6427,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       // closed socket produced a message that looked sent, was stored as sent,
       // and reached nobody — indistinguishable to the user from the Director
       // ignoring them. Nothing below is allowed to run unless the bytes left.
-      const success = await sendMessageWhenConnected(messageText, undefined, fileCount, {
+      const success = await sendTypedTurn({
         deepResearch: researchEnabled,
         webSearch: webSearchEnabled,
         extendedGeneration: extendedGenerationEnabled,
@@ -4235,16 +6438,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         manualDeck: turnContext?.manualDeck,
       })
 
-      if (!success) {
-        // Say so, and keep the text in the composer so it can be retried.
-        // Never render it as a sent message.
-        toast({
-          title: "Couldn't reach the Director",
-          description: 'Your message was not sent — the connection dropped and could not be reopened. It is still in the box; try again.',
-          variant: 'destructive',
-        })
-        return
-      }
+      if (!success || !isCurrentSubmission()) return
+      beginTemplateReuse()
 
       session.userMessageIdsRef.current.add(messageId)
       session.setUserMessages(prev => [...prev, {
@@ -4273,12 +6468,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         }
       }
 
-      setInputMessage("")
+      clearSubmittedComposer()
       if (session.isResumedSession) {
         session.setIsResumedSession(false)
-      }
-      if (attachedFiles.length > 0) {
-        clearAllFiles()
       }
     } finally {
       setTimeout(() => {
@@ -4286,9 +6478,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       }, 500)
     }
   }, [
-    inputMessage, isReady, sendMessage, sendMessageWhenConnected, currentSessionId, persistence,
+    inputMessage, preflightDirectorTurn, isReady, sendMessage, sendMessageWhenConnected, currentSessionId, persistence,
     session.isResumedSession, connected, connecting, connect, isUnsavedSession,
-    createSession, router, uploadedFiles, clearAllFiles, researchEnabled,
+    createSession, router, uploadedFiles, removeFile, setPendingActionInput, researchEnabled,
     webSearchEnabled, extendedGenerationEnabled, knowledgeGraphEnabled,
     showKnowledgeGraphToggle, sessionStoreName, quota.status, toast,
     buildSendOptions, activeTemplate, isGeneratingFinal, pendingActionInput,
@@ -4297,6 +6489,32 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     pendingManualDeckBuild, templateModeOn,
       canUseKnowledgeGraph, builderCacheOwner,
   ])
+  const speedPerceivedEcho = useStudioSpeedPerceivedEcho({ userMessages: session.userMessages, scopeKey: currentSessionId || wsSessionId, inputMessage, uploadedFiles, choiceOpen: Boolean(pendingManualDeckBuild) }) // SPEED-PERCEIVED: state only; the send and the commit stay handleSendMessage's
+  // FLOW-CONTROL (P3-1 D): the follow-the-build navigation and the steer-a-paused-build bar. Every decision is lib/studio-flow-control.ts; with the flags off it fills nothing, listens to nothing and sends nothing.
+  const flowControl = useStudioFlowControl({ // FLOW-CONTROL
+    studioShell, overlay: studioOverlayWorkspace, revealStage: revealStudioStage, // FLOW-CONTROL
+    displayedPresentationId: effectivePresentationId, buildPresentationId: buildNarration.buildPresentationId, goToSlide: layoutServiceApis?.goToSlide, viewerSafety: studioViewerSafety, // FLOW-CONTROL
+    narrationEnabled: effectiveBuildNarrationEnabled && features.buildControlEnabled, narration: buildNarration, draft: inputMessage, setDraft: setInputMessage, // FLOW-CONTROL
+    sendBuildControl, markControl: markNarrationControl, sendDraft: text => handleSendMessage(undefined, text), awaitingReply: awaitingDirectorReply, stopAwaiting: stopAwaitingReply, // FLOW-CONTROL
+    sessionKey: currentSessionId || wsSessionId, onStopFailed: () => toast({ title: "Couldn't stop the build", description: 'Your changes are still in the box.' }), // FLOW-CONTROL
+  }) // FLOW-CONTROL
+  // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN, Studio shell only, default off): PK's v3 Director chat (lib/studio-chat-clean.ts decides everything). The sends are the existing build controls (stop / resume), with the draft as the resume's instructions through the flow bus; off, the hook below is inert and nothing else here is read.
+  const chatCleanShell = STUDIO_CHAT_CLEAN_ENABLED && studioShell // CHAT-CLEAN: the thread and the composer in the v3 design
+  const chatCleanOn = chatCleanShell && effectiveBuildNarrationEnabled // CHAT-CLEAN: the job card, Send <-> Stop and the Continue bar need the narration canvas
+  const chatCleanNotes = useStudioChatCleanNotes({ enabled: chatCleanOn, sessionKey: currentSessionId || wsSessionId, narration: buildNarration, handlers: buildNarrationHandlersRef }) // CHAT-CLEAN: the thread's record of stops, resumes and directions, and Director's acknowledgement of the directions (applied_to), read from the page's build_phase handler
+  const chatCleanComposer = chatCleanComposerState({ enabled: chatCleanOn, active: buildNarration.active, phase: buildNarration.phase, control: buildNarration.control, slidesDone: buildNarration.slidesDone, slideCount: buildNarration.slideCount, controlEnabled: features.buildControlEnabled, ackKey: chatCleanNotes.ack.key, ackLine: chatCleanNotes.ack.line }) // CHAT-CLEAN
+  const chatCleanStop = () => { const requestId = sendBuildControl('stop', buildNarration.buildId ?? undefined); if (requestId) markNarrationControl('stop_requested', buildNarration.buildId, requestId); else toast({ title: "Couldn't stop the build", description: 'Director did not take the request. Your draft is still in the box.' }) } // CHAT-CLEAN: the composer's Stop (non-destructive, as the ribbon's: built slides are kept)
+  const chatCleanContinue = () => { const requestId = sendBuildControl('resume', buildNarration.buildId ?? undefined); if (requestId) markNarrationControl('resume_requested', buildNarration.buildId, requestId) } // CHAT-CLEAN: Continue = resume as planned (the draft stays in the box)
+  const chatCleanSendDirections = () => { const text = chatCleanInstructions(inputMessage); if (!text || chatCleanComposer.sendMode !== 'instructions') return; flowBus.instructions = text; const requestId = sendBuildControl('resume', buildNarration.buildId ?? undefined); flowBus.instructions = undefined; if (!requestId) { toast({ title: "Couldn't send your directions", description: 'Director did not take the request. Your draft is still in the box.' }); return } markNarrationControl('resume_requested', buildNarration.buildId, requestId); chatCleanNotes.addDirections(text); setInputMessage('') } // CHAT-CLEAN: Send with a draft while held ALWAYS goes as build_control resume {instructions} (Director !564: a plain message after a stop never rebuilds); the bus hands the text to this one request, as the flow hook does
+  const strawmanChatOn = STUDIO_STRAWMAN_CHAT_ENABLED && studioShell && effectiveBuildNarrationEnabled // STRAWMAN-CHAT (NEXT_PUBLIC_STUDIO_STRAWMAN_CHAT, default off): no slide list in the outline card, no progress card in the chat, one quiet status line while the stage is hidden (lib/studio-strawman-chat.ts)
+  const strawmanChat = useStudioStrawmanChat({ enabled: strawmanChatOn, sessionId: currentSessionId, buildId: buildNarration.buildId, handlers: buildNarrationHandlersRef }) // STRAWMAN-CHAT: Director's auto_proceed for this build, read through the narration handlers ref (declared after chat clean's notes hook)
+  const strawmanChatStageOpen = useStudioStageOpen() && !studioWelcome && !studioCanvasCovered // STRAWMAN-CHAT: FRONTEND-2's stage open gate (lib/studio-stage-open-gate.ts, PR #554: true when its flag is off or the stage is open, false only while the gate holds the stage hidden) AND what the page has today: the welcome is not what the canvas shows, and a narrow layout's chat is not covering it. Stage open means its chain of thought is on screen, so the chat says nothing
+  // CHAT-COMMANDS (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, needs NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell, default off): the composer's "/" commands and "@" mentions (lib/studio-chat-commands.ts decides, components/builder/chat/studio-chat-commands.tsx draws). The page only hands over what it holds; off, the prop below is never passed.
+  const chatCommandsOn = STUDIO_CHAT_COMMANDS_ENABLED && chatCleanShell // CHAT-COMMANDS
+  const chatCommandsSlides = (slideStructure?.slides || []).map((sl: { title?: string; slide_id?: string }, i: number) => ({ index: i, title: sl?.title || '', slide_id: sl?.slide_id ?? null })) // CHAT-COMMANDS: the same list the K1 slide picker was given
+  const chatCommandsExport = (format: 'pdf' | 'pptx') => { const shown = elementDirectiveGenerationOwnerRef.current; return runExportDirective({ type: 'export_directive', payload: { directive_id: 'chat-command', presentation_id: shown.presentationId as string, format } } as ExportDirectiveMessage, { sessionId: shown.sessionId ?? null, isCurrent: () => true }, { displayed: () => elementDirectiveGenerationOwnerRef.current, exportState: () => ({ presentationUrl: effectivePresentationUrl ?? null, slideCount: effectiveSlideCount ?? null, stage: currentStage, hasFinalDeck: Boolean(finalPresentationId || finalPresentationUrl), exportAfterBuild: process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && process.env.NEXT_PUBLIC_STUDIO_EXPORT_AFTER_BUILD === 'true', partialArtifact: Boolean(studioShell && studioPartialMetadata), narrationActive: Boolean(effectiveBuildNarrationEnabled && buildNarration?.active), narrationPhase: (effectiveBuildNarrationEnabled ? buildNarration?.phase : null) ?? 'idle' }), downloadPDF, downloadPPTX }) } // CHAT-COMMANDS: /export runs the export directive's own runner (the Download menu's downloadPDF / downloadPPTX and its enable rule) with the same state the runner above is given
+  const chatCommandsPage: ChatCommandsPageProps | undefined = chatCommandsOn ? { slides: chatCommandsSlides, currentSlide: chatCommandsSlides.length ? Math.min(Math.max(currentSlideIndex + 1, 1), chatCommandsSlides.length) : null, getElement: () => (CHAT_ELEMENT_REFINE_ENABLED ? chatElementReferenceFor(chatElementSelectionRef.current) : null), exportDeck: chatCommandsExport } : undefined // CHAT-COMMANDS: the current slide, the element reference Studio already builds (NEXT_PUBLIC_CHAT_ELEMENT_REFINE), the export runner
+  if (CHAT_ELEMENT_EDIT_2_ENABLED && chatCommandsPage) chatCommandsPage.getElement = () => (CHAT_ELEMENT_REFINE_ENABLED ? chatElementEdit2Reference() : null) // CHAT-ELEMENT-EDIT-2: a picked @Element token carries the same reference (slide_id null)
 
   const handleCancelManualDeckBuild = useCallback(() => {
     if (manualDeckHandoffBusy) return
@@ -4325,6 +6543,22 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     const userId = user?.id || user?.email
     if (!pending || !sourceSessionId || !userId || manualDeckHandoffBusy) return
 
+    const origin = { ...questionSubmissionScopeRef.current }
+    const isCurrentOrigin = () => questionSubmissionScopeRef.current.active &&
+      questionSubmissionScopeRef.current.generation === origin.generation &&
+      questionSubmissionScopeRef.current.sessionId === origin.sessionId &&
+      questionSubmissionScopeRef.current.userId === origin.userId
+    const previousRequest = studioManualHandoffRequestRef.current
+    if (studioShell && (!isCurrentOrigin() || origin.sessionId !== sourceSessionId || origin.userId !== userId ||
+        (previousRequest && previousRequest.generation === origin.generation &&
+         previousRequest.sessionId === origin.sessionId && previousRequest.userId === origin.userId))) return
+    const studioRequest = studioShell ? {
+      generation: origin.generation, sessionId: origin.sessionId, userId: origin.userId,
+    } : null
+    if (studioRequest) studioManualHandoffRequestRef.current = studioRequest
+    const isCurrentHandoff = () => !studioShell ||
+      (isCurrentOrigin() && studioManualHandoffRequestRef.current === studioRequest)
+
     setManualDeckHandoffBusy(true)
     setManualDeckHandoffError(null)
     const idempotencyKey = pending.operationId
@@ -4335,11 +6569,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       // visible in history even though its build request moves to a new session.
       if (isUnsavedSession) {
         const sourceRow = await createSession(sourceSessionId, 'Customized slides')
+        if (!isCurrentHandoff()) return
         if (!sourceRow) throw new Error('Could not save the customized deck to session history.')
         setIsUnsavedSession(false)
         try { sessionStorage.removeItem(`deckster_unsaved_${sourceSessionId}`) } catch {}
       }
 
+      if (!isCurrentHandoff()) return
       const sourceSaveResponse = await fetch(`/api/sessions/${encodeURIComponent(sourceSessionId)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -4351,6 +6587,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           lastMessageAt: new Date().toISOString(),
         }),
       })
+      if (!isCurrentHandoff()) return
       if (!sourceSaveResponse.ok) {
         throw new Error('Could not save the customized deck to session history.')
       }
@@ -4370,6 +6607,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         storeName: sessionStoreName,
         manualDeckSummary: pending.summary,
       })
+      if (!isCurrentHandoff()) return
       const response = await fetch(
         `/api/director/sessions/${encodeURIComponent(sourceSessionId)}/handoff`,
         {
@@ -4378,10 +6616,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           body: JSON.stringify(request),
         },
       )
+      if (!isCurrentHandoff()) return
       const responseBody = await response.json().catch(() => ({})) as Partial<DirectorHandoffResponse> & {
         error?: string
         detail?: string
       }
+      if (!isCurrentHandoff()) return
       if (
         !response.ok ||
         responseBody.status !== 'ready' ||
@@ -4396,6 +6636,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         source_session_id: sourceSessionId,
         new_session_id: newSessionId,
         idempotency_key: idempotencyKey,
+        ...(studioShell ? { owner_user_id: authScopeUserId, submission_state: 'staged' as const } : {}),
         text: pending.messageText,
         store_name: sessionStoreName,
         file_count: attachedFiles.length,
@@ -4431,8 +6672,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       const generatedTitle = persistence?.generateTitle(pending.messageText)
         ?? pending.messageText.slice(0, 50)
       const newSessionRow = await createSession(newSessionId, generatedTitle)
+      if (!isCurrentHandoff()) return
 
       disconnect()
+      retireStudioVoiceOwner()
       clearMessages()
       session.setUserMessages([])
       session.lastLoadedSessionRef.current = null
@@ -4452,6 +6695,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       }
       router.push(`/builder?session_id=${encodeURIComponent(newSessionId)}`)
     } catch (error) {
+      if (!isCurrentHandoff()) return
       const message = error instanceof Error ? error.message : 'Could not start the new session.'
       setManualDeckHandoffError(message)
       setManualDeckHandoffBusy(false)
@@ -4460,6 +6704,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         description: `${message} Your current session is still open.`,
         variant: 'destructive',
       })
+    } finally {
+      if (studioRequest && studioManualHandoffRequestRef.current === studioRequest) {
+        studioManualHandoffRequestRef.current = null
+      }
     }
   }, [
     activeBuildThemeProfileForSelection, activeTemplate, buildThemeSelection,
@@ -4468,20 +6716,24 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     knowledgeGraphEnabled, manualDeckHandoffBusy, pendingManualDeckBuild,
     persistence, researchEnabled, router, session, sessionStoreName,
     showKnowledgeGraphToggle, templateOverrides, toast, uploadedFiles, user,
-    webSearchEnabled, wsSessionId,
+    webSearchEnabled, wsSessionId, studioShell,
+    authScopeUserId,
   ])
 
-  // The Director handoff endpoint seeds a pending request but intentionally does
-  // not execute it. Submit it once after the new session's socket is ready. The
-  // key is retained until WebSocket.send succeeds, so reloads can safely retry;
-  // Director suppresses a duplicate with the same idempotency key.
+  // Current Director can resume the durable request during connection. An owned
+  // receipt retires automatic submission; local send success retains the request
+  // for observation/recovery and does not imply server or native completion.
   useEffect(() => {
     if (!isReady || !currentSessionId || typeof window === 'undefined') return
-    const pending = readPendingHandoff(window.sessionStorage, currentSessionId)
+    const pending = studioShell ? readCurrentStudioHandoff(currentSessionId)
+      : readPendingHandoff(window.sessionStorage, currentSessionId)
       ?? (pendingHandoffMemoryRef.current?.new_session_id === currentSessionId
         ? pendingHandoffMemoryRef.current
         : null)
     if (!pending) return
+    if (studioShell && !canAutomaticallySubmitStudioHandoff(pending, {
+      userId: authScopeUserId, sessionId: currentSessionId,
+    })) return
 
     const submissionKey = `${pending.new_session_id}:${pending.idempotency_key}`
     if (handoffSubmissionInFlightRef.current.has(submissionKey)) return
@@ -4510,8 +6762,25 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       return
     }
 
-    clearPendingHandoff(window.sessionStorage, currentSessionId)
-    pendingHandoffMemoryRef.current = null
+    if (studioShell) {
+      const retained = markStudioHandoffSubmitted(pending, {
+        userId: authScopeUserId, sessionId: currentSessionId,
+      }, sent)
+      pendingHandoffMemoryRef.current = retained
+      setPendingHandoffRevision(value => value + 1)
+      if (retained) {
+        try {
+          savePendingHandoff(window.sessionStorage, retained)
+          setHandoffStorageWarning(null)
+        } catch {
+          setHandoffStorageWarning({ sessionId: currentSessionId,
+            text: 'This request was sent, but its recovery record could not be saved in this browser. Keep this tab open to retain its recovery record. Reload recovery is uncertain.' })
+        }
+      }
+    } else {
+      clearPendingHandoff(window.sessionStorage, currentSessionId)
+      pendingHandoffMemoryRef.current = null
+    }
     const timestamp = Date.now()
     const messageId = pending.idempotency_key
     const attachments = attachmentsFromPayload({ attachments: pending.attachments })
@@ -4552,74 +6821,100 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     clearAllFiles, currentSessionId, deckIdentity, isReady, sendMessage,
     session.hasTitleFromUserMessageRef, session.setUserMessages,
     session.userMessageContentMapRef, session.userMessageIdsRef,
+    studioShell, authScopeUserId, readCurrentStudioHandoff, pendingHandoffRevision,
   ])
 
   // Handle action button clicks
-  const handleActionClick = useCallback(async (action: ActionRequest['payload']['actions'][0], actionRequestMessageId: string) => {
+  const handleActionClick = useCallback(async (action: ActionRequest['payload']['actions'][0], actionRequestMessageId: string, answerKey: string = actionRequestMessageId) => {
+    const origin = { ...questionSubmissionScopeRef.current }
+    const isCurrentSubmission = () => (
+      questionSubmissionScopeRef.current.active &&
+      questionSubmissionScopeRef.current.generation === origin.generation &&
+      questionSubmissionScopeRef.current.sessionId === origin.sessionId &&
+      questionSubmissionScopeRef.current.userId === origin.userId
+    )
+    if (!origin.active || origin.sessionId !== (currentSessionId || wsSessionId)) return
+    // answerKey is the bare id unless NEXT_PUBLIC_STUDIO_ASK_CARD_IDENTITY_ENABLED, then the ask instance: a re-ask that re-uses the id
+    // (the plan gate does) is a new ask, not an answered one.
+    const pendingKey = JSON.stringify([origin.generation, origin.sessionId, origin.userId, answerKey])
+    // One native request owns one choice, including choices that open input.
+    if (actionSubmissionPendingRef.current.has(pendingKey) ||
+        session.answeredActionsRef.current.has(answerKey)) return
+    session.markStudioUserIntent()
     const messageId = crypto.randomUUID()
     const timestamp = Date.now()
 
     if (action.requires_input) {
-      session.answeredActionsRef.current.add(actionRequestMessageId)
+      session.answeredActionsRef.current.add(answerKey)
       setPendingActionInput({ action, messageId, timestamp })
       setTimeout(() => {
         textareaRef.current?.focus()
       }, 100)
     } else {
-      // Same rule as the composer: deliver first, commit after. Clicking a
-      // button into a closed socket used to mark the action answered, render
-      // the reply, show the generating loader and then quietly send nothing —
-      // leaving a deck that looked like it was building and never was.
-      const success = await sendMessageWhenConnected(action.label, undefined, undefined, {
-        deepResearch: researchEnabled,
-        webSearch: webSearchEnabled,
-        extendedGeneration: extendedGenerationEnabled,
-        useKnowledgeGraph: canUseKnowledgeGraph && knowledgeGraphEnabled,
-        fileUpload: !!sessionStoreName,
-        storeName: sessionStoreName,
-        actionValue: action.value,
-        actionLabel: action.label,
-        ...buildSendOptions,
-      })
+      actionSubmissionPendingRef.current.add(pendingKey)
+      try {
+        // Same rule as the composer: deliver first, commit after. Clicking a
+        // button into a closed socket used to mark the action answered, render
+        // the reply, show the generating loader and then quietly send nothing —
+        // leaving a deck that looked like it was building and never was.
+        let success = false
+        try {
+          success = await sendMessageWhenConnected(action.label, undefined, undefined, {
+            deepResearch: researchEnabled,
+            webSearch: webSearchEnabled,
+            extendedGeneration: extendedGenerationEnabled,
+            useKnowledgeGraph: canUseKnowledgeGraph && knowledgeGraphEnabled,
+            fileUpload: !!sessionStoreName,
+            storeName: sessionStoreName,
+            actionValue: action.value,
+            actionLabel: action.label,
+            ...buildSendOptions,
+          }, undefined, isCurrentSubmission)
+        } catch {
+          // Reconnect can reject as well as refuse; preserve the native retry UI.
+        }
+        if (!isCurrentSubmission()) return
+        if (success !== true) {
+          toast({
+            title: "Couldn't reach the Director",
+            description: `"${action.label}" was not sent — the connection dropped and could not be reopened. Try again.`,
+            variant: 'destructive',
+          })
+          return
+        }
 
-      if (!success) {
-        toast({
-          title: "Couldn't reach the Director",
-          description: `"${action.label}" was not sent — the connection dropped and could not be reopened. Try again.`,
-          variant: 'destructive',
-        })
-        return
-      }
+        session.answeredActionsRef.current.add(answerKey)
+        session.userMessageIdsRef.current.add(messageId)
+        session.setUserMessages(prev => [...prev, {
+          id: messageId,
+          text: action.label,
+          timestamp: timestamp
+        }])
 
-      session.answeredActionsRef.current.add(actionRequestMessageId)
-      session.userMessageIdsRef.current.add(messageId)
-      session.setUserMessages(prev => [...prev, {
-        id: messageId,
-        text: action.label,
-        timestamp: timestamp
-      }])
+        if (currentSessionId && persistence) {
+          persistence.queueMessage({
+            message_id: messageId,
+            session_id: currentSessionId,
+            timestamp: new Date(timestamp).toISOString(),
+            type: 'chat_message',
+            payload: { text: action.label, action_value: action.value, action_label: action.label }
+          } as unknown as DirectorMessage, action.label)
+        }
 
-      if (currentSessionId && persistence) {
-        persistence.queueMessage({
-          message_id: messageId,
-          session_id: currentSessionId,
-          timestamp: new Date(timestamp).toISOString(),
-          type: 'chat_message',
-          payload: { text: action.label, action_value: action.value, action_label: action.label }
-        } as unknown as DirectorMessage, action.label)
-      }
-
-      // Only now is the build genuinely under way, so only now show the loader.
-      if (action.value === 'accept_strawman') {
-        setIsGeneratingFinal(true)
-        console.log('Starting final deck generation - showing loader')
-      }
-      if (activeTemplate && action.value.startsWith('template_')) {
-        setTemplateReuseAwaitingInput(false)
-        setIsGeneratingFinal(true)
+        // Only now is the build genuinely under way, so only now show the loader.
+        if (action.value === 'accept_strawman') {
+          setIsGeneratingFinal(true)
+          console.log('Starting final deck generation - showing loader')
+        }
+        if (activeTemplate && action.value.startsWith('template_')) {
+          setTemplateReuseAwaitingInput(false)
+          setIsGeneratingFinal(true)
+        }
+      } finally {
+        actionSubmissionPendingRef.current.delete(pendingKey)
       }
     }
-  }, [sendMessageWhenConnected, currentSessionId, persistence, researchEnabled, webSearchEnabled, extendedGenerationEnabled, knowledgeGraphEnabled, canUseKnowledgeGraph, sessionStoreName, buildSendOptions, activeTemplate, session, toast])
+  }, [sendMessageWhenConnected, currentSessionId, wsSessionId, setPendingActionInput, persistence, researchEnabled, webSearchEnabled, extendedGenerationEnabled, knowledgeGraphEnabled, canUseKnowledgeGraph, sessionStoreName, buildSendOptions, activeTemplate, session, toast])
 
   const handleCancelTemplateReuse = useCallback(() => {
     const sent = sendControlMessage('cancel_template_reuse')
@@ -4637,18 +6932,20 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
   // Wrapped session select handler (clears local UI state too)
   const handleSessionSelectWrapped = useCallback((sessionId: string) => {
+    retireStudioVoiceOwner()
     setIsGeneratingFinal(false)
     setTemplateReuseAwaitingInput(false)
     setIsGeneratingStrawman(false)
-    setSlideThumbnailUrlsByPresentation({})
+    if (!studioShell) setSlideThumbnailUrlsByPresentation({})
     setShowChatHistory(false)
     setSessionStoreName(null)
     // The KG switch is a per-deck privacy choice, never a global sticky bit.
     setKnowledgeGraphEnabled(false)
     session.handleSessionSelect(sessionId)
-  }, [session.handleSessionSelect])
+  }, [session.handleSessionSelect, retireStudioVoiceOwner])
 
   const handleNewChatWrapped = useCallback(() => {
+    retireStudioVoiceOwner()
     if (builderOptionsScope) skipBuilderOptionsPersistRef.current = builderOptionsScope
     setInputMessage("")
     setPendingActionInput(null)
@@ -4675,27 +6972,433 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setSessionStoreName(null)
     clearAllFiles()
     session.handleNewChat()
-  }, [builderOptionsScope, clearAllFiles, session.handleNewChat])
+  }, [builderOptionsScope, clearAllFiles, session.handleNewChat, retireStudioVoiceOwner])
   handleNewChatWrappedRef.current = handleNewChatWrapped
 
+  const studioInitialNativeWork = Boolean(templateModeOn || templateModeSourcePresentationId || slideComposerOverride
+    || studioCanvasLifecycle.hasGeneratedDeck || studioCanvasLifecycle.hasAuthoredDeck
+    || isGeneratingFinal || isGeneratingStrawman || generationPanel.isGenerating
+    || generationPanel.hasActiveGenerations || generationPanel.mode === 'edit' || generationPanel.mode === 'refine'
+    || manualDeckHandoffBusy || pendingManualDeckBuild
+    || (studioViewerSafety?.presentationId === effectivePresentationId && studioViewerSafety.presentationUrl === effectivePresentationUrl))
+  const studioInitialKnownFresh = Boolean(session.studioInitialFreshCanonicalEntry
+    && session.studioInitialFreshCanonicalEntry.authUserId === authScopeUserId
+    && session.studioInitialFreshCanonicalEntry.sessionId === (currentSessionId || wsSessionId)
+    && session.studioInitialFreshCanonicalEntry.sessionId === wsSessionId
+    && session.studioInitialFreshCanonicalEntry.isCurrentAssignment())
+  // PASS2 #2 fix-forward (flag NEXT_PUBLIC_STUDIO_FIRST_RUN_V2, J2 pass-2 P1): an existing session whose history is still being fetched has no
+  // user turn in the transcript yet, which is also what a new session looks like. The first-run welcome (and the stage stepping out of sight
+  // behind it) therefore waits until the session is confirmed new: the history load has finished, or this is a local UUID the page just assigned
+  // (studioInitialKnownFresh) or one this tab generated and has not saved (the unsaved marker): for those the "load" is only the lookup that finds
+  // no row (lib/studio-first-run-restoring). The page's own loading states (header, composer, canvas) show until then.
+  const studioFirstRunRestoring = process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true' && isStudioSessionRestoring({
+    loadingSession: session.isLoadingSession,
+    knownFresh: studioInitialKnownFresh,
+    localUnsavedRoute: session.isLoadingSession && isLocalUnsavedRoute(authScopeUserId, searchParams.get('session_id'), () => window.sessionStorage),
+  })
+  const studioPartialSessionId = currentSessionId || wsSessionId
+  const studioPartialRouteSessionId = searchParams.get('session_id')
+  const studioPartialAssignmentOwned = Boolean(studioShell && user?.id === authScopeUserId && !isAuthLoading
+    && !session.isLoadingSession && !session.isCreatingSession
+    && studioPartialSessionId && studioPartialSessionId !== 'new' && wsSessionId === studioPartialSessionId
+    && (studioPartialRouteSessionId === studioPartialSessionId || studioInitialKnownFresh)
+    && (deckOwnerSessionId === studioPartialSessionId || studioInitialKnownFresh))
+  const studioPartialAssignmentKey = JSON.stringify([studioPartialSessionId, wsSessionId,
+    studioPartialRouteSessionId, studioPartialAssignmentOwned, studioInitialKnownFresh])
+  if (studioPartialAssignmentObservationRef.current?.scope !== studioPartialAuthority.scope
+    || studioPartialAssignmentObservationRef.current.key !== studioPartialAssignmentKey) {
+    const observation = { scope: studioPartialAuthority.scope, key: studioPartialAssignmentKey }
+    studioPartialAssignmentObservationRef.current = observation
+    studioPartialAssignmentRef.current = {
+      userId: authScopeUserId, sessionId: studioPartialSessionId || '',
+      isCurrent: () => studioPartialAssignmentOwned && studioPartialAuthority.isCurrent()
+        && studioPartialAssignmentObservationRef.current === observation,
+    }
+  }
+  studioPartialIngressRef.current = (message, transport) => {
+    if (!studioShell || !effectiveBuildNarrationEnabled || !studioPartialAuthority.isCurrent()) return
+    const assignment = studioPartialAssignmentRef.current
+    if (!assignment) return
+    const receipt = captureStudioPartialBuildReceipt({ authority: studioPartialAuthority, assignment, transport, message })
+    if (!receipt || buildNarration.retiredBuildIds.includes(receipt.buildId)) return
+    const candidates = studioPartialCandidatesRef.current
+    if (!candidates || candidates.scope !== studioPartialAuthority.scope) return
+    candidates.receipts.set(receipt.buildId, receipt)
+    // Select only after the actual reducer has admitted its current build.
+    // A second queued stale frame cannot erase a newer pending candidate.
+    for (const key of candidates.receipts.keys()) {
+      if (candidates.receipts.size <= 32) break
+      if (key !== buildNarration.buildId && key !== receipt.buildId) candidates.receipts.delete(key)
+    }
+    setStudioPartialRevision(revision => revision + 1)
+  }
+  const studioInitialObservation: StudioInitialStageOwnerObservation = {
+    automatic: studioAutomaticBlankSelection ?? null,
+    selected: studioInitialSelectedTarget,
+    authUserId: authScopeUserId,
+    currentSessionId,
+    wsSessionId,
+    rawRouteSessionId: searchParams.get('session_id'),
+    templateMode: templateModeOn,
+    restoration: studioInitialKnownFresh ? 'none' : session.isLoadingSession ? 'pending' : session.studioFrontendTranscriptReceipt ? 'restored' : 'none',
+    nativeWorkPresent: studioInitialNativeWork,
+    admittedNativeOwner: studioNativeAdmittedOwnerRef.current,
+    explicitBlankOwner: studioExplicitBlankOwnerRef.current,
+    freshCanonicalEntry: session.studioInitialFreshCanonicalEntry,
+  }
+  studioInitialOwnerObservationRef.current = studioInitialObservation
+  // Loading a locally assigned fresh UUID is not restoration of an unknown
+  // deck. The loading branch remains authoritative; defer token observation
+  // until it settles so a pending render cannot consume the first blank proof.
+  if (!(session.isLoadingSession && studioInitialKnownFresh)) {
+    studioInitialBlankProofRef.current = reconcileStudioInitialStageOwner(
+      studioInitialBlankProofRef.current, studioInitialObservation, studioInitialRouteAdoptionRef.current,
+    )
+  }
+  const studioInitialNativeDeferred = shouldDeferStudioInitialNative({
+    enabled: studioShell,
+    selected: studioInitialSelectedTarget,
+    automaticBlankTarget: studioInitialBlankProofRef.current.target,
+    hasOwnedSelection: studioCanvasLifecycle.hasOwnedSelection,
+    viewerUrlAllowed: !LAYOUT_URL_CONFIG_ERROR && evaluateLayoutViewerUrl(studioInitialSelectedTarget.presentationUrl, LAYOUT_VIEWER_URL_POLICY).status === 'allowed',
+    initialStageEligible: !session.isLoadingSession && (studioCanvasLifecycle.showLanding
+      || (!isGeneratingFinal && !isGeneratingStrawman && buildNarration.phase === 'awaiting_user')),
+    nativeWorkPresent: studioInitialNativeWork,
+    errorPresent: Boolean(wsError || transportNotice || currentStatus?.status === 'error'
+      || buildNarration.phase === 'error' || generationPanel.error || manualDeckHandoffError),
+    admittedNativeOwner: studioNativeAdmittedOwnerRef.current,
+    explicitBlankOwner: studioExplicitBlankOwnerRef.current,
+  })
+  const handleStudioNativeMounted = useCallback((owner: object) => {
+    if (studioSlideComposeOwnerRef.current === owner) {
+      studioNativeAdmittedOwnerRef.current = owner
+      studioPartialNativeSeenScopeRef.current = studioPartialAuthority.scope
+    }
+  }, [studioPartialAuthority])
+  const studioPartialRegistration = useMemo(() => ({
+    scope: studioPartialAuthority.scope, owner: studioInitialSelectedTarget.owner,
+    presentationId: effectivePresentationId, presentationUrl: effectivePresentationUrl,
+    layout: null as typeof layoutServiceApis, compose: null as SlideComposeViewerApi | null,
+  }), [studioPartialAuthority, studioInitialSelectedTarget.owner, effectivePresentationId, effectivePresentationUrl])
+  studioPartialRenderedWorkRef.current = Boolean(generationPanel.isGenerating || generationPanel.hasActiveGenerations
+    || studioFormatLoading || templateBlueprintSaving
+    || Object.values(slideComposeJobs).some(job => job.status === 'building'))
+  studioPartialNativeRegistrationRef.current = studioPartialRegistration
+  const handleStudioPartialApiReady = useCallback((apis: typeof layoutServiceApis) => {
+    if (studioPartialNativeRegistrationRef.current !== studioPartialRegistration) return
+    studioPartialRegistration.layout = apis
+    setLayoutServiceApis(apis)
+  }, [studioPartialRegistration])
+  const handleStudioPartialComposeApiReady = useCallback((apis: SlideComposeViewerApi | null) => {
+    if (studioPartialNativeRegistrationRef.current !== studioPartialRegistration) return
+    studioPartialRegistration.compose = apis
+    handleComposeApiReady(apis)
+  }, [studioPartialRegistration, handleComposeApiReady])
+  studioPartialReadCurrentRef.current = context => {
+    const assignment = studioPartialAssignmentRef.current
+    if (!assignment) throw new Error('Partial display assignment unavailable')
+    const registration = studioPartialNativeRegistrationRef.current
+    const layout = registration?.layout, compose = registration?.compose
+    return {
+      ...studioPartialDisplayInput, assignment, versionIntent: studioPartialVersionIntentRef.current,
+      receipt: studioPartialCandidateRef.current,
+      selected: { owner: studioInitialSelectedTarget.owner,
+        presentationId: effectivePresentationId || '', presentationUrl: effectivePresentationUrl || '' },
+      native: registration && layout && compose && context ? {
+        api: compose, context, readSafety: () => layout.getStudioIntroductionSafety?.() ?? null,
+        isCurrent: () => studioPartialAuthority.isCurrent()
+          && !studioPartialRenderedWorkRef.current && studioPartialLocalWorkRef.current.size === 0
+          && studioPartialNativeRegistrationRef.current === registration
+          && registration.scope === studioPartialAuthority.scope
+          && registration.owner === studioSlideComposeOwnerRef.current
+          && registration.layout === layout && registration.compose === compose
+          && composeViewerApiRef.current === compose,
+      } : null,
+    }
+  }
+  const studioPartialIsNativeAbsent = () => studioPartialAuthority.isCurrent()
+    && !studioPartialRenderedWorkRef.current && studioPartialLocalWorkRef.current.size === 0
+    && studioPartialNativeRegistrationRef.current === studioPartialRegistration
+    && studioSlideComposeOwnerRef.current === studioInitialSelectedTarget.owner
+    && studioPartialAssignmentRef.current?.isCurrent() === true && studioInitialKnownFresh
+    && !layoutServiceApis && !composeViewerApiRef.current && !studioViewerSafety
+    && !studioPartialRegistration.layout && !studioPartialRegistration.compose
+    && studioPartialNativeSeenScopeRef.current !== studioPartialAuthority.scope
+    && (studioInitialNativeDeferred || (!effectivePresentationId && !effectivePresentationUrl))
+  studioPartialNativeAbsenceRef.current = studioPartialIsNativeAbsent
+  useEffect(() => {
+    if (!studioShell || !effectiveBuildNarrationEnabled || !studioPartialAuthority.isCurrent()) return
+    const candidate = studioPartialCandidateRef.current
+    if (!candidate || candidate.presentationId === effectivePresentationId) return
+    let context: StudioComposeSelectionContext | null
+    try { context = studioPartialRegistration.compose?.composeCaptureSelectionContext?.() ?? null }
+    catch { return }
+    const readCurrent = () => {
+      const read = studioPartialReadCurrentRef.current
+      if (!read) throw new Error('Partial display owner retired')
+      return read(context)
+    }
+    const transition = prepareStudioPartialStageTransition(readCurrent)
+      ?? prepareStudioInitialPartialStageTransition(() => {
+        const next = readCurrent()
+        return { ...next, selected: { ...next.selected,
+          presentationId: next.selected.presentationId || null, presentationUrl: next.selected.presentationUrl || null },
+          isNativeAbsent: studioPartialNativeAbsenceRef.current ?? (() => false) }
+      })
+    if (!transition) return
+    // React may defer/replay this updater. Recheck the captured live native
+    // frame, latest Page owner/build and explicit intent at publication.
+    setStudioPartialDisplayed(previous => {
+      const settled = settleStudioPartialStageTransition(transition)
+      if (!settled) return previous
+      return settled
+    })
+  }, [studioShell, effectiveBuildNarrationEnabled, studioPartialAuthority, studioPartialRevision,
+    buildNarration.buildId, buildNarration.buildPresentationId, buildNarration.phase,
+    effectivePresentationId, effectivePresentationUrl, studioViewerSafety, layoutServiceApis,
+    studioPartialRegistration, studioInitialNativeDeferred, studioInitialKnownFresh,
+    generationPanel.isGenerating, generationPanel.hasActiveGenerations, studioFormatLoading,
+    templateBlueprintSaving, slideComposeJobs,
+    session.isLoadingSession, session.isCreatingSession])
+  const studioPartialCandidate = studioPartialCandidateRef.current
+  const studioPartialPending = Boolean(studioShell && effectiveBuildNarrationEnabled
+    && studioPartialCandidate?.scope === studioPartialAuthority.scope
+    && studioPartialCandidate.buildId === buildNarration.buildId
+    && studioPartialCandidate.presentationId === buildNarration.buildPresentationId
+    && studioPartialCandidate.presentationId !== effectivePresentationId
+    && !templateModeOn && !templateModeSourcePresentationUrl
+    && !hasStudioPartialStageVersionIntent(studioPartialVersionIntentRef.current, studioPartialAuthority, buildNarration.buildId))
+  const handleStudioPartialVersionSwitch = (version: 'blank' | 'strawman' | 'final') => {
+    if (!studioPartialAuthority.isCurrent() || studioSlideComposeOwnerRef.current !== studioInitialSelectedTarget.owner
+      || studioPartialVersionHandlerRef.current !== handleStudioPartialVersionSwitch) return
+    studioPartialVersionIntentRef.current = captureStudioPartialStageVersionIntent({
+      authority: studioPartialAuthority, buildId: buildNarration.buildId, version,
+    })
+    setStudioPartialDisplayed(null)
+    setStudioPartialRevision(revision => revision + 1)
+    retireStudioVoiceOwner(); cancelOutlinePreview(); switchVersion(version)
+  }
+  studioPartialVersionHandlerRef.current = handleStudioPartialVersionSwitch
+  const previousVersionInputs = studioPartialVersionInputsRef.current
+  const studioPartialVersionObservation = previousVersionInputs?.authority === studioPartialAuthority
+    && previousVersionInputs.buildId === buildNarration.buildId ? previousVersionInputs.observation : {}
+  studioPartialVersionInputsRef.current = {
+    authority: studioPartialAuthority, owner: studioInitialSelectedTarget.owner, buildId: buildNarration.buildId,
+    observation: studioPartialVersionObservation,
+  }
+  // Same-owner renders may replace the private handler before its portal commits.
+  // Keep the visible callback stable while still retiring old owner/build intent.
+  const handleStudioPartialVersionIntent = useCallback((version: 'blank' | 'strawman' | 'final') => {
+    const current = studioPartialVersionInputsRef.current
+    if (!studioPartialAuthority.isCurrent() || studioSlideComposeOwnerRef.current !== studioInitialSelectedTarget.owner
+      || current?.authority !== studioPartialAuthority || current.owner !== studioInitialSelectedTarget.owner
+      || current.buildId !== buildNarration.buildId || current.observation !== studioPartialVersionObservation) return
+    studioPartialVersionHandlerRef.current?.(version)
+  }, [studioPartialAuthority, studioInitialSelectedTarget.owner, buildNarration.buildId, studioPartialVersionObservation])
+  const handleStudioPartialNativeReadback = (readback: StudioPartialNativeReadback) => {
+    const owner = studioInitialSelectedTarget.owner
+    const current = () => studioPartialAuthority.isCurrent() && studioSlideComposeOwnerRef.current === owner
+      && studioPartialNativeReadbackHandlerRef.current === handleStudioPartialNativeReadback
+      && studioPartialMetadata && readback.presentationId === effectivePresentationId
+      && readback.presentationUrl === effectivePresentationUrl && readback.isCurrent()
+    if (!current() || !Number.isSafeInteger(readback.nativeCount) || readback.nativeCount < 1
+      || !Number.isSafeInteger(readback.currentVisualIndex) || readback.currentVisualIndex < 0) return
+    if (current()) currentSlideIndexRef.current = readback.currentVisualIndex
+    setCurrentSlideIndex(previous => current() ? readback.currentVisualIndex : previous)
+    setStudioPartialNativeIndex(previous => current() ? {
+      owner, presentationId: readback.presentationId, presentationUrl: readback.presentationUrl,
+      count: readback.nativeCount, index: readback.currentVisualIndex,
+      isFrameCurrent: readback.isFrameCurrent, isCurrent: readback.isCurrent,
+    } : previous)
+    const jobs = Object.fromEntries(Object.entries(slideComposeJobsRef.current)
+      .filter(([, job]) => job.target_presentation_id === readback.presentationId))
+    const resolved = resolveSlideComposeVisualIndex(readback.currentVisualIndex, { slideCount: readback.nativeCount, jobs })
+    if (resolved?.kind === 'slide') {
+      setSelectedLayoutSlideIndex(previous => current() ? resolved.layoutIndex : previous)
+    }
+  }
+  studioPartialNativeReadbackHandlerRef.current = handleStudioPartialNativeReadback
+  // NEXT_PUBLIC_STUDIO_ASK_CARD_IDENTITY_ENABLED: no approval gate is enabled while a build runs, is paused or stopped, or the session is over.
+  const approvalGatesLocked = askGatesLocked({
+    generatingFinal: isGeneratingFinal, narrationPhase: buildNarration.phase, narrationControl: buildNarration.control,
+    workflowState: directorWorkflowState,
+  })
+  const retiredIntroActions = lockApprovalGateStatuses(
+    historicalActionStatuses(messages, session.answeredActionsRef.current, session.userMessages), messages, approvalGatesLocked)
+  // STRAWMAN-STAGE (F-04..F-07, F-11, NEXT_PUBLIC_STUDIO_STRAWMAN_STAGE, default off): from the outline on the stage is the deck viewer showing Director's strawman preview deck (no outline design over it), with one quiet line under it;
+  // STRAWMAN-STAGE: when the built deck replaces the preview deck the viewer stays on the same slide. Every decision is lib/studio-strawman-stage.ts; off, all of this is inert.
+  const studioStrawmanPhase = strawmanStagePhase({ enabled: STUDIO_STRAWMAN_STAGE_ENABLED && studioShell, templateModeOn, activeVersion: effectiveActiveVersion, strawmanPreviewUrl, finalPresentationUrl }) // STRAWMAN-STAGE
+  const studioStrawmanHold = useStudioStrawmanStage({ phase: studioStrawmanPhase, presentationId: effectivePresentationId, currentSlideIndex, buildStarted: strawmanStageBuildStarted({ generatingFinal: isGeneratingFinal, narrationPhase: buildNarration.phase }), slideCount: effectiveSlideCount, goToSlide: layoutServiceApis?.goToSlide, viewerSafety: studioViewerSafety }) // STRAWMAN-STAGE
+  // PASS2 #4 (flag NEXT_PUBLIC_STUDIO_OUTLINE_CANVAS, default off): while the outline gate is live, the canvas shows the outline.
+  const studioOutlineCanvas = selectStudioOutlineCanvas({
+    enabled: STUDIO_OUTLINE_CANVAS_ENABLED && studioShell,
+    ...(STUDIO_STRAWMAN_STAGE_ENABLED && strawmanPreviewUrl ? { enabled: false } : {}), // STRAWMAN-STAGE: no separate outline design over the deck viewer (only when the strawman preview deck exists; without one the outline canvas stays)
+    blocked: templateModeOn || isGeneratingFinal || session.isLoadingSession || STUDIO_OUTLINE_CANVAS_BUSY_PHASES.has(buildNarration.phase),
+    messages, answeredIds: session.answeredActionsRef.current, userTurns: session.userMessages,
+    sessionId: currentSessionId, locked: approvalGatesLocked,
+  })
+  // PASS2B (E2E-2), two values derived at render from state already held here; both stay false unless their flag is exactly "true" (Studio shell only).
+  // J1-10 (NEXT_PUBLIC_STUDIO_CHAT_EDIT_PROMPT): the last user turn is the click on "I'd like to make changes" / "Make some changes" and nothing has
+  // been typed since: the composer is focused once, when that starts, and its placeholder says what to type. Nothing is sent or stored.
+  const studioEditPromptActive = studioShell && process.env.NEXT_PUBLIC_STUDIO_CHAT_EDIT_PROMPT === 'true'
+    && studioChatEditPromptActive(session.userMessages, messages)
+  const editPromptWasActiveRef = useRef(studioEditPromptActive)
+  useEffect(() => {
+    const wasActive = editPromptWasActiveRef.current
+    editPromptWasActiveRef.current = studioEditPromptActive
+    if (studioEditPromptActive && !wasActive) requestAnimationFrame(() => textareaRef.current?.focus())
+  }, [studioEditPromptActive])
+  // J1-17 (NEXT_PUBLIC_STUDIO_CHAT_ERROR_CLEAR): the Director error notice on screen (and the recovery card it feeds) was answered by a later turn:
+  // the user sent another message and Director replied. The hook's notice is not touched; this only stops it being drawn.
+  const staleErrorNotice = useStudioStaleErrorNotice(
+    studioShell && process.env.NEXT_PUBLIC_STUDIO_CHAT_ERROR_CLEAR === 'true', transportNotice, session.userMessages.length, messages.length)
+  const studioMandatoryDecision = messages.some(message => message.type === 'action_request'
+    && message.session_id === (currentSessionId || wsSessionId) && !retiredIntroActions.has(message.message_id)
+    && Boolean((message.payload as any).question_set || (message as ActionRequest).payload.actions.some(action =>
+      action.value === 'accept_plan' || action.value === 'accept_strawman')))
+  const nativeIntroTargetReady = Boolean(studioViewerSafety?.ready && studioCanvasLifecycle.hasOwnedSelection
+    && studioViewerSafety.presentationId === effectivePresentationId && studioViewerSafety.presentationUrl === effectivePresentationUrl)
+  const studioIntroInputs = {
+    workspaceReady: studioShell && !!user && !isAuthLoading && !session.isLoadingSession
+      && workspaceWidth > 0 && connected && !connecting
+      && (effectivePresentationUrl && !studioInitialNativeDeferred ? nativeIntroTargetReady : studioCanvasLifecycle.showLanding),
+    initialEntry: studioWelcome && !session.isResumedSession && session.userMessages.length === 0,
+    activeBuild: isGeneratingFinal || isGeneratingStrawman || templateReuseAwaitingInput
+      || (buildNarration.active && !['idle', 'complete'].includes(buildNarration.phase)),
+    decisionPending: studioMandatoryDecision || buildNarration.phase === 'awaiting_user'
+      || !!pendingActionInput || !!pendingManualDeckBuild || questionSubmissionPendingRef.current,
+    errorPresent: !!wsError || currentStatus?.status === 'error' || buildNarration.phase === 'error'
+      || themeSync.status === 'failed' || !!generationPanel.error || !!manualDeckHandoffError || !!studioViewerSafety?.error,
+    modalOpen: showOnboarding || topUpOpen || showComposerLibrary || !!pendingManualDeckBuild
+      || (!effectivePresentationUrl && workflowKey !== dismissedWorkflowKey && !!workflowAction),
+    dirtyDraft: !!inputMessage.trim() || uploadedFiles.length > 0 || !!workflowBrief || templateBlueprintDirty
+      || !!generationPanel.currentDraft || studioViewerEditing || !!selectedElementId || !!selectedTextBoxId
+      || isElementDrawerOpen || isSlideDrawerOpen || isTemplateParamsDrawerOpen || !!studioViewerSafety?.dirty,
+    workInFlight: awaitingDirectorReply || isExecutingSendRef.current || questionSubmissionPendingRef.current
+      || manualDeckHandoffBusy || generationPanel.hasActiveGenerations || templateBlueprintSaving
+      || templateSnapshotLoading || themeSync.status === 'syncing' || !!studioViewerSafety?.busy
+      || Object.values(slideComposeJobs).some(job => job.status === 'building'),
+  }
+
+  const voiceDisplayedSessionId = currentSessionId || wsSessionId || null
+  const voiceRouteSessionId = searchParams.get('session_id')
+  const voiceNavigationExtras = new URLSearchParams(searchParams.toString())
+  voiceNavigationExtras.delete('session_id')
+  const voiceTranscriptOwned = Boolean(studioVoiceTranscriptReceipt?.isCurrent()
+    && studioVoiceTranscriptReceipt.userId === authScopeUserId
+    && studioVoiceTranscriptReceipt.sessionId === voiceDisplayedSessionId)
+  const voiceDisplayedOwned = Boolean(voiceDisplayedSessionId && voiceDisplayedSessionId === wsSessionId
+    && questionSubmissionScopeRef.current.active
+    && questionSubmissionScopeRef.current.userId === authScopeUserId
+    && questionSubmissionScopeRef.current.sessionId === voiceDisplayedSessionId
+    && (voiceRouteSessionId === voiceDisplayedSessionId || studioInitialKnownFresh
+      || (!currentSessionId && (!voiceRouteSessionId || voiceRouteSessionId === 'new'))))
+  const voiceChatVisible = studioShell && showChat && isDeckDrawerOpen && workspaceLayout.chatVisible && !studioViewerFullscreen
+  const studioDirectorCall = useStudioDirectorCall({
+    enabled: STUDIO_VOICE_INTERACTIVE_ENABLED,
+    authority: studioVoiceOwnerRef.current!,
+    observation: {
+      authUserId: authScopeUserId, sessionId: voiceDisplayedSessionId,
+      routeSessionId: voiceRouteSessionId, navigationExtras: voiceNavigationExtras.toString(),
+      presentationId: effectivePresentationId, presentationUrl: effectivePresentationUrl,
+      activeVersion, templateIdentity: JSON.stringify([templateModeOn, activeTemplate?.id ?? null, templateModeSourcePresentationId]),
+      transcriptEpoch: studioVoiceTranscriptReceipt?.epoch ?? null,
+      restoreReceipt: session.studioFrontendTranscriptReceipt,
+      eligible: STUDIO_VOICE_INTERACTIVE_ENABLED && voiceTranscriptOwned && voiceDisplayedOwned
+        && voiceChatVisible && !isAuthLoading && !session.isLoadingSession && !session.isCreatingSession
+        && connected && !connecting && !transportNotice?.requiresResend && !studioIntroInputs.modalOpen,
+      freshAssignment: studioInitialKnownFresh ? session.studioInitialFreshCanonicalEntry : null,
+      automaticBlank: studioAutomaticBlankSelection ?? null,
+    },
+    messages, userMessages: session.userMessages,
+    userMessageIdsRef: session.userMessageIdsRef, userMessageContentMapRef: session.userMessageContentMapRef,
+    answeredActionsRef: session.answeredActionsRef, askGatesLocked: approvalGatesLocked, messageListSessionId: currentSessionId,
+    transcript: studioVoiceTranscriptReceipt, chatRootRef: studioVoiceChatRootRef,
+    transcriptRootRef: studioVoiceTranscriptRootRef, textareaRef,
+  })
+
+  // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the URL names a session this account cannot open. Show that, not an empty builder.
+  if (STUDIO_SESSION_HYGIENE_ENABLED && session.sessionProblem) {
+    return <StudioSessionProblemView problem={session.sessionProblem.kind} studioShell={studioShell} />
+  }
+
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+    <StudioIntroductionProvider enabled={studioShell} eligibility={studioIntroInputs}
+      getEligibility={() => {
+        const native = effectivePresentationUrl && !studioInitialNativeDeferred ? layoutServiceApis?.getStudioIntroductionSafety?.() : null
+        const targetReady = !effectivePresentationUrl || studioInitialNativeDeferred || Boolean(native?.ready && studioCanvasLifecycle.hasOwnedSelection
+          && native.presentationId === effectivePresentationId && native.presentationUrl === effectivePresentationUrl)
+        return { ...studioIntroInputs, workspaceReady: studioIntroInputs.workspaceReady && targetReady,
+          dirtyDraft: studioIntroInputs.dirtyDraft || !!native?.dirty,
+          errorPresent: studioIntroInputs.errorPresent || !!native?.error,
+          workInFlight: studioIntroInputs.workInFlight || !!native?.busy
+            || isExecutingSendRef.current || questionSubmissionPendingRef.current }
+      }}>
+    <div data-studio-v4-shell={studioShell ? "true" : undefined} data-studio-v4-tokens={process.env.NEXT_PUBLIC_STUDIO_V4_TOKENS === 'true' ? 'true' : undefined} className="flex h-screen w-screen overflow-hidden bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+      {studioShell && <StudioRail homeHref="https://deckster.xyz" sessionUsage={<TokenUsageStrip tokenUsage={tokenUsage} displayMode="counter" />} />}
+      {STUDIO_PHONE_SHELL_ENABLED && <StudioPhoneTabBar sessionUsage={<TokenUsageStrip tokenUsage={tokenUsage} displayMode="counter" />} />}{/* PHONE-SHELL-NAV: NEXT_PUBLIC_STUDIO_PHONE_SHELL (default off), drawn next to the rail; shown at 640 px and narrower only */}
+      {STUDIO_PHONE_SHELL_ENABLED && <StudioPhoneBuilderTop connectionState={connectionState} reconnectStatus={reconnectStatus} />}{/* PHONE-SHELL-TOP: NEXT_PUBLIC_STUDIO_PHONE_SHELL (default off); draws nothing here: the "..." menu and the Director dot are portalled into row 1 and row 2 */}
+      {STUDIO_PHONE_LANDSCAPE_ENABLED && <StudioPhoneLandscape deckOnStage={Boolean(effectivePresentationUrl) && !studioWelcome && !session.isLoadingSession} stageVisible={studioOverlayWorkspace && !studioCanvasCovered} slideNumber={currentSlideIndex + 1} connectionState={connectionState} reconnectStatus={reconnectStatus} onChat={() => { selectWorkspacePane('chat'); if (!showChat) setShowChat(true) }} />}{/* PHONE-LANDSCAPE: NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE (default off); the sideways viewing stage (hamburger, plus, Chat); Chat is the Director pane of the switch */}
+      {STUDIO_PHONE_HINTS_ENABLED && <StudioPhoneHints deckOnStage={Boolean(effectivePresentationUrl) && !studioWelcome && !session.isLoadingSession} stageVisible={studioOverlayWorkspace && !studioCanvasCovered} editing={studioViewerEditing} slideNumber={currentSlideIndex + 1} slideCount={effectiveSlideCount ?? 0} />}{/* PHONE-HINTS: NEXT_PUBLIC_STUDIO_PHONE_HINTS (default off, needs the landscape flag too); the one-time rotate and swipe hints, Full screen and the swipe's state; drawn in the slide view and the sideways stage only */}
+      {studioShell && !effectivePresentationUrl && !session.isLoadingSession && workflowKey !== dismissedWorkflowKey && <>
+        <ThemePanel isOpen={workflowAction === 'theme' && !savedThemeWorkflowId} onClose={() => setDismissedWorkflowKey(workflowKey)} presentationId={null} buildThemeSelection={buildThemeSelection} themeSync={themeSync} selectionLocked={generationSelectionsLocked} onBuildThemeChange={handleBuildThemeChange} />
+        <Dialog open={workflowAction === 'templates' || workflowAction === 'master'} onOpenChange={open => { if (!open) setDismissedWorkflowKey(workflowKey) }}>
+          <DialogContent data-studio-v4-dialog="workflow"><DialogHeader><DialogTitle>{workflowAction === 'master' ? 'Open a deck to edit its footer and logo' : 'Choose a template'}</DialogTitle><DialogDescription>{workflowAction === 'master' ? 'Footer and logo belong to a presentation. Open an existing deck or build one with Director first.' : 'Choose the saved structure you want to reuse. Your message is sent only when you press Send.'}</DialogDescription></DialogHeader>
+            <div data-studio-workflow-body="true">{workflowAction === 'templates' && templateBuilderEnabled ? <TemplatePickerContent mode="generation" standalone preferredTemplateId={searchParams.get('studio_item')} onSelect={template => { handleSelectTemplate(template); setDismissedWorkflowKey(workflowKey) }} /> : workflowAction === 'templates' ? <p>{process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === 'true' ? "Templates aren't available right now." : 'Templates are not enabled in this environment.'}</p> : <div className="flex gap-3"><button type="button" onClick={() => router.push('/dashboard')}>Open Decks</button><button type="button" onClick={() => setDismissedWorkflowKey(workflowKey)}>Continue in chat</button></div>}</div>
+          </DialogContent>
+        </Dialog>
+      </>}
+
       {/* Main Content */}
-      <div className="flex-1 flex flex-col h-full min-w-0">
+      <div data-studio-v4-shell-column="true" className="flex-1 flex flex-col h-full min-w-0">
         {/* Header */}
         <BuilderHeader
           wsError={wsError}
+          onNewPresentation={handleNewChatWrapped}
+          deckTitle={slideStructure?.metadata?.main_title || "Studio"}
+          // NEXT_PUBLIC_STUDIO_DUPLICATE_COPY_TITLE (default off): a copied deck says its own title here, not "Studio"; flag off, nothing is spread.
+          {...studioDuplicateCopyTitleProps}
           onOpenChatHistory={() => setShowChatHistory((prev) => !prev)}
           isChatHistoryOpen={showChatHistory}
           toolbarSlotRef={setToolbarPortalTarget}
+          onToolbarInteract={studioOverlayWorkspace ? revealStudioStage : undefined}
+          isUnsavedSession={isUnsavedSession}
         />
 
         {/* Main Content Area */}
-        <div className="flex-1 flex relative overflow-hidden">
+        <div ref={workspaceRef} data-studio-intro-surface={studioShell ? "builder" : undefined} data-studio-v4-shell-workspace="true" data-studio-workspace-welcome={studioWelcome ? "true" : undefined} data-studio-workspace-mode={studioShell ? workspaceLayout.dualPane ? 'dual' : 'single' : undefined} data-studio-workspace-overlay={studioShell ? String(studioOverlayWorkspace) : undefined} data-studio-panel-keep-canvas={studioShell && STUDIO_PANEL_KEEP_CANVAS_ENABLED ? "true" : undefined} data-studio-panel-focus={studioPanelFocus ? "true" : undefined} data-studio-chat-width-stage={studioShell && STUDIO_CHAT_WIDTH_V2_ENABLED ? studioChatWidthStage : undefined} className="flex-1 flex relative overflow-hidden" style={studioShell ? { '--studio-collapsed-inspector-width': `${studioTemplateVisible && templateParamsCollapsed ? TEMPLATE_PANEL_COLLAPSED_WIDTH : 0}px` } as React.CSSProperties : undefined}>
+          {STUDIO_PASS3_POLISH_D_ENABLED && <h1 className="sr-only">{builderHeading(slideStructure?.metadata?.main_title)}</h1>}{/* PASS3-POLISH-D */}
+          {studioPopupsV2 && !workspaceLayout.dualPane && (
+            <StudioWorkspaceSwitchV2
+              showSlides={studioOverlayWorkspace}
+              slidesPressed={studioStageSelected || (!workspaceLayout.chatVisible && !workspaceLayout.inspectorVisible)}
+              onSlides={() => { retireStudioVoiceOwner(); setStudioStageSelected(true) }}
+              directorPressed={studioOverlayWorkspace ? workspaceLayout.chatVisible : workspaceLayout.presentedPane === 'chat'}
+              onDirector={() => { selectWorkspacePane('chat'); if (!showChat) setShowChat(true) }}
+              showEdit={Boolean(activeInspector)}
+              editPressed={studioOverlayWorkspace ? workspaceLayout.inspectorVisible : workspaceLayout.presentedPane === 'inspector'}
+              onEdit={() => selectWorkspacePane('inspector')}
+            />
+          )}
+          {studioShell && !studioPopupsV2 && !workspaceLayout.dualPane && (
+            <div data-studio-workspace-switch="true" role="group" aria-label="Workspace pane">
+              {studioOverlayWorkspace && <button type="button" aria-pressed={studioStageSelected || (!workspaceLayout.chatVisible && !workspaceLayout.inspectorVisible)} onClick={() => { retireStudioVoiceOwner(); setStudioStageSelected(true) }}>Stage</button>}
+              <button type="button" aria-pressed={studioOverlayWorkspace ? workspaceLayout.chatVisible : workspaceLayout.presentedPane === 'chat'} onClick={() => { selectWorkspacePane('chat'); if (!showChat) setShowChat(true) }}>Chat</button>
+              <button type="button" aria-pressed={studioOverlayWorkspace ? workspaceLayout.inspectorVisible : workspaceLayout.presentedPane === 'inspector'} disabled={!activeInspector} onClick={() => selectWorkspacePane('inspector')}>Inspector</button>
+            </div>
+          )}
+          {studioShell && showStudioInspectorTabs && (
+            <div data-studio-inspector-switch="true" data-studio-workspace-visible={String(workspaceLayout.inspectorVisible)} style={{ width: studioInspectorWidth }} role="group" aria-label="Inspector panels">
+              {availableInspectors.map(inspector => (
+                <button key={inspector} type="button" aria-pressed={activeInspector === inspector} onClick={() => { setPreferredInspector(inspector); selectWorkspacePane('inspector') }}>{inspector === 'element' ? 'Element' : inspector === 'slide' ? 'Slide' : 'Template'}</button>
+              ))}
+            </div>
+          )}
           {isTemplateParamsDrawerOpen && (
+            <div data-studio-workspace-drawer={studioShell ? 'template' : undefined} data-studio-workspace-visible={studioShell ? String(studioTemplateVisible) : undefined} data-studio-inspector-tabs={studioShell && showStudioInspectorTabs ? 'true' : undefined} aria-hidden={studioShell && !studioTemplateVisible ? true : undefined} {...(studioShell && !studioTemplateVisible ? { inert: true } : {})} style={studioShell ? { width: templateParamsCollapsed ? TEMPLATE_PANEL_COLLAPSED_WIDTH : studioInspectorWidth } : { display: 'contents' }}>
             <TemplateParamsPanel
               isOpen={isTemplateParamsDrawerOpen}
-              width={drawerWidth}
+              width={studioShell ? studioInspectorWidth : drawerWidth}
               collapsed={templateParamsCollapsed}
               snapshot={templateSnapshot}
               currentSlideIndex={activeTemplateSlideIndex}
@@ -4706,23 +7409,28 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               blueprintSaving={templateBlueprintSaving}
               selectedElementId={selectedTemplateElementId}
               onCollapsedChange={setTemplateParamsCollapsed}
-              onResizeStart={handleDrawerResizeStart}
+              onResizeStart={studioShell ? (event) => handleStudioResizeStart(event, 'inspector') : handleDrawerResizeStart}
               onOverrideChange={handleTemplateOverrideChange}
               onBlueprintChange={handleTemplateBlueprintChange}
               onSaveBlueprint={handleTemplateBlueprintSave}
             />
+            </div>
           )}
 
           {/* === Element Drawer === */}
           <div
             data-builder-panel="element"
+            data-studio-workspace-drawer={studioShell ? 'element' : undefined}
+            data-studio-workspace-visible={studioShell ? String(studioElementVisible) : undefined}
+            data-studio-workspace-open={studioShell ? String(isElementDrawerOpen) : undefined}
+            data-studio-inspector-tabs={studioShell && showStudioInspectorTabs ? 'true' : undefined}
             className={cn(
               "absolute inset-y-0 left-0 ease-out",
               isResizingDrawer ? "" : "transition-transform duration-300"
             )}
             style={{
-              width: drawerWidth,
-              transform: isElementDrawerOpen ? 'translateX(0px)' : `translateX(-${drawerWidth}px)`,
+              width: studioShell ? studioInspectorWidth : drawerWidth,
+              transform: studioShell ? 'none' : isElementDrawerOpen ? 'translateX(0px)' : `translateX(-${drawerWidth}px)`,
               zIndex: isElementDrawerOpen ? 10 + panelZIndices.element : 60,
               pointerEvents: isElementDrawerOpen ? 'auto' : 'none',
             }}
@@ -4730,8 +7438,18 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             {/* Panel area */}
             <div
               className={`absolute inset-y-0 left-0 bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-900 dark:text-slate-100 overflow-hidden ${isElementDrawerOpen ? 'shadow-xl' : ''}`}
-              style={{ width: drawerWidth }}
+              data-studio-workspace-content={studioShell ? 'true' : undefined}
+              aria-hidden={studioShell && !studioElementVisible ? true : undefined}
+              {...(studioShell && !studioElementVisible ? { inert: true } : {})}
+              style={{ width: studioShell ? studioInspectorWidth : drawerWidth }}
             >
+              {studioShell && studioFormatOpen && <>
+                {studioFormatLoading && <p role="status" className="px-4 py-3 text-sm">Reading selected element properties…</p>}
+                {studioFormatError && <div role="alert" className="px-4 py-3 text-sm">{studioFormatError}</div>}
+                <StudioFormatInspector isOpen={studioFormatOpen} target={studioFormatTarget} readSnapshot={studioFormatTarget ?? undefined}
+                  busy={studioFormatBusy || studioFormatLoading} onClose={closeStudioFormat}
+                  onSendCommand={handleStudioFormatCommand}/>
+              </>}
               {features.useTextLabsGeneration && (
                 <GenerationPanel
                   isOpen={generationPanel.isOpen}
@@ -4750,7 +7468,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   retryStrategy={generationPanel.retryStrategy}
                   slideIndex={currentSlideIndex}
                   presentationId={effectivePresentationId}
-                  elementContext={blankElements.activePosition}
+                  elementContext={generationElementContext}
                   mode={generationPanel.mode}
                   getTemplateSlotCatalog={getTemplateSlotCatalog}
                   existingTextTarget={generationPanel.refineContext ? {
@@ -4865,13 +7583,17 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   slideIndex={currentSlideIndex}
                 />
               )}
+              {process.env.NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED === 'true' && <div ref={setAddSlideV2Host} data-studio-add-slide-v2-host="true" />}
             </div>
 
             {/* Handle */}
-            {features.useTextLabsGeneration && generationPanel.isOpen && (
+            {((features.useTextLabsGeneration && generationPanel.isOpen) || addSlideV2Open) && (
               <button
                 type="button"
-                onClick={generationPanel.closePanel}
+                onClick={() => {
+                  if (studioShell && !studioElementVisible) { setPreferredInspector('element'); selectWorkspacePane('inspector') }
+                  else { generationPanel.closePanel(); setAddSlideV2Open(false) }
+                }}
                 className={cn(
                   "absolute top-[33%] -translate-y-1/2",
                   "w-4 py-3 rounded-r-md shadow-sm border border-l-0",
@@ -4880,7 +7602,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   "bg-purple-200 hover:bg-purple-300 border-purple-400 text-purple-700 dark:bg-purple-900/50 dark:hover:bg-purple-800/60 dark:border-purple-700 dark:text-purple-200"
                 )}
                 style={{ left: drawerWidth }}
-                title="Close element panel"
+                data-studio-drawer-handle={studioShell ? 'element' : undefined}
+              aria-expanded={studioShell ? studioElementVisible : undefined}
+              title={studioShell && !studioElementVisible ? 'Show element panel' : 'Close element panel'}
               >
                 <ChevronLeft className="h-2.5 w-2.5" />
                 <span className="[writing-mode:vertical-rl] text-[9px] font-semibold uppercase tracking-wider select-none leading-none">
@@ -4893,13 +7617,18 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           {/* === Slide Drawer === */}
           {features.slideComposerEnabled && (
             <div
+              data-builder-panel="slide"
+              data-studio-workspace-drawer={studioShell ? 'slide' : undefined}
+              data-studio-workspace-visible={studioShell ? String(studioSlideVisible) : undefined}
+              data-studio-workspace-open={studioShell ? String(isSlideDrawerOpen) : undefined}
+              data-studio-inspector-tabs={studioShell && showStudioInspectorTabs ? 'true' : undefined}
               className={cn(
                 "absolute inset-y-0 left-0 ease-out",
                 isResizingDrawer ? "" : "transition-transform duration-300"
               )}
               style={{
-                width: drawerWidth,
-                transform: isSlideDrawerOpen ? 'translateX(0px)' : `translateX(-${drawerWidth}px)`,
+                width: studioShell ? studioInspectorWidth : drawerWidth,
+                transform: studioShell ? 'none' : isSlideDrawerOpen ? 'translateX(0px)' : `translateX(-${drawerWidth}px)`,
                 zIndex: isSlideDrawerOpen ? 10 + panelZIndices.slide : 60,
                 pointerEvents: isSlideDrawerOpen ? 'auto' : 'none',
               }}
@@ -4907,7 +7636,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               {/* Panel area */}
               <div
                 className={`absolute inset-y-0 left-0 bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-900 dark:text-slate-100 overflow-hidden ${isSlideDrawerOpen ? 'shadow-xl' : ''}`}
-                style={{ width: drawerWidth }}
+                data-studio-workspace-content={studioShell ? 'true' : undefined}
+                aria-hidden={studioShell && !studioSlideVisible ? true : undefined}
+                {...(studioShell && !studioSlideVisible ? { inert: true } : {})}
+                style={{ width: studioShell ? studioInspectorWidth : drawerWidth }}
               >
                 <SlideGenerationPanel
                   isOpen={showFormatPanel}
@@ -4931,6 +7663,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   buildThemeSelection={buildThemeSelection}
                   activeBuildThemeProfileName={activeBuildThemeProfileForSelection?.name ?? null}
                   enabled={features.slideComposerEnabled}
+                  studioOwner={studioShell ? studioSlideComposeOwnerRef.current : undefined}
+                  onSelectionRequestStart={studioShell ? handleStudioSyncSelectionRequestStart : undefined}
                   onBuilt={handleSlideComposerBuilt}
                   onAccepted={handleSlideComposerAccepted}
                   jobEvent={slideComposePanelEvent}
@@ -4938,9 +7672,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               </div>
 
               {/* Handle */}
+              {!studioSlideTabHidden && (
               <button
                 type="button"
                 onClick={() => {
+                  if (studioShell && isSlideDrawerOpen && !studioSlideVisible) { setPreferredInspector('slide'); selectWorkspacePane('inspector'); return }
                   const next = !showFormatPanel
                   setShowFormatPanel(next)
                   if (next) {
@@ -4959,7 +7695,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                     : "bg-blue-100 hover:bg-blue-200 border-blue-300 text-blue-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-700 dark:text-blue-300"
                 )}
                 style={{ left: drawerWidth }}
-                title={showFormatPanel ? 'Close slide panel' : 'Open slide panel'}
+                data-studio-drawer-handle={studioShell ? 'slide' : undefined}
+              aria-expanded={studioShell ? studioSlideVisible : undefined}
+              title={studioShell && isSlideDrawerOpen && !studioSlideVisible ? 'Show slide panel' : showFormatPanel ? 'Close slide panel' : 'Open slide panel'}
               >
                 {isSlideDrawerOpen ? (
                   <ChevronLeft className="h-2.5 w-2.5" />
@@ -4970,31 +7708,59 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   Slide
                 </span>
               </button>
+              )}
             </div>
           )}
 
           {/* === Deck Drawer === */}
           <div
             data-builder-panel="deck"
+            data-studio-workspace-drawer={studioShell ? 'deck' : undefined}
+            data-studio-workspace-visible={studioShell ? String(workspaceLayout.chatVisible) : undefined}
+            data-studio-workspace-open={studioShell ? String(isDeckDrawerOpen) : undefined}
             className={cn(
               "absolute inset-y-0 left-0 ease-out",
               isResizingDrawer ? "" : "transition-transform duration-300"
             )}
             style={{
-              width: drawerWidth,
-              transform: isDeckDrawerOpen ? 'translateX(0px)' : `translateX(-${drawerWidth}px)`,
+              width: studioShell ? studioChatWidth : drawerWidth,
+              transform: studioShell ? 'none' : isDeckDrawerOpen ? 'translateX(0px)' : `translateX(-${drawerWidth}px)`,
               zIndex: isDeckDrawerOpen ? 10 + panelZIndices.deck : 60,
               pointerEvents: isDeckDrawerOpen ? 'auto' : 'none',
             }}
           >
             {/* Panel area */}
             <div
+              ref={studioVoiceChatRootRef}
               className={`absolute inset-y-0 left-0 bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-900 dark:text-slate-100 overflow-hidden flex flex-col ${isDeckDrawerOpen ? 'shadow-xl' : ''}`}
-              style={{ width: drawerWidth }}
+              data-studio-workspace-content={studioShell ? 'true' : undefined}
+              aria-hidden={studioShell && !workspaceLayout.chatVisible ? true : undefined}
+              {...(studioShell && !workspaceLayout.chatVisible ? { inert: true } : {})}
+              {...(chatCleanShell ? chatCleanRootAttributes() : {}) /* CHAT-CLEAN: the stylesheet's hook and PK's choice tokens, on the chat column only with the flag on */}
+              style={{ width: studioShell ? studioChatWidth : drawerWidth }}
             >
               {showChat && (
                 <>
+                  {studioShell && <StudioDirectorHeader connectionState={connectionState} isLoadingSession={session.isLoadingSession} reconnectStatus={reconnectStatus}
+                    onReconnect={process.env.NEXT_PUBLIC_STUDIO_CHAT_RECONNECT === 'true' ? connect : undefined}
+                    actions={STUDIO_VOICE_INTERACTIVE_ENABLED ? <DirectorCallEntry call={studioDirectorCall.call} disabled={!studioDirectorCall.eligible} /> : undefined} />}
+                  {studioShell && <StudioDirectorNotice
+                    className="mx-3 mt-2"
+                    notice={staleErrorNotice ? null : transportNotice?.sessionId === (currentSessionId || wsSessionId) ? transportNotice : null}
+                    handoffStatus={handoffRequestStatus?.sessionId === (currentSessionId || wsSessionId) ? handoffRequestStatus : null}
+                  />}
+                  {studioShell && <StudioSupersededNotice className="mx-3 mt-2" active={oneLiveTabSuperseded} onUseHere={connect} />}
+                  {/* NEXT_PUBLIC_STUDIO_DUPLICATE_DECK: the copy's one line, "Copied from <title>. Chat history stays with the original." Its own small element, read from the session's stored marker; never a chat message. Only a saved session whose chat is fresh (nothing restored) reads it. */}
+                  {process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_DECK === 'true' && !session.isLoadingSession && !session.isResumedSession && !isUnsavedSession && <StudioCopiedFromNote className="mx-3 mt-2" studioShell={studioShell} sessionId={currentSessionId} />}
+                  {/* NEXT_PUBLIC_STUDIO_DECK_IMPORT: one note on an imported deck ("This deck keeps the design of your PowerPoint file..."). `adopted` is Director's marker, composer_adoption.source === "deck_import" (any device); the note falls back to this browser's own record of its imports. */}
+                  {process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT === 'true' && studioShell && !session.isLoadingSession && !!currentSessionId && currentSessionId !== 'new' && <StudioDeckImportNote className="mx-3 mt-2" sessionId={currentSessionId} adopted={composerAdoption?.source === 'deck_import' && composerAdoption.presentation_id === effectivePresentationId} />}
+                  {studioShell && handoffStorageWarning?.sessionId === (currentSessionId || wsSessionId) && (
+                    <p role="alert" className="mx-3 mt-2 rounded-lg border border-[var(--ss-line)] bg-[var(--ss-panel)] p-3 text-xs text-[var(--ss-text)]">
+                      {handoffStorageWarning.text}
+                    </p>
+                  )}
                   <TokenUsageStrip
+                    displayMode={studioShell ? "warning" : "all"}
                     tokenUsage={tokenUsage}
                     quota={quota}
                     onTopUp={() => {
@@ -5003,10 +7769,39 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                     }}
                   />
 
+                  {STUDIO_VOICE_INTERACTIVE_ENABLED && <DirectorCallPanel
+                    call={studioDirectorCall.call} awaitingReply={awaitingDirectorReply}
+                    building={isGeneratingFinal || isGeneratingStrawman}
+                    latestDirectorText={studioDirectorCall.latestDirectorText}
+                    latestUserText={studioDirectorCall.latestUserText}
+                    pendingAsk={studioDirectorCall.pendingAsk} isCurrentAsk={studioDirectorCall.isCurrentAsk}
+                    getQuestionRoot={studioDirectorCall.getQuestionRoot} focusComposer={studioDirectorCall.focusComposer}
+                  />}
                   <ScrollArea className="flex-1">
-                    <div className="px-3 py-4 space-y-4">
+                    <div ref={studioVoiceTranscriptRootRef} className="px-3 py-4 space-y-4">
                       <MessageList
+                        {...(chatCleanShell ? { studioChatClean: { narration: buildNarration, notes: chatCleanNotes.notes, composer: chatCleanComposer } } : {}) /* CHAT-CLEAN: the inline job card and the notes at the end of the thread */}
                         sessionId={currentSessionId}
+                        presentationContext={studioShell && effectivePresentationUrl && (!isBlankPresentation || (slideStructure?.slides ?? []).length > 0) ? {
+                          title: slideStructure?.metadata?.main_title ?? null,
+                          slideCount: effectiveSlideCount,
+                        } : undefined}
+                        studioFirstRunActions={studioShell && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true'
+                          ? <StudioFirstRunActions onStartBlank={effectivePresentationUrl ? (STUDIO_BLANK_START_NEW_SESSION_ENABLED ? handleStartOnBlankCanvas : handleDismissBlankPlaceholder) : undefined} /> : undefined}
+                        studioRestoring={studioShell && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true' ? studioFirstRunRestoring : undefined}
+                        {...(studioShell && process.env.NEXT_PUBLIC_STUDIO_WELCOME_POLISH === 'true' ? { studioWelcomeGreeting: { name: user?.name ?? null } } : {})}
+                        connectionState={studioShell ? undefined : connected ? 'connected' : connecting ? 'connecting' : wsError ? 'error' : 'disconnected'}
+                        onDraftPrompt={text => {
+                          if (inputMessage.trim()) setWorkflowBrief(text)
+                          else { setInputMessage(text); requestAnimationFrame(() => textareaRef.current?.focus()) }
+                        }}
+                        studioFrontendTranscriptReceipt={studioShell ? session.studioFrontendTranscriptReceipt : null}
+                        studioGreetingSafety={studioShell ? {
+                          pendingRestoration: session.isLoadingSession,
+                          pendingWork: isExecutingSendRef.current || questionSubmissionPendingRef.current || session.isCreatingSession,
+                          noticePresent: Boolean(wsError || transportNotice || currentStatus?.status === 'error'),
+                          hasUserIntent: session.hasStudioUserIntent,
+                        } : undefined}
                         userMessages={session.userMessages}
                         messages={messages}
                         userMessageIdsRef={session.userMessageIdsRef}
@@ -5014,33 +7809,71 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                         hasSeenWelcomeRef={session.hasSeenWelcomeRef}
                         answeredActionsRef={session.answeredActionsRef}
                         onActionClick={handleActionClick}
-                        onSubmitAnswers={(text: string, displayText?: string) => {
-                          const echo = displayText || text
-                          // MDC (P2/P3): QuestionCard composed answers ride the
-                          // normal send path — same optimistic append + options
-                          // as a typed message (no action_value).
-                          const ts = Date.now()
-                          const mid = `user-qa-${ts}`
-                          session.setUserMessages(prev => [...prev, { id: mid, text: echo, timestamp: ts }])
-                          if (currentSessionId && persistence) {
-                            persistence.queueMessage({
-                              message_id: mid,
-                              session_id: currentSessionId,
-                              timestamp: new Date(ts).toISOString(),
-                              type: 'chat_message',
-                              payload: { text: echo }
-                            } as unknown as DirectorMessage, echo)
+                        askGatesLocked={approvalGatesLocked}
+                        studioOutlineOnCanvas={studioOutlineCanvas?.outline.message_id}
+                        studioRecovery={studioShell && process.env.NEXT_PUBLIC_STUDIO_CHAT_RECOVERY === 'true' ? {
+                          // PASS2-DIRECTOR-CHAT PR D, item 7: facts already held here, passed read-only to word the recovery card. Same session test as the notice above.
+                          noticeType: staleErrorNotice ? null : transportNotice?.sessionId === (currentSessionId || wsSessionId) ? (transportNotice?.type ?? null) : null,
+                          noticeRequiresResend: Boolean(transportNotice?.sessionId === (currentSessionId || wsSessionId) && transportNotice?.requiresResend),
+                          reconnectStatus,
+                          statusError: currentStatus?.status === 'error',
+                        } : undefined}
+                        onSubmitAnswers={async (text: string, displayText?: string) => {
+                          const origin = { ...questionSubmissionScopeRef.current }
+                          const isCurrentSubmission = () => (
+                            questionSubmissionScopeRef.current.active &&
+                            questionSubmissionScopeRef.current.generation === origin.generation &&
+                            questionSubmissionScopeRef.current.sessionId === origin.sessionId &&
+                            questionSubmissionScopeRef.current.userId === origin.userId
+                          )
+                          if (!origin.active || origin.sessionId !== (currentSessionId || wsSessionId) ||
+                              !text.trim() || !preflightDirectorTurn('answers')) return
+                          session.markStudioUserIntent()
+                          questionSubmissionPendingRef.current = true
+                          try {
+                            // Keep the native question prose and compact echo/options.
+                            // A true return means browser transport accepted the bytes,
+                            // not that the Director or persistence acknowledged them.
+                            let success = false
+                            try {
+                              success = await sendMessageWhenConnected(text, undefined, undefined, {
+                                displayText,
+                                deepResearch: researchEnabled,
+                                webSearch: webSearchEnabled,
+                                extendedGeneration: extendedGenerationEnabled,
+                                useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
+                                fileUpload: !!sessionStoreName,
+                                storeName: sessionStoreName,
+                                ...(deckIdentity ? { deckIdentity } : {}),
+                              }, undefined, isCurrentSubmission)
+                            } catch (error) {
+                              console.warn('Could not send Director answers:', error)
+                            }
+                            if (!isCurrentSubmission()) return
+                            if (success !== true) {
+                              toast({
+                                title: "Couldn't reach the Director",
+                                description: 'Your answers were not sent. They are still in the question card; check your connection and try again.',
+                                variant: 'destructive',
+                              })
+                              return
+                            }
+                            const echo = displayText || text
+                            const ts = Date.now()
+                            const mid = `user-qa-${ts}`
+                            session.setUserMessages(prev => [...prev, { id: mid, text: echo, timestamp: ts }])
+                            if (currentSessionId && persistence) {
+                              persistence.queueMessage({
+                                message_id: mid,
+                                session_id: currentSessionId,
+                                timestamp: new Date(ts).toISOString(),
+                                type: 'chat_message',
+                                payload: { text: echo }
+                              } as unknown as DirectorMessage, echo)
+                            }
+                          } finally {
+                            questionSubmissionPendingRef.current = false
                           }
-                          sendMessage(text, undefined, undefined, {
-                            displayText,
-                            deepResearch: researchEnabled,
-                            webSearch: webSearchEnabled,
-                            extendedGeneration: extendedGenerationEnabled,
-                            useKnowledgeGraph: showKnowledgeGraphToggle && knowledgeGraphEnabled,
-                            fileUpload: !!sessionStoreName,
-                            storeName: sessionStoreName,
-                            ...(deckIdentity ? { deckIdentity } : {}),
-                          })
                         }}
                         messagesEndRef={messagesEndRef}
                         slideContextByIndex={slideContextByIndex}
@@ -5051,6 +7884,16 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                         isGeneratingFinal={isGeneratingFinal}
                         suppressEphemeral={effectiveBuildNarrationEnabled}
                       />
+                      {process.env.NEXT_PUBLIC_STUDIO_SPEED_PERCEIVED === 'true' && speedPerceivedEcho.echo && <StudioSpeedEcho key={speedPerceivedEcho.echo.key} echo={speedPerceivedEcho.echo} studio={studioShell} rootProps={studioShell && process.env.NEXT_PUBLIC_STUDIO_CHAT_POLISH === 'true' ? { 'data-studio-chat-polish': 'message' } : undefined} />}{/* SPEED-PERCEIVED: the echo right after the transcript, where the real bubble appears; off, nothing */}
+                      {/* NEXT_PUBLIC_STUDIO_JOB_LEDGER (Studio shell): a card per failed or timed-out job of this session; Retry sends job_retry. */}
+                      {STUDIO_JOB_LEDGER_ENABLED && studioShell && (
+                        <StudioJobLedgerCards sessionId={currentSessionId || wsSessionId} sendJobRetry={jobId => sendControlMessage('job_retry', { job_id: jobId })} />
+                      )}
+                      {STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED && blockedSendNotice && (
+                        <div ref={blockedSendNoticeRef}>
+                          <StudioBlockedSendNotice notice={blockedSendNotice} onDismiss={() => setBlockedSendNotice(null)} />
+                        </div>
+                      )}
                       {/* Template Ingest (C-5, M-6): cancel the in-flight ingest job */}
                       {process.env.NEXT_PUBLIC_TEMPLATE_INGEST_ENABLED === 'true' && templateIngestJobId && (
                         <div className="flex justify-end">
@@ -5071,10 +7914,23 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   </ScrollArea>
 
                   {effectiveBuildNarrationEnabled && (
-                    <DirectorPresence narration={buildNarration} currentStatus={currentStatus} />
+                    strawmanChatOn && buildNarration.active ? <StudioStrawmanChatLine narration={buildNarration} stageOpen={strawmanChatStageOpen} autoProceed={strawmanChat.autoProceed} heldCovered={chatCleanOn || Boolean(flowControl.bar)} loadingSession={studioShell ? session.isLoadingSession : undefined} /> : ( // STRAWMAN-CHAT: the chat's one quiet status line (nothing once the stage is open) instead of the presence row's Build log; no narration, the row as ever
+                    <DirectorPresence narration={buildNarration} currentStatus={currentStatus} loadingSession={studioShell ? session.isLoadingSession : undefined} />
+                    ) // STRAWMAN-CHAT
                   )}
+                  {flowControl.bar}{/* FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_AMEND): the calm line and Resume / Rebuild while the build is held; off, null */}
+                  <BuilderQuotaRefusal />{/* BILLING-F5-USAGE (NEXT_PUBLIC_STUDIO_QUOTA_SCREENS): out of credits / plan refusal screen; off, null */}
 
+                  {chatCleanOn ? <StudioChatCleanBar composer={chatCleanComposer} onContinue={chatCleanContinue} /> : null}{/* CHAT-CLEAN: the slim "Stopped at slide N · slides 1–N kept · Continue" bar above the composer while the build is held (the flow bar above it is hidden by the stylesheet); off, null */}
+                  {workflowBrief && <div className="studio-brief-handoff" role="region" aria-label="Brief ready">
+                    <div><strong>Your brief is ready</strong><p>{inputMessage.trim() ? 'Use it to replace the current unsent message, or keep your message.' : 'Add it to the composer, review it, then send when ready.'}</p></div>
+                    <button type="button" onClick={() => resolveWorkflowBrief(true)}>Use brief</button>
+                    <button type="button" onClick={() => resolveWorkflowBrief(false)}>Keep my message</button>
+                  </div>}
                   <ChatInput
+                    {...(chatCleanShell ? { studioChatClean: { composer: chatCleanComposer, onStop: chatCleanStop, onSendDirections: chatCleanSendDirections, sessionId: currentSessionId } } : {}) /* CHAT-CLEAN: Send <-> Stop, new directions while held, the "+" menu, the research chips and the model picker */}
+                    composerTextareaRef={studioShell ? textareaRef : undefined}
+                    studioSavedThemeRequest={savedThemeWorkflowId ? { id: savedThemeWorkflowId, key: workflowKey } : undefined}
                     inputMessage={inputMessage}
                     onInputChange={setInputMessage}
                     mentionSlides={
@@ -5083,9 +7939,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                         index: i, title: sl?.title || '', slide_id: sl?.slide_id ?? null,
                       }))
                     }
+                    deckOpen={studioComposerDeckOpen}
+                    {...((chatCommandsOn ? { mentionSlides: undefined, studioChatCommands: chatCommandsPage } : {}) as { mentionSlides?: undefined; studioChatCommands?: ChatCommandsPageProps }) /* CHAT-COMMANDS: the "@" menu takes over the K1 slide picker (Slides is its first section); the prop carries the page's part. Off, nothing is added */}
                     awaitingReply={awaitingDirectorReply}
                     onStopAwaiting={stopAwaitingReply}
                     onSubmit={handleSendMessage}
+                    {...((process.env.NEXT_PUBLIC_STUDIO_SPEED_PERCEIVED === 'true' ? { onSubmit: speedPerceivedEcho.wrapSubmit(handleSendMessage) } : {}) as { onSubmit?: typeof handleSendMessage })} // SPEED-PERCEIVED: the same handler, wrapped to start and settle the echo; off, nothing is added
                     uploadedFiles={uploadedFiles}
                     onFilesSelected={handleFilesSelected}
                     onRemoveFile={removeFile}
@@ -5127,6 +7986,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                     isReady={isReady}
                     isLoadingSession={session.isLoadingSession}
                     connected={connected}
+                    showConnectionStatus={!studioShell}
                     connecting={connecting}
                     user={user}
                     currentSessionId={currentSessionId}
@@ -5135,6 +7995,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                     activeTemplate={activeTemplate}
                     onSelectTemplate={handleSelectTemplate}
                     onOpenComposerLibrary={composerLibraryEnabled ? () => setShowComposerLibrary(true) : undefined}
+                    {...(studioPopupsV2 && composerLibraryEnabled ? { onComposerTemplateAction: (request: ComposerLibraryRequest) => { setComposerLibraryRequest(request); setShowComposerLibrary(true) } } : {})}
                     onClearTemplate={handleClearTemplate}
                     templateSelectionLocked={generationSelectionsLocked}
                     isTemplateReuseRunning={Boolean(activeTemplate && isGeneratingFinal)}
@@ -5145,6 +8006,23 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                     onActiveBuildThemeProfileChange={handleActiveBuildThemeProfileChange}
                     themeSyncStatus={themeSync.status}
                     themeSyncError={themeSync.error}
+                    studioContextLabel={studioShell && process.env.NEXT_PUBLIC_STUDIO_CHAT_COMPOSER_CONTEXT === 'true' ? studioComposerContextLabel({
+                      // PASS2-DIRECTOR-CHAT PR D, item 6: whether a deck is open (the test the transcript uses) and the slide on the canvas, read only.
+                      deckOpen: Boolean(effectivePresentationUrl && (!isBlankPresentation || (slideStructure?.slides ?? []).length > 0)),
+                      slideNumber: currentSlideIndex + 1,
+                      slideCount: effectiveSlideCount,
+                      // PASS2B G12 (flag NEXT_PUBLIC_STUDIO_COMPOSER_STAGE_CONTEXT, default off): name the stage until a built deck exists.
+                      ...(process.env.NEXT_PUBLIC_STUDIO_COMPOSER_STAGE_CONTEXT === 'true' ? { stage: {
+                        builtDeck: studioCanvasLifecycle.hasGeneratedDeck,
+                        activeVersion: effectiveActiveVersion,
+                        generatingFinal: isGeneratingFinal,
+                        phase: buildNarration.active ? buildNarration.phase : 'idle',
+                        directorWorking: buildNarration.active || awaitingDirectorReply || isGeneratingStrawman || isGeneratingFinal
+                          || (['thinking', 'generating', 'awaiting_user'] as string[]).includes(String(currentStatus?.status)),
+                      } } : {}),
+                    }) : undefined}
+                    pausedInOtherTab={oneLiveTabSuperseded}
+                    studioEditPrompt={studioEditPromptActive || undefined}
                   />
                 </>
               )}
@@ -5154,7 +8032,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             <button
               type="button"
               onClick={() => {
+                if (studioPanelFocusChatHidden) { setStudioPanelFocusReveal(reveal => ({ ...reveal, chat: true })); return }
+                if (studioShell && isDeckDrawerOpen && !workspaceLayout.chatVisible) { selectWorkspacePane('chat'); return }
                 const next = !showChat
+                if (!next) retireStudioVoiceOwner()
                 setShowChat(next)
                 if (next) bringToFront('deck')
               }}
@@ -5168,7 +8049,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   : "bg-purple-100 hover:bg-purple-200 border-purple-300 text-purple-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-700 dark:text-purple-300"
               )}
               style={{ left: drawerWidth }}
-              title={showChat ? 'Close chat panel' : 'Open chat panel'}
+              data-studio-drawer-handle={studioShell ? 'director' : undefined}
+              aria-expanded={studioShell ? workspaceLayout.chatVisible : undefined}
+              title={studioShell && isDeckDrawerOpen && !workspaceLayout.chatVisible ? 'Show chat panel' : showChat ? 'Close chat panel' : 'Open chat panel'}
             >
               {isDeckDrawerOpen ? (
                 <ChevronLeft className="h-2.5 w-2.5" />
@@ -5176,12 +8059,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                 <ChevronRight className="h-2.5 w-2.5" />
               )}
               <span className="[writing-mode:vertical-rl] text-[9px] font-semibold uppercase tracking-wider select-none leading-none">
-                Deck
+                {studioShell ? 'Director' : 'Deck'}
               </span>
             </button>
           </div>
 
-          {showDrawerResizeHandle && (
+          {!studioShell && showDrawerResizeHandle && (
             <div
               role="separator"
               aria-orientation="vertical"
@@ -5205,36 +8088,96 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             />
           )}
 
+          {studioShell && !studioOverlayWorkspace && (['chat', 'inspector'] as const).map(side => {
+            const visible = side === 'chat' ? workspaceLayout.chatVisible : workspaceLayout.inspectorVisible && !(activeInspector === 'template' && templateParamsCollapsed)
+            if (!visible) return null
+            const width = side === 'chat' ? studioChatWidth : studioInspectorWidth
+            return (
+              <div
+                key={side}
+                data-studio-workspace-resize={side}
+                role="separator"
+                tabIndex={0}
+                aria-orientation="vertical"
+                aria-label={side === 'chat' ? 'Resize chat panel' : 'Resize inspector panel'}
+                aria-valuenow={Math.round(width)}
+                aria-valuemin={Math.round(Math.min(width, side === 'chat' ? 280 : 320))}
+                aria-valuemax={Math.round(side === 'chat' ? workspaceLayout.chatMax : workspaceLayout.inspectorMax)}
+                title="Drag or use arrow keys to resize; Home resets width"
+                onMouseDown={event => handleStudioResizeStart(event, side)}
+                onKeyDown={event => handleStudioResizeKey(event, side)}
+                onDoubleClick={() => persistStudioPaneWidth(side, side === 'chat' ? 304 : DEFAULT_DRAWER_WIDTH)}
+                style={{ [side === 'chat' ? 'left' : 'right']: width - 3 }}
+              />
+            )
+          })}
+
           {/* Presentation fills the area, shifts right when any drawer is open */}
           <div
+            data-studio-v4-shell-presentation="true"
+            data-studio-canvas-covered={studioCanvasCovered ? "true" : undefined}
+            data-studio-outline-canvas-open={studioOutlineCanvas ? "true" : undefined}
+            aria-hidden={studioCanvasCovered ? true : undefined}
+            {...(studioCanvasCovered ? { inert: true } : {})}
+            data-studio-first-run-stage={studioFirstRunStage && !studioFirstRunRestoring ? "true" : undefined}
+            {...studioStageGateProps(studioStageGate.closed && !studioFirstRunRestoring) /* STUDIO-STAGE-OPEN-GATE: data-studio-stage-gate="closed" while the gate holds (components/builder/studio-first-run.css); never while a session restores */}
             className={cn(
               "flex-1 min-w-0 min-h-0 flex flex-col",
-              isResizingDrawer ? "" : "transition-[margin] duration-300 ease-out"
+              STUDIO_PANEL_KEEP_CANVAS_ENABLED
+                ? presentationWrapperTransition({ isResizingDrawer, keepCanvas: studioShell })
+                : isResizingDrawer ? "" : "transition-[margin] duration-300 ease-out"
             )}
-            style={{ marginLeft: drawerOffset }}
+            style={studioShell ? { marginLeft: workspaceLayout.left, marginRight: workspaceLayout.right } : { marginLeft: drawerOffset }}
           >
+          {deckChangedNotice.notice && <StudioDeckChangedNotice notice={deckChangedNotice.notice} unsaved={deckChangedNotice.unsaved}
+            onReload={deckChangedNotice.reload} onDismiss={deckChangedNotice.dismiss} />}
           {session.isLoadingSession ? (
+            studioShell ? <StudioWaitingState scope="canvas" message="Loading session..." /> : (
             <div className="flex-1 flex items-center justify-center bg-gray-100 dark:bg-slate-800 h-full">
               <div className="text-center">
                 <div className="h-8 w-8 border-3 border-purple-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                 <p className="text-sm text-slate-400 dark:text-slate-500 dark:text-slate-400">Loading session...</p>
               </div>
             </div>
+            )
           ) : (
           <PresentationArea
+            onStudioFormatRequested={studioShell ? handleStudioFormatRequested : undefined}
+            studioFormatBusy={studioShell ? studioFormatBusy : undefined}
+            studioIntroReplay={studioShell ? <StudioIntroductionButton className="studio-canvas-intro-replay" /> : undefined}
+            onEditModeChange={studioShell ? setStudioViewerEditing : undefined}
+            onStudioIntroductionSafetyChange={studioShell ? handleStudioViewerSafety : undefined}
+            studioCanvasLifecycle={studioShell ? studioCanvasLifecycle : undefined}
+            studioInitialNativeDeferred={studioInitialNativeDeferred}
+            studioBriefSent={studioShell && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_POSTER_HIDE === 'true' ? session.userMessages.length > 0 : undefined}
+            studioPartialStagePending={studioShell ? studioPartialPending : undefined}
+            studioPartialArtifact={studioShell ? studioPartialMetadata : undefined}
+            onStudioPartialNativeReadback={studioShell ? handleStudioPartialNativeReadback : undefined}
+            studioNativeOwner={studioShell ? studioSlideComposeOwnerRef.current : undefined}
+            onStudioNativeMounted={studioShell ? handleStudioNativeMounted : undefined}
+            showOutlinePreview={showOutlinePreview}
+            awaitingDirectorReply={studioShell ? awaitingDirectorReply : undefined}
+            studioWorkflowRequest={viewerWorkflowRequest}
             presentationUrl={effectivePresentationUrl}
             presentationId={effectivePresentationId}
             slideCount={effectiveSlideCount}
-            slideStructure={slideStructure}
+            slideStructure={effectiveSlideStructure}
             strawmanPreviewUrl={strawmanPreviewUrl}
             finalPresentationUrl={finalPresentationUrl}
-            activeVersion={activeVersion}
-            isBlankPresentation={isBlankPresentation}
-            onVersionSwitch={switchVersion}
+            activeVersion={effectiveActiveVersion}
+            isBlankPresentation={effectiveIsBlankPresentation}
+            onVersionSwitch={studioShell ? handleStudioPartialVersionIntent
+              : (version) => { retireStudioVoiceOwner(); cancelOutlinePreview(); switchVersion(version) }}
             currentStage={currentStage}
-            currentSlideIndex={currentSlideIndex}
+            currentSlideIndex={studioPartialMetadata
+              ? (studioPartialNativeIndex?.owner === studioInitialSelectedTarget.owner
+                ? (studioPartialNativeIndex.isCurrent() ? studioPartialNativeIndex.index : currentSlideIndex) : 0)
+              : currentSlideIndex}
+            onUserDeckEdit={STUDIO_SESSION_HYGIENE_ENABLED ? saveSessionOnFirstAction : undefined}
+            studioTabPausedHint={oneLiveTabSuperseded ? SUPERSEDED_NOTICE_TEXT : undefined}
             onSlideChange={(slideNum) => {
               const nextVisualIndex = Math.max(0, slideNum - 1)
+              flowControl.noteSlideChange(nextVisualIndex) // FLOW-CONTROL: the viewer's report of where it is (ours, the viewer reloading, or the user's)
               // Keep the imperative insertion owner current before React
               // schedules the corresponding render.
               currentSlideIndexRef.current = nextVisualIndex
@@ -5252,9 +8195,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             isGeneratingStrawman={isGeneratingStrawman}
             buildNarrationEnabled={effectiveBuildNarrationEnabled}
             blankPlaceholderDismissed={blankPlaceholderDismissed}
-            onDismissBlankPlaceholder={() => setBlankPlaceholderDismissed(true)}
-            slideContextByIndex={effectiveBuildNarrationEnabled ? slideContextByIndex : null}
-            narrationNavigate={effectiveBuildNarrationEnabled ? narrationNavigate : null}
+            onDismissBlankPlaceholder={handleDismissBlankPlaceholder}
+            slideContextByIndex={effectiveBuildNarrationEnabled && !studioPartialMetadata ? slideContextByIndex : null}
+            narrationNavigate={effectiveBuildNarrationEnabled
+              && (!studioShell || (!studioPartialPending
+                && !hasStudioPartialStageVersionIntent(studioPartialVersionIntentRef.current, studioPartialAuthority, buildNarration.buildId)
+                && (!studioPartialMetadata || (studioPartialDisplayed?.buildId === buildNarration.buildId
+                  && studioPartialDisplayed.presentationId === buildNarration.buildPresentationId)))) ? narrationNavigate : null}
+            {...(studioStrawmanHold ? ({ narrationNavigate: null } as { narrationNavigate?: null }) : {})} // STRAWMAN-STAGE (F-07): once the viewer was taken back to the user's slide, the narration's follow of the freshest built slide stands down for this build (it would page back to slide 1)
             buildNarration={effectiveBuildNarrationEnabled ? buildNarration : null}
             buildNarrationApi={
               effectiveBuildNarrationEnabled
@@ -5286,10 +8234,81 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   }
                 : null
             }
-            onApiReady={setLayoutServiceApis}
-            onComposeApiReady={handleComposeApiReady}
+            onApiReady={studioShell ? handleStudioPartialApiReady : setLayoutServiceApis}
+            onComposeApiReady={studioShell ? handleStudioPartialComposeApiReady : handleComposeApiReady}
             onRefineSlide={features.slideRefinerEnabled ? handleOpenSlideRefine : undefined}
+            onGenerateSlide={studioShell && features.slideComposerEnabled ? handleOpenSlideCompose : undefined}
+            studioRailCollapsed={STUDIO_PANEL_FOCUS_ENABLED ? studioPanelFocusRailCollapsed({ focus: studioPanelFocus, revealed: studioPanelFocusReveal.rail }) : undefined}
+            onStudioRailReveal={STUDIO_PANEL_FOCUS_ENABLED ? studioPanelFocusRevealRail : undefined}
+            // J2 v2: same session / research / theme sources as the Slide panel above (P7). `submit` (J2-MAP item8: async,
+            // page-owned registration) exists only with the composer and its async mode on; otherwise Generate stays disabled.
+            addSlideV2Settings={process.env.NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED === 'true' ? {
+              sessionId: resolveSlideComposeSessionId({ deckOwnerSessionId, currentSessionId, wsSessionId }),
+              presentationId: effectivePresentationId,
+              research: {
+                useUploadedDocuments: uploadedFiles.some(isAttachedUpload) || Boolean(sessionStoreName),
+                useWebSearch: webSearchEnabled,
+                useDeepResearch: researchEnabled && webSearchEnabled,
+                useKnowledgeGraph: canUseKnowledgeGraph && knowledgeGraphEnabled,
+              },
+              themeProfileName: activeBuildThemeProfileForSelection?.name ?? null,
+              panelOpen: addSlideV2Open,
+              panelHost: addSlideV2Host,
+              onPanelOpenChange: handleAddSlideV2PanelOpenChange,
+              ...createAddSlideV2Hooks({
+                // `submit` needs the composer and its async mode; the Blank target resolver is always there.
+                generationEnabled: features.slideComposerEnabled && features.slideComposerAsyncEnabled,
+                presentationId: effectivePresentationId,
+                fetchImpl: (url, init) => fetch(url, init),
+                newJobId: () => crypto.randomUUID(),
+                captureSessionOwner: captureStudioSlideComposeSessionOwner,
+                // Same predicate handleSlideComposerAccepted applies before it registers a job.
+                isSessionAdmitted: sessionId => !studioShell || sessionId === questionSubmissionScopeRef.current.sessionId,
+                selection: () => ({
+                  visualIndex: currentSlideIndexRef.current,
+                  realSlideCount: effectiveSlideCount ?? 0,
+                  jobs: studioShell
+                    ? Object.fromEntries(Object.entries(slideComposeJobsRef.current).filter(([, item]) => item.target_presentation_id === effectivePresentationId))
+                    : slideComposeJobsRef.current,
+                }),
+                onAccepted: handleSlideComposerAccepted,
+                // DEC-P9: the viewer follows the new slide when the user is still on the slide they started from.
+                follow: addSlideV2FollowRef.current,
+                // PASS2B J2-04 (flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_STATUS): answer with the accepted job's id so the panel can follow it.
+                includeJobId: STUDIO_ADD_SLIDE_STATUS_ENABLED,
+              }),
+              // J2V2-REGENERATE (flag NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED): rebuild the generated slide on screen through
+              // the Slide panel's own Refine route. The accepted job is the page's usual refine job: the original gets the refine
+              // overlay and stays until slide_ready swaps the new slide in at the same index; a failure keeps it.
+              regenerate: process.env.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'true' ? createAddSlideV2RegenerateHooks({
+                regenerateEnabled: features.slideRefinerEnabled && features.slideComposerEnabled && features.slideComposerAsyncEnabled,
+                store: addSlideV2Generated,
+                contextByIndex: () => (studioPartialMetadata ? null : slideContextByIndex),
+                jobState: jobId => slideComposeJobsRef.current[jobId],
+                fetchImpl: (url, init) => fetch(url, init),
+                newJobId: () => crypto.randomUUID(),
+                captureSessionOwner: captureStudioSlideComposeSessionOwner,
+                isSessionAdmitted: sessionId => !studioShell || sessionId === questionSubmissionScopeRef.current.sessionId,
+                selection: () => ({
+                  visualIndex: currentSlideIndexRef.current,
+                  realSlideCount: effectiveSlideCount ?? 0,
+                  jobs: studioShell
+                    ? Object.fromEntries(Object.entries(slideComposeJobsRef.current).filter(([, item]) => item.target_presentation_id === effectivePresentationId))
+                    : slideComposeJobsRef.current,
+                }),
+                onAccepted: handleSlideComposerAccepted,
+              }) : undefined,
+              // PASS2B J2-04 (flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_STATUS): one status line under "Queued", read from the compose-job records the rail
+              // already draws (state of this render). "Go to slide" is the go-to a rail thumbnail uses; "Try again" is the rail card's own retry.
+              status: STUDIO_ADD_SLIDE_STATUS_ENABLED ? createAddSlideV2StatusSettings({
+                jobs: slideComposeJobs,
+                goToSlide: narrationNavigate,
+                retry: jobId => { void slideComposeThumbnailJobs.find(job => job.jobId === jobId)?.onRetry?.(jobId) },
+              }) : undefined,
+            } : undefined}
             onTextBoxSelected={(elementId, formatting, selectedComponentType) => {
+              if (CHAT_ELEMENT_EDIT_2_ENABLED && CHAT_ELEMENT_REFINE_ENABLED) chatElementSelectionRef.current = chatElementSelectionFor(elementId, 'TEXT_BOX', currentSlideIndexRef.current, slideStructure?.slides) // CHAT-ELEMENT-EDIT-2: every selection event records the selection (the state-keyed effect above misses a re-click of the element the page already holds)
+              if (studioShell) closeStudioFormat()
               if (features.useTextLabsGeneration) {
                 setSelectedTextBoxId(elementId)
                 setSelectedTextBoxFormatting(formatting)
@@ -5307,6 +8326,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               }
             }}
             onTextBoxDeselected={() => {
+              if (studioShell) closeStudioFormat()
               setSelectedTextBoxId(null)
               setSelectedTextBoxFormatting(null)
               if (!generationPanel.isGenerating && (generationPanel.mode === 'edit' || generationPanel.mode === 'refine')) {
@@ -5314,6 +8334,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               }
             }}
             onElementSelected={(elementId, elementType, properties) => {
+              if (CHAT_ELEMENT_EDIT_2_ENABLED && CHAT_ELEMENT_REFINE_ENABLED) chatElementSelectionRef.current = chatElementSelectionFor(elementId, elementType, currentSlideIndexRef.current, slideStructure?.slides) // CHAT-ELEMENT-EDIT-2
+              if (studioShell) closeStudioFormat()
               if (features.useTextLabsGeneration && isTextLabsMappable(elementType)) {
                 setSelectedElementId(elementId)
                 setSelectedElementType(elementType)
@@ -5333,6 +8355,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               }
             }}
             onElementDeselected={() => {
+              if (studioShell) closeStudioFormat()
               setSelectedElementId(null)
               setSelectedElementType(null)
               setSelectedElementProperties(null)
@@ -5365,10 +8388,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             connected={connected}
             connecting={connecting}
             toolbarPortalTarget={toolbarPortalTarget}
-            toolbarOffset={drawerOffset > TEMPLATE_PANEL_COLLAPSED_WIDTH ? Math.max(drawerOffset - 112, 0) : 0}
+            toolbarOffset={studioShell ? 0 : drawerOffset > TEMPLATE_PANEL_COLLAPSED_WIDTH ? Math.max(drawerOffset - 112, 0) : 0}
             publishSessionId={currentSessionId || wsSessionId}
-            deckTitle={slideStructure?.metadata?.main_title ?? null}
+            deckTitle={effectiveSlideStructure?.metadata?.main_title ?? null}
             hasFinalDeck={Boolean(finalPresentationId || finalPresentationUrl)}
+            publishFinalPresentationId={studioShell ? finalPresentationId : undefined}
+            publishThumbnailUrlsByPresentation={studioShell ? slideThumbnailUrlsByPresentation : undefined}
+            publishThumbnailOwnerSessionId={studioShell ? currentSessionIdRef.current : undefined}
             sessionId={wsSessionId}
             deckOwnerSessionId={deckOwnerSessionId}
             templateSavePresentationId={templateSavePresentationId}
@@ -5377,16 +8403,22 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             onTemplateOptimizationFailed={handleTemplateOptimizationFailed}
             templateSelectionLocked={templateSelectionLocked}
             templateModeOn={templateModeOn}
-            onTemplateModeChange={handleTemplateModeChange}
+            onTemplateModeChange={(enabled) => { cancelOutlinePreview(); handleTemplateModeChange(enabled) }}
             templateModeAvailable={Boolean(activeTemplate)}
+            {...(studioTemplateWorkspace && composerLibraryEnabled ? { onComposerTemplateAction: runComposerTemplateAction, onOpenComposerLibrary: () => setShowComposerLibrary(true) } : {})}
             templateSnapshot={templateSnapshot}
             templateSnapshotLoading={templateSnapshotLoading}
-            composeJobs={slideComposeThumbnailJobs}
+            composeJobs={studioPartialMetadata
+              ? slideComposeThumbnailJobs.filter(job => slideComposeJobsRef.current[job.jobId]?.target_presentation_id === effectivePresentationId)
+              : slideComposeThumbnailJobs}
             thumbnailUrlsBySlide={
               effectivePresentationId
                 ? slideThumbnailUrlsByPresentation[effectivePresentationId] ?? {}
                 : {}
             }
+            onThumbnailInvalidated={studioShell ? invalidateThumbnailUrls : undefined}
+            onThumbnailMutationCapture={studioShell ? captureThumbnailMutation : undefined}
+            studioOwnerUserId={studioShell ? authScopeUserId : undefined}
             templateCurrentSlideIndex={templateSourceSlideIndex}
             selectedTemplateElementId={selectedTemplateElementId}
             blueprintEditorV2Enabled={blueprintEditorV2Enabled}
@@ -5395,12 +8427,17 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             onTemplateBlueprintChange={handleTemplateBlueprintChange}
           />
           )}
+          {studioStrawmanPhase === 'strawman' && <StudioStrawmanNote />}{/* STRAWMAN-STAGE (F-06, F-11): the one plain line under the strawman deck, nothing else; off, never drawn */}
+          {studioOutlineCanvas && <StudioOutlineCanvas key={studioOutlineCanvas.outline.message_id}
+            outline={studioOutlineCanvas.outline.payload} contextByIndex={slideContextByIndex}
+            onApprove={() => handleActionClick(studioOutlineCanvas.approve, studioOutlineCanvas.gate.message_id, studioOutlineCanvas.answerKey)} />}
           </div>
         </div>
       </div>
 
       {/* Chat History Sidebar */}
-      {composerLibraryEnabled && <ComposerLibraryDialog open={showComposerLibrary} onOpenChange={setShowComposerLibrary} />}
+      {composerLibraryEnabled && <ComposerLibraryDialog open={showComposerLibrary} onOpenChange={setShowComposerLibrary}
+        {...(studioPopupsV2 || studioTemplateWorkspace ? { request: composerLibraryRequest, onRequestTaken: () => setComposerLibraryRequest(null) } : {})} />}
       <ChatHistorySidebar
         isOpen={showChatHistory}
         onClose={() => setShowChatHistory(false)}
@@ -5426,10 +8463,33 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       <TopUpModal open={topUpOpen} onOpenChange={setTopUpOpen} reason={topUpReason} />
 
     </div>
+    </StudioIntroductionProvider>
   )
 }
+// FLOW-CONTROL: this import sits here, not with the others, on purpose: an older proof slices this file by the positions of a parse that does not see FLOW-CONTROL lines, so nothing of the flow flags may come before the Builder's runners.
+import { useStudioFlowControl } from '@/hooks/use-studio-flow-control' // FLOW-CONTROL
+import { STUDIO_CHAT_CLEAN_ENABLED, chatCleanComposerState, chatCleanInstructions, chatCleanRootAttributes } from '@/lib/studio-chat-clean' // CHAT-CLEAN: placed here with the flow import, after the Builder's runners, for the same older proof
+import { flowBus } from '@/lib/studio-flow-control' // CHAT-CLEAN: the one-request hand-over of the resume's instructions (taken by sendBuildControl, whatever the flow flags)
+import { StudioChatCleanBar, useStudioChatCleanNotes } from '@/components/builder/chat/studio-chat-clean' // CHAT-CLEAN
+import { STUDIO_STRAWMAN_STAGE_ENABLED, strawmanStageBuildStarted, strawmanStagePhase } from '@/lib/studio-strawman-stage' // STRAWMAN-STAGE: placed here with the flow and chat imports, after the Builder, for the same older proofs
+import { useStudioStrawmanStage } from '@/hooks/use-studio-strawman-stage' // STRAWMAN-STAGE
+import { StudioStrawmanNote } from '@/components/builder/studio-strawman-note' // STRAWMAN-STAGE
+import { STUDIO_CHAT_PARITY_ANY_ENABLED, STUDIO_CHAT_PARITY_IDENTITY_ENABLED, STUDIO_CHAT_PARITY_TEMPLATES_ENABLED, STUDIO_CHAT_PARITY_THEMES_ENABLED, chatParityBus, chatParityRefusal, chatParityRequest, chatParityResult } from '@/lib/studio-chat-parity' // CHAT-PARITY: placed here with the flow and chat-clean imports, after the Builder's runners, for the same older proof
+import { runChatParityAction } from '@/lib/studio-chat-parity-runners' // CHAT-PARITY
+import { composerTemplateActions, loadComposerTemplates } from '@/lib/studio-composer-popups' // CHAT-PARITY: the composer library's own list and action set (row 67)
+import { STUDIO_CHAT_COMMANDS_ENABLED } from '@/lib/studio-chat-commands-wire' // CHAT-COMMANDS: placed here with chat clean's imports, at the end, for the same older proofs
+import type { ChatCommandsPageProps } from '@/lib/studio-chat-commands' // CHAT-COMMANDS
+import type { ExportDirectiveMessage } from '@/lib/chat-theme-export' // CHAT-COMMANDS
+import { STUDIO_STAGE_OPEN_GATE_ENABLED, stepStudioStageGate, studioStageGateProps, useStudioStageCanvasAsked, useStudioStageGatePublish, type StudioStageGateState } from '@/lib/studio-stage-open-gate' // STUDIO-STAGE-OPEN-GATE
+import { STUDIO_STRAWMAN_CHAT_ENABLED } from '@/lib/studio-strawman-chat' // STRAWMAN-CHAT: placed here with the other late imports, after the Builder's runners, for the same older proofs
+import { useStudioStrawmanChat } from '@/hooks/use-studio-strawman-chat' // STRAWMAN-CHAT
+import { StudioStrawmanChatLine } from '@/components/builder/chat/studio-strawman-chat' // STRAWMAN-CHAT
+import { useStudioStageOpen } from '@/lib/studio-stage-open-gate' // STRAWMAN-CHAT: FRONTEND-2's gate, read on the one stage-open line
 
 function BuilderLoadingState({ message = 'Loading builder...' }: { message?: string }) {
+  // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the route loader is the builder shell, not a blank page with a spinner.
+  if (STUDIO_SESSION_HYGIENE_ENABLED && process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true') return <StudioBuilderSkeleton message={message} />
+  if (process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true') return <StudioWaitingState scope="screen" message={message} />
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50">
       <div className="text-center">
@@ -5495,3 +8555,4 @@ export default function BuilderPage() {
     </WebSocketErrorBoundary>
   )
 }
+import { BuilderQuotaRefusal } from '@/components/billing/builder-quota-refusal' // BILLING-F5-USAGE

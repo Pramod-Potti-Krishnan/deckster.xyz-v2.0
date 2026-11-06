@@ -14,6 +14,7 @@ interface PanelInputProps {
   min?: number
   max?: number
   className?: string
+  ariaLabel?: string
   inputClassName?: string
 }
 
@@ -29,6 +30,7 @@ export function PanelInput({
   min,
   max,
   className,
+  ariaLabel,
   inputClassName,
 }: PanelInputProps) {
   return (
@@ -45,6 +47,7 @@ export function PanelInput({
         <span className="pl-2 text-[10px] text-gray-500">{prefix}</span>
       )}
       <input
+        aria-label={ariaLabel}
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}

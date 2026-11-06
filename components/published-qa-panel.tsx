@@ -15,6 +15,10 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { readThreads, rememberThread, type ThreadEntry } from '@/lib/publish/qa-threads'
 
+import './studio-published-viewer.css'
+
+const STUDIO_PUBLISHED = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+
 export interface PublicCitationView {
   kind: 'slide' | 'web'
   label: string
@@ -288,8 +292,10 @@ export function PublishedQaPanel({
       // thing this panel is laid out to avoid.
       className="flex max-h-[55dvh] w-full flex-shrink-0 flex-col border-t border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-800 md:max-h-none md:h-full md:w-[380px] md:border-l md:border-t-0"
       aria-label="Questions and answers"
+      data-studio-v4-shell={STUDIO_PUBLISHED}
+      data-studio-published-qa={STUDIO_PUBLISHED}
     >
-      <header className="flex h-12 flex-shrink-0 items-center justify-between border-b border-gray-200 px-4 dark:border-slate-700">
+      <header className="studio-published-qa-header flex h-12 flex-shrink-0 items-center justify-between border-b border-gray-200 px-4 dark:border-slate-700">
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
           <MessageCircleQuestion className="h-4 w-4" />
           <span>Questions</span>
@@ -298,12 +304,13 @@ export function PublishedQaPanel({
           onClick={onClose}
           className="rounded-md p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white"
           title="Close"
+          aria-label={STUDIO_PUBLISHED ? 'Close questions' : undefined}
         >
           <X className="h-4 w-4" />
         </button>
       </header>
 
-      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4">
+      <div className="studio-published-qa-body min-h-0 flex-1 space-y-6 overflow-y-auto p-4">
         {faq.length > 0 && (
           <section>
             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -313,7 +320,7 @@ export function PublishedQaPanel({
               {faq.map((item) => (
                 <li
                   key={item.id}
-                  className="rounded-md border border-gray-200 dark:border-slate-700"
+                  className="studio-published-faq rounded-md border border-gray-200 dark:border-slate-700"
                 >
                   <button
                     onClick={() => setOpenFaqId(openFaqId === item.id ? null : item.id)}
@@ -328,7 +335,7 @@ export function PublishedQaPanel({
                     />
                   </button>
                   {openFaqId === item.id && (
-                    <div className="border-t border-gray-100 px-3 py-2.5 dark:border-slate-700">
+                    <div className="studio-published-faq-answer border-t border-gray-100 px-3 py-2.5 dark:border-slate-700">
                       <AnswerBody text={item.answer} />
                       <Citations citations={item.citations} onCiteSlide={onCiteSlide} />
                       {item.provenanceLine && <Provenance line={item.provenanceLine} />}
@@ -432,7 +439,7 @@ export function PublishedQaPanel({
       </div>
 
       {qaEnabled ? (
-        <div className="flex-shrink-0 border-t border-gray-200 p-3 dark:border-slate-700">
+        <div className="studio-published-qa-compose flex-shrink-0 border-t border-gray-200 p-3 dark:border-slate-700">
           {error && (
             <p className="mb-2 text-xs text-red-600 dark:text-red-400" role="alert">
               {error}
@@ -448,6 +455,7 @@ export function PublishedQaPanel({
                 if (canSubmit) handleAsk()
               }
             }}
+            aria-label={STUDIO_PUBLISHED ? 'Question about this deck' : undefined}
             rows={2}
             placeholder={`Ask about this deck…`}
             disabled={asking}
@@ -464,7 +472,7 @@ export function PublishedQaPanel({
             <button
               onClick={handleAsk}
               disabled={!canSubmit}
-              className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+              className="studio-published-qa-submit inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {asking ? (
                 <>
@@ -479,7 +487,7 @@ export function PublishedQaPanel({
           </div>
         </div>
       ) : (
-        <div className="flex-shrink-0 border-t border-gray-200 p-3 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+        <div className="studio-published-qa-closed flex-shrink-0 border-t border-gray-200 p-3 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
           {ownerName} has turned off new questions on this deck.
         </div>
       )}
@@ -503,7 +511,7 @@ export function PublishedQaPanel({
  */
 export function AnswerBody({ text }: { text: string }) {
   return (
-    <div className="text-[13px] leading-[1.65] text-slate-700 dark:text-slate-300">
+    <div className="studio-published-answer text-[13px] leading-[1.65] text-slate-700 dark:text-slate-300">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -564,7 +572,7 @@ function QaExchange({
   children: React.ReactNode
 }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-800/40">
+    <div className="studio-published-exchange rounded-lg border border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-800/40">
       <div className="border-b border-gray-100 px-3.5 py-2.5 dark:border-slate-700">
         <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
           You asked
@@ -591,7 +599,7 @@ function Citations({
 }) {
   if (citations.length === 0) return null
   return (
-    <ul className="mt-3 flex flex-wrap items-start gap-1.5 border-t border-gray-100 pt-2.5 dark:border-slate-700">
+    <ul className="studio-published-citations mt-3 flex flex-wrap items-start gap-1.5 border-t border-gray-100 pt-2.5 dark:border-slate-700">
       {citations.map((citation, index) =>
         citation.kind === 'slide' && citation.slideNumber ? (
           <li key={index}>

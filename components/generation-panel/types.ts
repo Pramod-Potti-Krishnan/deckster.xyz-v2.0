@@ -31,7 +31,7 @@ export interface GenerationPanelProps {
   onGenerate: (
     formData: TextLabsFormData,
     submitIntent: ElementGenerationSubmitIntent,
-  ) => Promise<void>
+  ) => Promise<unknown>
   onElementTypeChange: (type: TextLabsComponentType) => void
   isGenerating: boolean
   error: string | null
@@ -74,6 +74,14 @@ export interface GenerationPanelProps {
 }
 
 export interface GenerationPanelDraft {
+  textBoxControls?: import('./forms/text-box-form').TextBoxControlsDraft
+  metricsControls?: import('./forms/metrics-form').MetricsControlsDraft
+  chartSections?: { options: boolean; position: boolean }
+  imageGeometry?: import('./forms/image-form').ImageGeometryDraft
+  shapeControls?: import('./forms/shape-form').ShapeControlsDraft
+  iconLabelControls?: import('./forms/icon-label-form').IconLabelControlsDraft
+  infographicControls?: import('./forms/infographic-form').InfographicControlsDraft
+  diagramControls?: import('./forms/diagram-form').DiagramControlsDraft
   prompt?: string
   showAdvanced?: boolean
   formData?: TextLabsFormData | null
@@ -122,5 +130,15 @@ export interface MandatoryConfig {
   promptPlaceholder?: string
   promptMaxLength?: number
   promptLimitLabel?: string
+  /**
+   * J3-EMPTY-PROMPT-GUARD: this form can generate without a typed prompt right now (Chart with Custom JSON data, a preset Shape, an
+   * Infographic with a reference image or manual rows). Only read when NEXT_PUBLIC_STUDIO_EMPTY_PROMPT_GUARD is on; forms set it only then.
+   */
+  promptOptional?: boolean
+  /**
+   * PASS2B J3-09: this form does not read the prompt right now (a preset Shape sends prompt: null). The prompt box is then read-only and aria-disabled
+   * and this sentence is shown under it. Only read when set; forms set it only with NEXT_PUBLIC_STUDIO_SHAPE_PRESET_PROMPT_HINT on.
+   */
+  promptDisabledHint?: string
   customRender?: React.ReactNode
 }

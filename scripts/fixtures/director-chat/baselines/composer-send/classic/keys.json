@@ -1,0 +1,124 @@
+[
+  {
+    "checkpoint": "01-empty-composer-no-deck-yet",
+    "hookMessageIds": ["msg-greeting"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "02-draft-typed",
+    "hookMessageIds": ["msg-greeting"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "03-sent-from-the-send-button",
+    "hookMessageIds": ["msg-greeting"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "04-deck-open-slide-1",
+    "hookMessageIds": ["msg-greeting","msg-reply-1","msg-outline-1","msg-url-final"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply-1","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"combined_msg-outline-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "05-deck-open-slide-3",
+    "hookMessageIds": ["msg-greeting","msg-reply-1","msg-outline-1","msg-url-final"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply-1","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"combined_msg-outline-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "06-template-and-theme-selected",
+    "hookMessageIds": ["msg-greeting","msg-reply-1","msg-outline-1","msg-url-final"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply-1","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"combined_msg-outline-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "07-sent-with-enter-with-a-template-and-theme-select",
+    "hookMessageIds": ["msg-greeting","msg-reply-1","msg-outline-1","msg-url-final"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply-1","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"combined_msg-outline-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "08-pills-cleared-the-handlers-were-called-the-page-",
+    "hookMessageIds": ["msg-greeting","msg-reply-1","msg-outline-1","msg-url-final","msg-reply-2"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply-1","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"combined_msg-outline-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply-2","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "09-selections-locked",
+    "hookMessageIds": ["msg-greeting","msg-reply-1","msg-outline-1","msg-url-final","msg-reply-2"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply-1","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"combined_msg-outline-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply-2","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "10-socket-lost",
+    "hookMessageIds": ["msg-greeting","msg-reply-1","msg-outline-1","msg-url-final","msg-reply-2"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply-1","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"combined_msg-outline-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply-2","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "11-final",
+    "hookMessageIds": ["msg-greeting","msg-reply-1","msg-outline-1","msg-url-final","msg-reply-2"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply-1","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"combined_msg-outline-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply-2","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  }
+]

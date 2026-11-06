@@ -1,13 +1,39 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { useChatSessions, ChatMessage } from './use-chat-sessions';
+import { useChatSessions } from './use-chat-sessions';
 import { DirectorMessage } from './use-deckster-websocket-v2';
 import { useSessionCache } from './use-session-cache';
 import { debugLog } from '@/lib/debug-log';
+import { DirectorChatSaveQueue } from '@/lib/director-chat-history';
+import { STUDIO_SESSION_HYGIENE_ENABLED, deferMetadata, takeDeferredMetadata, type DeferredMetadata } from '@/lib/studio-session-hygiene';
+import { STUDIO_SESSION_OPEN_READ_ONLY_ENABLED, beginOpenQuiet, isOpenQuiet, openQuietHoldMessage, openQuietMetadata, releaseOpenQuiet, type OpenQuiet, type OpenQuietHeld } from '@/lib/studio-open-read-only';
 
 type PersistableDirectorMessage = Exclude<DirectorMessage, { type: 'token_usage' }>;
 
 function isPersistableMessage(message: DirectorMessage): message is PersistableDirectorMessage {
-  return message.type !== 'token_usage';
+  return message.type !== 'token_usage' && message.type !== 'build_control_capability';
+}
+
+export interface SessionMetadataUpdates {
+  title?: string;
+  currentStage?: number;
+  blankPresentationUrl?: string;
+  strawmanPreviewUrl?: string;
+  finalPresentationUrl?: string;
+  blankPresentationId?: string;
+  strawmanPresentationId?: string;
+  finalPresentationId?: string;
+  slideCount?: number;
+  lastMessageAt?: Date | string;
+  stateCache?: {
+    currentStatus?: unknown;
+    slideStructure?: unknown;
+    activeVersion?: 'blank' | 'strawman' | 'final';
+  };
+}
+
+/** NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: `passive` marks a write that Director's frames or the page's own reconcile make on their own (see lib/studio-open-read-only.ts). Ignored with the flag off. */
+export interface SessionWriteOptions {
+  passive?: boolean;
 }
 
 export interface SessionPersistenceOptions {
@@ -22,149 +48,95 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
   const { sessionId, userId, enabled = true, debounceMs = 3000, onError } = options;
   const { saveMessages, updateSession } = useChatSessions();
 
-  // FIX 8: Use ref for sessionId to avoid stale closure issues
-  // Same pattern as Fix 7 in use-session-cache.ts
+  // Read current authorization synchronously, but retain the original owner and
+  // session on each queued row. Navigation must not move pending rows to a new chat.
   const sessionIdRef = useRef(sessionId);
-
-  // Track enabled state via ref so callbacks always have the current value
+  const userIdRef = useRef(userId);
   const enabledRef = useRef(enabled);
-  if (enabledRef.current !== enabled) enabledRef.current = enabled;
+  const onErrorRef = useRef(onError);
+  sessionIdRef.current = sessionId;
+  userIdRef.current = userId;
+  enabledRef.current = enabled;
+  onErrorRef.current = onError;
 
-  // Stop retrying after a 404 "session not found" error
-  const sessionInvalidRef = useRef(false);
-
-  // FIX 8: Update ref SYNCHRONOUSLY during render, not in useEffect
-  // This ensures callbacks always have the latest sessionId
-  if (sessionIdRef.current !== sessionId && sessionId) {
-    debugLog(`🔄 [Persistence] Session ID updated: ${sessionIdRef.current || '(empty)'} → ${sessionId}`);
-    sessionIdRef.current = sessionId;
-    sessionInvalidRef.current = false; // Reset invalid flag for new session
-  }
-
-  // Initialize browser cache
-  const sessionCache = useSessionCache({
-    sessionId,
-    userId,
-    enabled,
-    ttl: 24 * 60 * 60 * 1000, // 24 hours
-  });
-
-  // Queue of pending messages to save
-  const messageQueueRef = useRef<Map<string, any>>(new Map());
+  const sessionCache = useSessionCache({ sessionId, userId, enabled, ttl: 24 * 60 * 60 * 1000 });
+  const messageQueueRef = useRef(new DirectorChatSaveQueue());
   const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
-  const isSavingRef = useRef(false);
+  const activeSaveRef = useRef<Promise<void> | null>(null);
+  // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: blank-deck metadata Director sent while the session had no row (see sendDeferredMetadata).
+  const deferredMetadataRef = useRef<DeferredMetadata<SessionMetadataUpdates> | null>(null);
+  // NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: set by beginOpenQuiet when an existing session's row has been opened; see lib/studio-open-read-only.ts.
+  const openQuietRef = useRef<OpenQuiet | null>(null);
 
-  /**
-   * Flush all pending messages to database
-   * FIX 8: Uses sessionIdRef.current to avoid stale closure
-   */
-  const flushMessages = useCallback(async () => {
-    // Guard: don't flush if persistence is disabled (e.g. unsaved session)
-    if (!enabledRef.current) {
-      debugLog('⏭️ flushMessages skipped - persistence disabled');
-      return;
-    }
-
-    // Guard: don't flush if session was invalidated by a prior 404
-    if (sessionInvalidRef.current) {
-      debugLog('⏭️ flushMessages skipped - session invalidated (prior 404)');
-      return;
-    }
-
-    // FIX 8: Use ref instead of closure value
-    const currentSessionId = sessionIdRef.current;
-
-    if (messageQueueRef.current.size === 0 || isSavingRef.current) {
-      if (messageQueueRef.current.size === 0) {
-        debugLog('✅ No messages to flush (queue empty)');
-      } else {
-        debugLog('⏳ Already saving messages, skipping duplicate flush');
-      }
-      return;
-    }
-
-    if (!currentSessionId) {
-      console.warn('⚠️ flushMessages skipped - no sessionId');
-      return;
-    }
-
-    isSavingRef.current = true;
-
-    try {
-      const messages = Array.from(messageQueueRef.current.values());
-      debugLog(`💾 Flushing ${messages.length} messages to database:`, messages.map(m => ({
-        id: m.id,
-        type: m.messageType,
-        hasUserText: !!m.userText,
-        userTextPreview: m.userText ? m.userText.substring(0, 30) : null
-      })));
-
-      const result = await saveMessages(currentSessionId, messages);
-
-      if (result) {
-        debugLog(`✅ Successfully saved ${result.saved}/${result.total} messages to database`);
-        // Clear successfully saved messages
-        messageQueueRef.current.clear();
-        debugLog('🗑️ Message queue cleared');
-      } else {
-        console.error('❌ FAILED to save messages to database - check authentication and network');
-        sessionInvalidRef.current = true; // Stop retrying — session may not exist in DB
-        if (onError) {
-          onError(new Error('Failed to save messages - check authentication'));
+  const flushMessages = useCallback((): Promise<void> => {
+    if (!enabledRef.current || !userIdRef.current) return Promise.resolve();
+    if (activeSaveRef.current) return activeSaveRef.current;
+    const ownerUserId = userIdRef.current;
+    if (messageQueueRef.current.size(ownerUserId) === 0) return Promise.resolve();
+    const save = (async () => {
+      const refusedSessions = new Set<string>();
+      try {
+        // Drain successful snapshots, including arrivals during an in-flight save.
+        // A refused/partial batch remains queued and awaits the next explicit
+        // flush or message. Other conversations can still save their own rows.
+        while (enabledRef.current && userIdRef.current === ownerUserId) {
+          const snapshot = messageQueueRef.current.snapshots(ownerUserId)
+            .find(batch => !refusedSessions.has(batch.sessionId));
+          if (!snapshot) break;
+          const result = await saveMessages(snapshot.sessionId, snapshot.messages);
+          if (!messageQueueRef.current.acknowledge(snapshot, result)) {
+            onErrorRef.current?.(new Error('Chat history could not be completely saved. Pending messages were retained for retry.'));
+            refusedSessions.add(snapshot.sessionId);
+            continue;
+          }
+          debugLog(`✅ Saved ${snapshot.messages.length} messages to their original session`);
+        }
+      } catch (error) {
+        console.error('❌ Error flushing messages:', error);
+        onErrorRef.current?.(error instanceof Error ? error : new Error('Unknown error'));
+      } finally {
+        activeSaveRef.current = null;
+        // A new account may have queued its own first turn while the previous
+        // account's already-dispatched request was finishing. Resume only that
+        // current owner's queue, never the previous owner's refused rows.
+        if (enabledRef.current && userIdRef.current !== ownerUserId && messageQueueRef.current.size(userIdRef.current) > 0) {
+          saveTimeoutRef.current = setTimeout(() => { void flushMessages(); }, 0);
         }
       }
-    } catch (error) {
-      console.error('❌ Error flushing messages:', error);
-      if (onError) {
-        onError(error instanceof Error ? error : new Error('Unknown error'));
-      }
-    } finally {
-      isSavingRef.current = false;
-    }
-  }, [saveMessages, onError]);  // FIX 8: Remove sessionId from deps
+    })();
+    activeSaveRef.current = save;
+    return save;
+  }, [saveMessages]);
 
-  /**
-   * Add a message to the save queue
-   * FIX 8: Uses sessionIdRef to avoid stale closure
-   */
-  const queueMessage = useCallback((message: DirectorMessage, userText?: string) => {
-    if (!isPersistableMessage(message)) {
-      debugLog('⏭️ queueMessage skipped - token usage is cached in session state');
-      return;
+  // NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: the first action in an opened session ends its quiet period; what was held goes into the save queue first, in order.
+  const enqueueHeld = useCallback((held: OpenQuietHeld[], ownerUserId: string, sessionId: string) => {
+    for (const { message, userText } of held) {
+      const m = message as PersistableDirectorMessage;
+      messageQueueRef.current.enqueue(ownerUserId, sessionId, {
+        id: m.message_id,
+        messageType: m.type,
+        timestamp: m.timestamp,
+        payload: m.payload,
+        userText: userText || undefined,
+      });
     }
+  }, []);
 
-    // Guard: don't queue if persistence is disabled (e.g. unsaved session)
-    if (!enabledRef.current) {
-      debugLog('⏭️ queueMessage skipped - persistence disabled');
-      return;
-    }
-
-    // Guard: don't queue if session was invalidated by a prior 404
-    if (sessionInvalidRef.current) {
-      debugLog('⏭️ queueMessage skipped - session invalidated (prior 404)');
-      return;
-    }
-
-    // FIX 8: Check sessionIdRef instead of enabled flag
+  const queueMessage = useCallback((message: DirectorMessage, userText?: string, options?: SessionWriteOptions) => {
+    if (!isPersistableMessage(message) || !enabledRef.current) return;
     const currentSessionId = sessionIdRef.current;
-    if (!currentSessionId) {
-      console.warn('⚠️ queueMessage skipped - no sessionId');
-      return;
-    }
+    const ownerUserId = userIdRef.current;
+    if (!currentSessionId || !ownerUserId || message.session_id !== currentSessionId) return;
 
-    debugLog('📥 Queueing message:', {
-      id: message.message_id,
-      type: message.type,
-      hasUserText: !!userText,
-      userTextPreview: userText ? userText.substring(0, 30) : null,
-      queueSize: messageQueueRef.current.size + 1
-    });
-
-    // STEP 1: Write to browser cache IMMEDIATELY (synchronous, no delay)
     sessionCache.appendMessage(message, userText);
-
-    // STEP 2: Add to queue for DB save (using message_id as key for deduplication)
-    messageQueueRef.current.set(message.message_id, {
+    if (STUDIO_SESSION_OPEN_READ_ONLY_ENABLED && openQuietRef.current && isOpenQuiet(openQuietRef.current, currentSessionId)) {
+      if (options?.passive) {
+        if (openQuietHoldMessage(openQuietRef.current, currentSessionId, message, userText)) return;
+      } else {
+        enqueueHeld(releaseOpenQuiet(openQuietRef.current), ownerUserId, currentSessionId);
+      }
+    }
+    messageQueueRef.current.enqueue(ownerUserId, currentSessionId, {
       id: message.message_id,
       messageType: message.type,
       timestamp: message.timestamp,
@@ -172,96 +144,32 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
       userText: userText || undefined,
     });
 
-    // For user messages, flush immediately
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     if (userText) {
-      debugLog('📤 User message detected - triggering immediate save');
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-      flushMessages();
-      return;
+      void flushMessages();
+    } else {
+      saveTimeoutRef.current = setTimeout(() => { void flushMessages(); }, debounceMs);
     }
+  }, [debounceMs, enqueueHeld, flushMessages, sessionCache]);
 
-    // For bot messages, debounce
-    debugLog(`⏱️ Bot message - scheduling flush in ${debounceMs}ms`);
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-
-    saveTimeoutRef.current = setTimeout(() => {
-      flushMessages();
-    }, debounceMs);
-  }, [debounceMs, flushMessages, sessionCache]);  // FIX 8: Remove 'enabled' from deps
-
-  /**
-   * Save a batch of messages
-   * FIXED: Now accepts optional userText parameter to save user messages correctly
-   * FIX 8: Uses sessionIdRef to avoid stale closure
-   */
   const saveBatch = useCallback(async (messages: DirectorMessage[], userText?: string) => {
-    // FIX 8: Use ref instead of closure value
-    const currentSessionId = sessionIdRef.current;
-    const persistableMessages = messages.filter(isPersistableMessage);
+    for (const message of messages) queueMessage(message, userText);
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    await flushMessages();
+  }, [queueMessage, flushMessages]);
 
-    if (!currentSessionId || persistableMessages.length === 0) {
-      if (!currentSessionId) {
-        console.warn('⚠️ saveBatch skipped - no sessionId');
-      }
-      return;
-    }
-
-    try {
-      // STEP 1: Write to browser cache FIRST (synchronous)
-      if (userText && persistableMessages.length > 0) {
-        sessionCache.appendMessage(persistableMessages[0], userText);
-      }
-
-      // STEP 2: Format messages for DB save
-      const formattedMessages = persistableMessages.map(msg => ({
-        id: msg.message_id,
-        messageType: msg.type,
-        timestamp: msg.timestamp,
-        payload: msg.payload,
-        userText: userText || undefined, // FIXED: Use provided userText instead of hardcoded null
-      }));
-
-      debugLog(`💾 Batch saving ${formattedMessages.length} messages to session ${currentSessionId}`);
-      debugLog(`📝 userText parameter:`, userText ? `"${userText.substring(0, 50)}..."` : 'NULL');
-      debugLog(`📝 First message userText field:`, formattedMessages[0]?.userText ? `"${formattedMessages[0].userText.substring(0, 30)}..."` : 'NULL');
-      const result = await saveMessages(currentSessionId, formattedMessages);
-
-      if (result) {
-        debugLog(`✅ Batch saved ${result.saved}/${result.total} messages`);
-      }
-    } catch (error) {
-      console.error('❌ Error batch saving messages:', error);
-      if (onError) {
-        onError(error instanceof Error ? error : new Error('Unknown error'));
-      }
-    }
-  }, [saveMessages, onError, sessionCache]);  // FIX 8: Remove 'enabled' and 'sessionId' from deps
+  // Previously refused saves and another same-owner session's pending rows stay
+  // available when persistence becomes enabled again. Account changes never
+  // send the previous account's queue under the new account's authentication.
+  useEffect(() => {
+    if (enabled && userId && messageQueueRef.current.size(userId) > 0) void flushMessages();
+  }, [enabled, userId, sessionId, flushMessages]);
 
   /**
    * Update session metadata
    * FIX 8: Uses sessionIdRef to avoid stale closure
    */
-  const updateMetadata = useCallback(async (updates: {
-    title?: string;
-    currentStage?: number;
-    blankPresentationUrl?: string;
-    strawmanPreviewUrl?: string;
-    finalPresentationUrl?: string;
-    blankPresentationId?: string;
-    strawmanPresentationId?: string;
-    finalPresentationId?: string;
-    slideCount?: number;
-    lastMessageAt?: Date | string;
-    stateCache?: {
-      currentStatus?: unknown;
-      slideStructure?: unknown;
-      activeVersion?: 'blank' | 'strawman' | 'final';
-    };
-  }) => {
+  const updateMetadata = useCallback(async (updates: SessionMetadataUpdates, options?: SessionWriteOptions) => {
     // FIX 8: Use ref instead of closure value
     const currentSessionId = sessionIdRef.current;
     if (!currentSessionId) {
@@ -269,12 +177,46 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
       return;
     }
 
+    // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: an unsaved local session (bare /builder, ?session_id=new, a reload of either) has no
+    // history row, and `enabled` is false for it. queueMessage and flushMessages already honour that; this was the one writer
+    // that did not. Director's blank-deck frame (presentation_init) reaches here through the page's onSessionStateChange, and a
+    // PATCH for a row that does not exist 404s, retries, then updateSession's recovery POSTs the row: an empty "Untitled Session".
+    // The row is created by the first real action (first message, an upload, a hand-off), after which `enabled` is true.
+    if (STUDIO_SESSION_HYGIENE_ENABLED && !enabledRef.current) {
+      debugLog('[SESSION-HYGIENE] updateMetadata skipped - session is unsaved, no history row yet:', currentSessionId);
+      // Nothing is written, but the blank deck's URL/id must not be lost if the user's first click on the canvas saves the
+      // row: it is kept (newest wins, per session) and sent once by sendDeferredMetadata.
+      deferredMetadataRef.current = deferMetadata(deferredMetadataRef.current, currentSessionId, updates);
+      return;
+    }
+
+    // NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: an opened session is read-only until the user acts. A passive write (Director's state frames, the Layout count reconcile) sends only what
+    // is new, and never lastMessageAt; any other write is the user's and ends the quiet period.
+    let effective = updates;
+    if (STUDIO_SESSION_OPEN_READ_ONLY_ENABLED && openQuietRef.current && isOpenQuiet(openQuietRef.current, currentSessionId)) {
+      if (options?.passive) {
+        const trimmed = openQuietMetadata(openQuietRef.current, updates as Record<string, unknown>);
+        if (!trimmed) {
+          debugLog('[OPEN-READ-ONLY] passive metadata write skipped - nothing new for the opened session:', currentSessionId);
+          return;
+        }
+        effective = trimmed as SessionMetadataUpdates;
+      } else {
+        const held = releaseOpenQuiet(openQuietRef.current);
+        const ownerUserId = userIdRef.current;
+        if (held.length > 0 && ownerUserId) {
+          enqueueHeld(held, ownerUserId, currentSessionId);
+          void flushMessages();
+        }
+      }
+    }
+
     try {
       const normalizedUpdates = {
-        ...updates,
-        lastMessageAt: updates.lastMessageAt instanceof Date
-          ? updates.lastMessageAt.toISOString()
-          : updates.lastMessageAt,
+        ...effective,
+        lastMessageAt: effective.lastMessageAt instanceof Date
+          ? effective.lastMessageAt.toISOString()
+          : effective.lastMessageAt,
       };
       debugLog('📝 Updating session metadata:', normalizedUpdates);
       await updateSession(currentSessionId, normalizedUpdates);
@@ -284,7 +226,42 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
         onError(error instanceof Error ? error : new Error('Unknown error'));
       }
     }
-  }, [updateSession, onError]);  // FIX 8: Remove 'enabled' and 'sessionId' from deps
+  }, [updateSession, onError, enqueueHeld, flushMessages]);  // FIX 8: Remove 'enabled' and 'sessionId' from deps
+
+  /**
+   * NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: send, once, the metadata that updateMetadata held back while the session had no row.
+   * Called by hooks/use-save-session-on-first-action.ts right after the first user action created the row. It cannot go through
+   * updateMetadata's own gate: `enabled` only turns true on the next render, and this runs in the same tick as the POST. The
+   * PATCH is the same one updateMetadata sends (same normalisation, same updateSession). Held data for another session is left
+   * alone (a new chat replaces it); with the flag off nothing is ever held.
+   */
+  const sendDeferredMetadata = useCallback(async (forSessionId: string) => {
+    if (!STUDIO_SESSION_HYGIENE_ENABLED) return;
+    const held = takeDeferredMetadata(deferredMetadataRef.current, forSessionId);
+    if (!held) return;
+    deferredMetadataRef.current = null;
+    try {
+      const normalizedUpdates = {
+        ...held,
+        lastMessageAt: held.lastMessageAt instanceof Date
+          ? held.lastMessageAt.toISOString()
+          : held.lastMessageAt,
+      };
+      debugLog('📝 [SESSION-HYGIENE] Sending the blank-deck metadata held while the session was unsaved:', normalizedUpdates);
+      await updateSession(forSessionId, normalizedUpdates);
+    } catch (error) {
+      console.error('❌ Error updating session metadata:', error);
+      if (onError) {
+        onError(error instanceof Error ? error : new Error('Unknown error'));
+      }
+    }
+  }, [updateSession, onError]);
+
+  /** NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: an existing session's row has just been opened; it is quiet until the user acts (lib/studio-open-read-only.ts). Flag off: does nothing. */
+  const beginOpenQuietFor = useCallback((forSessionId: string, row: unknown) => {
+    if (!STUDIO_SESSION_OPEN_READ_ONLY_ENABLED || !forSessionId) return;
+    openQuietRef.current = beginOpenQuiet(forSessionId, row);
+  }, []);
 
   /**
    * Generate title from first user message or presentation metadata
@@ -316,7 +293,7 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
         clearTimeout(saveTimeoutRef.current);
       }
       // Flush any pending messages
-      if (messageQueueRef.current.size > 0) {
+      if (messageQueueRef.current.size(userIdRef.current) > 0) {
         flushMessages();
       }
     };
@@ -331,18 +308,17 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
       if (!currentSessionId || !enabledRef.current) return;
 
       // Synchronous flush attempt
-      if (messageQueueRef.current.size > 0) {
-        debugLog(`🚨 beforeunload: Attempting to save ${messageQueueRef.current.size} pending messages via sendBeacon`);
+      if (messageQueueRef.current.size(userIdRef.current) > 0) {
+        debugLog(`🚨 beforeunload: Attempting to save ${messageQueueRef.current.size(userIdRef.current)} pending messages via sendBeacon`);
 
-        // Use sendBeacon API for synchronous last-ditch save
-        const messages = Array.from(messageQueueRef.current.values());
-        const blob = new Blob([JSON.stringify({ messages })], {
-          type: 'application/json',
-        });
-
-        // Best effort - may or may not work depending on browser
-        const success = navigator.sendBeacon(`/api/sessions/${currentSessionId}/messages`, blob);
-        debugLog(`🚨 sendBeacon ${success ? 'succeeded' : 'failed'} for ${messages.length} messages`);
+        // Each last-ditch batch goes to its original session for the current
+        // account only; another account's pending rows are never transmitted.
+        for (const snapshot of messageQueueRef.current.snapshots(userIdRef.current)) {
+          const blob = new Blob([JSON.stringify({ messages: snapshot.messages })], {
+            type: 'application/json',
+          });
+          navigator.sendBeacon(`/api/sessions/${snapshot.sessionId}/messages`, blob);
+        }
       } else {
         debugLog('✅ beforeunload: No pending messages to save');
       }
@@ -360,7 +336,9 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
     saveBatch,
     flushMessages,
     updateMetadata,
+    sendDeferredMetadata,
+    beginOpenQuiet: beginOpenQuietFor,
     generateTitle,
-    pendingCount: messageQueueRef.current.size,
+    pendingCount: messageQueueRef.current.size(userIdRef.current),
   };
 }

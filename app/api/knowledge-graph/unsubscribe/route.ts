@@ -1,7 +1,8 @@
+import { ServiceUrlConfigError } from '@/lib/service-url'
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
-import { KG_BASE, kgHeaders } from '@/lib/kg-proxy'
+import { getKgBaseUrl, kgHeaders } from '@/lib/kg-proxy'
 
 /**
  * Pause the knowledge graph for this user (KG v2 P0).
@@ -17,7 +18,8 @@ export async function POST() {
   }
 
   try {
-    const resp = await fetch(`${KG_BASE}/api/v1/kg/unsubscribe`, {
+    const kgBaseUrl = getKgBaseUrl()
+    const resp = await fetch(`${kgBaseUrl}/api/v1/kg/unsubscribe`, {
       method: 'POST',
       headers: kgHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ user_id: session.user.id }),
@@ -44,6 +46,7 @@ export async function POST() {
 
     return NextResponse.json(await resp.json())
   } catch (e) {
+    if (e instanceof ServiceUrlConfigError) return NextResponse.json({ error: e.message, code: e.code, service_unavailable: true }, { status: 503 })
     console.error('[KG Proxy] Unsubscribe network error:', e)
     return NextResponse.json(
       {

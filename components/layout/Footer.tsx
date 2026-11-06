@@ -1,7 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { Lock, Heart } from 'lucide-react';
+import { Shield, Lock, Award, Heart } from 'lucide-react';
+import { studioDocsHiddenHref } from '@/lib/studio-p2-docs';
+
+// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): /docs/api is not available yet, and /integrations and /agents are redirects, so with the flag on neither footer links them. Off: every link as before.
+const STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';
+const linked = (href: string) => !(STUDIO_P2_DOCS && studioDocsHiddenHref(href));
 
 interface FooterProps {
   /**
@@ -18,6 +23,7 @@ export function Footer({ compact = false }: FooterProps = {}) {
       { name: 'Templates', href: '/templates' },
       { name: 'Examples', href: '/examples' },
       { name: 'Pricing', href: '/pricing' },
+      { name: 'Integrations', href: '/integrations' },
     ],
     company: [
       { name: 'About', href: '/about' },
@@ -27,6 +33,7 @@ export function Footer({ compact = false }: FooterProps = {}) {
     resources: [
       { name: 'Help Center', href: '/help' },
       { name: 'Documentation', href: '/docs' },
+      { name: 'API', href: '/docs/api' },
     ],
     legal: [
       { name: 'Privacy', href: '/legal/privacy' },
@@ -64,7 +71,7 @@ export function Footer({ compact = false }: FooterProps = {}) {
               />
             </Link>
             <p className="text-sm text-muted-foreground mb-4">
-              You approve the plan. Specialists build the slides, with sources on the charts.
+              Create stunning presentations with AI. Multi-agent intelligence for professional results.
             </p>
             <div className="flex space-x-4">
               {/* Social links - add your actual social media links */}
@@ -109,7 +116,7 @@ export function Footer({ compact = false }: FooterProps = {}) {
             <h3 className="font-semibold mb-4">Product</h3>
             <ul className="space-y-3">
               <li><Link href="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Pricing</Link></li>
-              <li><Link href="/agents" className="text-sm text-muted-foreground hover:text-foreground transition-colors">AI Agents</Link></li>
+              {linked('/agents') && <li><Link href="/agents" className="text-sm text-muted-foreground hover:text-foreground transition-colors">AI Agents</Link></li>}
               <li><Link href="/templates" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Templates</Link></li>
               <li><Link href="/builder" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Builder</Link></li>
             </ul>
@@ -127,7 +134,7 @@ export function Footer({ compact = false }: FooterProps = {}) {
           <div>
             <h3 className="font-semibold mb-4">Resources</h3>
             <ul className="space-y-3">
-              {footerLinks.resources.map((link) => (
+              {footerLinks.resources.filter((link) => linked(link.href)).map((link) => (
                 <li key={link.name}>
                   <Link
                     href={link.href}
@@ -165,6 +172,19 @@ export function Footer({ compact = false }: FooterProps = {}) {
               <Lock className="h-4 w-4 text-green-600" />
               <span>SSL Encrypted</span>
             </div>
+            {/* PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off; PROGRAM-1 lifted ruling 2 for these two claims on 23 Oct): no certification or uptime figure is verified, so with the flag on the two lines are not shown (SSL Encrypted and Privacy First stay). Off: as before. */}
+            {!STUDIO_P2_DOCS && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Award className="h-4 w-4 text-blue-600" />
+                <span>GDPR Compliant</span>
+              </div>
+            )}
+            {!STUDIO_P2_DOCS && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Shield className="h-4 w-4 text-orange-600" />
+                <span>99.9% Uptime</span>
+              </div>
+            )}
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Heart className="h-4 w-4 text-purple-600" />
               <span>Privacy First</span>
@@ -215,7 +235,7 @@ function CompactFooter() {
           aria-label="Footer"
           className="order-1 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-xs sm:order-2 sm:gap-x-5"
         >
-          {links.map((l) => (
+          {links.filter((l) => linked(l.href)).map((l) => (
             <Link
               key={l.href}
               href={l.href}

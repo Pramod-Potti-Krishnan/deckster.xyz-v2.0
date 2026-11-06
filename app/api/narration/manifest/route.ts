@@ -1,3 +1,4 @@
+import { ServiceUrlConfigError } from '@/lib/service-url'
 /**
  * GET /api/narration/manifest — what this deck can play right now.
  *
@@ -15,7 +16,7 @@ import { cookies } from 'next/headers';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { unlockCookieName, verifyUnlockCookie } from '@/lib/publish/passcode';
-import { getPresentation } from '@/lib/layout-service-client';
+import { getPresentation, getLayoutServiceUrl } from '@/lib/layout-service-client';
 import { getSessionVoiceId } from '@/lib/narration/voice-store';
 import { buildManifest } from '@/lib/narration/manifest';
 import { resolveBudget } from '@/lib/narration/budget';
@@ -111,12 +112,14 @@ export async function GET(request: NextRequest) {
     }
 
     const { voiceId } = await getSessionVoiceId(sessionId, ownerId);
+    getLayoutServiceUrl();
     const presentation = await getPresentation(presentationId);
     const slides: Record<string, unknown>[] = (presentation?.slides as never) ?? [];
 
     const manifest = await buildManifest(presentationId, slides, voiceId ?? '');
     return NextResponse.json({ ...manifest, budget, qaEnabled });
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     console.error('[Narration] manifest failed:', error);
     return NextResponse.json({ error: 'Could not load the narration' }, { status: 500 });
   }

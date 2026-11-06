@@ -1,7 +1,6 @@
 import type { CSSProperties } from "react"
 import { KnowledgeGraphCanvas, type KnowledgeGraphCopy } from "../KnowledgeGraphCanvas"
 import { SlideChip } from "../SlideChip"
-import { StatusPill } from "../StatusPill"
 
 export type KnowledgeCopy = KnowledgeGraphCopy & {
   label: string
@@ -15,16 +14,16 @@ export type KnowledgeCopy = KnowledgeGraphCopy & {
   checks: readonly string[]
 }
 
-export function Knowledge({ copy, n, total }: { copy: KnowledgeCopy; n: number; total: number }) {
+export function Knowledge({ copy }: { copy: KnowledgeCopy }) {
   return (
-    <section className="slide slide--night" id="knowledge" data-snap="slide" data-chapter="Bring" data-slide-label={copy.label} data-label={copy.label}>
+    <section className="slide slide--night" id="knowledge" data-snap="slide" data-slide-label={copy.label} data-label={copy.label}>
       <div className="glow glow--violet" style={{ width: "50vw", height: "50vw", left: "-10vw", top: "10vh", opacity: .35 }} />
       <div className="grain" />
       <div className="slide__inner">
         <div className="cols cols--rev">
           <KnowledgeGraphCanvas copy={copy} />
           <div>
-            <span className="eyebrow" data-reveal>{copy.eyebrow} <StatusPill feature="knowledgeGraph" /></span>
+            <span className="eyebrow" data-reveal>{copy.eyebrow}</span>
             <h2 className="h2 balance" data-reveal style={{ "--d": 1 } as CSSProperties}>{copy.title}</h2>
             <p className="lede" data-reveal style={{ "--d": 2 } as CSSProperties}>{copy.lede}</p>
             <div className="cite" data-reveal style={{ "--d": 3 } as CSSProperties}>
@@ -47,7 +46,7 @@ export function Knowledge({ copy, n, total }: { copy: KnowledgeCopy; n: number; 
           </div>
         </div>
       </div>
-      <SlideChip number={n} total={total} label={copy.label} />
+      <SlideChip number={4} label={copy.label} />
     </section>
   )
 }

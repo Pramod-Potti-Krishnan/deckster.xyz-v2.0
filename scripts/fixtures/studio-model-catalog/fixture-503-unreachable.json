@@ -1,0 +1,5 @@
+{
+  "error": "The model router could not be reached.",
+  "code": "router_unreachable",
+  "service_unavailable": true
+}

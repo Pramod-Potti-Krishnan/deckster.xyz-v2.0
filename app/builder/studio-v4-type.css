@@ -1,0 +1,127 @@
+/* Independent, default-off S1.2 type scope. Fonts, colors and lifecycle stay owned
+   by existing controls. Never apply a scale to shared chrome or attachment cards. */
+[data-studio-v4-type="true"] [data-studio-v4-type-role="prompt"] {
+  font-size: 16px;
+  line-height: 24px;
+}
+
+[data-studio-v4-type="true"] :is(
+  [data-studio-v4-type-role="theme-field"],
+  [data-studio-v4-type-role="research-choice"],
+  [data-studio-v4-type-role="mention-row"]
+) {
+  font-size: 14px;
+  line-height: 20px;
+}
+
+[data-studio-v4-type="true"] :is(
+  [data-studio-v4-type-role="selection-label"],
+  [data-studio-v4-type-role="action-label"],
+  [data-studio-v4-type-role="drop-label"]
+) {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+[data-studio-v4-type="true"] :is(
+  [data-studio-v4-type-role="theme-caption"],
+  [data-studio-v4-type-role="theme-standard-action"],
+  [data-studio-v4-type-role="theme-standard-label"],
+  [data-studio-v4-type-role="theme-standard-line"],
+  [data-studio-v4-type-role="theme-warning"],
+  [data-studio-v4-type-role="research-notice"],
+  [data-studio-v4-type-role="research-remedy"],
+  [data-studio-v4-type-role="mention-heading"],
+  [data-studio-v4-type-role="selection-helper"],
+  [data-studio-v4-type-role="theme-sync-status"],
+  [data-studio-v4-type-role="working-status"],
+  [data-studio-v4-type-role="upload-status"],
+  [data-studio-v4-type-role="action-helper"],
+  [data-studio-v4-type-role="action-cancel"],
+  [data-studio-v4-type-role="attachments-clear"]
+) {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+[data-studio-v4-type="true"] :is(
+  [data-studio-v4-type-role="action-cancel"],
+  [data-studio-v4-type-role="attachments-clear"]
+) {
+  height: 24px;
+  flex-shrink: 0;
+}
+
+[data-studio-v4-type="true"] [data-studio-v4-type-role="selection-content"] {
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+
+/* Keep the selection icon with its truncated name on the first line. Existing
+   helper/status elements can occupy a second line without pushing Clear out. */
+[data-studio-v4-type="true"] [data-studio-v4-type-role="selection-label"] {
+  min-width: 0;
+  flex: 1 1 calc(100% - 20px);
+}
+
+[data-studio-v4-type="true"] :is(
+  [data-studio-v4-type-role="selection-helper"],
+  [data-studio-v4-type-role="theme-sync-status"]
+) {
+  min-width: 0;
+  flex: 1 1 100%;
+  overflow-wrap: anywhere;
+}
+
+[data-studio-v4-type="true"] [data-studio-v4-type-role="action-content"] {
+  min-width: 0;
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+
+[data-studio-v4-type="true"] :is(
+  [data-studio-v4-type-role="action-label"],
+  [data-studio-v4-type-role="action-helper"],
+  [data-studio-v4-type-role="theme-warning"],
+  [data-studio-v4-type-role="research-notice"],
+  [data-studio-v4-type-role="working-status"],
+  [data-studio-v4-type-role="upload-status"]
+) {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+[data-studio-v4-type="true"] :is(
+  [data-studio-v4-type-role="working-status"],
+  [data-studio-v4-type-role="upload-status"]
+) > :is(span, svg) {
+  flex-shrink: 0;
+}
+
+[data-studio-v4-type="true"][data-studio-v4-menu="theme"],
+[data-studio-v4-type="true"][data-studio-v4-menu="research"] {
+  max-width: calc(100vw - 24px);
+  max-height: min(480px, var(--radix-dropdown-menu-content-available-height, calc(100vh - 24px)));
+  overflow-y: auto;
+}
+
+[data-studio-v4-type="true"][data-studio-v4-menu="research"] {
+  width: 224px;
+}
+
+[data-studio-v4-type="true"] [data-studio-v4-type-role="research-row"] > div {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+[data-studio-v4-type="true"] [data-studio-v4-type-role="research-choice"] {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+[data-studio-v4-type="true"] [data-studio-v4-type-role="research-row"] :is(svg, button) {
+  flex-shrink: 0;
+}

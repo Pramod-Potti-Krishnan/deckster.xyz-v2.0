@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
 interface SlideBuildingLoaderProps {
@@ -15,6 +15,7 @@ export function SlideBuildingLoader({
   className = '',
   mode = 'default'
 }: SlideBuildingLoaderProps) {
+  const reduced = useReducedMotion()
   const [currentLayout, setCurrentLayout] = useState<LayoutType>('text-heavy')
   const [isRebuilding, setIsRebuilding] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -46,22 +47,41 @@ export function SlideBuildingLoader({
 
   // Cycle layouts (only for default mode)
   useEffect(() => {
-    if (mode !== 'default') return
+    if (mode !== 'default' || reduced) return
 
     const layouts: LayoutType[] = ['text-heavy', 'visual-heavy', 'data-focused']
     let currentIndex = 0
+    let rebuildTimeout: ReturnType<typeof setTimeout> | null = null
+    setIsRebuilding(false)
 
     const interval = setInterval(() => {
       setIsRebuilding(true)
-      setTimeout(() => {
+      rebuildTimeout = setTimeout(() => {
         currentIndex = (currentIndex + 1) % layouts.length
         setCurrentLayout(layouts[currentIndex])
         setIsRebuilding(false)
       }, 600) // Wait for exit animation
     }, 4000) // 4 seconds per slide
 
-    return () => clearInterval(interval)
-  }, [mode])
+    return () => {
+      clearInterval(interval)
+      if (rebuildTimeout !== null) clearTimeout(rebuildTimeout)
+    }
+  }, [mode, reduced])
+
+  if (reduced) {
+    return <div ref={containerRef} className={cn('flex items-center justify-center', className)}>
+      <div data-reduced-motion-slide-loader="true" className="relative overflow-hidden rounded-xl border border-border bg-card p-8 text-foreground shadow-xl"
+        style={slideSize ? { width: slideSize.width, height: slideSize.height } : { width: '100%', aspectRatio: '16/9', maxWidth: '768px' }}>
+        <p role="status" className="text-sm font-medium">{mode === 'strawman' ? 'Preparing your slide preview…' : 'Building your slides…'}</p>
+        <div aria-hidden="true" className={mode === 'strawman' ? 'mt-6 grid grid-cols-3 gap-4' : 'mt-8 space-y-4'}>
+          {Array.from({ length: mode === 'strawman' ? 6 : 4 }, (_, index) => <div key={index}
+            className={mode === 'strawman' ? 'aspect-video rounded-md border border-border bg-muted' : 'h-4 rounded bg-muted'}
+            style={mode === 'default' ? { width: `${90 - index * 10}%` } : undefined}/>) }
+        </div>
+      </div>
+    </div>
+  }
 
   return (
     <div ref={containerRef} className={cn("flex items-center justify-center", className)}>

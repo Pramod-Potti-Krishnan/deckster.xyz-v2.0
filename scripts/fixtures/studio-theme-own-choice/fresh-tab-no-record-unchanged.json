@@ -1,0 +1,274 @@
+{
+ "name": "fresh-tab-no-record-unchanged",
+ "description": "THE LIMIT. The same restore as reload-auto-stays-auto, but in a fresh tab whose sessionStorage is empty (a closed and reopened tab): Studio has no record of what this user chose here, and Director's restore cannot tell a pick of Corporate Light from its own default. Flag on or off: adopted, as today (a real earlier pick is never lost).",
+ "source": "frame shapes: THEME-2's recorded Director frames (scripts/fixtures/studio-theme-restore, Director origin/uat connect handler); the request ids and themes follow Director's own code: connect_theme_restore.restored_theme_payload (theme = desired_theme_state.selection, else applied_theme_state.selection; request_id restore:<sid>:<desired request id | none>) over what _handle_set_theme writes (_persist_desired_theme_state with the RESOLVED selection that _apply_theme_to_presentation returns: Auto becomes the standard theme, else corporate_light) and what a user_message that carries theme auto does (it runs _handle_set_theme under request id chat-theme-<sha256 of the raw selection>)",
+ "session": {
+  "id": "sess-own-6",
+  "userId": "synthetic-user-01"
+ },
+ "ackTemplate": [
+  {
+   "type": "theme_sync",
+   "session_id": "sess-ack",
+   "timestamp": "2026-10-14T04:21:51.829182Z",
+   "payload": {
+    "request_id": "__REQ__",
+    "status": "syncing",
+    "presentation_id": "deck-ack",
+    "theme": {
+     "mode": "auto"
+    }
+   }
+  },
+  {
+   "type": "theme_sync",
+   "session_id": "sess-ack",
+   "timestamp": "2026-10-14T04:21:51.829206Z",
+   "payload": {
+    "request_id": "__REQ__",
+    "status": "applied",
+    "presentation_id": "deck-ack",
+    "theme": {
+     "mode": "auto"
+    },
+    "theme_session_id": "ts-ack"
+   }
+  }
+ ],
+ "env": {
+  "NEXT_PUBLIC_LAYOUT_SERVICE_URL": "https://layout.example.com",
+  "NEXT_PUBLIC_STUDIO_THEME_RESTORE": "true"
+ },
+ "steps": [
+  {
+   "op": "ensureConnected"
+  },
+  {
+   "op": "open"
+  },
+  {
+   "op": "frames",
+   "frames": [
+    {
+     "type": "theme_sync",
+     "session_id": "sess-own-6",
+     "timestamp": "2026-10-14T04:21:51.818974Z",
+     "payload": {
+      "request_id": "initial:blank-pres-1",
+      "status": "applied",
+      "presentation_id": "blank-pres-1",
+      "theme": {
+       "mode": "preset",
+       "preset_id": "corporate_light"
+      },
+      "theme_session_id": "theme-sess-1"
+     }
+    },
+    {
+     "message_id": "msg_30e617a3",
+     "session_id": "sess-own-6",
+     "timestamp": "2026-10-14T04:21:51.819119Z",
+     "type": "presentation_init",
+     "role": "assistant",
+     "payload": {
+      "operation": "full_update",
+      "metadata": {
+       "main_title": "Untitled Presentation",
+       "overall_theme": "",
+       "design_suggestions": "",
+       "target_audience": "",
+       "presentation_duration": 0,
+       "preview_url": "https://layout.example.com/p/blank-pres-1",
+       "preview_presentation_id": "blank-pres-1"
+      },
+      "slides": [
+       {
+        "slide_id": "blank_slide_1",
+        "slide_number": 1,
+        "slide_type": "title_slide",
+        "title": "",
+        "subtitle": "",
+        "narrative": "",
+        "key_points": [],
+        "variant_id": "H1s",
+        "service": "text",
+        "purpose": "title_slide",
+        "semantic_group": null,
+        "analytics_needed": null,
+        "visuals_needed": null,
+        "diagrams_needed": null,
+        "structure_preference": null,
+        "container_layout": null,
+        "speaker_notes": null
+       }
+      ],
+      "affected_slides": null,
+      "is_blank": true
+     }
+    },
+    {
+     "type": "theme_sync",
+     "session_id": "sess-own-6",
+     "timestamp": "2026-10-14T04:21:51.822660Z",
+     "payload": {
+      "request_id": "restore:sess-own-6:none",
+      "status": "restored",
+      "presentation_id": "blank-pres-1",
+      "theme": {
+       "mode": "preset",
+       "preset_id": "corporate_light"
+      },
+      "applied": true,
+      "desired_status": null
+     }
+    },
+    {
+     "message_id": "msg_hist_28306facfa8f",
+     "session_id": "sess-own-6",
+     "timestamp": "2026-10-14T04:21:51.824894Z",
+     "type": "chat_message",
+     "role": "assistant",
+     "payload": {
+      "text": "Hello! I'm your presentation assistant. I can help you create professional presentations. What topic would you like to present on?",
+      "sub_title": null,
+      "list_items": null,
+      "format": "markdown",
+      "ephemeral": false
+     }
+    }
+   ]
+  },
+  {
+   "op": "themeAck"
+  },
+  {
+   "op": "unmount"
+  },
+  {
+   "op": "mount",
+   "freshTab": true
+  },
+  {
+   "op": "restore",
+   "session": {
+    "id": "sess-own-6",
+    "status": "active",
+    "title": "Synthetic session",
+    "geminiStoreName": null,
+    "blankPresentationUrl": "https://layout.example.com/p/blank-pres-1",
+    "blankPresentationId": "blank-pres-1",
+    "strawmanPreviewUrl": null,
+    "strawmanPresentationId": null,
+    "finalPresentationUrl": null,
+    "finalPresentationId": null,
+    "slideCount": null,
+    "currentStage": 1,
+    "stateCache": {
+     "activeVersion": "blank",
+     "slideStructure": null
+    },
+    "messages": [
+     {
+      "id": "db-director-0",
+      "messageType": "chat_message",
+      "timestamp": "2026-10-14T09:00:00.000Z",
+      "payload": {
+       "text": "Hello! I'm your presentation assistant. I can help you create professional presentations. What topic would you like to present on?",
+       "sub_title": null,
+       "list_items": null
+      }
+     }
+    ]
+   }
+  },
+  {
+   "op": "ensureConnected"
+  },
+  {
+   "op": "open"
+  },
+  {
+   "op": "frames",
+   "frames": [
+    {
+     "message_id": "msg_sync_95122c07",
+     "session_id": "sess-own-6",
+     "timestamp": "2026-10-14T04:21:51.825102Z",
+     "type": "sync_response",
+     "role": "assistant",
+     "payload": {
+      "action": "send_history",
+      "message_count": 1,
+      "current_state": "BLANK_PRESENTATION",
+      "has_strawman": false,
+      "presentation_url": "https://layout.example.com/p/blank-pres-1",
+      "presentation_id": "blank-pres-1",
+      "slide_count": null
+     }
+    },
+    {
+     "type": "theme_sync",
+     "session_id": "sess-own-6",
+     "timestamp": "2026-10-14T04:21:51.826600Z",
+     "payload": {
+      "request_id": "restore:sess-own-6:chat-theme-406080f63e38c971",
+      "status": "restored",
+      "presentation_id": "blank-pres-1",
+      "theme": {
+       "mode": "preset",
+       "preset_id": "corporate_light"
+      },
+      "applied": true,
+      "desired_status": "applied"
+     }
+    },
+    {
+     "message_id": "msg_hist_28306facfa8f",
+     "session_id": "sess-own-6",
+     "timestamp": "2026-10-14T04:21:51.824894Z",
+     "type": "chat_message",
+     "role": "assistant",
+     "payload": {
+      "text": "Hello! I'm your presentation assistant. I can help you create professional presentations. What topic would you like to present on?",
+      "sub_title": null,
+      "list_items": null,
+      "format": "markdown",
+      "ephemeral": false
+     }
+    }
+   ]
+  },
+  {
+   "op": "themeAck"
+  },
+  {
+   "op": "advance",
+   "ms": 25000
+  },
+  {
+   "op": "checkpoint",
+   "label": "reload in a fresh tab (empty sessionStorage): nothing on record"
+  },
+  {
+   "op": "expect",
+   "today": {
+    "setTheme": 0,
+    "selection": {
+     "mode": "preset",
+     "preset_id": "corporate_light"
+    },
+    "themeSyncStatus": "applied",
+    "gatePhase": "restored"
+   },
+   "own": {
+    "setTheme": 0,
+    "selection": {
+     "mode": "preset",
+     "preset_id": "corporate_light"
+    },
+    "themeSyncStatus": "applied",
+    "gatePhase": "restored"
+   }
+  }
+ ]
+}

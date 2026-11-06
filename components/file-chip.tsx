@@ -20,6 +20,7 @@ import {
   getUploadStatusPresentation,
   type UploadLifecycleStatus,
 } from '@/lib/upload-status'
+import '@/components/studio-file-chip.css'
 
 export interface UploadedFile {
   id: string
@@ -75,6 +76,7 @@ export function FileChip({
   removable = true,
   showStatus = true,
 }: FileChipProps) {
+  const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   const FileIcon = getFileIcon(file.type)
   const isCompact = variant === 'compact'
   const isIcon = variant === 'icon'
@@ -87,6 +89,8 @@ export function FileChip({
   if (isIcon) {
     return (
       <div
+        data-studio-file-chip={studioShell ? variant : undefined}
+        data-studio-file-status={studioShell ? file.status : undefined}
         role="status"
         aria-live="polite"
         aria-label={showStatus ? status.ariaLabel : `${file.name}: attached`}
@@ -109,6 +113,7 @@ export function FileChip({
             onClick={onRemove}
             className="absolute -right-1 -top-1 z-10 flex h-4 w-4 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors hover:bg-gray-100 hover:text-gray-700"
             aria-label={`Remove ${file.name}`}
+            data-studio-file-remove={studioShell ? 'true' : undefined}
           >
             <X className="h-2.5 w-2.5" />
           </button>
@@ -118,10 +123,10 @@ export function FileChip({
           <div className={cn(
             "flex h-7 w-7 items-center justify-center rounded-lg border",
             getFileAccent(file.type)
-          )}>
+          )} data-studio-file-icon={studioShell ? 'true' : undefined}>
             <FileIcon className="h-4 w-4" />
           </div>
-          <span className="block max-w-full truncate text-[7px] font-medium leading-none text-gray-600">
+          <span className="block max-w-full truncate text-[7px] font-medium leading-none text-gray-600" data-studio-file-name={studioShell ? 'true' : undefined}>
             {file.name}
           </span>
           <span className={cn(
@@ -132,7 +137,7 @@ export function FileChip({
                   file.status === 'stored' ? "text-slate-600" :
                     file.status === 'processing' ? "text-blue-700" :
                       "text-purple-700"
-          )}>
+          )} data-studio-file-status-label={studioShell ? 'true' : undefined}>
             {file.enrichmentLabel
               || (file.status === 'stored'
               ? 'Stored'
@@ -148,7 +153,11 @@ export function FileChip({
           </span>
         </div>
 
-        <div className="absolute bottom-1 right-1 rounded-full bg-white shadow-sm">
+        {studioShell && showStatus && file.status === 'degraded' && file.errorMessage && (
+          <details data-studio-file-detail="true"><summary>Source enrichment details</summary><p>{file.errorMessage}</p></details>
+        )}
+
+        <div className="absolute bottom-1 right-1 rounded-full bg-white shadow-sm" data-studio-file-status-icon={studioShell ? 'true' : undefined}>
           {file.status === 'uploading' && (
             <Loader2 className="h-3 w-3 animate-spin text-purple-600" />
           )}
@@ -170,7 +179,7 @@ export function FileChip({
         </div>
 
         {showStatus && status.showProgress && (
-          <Progress value={file.uploadProgress} className="absolute bottom-0 left-2 right-2 h-0.5" />
+          <Progress value={file.uploadProgress} className="absolute bottom-0 left-2 right-2 h-0.5" data-studio-file-progress={studioShell ? 'true' : undefined} aria-label={studioShell ? `Uploading ${file.name}` : undefined} aria-valuenow={studioShell ? file.uploadProgress : undefined} />
         )}
       </div>
     )
@@ -178,6 +187,8 @@ export function FileChip({
 
   return (
     <div
+      data-studio-file-chip={studioShell ? variant : undefined}
+      data-studio-file-status={studioShell ? file.status : undefined}
       role="status"
       aria-live="polite"
       aria-label={showStatus ? status.ariaLabel : `${file.name}: attached`}
@@ -200,25 +211,25 @@ export function FileChip({
 
       <div className="flex-1 min-w-0">
         {isCompact ? (
-          <p className="truncate text-[11px] font-medium leading-4" title={file.name}>
+          <p className="truncate text-[11px] font-medium leading-4" title={file.name} data-studio-file-name={studioShell ? 'true' : undefined}>
             {file.name}
-            <span className="ml-1 font-normal text-muted-foreground">
+            <span className="ml-1 font-normal text-muted-foreground" data-studio-file-size={studioShell ? 'true' : undefined}>
               {formatFileSize(file.size)}
             </span>
           </p>
         ) : (
           <>
-            <p className="text-sm font-medium truncate" title={file.name}>
+            <p className="text-sm font-medium truncate" title={file.name} data-studio-file-name={studioShell ? 'true' : undefined}>
               {file.name}
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground" data-studio-file-size={studioShell ? 'true' : undefined}>
               {formatFileSize(file.size)}
             </p>
           </>
         )}
 
         {showStatus && status.showProgress && (
-          <Progress value={file.uploadProgress} className="h-1 mt-1" />
+          <Progress value={file.uploadProgress} className="h-1 mt-1" data-studio-file-progress={studioShell ? 'true' : undefined} aria-label={studioShell ? `Uploading ${file.name}` : undefined} aria-valuenow={studioShell ? file.uploadProgress : undefined} />
         )}
         {showStatus && (file.status === 'stored' || file.status === 'processing' || file.status === 'success' || file.status === 'degraded') && (
           <p className={cn(
@@ -227,15 +238,19 @@ export function FileChip({
               file.status === 'success' ? "text-emerald-700" :
                 file.status === 'stored' ? "text-slate-600" :
                 "text-blue-700"
-          )} title={file.errorMessage}>
+          )} title={file.errorMessage} data-studio-file-status-label={studioShell ? 'true' : undefined}>
             {file.enrichmentLabel || status.label}
           </p>
         )}
 
         {showStatus && file.status === 'error' && file.errorMessage && (
-          <p className="text-xs text-destructive mt-1" title={file.errorMessage}>
+          <p className="text-xs text-destructive mt-1" title={file.errorMessage} data-studio-file-error={studioShell ? 'true' : undefined}>
             {file.errorMessage}
           </p>
+        )}
+
+        {studioShell && showStatus && file.status === 'degraded' && file.errorMessage && (
+          <details data-studio-file-detail="true"><summary>Source enrichment details</summary><p>{file.errorMessage}</p></details>
         )}
       </div>
 
@@ -270,6 +285,7 @@ export function FileChip({
             onClick={onRemove}
             type="button"
             aria-label={`Remove ${file.name}`}
+            data-studio-file-remove={studioShell ? 'true' : undefined}
           >
             <X className="h-3 w-3" />
           </Button>

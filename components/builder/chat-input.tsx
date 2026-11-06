@@ -32,7 +32,8 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react"
-import { config, features } from '@/lib/config'
+import { getThemeBuilderUrl, features } from '@/lib/config'
+import { ServiceUrlConfigError } from '@/lib/service-url'
 import {
   FALLBACK_THEME_PRESETS,
   isValidThemeHex,
@@ -42,12 +43,21 @@ import {
 } from '@/lib/theme-builder'
 import type { ActionRequest } from "@/hooks/use-deckster-websocket-v2"
 import { useThemeProfiles, type SavedThemeProfile } from '@/hooks/use-theme-profiles'
+import { CHAT_PARITY_THEME_LIBRARY_EVENT, STUDIO_CHAT_PARITY_THEMES_ENABLED } from '@/lib/studio-chat-parity' // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES): a theme saved, renamed or made standard from chat re-reads the palette's list (FRONTEND-2's OK, 27 Oct 04:14Z)
 import {
   isTemplateGenerationReady,
   templateGenerationUnavailableReason,
   type TemplateSelection,
 } from '@/hooks/use-templates'
 import { TemplatePicker } from './template-picker'
+import { StudioComposerHint } from './studio-composer-hint'
+import { StudioThemeMenu, type StudioThemeView, type StudioThemeMutationKind, type StudioThemeMutationNotice } from './studio-theme-menu'
+import { keepPopupOpenForDropdownList, nextComposerPopup, type ComposerPopupId } from '@/lib/studio-composer-popups'
+import type { ComposerLibraryRequest } from '@/lib/studio-composer-popups'
+import { STUDIO_CHAT_CLEAN_ENABLED, CHAT_CLEAN_TEXTAREA_MIN_HEIGHT, type ChatCleanComposerProps } from '@/lib/studio-chat-clean' // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN, default off)
+import { StudioChatCleanSendSide } from '@/components/builder/chat/studio-chat-clean' // CHAT-CLEAN
+import { useStudioChatCommands } from '@/components/builder/chat/studio-chat-commands' // CHAT-COMMANDS (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, default off)
+import type { ChatCommandsPageProps } from '@/lib/studio-chat-commands' // CHAT-COMMANDS
 
 const TEXTAREA_MIN_HEIGHT = 96
 const TEXTAREA_MAX_HEIGHT = 220
@@ -59,12 +69,16 @@ type ActiveBuildThemeProfile = {
 }
 
 export interface ChatInputProps {
+  /** Studio draft actions return focus to the native composer without submitting. */
+  composerTextareaRef?: React.MutableRefObject<HTMLTextAreaElement | null>
   inputMessage: string
   onInputChange: (value: string) => void
   /** MDC P6: deck slides for the @mention picker (absent => no mentions). */
   mentionSlides?: MentionSlide[]
   /** Turn gate: a user turn is awaiting the Director's reply. */
   awaitingReply?: boolean
+  /** PASS2 composer copy: the session has a deck open (a presentation with slides). Read only for the placeholder wording. */
+  deckOpen?: boolean
   /** Deliberate unlock (Esc) while awaiting a reply. */
   onStopAwaiting?: () => void
   onSubmit: (e?: React.FormEvent) => void
@@ -93,6 +107,8 @@ export interface ChatInputProps {
   isReady: boolean
   isLoadingSession: boolean
   connected: boolean
+  /** A persistent Studio header may own the duplicate connection label. */
+  showConnectionStatus?: boolean
   connecting: boolean
   user: any
   currentSessionId: string | null
@@ -102,6 +118,9 @@ export interface ChatInputProps {
   activeTemplate?: TemplateSelection | null
   onSelectTemplate?: (template: TemplateSelection) => void
   onOpenComposerLibrary?: () => void
+  /** PASS2-COMPOSER-POPUPS fix (flag NEXT_PUBLIC_STUDIO_COMPOSER_POPUPS_V2; the page passes it only with the flag on and a composer library):
+   *  runs an action picked in the template popup (Use original, Rebuild, New topic) in the composer library dialog. */
+  onComposerTemplateAction?: (request: ComposerLibraryRequest) => void
   onClearTemplate?: () => void
   templateSelectionLocked?: boolean
   isTemplateReuseRunning?: boolean
@@ -112,6 +131,20 @@ export interface ChatInputProps {
   onActiveBuildThemeProfileChange?: (profile: ActiveBuildThemeProfile | null) => void
   themeSyncStatus?: 'idle' | 'syncing' | 'applied' | 'failed'
   themeSyncError?: string | null
+  /** Saved Theme library handoff: inspect in the native picker, then explicitly select. */
+  studioSavedThemeRequest?: { id: string; key: string }
+  /** PASS2-DIRECTOR-CHAT PR D, item 6 (flag NEXT_PUBLIC_STUDIO_CHAT_COMPOSER_CONTEXT, Studio shell only): the words of the one line above the
+   *  composer ("Working on slide 3"), worded by the page from values it already holds (lib/studio-chat-composer-context). Passed only with the flag on. */
+  studioContextLabel?: string
+  /** NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: this tab is paused because the session is live in another tab. Only the placeholder changes (it must
+   *  not promise "send to reconnect": a send now shows the notice instead). The page passes it only while paused; absent, nothing differs. */
+  pausedInOtherTab?: boolean
+  /** PASS2B J1-10 (flag NEXT_PUBLIC_STUDIO_CHAT_EDIT_PROMPT, Studio shell only): the user's last turn was the click on "I'd like to make changes" (or
+   *  "Make some changes") and nothing has been typed since, so the idle placeholder says what to type. Derived by the page from the transcript
+   *  (lib/studio-pass2b-chat) and passed only with the flag on; only the placeholder changes. */
+  studioEditPrompt?: boolean
+  studioChatClean?: ChatCleanComposerProps // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN): the composer's mode and the page's Stop / send-directions handlers; passed only with the flag on
+  studioChatCommands?: ChatCommandsPageProps // CHAT-COMMANDS (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS): the deck's slides, the current slide, the selected element and the export runner for the "/" and "@" menus; passed only with the flag on
 }
 
 export function ChatInput({
@@ -119,6 +152,7 @@ export function ChatInput({
   onInputChange,
   mentionSlides,
   awaitingReply = false,
+  deckOpen = false,
   onStopAwaiting,
   onSubmit,
   uploadedFiles,
@@ -140,6 +174,7 @@ export function ChatInput({
   isReady,
   isLoadingSession,
   connected,
+  showConnectionStatus = true,
   connecting,
   user,
   currentSessionId,
@@ -148,6 +183,7 @@ export function ChatInput({
   activeTemplate,
   onSelectTemplate,
   onOpenComposerLibrary,
+  onComposerTemplateAction,
   onClearTemplate,
   templateSelectionLocked = false,
   isTemplateReuseRunning = false,
@@ -158,7 +194,36 @@ export function ChatInput({
   onActiveBuildThemeProfileChange,
   themeSyncStatus = 'idle',
   themeSyncError,
+  studioSavedThemeRequest,
+  composerTextareaRef,
+  studioContextLabel,
+  pausedInOtherTab = false,
+  studioEditPrompt = false,
+  studioChatClean, // CHAT-CLEAN
+  studioChatCommands, // CHAT-COMMANDS
 }: ChatInputProps) {
+  const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+  // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN, Studio shell only, default off): PK's v3 composer (lib/studio-chat-clean.ts). Every line carrying this marker renders or applies only with the flag on and the page's props present; off, every spread adds nothing and every branch is null, so the element tree is exactly the base's.
+  const chatClean = STUDIO_CHAT_CLEAN_ENABLED && studio ? studioChatClean ?? null : null // CHAT-CLEAN
+  const TEXTAREA_MIN_HEIGHT = STUDIO_CHAT_CLEAN_ENABLED && studio ? CHAT_CLEAN_TEXTAREA_MIN_HEIGHT : 96 // CHAT-CLEAN: shadows the module constant (96) for the two resize effects below; the v3 box starts one line tall
+  const chatCleanPlaceholder: { placeholder?: string } = chatClean?.composer.placeholder ? { placeholder: chatClean.composer.placeholder } : {} // CHAT-CLEAN: spread after the base placeholder, it wins while a build runs or is held
+  const chatCleanSendGate: { disabled?: boolean; 'aria-disabled'?: boolean } = chatClean && chatClean.composer.sendMode === 'instructions' && inputMessage.trim() && user && !isLoadingSession ? { disabled: false, 'aria-disabled': false } : {} // CHAT-CLEAN: spread after the base's disabled, it frees Send for directions while the build is held
+  const chatCleanResearch = { deep: researchEnabled, onDeep: onResearchEnabledChange, web: webSearchEnabled, onWeb: onWebSearchEnabledChange, locked: researchSettingsLocked } // CHAT-CLEAN: the v3 study's toggle chips (CHAT_CLEAN_CHOICES.research = 'chips' only), bound to the same props the research menu uses (nothing new on the wire)
+  // PASS2 composer copy (flag NEXT_PUBLIC_STUDIO_COMPOSER_COPY, Studio shell only, default off): plain words for the idle placeholder.
+  const studioComposerCopy = studio && process.env.NEXT_PUBLIC_STUDIO_COMPOSER_COPY === 'true'
+  // PASS2-COMPOSER-POPUPS (flag NEXT_PUBLIC_STUDIO_COMPOSER_POPUPS_V2, Studio shell only, default off): smaller prompt text, the theme and
+  // template popups as dropdowns, and one open popup at a time. Every V2 attribute and prop below is added through a spread that is empty
+  // when the flag is off, so the flag-off element tree has exactly the base's keys.
+  const popupsV2 = studio && process.env.NEXT_PUBLIC_STUDIO_COMPOSER_POPUPS_V2 === 'true'
+  // PASS2-DIRECTOR-CHAT PR D, item 6 (flag NEXT_PUBLIC_STUDIO_CHAT_COMPOSER_CONTEXT, Studio shell only, default off): a context line above the
+  // composer ("Working on slide 3") and the Template / Theme selections as the v4 mockup's compact pills. Presentation only: the line is words
+  // from values the page already holds, the pills are the EXISTING selection rows (same props, same clear buttons, same handlers) with one
+  // added attribute and the name in bold. No state, effect, handler or send is added or changed; off, every spread and branch below adds nothing
+  // and the element tree is exactly the base's (the line shares the slot of the hidden file input, so no child is added to any list).
+  const chatComposerContext = studio && process.env.NEXT_PUBLIC_STUDIO_CHAT_COMPOSER_CONTEXT === 'true'
+  const chatContextLabel = chatComposerContext && studioContextLabel && user && !isLoadingSession ? studioContextLabel : null
+  const chatPill = (kind: 'template' | 'theme') => chatComposerContext ? { 'data-studio-chat-pill': kind } : undefined
+  const PromptRegion = studio ? 'div' : React.Fragment
   // Only raw transfer/session-linking blocks Send. Once a file is stored,
   // background source enrichment is calm and non-blocking (`processing`);
   // a degraded enrichment result remains a valid attachment too.
@@ -173,8 +238,26 @@ export function ChatInput({
       ? `${failedUpload.name} couldn't be uploaded — remove it or try again`
       : null
   const isSendBlocked = Boolean(uploadBlockReason) || awaitingReply
+  const isSubmitDisabled = (studio ? !user || isLoadingSession : !isReady) || !inputMessage.trim() || isSendBlocked
+  const mentionMatch = studio && CHAT_MENTIONS && mentionSlides?.length ? /@([\w ]{0,30})$/.exec(inputMessage) : null
+  const mentionSelecting = Boolean(mentionMatch && mentionSlides && filterMentionSlides(mentionSlides, mentionMatch[1] || '').length)
+  const composerHint = !user
+    ? 'Authenticating…'
+    : isLoadingSession
+      ? 'Loading your conversation…'
+      : isTemplateReuseRunning
+        ? 'Director is working from your template'
+        : mentionSelecting
+          ? 'Enter or Tab selects a slide · Shift+Enter for a new line'
+          : awaitingReply
+            ? 'Director is replying · Esc to continue'
+            : uploadBlockReason
+              ? 'Send waits for attachments · Shift+Enter for a new line'
+              : 'Enter sends · Shift+Enter for a new line'
+  const composerConnection = isLoadingSession ? 'Loading session…' : connected ? 'Connected' : connecting ? 'Connecting…' : 'Disconnected'
 
   const guardedSubmit = (e?: React.FormEvent) => {
+    if (chatClean && chatClean.composer.sendMode !== 'message') { e?.preventDefault(); if (chatClean.composer.sendMode !== 'wait' && inputMessage.trim()) chatClean.onSendDirections(); return } // CHAT-CLEAN: while the build is held, Enter / Send carry the draft as new directions (resume with instructions, or the rebuild path); while rebuilding or resuming they wait
     if (isSendBlocked) {
       e?.preventDefault()
       return
@@ -186,8 +269,22 @@ export function ChatInput({
   const [themePresets, setThemePresets] = useState<ThemePresetSummary[]>(FALLBACK_THEME_PRESETS)
   const [themePresetsLoading, setThemePresetsLoading] = useState(false)
   const [themePresetsError, setThemePresetsError] = useState<string | null>(null)
+  const [themePresetsConfigurationError, setThemePresetsConfigurationError] = useState<string | null>(null)
   const [brandHexDraft, setBrandHexDraft] = useState(buildTheme.primary_hex || '#1e40af')
   const [savedThemes, setSavedThemes] = useState<SavedThemeProfile[]>([])
+  const [themeMenuOpen, setThemeMenuOpen] = useState(false)
+  const [researchMenuOpen, setResearchMenuOpen] = useState(false)
+  // V2: one shared open-state for the composer's popups (template, theme, research). The two states above are used only with the flag off.
+  const [composerPopup, setComposerPopup] = useState<ComposerPopupId | null>(null)
+  const popupSetter = (id: ComposerPopupId) => (next: boolean) => setComposerPopup(current => nextComposerPopup(current, id, next))
+  const themeOpen = popupsV2 ? composerPopup === 'theme' : themeMenuOpen
+  const setThemeOpen = popupsV2 ? popupSetter('theme') : setThemeMenuOpen
+  const researchOpen = popupsV2 ? composerPopup === 'research' : researchMenuOpen
+  const setResearchOpen = popupsV2 ? popupSetter('research') : setResearchMenuOpen
+  const [requestedSavedThemeId, setRequestedSavedThemeId] = useState<string | null>(null)
+  const [dismissedSavedThemeRequestKey, setDismissedSavedThemeRequestKey] = useState<string | null>(null)
+  const [unavailableSavedThemeRequest, setUnavailableSavedThemeRequest] = useState<{ key: string; failed: boolean } | null>(null)
+  const openedSavedThemeRequestRef = useRef<string | null>(null)
   const [selectedSavedThemeId, setSelectedSavedThemeId] = useState<string | null>(null)
   const [saveThemeName, setSaveThemeName] = useState('')
   const [saveAsStandard, setSaveAsStandard] = useState(false)
@@ -200,6 +297,58 @@ export function ChatInput({
     clearStandardTheme,
     deleteTheme,
   } = useThemeProfiles()
+  // Studio theme read ownership START — classic refresh and write contracts stay below.
+  const studioThemeAccount = user?.id ?? user ?? null
+  const studioThemeOwnerRef = useRef({ account: studioThemeAccount, session: currentSessionId })
+  if (studioThemeOwnerRef.current.account !== studioThemeAccount
+    || studioThemeOwnerRef.current.session !== currentSessionId) {
+    studioThemeOwnerRef.current = { account: studioThemeAccount, session: currentSessionId }
+    if (studio) openedSavedThemeRequestRef.current = null
+  }
+  const studioThemeOwner = studioThemeOwnerRef.current
+  const studioThemeReadSequence = useRef(0)
+  const studioThemeMount = useRef({ active: true, epoch: 0 })
+  const studioThemeCacheAccount = useRef<unknown>(undefined)
+  const studioThemeCacheThemes = useRef<SavedThemeProfile[]>([])
+  const studioThemeSelectionKey = JSON.stringify([activeBuildThemeProfile?.id, buildTheme])
+  const studioThemeSelection = useRef({ key: studioThemeSelectionKey, epoch: 0 })
+  if (studioThemeSelection.current.key !== studioThemeSelectionKey) {
+    studioThemeSelection.current = { key: studioThemeSelectionKey, epoch: studioThemeSelection.current.epoch + 1 }
+  }
+  const recordStudioThemeSelection = (profileId: string | null, theme = buildTheme, newIntent = true) => {
+    if (studio) studioThemeSelection.current = {
+      key: JSON.stringify([profileId, theme]), epoch: studioThemeSelection.current.epoch + (newIntent ? 1 : 0),
+    }
+  }
+  const [studioThemeRead, setStudioThemeRead] = useState<{
+    owner: typeof studioThemeOwner; phase: 'loading' | 'failed' | 'loaded'; failed: boolean
+  } | null>(null)
+  const [studioThemeView, setStudioThemeView] = useState<StudioThemeView>('choices')
+  const [studioThemeMutation, setStudioThemeMutation] = useState<(StudioThemeMutationNotice & { owner: typeof studioThemeOwner }) | null>(null)
+  const studioThemeMutationSequence = useRef(0)
+  const studioThemeMutationRequest = useRef<{ owner: typeof studioThemeOwner; mountEpoch: number; sequence: number } | null>(null)
+  const studioThemeReadActivity = useRef<{ owner: typeof studioThemeOwner; mountEpoch: number; sequence: number } | null>(null)
+  const studioThemeReady = useRef({ owner: studioThemeOwner, allowed: !!user && !isLoadingSession && !templateSelectionLocked })
+  studioThemeReady.current = { owner: studioThemeOwner, allowed: !!user && !isLoadingSession && !templateSelectionLocked }
+  const studioThemeDraft = useRef({ name: saveThemeName, asStandard: saveAsStandard, epoch: 0 })
+  if (studioThemeDraft.current.name !== saveThemeName || studioThemeDraft.current.asStandard !== saveAsStandard) {
+    studioThemeDraft.current = { name: saveThemeName, asStandard: saveAsStandard, epoch: studioThemeDraft.current.epoch + 1 }
+  }
+  const studioThemeRequestOwner = useRef<typeof studioThemeOwner | null>(null)
+  useEffect(() => {
+    if (!studio) return
+    studioThemeMount.current.active = true
+    return () => {
+      studioThemeMount.current.active = false
+      studioThemeMount.current.epoch += 1
+    }
+  }, [studio])
+  const visibleSavedThemes = studio && studioThemeCacheAccount.current !== studioThemeAccount ? [] : savedThemes
+  const studioThemeReadOwned = studioThemeRead?.owner === studioThemeOwner
+  const studioThemeReadBusy = studioThemeReadOwned && studioThemeRead?.phase === 'loading'
+  const studioThemeReadFailed = studioThemeReadOwned && studioThemeRead?.failed
+  const ownedStudioThemeMutation = studioThemeMutation?.owner === studioThemeOwner ? studioThemeMutation : null
+  // Studio theme read ownership END.
   const activeTemplateReady = isTemplateGenerationReady(activeTemplate)
   const templateChipLabel = templateSelectionLocked
     ? 'Template locked'
@@ -207,7 +356,11 @@ export function ChatInput({
       ? 'Template selected'
       : 'Template review only'
   const themeChipLabel = templateSelectionLocked ? 'Theme locked' : 'Theme selected'
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const attachStudioTextarea = useCallback((element: HTMLTextAreaElement | null) => {
+    textareaRef.current = element
+    if (composerTextareaRef) composerTextareaRef.current = element
+  }, [composerTextareaRef])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Auto-resize textarea based on content
@@ -220,13 +373,34 @@ export function ChatInput({
     }
   }, [inputMessage])
 
+  // A resized Studio pane can wrap an unchanged draft onto more lines.
+  useEffect(() => {
+    if (!studio || typeof ResizeObserver === 'undefined') return
+    const textarea = textareaRef.current
+    if (!textarea) return
+    let active = true
+    let width = textarea.getBoundingClientRect().width
+    const observer = new ResizeObserver(() => {
+      if (!active || textareaRef.current !== textarea) return
+      const nextWidth = textarea.getBoundingClientRect().width
+      if (nextWidth <= 0 || nextWidth === width) return
+      width = nextWidth
+      textarea.style.height = 'auto'
+      const newHeight = Math.min(Math.max(textarea.scrollHeight, TEXTAREA_MIN_HEIGHT), TEXTAREA_MAX_HEIGHT)
+      textarea.style.height = `${newHeight}px`
+    })
+    observer.observe(textarea)
+    return () => { active = false; observer.disconnect() }
+  }, [studio])
+
   useEffect(() => {
     let cancelled = false
     async function loadPresets() {
       setThemePresetsLoading(true)
       setThemePresetsError(null)
+      setThemePresetsConfigurationError(null)
       try {
-        const baseUrl = config.api.themeBuilderUrl.replace(/\/$/, '')
+        const baseUrl = getThemeBuilderUrl().replace(/\/+$/, '')
         const response = await fetch(`${baseUrl}/api/v1/themes/presets`)
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`)
@@ -239,6 +413,7 @@ export function ChatInput({
         if (!cancelled) {
           setThemePresets(FALLBACK_THEME_PRESETS)
           setThemePresetsError(error instanceof Error ? error.message : 'Unable to load presets')
+          setThemePresetsConfigurationError(error instanceof ServiceUrlConfigError ? error.message : null)
         }
       } finally {
         if (!cancelled) {
@@ -262,19 +437,112 @@ export function ChatInput({
     setSelectedSavedThemeId(activeBuildThemeProfile?.id ?? null)
   }, [activeBuildThemeProfile?.id])
 
-  const refreshSavedThemes = useCallback(async () => {
+  const refreshSavedThemes = useCallback(async (preserveSelection = false) => {
+    // Studio theme refresh START — only this owner and latest read may adopt a result.
+    if (studio) {
+      if (!studioThemeMount.current.active || studioThemeOwnerRef.current !== studioThemeOwner) return null
+      const sequence = ++studioThemeReadSequence.current
+      const mountEpoch = studioThemeMount.current.epoch
+      const selectionEpoch = studioThemeSelection.current.epoch
+      studioThemeReadActivity.current = { owner: studioThemeOwner, mountEpoch, sequence }
+      setStudioThemeRead((previous) => ({ owner: studioThemeOwner, phase: 'loading', failed: previous?.owner === studioThemeOwner && previous.failed }))
+      const res = await listThemes()
+      if (!studioThemeMount.current.active || studioThemeMount.current.epoch !== mountEpoch
+        || studioThemeOwnerRef.current !== studioThemeOwner || studioThemeReadSequence.current !== sequence) return res
+      studioThemeReadActivity.current = null
+      if (res === null) {
+        setStudioThemeRead({ owner: studioThemeOwner, phase: 'failed', failed: true })
+        return res
+      }
+      const selectionChanged = studioThemeSelection.current.epoch !== selectionEpoch
+      const currentSelectionId = JSON.parse(studioThemeSelection.current.key)[0] as string | null
+      const cachedSelectionKnown = studioThemeCacheAccount.current === studioThemeOwner.account
+        && studioThemeCacheThemes.current.some((theme) => theme.id === currentSelectionId)
+      // Retain a newer saved choice's known option if this older snapshot omits it.
+      // Brand/preset choices and an initial cache never discard a successful library.
+      if (selectionChanged && cachedSelectionKnown && !res.themes.some((theme) => theme.id === currentSelectionId)) {
+        setStudioThemeRead((previous) => ({
+          owner: studioThemeOwner,
+          phase: previous?.owner === studioThemeOwner && previous.failed ? 'failed' : 'loaded',
+          failed: previous?.owner === studioThemeOwner && previous.failed,
+        }))
+        return res
+      }
+      studioThemeCacheAccount.current = studioThemeOwner.account
+      studioThemeCacheThemes.current = res.themes
+      setSavedThemes(res.themes)
+      setStudioThemeRead({ owner: studioThemeOwner, phase: 'loaded', failed: false })
+      if (!preserveSelection && !selectionChanged) {
+        setSelectedSavedThemeId((current) => current && res.themes.some((theme) => theme.id === current) ? current : null)
+      }
+      return res
+    }
+    // Studio theme refresh END.
     const res = await listThemes()
     const nextThemes = res?.themes ?? []
     setSavedThemes(nextThemes)
-    setSelectedSavedThemeId((current) => (
-      current && nextThemes.some((theme) => theme.id === current) ? current : null
-    ))
-  }, [listThemes])
+    if (!preserveSelection) {
+      setSelectedSavedThemeId((current) => (
+        current && nextThemes.some((theme) => theme.id === current) ? current : null
+      ))
+    }
+    return res
+  }, [listThemes, studio, studioThemeOwner])
+  useEffect(() => { // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES): the page's theme executors say the library changed; the palette's own refresh (the owner-checked Studio read above) re-reads it. Flag off: no listener.
+    if (!STUDIO_CHAT_PARITY_THEMES_ENABLED) return // CHAT-PARITY
+    const onLibraryChanged = () => { void refreshSavedThemes(true) } // CHAT-PARITY
+    window.addEventListener(CHAT_PARITY_THEME_LIBRARY_EVENT, onLibraryChanged) // CHAT-PARITY
+    return () => window.removeEventListener(CHAT_PARITY_THEME_LIBRARY_EVENT, onLibraryChanged) // CHAT-PARITY
+  }, [refreshSavedThemes]) // CHAT-PARITY
+
+  useEffect(() => {
+    const request = studioSavedThemeRequest
+    if (process.env.NEXT_PUBLIC_STUDIO_V4_SHELL !== 'true' || !request
+      || !user || isLoadingSession || templateSelectionLocked
+      || dismissedSavedThemeRequestKey === request.key
+      || openedSavedThemeRequestRef.current === request.key) return
+    const { id, key } = request
+    let cancelled = false
+    setRequestedSavedThemeId(null)
+    setUnavailableSavedThemeRequest(null)
+    async function showRequestedTheme() {
+      const pendingRead = refreshSavedThemes(true)
+      const readSequence = studioThemeReadSequence.current
+      const result = await pendingRead
+      if (cancelled || studioThemeOwnerRef.current !== studioThemeOwner
+        || studioThemeReadSequence.current !== readSequence || !studioThemeMount.current.active) return
+      studioThemeRequestOwner.current = studioThemeOwner
+      openedSavedThemeRequestRef.current = key
+      const available = result?.themes.some((theme) => theme.id === id) ?? false
+      setRequestedSavedThemeId(available ? id : null)
+      setUnavailableSavedThemeRequest(available ? null : { key, failed: result === null })
+      setThemeOpen(true)
+    }
+    void showRequestedTheme()
+    return () => { cancelled = true }
+  }, [studioSavedThemeRequest?.id, studioSavedThemeRequest?.key, user, isLoadingSession, templateSelectionLocked, dismissedSavedThemeRequestKey, refreshSavedThemes])
+
+  const activeSavedThemeRequest = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+    && studioSavedThemeRequest && dismissedSavedThemeRequestKey !== studioSavedThemeRequest.key
+    ? studioSavedThemeRequest : null
+  const savedThemeRequestNotice = activeSavedThemeRequest && templateSelectionLocked
+    ? "Build theme selection is locked for this deck. Your saved theme has not been applied."
+    : activeSavedThemeRequest && studioThemeRequestOwner.current === studioThemeOwner
+      && unavailableSavedThemeRequest?.key === activeSavedThemeRequest.key
+      ? unavailableSavedThemeRequest.failed
+        ? "The selected saved theme is unavailable because saved themes could not be loaded. Your saved theme has not been applied."
+        : "The selected saved theme is unavailable in My themes. Your saved theme has not been applied."
+      : null
+
+  const requestedSavedTheme = requestedSavedThemeId
+    && (!studio || (activeSavedThemeRequest && studioThemeRequestOwner.current === studioThemeOwner))
+    ? visibleSavedThemes.find((theme) => theme.id === requestedSavedThemeId)
+    : undefined
 
   const activeSavedTheme = selectedSavedThemeId
-    ? savedThemes.find((theme) => theme.id === selectedSavedThemeId)
+    ? visibleSavedThemes.find((theme) => theme.id === selectedSavedThemeId)
     : undefined
-  const standardTheme = savedThemes.find((theme) => theme.is_standard)
+  const standardTheme = visibleSavedThemes.find((theme) => theme.is_standard)
   const activePreset = buildTheme.mode === 'preset'
     ? themePresets.find((preset) => preset.preset_id === buildTheme.preset_id)
     : undefined
@@ -288,37 +556,53 @@ export function ChatInput({
       ? `Brand ${buildTheme.primary_hex || ''}`
       : 'Auto theme'
 
+  const chatCommands = useStudioChatCommands({ page: chatClean ? studioChatCommands ?? null : null, text: inputMessage, setText: onInputChange, textareaRef, popupsV2, disabled: !user || isLoadingSession || isTemplateReuseRunning, // CHAT-COMMANDS (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, default off): the "/" and "@" menus; off, the hook is inert and returns nothing to draw. Each command calls the control's own handler below.
+    stop: { visible: Boolean(chatClean?.composer.showStop), enabled: Boolean(chatClean?.composer.stopEnabled), run: () => chatClean?.onStop() }, // CHAT-COMMANDS: /stop is the Send/Stop control's stop
+    openTheme: () => { setThemeOpen(true); void refreshSavedThemes() }, themeBlocked: !user ? 'Sign in to choose a build theme.' : isLoadingSession ? 'Loading your conversation…' : templateSelectionLocked ? 'Build theme selection is locked for this deck.' : null, // CHAT-COMMANDS: /theme opens the theme popup as its button does (the same open state and the same saved-themes read), blocked for the same reasons
+    openTemplatePopup: () => popupSetter('template')(true), template: { available: Boolean((templateBuilderEnabled && onSelectTemplate) || onOpenComposerLibrary), saved: Boolean(templateBuilderEnabled && onSelectTemplate), blocked: !user || isLoadingSession ? 'Templates open once your conversation has loaded.' : templateSelectionLocked && !onOpenComposerLibrary ? 'Template selection is locked for this deck.' : null }, // CHAT-COMMANDS: /template opens the template popup (the picker's own open state), blocked as the picker's button is
+    research: { deep: researchEnabled, web: webSearchEnabled, locked: researchSettingsLocked, onDeep: onResearchEnabledChange, onWeb: onWebSearchEnabledChange, openOptions: () => setResearchOpen(true) }, // CHAT-COMMANDS: /research and /web are the options menu's switches: the same props, the same lock
+    files: uploadedFiles, presets: themePresets.map(preset => ({ id: preset.preset_id, name: preset.name })), saved: visibleSavedThemes.map(theme => ({ id: theme.id, name: theme.name })), savedStatus: studioThemeReadOwned && studioThemeRead?.phase === 'loaded' ? 'ready' : studioThemeReadFailed ? 'failed' : 'loading', refreshSaved: () => { void refreshSavedThemes() } }) // CHAT-COMMANDS: the "@" menu lists what the pickers already hold: this deck's uploads, the preset and saved themes (read once through the composer's own refresh) and the saved templates (the template popup's own list call)
   const handlePresetChange = (presetId: string) => {
+    if (studio) studioThemeSelection.current.epoch += 1
     setSelectedSavedThemeId(null)
     onActiveBuildThemeProfileChange?.(null)
     if (presetId === 'auto') {
+      recordStudioThemeSelection(null, { mode: 'auto' }, false)
       onBuildThemeChange({ mode: 'auto' })
       return
     }
     const normalized = normalizeThemePresetId(presetId)
     if (normalized) {
+      recordStudioThemeSelection(null, { mode: 'preset', preset_id: normalized }, false)
       onBuildThemeChange({ mode: 'preset', preset_id: normalized })
     }
   }
 
   const handleBrandHexChange = (value: string) => {
+    if (studio) studioThemeSelection.current.epoch += 1
     setSelectedSavedThemeId(null)
     onActiveBuildThemeProfileChange?.(null)
     const normalized = value.startsWith('#') ? value : `#${value}`
     setBrandHexDraft(normalized)
+    recordStudioThemeSelection(null, isValidThemeHex(normalized) ? { mode: 'custom', primary_hex: normalized.toLowerCase() } : buildTheme, false)
     if (isValidThemeHex(normalized)) {
       onBuildThemeChange({ mode: 'custom', primary_hex: normalized.toLowerCase() })
     }
   }
 
   const handleSavedThemeChange = (themeId: string) => {
+    if (studio) studioThemeSelection.current.epoch += 1
     if (!themeId) {
+      recordStudioThemeSelection(null, buildTheme, false)
       setSelectedSavedThemeId(null)
       onActiveBuildThemeProfileChange?.(null)
       return
     }
-    const profile = savedThemes.find((theme) => theme.id === themeId)
+    const profile = visibleSavedThemes.find((theme) => theme.id === themeId)
     if (!profile?.theme_payload) return
+    recordStudioThemeSelection(profile.id, profile.theme_payload, false)
+    setRequestedSavedThemeId(null)
+    if (studioSavedThemeRequest?.id === profile.id) setDismissedSavedThemeRequestKey(studioSavedThemeRequest.key)
     setSelectedSavedThemeId(profile.id)
     onActiveBuildThemeProfileChange?.({
       id: profile.id,
@@ -329,6 +613,7 @@ export function ChatInput({
   }
 
   const handleSaveCurrentTheme = async () => {
+    if (studio) { await runStudioThemeMutation('save'); return }
     const name = saveThemeName.trim()
     if (!name || buildTheme.mode === 'auto') return
     const saved = await saveTheme({
@@ -351,17 +636,20 @@ export function ChatInput({
   }
 
   const handleSetStandardTheme = async () => {
+    if (studio) { await runStudioThemeMutation('set-standard'); return }
     if (!activeSavedTheme) return
     await setStandardTheme(activeSavedTheme.id)
     await refreshSavedThemes()
   }
 
   const handleClearStandardTheme = async () => {
+    if (studio) { await runStudioThemeMutation('clear-standard'); return }
     await clearStandardTheme()
     await refreshSavedThemes()
   }
 
   const handleDeleteSavedTheme = async () => {
+    if (studio) { await runStudioThemeMutation('delete'); return }
     if (!activeSavedTheme) return
     const deleted = await deleteTheme(activeSavedTheme.id)
     if (deleted) {
@@ -371,8 +659,173 @@ export function ChatInput({
     }
   }
 
+  // Studio theme read recovery START — recovery reads never apply or save a theme.
+  const handleStudioThemeRefresh = async () => {
+    if (!studio || !user || isLoadingSession || templateSelectionLocked || studioThemeReadBusy) return
+    const mountEpoch = studioThemeMount.current.epoch
+    const pendingRead = refreshSavedThemes()
+    const readSequence = studioThemeReadSequence.current
+    const result = await pendingRead
+    if (!studioThemeMount.current.active || studioThemeMount.current.epoch !== mountEpoch
+      || studioThemeOwnerRef.current !== studioThemeOwner
+      || studioThemeReadSequence.current !== readSequence || !activeSavedThemeRequest) return
+    studioThemeRequestOwner.current = studioThemeOwner
+    const available = result?.themes.some((theme) => theme.id === activeSavedThemeRequest.id) ?? false
+    setRequestedSavedThemeId(available ? activeSavedThemeRequest.id : null)
+    setUnavailableSavedThemeRequest(available ? null : { key: activeSavedThemeRequest.key, failed: result === null })
+  }
+  // Studio theme read recovery END.
+  // Studio theme mutations START — only returned native outcomes acknowledge writes.
+  const runStudioThemeMutation = async (kind: StudioThemeMutationKind, targetThemeId?: string) => {
+    const owner = studioThemeOwner
+    const mountEpoch = studioThemeMount.current.epoch
+    const ready = studioThemeReady.current
+    const prior = studioThemeMutationRequest.current
+    if (!studio || !studioThemeMount.current.active || studioThemeOwnerRef.current !== owner
+      || ready.owner !== owner || !ready.allowed
+      || (prior?.owner === owner && prior.mountEpoch === mountEpoch)) return
+    const [profileId, selection] = JSON.parse(studioThemeSelection.current.key) as [string | null, BuildThemeSelection]
+    const profile = studioThemeCacheAccount.current === owner.account
+      ? studioThemeCacheThemes.current.find((theme) => theme.id === (targetThemeId ?? profileId)) : undefined // J4-01: a deferred delete names its theme
+    const standard = studioThemeCacheAccount.current === owner.account
+      ? studioThemeCacheThemes.current.find((theme) => theme.is_standard) : undefined
+    const draft = { ...studioThemeDraft.current }
+    const name = draft.name.trim()
+    const activeRead = studioThemeReadActivity.current
+    if (kind === 'save' && (!name || selection.mode === 'auto'
+      || (activeRead?.owner === owner && activeRead.mountEpoch === mountEpoch))) return
+    if ((kind === 'set-standard' || kind === 'delete') && !profile) return
+    if (kind === 'clear-standard' && !standard) return
+    const sequence = ++studioThemeMutationSequence.current
+    const selectionEpoch = studioThemeSelection.current.epoch
+    studioThemeMutationRequest.current = { owner, mountEpoch, sequence }
+    const progress = { save: 'Saving theme…', 'set-standard': 'Setting standard theme…', 'clear-standard': 'Clearing standard theme…', delete: 'Deleting saved theme…' }
+    setStudioThemeMutation({ owner, kind, phase: 'loading', message: progress[kind] })
+    const result = kind === 'save'
+      ? await saveTheme({ name, theme: selection, setStandard: draft.asStandard })
+      : kind === 'set-standard' ? await setStandardTheme(profile!.id)
+      : kind === 'clear-standard' ? await clearStandardTheme()
+      : await deleteTheme(profile!.id)
+    if (!studioThemeMount.current.active || studioThemeMount.current.epoch !== mountEpoch
+      || studioThemeOwnerRef.current !== owner
+      || studioThemeMutationRequest.current?.sequence !== sequence) return
+    studioThemeMutationRequest.current = null
+    const validProfile = (value: unknown): value is SavedThemeProfile => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+      const candidate = value as SavedThemeProfile & { error?: unknown }
+      const payload = candidate.theme_payload
+      const validLiteral = (literal: unknown) => typeof literal === 'string' && isValidThemeHex(literal)
+      const overrides = payload?.color_overrides
+      const validOverrides = overrides === undefined || (!!overrides && typeof overrides === 'object'
+        && !Array.isArray(overrides) && Object.values(overrides).every(validLiteral))
+      return !candidate.error && typeof candidate.id === 'string' && !!candidate.id.trim()
+        && typeof candidate.name === 'string' && !!candidate.name.trim()
+        && !!payload && typeof payload === 'object' && !Array.isArray(payload)
+        && (payload.mode === 'preset'
+          ? typeof payload.preset_id === 'string' && !!payload.preset_id.trim()
+          : payload.mode === 'custom' && (validLiteral(payload.primary_hex)
+            || (!!overrides && Object.values(overrides).some(validLiteral))))
+        && [payload.primary_hex, payload.secondary_hex, payload.tertiary_hex, payload.neutral_hex]
+          .every((literal) => literal === undefined || validLiteral(literal))
+        && validOverrides
+        && (candidate.is_standard === undefined || typeof candidate.is_standard === 'boolean')
+    }
+    const acknowledged = kind === 'save' ? validProfile(result)
+      : kind === 'set-standard' ? validProfile(result) && result.id === profile!.id
+      : result === true
+    if (!acknowledged) {
+      const refusal = { save: 'Could not confirm theme save. Your changes are kept.', 'set-standard': 'Could not confirm standard theme. Your current theme is kept.', 'clear-standard': 'Could not clear standard theme. Your current theme is kept.', delete: 'Could not delete saved theme. Your changes are kept.' }
+      setStudioThemeMutation({ owner, kind, phase: 'failed', message: refusal[kind] })
+      return
+    }
+    const choiceUnchanged = studioThemeSelection.current.epoch === selectionEpoch
+    const stillReady = studioThemeReady.current.owner === owner && studioThemeReady.current.allowed
+    // Only this account's cache may contribute rows to a write acknowledgment.
+    // A new account can save before its first successful library read.
+    const ownedThemes = studioThemeCacheAccount.current === owner.account
+      ? studioThemeCacheThemes.current : []
+    const publish = (themes: SavedThemeProfile[]) => {
+      // Includes user reads begun after request admission but before this ACK.
+      ++studioThemeReadSequence.current
+      studioThemeReadActivity.current = null
+      setStudioThemeRead((previous) => previous?.owner === owner && previous.phase === 'loading'
+        ? { ...previous, phase: previous.failed ? 'failed' : 'loaded' } : previous)
+      studioThemeCacheAccount.current = owner.account
+      studioThemeCacheThemes.current = themes
+      setSavedThemes(themes)
+    }
+    let message = ''
+    let phase: 'success' | 'uncertain' = 'success'
+    if (kind === 'save' && validProfile(result)) {
+      const saved = result
+      publish([...ownedThemes.filter((theme) => theme.id !== saved.id)
+        .map((theme) => saved.is_standard === true ? { ...theme, is_standard: false } : theme), saved])
+      if (choiceUnchanged && stillReady) {
+        recordStudioThemeSelection(saved.id, saved.theme_payload)
+        setSelectedSavedThemeId(saved.id)
+        onBuildThemeChange(saved.theme_payload)
+        onActiveBuildThemeProfileChange?.({ id: saved.id, name: saved.name, theme_payload: saved.theme_payload })
+        if (studioThemeDraft.current.epoch === draft.epoch) {
+          setSaveThemeName('')
+          if (!draft.asStandard || saved.is_standard === true) setSaveAsStandard(false)
+        }
+      }
+      message = choiceUnchanged && stillReady ? 'Theme saved.' : 'Theme saved. Your current theme choice and unsent changes are kept.'
+      if (draft.asStandard && saved.is_standard !== true) {
+        phase = 'uncertain'
+        message = 'Theme saved. Standard status was not confirmed.'
+      }
+    } else if (kind === 'set-standard' && validProfile(result)) {
+      if (result.is_standard !== true) {
+        setStudioThemeMutation({ owner, kind, phase: 'uncertain', message: 'Standard status was not confirmed. Your current theme is kept.' })
+        return
+      }
+      publish(ownedThemes.map((theme) => theme.id === result.id ? result : { ...theme, is_standard: false }))
+      message = 'Standard theme set.'
+    } else if (kind === 'clear-standard') {
+      publish(ownedThemes.map((theme) => ({ ...theme, is_standard: false })))
+      message = 'Standard theme cleared.'
+    } else if (kind === 'delete') {
+      publish(ownedThemes.filter((theme) => theme.id !== profile!.id))
+      if (choiceUnchanged && stillReady && profile!.id === profileId) {
+        recordStudioThemeSelection(null)
+        setSelectedSavedThemeId(null)
+        onActiveBuildThemeProfileChange?.(null)
+      }
+      message = choiceUnchanged ? 'Saved theme deleted.' : 'Saved theme deleted. Your newer theme choice is kept.'
+    }
+    setStudioThemeMutation({ owner, kind, phase, message })
+    // Reconciliation is a separate read; its success/failure is never a write ACK.
+    if (stillReady) void refreshSavedThemes(true)
+  }
+  // Studio theme mutations END.
+  const hiddenFileInput = (
+    <input
+      ref={fileInputRef}
+      type="file"
+      multiple
+      accept=".pdf,.docx,.doc,.txt,.md,.xlsx,.xls,.csv,.pptx,.ppt,.json,.xml,.yaml,.yml,.png,.jpg,.jpeg,.gif,.webp,.py,.js,.ts,.java,.go,.rs"
+      onChange={(e) => {
+        const files = Array.from(e.target.files || [])
+        console.log(`[ChatInput] File input onChange fired, ${files.length} file(s)`, files.map(f => f.name))
+        if (files.length > 0) {
+          onFilesSelected(files)
+        }
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ''
+        }
+      }}
+      className="hidden"
+    />
+  )
   return (
     <div
+      data-studio-v4-chrome={process.env.NEXT_PUBLIC_STUDIO_V4_TOKENS === 'true' ? 'true' : undefined}
+      data-studio-v4-composer="true"
+      data-studio-v4-type={process.env.NEXT_PUBLIC_STUDIO_V4_TYPE === 'true' ? 'true' : undefined}
+      data-studio-v4-dragging={isDraggingFiles ? 'true' : undefined}
+      {...(popupsV2 ? { 'data-studio-composer-popups-v2': 'true' } : {})}
+      {...(chatClean ? { 'data-studio-chat-clean-composer': chatClean.composer.mode, 'data-studio-chat-clean-research-on': researchEnabled || webSearchEnabled || knowledgeGraphEnabled ? 'true' : 'false' } : {}) /* CHAT-CLEAN: the composer's mode (idle / running / stopping / held / resuming / rebuilding) and whether any research option is on (the dot on the research button), for the stylesheet */}
       className={`p-3 border-t border-gray-100 bg-white transition-colors dark:border-slate-800 dark:bg-slate-900 ${
         isDraggingFiles ? 'bg-purple-50 border-purple-200 dark:bg-purple-950/30 dark:border-purple-700' : ''
       }`}
@@ -402,43 +855,53 @@ export function ChatInput({
       {/* Drop zone indicator */}
       {isDraggingFiles && (
         <div className="mb-3 p-4 border-2 border-dashed border-purple-300 rounded-lg bg-purple-50 text-center">
-          <p className="text-xs text-purple-600 font-medium">Drop files here to attach</p>
+          <p data-studio-v4-type-role="drop-label" className="text-xs text-purple-600 font-medium">Drop files here to attach</p>
         </div>
       )}
 
-      {/* Hidden file input for upload button */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        accept=".pdf,.docx,.doc,.txt,.md,.xlsx,.xls,.csv,.pptx,.ppt,.json,.xml,.yaml,.yml,.png,.jpg,.jpeg,.gif,.webp,.py,.js,.ts,.java,.go,.rs"
-        onChange={(e) => {
-          const files = Array.from(e.target.files || [])
-          console.log(`[ChatInput] File input onChange fired, ${files.length} file(s)`, files.map(f => f.name))
-          if (files.length > 0) {
-            onFilesSelected(files)
-          }
-          if (fileInputRef.current) {
-            fileInputRef.current.value = ''
-          }
-        }}
-        className="hidden"
-      />
+      {savedThemeRequestNotice && activeSavedThemeRequest && (
+        <div data-studio-v4-saved-theme-notice={templateSelectionLocked ? "locked" : "unavailable"} role="status">
+          <p>{savedThemeRequestNotice}</p>
+          <button
+            type="button"
+            aria-label="Dismiss saved theme notice"
+            onClick={() => {
+              setDismissedSavedThemeRequestKey(activeSavedThemeRequest.key)
+              openedSavedThemeRequestRef.current = activeSavedThemeRequest.key
+              setRequestedSavedThemeId(null)
+              setUnavailableSavedThemeRequest(null)
+            }}
+          >Dismiss</button>
+        </div>
+      )}
+
+      {/* Hidden file input for upload button. PR D (context flag on): the context line shares this slot. */}
+      {chatClean?.composer.context ? <div data-studio-chat-context="true" data-studio-chat-clean-context="true"><span>{chatClean.composer.context}</span></div> : null}{/* CHAT-CLEAN: the context line while the build is held ("New directions apply from slide 5"); the base's line beside it is hidden by the stylesheet meanwhile */}
+      {chatContextLabel ? (
+        <>
+          <div data-studio-chat-context="true">
+            <span aria-hidden="true" data-studio-chat-context-dot="true" />
+            <span>{chatContextLabel}</span>
+          </div>
+          {hiddenFileInput}
+        </>
+      ) : hiddenFileInput}
 
       {/* Action Input Banner */}
       {pendingActionInput && (
-        <div className="mb-2 p-2 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-gray-700 dark:text-slate-200 font-medium text-xs">
+        <div data-studio-composer-pending-action={studio ? "true" : undefined} className="mb-2 p-2 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg flex items-center justify-between">
+          <div data-studio-v4-type-role="action-content" tabIndex={studio ? 0 : undefined} role={studio ? "region" : undefined} aria-label={studio ? "Pending Director action" : undefined} className="flex items-center gap-2">
+            <span data-studio-v4-type-role="action-label" className="text-gray-700 dark:text-slate-200 font-medium text-xs">
               {pendingActionInput.action.label}
             </span>
-            <span className="text-gray-500 dark:text-slate-400 text-[11px]">
+            <span data-studio-v4-type-role="action-helper" className="text-gray-500 dark:text-slate-400 text-[11px]">
               Type your input and press Enter
             </span>
           </div>
           <Button
             size="sm"
             variant="ghost"
+            data-studio-v4-type-role="action-cancel"
             onClick={onCancelAction}
             className="h-5 text-[11px] text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 dark:bg-slate-700 px-1.5"
           >
@@ -448,22 +911,22 @@ export function ChatInput({
       )}
       {/* Template Builder: locked-in template indicator */}
       {activeTemplate && (
-        <div className={`mb-2 px-2 py-1.5 border rounded-lg flex items-center justify-between ${
+        <div data-studio-composer-selection={studio ? 'template' : undefined} data-studio-composer-template-ready={studio ? String(activeTemplateReady) : undefined} className={`mb-2 px-2 py-1.5 border rounded-lg flex items-center justify-between ${
           activeTemplateReady
             ? 'bg-purple-50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800'
             : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800'
-        }`}>
-          <div className={`flex items-center gap-1.5 text-xs font-medium min-w-0 ${
+        }`} {...chatPill('template')}>
+          <div data-studio-v4-type-role="selection-content" className={`flex items-center gap-1.5 text-xs font-medium min-w-0 ${
             activeTemplateReady
               ? 'text-purple-700 dark:text-purple-300'
               : 'text-amber-800 dark:text-amber-300'
           }`}>
             <LayoutTemplate className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">
-              {templateChipLabel}: {activeTemplate.name}
+            <span data-studio-v4-type-role="selection-label" title={studio ? activeTemplate.name : undefined} className="truncate">
+              {templateChipLabel}: {chatComposerContext ? <strong>{activeTemplate.name}</strong> : activeTemplate.name}
             </span>
             {!activeTemplateReady && (
-              <span className="hidden sm:inline text-[11px] font-normal opacity-80">
+              <span data-studio-v4-type-role="selection-helper" className="hidden sm:inline text-[11px] font-normal opacity-80">
                 {templateGenerationUnavailableReason(activeTemplate)}
               </span>
             )}
@@ -482,27 +945,31 @@ export function ChatInput({
         </div>
       )}
       {buildTheme.mode !== 'auto' && (
-        <div className="mb-2 px-2 py-1.5 bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-sky-700 dark:text-sky-300 text-xs font-medium min-w-0">
+        <div data-studio-composer-selection={studio ? 'theme' : undefined} data-studio-composer-theme-sync={studio ? themeSyncStatus : undefined} data-studio-v4-theme-chip="true" className="mb-2 px-2 py-1.5 bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg flex items-center justify-between" {...chatPill('theme')}>
+          <div data-studio-v4-type-role="selection-content" className="flex items-center gap-1.5 text-sky-700 dark:text-sky-300 text-xs font-medium min-w-0">
             <Palette className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">{themeChipLabel}: {activeThemeLabel}</span>
+            <span data-studio-v4-type-role="selection-label" title={studio ? activeThemeLabel : undefined} className="truncate">{themeChipLabel}: {chatComposerContext ? <strong>{activeThemeLabel}</strong> : activeThemeLabel}</span>
             {themeSyncStatus === 'syncing' && (
-              <span className="ml-1 inline-flex items-center gap-1 text-[10px] font-normal" title="Applying theme to the current deck">
+              <span data-studio-v4-type-role="theme-sync-status" className="ml-1 inline-flex items-center gap-1 text-[10px] font-normal" title="Applying theme to the current deck">
                 <Loader2 className="h-3 w-3 animate-spin" /> Syncing
               </span>
             )}
             {themeSyncStatus === 'applied' && (
-              <span className="ml-1 inline-flex items-center gap-1 text-[10px] font-normal" title="Theme applied to the current deck">
+              <span data-studio-v4-type-role="theme-sync-status" className="ml-1 inline-flex items-center gap-1 text-[10px] font-normal" title="Theme applied to the current deck">
                 <CheckCircle2 className="h-3 w-3" /> Applied
               </span>
             )}
             {themeSyncStatus === 'failed' && (
               <span
+                data-studio-v4-type-role="theme-sync-status"
                 className="ml-1 inline-flex items-center gap-1 text-[10px] font-normal text-rose-600 dark:text-rose-300"
                 title={themeSyncError || 'Theme application failed'}
               >
                 <AlertCircle className="h-3 w-3" /> Failed
               </span>
+            )}
+            {studio && themeSyncStatus === 'failed' && themeSyncError && (
+              <span data-studio-composer-options-part="sync-error">{themeSyncError}</span>
             )}
           </div>
           {!templateSelectionLocked && (
@@ -522,7 +989,7 @@ export function ChatInput({
         </div>
       )}
       {isTemplateReuseRunning && (
-        <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-purple-200 bg-purple-50 px-2.5 py-1 text-[11px] font-medium text-purple-700 dark:border-purple-800 dark:bg-purple-950/30 dark:text-purple-300">
+        <div data-studio-v4-type-role="working-status" className="mb-2 inline-flex items-center gap-2 rounded-full border border-purple-200 bg-purple-50 px-2.5 py-1 text-[11px] font-medium text-purple-700 dark:border-purple-800 dark:bg-purple-950/30 dark:text-purple-300">
           <span className="relative flex h-2 w-2">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-purple-400 opacity-75" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-purple-600" />
@@ -533,6 +1000,7 @@ export function ChatInput({
 
       {uploadBlockReason && (
         <div
+          data-studio-v4-type-role="upload-status"
           role="status"
           aria-live="polite"
           className={`mb-2 inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] font-medium ${
@@ -550,24 +1018,33 @@ export function ChatInput({
 
       {/* Main input container - Claude style */}
       <form onSubmit={guardedSubmit}>
-        <div className="relative bg-gray-50 rounded-xl border border-gray-200 focus-within:border-gray-300 focus-within:shadow-sm transition-all dark:bg-slate-800 dark:border-slate-700 dark:focus-within:border-slate-600">
+        <div data-studio-v4-prompt="true"
+          className="relative bg-gray-50 rounded-xl border border-gray-200 focus-within:border-gray-300 focus-within:shadow-sm transition-all dark:bg-slate-800 dark:border-slate-700 dark:focus-within:border-slate-600">
           {/* File chips live inside the composer so the input grows with them */}
           {features.enableFileUploads && uploadedFiles.length > 0 && !isDraggingFiles && (
-            <div className="max-h-24 overflow-y-auto border-b border-gray-200/70 px-3 py-2">
+            <div data-studio-composer-attachments={studio ? "true" : undefined} className="max-h-24 overflow-y-auto border-b border-gray-200/70 px-3 py-2">
+              {studio && (
+                <div data-studio-composer-part="attachment-heading">
+                  <span>{uploadedFiles.length} attached {uploadedFiles.length === 1 ? 'file' : 'files'}</span>
+                  {uploadedFiles.length > 1 && <button type="button" onClick={onClearAllFiles}>Clear all</button>}
+                </div>
+              )}
               <div className="flex flex-wrap items-start gap-2">
-                {uploadedFiles.map((file) => (
-                  <FileChip
+                {uploadedFiles.map((file) => {
+                  const chip = <FileChip
                     key={file.id}
                     file={file}
                     onRemove={() => onRemoveFile(file.id)}
-                    variant="icon"
+                    variant={studio ? "compact" : "icon"}
                   />
-                ))}
-                {uploadedFiles.length > 1 && (
+                  return studio ? <div key={file.id} data-studio-composer-file={file.status}>{chip}</div> : chip
+                })}
+                {!studio && uploadedFiles.length > 1 && (
                   <Button
                     variant="ghost"
                     size="sm"
                     type="button"
+                    data-studio-v4-type-role="attachments-clear"
                     onClick={onClearAllFiles}
                     className="h-5 w-fit px-1.5 text-[10px] text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:text-slate-200"
                   >
@@ -578,7 +1055,8 @@ export function ChatInput({
             </div>
           )}
 
-          {/* MDC P6: @slide mention picker (flag-gated, absolute above input) */}
+          <PromptRegion {...(studio ? { className: 'relative', 'data-studio-composer-prompt': 'true' } : {})}>
+          {/* Anchor Studio mentions to the text field, below any attachments. */}
           {(() => {
             if (!CHAT_MENTIONS || !mentionSlides || mentionSlides.length === 0) return null
             const match = /@([\w ]{0,30})$/.exec(inputMessage)
@@ -587,6 +1065,7 @@ export function ChatInput({
               <SlideMentionPopover
                 slides={mentionSlides}
                 query={match[1] || ''}
+                onKeyboardSelect={studio ? () => textareaRef.current?.focus({ preventScroll: true }) : undefined}
                 onSelect={(slide) => {
                   const before = inputMessage.slice(0, match.index)
                   onInputChange(`${before}${mentionToken(slide)} `)
@@ -595,12 +1074,16 @@ export function ChatInput({
             )
           })()}
 
+          {chatCommands.menu}{/* CHAT-COMMANDS: the "/" command menu, the "@" mention menu (Slides · Element · Files · Templates · Themes) or the one-line note under them; off, null */}
           {/* Textarea */}
           <Textarea
-            ref={textareaRef}
+            aria-label={studio ? "Message Director" : undefined}
+            data-studio-v4-type-role="prompt"
+            ref={studio && composerTextareaRef ? attachStudioTextarea : textareaRef}
             value={inputMessage}
             onChange={(e) => onInputChange(e.target.value)}
             onKeyDown={(e) => {
+              if (chatCommands.onKeyDown(e)) return // CHAT-COMMANDS: while the "/" or "@" menu is open, the arrows move, Enter / Tab choose and Esc closes it; off, false
               // MDC P6 (UAT 2026-08-30): while the @mention picker is open,
               // Enter/Tab select the top match — they must never send the
               // message (Enter used to fire the bare tag as its own turn,
@@ -637,6 +1120,8 @@ export function ChatInput({
                 ? "Authenticating..."
                 : isLoadingSession
                 ? "Loading..."
+                : pausedInOtherTab
+                  ? "Open in another tab" // = SUPERSEDED_STATUS_TEXT (lib/studio-one-live-tab.ts), pinned by test-studio-one-live-tab
                 : !connected && !connecting
                   ? "Disconnected - send to reconnect"
                   : connecting
@@ -647,24 +1132,34 @@ export function ChatInput({
                       ? "Director is replying… (Esc to type anyway)"
                     : pendingActionInput
                       ? "Type your changes... (ESC to cancel)"
-                      : "Message Director..."
+                      : studioEditPrompt && studio && process.env.NEXT_PUBLIC_STUDIO_CHAT_EDIT_PROMPT === 'true'
+                        ? "Tell Director what to change…"
+                      : studioComposerCopy
+                        ? (deckOpen ? "Ask for a change, or describe a new deck…" : "What would you like to present?")
+                        : "Message Director..."
             }
             disabled={!user || isLoadingSession || isTemplateReuseRunning}
             className="w-full resize-none border-0 bg-transparent focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-3 pt-3 pb-14 min-h-[96px] max-h-[220px] text-xs placeholder:text-gray-400 dark:text-slate-500 overflow-y-auto dark:text-slate-100 dark:placeholder:text-slate-500"
             rows={1}
+            {...chatCleanPlaceholder /* CHAT-CLEAN */}
+            {...chatCommands.textareaProps /* CHAT-COMMANDS: aria-controls / aria-activedescendant while a menu is open */}
           />
+          </PromptRegion>
 
           {/* Bottom toolbar inside input */}
-          <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-2 bg-gray-50 rounded-b-xl dark:bg-slate-800">
+          <div data-studio-v4-composer-toolbar="true"
+            className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-2 bg-gray-50 rounded-b-xl dark:bg-slate-800">
             {/* Left: Action buttons */}
             <div className="flex items-center gap-1">
               {/* Direct file upload */}
               {features.enableFileUploads && (
+                <StudioComposerHint enabled={studio} label="Attach files">
                 <button
                   type="button"
                   className="flex items-center justify-center rounded-lg p-1.5 text-gray-600 dark:text-slate-300 transition-colors hover:bg-gray-200 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={uploadedFiles.length >= 5}
                   onClick={async () => {
+                    if (popupsV2) setComposerPopup(null)
                     try {
                       await onRequestSession()
                     } catch {
@@ -672,22 +1167,27 @@ export function ChatInput({
                     }
                     fileInputRef.current?.click()
                   }}
-                  title="Upload a file"
+                  title={studio ? undefined : "Upload a file"}
                   aria-label="Upload a file"
                 >
                   <Paperclip className="h-4 w-4" />
                 </button>
+                </StudioComposerHint>
               )}
 
               {/* Template Builder: reuse a saved template (sibling of attach) */}
               {((templateBuilderEnabled && onSelectTemplate) || onOpenComposerLibrary) && (
                 <TemplatePicker onSelect={onSelectTemplate || (() => {})} disabled={!user || isLoadingSession}
                   selectionLocked={templateSelectionLocked} onOpenLibrary={onOpenComposerLibrary}
-                  showSavedTemplates={!!(templateBuilderEnabled && onSelectTemplate)} />
+                  showSavedTemplates={!!(templateBuilderEnabled && onSelectTemplate)}
+                  {...chatCommands.templatePicker /* CHAT-COMMANDS: /template opens this popup through its own open prop (with the flag on and PASS2-COMPOSER-POPUPS off); else nothing */}
+                  {...(popupsV2 ? { dropdowns: true, open: composerPopup === 'template', onOpenChange: popupSetter('template'), selectedTemplateId: activeTemplate?.id ?? null,
+                    ...(onComposerTemplateAction ? { onComposerAction: onComposerTemplateAction, composerUserId: user?.id || user?.email || null } : {}) } : {})} />
               )}
 
               {/* Build-time Theme Builder selection */}
-              <DropdownMenu onOpenChange={(open) => { if (open) void refreshSavedThemes() }}>
+              <DropdownMenu open={themeOpen} onOpenChange={(open) => { setThemeOpen(open); if (open) void refreshSavedThemes() }}>
+                <StudioComposerHint enabled={studio} label={`Choose a theme · ${activeThemeLabel}`} suppressed={themeOpen}>
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
@@ -696,22 +1196,56 @@ export function ChatInput({
                         ? 'text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
                         : 'bg-sky-100 text-sky-700 hover:bg-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:hover:bg-sky-900'
                     }`}
-                    title={activeThemeLabel}
+                    title={studio ? undefined : activeThemeLabel}
                     aria-label="Build theme"
                     disabled={!user || isLoadingSession || templateSelectionLocked}
                   >
                     <Palette className="h-4 w-4" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-72 p-2">
+                </StudioComposerHint>
+                <DropdownMenuContent onKeyDownCapture={studio ? (event) => {
+                  // Native form Tab traversal must run before Radix menu key handling.
+                  if (event.key === 'Tab') event.stopPropagation()
+                } : undefined} data-studio-composer-menu={studio ? 'theme' : undefined} data-studio-v4-chrome={process.env.NEXT_PUBLIC_STUDIO_V4_TOKENS === 'true' ? 'true' : undefined} data-studio-v4-type={process.env.NEXT_PUBLIC_STUDIO_V4_TYPE === 'true' ? 'true' : undefined} data-studio-v4-menu="theme" align="start" className={studio ? 'studio-theme-popover' : 'w-72 p-2'}
+                  {...(popupsV2 ? { 'data-studio-composer-dd': 'true', onEscapeKeyDown: keepPopupOpenForDropdownList } : {})}>
+                  {/* Studio theme presentation START */}
+                  {themePresetsConfigurationError && <p role="status" data-studio-theme-config-error="true" className={studio ? 'studio-theme-note' : 'text-[10px] text-amber-600 dark:text-amber-300'}>{themePresetsConfigurationError}</p>}
+                  {studio ? <StudioThemeMenu
+                    view={studioThemeView} onView={setStudioThemeView} onClose={() => setThemeOpen(false)}
+                    selection={buildTheme} presets={themePresets} presetsLoading={themePresetsLoading} presetsError={!!themePresetsError}
+                    themes={visibleSavedThemes} selectedId={selectedSavedThemeId} currentProfile={activeBuildThemeProfile}
+                    activeTheme={activeSavedTheme} standardTheme={standardTheme}
+                    onPreset={handlePresetChange} onSaved={handleSavedThemeChange} hex={brandHexDraft} onHex={handleBrandHexChange}
+                    locked={!user || isLoadingSession || templateSelectionLocked}
+                    lockReason={!user ? 'Sign in to choose a build theme.' : isLoadingSession ? 'Loading your conversation…' : templateSelectionLocked ? 'Build theme selection is locked for this deck.' : null}
+                    readBusy={studioThemeReadBusy} readFailed={!!studioThemeReadFailed}
+                    readEmpty={!!studioThemeReadOwned && studioThemeRead?.phase === 'loaded' && visibleSavedThemes.length === 0}
+                    onRefresh={() => void handleStudioThemeRefresh()} requestedTheme={requestedSavedTheme}
+                    name={saveThemeName} onName={(name) => { studioThemeDraft.current = { ...studioThemeDraft.current, name, epoch: studioThemeDraft.current.epoch + 1 }; setSaveThemeName(name) }}
+                    asStandard={saveAsStandard} onAsStandard={(asStandard) => { studioThemeDraft.current = { ...studioThemeDraft.current, asStandard, epoch: studioThemeDraft.current.epoch + 1 }; setSaveAsStandard(asStandard) }}
+                    mutation={ownedStudioThemeMutation}
+                    onSave={() => void handleSaveCurrentTheme()} onSetStandard={() => void handleSetStandardTheme()}
+                    onClearStandard={() => void handleClearStandardTheme()} onDelete={(id?: unknown) => void (typeof id === 'string' ? runStudioThemeMutation('delete', id) : handleDeleteSavedTheme())}
+                    {...(popupsV2 ? { dropdowns: true } : {})}
+                  /> : <>
+                  {/* Studio theme classic body START */}
+                  {studio && (
+                    <div data-studio-composer-options-part="heading">
+                      <strong>Theme for this presentation</strong>
+                      <p>Choose a preset, use a saved theme, or set your brand color.</p>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <div>
-                      <div className="mb-1 text-[11px] font-medium text-gray-600 dark:text-slate-300">
+                      <div data-studio-v4-type-role="theme-caption" className="mb-1 text-[11px] font-medium text-gray-600 dark:text-slate-300">
                         Build theme
                       </div>
                       <select
+                        aria-label={studio ? 'Build theme preset' : undefined}
                         value={buildTheme.mode === 'preset' ? buildTheme.preset_id || 'auto' : 'auto'}
                         onChange={(event) => handlePresetChange(event.target.value)}
+                        data-studio-v4-type-role="theme-field"
                         className="h-8 w-full rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                         disabled={themePresetsLoading || templateSelectionLocked}
                       >
@@ -724,7 +1258,7 @@ export function ChatInput({
                       </select>
                     </div>
                     <div>
-                      <div className="mb-1 text-[11px] font-medium text-gray-600 dark:text-slate-300">
+                      <div data-studio-v4-type-role="theme-caption" className="mb-1 text-[11px] font-medium text-gray-600 dark:text-slate-300">
                         Brand color
                       </div>
                       <div className="flex items-center gap-2">
@@ -739,6 +1273,7 @@ export function ChatInput({
                         <input
                           value={brandHexDraft}
                           onChange={(event) => handleBrandHexChange(event.target.value)}
+                          data-studio-v4-type-role="theme-field"
                           className="h-8 min-w-0 flex-1 rounded-md border border-gray-200 bg-white px-2 font-mono text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                           placeholder="#1e40af"
                           aria-label="Brand hex color"
@@ -747,20 +1282,22 @@ export function ChatInput({
                       </div>
                     </div>
                     {themePresetsError && (
-                      <div className="text-[10px] text-amber-600 dark:text-amber-300">
+                      <div data-studio-v4-type-role="theme-warning" className="text-[10px] text-amber-600 dark:text-amber-300">
                         Using local preset list
                       </div>
                     )}
                     <div className="border-t border-gray-100 pt-2 dark:border-slate-800">
                       <div className="mb-1 flex items-center justify-between gap-2">
-                        <span className="text-[11px] font-medium text-gray-600 dark:text-slate-300">
+                        <span data-studio-v4-type-role="theme-caption" className="text-[11px] font-medium text-gray-600 dark:text-slate-300">
                           My themes
                         </span>
                         {themeProfilesLoading && <Loader2 className="h-3 w-3 animate-spin text-gray-400" />}
                       </div>
                       <select
+                        aria-label="Saved theme"
                         value={selectedSavedThemeId || ''}
                         onChange={(event) => handleSavedThemeChange(event.target.value)}
+                        data-studio-v4-type-role="theme-field"
                         className="h-8 w-full rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                         disabled={templateSelectionLocked}
                       >
@@ -771,10 +1308,16 @@ export function ChatInput({
                           </option>
                         ))}
                       </select>
+                      {requestedSavedTheme && (
+                        <p data-studio-v4-saved-theme-request="true" className="mt-2 rounded-md border border-sky-200 bg-sky-50 px-2 py-1.5 text-[11px] leading-relaxed text-sky-700 dark:border-sky-800 dark:bg-sky-950/30 dark:text-sky-300">
+                          From Themes: <strong>{requestedSavedTheme.name}</strong>. Choose it in My themes to apply it.
+                        </p>
+                      )}
                       {activeSavedTheme && (
                         <div className="mt-2 flex items-center gap-1.5">
                           <button
                             type="button"
+                            data-studio-v4-type-role="theme-standard-action"
                             onClick={handleSetStandardTheme}
                             className="flex h-7 items-center gap-1 rounded-md border border-gray-200 px-2 text-[11px] text-gray-700 hover:bg-gray-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                             title="Set as standard"
@@ -797,10 +1340,11 @@ export function ChatInput({
                         </div>
                       )}
                       {standardTheme && (
-                        <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-gray-500 dark:text-slate-400">
-                          <span className="truncate">Standard: {standardTheme.name}</span>
+                        <div data-studio-v4-type-role="theme-standard-line" className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-gray-500 dark:text-slate-400">
+                          <span data-studio-v4-type-role="theme-standard-line" className="truncate">Standard: {standardTheme.name}</span>
                           <button
                             type="button"
+                            data-studio-v4-type-role="theme-standard-action"
                             onClick={handleClearStandardTheme}
                             className="shrink-0 text-sky-600 hover:text-sky-700 dark:text-sky-300"
                             disabled={templateSelectionLocked}
@@ -811,7 +1355,7 @@ export function ChatInput({
                       )}
                     </div>
                     <div className="border-t border-gray-100 pt-2 dark:border-slate-800">
-                      <div className="mb-1 text-[11px] font-medium text-gray-600 dark:text-slate-300">
+                      <div data-studio-v4-type-role="theme-caption" className="mb-1 text-[11px] font-medium text-gray-600 dark:text-slate-300">
                         Save current
                       </div>
                       <div className="flex items-center gap-1.5">
@@ -824,6 +1368,7 @@ export function ChatInput({
                               void handleSaveCurrentTheme()
                             }
                           }}
+                          data-studio-v4-type-role="theme-field"
                           className="h-8 min-w-0 flex-1 rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                           placeholder="Theme name"
                           aria-label="Theme name"
@@ -840,7 +1385,7 @@ export function ChatInput({
                           <Save className="h-3.5 w-3.5" />
                         </button>
                       </div>
-                      <label className="mt-1.5 flex items-center gap-1.5 text-[11px] text-gray-600 dark:text-slate-300">
+                      <label data-studio-v4-type-role="theme-standard-label" className="mt-1.5 flex items-center gap-1.5 text-[11px] text-gray-600 dark:text-slate-300">
                         <input
                           type="checkbox"
                           checked={saveAsStandard}
@@ -852,49 +1397,67 @@ export function ChatInput({
                       </label>
                     </div>
                     {themeProfilesError && (
-                      <div className="text-[10px] text-amber-600 dark:text-amber-300">
+                      <div data-studio-v4-type-role="theme-warning" className="text-[10px] text-amber-600 dark:text-amber-300">
                         Saved themes unavailable
                       </div>
                     )}
                   </div>
+                  {/* Studio theme classic body END */}
+                  </>}
+                  {/* Studio theme presentation END */}
                 </DropdownMenuContent>
               </DropdownMenu>
 
               {/* Settings/Options Menu */}
-              <DropdownMenu>
+              <DropdownMenu open={studio ? researchOpen : undefined} onOpenChange={studio ? setResearchOpen : undefined}>
+                <StudioComposerHint enabled={studio} label="Research options" suppressed={researchOpen}>
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
+                    aria-label={studio ? "Research options" : undefined}
                     className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
                   >
                     <SlidersHorizontal className="h-4 w-4 text-gray-500 dark:text-slate-400" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-52">
+                </StudioComposerHint>
+                <DropdownMenuContent onKeyDownCapture={studio ? (event) => {
+                  // Research switches use native form Tab traversal inside the menu.
+                  if (event.key === 'Tab') event.stopPropagation()
+                } : undefined} data-studio-composer-menu={studio ? 'research' : undefined} data-studio-v4-chrome={process.env.NEXT_PUBLIC_STUDIO_V4_TOKENS === 'true' ? 'true' : undefined} data-studio-v4-type={process.env.NEXT_PUBLIC_STUDIO_V4_TYPE === 'true' ? 'true' : undefined} data-studio-v4-menu="research" align="start" className="w-52">
+                  {chatClean ? <span data-studio-chat-clean-menu="research" hidden /> : null}{/* CHAT-CLEAN: a marker in this portal, so the stylesheet can draw its "Research" eyebrow (v3.1); off, null */}
+                  {studio && (
+                    <div data-studio-composer-options-part="heading">
+                      <strong>Research options</strong>
+                      <p>Choose sources for this deck.</p>
+                    </div>
+                  )}
                   {researchSettingsLocked && (
-                    <div className="mx-2 mb-1 mt-2 rounded-md bg-gray-100 px-2 py-1.5 text-[10px] leading-snug text-gray-600 dark:bg-slate-800 dark:text-slate-300">
+                    <div data-studio-v4-type-role="research-notice" className="mx-2 mb-1 mt-2 rounded-md bg-gray-100 px-2 py-1.5 text-[10px] leading-snug text-gray-600 dark:bg-slate-800 dark:text-slate-300">
                       Locked for this deck — research already ran. Start a new
                       session to change these.
                     </div>
                   )}
-                  <div className="flex items-center justify-between px-2 py-2">
+                  <div data-studio-v4-type-role="research-row" className="flex items-center justify-between px-2 py-2">
                     <div className="flex items-center gap-2">
                       <Search className="h-4 w-4 text-gray-500 dark:text-slate-400" />
-                      <span className="text-xs">Deep research (includes web)</span>
+                      <span data-studio-v4-type-role="research-choice" className="text-xs">Deep research (includes web){studio && <small>Also turns on web search.</small>}</span>
                     </div>
                     <Switch
+                      aria-label={studio ? 'Deep research (includes web)' : undefined}
                       checked={researchEnabled}
                       onCheckedChange={onResearchEnabledChange}
                       disabled={researchSettingsLocked}
                       className="scale-75"
                     />
                   </div>
-                  <div className="flex items-center justify-between px-2 py-2">
+                  <div data-studio-v4-type-role="research-row" className="flex items-center justify-between px-2 py-2">
                     <div className="flex items-center gap-2">
                       <Globe className="h-4 w-4 text-gray-500 dark:text-slate-400" />
-                      <span className="text-xs">Web search</span>
+                      <span data-studio-v4-type-role="research-choice" className="text-xs">Web search{studio && <small>Search the web for supporting sources.</small>}</span>
                     </div>
                     <Switch
+                      aria-label={studio ? 'Web search' : undefined}
                       checked={webSearchEnabled}
                       onCheckedChange={onWebSearchEnabledChange}
                       disabled={researchSettingsLocked}
@@ -902,10 +1465,10 @@ export function ChatInput({
                     />
                   </div>
                   {showKnowledgeGraphToggle && (
-                    <div className="flex items-center justify-between px-2 py-2">
+                    <div data-studio-v4-type-role="research-row" className="flex items-center justify-between px-2 py-2">
                       <div className="flex items-center gap-2">
                         <Brain className="h-4 w-4 text-gray-500 dark:text-slate-400" />
-                        <span className="text-xs">Knowledge graph</span>
+                        <span data-studio-v4-type-role="research-choice" className="text-xs">Knowledge graph{studio && <small>Use your connected knowledge graph.</small>}</span>
                       </div>
                       {knowledgeGraphAccess === 'ready' ? (
                         <Switch
@@ -918,6 +1481,7 @@ export function ChatInput({
                       ) : (
                         <button
                           type="button"
+                          data-studio-v4-type-role="research-remedy"
                           onClick={onKnowledgeGraphAccessClick}
                           disabled={knowledgeGraphAccess === 'unavailable' || knowledgeGraphAccess === 'loading'}
                           className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700 transition-colors hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-300"
@@ -937,23 +1501,30 @@ export function ChatInput({
               </DropdownMenu>
             </div>
 
+            {chatClean ? <StudioChatCleanSendSide composer={chatClean.composer} onStop={chatClean.onStop} picker={{ sessionId: chatClean.sessionId, disabled: !user || isLoadingSession }} research={chatCleanResearch} /> : null}{/* CHAT-CLEAN: the model picker (the gauge button) and Stop beside Send; the stylesheet moves the research options button above next to them and hides Send while Stop shows */}
             {/* Right: Send button - rounded square with up arrow */}
             {isTemplateReuseRunning ? (
+              <StudioComposerHint enabled={studio} label="Stop template reuse">
               <button
                 type="button"
                 onClick={onCancelTemplateReuse}
                 className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-600 text-white transition-all hover:bg-rose-700"
-                title="Stop template reuse"
+                title={studio ? undefined : "Stop template reuse"}
                 aria-label="Stop template reuse"
               >
                 <Square className="h-3.5 w-3.5 fill-current" />
               </button>
+              </StudioComposerHint>
             ) : (
+              <StudioComposerHint enabled={studio} label={uploadBlockReason ?? "Send · Enter"}>
               <button
+                data-studio-v4-send="true"
+                aria-label={studio ? "Send message" : undefined}
                 type="submit"
-                disabled={!isReady || !inputMessage.trim() || isSendBlocked}
+                disabled={isSubmitDisabled}
                 title={uploadBlockReason ?? undefined}
-                aria-disabled={!isReady || !inputMessage.trim() || isSendBlocked}
+                aria-disabled={isSubmitDisabled}
+                {...chatCleanSendGate /* CHAT-CLEAN: while the build is held a typed draft can always go as directions (the reply gate does not apply to a resume) */}
                 className={`h-7 w-7 rounded-lg flex items-center justify-center transition-all ${
                   inputMessage.trim()
                     ? 'bg-purple-600 hover:bg-purple-700 text-white'
@@ -962,6 +1533,7 @@ export function ChatInput({
               >
                 <ArrowUp className="h-4 w-4" />
               </button>
+              </StudioComposerHint>
             )}
           </div>
 
@@ -973,6 +1545,13 @@ export function ChatInput({
           )}
         </div>
       </form>
+      {studio && (
+        <div data-studio-composer-part="footer">
+          {chatClean?.composer.hint ? <span data-studio-chat-clean-hint="true">{chatClean.composer.hint}</span> : null}{/* CHAT-CLEAN: the v3 hint while a build runs or is held; the stylesheet hides the base's hint beside it */}
+          <span>{composerHint}</span>
+          {showConnectionStatus && <span data-studio-composer-part="connection" role="status">{composerConnection}</span>}
+        </div>
+      )}
     </div>
   )
 }

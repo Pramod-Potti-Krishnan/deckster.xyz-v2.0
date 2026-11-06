@@ -3,6 +3,7 @@
 import React from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import type { NarrationEvent } from '@/lib/build-narration-heuristics'
+import './studio-build-status.css'
 
 // Typed-source stage row (Phase 4 SB beats): Plan → Validate → Render.
 // Heuristic/standard-path builds show the single Content dot instead.
@@ -45,11 +46,11 @@ export function StageDots({
     : [{ key: 'content', label: 'Content', match: ['content', 'render', 'progress'] }]
 
   return (
-    <div className={['flex items-center gap-3', className || ''].join(' ')} data-testid="bn-stage-dots">
+    <div className={['flex items-center gap-3', className || ''].join(' ')} data-testid="bn-stage-dots" data-studio-build-dots={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'true' : undefined}>
       {stages.map((s) => {
         const state = dotStateFor(s.match, events, built)
         return (
-          <div key={s.key} className="flex items-center gap-1.5">
+          <div key={s.key} data-studio-build-dot-state={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? state : undefined} className="flex items-center gap-1.5">
             <span className="relative flex h-2.5 w-2.5">
               {state === 'active' && !reduced && (
                 <motion.span
@@ -71,6 +72,9 @@ export function StageDots({
             </span>
             <span className={state === 'idle' ? 'text-[10px] text-muted-foreground' : 'text-[10px] font-medium text-foreground'}>
               {s.label}
+              {process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && (
+                <span className="sr-only">: {state === 'idle' ? 'waiting' : state === 'active' ? 'in progress' : state === 'done' ? 'done' : 'error'}</span>
+              )}
             </span>
           </div>
         )

@@ -1,0 +1,52 @@
+{
+  "baseline_head": "30c9fc9e62cdb56601e6090486914ab1780c072d",
+  "candidate_hook_sha256": "de49b25d25006c3be1dcbbb47784099a3fd9381474680cf6c1a72de070a45ce8",
+  "script_sha256": "10c011b28a586c7e2d249c52b9bf7699ec20b92402c4032e4258db52eb971ff5",
+  "source_head_binding": "HEAD30c at execution; candidate pinned by28working-source hashes; parent owns final Git binding",
+  "passed": 414,
+  "failed": 0,
+  "files": [
+    {
+      "path": "RESULT.md",
+      "bytes": 5192,
+      "sha256": "5c309acc3d0e74cc366dbf56f4a99c71df047c0a3a6d16820ba69d50717c7e54"
+    },
+    {
+      "path": "COMMANDS.md",
+      "bytes": 1776,
+      "sha256": "abcd8b26af1777a12085b01491e9b7009da0bb7713d1438099afb543d928cf19"
+    },
+    {
+      "path": "FIRST-VERDICT.json",
+      "bytes": 9470,
+      "sha256": "59abf77fa519f55bd0e0c3ed00374c6b4e3a2a147f9f3a4a10d8a95361ec2f13"
+    },
+    {
+      "path": "FIRST-VERDICT-MANIFEST.json",
+      "bytes": 509,
+      "sha256": "27a9a60a2e7ff778f4bd24471efb0a9ea5b6ca354d624c55018950fbdbc0fcf9"
+    },
+    {
+      "path": "baseline-script.mjs",
+      "bytes": 13638,
+      "sha256": "a0b423781ecae10425e6f5d140ddb2ea84043dcc1d88eef80319a53a91174483"
+    },
+    {
+      "path": "ALIAS-RACE-SUMMARY.json",
+      "bytes": 551,
+      "sha256": "3410d9695684235b5a52aa5009020001a635484fddcabfc17d8b730f431aec3b"
+    },
+    {
+      "path": "MATRIX-RESULT.json",
+      "bytes": 44040,
+      "sha256": "8ee55dd345b7ad42c7f050e03c019d0698d4bbc685a67d2dbd49a3edf0e3e58d"
+    },
+    {
+      "path": "CANDIDATE-TIMING.json",
+      "bytes": 7368,
+      "sha256": "63ef0fd6b3929fae94720954a274859810bb5c918f37b5574a1cb63a30ade7ea"
+    }
+  ],
+  "total_bytes": 82544,
+  "no_active_owned_job": true
+}

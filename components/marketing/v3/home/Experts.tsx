@@ -1,7 +1,6 @@
 import type { CSSProperties } from "react"
 import { SlideChip } from "../SlideChip"
 import { ExpertsLoop, type ExpertsLoopContent } from "../ExpertsLoop"
-import { statusOf } from "../StatusPill"
 
 export interface ExpertsContent {
   label: string
@@ -15,9 +14,9 @@ export interface ExpertsContent {
   loop: ExpertsLoopContent
 }
 
-export function Experts({ copy, n, total }: { copy: ExpertsContent; n: number; total: number }) {
+export function Experts({ copy }: { copy: ExpertsContent }) {
   return (
-    <section className="slide slide--paper" id="experts" data-snap="slide" data-chapter="Build" data-slide-label={copy.label} data-label={copy.label}>
+    <section className="slide slide--paper" id="experts" data-snap="slide" data-slide-label={copy.label} data-label={copy.label}>
       <div className="grain" />
       <div className="slide__inner">
         <div className="cols cols--tight">
@@ -31,10 +30,10 @@ export function Experts({ copy, n, total }: { copy: ExpertsContent; n: number; t
                 <div><b>{copy.you.name}</b><br /><span>{copy.you.role}</span></div>
               </div>
               <div className="org__line" />
-              <div className="org__dir" data-agent="director"><i className="dot" /><div><b>{copy.director.name}</b> <span>{copy.director.role}</span></div></div>
+              <div className="org__dir"><i className="dot" /><div><b>{copy.director.name}</b> <span>{copy.director.role}</span></div></div>
               <div className="org__row">
                 {copy.agents.map((agent) => (
-                  <div key={agent.id} data-agent={agent.id}>
+                  <div key={agent.id}>
                     <i className="dot" style={{ background: agent.color }} />
                     <b>{agent.name}</b><span>{agent.role}</span>
                   </div>
@@ -47,10 +46,10 @@ export function Experts({ copy, n, total }: { copy: ExpertsContent; n: number; t
               ))}
             </div>
           </div>
-          <ExpertsLoop copy={copy.loop} status={statusOf("buildControl")} />
+          <ExpertsLoop copy={copy.loop} />
         </div>
       </div>
-      <SlideChip number={n} total={total} label={copy.label} />
+      <SlideChip number={5} label={copy.label} />
     </section>
   )
 }

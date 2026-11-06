@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState, useEffect, type ReactNode } from 'react'
+import { useCallback, useMemo, useRef, useState, useEffect, useLayoutEffect, type ReactNode } from 'react'
 import {
   AlertCircle,
   BarChart3,
@@ -20,12 +20,17 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import '@/components/builder/studio-panels.css'
+import './studio-slide-generation.css'
+import './studio-slide-generation-menus.css'
 import { features } from '@/lib/config'
+import { shouldYieldStudioSlidePanelShortcut } from '@/lib/studio-slide-shortcuts'
 import { FALLBACK_THEME_PRESETS, type BuildThemeSelection } from '@/lib/theme-builder'
 // Aliased: `useKnowledgeGraph` is already a local state name in this panel.
 import { useKnowledgeGraph as useKnowledgeGraphEntitlement } from '@/hooks/use-knowledge-graph'
 import { withAsyncSlideComposeFields } from '@/lib/slide-compose-async'
 import { GenerationInput } from '@/components/generation-panel/shared/generation-input'
+import { STUDIO_GOTO_NEW_SLIDE_ENABLED } from '@/lib/studio-goto-new-slide'
 import { CollapsibleSection } from '@/components/generation-panel/shared/collapsible-section'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -40,6 +45,8 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { SlideLayoutType } from '@/types/elements'
+import { slidePanelEyebrow } from '@/lib/studio-panel-eyebrow'
+import { StudioPanelEyebrow } from '@/components/studio-panel-eyebrow'
 import {
   AUTO_VALUE,
   SHAPE_OPTIONS,
@@ -90,6 +97,10 @@ export interface SlideComposePanelEvent {
   status: 'building' | 'built' | 'error'
   message?: string
 }
+export interface StudioSlideBuiltSelection {
+  proof: object | null
+  draftStillCurrent: boolean
+}
 
 interface SlideGenerationPanelProps {
   isOpen: boolean
@@ -104,7 +115,9 @@ interface SlideGenerationPanelProps {
   buildThemeSelection: BuildThemeSelection
   activeBuildThemeProfileName?: string | null
   enabled: boolean
-  onBuilt: (result: SlideComposeBuiltResult) => void
+  studioOwner?: object
+  onBuilt: (result: SlideComposeBuiltResult, selection?: StudioSlideBuiltSelection) => void
+  onSelectionRequestStart?: (lane?: 'compose' | 'refine') => Promise<object | null>
   onAccepted?: (job: SlideComposeAcceptedJob) => void
   jobEvent?: SlideComposePanelEvent | null
 }
@@ -222,7 +235,9 @@ export function SlideGenerationPanel({
   buildThemeSelection,
   activeBuildThemeProfileName,
   enabled,
+  studioOwner,
   onBuilt,
+  onSelectionRequestStart,
   onAccepted,
   jobEvent,
 }: SlideGenerationPanelProps) {
@@ -258,10 +273,13 @@ export function SlideGenerationPanel({
   const [attribution, setAttribution] = useState('')
   const [heroBackground, setHeroBackground] = useState<HeroBackgroundChoice>('solid_dark')
   const [openSections, setOpenSections] = useState<OpenSections>(INITIAL_OPEN_SECTIONS)
+  const panelRootRef = useRef<HTMLDivElement>(null)
   const lastPanelContextKeyRef = useRef<string | null>(null)
 
   const isRefineMode = mode === 'refine'
   const refineSlideNumber = refineTarget ? refineTarget.slide_index + 1 : currentSlide
+  // PASS2B G29 (NEXT_PUBLIC_STUDIO_PANEL_EYEBROW, default off, Studio shell only): the violet band over the header.
+  const panelEyebrow = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && process.env.NEXT_PUBLIC_STUDIO_PANEL_EYEBROW === 'true'
   const panelTitle = isRefineMode
     ? `Refine slide ${refineSlideNumber}${refineTarget?.title ? ` — ${refineTarget.title}` : ''}`
     : 'Slide'
@@ -297,11 +315,13 @@ export function SlideGenerationPanel({
 
   useEffect(() => {
     if (!isOpen) {
-      lastPanelContextKeyRef.current = null
+      if (process.env.NEXT_PUBLIC_STUDIO_V4_SHELL !== 'true') lastPanelContextKeyRef.current = null
       return
     }
 
-    const panelContextKey = isRefineMode
+    const panelContextKey = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+      ? JSON.stringify([mode, sessionId, presentationId, isRefineMode ? refineTarget?.slide_id ?? 'index' : 'compose', isRefineMode ? refineTarget?.slide_index ?? currentSlide - 1 : currentSlide])
+      : isRefineMode
       ? `refine:${refineTarget?.slide_id ?? 'index'}:${refineTarget?.slide_index ?? currentSlide - 1}`
       : 'compose'
 
@@ -332,6 +352,9 @@ export function SlideGenerationPanel({
     currentSlide,
     isOpen,
     isRefineMode,
+    mode,
+    sessionId,
+    presentationId,
     refineTarget?.slide_id,
     refineTarget?.slide_index,
     research.useDeepResearch,
@@ -400,9 +423,17 @@ export function SlideGenerationPanel({
   )
 
   function handleLayoutChange(layout: LayoutChoice) {
+    if (!changeStudioComposeIntent('selectedLayout', layout)) return
     setSelectedLayout(layout)
 
     const defaults = layoutDefaults(layout)
+    if (studioPanel) Object.assign(studioIntentValuesRef.current, {
+      canvasType: defaults.canvas_type ?? AUTO_VALUE,
+      contentType: defaults.content_type ?? AUTO_VALUE,
+      shapeSubtype: subtypeFromSelections(defaults),
+      heroStyle: defaultHeroStyle(layout), eyebrow: '', contactEmail: '', contactPhone: '',
+      contactWebsite: '', contactLinkedin: '', attribution: '', heroBackground: 'solid_dark',
+    })
     setCanvasType(defaults.canvas_type ?? AUTO_VALUE)
     setContentType(defaults.content_type ?? AUTO_VALUE)
     setNarrativeRole(AUTO_VALUE)
@@ -421,11 +452,15 @@ export function SlideGenerationPanel({
   }
 
   function handleContentTypeChange(value: OptionalChoice<ContentType>) {
+    if (!changeStudioComposeIntent('contentType', value)) return
     const defaultShape = defaultShapeForContent(value)
+    if (studioPanel) studioIntentValuesRef.current.shapeSubtype = defaultShape
     setContentType(value)
     setShapeSubtype(defaultShape)
     const nextImageOptions = imageOptionsFor(value, defaultShape)
-    if (!nextImageOptions.some(option => option.value === canvasType)) {
+    const currentCanvas = studioPanel ? studioIntentValuesRef.current.canvasType : canvasType
+    if (!nextImageOptions.some(option => option.value === currentCanvas)) {
+      if (studioPanel) studioIntentValuesRef.current.canvasType = value === AUTO_VALUE ? AUTO_VALUE : 'C1'
       setCanvasType(value === AUTO_VALUE ? AUTO_VALUE : 'C1')
     }
     setError(null)
@@ -433,16 +468,111 @@ export function SlideGenerationPanel({
   }
 
   function handleShapeChange(value: OptionalChoice<ShapeSubtype>) {
+    if (!changeStudioComposeIntent('shapeSubtype', value)) return
     setShapeSubtype(value)
-    const nextImageOptions = imageOptionsFor(contentType, value)
-    if (!nextImageOptions.some(option => option.value === canvasType)) {
-      setCanvasType(contentType === AUTO_VALUE || contentType === 'hero' ? AUTO_VALUE : 'C1')
+    const currentContent = studioPanel ? studioIntentValuesRef.current.contentType as OptionalChoice<ContentType> : contentType
+    const currentCanvas = studioPanel ? studioIntentValuesRef.current.canvasType : canvasType
+    const nextImageOptions = imageOptionsFor(currentContent, value)
+    if (!nextImageOptions.some(option => option.value === currentCanvas)) {
+      const nextCanvas = currentContent === AUTO_VALUE || currentContent === 'hero' ? AUTO_VALUE : 'C1'
+      if (studioPanel) studioIntentValuesRef.current.canvasType = nextCanvas
+      setCanvasType(nextCanvas)
     }
     setError(null)
     setSuccessMessage(null)
   }
 
+  // Studio keeps a pending request attached to its original draft/context.
+  // A legitimate result still reaches the parent; it cannot clear a newer draft.
+  const studioPanel = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+  const [studioLifetime, setStudioLifetime] = useState(() => ({ active: false, retired: false }))
+  const studioLifetimeRef = useRef(studioLifetime)
+  const studioContextKey = studioPanel ? JSON.stringify([isOpen, mode, sessionId, presentationId, currentSlide, refineTarget?.slide_id, refineTarget?.slide_index]) : ''
+  const studioContextRef = useRef({ key: studioContextKey, owner: studioOwner })
+  if (studioPanel && (studioContextRef.current.key !== studioContextKey || studioContextRef.current.owner !== studioOwner)) {
+    studioContextRef.current = { key: studioContextKey, owner: studioOwner }
+  }
+  const studioContext = studioContextRef.current
+  // Clarification belongs to the base request. Questions, answers and retry
+  // state are deliberately excluded, so answering a real gate preserves it.
+  const studioClarificationKey = studioPanel ? JSON.stringify([
+    prompt, keyMessage, selections, buildThemeSelection, enabled,
+    !isDiagram && hasUploadedFiles && useUploadedDocuments,
+    !isDiagram && useWebSearch, !isDiagram && useDeepResearch,
+    !isDiagram && kgCardVisible && useKnowledgeGraph, webSearchMaxQueries,
+  ], (_key, value) => value && typeof value === 'object' && !Array.isArray(value)
+    ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)))
+    : value) : ''
+  const studioClarificationRef = useRef({ key: studioClarificationKey, context: studioContext, lifetime: studioLifetime })
+  const retireClarification = studioPanel && (
+    studioClarificationRef.current.key !== studioClarificationKey
+    || studioClarificationRef.current.context !== studioContext
+    || studioClarificationRef.current.lifetime !== studioLifetime
+  )
+  const studioIntentValuesRef = useRef<Record<string, unknown>>({})
+  studioIntentValuesRef.current = {
+    prompt, keyMessage, selectedLayout, contentType, shapeSubtype, canvasType,
+    heroStyle, eyebrow, contactEmail, contactPhone, contactWebsite, contactLinkedin,
+    attribution, heroBackground, useWebSearch, useDeepResearch,
+    useUploadedDocuments, useKnowledgeGraph, webSearchMaxQueries,
+  }
+  const studioDraftKey = studioPanel ? JSON.stringify([prompt, keyMessage, questions, answers, selections, buildThemeSelection, enabled, hasUploadedFiles, kgCardVisible, useUploadedDocuments, useWebSearch, useDeepResearch, useKnowledgeGraph, webSearchMaxQueries]) : ''
+  const studioDraftRef = useRef({ key: studioDraftKey, context: studioContext, lifetime: studioLifetime })
+  if (studioPanel && (studioDraftRef.current.key !== studioDraftKey || studioDraftRef.current.context !== studioContext || studioDraftRef.current.lifetime !== studioLifetime)) {
+    studioDraftRef.current = { key: studioDraftKey, context: studioContext, lifetime: studioLifetime }
+  }
+  const studioDraft = studioDraftRef.current
+  const studioRequestRef = useRef<symbol | null>(null)
+  function retireStudioDraft() {
+    if (studioPanel) studioDraftRef.current = { ...studioDraftRef.current }
+  }
+  function changeStudioComposeIntent(key: string, value: unknown) {
+    if (!studioPanel) return true
+    if (Object.is(studioIntentValuesRef.current[key], value)) return false
+    // Retire immediately, including A→B→A before React renders. A late response
+    // cannot reattach questions to a different draft merely because it is clean.
+    studioIntentValuesRef.current[key] = value
+    retireStudioDraft()
+    setNeedsInput(null)
+    setAnswers({})
+    return true
+  }
+  useLayoutEffect(() => {
+    if (!retireClarification) return
+    // A render may be restarted before commit. Consume retirement only when
+    // this committed effect clears the prior owner's gate.
+    studioClarificationRef.current = { key: studioClarificationKey, context: studioContext, lifetime: studioLifetime }
+    setNeedsInput(null)
+    setAnswers({})
+  }, [retireClarification, studioClarificationKey, studioContext, studioLifetime])
+
+  useEffect(() => {
+    if (!studioPanel) return
+    let lifetime = studioLifetimeRef.current
+    if (lifetime.retired) {
+      lifetime = { active: false, retired: false }
+      studioLifetimeRef.current = lifetime
+      setStudioLifetime(lifetime)
+    }
+    lifetime.active = true
+    return () => {
+      lifetime.active = false
+      lifetime.retired = true
+    }
+  }, [studioPanel])
+
+  useEffect(() => {
+    if (!studioPanel) return
+    studioRequestRef.current = null
+    setIsGenerating(false)
+  }, [studioPanel, studioContext, studioLifetime])
+
   const handleGenerate = useCallback(async () => {
+    if (studioPanel && (!isOpen || !studioLifetime.active || studioLifetime.retired || studioLifetimeRef.current !== studioLifetime || studioDraftRef.current !== studioDraft)) return
+    const request = Symbol('slide-panel-request')
+    if (studioPanel) studioRequestRef.current = request
+    const ownsControls = () => !studioPanel || (studioLifetime.active && !studioLifetime.retired && studioLifetimeRef.current === studioLifetime && studioContextRef.current === studioContext && studioRequestRef.current === request)
+    const ownsDraft = () => ownsControls() && (!studioPanel || studioDraftRef.current === studioDraft)
     const instruction = buildInstruction(prompt, keyMessage, questions, answers)
     const hasSelections = Object.keys(selections).length > 0
     const insertAfterIndex = presentationId ? Math.max(0, currentSlide - 1) : null
@@ -549,15 +679,17 @@ export function SlideGenerationPanel({
           session_id: data.session_id,
           status: data.status,
         })
-        setNeedsInput(null)
-        setAnswers({})
-        setPrompt('')
-        setKeyMessage('')
-        setSuccessMessage(isRefineMode
-          ? `Refining slide ${refineSlideNumber} in the background.`
-          : `Building slide ${data.target_index + 1} in the background.`
-        )
-        setAcceptedJobId(data.job_id)
+        if (ownsDraft()) {
+          setNeedsInput(null)
+          setAnswers({})
+          setPrompt('')
+          setKeyMessage('')
+          setSuccessMessage(isRefineMode
+            ? `Refining slide ${refineSlideNumber} in the background.`
+            : `Building slide ${data.target_index + 1} in the background.`
+          )
+          setAcceptedJobId(data.job_id)
+        }
         onAccepted?.({
           ...data,
           kind: isRefineMode ? 'refine' : (data.kind ?? 'compose'),
@@ -571,13 +703,18 @@ export function SlideGenerationPanel({
           job_id: jobId,
           message: err instanceof Error ? err.message : String(err),
         })
-        setError(err instanceof Error ? err.message : 'Slide Composer failed')
+        if (ownsDraft()) setError(err instanceof Error ? err.message : 'Slide Composer failed')
         return
       }
     }
 
     setIsGenerating(true)
     try {
+      let selectionProof: object | null = null
+      if (studioPanel && onSelectionRequestStart) {
+        selectionProof = await onSelectionRequestStart(isRefineMode ? 'refine' : 'compose')
+        if (!ownsDraft()) return
+      }
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -594,28 +731,39 @@ export function SlideGenerationPanel({
       }
 
       if (isNeedsInputResponse(data)) {
-        setNeedsInput(data)
-        setAnswers({})
+        if (ownsDraft()) {
+          setNeedsInput(data)
+          setAnswers({})
+        }
         return
       }
 
       if (isBuiltResponse(data)) {
-        setNeedsInput(null)
-        setAnswers({})
-        setPrompt('')
-        setKeyMessage('')
-        setSuccessMessage(isRefineMode ? `Updated slide ${data.slide_index + 1}.` : `Built slide ${data.slide_index + 1}.`)
-        onBuilt(data)
+        const draftStillCurrent = ownsDraft()
+        if (draftStillCurrent) {
+          setNeedsInput(null)
+          setAnswers({})
+          setPrompt('')
+          setKeyMessage('')
+          setSuccessMessage(isRefineMode ? `Updated slide ${data.slide_index + 1}.` : `Built slide ${data.slide_index + 1}.`)
+        }
+        if (studioPanel) onBuilt(data, { proof: selectionProof, draftStillCurrent })
+        else onBuilt(data)
         return
       }
 
       throw new Error(responseErrorMessage(data))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Slide Composer failed')
+      if (ownsDraft()) setError(err instanceof Error ? err.message : 'Slide Composer failed')
     } finally {
-      setIsGenerating(false)
+      if (ownsControls()) setIsGenerating(false)
     }
   }, [
+    studioPanel,
+    isOpen,
+    studioLifetime,
+    studioContext,
+    studioDraft,
     answers,
     buildThemeSelection,
     currentSlide,
@@ -626,6 +774,7 @@ export function SlideGenerationPanel({
     keyMessage,
     onAccepted,
     onBuilt,
+    onSelectionRequestStart,
     presentationId,
     prompt,
     questions,
@@ -649,6 +798,10 @@ export function SlideGenerationPanel({
     if (!isOpen) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Hidden Studio drawers remain mounted to retain production form drafts.
+      // Their window shortcuts must not act on the active compact workspace.
+      if (panelRootRef.current?.closest('[data-studio-v4-shell="true"] [data-studio-workspace-visible="false"]')) return
+      if (process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && shouldYieldStudioSlidePanelShortcut(e)) return
       if (e.key === 'Escape' && !isGenerating) {
         e.preventDefault()
         onClose()
@@ -666,13 +819,17 @@ export function SlideGenerationPanel({
   return (
     <div className="absolute inset-0 z-20 flex pointer-events-none">
       <div
+        ref={panelRootRef}
+        data-studio-slide-generation={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'true' : undefined}
+        data-studio-v4-panel="slide-generation"
         className={cn(
           "flex-1 bg-white dark:bg-slate-900 flex flex-col shadow-2xl overflow-hidden transition-all duration-200 ease-out",
           isOpen ? "pointer-events-auto opacity-100" : "opacity-0 max-w-0"
         )}
       >
+        {panelEyebrow && <StudioPanelEyebrow {...slidePanelEyebrow(isRefineMode ? { mode: 'refine', slideNumber: refineSlideNumber } : { mode: 'create', slideNumber: presentationId ? currentSlide : null })} />}
         {/* Header */}
-        <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
+        <div data-studio-v4-panel-header className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
           <div className="flex items-center gap-2.5">
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
               <Layout className="h-3.5 w-3.5 text-primary" />
@@ -683,6 +840,7 @@ export function SlideGenerationPanel({
             </div>
           </div>
           <button
+            aria-label={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'Close slide generation panel' : undefined}
             onClick={onClose}
             className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-slate-800 dark:bg-slate-700 transition-colors"
             title="Close panel"
@@ -692,7 +850,7 @@ export function SlideGenerationPanel({
         </div>
 
         {/* Slide context bar */}
-        <div className="px-3 py-1.5 bg-blue-50 border-b border-blue-100">
+        <div data-studio-v4-panel-context className="px-3 py-1.5 bg-blue-50 border-b border-blue-100">
           <p className="text-xs text-blue-800">
             {isRefineMode ? (
               <>
@@ -714,6 +872,7 @@ export function SlideGenerationPanel({
         <GenerationInput
           prompt={prompt}
           onPromptChange={(value) => {
+            if (!changeStudioComposeIntent('prompt', value)) return
             setPrompt(value)
             setNeedsInput(null)
             setError(null)
@@ -727,9 +886,10 @@ export function SlideGenerationPanel({
           isGenerating={isGenerating}
           error={error}
           placeholder={isRefineMode ? 'What should change?' : undefined}
+          stableSubmit={STUDIO_GOTO_NEW_SLIDE_ENABLED}
         />
 
-        <div className="mx-3 mb-2 flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+        <div data-studio-slide-generation-part={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'theme' : undefined} className="mx-3 mb-2 flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
           <Palette className="h-3.5 w-3.5 flex-shrink-0 text-slate-400 dark:text-slate-500" />
           <span className="min-w-0 truncate">
             Theme: <span className="font-medium text-slate-800 dark:text-slate-100">{themeLabel}</span>
@@ -737,14 +897,14 @@ export function SlideGenerationPanel({
         </div>
 
         {successMessage && (
-          <div className="mx-3 mb-2 flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-xs text-emerald-700">
+          <div data-studio-slide-generation-part={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'result' : undefined} role={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'status' : undefined} className="mx-3 mb-2 flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-xs text-emerald-700">
             <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
             <span>{successMessage}</span>
           </div>
         )}
 
         {needsInput && (
-          <div className="mx-3 mb-2 rounded-md border border-amber-200 bg-amber-50 p-2.5">
+          <div data-studio-slide-generation-part={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'needs-input' : undefined} role={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'region' : undefined} aria-label={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'More input needed' : undefined} tabIndex={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 0 : undefined} className="mx-3 mb-2 rounded-md border border-amber-200 bg-amber-50 p-2.5">
             <div className="flex items-start gap-2">
               <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
               <div className="min-w-0 flex-1 space-y-2">
@@ -754,7 +914,7 @@ export function SlideGenerationPanel({
                     <span className="text-[11px] text-amber-800">{question.ask}</span>
                     <Textarea
                       value={answers[question.slot] ?? ''}
-                      onChange={(event) => setAnswers(prev => ({ ...prev, [question.slot]: event.target.value }))}
+                      onChange={(event) => { retireStudioDraft(); setAnswers(prev => ({ ...prev, [question.slot]: event.target.value })) }}
                       rows={2}
                       className="min-h-0 border-amber-200 bg-white px-2 py-1.5 text-xs text-gray-900 focus-visible:ring-amber-300"
                     />
@@ -762,6 +922,7 @@ export function SlideGenerationPanel({
                 ))}
                 <button
                   type="button"
+                  data-studio-slide-generation-part={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'continue' : undefined}
                   onClick={() => void handleGenerate()}
                   disabled={isGenerating}
                   className="rounded-md bg-amber-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
@@ -774,7 +935,7 @@ export function SlideGenerationPanel({
         )}
 
         {/* Advanced sections */}
-        <div className={`flex-1 overflow-y-auto px-3 py-2 space-y-2 ${!showAdvanced ? 'hidden' : ''}`}>
+        <div data-studio-v4-panel-fields className={`flex-1 overflow-y-auto px-3 py-2 space-y-2 ${!showAdvanced ? 'hidden' : ''}`}>
           {/* Slide setup */}
           <CollapsibleSection
             title="Slide setup"
@@ -810,7 +971,7 @@ export function SlideGenerationPanel({
                     <ImageOptionRow
                       value={canvasType}
                       options={imageOptions}
-                      onChange={setCanvasType}
+                      onChange={(value) => { changeStudioComposeIntent('canvasType', value); setCanvasType(value) }}
                     />
                   )}
                 </div>
@@ -822,33 +983,33 @@ export function SlideGenerationPanel({
                     label="Hero style"
                     value={heroStyle}
                     options={heroStyleDropdownOptions}
-                    onChange={setHeroStyle}
+                    onChange={(value) => { changeStudioComposeIntent('heroStyle', value); setHeroStyle(value) }}
                     columns={3}
                   />
                   <label className="space-y-1">
                     <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">Kicker line</span>
                     <Input
                       value={eyebrow}
-                      onChange={(event) => setEyebrow(event.target.value)}
+                      onChange={(event) => { changeStudioComposeIntent('eyebrow', event.target.value); setEyebrow(event.target.value) }}
                       placeholder="Optional"
                       className="h-8 bg-gray-50 px-2 text-xs dark:bg-slate-800"
                     />
                   </label>
                   {selectedLayout === 'hero_closing' && heroStyle === 'split_contact' && (
                     <div className="grid grid-cols-2 gap-2">
-                      <HeroTextInput label="Email" value={contactEmail} onChange={setContactEmail} />
-                      <HeroTextInput label="Phone" value={contactPhone} onChange={setContactPhone} />
-                      <HeroTextInput label="Website" value={contactWebsite} onChange={setContactWebsite} />
-                      <HeroTextInput label="LinkedIn" value={contactLinkedin} onChange={setContactLinkedin} />
+                      <HeroTextInput label="Email" value={contactEmail} onChange={(value) => { changeStudioComposeIntent('contactEmail', value); setContactEmail(value) }} />
+                      <HeroTextInput label="Phone" value={contactPhone} onChange={(value) => { changeStudioComposeIntent('contactPhone', value); setContactPhone(value) }} />
+                      <HeroTextInput label="Website" value={contactWebsite} onChange={(value) => { changeStudioComposeIntent('contactWebsite', value); setContactWebsite(value) }} />
+                      <HeroTextInput label="LinkedIn" value={contactLinkedin} onChange={(value) => { changeStudioComposeIntent('contactLinkedin', value); setContactLinkedin(value) }} />
                     </div>
                   )}
                   {selectedLayout === 'hero_closing' && heroStyle === 'quote' && (
-                    <HeroTextInput label="Attribution" value={attribution} onChange={setAttribution} />
+                    <HeroTextInput label="Attribution" value={attribution} onChange={(value) => { changeStudioComposeIntent('attribution', value); setAttribution(value) }} />
                   )}
                   <CompactSelect
                     label="Background"
                     value={heroBackground}
-                    onValueChange={setHeroBackground}
+                    onValueChange={(value) => { changeStudioComposeIntent('heroBackground', value); setHeroBackground(value) }}
                     options={HERO_BACKGROUND_OPTIONS}
                   />
                 </div>
@@ -869,7 +1030,7 @@ export function SlideGenerationPanel({
                       <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">Key message</span>
                       <Input
                         value={keyMessage}
-                        onChange={(event) => setKeyMessage(event.target.value)}
+                        onChange={(event) => { changeStudioComposeIntent('keyMessage', event.target.value); setKeyMessage(event.target.value) }}
                         placeholder="Optional"
                         className="h-8 bg-gray-50 px-2 text-xs dark:bg-slate-800"
                       />
@@ -892,28 +1053,28 @@ export function SlideGenerationPanel({
                     label="Web search"
                     description="Use live web grounding"
                     pressed={useWebSearch}
-                    onClick={() => setUseWebSearch(prev => !prev)}
+                    onClick={() => { changeStudioComposeIntent('useWebSearch', !studioIntentValuesRef.current.useWebSearch); setUseWebSearch(prev => !prev) }}
                   />
                   <ToggleRow
                     label="Deep research"
                     badge="Premium"
                     description="Multi-step research pass"
                     pressed={useDeepResearch}
-                    onClick={() => setUseDeepResearch(prev => !prev)}
+                    onClick={() => { changeStudioComposeIntent('useDeepResearch', !studioIntentValuesRef.current.useDeepResearch); setUseDeepResearch(prev => !prev) }}
                   />
                   <ToggleRow
                     label="Use my uploaded files"
                     description={hasUploadedFiles ? 'Use files attached to this session' : 'No files uploaded'}
                     pressed={hasUploadedFiles && useUploadedDocuments}
                     disabled={!hasUploadedFiles}
-                    onClick={() => setUseUploadedDocuments(prev => !prev)}
+                    onClick={() => { changeStudioComposeIntent('useUploadedDocuments', !studioIntentValuesRef.current.useUploadedDocuments); setUseUploadedDocuments(prev => !prev) }}
                   />
                   {kgCardVisible && (
                     <ToggleRow
                       label="Use my knowledge repo"
                       description="Use saved domain memory"
                       pressed={useKnowledgeGraph}
-                      onClick={() => setUseKnowledgeGraph(prev => !prev)}
+                      onClick={() => { changeStudioComposeIntent('useKnowledgeGraph', !studioIntentValuesRef.current.useKnowledgeGraph); setUseKnowledgeGraph(prev => !prev) }}
                     />
                   )}
                 </div>
@@ -926,7 +1087,7 @@ export function SlideGenerationPanel({
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
-                        onClick={() => setWebSearchMaxQueries(prev => Math.max(1, prev - 1))}
+                        onClick={() => { changeStudioComposeIntent('webSearchMaxQueries', Math.max(1, Number(studioIntentValuesRef.current.webSearchMaxQueries) - 1)); setWebSearchMaxQueries(prev => Math.max(1, prev - 1)) }}
                         className="flex h-6 w-6 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
                         title="Decrease max queries"
                       >
@@ -935,7 +1096,7 @@ export function SlideGenerationPanel({
                       <span className="w-5 text-center text-xs text-gray-700 dark:text-slate-200">{webSearchMaxQueries}</span>
                       <button
                         type="button"
-                        onClick={() => setWebSearchMaxQueries(prev => Math.min(10, prev + 1))}
+                        onClick={() => { changeStudioComposeIntent('webSearchMaxQueries', Math.min(10, Number(studioIntentValuesRef.current.webSearchMaxQueries) + 1)); setWebSearchMaxQueries(prev => Math.min(10, prev + 1)) }}
                         className="flex h-6 w-6 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
                         title="Increase max queries"
                       >
@@ -1003,6 +1164,7 @@ function IconDropdown<T extends string>({
           <button
             type="button"
             disabled={disabled}
+            aria-label={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? label : undefined}
             className="flex h-8 w-full items-center justify-between rounded-md border border-gray-200 bg-gray-50 px-2 text-xs text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
           >
             <span className="flex min-w-0 items-center gap-1.5">
@@ -1012,7 +1174,7 @@ function IconDropdown<T extends string>({
             <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 text-gray-400 dark:text-slate-500" />
           </button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-64 p-2" sideOffset={4}>
+        <PopoverContent data-studio-slide-menu={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? "choices" : undefined} aria-label={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? `${label} options` : undefined} align="start" className="w-64 p-2" sideOffset={4}>
           <div className={cn('grid gap-2', columns === 2 ? 'grid-cols-2' : 'grid-cols-3')}>
             {options.map(option => {
               const Icon = option.icon
@@ -1021,6 +1183,7 @@ function IconDropdown<T extends string>({
                 <button
                   key={option.value}
                   type="button"
+                  aria-pressed={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? isSelected : undefined}
                   onClick={() => {
                     onChange(option.value)
                     setOpen(false)
@@ -1071,6 +1234,7 @@ function ShapeDropdown({
           <button
             type="button"
             disabled={disabled}
+            aria-label={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? label : undefined}
             className="flex h-8 w-full items-center justify-between rounded-md border border-gray-200 bg-gray-50 px-2 text-xs text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
           >
             <span className="flex min-w-0 items-center gap-1.5">
@@ -1080,7 +1244,7 @@ function ShapeDropdown({
             <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 text-gray-400 dark:text-slate-500" />
           </button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-64 p-2" sideOffset={4}>
+        <PopoverContent data-studio-slide-menu={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? "choices" : undefined} aria-label={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? `${label} options` : undefined} align="start" className="w-64 p-2" sideOffset={4}>
           <div className="grid grid-cols-3 gap-2">
             {options.map(option => {
               const isSelected = option.value === value
@@ -1088,6 +1252,7 @@ function ShapeDropdown({
                 <button
                   key={option.value}
                   type="button"
+                  aria-pressed={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? isSelected : undefined}
                   onClick={() => {
                     onChange(option.value)
                     setOpen(false)
@@ -1300,10 +1465,10 @@ function CompactSelect<T extends string>({
     <label className="block space-y-1">
       <span className="text-[10px] font-medium text-gray-400 dark:text-slate-500 uppercase tracking-wider">{label}</span>
       <Select value={value} onValueChange={(next) => onValueChange(next as T)}>
-        <SelectTrigger className="h-8 bg-gray-50 px-2 text-xs dark:bg-slate-800">
+        <SelectTrigger aria-label={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? label : undefined} className="h-8 bg-gray-50 px-2 text-xs dark:bg-slate-800">
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent data-studio-slide-menu={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? "select" : undefined} aria-label={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? `${label} options` : undefined}>
           {options.map(option => (
             <SelectItem key={option.value} value={option.value}>
               {option.label}

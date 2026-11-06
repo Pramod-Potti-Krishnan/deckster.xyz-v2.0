@@ -1,0 +1,402 @@
+{
+  "data": [
+    {
+      "id": 9001,
+      "trace_id": "bld_0a1b2c3d4e5f",
+      "seq": 1,
+      "ts": "2026-10-26T12:00:01Z",
+      "user_id": "user-fixture-1",
+      "session_id": "sess-fixture-1",
+      "presentation_id": "pres-fixture-1",
+      "service": "director",
+      "task": "director.strawman",
+      "group": "planning_strategy",
+      "model_served": "moonshotai/kimi-k3",
+      "tokens_in": 1200,
+      "tokens_out": 300,
+      "billable_usd": "0.0012",
+      "deckster_tokens": "1.2",
+      "latency_ms": 1500,
+      "status": "ok",
+      "fallback_depth": 0,
+      "attempts": [
+        {
+          "ordinal": 0,
+          "model": "moonshotai/kimi-k3",
+          "attempt": 0,
+          "fallback_depth": 0,
+          "status": "ok",
+          "status_code": 200,
+          "latency_ms": 1500,
+          "error_code": null
+        }
+      ],
+      "resolution": "user_preset"
+    },
+    {
+      "id": 9002,
+      "trace_id": "bld_0a1b2c3d4e5f",
+      "seq": 2,
+      "ts": "2026-10-26T12:00:02Z",
+      "user_id": "user-fixture-1",
+      "session_id": "sess-fixture-1",
+      "presentation_id": "pres-fixture-1",
+      "service": "text-service",
+      "task": "text_service.slide_copy",
+      "group": "content_writing",
+      "model_served": "anthropic/claude-sonnet-5.5",
+      "tokens_in": 1200,
+      "tokens_out": 300,
+      "billable_usd": "0.0012",
+      "deckster_tokens": "1.2",
+      "latency_ms": 1500,
+      "status": "ok",
+      "fallback_depth": 0,
+      "attempts": [
+        {
+          "ordinal": 0,
+          "model": "anthropic/claude-sonnet-5.5",
+          "attempt": 0,
+          "fallback_depth": 0,
+          "status": "ok",
+          "status_code": 200,
+          "latency_ms": 1500,
+          "error_code": null
+        }
+      ],
+      "resolution": "deck_model"
+    },
+    {
+      "id": 9003,
+      "trace_id": "bld_0a1b2c3d4e5f",
+      "seq": 3,
+      "ts": "2026-10-26T12:00:03Z",
+      "user_id": "user-fixture-1",
+      "session_id": "sess-fixture-1",
+      "presentation_id": "pres-fixture-1",
+      "service": "text-service",
+      "task": "text_service.speaker_notes",
+      "group": "content_writing",
+      "model_served": "openai/gpt-6-luna",
+      "tokens_in": 1200,
+      "tokens_out": 300,
+      "billable_usd": "0.0012",
+      "deckster_tokens": "1.2",
+      "latency_ms": 1500,
+      "status": "ok",
+      "fallback_depth": 0,
+      "attempts": [
+        {
+          "ordinal": 0,
+          "model": "openai/gpt-6-luna",
+          "attempt": 0,
+          "fallback_depth": 0,
+          "status": "ok",
+          "status_code": 200,
+          "latency_ms": 1500,
+          "error_code": null
+        }
+      ],
+      "resolution": "capability_fallback",
+      "needs": [
+        "json_schema"
+      ]
+    },
+    {
+      "id": 9004,
+      "trace_id": "bld_0a1b2c3d4e5f",
+      "seq": 4,
+      "ts": "2026-10-26T12:00:04Z",
+      "user_id": "user-fixture-1",
+      "session_id": "sess-fixture-1",
+      "presentation_id": "pres-fixture-1",
+      "service": "researcher",
+      "task": "researcher.analysis",
+      "group": "research_analysis",
+      "model_served": "openai/gpt-6-luna",
+      "tokens_in": 1200,
+      "tokens_out": 300,
+      "billable_usd": "0.0012",
+      "deckster_tokens": "1.2",
+      "latency_ms": 1500,
+      "status": "ok",
+      "fallback_depth": 0,
+      "attempts": [
+        {
+          "ordinal": 0,
+          "model": "openai/gpt-6-luna",
+          "attempt": 0,
+          "fallback_depth": 0,
+          "status": "ok",
+          "status_code": 200,
+          "latency_ms": 1500,
+          "error_code": null
+        }
+      ],
+      "resolution": "choice_not_certified"
+    },
+    {
+      "id": 9005,
+      "trace_id": "bld_0a1b2c3d4e5f",
+      "seq": 5,
+      "ts": "2026-10-26T12:00:05Z",
+      "user_id": "user-fixture-1",
+      "session_id": "sess-fixture-1",
+      "presentation_id": "pres-fixture-1",
+      "service": "slide-builder",
+      "task": "slide_builder.layout",
+      "group": "research_analysis",
+      "model_served": "openai/gpt-6-luna",
+      "tokens_in": 1200,
+      "tokens_out": 300,
+      "billable_usd": "0.0012",
+      "deckster_tokens": "1.2",
+      "latency_ms": 1500,
+      "status": "ok",
+      "fallback_depth": 0,
+      "attempts": [
+        {
+          "ordinal": 0,
+          "model": "openai/gpt-6-luna",
+          "attempt": 0,
+          "fallback_depth": 0,
+          "status": "ok",
+          "status_code": 200,
+          "latency_ms": 1500,
+          "error_code": null
+        }
+      ],
+      "resolution": "choice_not_allowed"
+    },
+    {
+      "id": 9006,
+      "trace_id": "bld_0a1b2c3d4e5f",
+      "seq": 6,
+      "ts": "2026-10-26T12:00:06Z",
+      "user_id": "user-fixture-1",
+      "session_id": "sess-fixture-1",
+      "presentation_id": "pres-fixture-1",
+      "service": "director",
+      "task": "director.stage3_brief",
+      "group": "planning_strategy",
+      "model_served": "google/gemini-3.8-flash",
+      "tokens_in": 1200,
+      "tokens_out": 300,
+      "billable_usd": "0.0012",
+      "deckster_tokens": "1.2",
+      "latency_ms": 1500,
+      "status": "ok",
+      "fallback_depth": 0,
+      "attempts": [
+        {
+          "ordinal": 0,
+          "model": "google/gemini-3.8-flash",
+          "attempt": 0,
+          "fallback_depth": 0,
+          "status": "ok",
+          "status_code": 200,
+          "latency_ms": 1500,
+          "error_code": null
+        }
+      ],
+      "resolution": "task_pinned"
+    },
+    {
+      "id": 9007,
+      "trace_id": "bld_0a1b2c3d4e5f",
+      "seq": 7,
+      "ts": "2026-10-26T12:00:07Z",
+      "user_id": "user-fixture-1",
+      "session_id": "sess-fixture-1",
+      "presentation_id": "pres-fixture-1",
+      "service": "text-service",
+      "task": "text_service.title",
+      "group": "content_writing",
+      "model_served": "openai/gpt-6.1-sol",
+      "tokens_in": 1200,
+      "tokens_out": 300,
+      "billable_usd": "0.0012",
+      "deckster_tokens": "1.2",
+      "latency_ms": 1500,
+      "status": "ok",
+      "fallback_depth": 1,
+      "attempts": [
+        {
+          "ordinal": 0,
+          "model": "openai/gpt-6.1-sol",
+          "attempt": 0,
+          "fallback_depth": 1,
+          "status": "ok",
+          "status_code": 200,
+          "latency_ms": 1500,
+          "error_code": null
+        }
+      ],
+      "resolution": "user_model"
+    },
+    {
+      "id": 9008,
+      "trace_id": "bld_0a1b2c3d4e5f",
+      "seq": 8,
+      "ts": "2026-10-26T12:00:08Z",
+      "user_id": "user-fixture-1",
+      "session_id": "sess-fixture-1",
+      "presentation_id": "pres-fixture-1",
+      "service": "illustrator",
+      "task": "illustrator.render",
+      "group": "imagery",
+      "model_served": "google/gemini-2.5-flash-image",
+      "tokens_in": 1200,
+      "tokens_out": 300,
+      "billable_usd": "0.0012",
+      "deckster_tokens": "1.2",
+      "latency_ms": 1500,
+      "status": "ok",
+      "fallback_depth": 0,
+      "attempts": [
+        {
+          "ordinal": 0,
+          "model": "google/gemini-2.5-flash-image",
+          "attempt": 0,
+          "fallback_depth": 0,
+          "status": "ok",
+          "status_code": 200,
+          "latency_ms": 1500,
+          "error_code": null
+        }
+      ]
+    },
+    {
+      "id": 9009,
+      "trace_id": "bld_0a1b2c3d4e5f",
+      "seq": 9,
+      "ts": "2026-10-26T12:00:09Z",
+      "user_id": "user-fixture-1",
+      "session_id": "sess-fixture-1",
+      "presentation_id": "pres-fixture-1",
+      "service": "researcher",
+      "task": "researcher.embed",
+      "group": "embeddings",
+      "model_served": "openai/text-embedding-4-small",
+      "tokens_in": 1200,
+      "tokens_out": 300,
+      "billable_usd": "0.0012",
+      "deckster_tokens": "1.2",
+      "latency_ms": 1500,
+      "status": "ok",
+      "fallback_depth": 0,
+      "attempts": [
+        {
+          "ordinal": 0,
+          "model": "openai/text-embedding-4-small",
+          "attempt": 0,
+          "fallback_depth": 0,
+          "status": "ok",
+          "status_code": 200,
+          "latency_ms": 1500,
+          "error_code": null
+        }
+      ]
+    },
+    {
+      "id": 9010,
+      "trace_id": "bld_0a1b2c3d4e5f",
+      "seq": 10,
+      "ts": "2026-10-26T12:00:10Z",
+      "user_id": "user-fixture-2",
+      "session_id": "sess-fixture-1",
+      "presentation_id": "pres-fixture-1",
+      "service": "director",
+      "task": "director.strawman",
+      "group": "planning_strategy",
+      "model_served": "anthropic/claude-opus-5.5",
+      "tokens_in": 1200,
+      "tokens_out": 300,
+      "billable_usd": "0.0012",
+      "deckster_tokens": "1.2",
+      "latency_ms": 1500,
+      "status": "ok",
+      "fallback_depth": 0,
+      "attempts": [
+        {
+          "ordinal": 0,
+          "model": "anthropic/claude-opus-5.5",
+          "attempt": 0,
+          "fallback_depth": 0,
+          "status": "ok",
+          "status_code": 200,
+          "latency_ms": 1500,
+          "error_code": null
+        }
+      ],
+      "resolution": "user_model"
+    },
+    {
+      "id": 9011,
+      "trace_id": "bld_0a1b2c3d4e5f",
+      "seq": 11,
+      "ts": "2026-10-26T12:00:11Z",
+      "user_id": "",
+      "session_id": "sess-fixture-1",
+      "presentation_id": "pres-fixture-1",
+      "service": "text-service",
+      "task": "text_service.slide_copy",
+      "group": "content_writing",
+      "model_served": "x-ai/grok-4.7",
+      "tokens_in": 1200,
+      "tokens_out": 300,
+      "billable_usd": "0.0012",
+      "deckster_tokens": "1.2",
+      "latency_ms": 1500,
+      "status": "ok",
+      "fallback_depth": 0,
+      "attempts": [
+        {
+          "ordinal": 0,
+          "model": "x-ai/grok-4.7",
+          "attempt": 0,
+          "fallback_depth": 0,
+          "status": "ok",
+          "status_code": 200,
+          "latency_ms": 1500,
+          "error_code": null
+        }
+      ]
+    },
+    {
+      "id": 9012,
+      "trace_id": "bld_0a1b2c3d4e5f",
+      "seq": 12,
+      "ts": "2026-10-26T12:00:12Z",
+      "user_id": "user-fixture-3",
+      "session_id": "sess-fixture-1",
+      "presentation_id": "pres-fixture-1",
+      "service": "slide-builder",
+      "task": "slide_builder.layout",
+      "group": "structure_layout",
+      "model_served": "openai/gpt-6-luna",
+      "tokens_in": 1200,
+      "tokens_out": 300,
+      "billable_usd": "0.0012",
+      "deckster_tokens": "1.2",
+      "latency_ms": 1500,
+      "status": "ok",
+      "fallback_depth": 0,
+      "attempts": [
+        {
+          "ordinal": 0,
+          "model": "openai/gpt-6-luna",
+          "attempt": 0,
+          "fallback_depth": 0,
+          "status": "ok",
+          "status_code": 200,
+          "latency_ms": 1500,
+          "error_code": null
+        }
+      ]
+    }
+  ],
+  "limit": 500,
+  "has_more": false,
+  "next_cursor": "cursor-fixture"
+}

@@ -1,3 +1,4 @@
+import { ServiceUrlConfigError } from '@/lib/service-url'
 /**
  * POST /api/narration/script — draft the spoken script for a whole deck.
  *
@@ -22,10 +23,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
-import { getPresentation, updateSlideNarration } from '@/lib/layout-service-client';
+import { getPresentation, getLayoutServiceUrl, updateSlideNarration } from '@/lib/layout-service-client';
 import { resolveBudget, COMPRESSED_RATIO } from '@/lib/narration/budget';
 import { allocate, allocatedSeconds } from '@/lib/narration/allocate';
 import { draftSlideScript, DraftError } from '@/lib/narration/draft';
+import { narrationCallContext } from '@/lib/narration/model-router';
+import { requireApprovedUser } from '@/lib/api-hardening'
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -67,6 +70,9 @@ function slideText(slide: Record<string, any>): string {
 }
 
 export async function POST(request: NextRequest) {
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): approved users only, read from the DB. Off, this returns null and nothing changes.
+  const notApproved = await requireApprovedUser()
+  if (notApproved) return notApproved
   try {
     const auth = await getServerSession(authOptions);
     if (!auth?.user?.email) {
@@ -114,6 +120,7 @@ export async function POST(request: NextRequest) {
     if (!presentationId) {
       return NextResponse.json({ error: 'This deck has no slides yet' }, { status: 400 });
     }
+    getLayoutServiceUrl();
     const presentation = await getPresentation(presentationId);
     const slides: Record<string, any>[] = presentation?.slides ?? [];
     if (slides.length === 0) {
@@ -130,6 +137,8 @@ export async function POST(request: NextRequest) {
     );
 
     const results: { slide: number; status: string; detail?: string }[] = [];
+    // One trace and one identity for the whole script run, for the model router. Undefined unless NARRATION_VIA_ROUTER is on.
+    const routed = narrationCallContext({ userId: user.id, sessionId: deck.sessionId, presentationId });
 
     // PHASE 1 — draft concurrently. Model calls are the slow part and they touch
     // nothing shared, so this is where the parallelism belongs.
@@ -161,7 +170,8 @@ export async function POST(request: NextRequest) {
                 pacingHints: slide.narration_pacing_hints ?? null,
               },
               allocation.words,
-              allocation.compressedWords
+              allocation.compressedWords,
+              routed
             );
             drafted.push({ index, slideId, full: script.full, compressed: script.compressed });
           } catch (error) {
@@ -245,7 +255,8 @@ export async function POST(request: NextRequest) {
             pacingHints: null,
           },
           45,
-          25
+          25,
+          routed
         );
         closing = drafted.full;
         await prisma.publishedDeck.update({
@@ -275,6 +286,7 @@ export async function POST(request: NextRequest) {
       results,
     });
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     console.error('[Narration] script generation failed:', error);
     return NextResponse.json({ error: 'Could not generate the script' }, { status: 500 });
   }

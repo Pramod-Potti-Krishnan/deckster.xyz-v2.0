@@ -1,0 +1,68 @@
+{
+ "body": {
+  "checkpoint": {
+   "deck_import": {
+    "composer": {
+     "as_is_only": false,
+     "deployed_git_sha": null,
+     "health_read": true,
+     "template_progress": false
+    },
+    "error": {
+     "code": "IMPORT_UNAVAILABLE",
+     "message": "Deck import is not available right now.",
+     "retryable": false
+    },
+    "phase": "failed",
+    "template_id": null,
+    "title": "Q3 Board Review",
+    "version": "director-deck-import-v1",
+    "waiting": null
+   }
+  },
+  "completed_at": null,
+  "created_at": null,
+  "deck_import": {
+   "error": {
+    "code": "IMPORT_UNAVAILABLE",
+    "message": "Deck import is not available right now.",
+    "retryable": false
+   },
+   "notes": null,
+   "phase": "failed",
+   "progress": null,
+   "result": null,
+   "stage": "failed",
+   "title": "Q3 Board Review",
+   "version": "director-deck-import-v1",
+   "waiting": null,
+   "what_changed": {
+    "headline": null,
+    "items": []
+   }
+  },
+  "errors": [
+   "Deck import is not available right now."
+  ],
+  "job_id": "stage-import-e787f153-60ab-400e-a820-4959a282184f",
+  "per_slide_fidelity": [],
+  "presentation_id": null,
+  "session_id": "fresh-session",
+  "slide_count": null,
+  "status": "failed",
+  "template_id": null,
+  "updated_at": null,
+  "upload_ref": {
+   "file_name": "Q3 Board Review.pptx",
+   "kind": "pptx",
+   "purpose": "deck_import",
+   "researcher_session_id": "fresh-session",
+   "session_id": "fresh-session",
+   "storage_path": "fresh-session/1_Q3 Board Review.pptx"
+  },
+  "user_id": "owner",
+  "viewer_url": null
+ },
+ "description": "Composer seals no early as-is result and has no as_is_only: not started",
+ "status": 200
+}

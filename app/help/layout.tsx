@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
-    title: 'Help Center',
+    title: 'Help Center | Deckster',
     description: 'Get help with Deckster. Browse guides, FAQs, and contact our support team.',
 };
 

@@ -1,3 +1,4 @@
+import { ServiceUrlConfigError } from '@/lib/service-url'
 /**
  * POST /api/narration/render — turn a deck's scripts into audio.
  *
@@ -21,7 +22,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
-import { getPresentation } from '@/lib/layout-service-client';
+import { getPresentation, getLayoutServiceUrl } from '@/lib/layout-service-client';
 import { getVoice } from '@/lib/narration/voices';
 import {
   synthesize,
@@ -41,7 +42,9 @@ import {
   type SegmentVariant,
 } from '@/lib/narration/segments';
 import { debitWallet, InsufficientFundsError } from '@/lib/wallet';
+import { narrationCallContext } from '@/lib/narration/model-router';
 import { DEFAULT_CLOSING_LINE } from '@/lib/narration/spoken';
+import { requireApprovedUser } from '@/lib/api-hardening'
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -67,6 +70,9 @@ interface Job {
 }
 
 export async function POST(request: NextRequest) {
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): approved users only, read from the DB. Off, this returns null and nothing changes.
+  const notApproved = await requireApprovedUser()
+  if (notApproved) return notApproved
   try {
     const auth = await getServerSession(authOptions);
     if (!auth?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -108,6 +114,7 @@ export async function POST(request: NextRequest) {
     const { voiceId } = await getSessionVoiceId(deck.sessionId, user.id);
     const voice = getVoice(voiceId);
 
+    getLayoutServiceUrl();
     const presentation = await getPresentation(presentationId);
     const slides: Record<string, any>[] = presentation?.slides ?? [];
 
@@ -198,6 +205,8 @@ export async function POST(request: NextRequest) {
 
     const results: { slide: number; variant: string; status: string; detail?: string }[] = [];
     let spentCents = 0;
+    // One trace and one identity for the whole render, for the model router. Undefined unless NARRATION_VIA_ROUTER is on.
+    const routed = narrationCallContext({ userId: user.id, sessionId: deck.sessionId, presentationId });
 
     for (let start = 0; start < pending.length; start += CONCURRENCY) {
       await Promise.all(
@@ -210,7 +219,7 @@ export async function POST(request: NextRequest) {
             voiceId: voice.id,
           };
           try {
-            const result = await synthesize(job.script, voice.id);
+            const result = await synthesize(job.script, voice.id, routed);
             const audio = result.format === 'pcm' ? pcmToWav(result.audio) : result.audio;
             const path = segmentPath(presentationId, job.slideId, job.variant, job.script, voice);
 
@@ -241,7 +250,7 @@ export async function POST(request: NextRequest) {
             // Charge what the provider actually billed where we can see it, and
             // fall back to the measured rate when the record lags. Either way it
             // is recorded per segment, so the spend is auditable row by row.
-            const billedUsd = await billedCostUsd(result.generationId);
+            const billedUsd = await billedCostUsd(result.generationId, result.servedBy);
             const durationMs =
               result.durationSeconds != null
                 ? Math.round(result.durationSeconds * 1000)
@@ -319,6 +328,7 @@ export async function POST(request: NextRequest) {
       results,
     });
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     console.error('[Narration] render failed:', error);
     return NextResponse.json({ error: 'Could not render the narration' }, { status: 500 });
   }

@@ -1,0 +1,9 @@
+/* Existing native Arrange controls only; every selector owns its literal Studio leaf. */
+[data-studio-arrange="true"] { min-width: 0; }
+[data-studio-arrange="true"] [data-studio-arrange-part="pair"] { min-width: 0; flex-wrap: wrap; }
+[data-studio-arrange="true"] [data-studio-arrange-part="pair"] > :not(button) { min-width: 0; flex-basis: 115px; }
+[data-studio-arrange="true"] [data-studio-arrange-part="order"] { min-width: 0; }
+[data-studio-arrange="true"] [data-studio-arrange-part="order"] button { min-width: 0; }
+[data-studio-arrange="true"] [data-studio-arrange-control] { height: auto; min-height: 30px; white-space: normal; overflow-wrap: anywhere; }
+[data-studio-arrange="true"] [data-studio-arrange-control][aria-pressed="true"] { background: var(--sp-active); border: 1px solid var(--sp-violet); color: var(--sp-ink); }
+[data-studio-arrange="true"] [data-studio-arrange-control]:focus-visible { outline: 2px solid var(--sp-violet); outline-offset: 2px; }

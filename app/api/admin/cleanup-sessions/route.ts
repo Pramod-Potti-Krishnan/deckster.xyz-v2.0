@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 import { prisma } from '@/lib/prisma'
+import { isStudioDevDeployment } from '@/lib/dev-deployment'
+import { isAdminEmail } from '@/lib/api-hardening-core'
 
 /**
  * Cleanup abandoned draft sessions
@@ -28,7 +30,8 @@ const ABANDONMENT_THRESHOLD_HOURS = parseInt(
  * set and non-empty) or a signed-in admin, by the coupons route's check. POST keeps its own check below.
  */
 function isAdmin(email: string | null | undefined): boolean {
-  return !!email && email === process.env.DEV_BYPASS_EMAIL
+  // STUDIO_API_HARDENING_V1_ENABLED: on, ADMIN_EMAILS only (comma list, any case; empty = nobody); off, DEV_BYPASS_EMAIL as before.
+  return isAdminEmail(email)
 }
 
 async function canReadDryRun(req: NextRequest): Promise<boolean> {
@@ -44,6 +47,9 @@ async function canReadDryRun(req: NextRequest): Promise<boolean> {
  * Useful for monitoring and testing
  */
 export async function GET(req: NextRequest) {
+  if (isStudioDevDeployment()) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
   try {
     if (!(await canReadDryRun(req))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -122,6 +128,9 @@ export async function GET(req: NextRequest) {
  * Protected by CRON_SECRET for security
  */
 export async function POST(req: NextRequest) {
+  if (isStudioDevDeployment()) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
   try {
     // 1. Verify cron secret (security)
     const authHeader = req.headers.get('authorization')

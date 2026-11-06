@@ -1,12 +1,29 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { announceQuotaRefusal, isStudioQuotaScreensOn, walletPrecheckAllows } from '@/lib/studio-billing-usage' // BILLING-F5-USAGE
+import { useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from './use-auth';
 import { composerThemeFromSync, composerThemeSyncBlocked, readComposerAdoption, type ComposerAdoption } from '@/lib/composer-theme-policy';
 import { useSessionCache, CachedSessionState } from './use-session-cache';
 import { debugLog } from '@/lib/debug-log'
 import { CHAT_DIRECTIVES, CHAT_MENTIONS } from '@/lib/mdc-flags'
 import { parseSlideMentions } from '@/lib/mdc-mentions';
+// NEXT_PUBLIC_CHAT_ELEMENT_REFINE (default off): refine an element from chat; the cap, the reference and element_refine_directive.
+import { CHAT_ELEMENT_REFINE_ENABLED, ELEMENT_REFINE_DIRECTIVE_TYPE, addChatElementRefineFields, elementRefineDirectiveId } from '@/lib/chat-element-refine-wire';
+import { CHAT_ELEMENT_EDIT_ENABLED, addChatElementEditCaps, elementEditResultFrame, routeElementEditFrame, routeNotesUpdatedFrame } from '@/lib/chat-element-edit-wire'; // CHAT-ELEMENT-EDIT (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off): edit an element from chat and refresh the notes; the caps, the element_edit frame and deck_mutation notes_updated
 import type { BuildThemeSelection } from '@/lib/theme-builder';
 import type { TemplateOverrides } from '@/lib/template-mode';
+// NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (each default off): change the theme / export from chat; the caps and the two directives.
+import { CHAT_THEME_EXPORT_CAPS, chatThemeExportDirectiveKind, themeExportDirectiveId } from '@/lib/chat-theme-export-wire';
+import { CHAT_PARITY_CAPS, CHAT_PARITY_NOTES_FIELDS_EVENT, STUDIO_CHAT_PARITY_ANY_ENABLED, addChatParityCaps, chatParityBus, chatParityNotesFields, chatParityRequestId, chatParityResultFrame, isChatParityRequestFrame } from '@/lib/studio-chat-parity'; // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_*, each default off): the group caps and Director's studio_action request
+// NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4c, default off): Director's job_update frames and sync_response.payload.jobs go to the page's ledger.
+import { STUDIO_JOB_LEDGER_ENABLED, JOB_UPDATE_TYPE, jobLedgerRow, jobLedgerRows } from '@/lib/studio-job-ledger';
+import { STUDIO_BULK_EDIT_UNDO_ENABLED, STUDIO_CHAT_UNDO_ENABLED, BULK_EDIT_UNDO_CLIENT_CAPS, addBulkEditUndoCaps, normaliseDeckRestored } from '@/lib/studio-bulk-edit-wire'; // BULK-EDIT-UNDO (flags NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO, default off)
+import { bulkEditUndoContext, routeStudioBulkEditUndoFrame } from '@/lib/studio-bulk-edit-store'; // BULK-EDIT-UNDO
+import { STUDIO_CHAT_COMMANDS_ENABLED, addChatCommandsFields, chatCommandsSent } from '@/lib/studio-chat-commands-wire'; // CHAT-COMMANDS (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, default off): the picked @ references, the / command hint and the mentions2 / commands1 caps
+import { STUDIO_TEMPLATE_MATCH_ENABLED, isTemplateMatchMessage } from '@/lib/studio-template-match'; // STUDIO-TEMPLATE-MATCH (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH, default off): the matched template's capability, the two sends and Director's template_match frame
+import { addTemplateMatchCap, templateMatchBaseCaps } from '@/lib/studio-template-match-wire'; // STUDIO-TEMPLATE-MATCH
+import { templateMatchFrameReceived, templateMatchSocketOpened } from '@/hooks/use-studio-template-match'; // STUDIO-TEMPLATE-MATCH
+import { STUDIO_FLOW_AMEND_ENABLED, STUDIO_FLOW_FOCUS_ENABLED, flowBus, isFlowFocusFrameType, isFlowSettledPhase, takeFlowInstructions } from '@/lib/studio-flow-control'; // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_FOCUS / _FLOW_AMEND, default off)
+import { STUDIO_CHAT_CAPS_META_ENABLED, chatCapsSyncReceived } from '@/lib/studio-chat-caps'; // CHAT-CAPS-META (NEXT_PUBLIC_STUDIO_CHAT_CAPS_META, default off): Director's sync_response chat_capabilities, read into a read-only snapshot
 import type { ManualDeckContext } from '@/lib/manual-deck-workflow';
 import type { DeckFooterConfig, DeckIdentity } from '@/lib/deck-identity';
 import {
@@ -15,8 +32,17 @@ import {
   normalizeSlideComposeSocketFrame,
 } from '@/lib/slide-compose-async';
 import { applyFinalSyncRecovery } from '@/lib/director-sync-recovery';
+import { mergeDirectorChatHistory } from '@/lib/director-chat-history';
+import { projectVerifiedOutlineReplay } from '@/lib/director-history-presentation';
+import { STUDIO_VOICE_INTERACTIVE_ENABLED } from '@/lib/studio-voice-interactive';
+import {
+  createStudioVoiceTranscriptProvenance, admitStudioVoiceTranscriptFrame,
+  completeStudioVoiceTranscriptRestore, type StudioVoiceTranscriptProvenance,
+  type StudioVoiceTranscriptMessage,
+} from '@/lib/studio-voice-transcript-provenance';
 import { guardDirectorLayoutUrlMessage } from '@/lib/director-layout-url-ingress';
 import { LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client';
+import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url';
 import type { UserChatMessage } from '@/lib/user-message-attachments';
 import { evaluateLayoutViewerUrl, sanitizeRestoredLayoutViewerUrls } from '@/lib/layout-viewer-url-policy';
 import {
@@ -27,6 +53,7 @@ import {
   resolveDirectorReconnectPlan,
   shouldReconnectDirectorOnOnline,
 } from '@/lib/director-reconnect-policy';
+import { STUDIO_ONE_LIVE_TAB_ENABLED, isDirectorSupersededClose } from '@/lib/studio-one-live-tab';
 import {
   buildControlEndpointFromWsUrl,
   createBuildControlRequestId,
@@ -46,7 +73,7 @@ export interface BaseMessage {
   message_id: string;
   session_id: string;
   timestamp: string;
-  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_progress' | 'slide_built' | 'slide_ready' | 'slide_failed' | 'theme_sync' | 'session_directive' | 'element_directive' | 'build_phase' | 'build_event' | 'build_control_capability' | 'template_ingest_update' | 'template_ingest_ready' | 'template_ingest_failed';
+  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_progress' | 'slide_built' | 'slide_ready' | 'slide_failed' | 'theme_sync' | 'session_directive' | 'element_directive' | 'deck_mutation' | 'build_phase' | 'build_event' | 'build_control_capability' | 'template_ingest_update' | 'template_ingest_ready' | 'template_ingest_failed';
   payload: any;
 }
 
@@ -79,6 +106,7 @@ const KNOWN_DIRECTOR_MESSAGE_TYPES = new Set<BaseMessage['type']>([
   // MDC (K3/K5): directive frames — handled out-of-band, never rendered in chat.
   'session_directive',
   'element_directive',
+  'deck_mutation',
   // Build Narration: typed frames — rendered on the canvas, never in chat.
   'build_phase',
   'build_event',
@@ -389,6 +417,16 @@ export interface ThemeSyncMessage {
     presentation_id?: string | null;
     theme_session_id?: string | null;
     error?: string | null;
+  } | {
+    // THEME-RESET-ON-RECONNECT-P1 (Director DIRECTOR_THEME_RESTORE_ON_CONNECT_ENABLED): the session's stored theme, sent
+    // once per connect before the history replay and the greeting. `theme` is always present (null: nothing stored). Types
+    // only: the reducer still just logs theme_sync; the page adopts it (NEXT_PUBLIC_STUDIO_THEME_RESTORE).
+    request_id: string;
+    status: 'restored';
+    presentation_id?: string | null;
+    theme: Record<string, unknown> | null;
+    applied: boolean;
+    desired_status?: 'syncing' | 'applied' | 'failed' | null;
   };
 }
 
@@ -482,7 +520,72 @@ export interface TemplateIngestFailed {
   };
 }
 
-export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse | SlideContext | TokenUsage | SlideComposeProgress | SlideBuilt | SlideComposeReady | SlideComposeFailed | ThemeSyncMessage | BuildPhaseSocketMessage | BuildEventSocketMessage | BuildControlCapability | TemplateIngestUpdate | TemplateIngestReady | TemplateIngestFailed;
+export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse | SlideContext | TokenUsage | SlideComposeProgress | SlideBuilt | SlideComposeReady | SlideComposeFailed | ThemeSyncMessage | BuildPhaseSocketMessage | BuildEventSocketMessage | BuildControlCapability | TemplateIngestUpdate | TemplateIngestReady | TemplateIngestFailed | import('@/types/mdc').DeckMutationMessage;
+
+/** Ephemeral socket ownership; callers must recheck after every native await. */
+export interface DirectorTransportOwner {
+  sessionId: string;
+  userId: string;
+  transportGeneration: number;
+  isCurrent: () => boolean;
+}
+
+export interface DirectorDeckMutationOwner extends DirectorTransportOwner {
+  presentationId: string;
+  activeVersion: 'blank' | 'strawman' | 'final';
+}
+
+/** Only supported transport metadata is retained, never the raw auth frame. */
+export interface DirectorTransportNotice {
+  type: 'auth_refreshed' | 'auth_refresh_failed' | 'auth_expired' | 'error';
+  sessionId: string;
+  code?: string;
+  message: string;
+  detail?: string;
+  expiresAt?: number;
+  discardedMessageType?: string;
+  requiresResend: boolean;
+}
+
+export interface DirectorHandoffRequestIdentity {
+  sessionId: string;
+  userId: string;
+  idempotencyKey: string;
+}
+
+export interface DirectorHandoffRequestStatus {
+  sessionId: string;
+  idempotencyKey: string;
+  status: 'processing' | 'already_processing' | 'already_completed' | 'failed';
+  error?: string;
+}
+
+export interface DirectorHandoffRequestOwner extends DirectorTransportOwner {
+  idempotencyKey: string;
+  requestGeneration: number;
+}
+
+interface TrackedHandoffRequest extends DirectorHandoffRequestIdentity {
+  requestGeneration: number;
+  lifecycleGeneration: number;
+  awaitingTurnSequence: number | null;
+}
+
+export class DirectorTransportError extends Error {
+  readonly code?: string;
+  readonly detail?: string;
+  readonly discardedMessageType?: string;
+  readonly frameType: DirectorTransportNotice['type'];
+
+  constructor(notice: DirectorTransportNotice) {
+    super(notice.message);
+    this.name = 'DirectorTransportError';
+    this.code = notice.code;
+    this.detail = notice.detail;
+    this.discardedMessageType = notice.discardedMessageType;
+    this.frameType = notice.type;
+  }
+}
 
 export function normalizeDirectorMessageFrame(raw: DirectorMessage | (BaseMessage & Record<string, any>)): DirectorMessage {
   return normalizeSlideComposeSocketFrame(raw as any) as unknown as DirectorMessage;
@@ -556,6 +659,11 @@ export type ControlMessage =
   | {
       type: 'template_ingest_cancel';
       data: { job_id: string };
+    }
+  // NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4c): run a failed / timed-out Director job again (a frame-route row's retry.job_id; the user's click only).
+  | {
+      type: 'job_retry';
+      data: { job_id: string };
     };
 
 export interface SetThemeMessage {
@@ -579,7 +687,11 @@ export interface UseDecksterWebSocketV2State {
   sessionId: string;
   userId: string;
   error: Error | null;
+  transportNotice: DirectorTransportNotice | null;
+  handoffRequestStatus: DirectorHandoffRequestStatus | null;
   messages: DirectorMessage[];
+  /** Private volatile admission evidence, excluded from every persistence field. */
+  studioVoiceTranscriptReceipt: StudioVoiceTranscriptProvenance | null;
   // UPDATED: Split presentation URLs to support blank/strawman/final toggle (Builder V2)
   presentationUrl: string | null; // Currently displayed URL (computed from blank/strawman/final)
   strawmanPreviewUrl: string | null; // Strawman preview URL
@@ -592,6 +704,14 @@ export interface UseDecksterWebSocketV2State {
   blankPresentationUrl: string | null; // Blank presentation URL on connect
   blankPresentationId: string | null; // Blank presentation ID
   isBlankPresentation: boolean; // True if currently showing blank presentation
+  /** Ephemeral positive ingress proof; never persisted or recovered from cache. */
+  studioAutomaticBlankSelection?: {
+    token: object;
+    userId: string;
+    sessionId: string;
+    presentationId: string | null;
+    presentationUrl: string;
+  } | null;
   activeVersion: 'blank' | 'strawman' | 'final'; // Which version is currently being viewed
   // Durable Director workflow state. This is authoritative for deciding whether
   // the next build starts from a manually edited blank presentation.
@@ -630,13 +750,35 @@ export interface UseDecksterWebSocketV2Options {
   existingSessionId?: string; // Resume existing session instead of creating new one
   onError?: (error: Error) => void;
   onMessage?: (message: DirectorMessage) => void;
+  /** The actual current renderer classifier; generic delivery is not admission. */
+  getStudioVoiceAssistantAdmission?: (message: DirectorMessage) => boolean;
+  // Completion metadata only. The page owns native dirty/edit/save/structure
+  // fences and reconciliation; receiving this callback never reloads the deck.
+  onDeckMutation?: (message: import('@/types/mdc').DeckMutationMessage, owner: DirectorDeckMutationOwner) => void;
+  onTransportNotice?: (notice: DirectorTransportNotice, owner: DirectorTransportOwner) => void;
+  // Known pending identity only; this never sends/retries the durable request.
+  expectedHandoffRequest?: DirectorHandoffRequestIdentity | null;
+  onHandoffRequestStatus?: (status: DirectorHandoffRequestStatus, owner: DirectorHandoffRequestOwner) => void;
   onPresentationReady?: (url: string) => void;
   onSlideComposeProgress?: (message: SlideComposeProgress) => void;
-  onSlideBuilt?: (message: SlideBuilt) => void;
+  onSlideBuilt?: (message: SlideBuilt, owner?: DirectorTransportOwner) => void;
   // MDC P4 (K3): Director instructs a capable client to start a new session.
   onSessionDirective?: (payload: import('@/types/mdc').SessionDirectivePayload) => void;
+  // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT: run Director's theme_directive / export_directive. Unused with both flags off.
+  onThemeExportDirective?: (message: import('@/lib/chat-theme-export-wire').ThemeExportDirectiveMessage, owner: import('@/lib/chat-theme-export-wire').ThemeExportDirectiveOwner) => void;
   // MDC P8 (K5): run an element generation through the FE panel pipeline.
   onElementDirective?: (payload: import('@/types/mdc').ElementDirectivePayload) => void;
+  // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: run Director's element_refine_directive (refine one element from chat), and the selected
+  // element a send names (null when none). Both unused with the flag off.
+  onElementRefineDirective?: (message: import('@/lib/chat-element-refine-wire').ElementRefineDirectiveMessage, owner: import('@/lib/chat-element-refine-wire').ElementRefineDirectiveOwner) => void;
+  getChatElementReference?: () => import('@/lib/chat-element-refine-wire').ChatElementReference | null;
+  // CHAT-ELEMENT-EDIT: run Director's element_edit (one edit of one element), and the Notes panel refresh of deck_mutation notes_updated. Both unused with the flag off.
+  onElementEditDirective?: (message: import('@/lib/chat-element-edit-wire').ElementEditDirectiveMessage, owner: import('@/lib/chat-element-edit-wire').ElementEditDirectiveOwner) => void; // CHAT-ELEMENT-EDIT
+  onNotesUpdated?: (update: import('@/lib/chat-element-edit-wire').NotesUpdated, owner: { sessionId: string | null; isCurrent: () => boolean }) => void; // CHAT-ELEMENT-EDIT
+  // NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4c): Director's job rows for this socket's session (a job_update frame's row; sync_response's
+  // jobs list, possibly []). Never rendered in chat. Unused with the flag off.
+  onJobUpdate?: (row: import('@/lib/studio-job-ledger').JobLedgerRow, owner: import('@/lib/studio-job-ledger').JobLedgerOwner) => void;
+  onJobsSync?: (rows: import('@/lib/studio-job-ledger').JobLedgerRow[], owner: import('@/lib/studio-job-ledger').JobLedgerOwner) => void;
   onSlideComposeReady?: (message: SlideComposeReady) => void;
   onSlideComposeFailed?: (message: SlideComposeFailed) => void;
   onTemplateIngestReady?: (message: TemplateIngestReady) => void;
@@ -644,7 +786,7 @@ export interface UseDecksterWebSocketV2Options {
   // Build Narration typed frames (Director BUILD_EVENTS_ENABLED). Payloads
   // only — the frames never enter messages[]/state. slide_built reuses uat's
   // onSlideBuilt (above) — one frame, one dispatch (D1).
-  onBuildPhase?: (payload: BuildPhaseSocketMessage['payload']) => void;
+  onBuildPhase?: (payload: BuildPhaseSocketMessage['payload'], ownerSessionId?: string) => void;
   onBuildEvent?: (payload: BuildEventSocketMessage['payload']) => void;
   // sync_response.build_state (mid-flight/paused build re-hydration).
   onBuildStateSync?: (buildState: unknown) => void;
@@ -659,11 +801,18 @@ export interface UseDecksterWebSocketV2Options {
   }) => void;
 }
 
-// NEXT_PUBLIC_WS_URL lets local UAT point the builder at a locally-run Director
-// (e.g. ws://localhost:8000/ws); falls back to the deployed Director otherwise.
-const DEFAULT_WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'wss://directorv33-production.up.railway.app/ws';
+// Resolve only at the transport/action boundary; absence never chooses a host.
+const getDirectorWsUrl = () => requireServiceUrl('Director', [
+  { name: 'NEXT_PUBLIC_WS_URL', value: process.env.NEXT_PUBLIC_WS_URL },
+], { protocols: ['ws:', 'wss:'], urlType: 'endpoint' });
 const BUILD_CONTROL_HTTP_TIMEOUT_MS = 4000;
 const COMPOSER_LIBRARY_ENABLED = process.env.NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED === 'true';
+// PASS2-J3 P0: Director answers a NEW session with its blank deck (presentation_init) and never a sync_response, so the
+// composer theme policy above stayed unresolved and every set_theme / Add Element was refused for the whole session.
+// On (exact "true", default off): the session's first blank deck frame on a socket with no sync_response resolves the
+// policy as "no adoption". A Composer adoption (use result, cached marker or sync) is never unlocked.
+const STUDIO_NEW_SESSION_THEME_POLICY_ENABLED = COMPOSER_LIBRARY_ENABLED
+  && process.env.NEXT_PUBLIC_STUDIO_NEW_SESSION_THEME_POLICY === 'true';
 
 // How long a send will wait for a closed socket to come back before it gives
 // up and tells the user. Long enough to cover ordinary reconnect churn,
@@ -730,6 +879,33 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   }, [user?.id, user?.email]);
 
   // Initialize browser cache for this session
+  const voiceTranscriptAuthorityRef = useRef({
+    active: true, userId: user?.id ?? user?.email ?? null,
+    sessionId: options.existingSessionId || sessionIdRef.current,
+  });
+  const voiceRequestedUserId = user?.id ?? user?.email ?? null;
+  const voiceRequestedSessionId = options.existingSessionId || sessionIdRef.current;
+  if (voiceTranscriptAuthorityRef.current.userId !== voiceRequestedUserId
+    || voiceTranscriptAuthorityRef.current.sessionId !== voiceRequestedSessionId) {
+    voiceTranscriptAuthorityRef.current = {
+      active: voiceTranscriptAuthorityRef.current.active,
+      userId: voiceRequestedUserId, sessionId: voiceRequestedSessionId,
+    };
+  }
+  const cacheVoiceMessages = (cached: CachedSessionState | null | undefined): StudioVoiceTranscriptMessage[] => [
+    ...scrubBuildControlCapabilityMessages(cached?.messages),
+    ...(cached?.userMessages || []).map(message => ({ message_id: message.id })),
+  ];
+  const createVoiceTranscript = (cachedMessages: readonly StudioVoiceTranscriptMessage[], priorVisibleMessages: readonly StudioVoiceTranscriptMessage[], ephemeralIds: string[]) => {
+    if (!STUDIO_VOICE_INTERACTIVE_ENABLED) return null;
+    const authority = voiceTranscriptAuthorityRef.current;
+    return createStudioVoiceTranscriptProvenance({
+      owner: authority, userId: authority.userId, sessionId: authority.sessionId,
+      cachedMessages, priorVisibleMessages, ephemeralIds,
+      isCurrentOwner: () => voiceTranscriptAuthorityRef.current === authority && authority.active
+        && authority.userId === userIdRef.current && authority.sessionId === sessionIdRef.current,
+    });
+  };
   const sessionCache = useSessionCache({
     sessionId: sessionIdRef.current,
     // Owner-scoped cache: never let one account read another's cached deck.
@@ -797,7 +973,15 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         sessionId: sessionIdRef.current,
         userId: userIdRef.current,
         error: null,
-        messages: scrubBuildControlCapabilityMessages(cached.messages),
+        transportNotice: null,
+        handoffRequestStatus: null,
+        messages: scrubBuildControlCapabilityMessages(cached.messages).map(message => {
+          const clean = { ...message } as DirectorMessage & { clientOutlineReplayOf?: string; clientTerminalOutlineRevisionOf?: string };
+          delete clean.clientOutlineReplayOf;
+          delete clean.clientTerminalOutlineRevisionOf;
+          return clean;
+        }),
+        studioVoiceTranscriptReceipt: createVoiceTranscript(cacheVoiceMessages(cached), [], (cached as any).ephemeralMessageIds || []),
         presentationUrl: cachedDisplayUrl || cached.presentationUrl || null,
         strawmanPreviewUrl: cached.strawmanPreviewUrl || null,
         finalPresentationUrl: cached.finalPresentationUrl || null,
@@ -839,7 +1023,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       sessionId: sessionIdRef.current,
       userId: userIdRef.current,
       error: null,
+      transportNotice: null,
+      handoffRequestStatus: null,
       messages: [],
+      studioVoiceTranscriptReceipt: createVoiceTranscript([], [], []),
       presentationUrl: null,
       strawmanPreviewUrl: null,
       finalPresentationUrl: null,
@@ -870,6 +1057,39 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   };
 
   const [state, setState] = useState<UseDecksterWebSocketV2State>(() => getInitialState());
+  const voiceTranscriptReceiptRef = useRef(state.studioVoiceTranscriptReceipt);
+  voiceTranscriptReceiptRef.current = state.studioVoiceTranscriptReceipt;
+  const retireVoiceTranscript = useCallback(() => {
+    if (!STUDIO_VOICE_INTERACTIVE_ENABLED) return;
+    voiceTranscriptReceiptRef.current?.retire();
+    voiceTranscriptAuthorityRef.current = { ...voiceTranscriptAuthorityRef.current };
+  }, []);
+  useLayoutEffect(() => {
+    if (!STUDIO_VOICE_INTERACTIVE_ENABLED) return;
+    voiceTranscriptAuthorityRef.current = { ...voiceTranscriptAuthorityRef.current, active: true };
+    setState(prev => ({ ...prev, studioVoiceTranscriptReceipt: createVoiceTranscript(
+      cacheVoiceMessages(sessionCache.isCacheValid() ? sessionCache.getCachedState() : null),
+      [...prev.messages, ...Array.from(prev.studioVoiceTranscriptReceipt?.restored || [], message_id => ({ message_id }))],
+      [...prev.ephemeralMessageIds, ...Array.from(prev.studioVoiceTranscriptReceipt?.ephemeral || [])],
+    ) }));
+    return () => {
+      retireVoiceTranscript();
+      voiceTranscriptAuthorityRef.current = { ...voiceTranscriptAuthorityRef.current, active: false };
+    };
+  }, [retireVoiceTranscript]);
+  const transportCallbacksRef = useRef(options);
+  transportCallbacksRef.current = options;
+  const deckMutationKey = JSON.stringify([state.deckOwnerSessionId, state.presentationId, state.presentationUrl, state.activeVersion]);
+  const deckMutationOwnerRef = useRef({ key: deckMutationKey, deckOwnerSessionId: state.deckOwnerSessionId, presentationId: state.presentationId, activeVersion: state.activeVersion });
+  if (deckMutationOwnerRef.current.key !== deckMutationKey) {
+    deckMutationOwnerRef.current = { key: deckMutationKey, deckOwnerSessionId: state.deckOwnerSessionId, presentationId: state.presentationId, activeVersion: state.activeVersion };
+  }
+  const processedDeckMutationIdsRef = useRef(new Set<string>());
+  const transportNoticeRef = useRef<DirectorTransportNotice | null>(state.transportNotice);
+  const retireDeckMutationOwner = useCallback(() => {
+    // Retire retained callbacks before React paints a version/restore/clear.
+    deckMutationOwnerRef.current = { key: '', deckOwnerSessionId: null, presentationId: null, activeVersion: deckMutationOwnerRef.current.activeVersion };
+  }, []);
 
   // Synchronous transport guard: a cached deck can render before the new
   // socket's authoritative sync arrives. Never let onopen race theme apply.
@@ -882,6 +1102,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   ) => {
     setState(prev => {
       const newState = updateFn(prev);
+      if (newState === prev) return prev;
+      voiceTranscriptReceiptRef.current = newState.studioVoiceTranscriptReceipt;
 
       // CRITICAL FIX: Get existing cached messages to preserve them
       // This prevents cache corruption when React state updates are pending (async)
@@ -936,6 +1158,81 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
   const wsRef = useRef<WebSocket | null>(null);
   const socketSessionRef = useRef<string | null>(null);
+  // The token request is asynchronous, before a socket exists to detach.
+  // Retire its continuation when another attempt or lifecycle takes ownership.
+  const connectionAttemptGenerationRef = useRef(0);
+  // A user turn belongs to one account/session lifecycle, including while
+  // reconnecting. Track render-current intent without rebinding sessionIdRef
+  // before the existing session-adoption effect owns the socket transition.
+  const turnSubmissionLifecycleRef = useRef({
+    active: true,
+    generation: 0,
+    sessionId: options.existingSessionId || sessionIdRef.current,
+    userId: user?.id ?? user?.email ?? null,
+  });
+  const requestedTurnSessionId = options.existingSessionId || sessionIdRef.current;
+  const requestedTurnUserId = user?.id ?? user?.email ?? null;
+  if (
+    turnSubmissionLifecycleRef.current.sessionId !== requestedTurnSessionId ||
+    turnSubmissionLifecycleRef.current.userId !== requestedTurnUserId
+  ) {
+    turnSubmissionLifecycleRef.current.generation += 1;
+    turnSubmissionLifecycleRef.current.sessionId = requestedTurnSessionId;
+    turnSubmissionLifecycleRef.current.userId = requestedTurnUserId;
+  }
+
+  useLayoutEffect(() => {
+    turnSubmissionLifecycleRef.current.active = true;
+    return () => {
+      turnSubmissionLifecycleRef.current.active = false;
+      turnSubmissionLifecycleRef.current.generation += 1;
+    };
+  }, []);
+  const handoffRequestRef = useRef<TrackedHandoffRequest | null>(null);
+  const handoffRequestGenerationRef = useRef(0);
+  const sentTurnSequenceRef = useRef(0);
+  const expected = options.expectedHandoffRequest;
+  const expectedHandoffSignature = JSON.stringify([
+    expected?.sessionId, expected?.userId, expected?.idempotencyKey,
+    requestedTurnSessionId, requestedTurnUserId, turnSubmissionLifecycleRef.current.generation,
+  ]);
+  const expectedHandoffSignatureRef = useRef<string | null>(null);
+  if (expectedHandoffSignatureRef.current !== expectedHandoffSignature) {
+    expectedHandoffSignatureRef.current = expectedHandoffSignature;
+    handoffRequestRef.current = expected
+      && expected.sessionId === requestedTurnSessionId
+      && expected.userId === requestedTurnUserId
+      && typeof expected.idempotencyKey === 'string' && Boolean(expected.idempotencyKey.trim())
+      ? { ...expected, idempotencyKey: expected.idempotencyKey.trim(), requestGeneration: ++handoffRequestGenerationRef.current, lifecycleGeneration: turnSubmissionLifecycleRef.current.generation, awaitingTurnSequence: null }
+      : null;
+  }
+  useLayoutEffect(() => {
+    // Mount cleanup/setup can retire the initial lifecycle before passive
+    // connect runs. Renew only the explicitly supplied owned pending identity.
+    const lifecycle = turnSubmissionLifecycleRef.current;
+    if (expected && expected.sessionId === lifecycle.sessionId && expected.userId === lifecycle.userId
+      && typeof expected.idempotencyKey === 'string' && expected.idempotencyKey.trim()
+      && handoffRequestRef.current?.lifecycleGeneration !== lifecycle.generation) {
+      handoffRequestRef.current = { ...expected, idempotencyKey: expected.idempotencyKey.trim(), requestGeneration: ++handoffRequestGenerationRef.current, lifecycleGeneration: lifecycle.generation, awaitingTurnSequence: null };
+    }
+    setState(prev => prev.handoffRequestStatus ? { ...prev, handoffRequestStatus: null } : prev);
+  }, [expectedHandoffSignature, turnSubmissionLifecycleRef.current.generation]);
+
+  const retireHandoffRequest = useCallback(() => {
+    handoffRequestRef.current = null;
+    setState(prev => prev.handoffRequestStatus ? { ...prev, handoffRequestStatus: null } : prev);
+  }, []);
+  const trackHandoffRequest = useCallback((identity: DirectorHandoffRequestIdentity): boolean => {
+    const lifecycle = turnSubmissionLifecycleRef.current;
+    if (!lifecycle.active || !identity || identity.sessionId !== lifecycle.sessionId
+      || identity.userId !== lifecycle.userId || identity.sessionId !== sessionIdRef.current
+      || identity.userId !== userIdRef.current || typeof identity.idempotencyKey !== 'string'
+      || !identity.idempotencyKey.trim()) return false;
+    handoffRequestRef.current = { ...identity, idempotencyKey: identity.idempotencyKey.trim(), requestGeneration: ++handoffRequestGenerationRef.current, lifecycleGeneration: lifecycle.generation, awaitingTurnSequence: null };
+    setState(prev => prev.handoffRequestStatus ? { ...prev, handoffRequestStatus: null } : prev);
+    return true;
+  }, []);
+
   // Ephemeral per-connection capability. It is intentionally never copied to
   // React state or sessionStorage, and is cleared before every reconnect.
   const buildControlTokenRef = useRef<string | null>(null);
@@ -979,6 +1276,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   const connectionDesiredRef = useRef(options.autoConnect !== false);
   const reconnectPausedForOfflineRef = useRef(false);
   const reconnectStatusRef = useRef<DirectorReconnectStatus>('idle');
+  const configurationErrorRef = useRef<ServiceUrlConfigError | null>(null);
   const browserOnlineRef = useRef(
     typeof navigator === 'undefined' || navigator.onLine !== false,
   );
@@ -1032,33 +1330,49 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
    */
   const scheduleAuthRefresh = useCallback((expiresInSeconds: number) => {
     clearAuthRefreshTimer();
-    if (!expiresInSeconds || expiresInSeconds <= 0) return;
+    if (!expiresInSeconds || expiresInSeconds <= 0 || configurationErrorRef.current) return;
+    const socket = wsRef.current;
+    const attemptGeneration = connectionAttemptGenerationRef.current;
+    const refreshSessionId = sessionIdRef.current;
+    const refreshUserId = userIdRef.current;
+    const lifecycleGeneration = turnSubmissionLifecycleRef.current.generation;
+    const isCurrentRefresh = () => Boolean(socket && wsRef.current === socket &&
+      socket.readyState === WebSocket.OPEN && !configurationErrorRef.current &&
+      connectionAttemptGenerationRef.current === attemptGeneration &&
+      sessionIdRef.current === refreshSessionId && userIdRef.current === refreshUserId &&
+      turnSubmissionLifecycleRef.current.active &&
+      turnSubmissionLifecycleRef.current.generation === lifecycleGeneration &&
+      connectionDesiredRef.current && !manualDisconnectRef.current);
+    if (!isCurrentRefresh()) return;
     const delayMs = Math.max(30_000, Math.floor(expiresInSeconds * 0.6) * 1000);
     authRefreshTimerRef.current = setTimeout(async () => {
-      const socket = wsRef.current;
-      if (!socket || socket.readyState !== WebSocket.OPEN) return;
+      if (!isCurrentRefresh()) return;
       try {
         const resp = await fetch(
-          `/api/director/ws-token?session_id=${encodeURIComponent(sessionIdRef.current)}`,
+          `/api/director/ws-token?session_id=${encodeURIComponent(refreshSessionId)}`,
           { cache: 'no-store' },
         );
+        if (!isCurrentRefresh()) return;
         if (!resp.ok) throw new Error(`ws-token HTTP ${resp.status}`);
         const body = await resp.json();
+        if (!isCurrentRefresh()) return;
         if (body?.auth_enabled === false) return; // tokenless deployment
         if (!body?.auth_token) throw new Error('ws-token returned no token');
-        socket.send(JSON.stringify({
+        socket!.send(JSON.stringify({
           type: 'auth_refresh',
           payload: { token: body.auth_token },
         }));
-        debugLog('🔐 Director WS token refreshed');
+        // Browser send is not the server's auth_refreshed acknowledgement.
+        debugLog('🔐 Director WS auth refresh sent; awaiting acknowledgement');
         scheduleAuthRefresh(
           typeof body.expires_in === 'number' ? body.expires_in : expiresInSeconds,
         );
       } catch (refreshError) {
+        if (!isCurrentRefresh()) return;
         // Retry once quickly; if the socket dies the reconnect path re-mints.
         console.warn('[WS AUTH] Token refresh failed, retrying shortly:', refreshError);
         authRefreshTimerRef.current = setTimeout(
-          () => scheduleAuthRefresh(expiresInSeconds), 30_000,
+          () => { if (isCurrentRefresh()) scheduleAuthRefresh(expiresInSeconds); }, 30_000,
         );
       }
     }, delayMs);
@@ -1147,7 +1461,43 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }, DIRECTOR_HEARTBEAT_INTERVAL_MS);
   }, [stopHeartbeat]);
 
+  const reportConfigurationError = useCallback((error: ServiceUrlConfigError) => {
+    const previous = configurationErrorRef.current;
+    const stableError = previous?.code === error.code && previous.message === error.message
+      ? previous : error;
+    configurationErrorRef.current = stableError;
+    // Retire any pending token continuation and loaded socket before cleanup.
+    // A separate action refusal cannot let an older transport publish later.
+    connectionAttemptGenerationRef.current += 1;
+    const retiredSocket = wsRef.current;
+    wsRef.current = null;
+    socketSessionRef.current = null;
+    buildControlTokenRef.current = null;
+    clearAuthRefreshTimer();
+    stopHeartbeat();
+    if (retiredSocket) {
+      try { retiredSocket.close(4001, 'Service configuration unavailable'); } catch { /* Already retired. */ }
+    }
+    clearReconnectTimer();
+    clearReconnectStabilityTimer();
+    reconnectPausedForOfflineRef.current = false;
+    isConnectingRef.current = false;
+    // Reuse the existing durable manual-retry gate without consuming attempts.
+    // Keeping this transport-owned also prevents the session effect retrying on
+    // each render when its inline options recreate ensureConnected.
+    setReconnectStatus('exhausted', reconnectAttemptsRef.current);
+    setState(prev => prev.error === stableError && !prev.connecting &&
+      !prev.connected && prev.connectionState === 'error' ? prev : {
+      ...prev, error: stableError, connected: false, connecting: false, connectionState: 'error',
+    });
+    if (stableError !== previous) options.onError?.(stableError);
+  }, [clearAuthRefreshTimer, clearReconnectTimer, clearReconnectStabilityTimer, stopHeartbeat, setReconnectStatus, options]);
+
   const scheduleReconnect = useCallback((trigger: string) => {
+    if (configurationErrorRef.current) {
+      setReconnectStatus('exhausted', reconnectAttemptsRef.current);
+      return;
+    }
     if (reconnectTimeoutRef.current) {
       debugLog('⏳ Director reconnect is already scheduled; ignoring duplicate close', { trigger });
       return;
@@ -1254,7 +1604,33 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       return false;
     }
 
+    let configuredWsUrl: string;
+    try {
+      configuredWsUrl = getDirectorWsUrl();
+    } catch (error) {
+      if (!(error instanceof ServiceUrlConfigError)) throw error;
+      reportConfigurationError(error);
+      // The hook accepted ownership of this terminal configuration refusal.
+      return true;
+    }
+    configurationErrorRef.current = null;
+
     isConnectingRef.current = true;
+    const attemptGeneration = ++connectionAttemptGenerationRef.current;
+    const turnLifecycleGeneration = turnSubmissionLifecycleRef.current.generation;
+    const socketSessionId = sessionIdRef.current;
+    const socketUserId = userIdRef.current;
+    const isCurrentAttempt = () => (
+      connectionAttemptGenerationRef.current === attemptGeneration &&
+      sessionIdRef.current === socketSessionId &&
+      userIdRef.current === socketUserId &&
+      turnSubmissionLifecycleRef.current.active &&
+      turnSubmissionLifecycleRef.current.generation === turnLifecycleGeneration &&
+      turnSubmissionLifecycleRef.current.sessionId === socketSessionId &&
+      turnSubmissionLifecycleRef.current.userId === socketUserId &&
+      connectionDesiredRef.current &&
+      !manualDisconnectRef.current
+    );
     if (COMPOSER_LIBRARY_ENABLED) composerThemeRef.current = { ...composerThemeRef.current, composerThemeResolved: false };
 
     setState(prev => ({
@@ -1285,8 +1661,13 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       // Explicit capability opt-in prevents a newly deployed Director from
       // sending a secret frame to older frontend bundles that would treat it
       // as ordinary chat/cache data during a rolling deploy.
-      const socketSessionId = sessionIdRef.current;
-      const wsUrl = `${DEFAULT_WS_URL}?session_id=${socketSessionId}&user_id=${userIdRef.current}&skip_history=${skipHistory}&message_count=${totalMessageCount}&build_control_capability=1`;
+      const handshakeUrl = new URL(configuredWsUrl);
+      handshakeUrl.searchParams.set('session_id', socketSessionId);
+      handshakeUrl.searchParams.set('user_id', socketUserId);
+      handshakeUrl.searchParams.set('skip_history', skipHistory);
+      handshakeUrl.searchParams.set('message_count', String(totalMessageCount));
+      handshakeUrl.searchParams.set('build_control_capability', '1');
+      const wsUrl = handshakeUrl.toString();
 
       // DEBUG: Comprehensive logging of connection parameters
       debugLog('🔌 [WEBSOCKET] Initiating connection to Director', {
@@ -1330,7 +1711,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         > => {
           try {
             const tokenResponse = await fetch(
-              `/api/director/ws-token?session_id=${encodeURIComponent(sessionIdRef.current)}`,
+              `/api/director/ws-token?session_id=${encodeURIComponent(socketSessionId)}`,
               { cache: 'no-store' },
             );
             if (!tokenResponse.ok) {
@@ -1352,6 +1733,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             return { ok: false, reason: `ws-token unreachable: ${String(tokenError)}` };
           }
         })();
+
+        // A late success or failure belongs to the retired attempt. It cannot
+        // replace the current socket, publish an error, or schedule a retry.
+        if (!isCurrentAttempt()) return;
 
         if (!tokenOutcome.ok) {
           console.error('[WS AUTH] Could not obtain Director token:', tokenOutcome.reason);
@@ -1393,10 +1778,11 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           return;
         }
         wsRef.current = ws;
-        const isCurrentSocket = () => wsRef.current === ws;
+        const isCurrentSocket = () => wsRef.current === ws && isCurrentAttempt();
+        // New-session theme policy: an existing session's socket gets sync_response before any deck frame.
+        let socketSyncResponseSeen = false;
 
         ws.onopen = () => {
-          if (expiresInSeconds) scheduleAuthRefresh(expiresInSeconds);
           if (!isCurrentSocket()) {
             debugLog('⏭️ Ignoring open from stale WebSocket');
             try {
@@ -1407,6 +1793,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             return;
           }
 
+          if (expiresInSeconds) scheduleAuthRefresh(expiresInSeconds);
           debugLog('✅ Connected to Director v3.4');
           socketSessionRef.current = socketSessionId;
           setConnectionGeneration(g => g + 1);
@@ -1428,6 +1815,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
           // Start heartbeat to keep connection alive
           startHeartbeat(ws);
+          if (STUDIO_TEMPLATE_MATCH_ENABLED) templateMatchSocketOpened({ sessionId: socketSessionId, userId: userIdRef.current || null, socket: { send: message => { if (wsRef.current !== ws || ws.readyState !== WebSocket.OPEN) return false; try { ws.send(JSON.stringify(message)); return true } catch { return false } }, caps: templateMatchBaseCaps } }); // STUDIO-TEMPLATE-MATCH: the user's auto-apply preference goes out on every connect, here, before any user_message can be sent on this socket. Off: nothing.
 
           setState(prev => ({
             ...prev,
@@ -1455,8 +1843,199 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               return;
             }
 
-            const parsedMessage = normalizeDirectorMessageFrame(JSON.parse(event.data)) as DirectorMessage & { type?: unknown };
+            const rawMessage = JSON.parse(event.data);
+            if (!rawMessage || typeof rawMessage !== 'object') return;
+
+            // The durable handoff acknowledgement has session/key identity,
+            // but intentionally no normal message ID or timestamp envelope.
+            if (rawMessage.type === 'handoff_request_status') {
+              const payload = rawMessage.payload;
+              const request = handoffRequestRef.current;
+              const lifecycle = turnSubmissionLifecycleRef.current;
+              if (!request || !payload || typeof payload !== 'object' || Array.isArray(payload)
+                || rawMessage.session_id !== socketSessionId
+                || (payload.session_id !== undefined && payload.session_id !== socketSessionId)
+                || request.sessionId !== socketSessionId || request.userId !== socketUserId
+                || request.lifecycleGeneration !== lifecycle.generation
+                || typeof payload.idempotency_key !== 'string' || payload.idempotency_key !== request.idempotencyKey
+                || !['processing', 'already_processing', 'already_completed', 'failed'].includes(payload.status)
+                || (payload.error !== undefined && typeof payload.error !== 'string')) return;
+              const status: DirectorHandoffRequestStatus = {
+                sessionId: socketSessionId, idempotencyKey: request.idempotencyKey,
+                status: payload.status,
+                ...(typeof payload.error === 'string' ? { error: payload.error } : {}),
+              };
+              const owner: DirectorHandoffRequestOwner = {
+                sessionId: socketSessionId, userId: socketUserId, idempotencyKey: request.idempotencyKey,
+                requestGeneration: request.requestGeneration, transportGeneration: attemptGeneration,
+                isCurrent: () => isCurrentSocket() && handoffRequestRef.current === request
+                  && turnSubmissionLifecycleRef.current.generation === request.lifecycleGeneration,
+              };
+              if (request.awaitingTurnSequence !== null && request.awaitingTurnSequence === sentTurnSequenceRef.current) clearAwaitReply();
+              setState(prev => ({ ...prev, handoffRequestStatus: status }));
+              transportCallbacksRef.current.onHandoffRequestStatus?.(status, owner);
+              // Receipt is not native completion/persistence, and does not replay
+              // the request or add server metadata to the durable transcript.
+              return;
+            }
+
+            // These server frames intentionally omit the regular message/session
+            // envelope. Their owner is this exact socket, not a mutable route.
+            if (['auth_refreshed', 'auth_refresh_failed', 'auth_expired', 'error'].includes(rawMessage.type)) {
+              const payload = rawMessage.payload;
+              if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return;
+              if ((rawMessage.session_id !== undefined && rawMessage.session_id !== socketSessionId)
+                || (payload.session_id !== undefined && payload.session_id !== socketSessionId)) return;
+              const transportOwner: DirectorTransportOwner = { sessionId: socketSessionId, userId: socketUserId, transportGeneration: attemptGeneration, isCurrent: isCurrentSocket };
+              const acknowledged = rawMessage.type === 'auth_refreshed';
+              if (acknowledged && (!Number.isInteger(payload.expires_at) || payload.expires_at <= 0)) return;
+              if (!acknowledged && (typeof payload.code !== 'string' || !payload.code || typeof payload.message !== 'string' || !payload.message)) return;
+              let notice: DirectorTransportNotice = {
+                type: rawMessage.type,
+                sessionId: socketSessionId,
+                message: acknowledged ? 'Secure connection refreshed.' : payload.message,
+                requiresResend: rawMessage.type === 'auth_expired',
+                ...(acknowledged ? { expiresAt: payload.expires_at } : { code: payload.code }),
+                ...(rawMessage.type === 'error' && typeof payload.detail === 'string' ? { detail: payload.detail } : {}),
+                ...(rawMessage.type === 'auth_expired' && typeof payload.discarded_message_type === 'string' ? { discardedMessageType: payload.discarded_message_type } : {}),
+              };
+              if (rawMessage.type === 'error') announceQuotaRefusal(payload.code); // BILLING-F5-USAGE: Director D1 QUOTA_EXCEEDED / PLAN_REQUIRED -> the Builder's refusal screen (off: no-op)
+              const previousNotice = transportNoticeRef.current;
+              if (previousNotice?.requiresResend && previousNotice.sessionId === socketSessionId) {
+                // A later transport error is new information, not proof that the
+                // discarded action was sent. Keep its recovery requirement while
+                // retaining the latest server message/code/detail.
+                notice = { ...notice, requiresResend: true,
+                  discardedMessageType: notice.discardedMessageType ?? previousNotice.discardedMessageType,
+                  ...(acknowledged ? { message: 'Secure connection refreshed. Please resend your last action.' } : {}),
+                };
+              }
+              transportNoticeRef.current = notice;
+              if (rawMessage.type === 'auth_expired' || rawMessage.type === 'error') clearAwaitReply();
+              const transportError = acknowledged ? null : new DirectorTransportError(notice);
+              setState(prev => ({
+                ...prev,
+                transportNotice: notice,
+                ...(transportError ? { error: transportError } : acknowledged && prev.error instanceof DirectorTransportError && prev.error.frameType === 'auth_refresh_failed' ? { error: null } : {}),
+                ...(rawMessage.type === 'auth_expired' || rawMessage.type === 'error' ? { currentStatus: null } : {}),
+              }));
+              if (transportError) transportCallbacksRef.current.onError?.(transportError);
+              if (isCurrentSocket()) transportCallbacksRef.current.onTransportNotice?.(notice, transportOwner);
+              // Neither raw auth metadata nor structured errors enter durable chat,
+              // generic consumers, cache or a mutation replay path.
+              return;
+            }
+
+            const parsedMessage = normalizeDirectorMessageFrame(rawMessage) as DirectorMessage & { type?: unknown };
+            // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT: Director's theme_directive / export_directive (each only with its own flag on)
+            // unlocks the turn and goes to the page's runner, here, ahead of the allowlist, so it never reaches the reducer, the transcript or
+            // the cache. Flags off: chatThemeExportDirectiveKind is null, and the frame is an unknown type, dropped below as before.
+            if (chatThemeExportDirectiveKind(parsedMessage.type)) {
+              clearAwaitReply();
+              if (themeExportDirectiveId(parsedMessage)) {
+                transportCallbacksRef.current.onThemeExportDirective?.(
+                  parsedMessage as unknown as import('@/lib/chat-theme-export-wire').ThemeExportDirectiveMessage,
+                  { sessionId: socketSessionId, isCurrent: isCurrentSocket },
+                );
+              }
+              return;
+            }
+            // Client replay provenance is assigned only after owned terminal
+            // state validates the wire frame; never accept a supplied marker.
+            delete (parsedMessage as DirectorMessage & { clientOutlineReplayOf?: string; clientTerminalOutlineRevisionOf?: string }).clientOutlineReplayOf;
+            delete (parsedMessage as DirectorMessage & { clientTerminalOutlineRevisionOf?: string }).clientTerminalOutlineRevisionOf;
+            // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: Director's element_refine_directive unlocks the turn and goes to the page's runner, here,
+            // ahead of the allowlist, so it never reaches the reducer, the transcript or the cache. Flag off: unknown, dropped below as before.
+            if (CHAT_ELEMENT_REFINE_ENABLED && (parsedMessage.type as unknown) === ELEMENT_REFINE_DIRECTIVE_TYPE) {
+              clearAwaitReply();
+              if (elementRefineDirectiveId(parsedMessage)) {
+                transportCallbacksRef.current.onElementRefineDirective?.(
+                  parsedMessage as unknown as import('@/lib/chat-element-refine-wire').ElementRefineDirectiveMessage,
+                  { sessionId: socketSessionId, isCurrent: isCurrentSocket },
+                );
+              }
+              return;
+            }
+            // CHAT-ELEMENT-EDIT (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off): Director's element_edit unlocks the turn and goes to the page's runner, here, ahead of the allowlist, so it
+            // CHAT-ELEMENT-EDIT: never reaches the reducer, the transcript or the cache (lib/chat-element-edit-wire.ts). Flag off: unknown, dropped below as before.
+            if (CHAT_ELEMENT_EDIT_ENABLED && routeElementEditFrame(parsedMessage, { sessionId: socketSessionId, isCurrent: isCurrentSocket, unlockTurn: clearAwaitReply, onDirective: transportCallbacksRef.current.onElementEditDirective })) return; // CHAT-ELEMENT-EDIT
+            if (STUDIO_TEMPLATE_MATCH_ENABLED && isTemplateMatchMessage(parsedMessage)) { if (parsedMessage.session_id === socketSessionId) templateMatchFrameReceived(parsedMessage, socketSessionId); return } // STUDIO-TEMPLATE-MATCH: Director's template_match is a state tick (it does not unlock the turn): it goes to the store, here, ahead of the allowlist, never to the reducer, the transcript or the cache. Off: unknown, dropped below as before.
+            // CHAT-PARITY (any NEXT_PUBLIC_STUDIO_CHAT_PARITY_* flag on): Director's studio_action unlocks the turn and goes to the page's runner, here, ahead of the allowlist,
+            // CHAT-PARITY: so it never reaches the reducer, the transcript or the cache; a frame with no request id is dropped unanswered. Every flag off: unknown, dropped below as before.
+            if (STUDIO_CHAT_PARITY_ANY_ENABLED && isChatParityRequestFrame(parsedMessage)) { // CHAT-PARITY
+              clearAwaitReply(); // CHAT-PARITY
+              if (chatParityRequestId(parsedMessage)) chatParityBus.request?.(parsedMessage as unknown as import('@/lib/studio-chat-parity').ChatParityRequestFrame, { sessionId: socketSessionId, isCurrent: isCurrentSocket }); // CHAT-PARITY
+              return; // CHAT-PARITY
+            } // CHAT-PARITY
+            // NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4c): Director's job_update (a state tick: it does not unlock the turn) goes to the page's ledger,
+            // here, ahead of the allowlist, so it never reaches the reducer, the transcript or the cache; sync_response's jobs go there too,
+            // and that frame then carries on as before. Only this socket's session. Flag off: job_update is unknown, dropped below as before.
+            if (STUDIO_JOB_LEDGER_ENABLED && (parsedMessage.type as unknown) === JOB_UPDATE_TYPE) {
+              const row = parsedMessage.session_id === socketSessionId ? jobLedgerRow(parsedMessage.payload) : null;
+              if (row) transportCallbacksRef.current.onJobUpdate?.(row, { sessionId: socketSessionId, isCurrent: isCurrentSocket });
+              return;
+            }
+            if (STUDIO_JOB_LEDGER_ENABLED && parsedMessage.type === 'sync_response' && parsedMessage.session_id === socketSessionId) {
+              const rows = jobLedgerRows((parsedMessage.payload as { jobs?: unknown } | null | undefined)?.jobs);
+              if (rows) transportCallbacksRef.current.onJobsSync?.(rows, { sessionId: socketSessionId, isCurrent: isCurrentSocket });
+            }
+            // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_FOCUS, default off): the stage follows the slide Director built or changed. The frames that name a slide (isFlowFocusFrameType) are shown to the page's flow hook here
+            // FLOW-CONTROL: (flowBus.focus), for this socket's session only, ahead of every other handling: deck_mutation (a restored deck too: its raw deck_restored, which the checks below drop unless chat undo is on),
+            // FLOW-CONTROL: change_recorded (which the bulk-edit route below consumes), slide_built, slide_ready and slide_update. It drops a message_id it has seen. Nothing else changes: the frame carries on exactly as before.
+            if (STUDIO_FLOW_FOCUS_ENABLED && isFlowFocusFrameType(parsedMessage.type) && parsedMessage.session_id === socketSessionId && isCurrentSocket()) flowBus.focus?.(parsedMessage); // FLOW-CONTROL
+            // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_AMEND, default off): every build_phase is shown to the flow hook first (steer_pending, applied_to, settled). `settled` is a phase the narration does not know (it would read
+            // FLOW-CONTROL: as "running"), so that frame goes no further. Every other build_phase carries on exactly as before.
+            if (STUDIO_FLOW_AMEND_ENABLED && parsedMessage.type === 'build_phase') { if (parsedMessage.session_id === socketSessionId && isCurrentSocket()) flowBus.phase?.(parsedMessage.payload); if (isFlowSettledPhase(parsedMessage.payload)) return; } // FLOW-CONTROL
+            // BULK-EDIT-UNDO (NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO, default off): Director's chat lines (the Undo chip's anchor), the bulk-edit confirm (its chip titles) and its receipts and summary,
+            // BULK-EDIT-UNDO: change_recorded and undo_result go to this tab's store (lib/studio-bulk-edit-store.ts), here, ahead of the allowlist. The frames it takes (receipts, summary, change_recorded, undo_result) stop
+            // BULK-EDIT-UNDO: here: they never reach the reducer, the transcript or the cache, and they do not unlock the turn. Director sends them only to a client that advertised bulk_edit1 / undo1 (the caps below, flag on only),
+            // BULK-EDIT-UNDO: so a frame is its own capability, with or without a sync_response. Every other frame carries on as before. Flags off: nothing is routed.
+            if (STUDIO_BULK_EDIT_UNDO_ENABLED && routeStudioBulkEditUndoFrame(parsedMessage, bulkEditUndoContext(socketSessionId, deckMutationOwnerRef.current, slideStructureRef.current, isCurrentSocket())) === 'consumed') return; // BULK-EDIT-UNDO
+            if (STUDIO_CHAT_UNDO_ENABLED) normaliseDeckRestored(parsedMessage); // BULK-EDIT-UNDO: an undo's deck_mutation {mutation:"deck_restored"} is read as a whole-viewer refresh (slide_replaced, restored:true) before the checks below; flag off: untouched, ignored as before
             if (!isKnownDirectorMessageType(parsedMessage.type)) {
+              return;
+            }
+
+            // CHAT-ELEMENT-EDIT: deck_mutation of kind notes_updated (Director wrote a slide's notes) goes to the page, which refreshes the Notes panel; every other mutation carries on below, untouched. Flag off: not looked at.
+            if (CHAT_ELEMENT_EDIT_ENABLED && typeof window !== 'undefined' && parsedMessage.session_id === socketSessionId && deckMutationOwnerRef.current.presentationId === (parsedMessage.payload as { presentation_id?: unknown } | undefined)?.presentation_id && chatParityNotesFields(parsedMessage.payload).length > 0) window.dispatchEvent(new CustomEvent(CHAT_PARITY_NOTES_FIELDS_EVENT, { detail: { presentationId: (parsedMessage.payload as { presentation_id: string }).presentation_id, slideIndex: (parsedMessage.payload as { slide_index: number }).slide_index, fields: chatParityNotesFields(parsedMessage.payload) } })); // CHAT-PARITY (rows 106 / 108): the script / references fields this notes_updated names, raised before #522's route (whose reload follows); the Notes panel lets those drafts go
+            if (CHAT_ELEMENT_EDIT_ENABLED && routeNotesUpdatedFrame(parsedMessage, { sessionId: socketSessionId, isCurrent: isCurrentSocket, displayed: deckMutationOwnerRef.current, onNotesUpdated: transportCallbacksRef.current.onNotesUpdated })) return; // CHAT-ELEMENT-EDIT
+            if (parsedMessage.type === 'deck_mutation') {
+              const message = parsedMessage as import('@/types/mdc').DeckMutationMessage;
+              const payload = message.payload;
+              const displayedOwner = deckMutationOwnerRef.current;
+              if (!payload || typeof payload !== 'object'
+                || message.session_id !== socketSessionId
+                || typeof message.message_id !== 'string' || !message.message_id
+                || !['slide_added', 'slide_deleted', 'slide_replaced', 'slide_reordered'].includes(payload.mutation)
+                || !Number.isInteger(payload.slide_index) || payload.slide_index < 0
+                || (payload.new_slide_index != null && (!Number.isInteger(payload.new_slide_index) || payload.new_slide_index < 0))
+                || typeof payload.refresh_token !== 'string' || !payload.refresh_token
+                || typeof payload.presentation_id !== 'string' || !payload.presentation_id
+                || displayedOwner.deckOwnerSessionId !== socketSessionId
+                || displayedOwner.presentationId !== payload.presentation_id) return;
+              if (payload.presentation_url != null) {
+                if (typeof payload.presentation_url !== 'string'
+                  || evaluateLayoutViewerUrl(payload.presentation_url, LAYOUT_VIEWER_URL_POLICY).status !== 'allowed') return;
+                const path = new URL(payload.presentation_url).pathname;
+                if (path !== `/p/${encodeURIComponent(payload.presentation_id)}` && path !== `/p/${payload.presentation_id}`) return;
+              }
+              clearAwaitReply();
+              const callback = transportCallbacksRef.current.onDeckMutation;
+              if (!callback) return;
+              const frameKey = JSON.stringify([socketSessionId, payload.presentation_id, message.message_id]);
+              if (processedDeckMutationIdsRef.current.has(frameKey)) return;
+              processedDeckMutationIdsRef.current.add(frameKey);
+              if (processedDeckMutationIdsRef.current.size > 1000) {
+                const oldest = processedDeckMutationIdsRef.current.values().next().value;
+                if (oldest) processedDeckMutationIdsRef.current.delete(oldest);
+              }
+              const owner: DirectorDeckMutationOwner = {
+                sessionId: socketSessionId, userId: socketUserId,
+                presentationId: payload.presentation_id, activeVersion: displayedOwner.activeVersion,
+                transportGeneration: attemptGeneration,
+                isCurrent: () => isCurrentSocket() && deckMutationOwnerRef.current === displayedOwner,
+              };
+              callback(message, owner);
               return;
             }
 
@@ -1542,7 +2121,24 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               });
             }
 
+            // New-session theme policy, captured at dispatch in frame order: a blank deck frame that arrives before any
+            // sync_response on this socket is Director's new-session branch (no adoption can exist on its blank deck).
+            const newSessionBlankFrame = STUDIO_NEW_SESSION_THEME_POLICY_ENABLED && !socketSyncResponseSeen && !blockedIngress
+              && (message.type === 'presentation_init' || (message.type === 'slide_update' && Boolean(message.payload?.is_blank)));
+            if (STUDIO_NEW_SESSION_THEME_POLICY_ENABLED && message.type === 'sync_response') socketSyncResponseSeen = true;
+            const resolveNewSessionThemePolicy = (prev: UseDecksterWebSocketV2State, newState: UseDecksterWebSocketV2State) => {
+              if (!newSessionBlankFrame || prev.composerThemeResolved || prev.composerAdoption ||
+                  socketSessionId !== sessionIdRef.current ||
+                  (message.session_id && message.session_id !== sessionIdRef.current)) return;
+              newState.composerThemeResolved = true;
+              composerThemeRef.current = { sessionId: sessionIdRef.current, composerAdoption: null, composerThemeResolved: true };
+            };
+
             setStateWithCache(prev => {
+              // React can apply this publication after the dispatching socket
+              // has retired. Recheck its captured lifetime before any writes.
+              if (!isCurrentSocket()) return prev;
+
               // Prevent duplicate messages by checking message_id
               const isDuplicate = prev.messages.some(m => m.message_id === message.message_id);
 
@@ -1577,16 +2173,43 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               const upsertActionRequest =
                 message.type === 'action_request' && isDuplicate;
 
+              const transcriptMessage = projectVerifiedOutlineReplay(messageWithTimestamp, prev.messages, {
+                isTerminal: !blockedIngress && prev.activeVersion === 'final'
+                  && !!prev.finalPresentationId && !!prev.finalPresentationUrl,
+                socketSessionId,
+                displayedSessionId: sessionIdRef.current,
+                deckOwnerSessionId: prev.deckOwnerSessionId ?? null,
+                finalPresentationId: prev.finalPresentationId,
+                finalPresentationUrl: prev.finalPresentationUrl,
+              });
               const newState = {
                 ...prev,
                 messages: shouldAddToMessages
-                  ? [...prev.messages, messageWithTimestamp]
+                  ? [...prev.messages, transcriptMessage]
                   : upsertActionRequest
                     ? prev.messages.map(m =>
-                        m.message_id === message.message_id ? messageWithTimestamp : m,
+                        m.message_id === message.message_id ? transcriptMessage : m,
                       )
                     : prev.messages,
               };
+              if (STUDIO_VOICE_INTERACTIVE_ENABLED && isCurrentSocket()
+                && socketSessionId === voiceTranscriptAuthorityRef.current.sessionId
+                && socketUserId === voiceTranscriptAuthorityRef.current.userId) {
+                const previousReceipt = prev.studioVoiceTranscriptReceipt;
+                const receipt = previousReceipt?.owner === voiceTranscriptAuthorityRef.current
+                  ? previousReceipt : createVoiceTranscript(
+                    cacheVoiceMessages(sessionCache.getCachedState()),
+                    prev.messages, prev.ephemeralMessageIds,
+                  );
+                if (receipt) newState.studioVoiceTranscriptReceipt = admitStudioVoiceTranscriptFrame(receipt, {
+                  frame: message, admittedMessage: transcriptMessage,
+                  beforeMessages: prev.messages, afterMessages: newState.messages,
+                  ownershipAdmitted: isCurrentSocket(), reducerAppended: shouldAddToMessages,
+                  assistantAdmitted: message.type === 'chat_message'
+                    && transportCallbacksRef.current.getStudioVoiceAssistantAdmission?.(transcriptMessage) === true,
+                  ephemeralIds: prev.ephemeralMessageIds,
+                });
+              }
 
               if (blockedIngress) {
                 // Keep an already-approved displayed deck, but never let a rejected
@@ -1635,6 +2258,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   break;
 
                 case 'sync_response':
+                  if (STUDIO_CHAT_CAPS_META_ENABLED) chatCapsSyncReceived(message.payload, { frameSessionId: message.session_id, socketSessionId, currentSessionId: sessionIdRef.current, isCurrent: isCurrentSocket }); // CHAT-CAPS-META: this socket's current-session sync replaces the read-only snapshot (lib/studio-chat-caps.ts: legacy true or C-D1 {confirm, client_directive}); nothing is sent and no state changes. Off: not read
                   if (COMPOSER_LIBRARY_ENABLED && socketSessionId === sessionIdRef.current &&
                       (!message.session_id || message.session_id === sessionIdRef.current)) {
                     const themeState = composerThemeFromSync(message.payload.composer_adoption, message.payload.presentation_id, Boolean(blockedIngress));
@@ -1771,7 +2395,6 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   // Director sends presentation_init (instead of slide_update) for blank presentations
                   // This avoids rendering a "1 slides · 0 min" card in chat
                   debugLog('🆕 presentation_init received:', JSON.stringify(message.payload, null, 2));
-                  newState.directorWorkflowState = 'BLANK_PRESENTATION';
 
                   const initUrl = message.payload.presentation_url ||
                                   message.payload.preview_url ||
@@ -1788,7 +2411,6 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   if (initUrl) {
                     newState.blankPresentationUrl = initUrl;
                     newState.blankPresentationId = initId || null;
-                    newState.isBlankPresentation = true;
 
                     // Guard: a blank canvas must NOT clobber a real deck we already have
                     // (one restored from the session record on reload, a finished build, or
@@ -1799,9 +2421,15 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                     if (hasRealDeck) {
                       debugLog('⚠️ presentation_init: keeping existing deck, not switching to blank');
                     } else {
+                      newState.directorWorkflowState = 'BLANK_PRESENTATION';
+                      newState.isBlankPresentation = true;
                       newState.activeVersion = 'blank';
                       newState.presentationUrl = initUrl;
                       newState.presentationId = initId || null;
+                      newState.studioAutomaticBlankSelection = {
+                        token: {}, userId: socketUserId, sessionId: socketSessionId,
+                        presentationId: initId || null, presentationUrl: initUrl,
+                      };
                       newState.strawmanPreviewUrl = null;
                       newState.strawmanPresentationId = null;
                       newState.finalPresentationUrl = null;
@@ -1809,6 +2437,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                       newState.deckOwnerSessionId = sessionIdRef.current;
                       newState.slideStructure = null;
                       newState.slideCount = null;
+                      resolveNewSessionThemePolicy(prev, newState);
 
                       debugLog('✅ Blank presentation ready - all editing tools now active');
 
@@ -1871,8 +2500,6 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                     }
                     break;
                   }
-                  newState.slideStructure = message.payload;
-
                   if (
                     message.payload.operation === 'full_update' &&
                     !message.payload.is_blank &&
@@ -1884,7 +2511,6 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   // Legacy: Handle blank presentation sent as slide_update with is_blank flag
                   // (kept for backward compatibility, but Director now sends presentation_init instead)
                   if (message.payload.is_blank) {
-                    newState.directorWorkflowState = 'BLANK_PRESENTATION';
                     const blankUrl = message.payload.preview_url ||
                                      message.payload.metadata?.preview_url;
                     const blankId = message.payload.metadata?.preview_presentation_id ||
@@ -1896,12 +2522,26 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                       // Set blank presentation state
                       newState.blankPresentationUrl = blankUrl;
                       newState.blankPresentationId = blankId || null;
+
+                      // Retain the blank version without replacing current owned
+                      // work or unlocking build settings on a reconnect replay.
+                      const heldDeck = !!(prev.finalPresentationUrl || prev.strawmanPreviewUrl || prev.presentationUrl);
+                      const hasRealDeck = heldDeck && prev.deckOwnerSessionId === sessionIdRef.current;
+                      if (hasRealDeck) {
+                        newState.slideStructure = prev.slideStructure;
+                        break;
+                      }
+                      newState.directorWorkflowState = 'BLANK_PRESENTATION';
                       newState.isBlankPresentation = true;
 
                       // Set as current presentation (blank is the starting point)
                       newState.activeVersion = 'blank';
                       newState.presentationUrl = blankUrl;
                       newState.presentationId = blankId || null;
+                      newState.studioAutomaticBlankSelection = {
+                        token: {}, userId: socketUserId, sessionId: socketSessionId,
+                        presentationId: blankId || null, presentationUrl: blankUrl,
+                      };
                       newState.strawmanPreviewUrl = null;
                       newState.strawmanPresentationId = null;
                       newState.finalPresentationUrl = null;
@@ -1909,6 +2549,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                       newState.deckOwnerSessionId = sessionIdRef.current;
                       newState.slideStructure = null;
                       newState.slideCount = null;
+                      resolveNewSessionThemePolicy(prev, newState);
 
                       debugLog('✅ Blank presentation ready - all editing tools now active');
 
@@ -1928,6 +2569,17 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                       }
                     }
                     break; // Exit early - don't process as strawman
+                  }
+
+                  newState.slideStructure = message.payload;
+
+                  if (transcriptMessage.clientOutlineReplayOf || transcriptMessage.clientTerminalOutlineRevisionOf) {
+                    // Completed Director reconnects retarget the saved outline
+                    // to the final viewer. Verified state or narrative revisions remain historical;
+                    // it must not switch the live final deck back to strawman.
+                    newState.directorWorkflowState = prev.directorWorkflowState;
+                    newState.currentStatus = null;
+                    break;
                   }
 
                   // EXISTING: Handle regular slide_update (strawman preview)
@@ -2221,7 +2873,12 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             }
 
             if (message.type === 'slide_built') {
-              options.onSlideBuilt?.(message);
+              // Local continuation identity only; preserve the raw frame and
+              // existing consumers. This is not a new wire field or filter.
+              options.onSlideBuilt?.(message, {
+                sessionId: socketSessionId, userId: socketUserId,
+                transportGeneration: attemptGeneration, isCurrent: isCurrentSocket,
+              });
             } else if (message.type === 'slide_progress') {
               options.onSlideComposeProgress?.(message);
             } else if (message.type === 'slide_ready' && !blockedIngress) {
@@ -2233,7 +2890,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             } else if (message.type === 'template_ingest_failed' && ingestFrameIsForDisplayedSession) {
               options.onTemplateIngestFailed?.(message);
             } else if (message.type === 'build_phase') {
-              options.onBuildPhase?.((message as any).payload);
+              options.onBuildPhase?.((message as any).payload, message.session_id);
             } else if (message.type === 'build_event') {
               options.onBuildEvent?.((message as any).payload);
             } else if (message.type === 'sync_response' && (message.payload as any)?.build_state) {
@@ -2412,6 +3069,17 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           wsRef.current = null;
           buildControlTokenRef.current = null;
           clearAuthRefreshTimer();
+          // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB (default off): Director keeps one live socket per session and closed this one
+          // (4000 "New connection opened") because the session was opened in another tab. Reconnecting would only evict that
+          // tab in turn, so this tab stops here: no timer, no ping, no frame. The user takes the session back with connect().
+          // Studio's own 4000 closes (heartbeat) carry other reasons and keep their backoff, as does every other close.
+          if (STUDIO_ONE_LIVE_TAB_ENABLED && isDirectorSupersededClose(event)) {
+            debugLog('📑 Director closed this socket: the session is open in another tab; not reconnecting');
+            clearReconnectTimer();
+            reconnectPausedForOfflineRef.current = false;
+            setReconnectStatus('superseded', reconnectAttemptsRef.current);
+            return;
+          }
           scheduleReconnect(`close:${event.code}`);
         };
       })();
@@ -2437,6 +3105,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }
   }, [
     options,
+    reportConfigurationError,
     acknowledgeHeartbeat,
     clearReconnectStabilityTimer,
     clearReconnectTimer,
@@ -2513,12 +3182,16 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         !reconnectOnErrorRef.current ||
         manualDisconnectRef.current ||
         !connectionDesiredRef.current ||
-        reconnectStatusRef.current === 'exhausted'
+        reconnectStatusRef.current === 'exhausted' ||
+        // A tab Director handed over to another tab has nothing to resume when the network returns.
+        reconnectStatusRef.current === 'superseded'
       ) {
         return;
       }
 
       reconnectPausedForOfflineRef.current = true;
+      connectionAttemptGenerationRef.current += 1;
+      isConnectingRef.current = false;
       clearReconnectTimer(true);
       clearReconnectStabilityTimer();
       stopHeartbeat();
@@ -2605,6 +3278,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   useEffect(() => {
     const nextSessionId = options.existingSessionId;
     if (!nextSessionId || nextSessionId === sessionIdRef.current) return;
+    retireVoiceTranscript();
 
     const previousSessionId = sessionIdRef.current;
     const previousSocket = wsRef.current;
@@ -2620,6 +3294,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     });
 
     sessionIdRef.current = nextSessionId;
+    transportNoticeRef.current = null;
+    connectionAttemptGenerationRef.current += 1;
     reconnectAttemptsRef.current = 0;
     clearReconnectTimer();
     clearReconnectStabilityTimer();
@@ -2639,6 +3315,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     setState(prev => ({
       ...prev,
       sessionId: nextSessionId,
+      transportNotice: null,
+      handoffRequestStatus: null,
       ...(COMPOSER_LIBRARY_ENABLED ? { composerAdoption: null, composerThemeResolved: false } : {}),
       connected: false,
       connecting: shouldReconnect,
@@ -2649,6 +3327,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     pendingSessionReconnectRef.current = shouldReconnect ? nextSessionId : null;
   }, [
     options.existingSessionId,
+    retireVoiceTranscript,
     clearReconnectStabilityTimer,
     clearReconnectTimer,
     setReconnectStatus,
@@ -2673,6 +3352,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
   // Disconnect from WebSocket
   const disconnect = useCallback(() => {
+    retireVoiceTranscript();
+    turnSubmissionLifecycleRef.current.generation += 1;
+    connectionAttemptGenerationRef.current += 1;
     debugLog('🔌 Disconnecting WebSocket');
 
     manualDisconnectRef.current = true;
@@ -2705,6 +3387,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       connectionState: 'disconnected',
     }));
   }, [
+    retireVoiceTranscript,
     clearReconnectStabilityTimer,
     clearReconnectTimer,
     setReconnectStatus,
@@ -2756,6 +3439,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           // MDC K6 (P4): advertise client capabilities on every message so the
           // Director only sends the new frame types to capable clients.
           ...(CHAT_DIRECTIVES && { client_caps: ['mdc1'] }),
+          // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT: theme1 / export1 after mdc1. Both off: the list is empty and nothing is added.
+          ...(CHAT_THEME_EXPORT_CAPS.length > 0 && { client_caps: [...(CHAT_DIRECTIVES ? ['mdc1'] : []), ...CHAT_THEME_EXPORT_CAPS] }),
           // MDC K1 (P6): typed slide references parsed from @[Slide N: …]
           // mention tokens (v1: slides only, §12-Q5).
           ...(options?.displayText ? { display_text: options.displayText } : {}),
@@ -2768,6 +3453,12 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           })()),
         },
       };
+      // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: element_refine1 in client_caps, and the selected element as one reference. Off: nothing.
+      if (CHAT_ELEMENT_REFINE_ENABLED) addChatElementRefineFields(message.data as unknown as Record<string, unknown>, transportCallbacksRef.current.getChatElementReference?.() ?? null);
+      if (CHAT_ELEMENT_EDIT_ENABLED) addChatElementEditCaps(message.data as unknown as Record<string, unknown>); // CHAT-ELEMENT-EDIT: element_edit1 / notes1 in client_caps, after the other caps. Off: nothing.
+      if (BULK_EDIT_UNDO_CLIENT_CAPS.length > 0) addBulkEditUndoCaps(message.data as unknown as Record<string, unknown>); // BULK-EDIT-UNDO: bulk_edit1 / undo1 in client_caps, each with its own flag. Off: nothing.
+      if (STUDIO_CHAT_COMMANDS_ENABLED) addChatCommandsFields(message.data as unknown as Record<string, unknown>, text); // CHAT-COMMANDS: mentions2 / commands1 in client_caps, the picked file / template / theme references whose token is still in the text, and the command hint. Off: nothing.
+      if (CHAT_PARITY_CAPS.length > 0) addChatParityCaps(message.data as unknown as Record<string, unknown>); // CHAT-PARITY: themes1 / identity1 / templates1, after #522's element_edit1 / notes1, the bulk-edit caps and #532's mentions2 / commands1: the last caps line in client_caps, each with its own flag. Off: nothing.
       return message;
     };
 
@@ -2778,6 +3469,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
     try {
       const message = buildUserMessage();
+      if (STUDIO_TEMPLATE_MATCH_ENABLED) addTemplateMatchCap(message.data as unknown as Record<string, unknown>); // STUDIO-TEMPLATE-MATCH: template_match1, LAST in client_caps (after every other cap, on the built message). Off: nothing.
       const effectiveStoreName = message.data.store_name;
 
       debugLog(
@@ -2787,6 +3479,26 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}, use_knowledge_graph=${message.data.use_knowledge_graph ?? false}, theme=${message.data.theme?.mode ?? 'none'}, template_overrides=${message.data.element_overrides ? Object.keys(message.data.element_overrides).length : 0}, action=${message.data.action_value ?? 'none'}, manual_deck=${message.data.manual_deck?.policy ?? 'none'}, identity=${message.data.deck_identity ? 'yes' : 'no'}, handoff=${message.data.handoff_idempotency_key ? 'yes' : 'no'}]`
       );
       wsRef.current.send(JSON.stringify(message));
+      if (STUDIO_CHAT_COMMANDS_ENABLED) chatCommandsSent(text); // CHAT-COMMANDS: the picks and the command this message used are spent. Off: nothing.
+      const turnSequence = ++sentTurnSequenceRef.current;
+      const key = message.data.handoff_idempotency_key;
+      const lifecycle = turnSubmissionLifecycleRef.current;
+      if (typeof key === 'string' && key.trim() && lifecycle.active
+        && lifecycle.sessionId === sessionIdRef.current && lifecycle.userId === userIdRef.current
+        && socketSessionRef.current === sessionIdRef.current) {
+        handoffRequestRef.current = {
+          sessionId: sessionIdRef.current, userId: userIdRef.current, idempotencyKey: key.trim(),
+          requestGeneration: ++handoffRequestGenerationRef.current,
+          lifecycleGeneration: lifecycle.generation, awaitingTurnSequence: turnSequence,
+        };
+        setState(prev => prev.handoffRequestStatus ? { ...prev, handoffRequestStatus: null } : prev);
+      }
+      // Only an explicit successfully admitted user action clears a discard
+      // notice. Reconnect/refresh never resends the action automatically.
+      if (transportNoticeRef.current?.requiresResend && transportNoticeRef.current.sessionId === sessionIdRef.current) {
+        transportNoticeRef.current = null;
+        setState(prev => ({ ...prev, transportNotice: null }));
+      }
       beginAwaitReply();
 
       return true;
@@ -2807,8 +3519,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
    * outcome and looked like the Director ignoring typed input.
    *
    * So: ask the transport to reconnect, wait for OPEN, then send. Resolves
-   * false only when the socket genuinely could not be restored in time, and
-   * the caller must surface that rather than commit the message to the UI.
+   * false when the socket cannot be restored or the originating session/account
+   * lifecycle changes. Callers must never commit a false result to the UI.
    */
   const sendMessageWhenConnected = useCallback(async (
     text: string,
@@ -2816,10 +3528,30 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     fileCount?: number,
     options?: SendUserMessageOptions,
     timeoutMs: number = SEND_RECONNECT_TIMEOUT_MS,
+    isCurrentRequest?: () => boolean,
   ): Promise<boolean> => {
+    if (isStudioQuotaScreensOn() && !(await walletPrecheckAllows())) return false; // BILLING-F5-USAGE: F4 pre-build check (404 = allowed)
+    const origin = { ...turnSubmissionLifecycleRef.current };
+    const isCurrentTurn = () => (
+      turnSubmissionLifecycleRef.current.active &&
+      turnSubmissionLifecycleRef.current.generation === origin.generation &&
+      turnSubmissionLifecycleRef.current.sessionId === origin.sessionId &&
+      turnSubmissionLifecycleRef.current.userId === origin.userId &&
+      sessionIdRef.current === origin.sessionId &&
+      userIdRef.current === origin.userId &&
+      // Callers may observe navigation intent before native session adoption.
+      // This local predicate is never forwarded into the Director wire options.
+      (isCurrentRequest?.() ?? true)
+    );
+    if (!origin.active || !origin.userId || !isCurrentTurn()) return false;
     if (wsRef.current?.readyState === WebSocket.OPEN) {
+      if (socketSessionRef.current !== origin.sessionId) return false;
       return sendMessage(text, storeName, fileCount, options);
     }
+
+    // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: a tab Director handed over to another tab does not reconnect to send (that would evict the
+    // live tab); fail at once instead of waiting out the reconnect window. The page tells the user and offers "Use here".
+    if (STUDIO_ONE_LIVE_TAB_ENABLED && reconnectStatusRef.current === 'superseded') return false;
 
     debugLog('🔌 Send requested on a closed socket — reconnecting first');
     ensureConnected();
@@ -2827,10 +3559,14 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       await new Promise(resolve => setTimeout(resolve, 150));
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        // Give the Director's post-accept sync a beat to land so this message
-        // is not processed against a half-initialised session.
+      if (!isCurrentTurn()) return false;
+      const readySocket = wsRef.current;
+      if (readySocket?.readyState === WebSocket.OPEN && socketSessionRef.current === origin.sessionId) {
+        // Give this session's post-accept sync a beat to land. A replacement
+        // socket or lifecycle cannot inherit the original turn after the wait.
         await new Promise(resolve => setTimeout(resolve, 250));
+        if (!isCurrentTurn() || wsRef.current !== readySocket ||
+          readySocket.readyState !== WebSocket.OPEN || socketSessionRef.current !== origin.sessionId) return false;
         return sendMessage(text, storeName, fileCount, options);
       }
     }
@@ -2853,6 +3589,26 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       return false;
     }
   }, []);
+  // CHAT-ELEMENT-EDIT: report an element_edit outcome (ok:true means saved) on the socket that delivered it. Unused with the flag off.
+  const sendElementEditResult = useCallback((data: import('@/lib/chat-element-edit-wire').ElementEditResultData): boolean => { // CHAT-ELEMENT-EDIT
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) { // CHAT-ELEMENT-EDIT
+      console.error('❌ Cannot send element_edit_result: WebSocket not connected'); // CHAT-ELEMENT-EDIT
+      return false; // CHAT-ELEMENT-EDIT
+    } // CHAT-ELEMENT-EDIT
+    try { // CHAT-ELEMENT-EDIT
+      wsRef.current.send(JSON.stringify(elementEditResultFrame(data))); // CHAT-ELEMENT-EDIT
+      return true; // CHAT-ELEMENT-EDIT
+    } catch (error) { // CHAT-ELEMENT-EDIT
+      console.error('Failed to send element_edit_result:', error); // CHAT-ELEMENT-EDIT
+      return false; // CHAT-ELEMENT-EDIT
+    } // CHAT-ELEMENT-EDIT
+  }, []); // CHAT-ELEMENT-EDIT
+  // CHAT-PARITY: report a studio_action outcome back to the Director (lib/studio-chat-parity.ts chatParityResult); the frame is built there so the names live in one place.
+  const sendChatParityResult = useCallback((data: import('@/lib/studio-chat-parity').ChatParityResultData): boolean => { // CHAT-PARITY
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return false; // CHAT-PARITY
+    try { wsRef.current.send(JSON.stringify(chatParityResultFrame(data))); return true; } catch { return false; } // CHAT-PARITY
+  }, []); // CHAT-PARITY
+  chatParityBus.send = sendChatParityResult // CHAT-PARITY: the page's runner answers through the bus (lib/studio-chat-parity.ts)
 
   const sendControlMessage = useCallback((type: ControlMessage['type'], data?: { job_id: string }): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
@@ -2901,6 +3657,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   // Requires Director BUILD_CONTROL_ENABLED; the ack is the resulting
   // build_phase frame (paused/building/stopped).
   const sendBuildControl = useCallback((action: BuildControlData['action'], buildId?: string): string | null => {
+    const instructions = takeFlowInstructions(); // FLOW-CONTROL: what the flow hook left for this one request (a resume with the user's changes), taken once
     const requestId = createBuildControlRequestId(
       typeof globalThis.crypto?.randomUUID === 'function'
         ? globalThis.crypto.randomUUID.bind(globalThis.crypto)
@@ -2924,6 +3681,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       user_id: requestUserId,
       action,
       ...(buildId ? { build_id: buildId } : {}),
+      ...(instructions ? { instructions } : {}), // FLOW-CONTROL
       request_id: requestId,
       ...(requestControlToken ? { control_token: requestControlToken } : {}),
     };
@@ -2950,6 +3708,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           data: {
             action,
             ...(buildId ? { build_id: buildId } : {}),
+            ...(instructions ? { instructions } : {}), // FLOW-CONTROL
             request_id: requestId,
             session_id: requestSessionId,
             user_id: requestUserId,
@@ -2969,7 +3728,15 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         return false;
       }
     }
-    const endpoint = buildControlEndpointFromWsUrl(DEFAULT_WS_URL)
+    let configuredWsUrl: string;
+    try {
+      configuredWsUrl = getDirectorWsUrl();
+    } catch (error) {
+      if (!(error instanceof ServiceUrlConfigError)) throw error;
+      reportConfigurationError(error);
+      return null;
+    }
+    const endpoint = buildControlEndpointFromWsUrl(configuredWsUrl)
     if (endpoint && typeof fetch === 'function') {
       debugLog('📤 Sending build_control via HTTP:', {
         session_id: data.session_id,
@@ -3020,7 +3787,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       console.error('Failed to send build_control:', error);
       return null;
     }
-  }, []);
+  }, [reportConfigurationError]);
 
   // Template Ingest (C-5): apply a completed ingest job fetched via the REST
   // reconnect-polling path exactly as if the template_ingest_ready WS frame had
@@ -3111,6 +3878,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
   // Switch between blank, strawman and final versions (Builder V2)
   const switchVersion = useCallback((version: 'blank' | 'strawman' | 'final') => {
+    retireDeckMutationOwner();
     setStateWithCache(prev => {
       const newActiveVersion = version;
       let newPresentationUrl = null;
@@ -3140,7 +3908,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         deckOwnerSessionId: newPresentationUrl ? (prev.deckOwnerSessionId || sessionIdRef.current) : prev.deckOwnerSessionId
       };
     });
-  }, [setStateWithCache]);
+  }, [retireDeckMutationOwner, setStateWithCache]);
 
   // Drain tracked ephemeral message IDs after MessageList finishes the fade-out animation.
   const clearEphemeralIds = useCallback(() => {
@@ -3149,6 +3917,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
   // Clear messages
   const clearMessages = useCallback(() => {
+    retireVoiceTranscript();
+    retireDeckMutationOwner();
+    retireHandoffRequest();
     // Also clear the cache
     sessionCache.clearCache();
 
@@ -3157,7 +3928,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       composerAdoption: null,
       composerThemeResolved: false,
       messages: [],
+      studioVoiceTranscriptReceipt: createVoiceTranscript([], [], []),
       presentationUrl: null,
+      studioAutomaticBlankSelection: null,
       strawmanPreviewUrl: null,
       finalPresentationUrl: null,
       deckOwnerSessionId: null,
@@ -3184,10 +3957,12 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       templateIngestError: null,
       templateIngestJobId: null,
     }));
-  }, [sessionCache, setStateWithCache]);
+  }, [retireDeckMutationOwner, retireHandoffRequest, sessionCache, setStateWithCache, retireVoiceTranscript]);
 
   // Restore messages from database (for session loading)
   const restoreMessages = useCallback((historicalMessages: DirectorMessage[], restoredSessionState?: {
+    /** Explicit owner of loaded metadata; independent of socket adoption. */
+    deckOwnerSessionId?: string | null;
     presentationUrl?: string | null;
     presentationId?: string | null;
     strawmanPreviewUrl?: string | null;
@@ -3202,7 +3977,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     slideStructure?: any;
     currentStage?: number | null;
     activeVersion?: 'blank' | 'strawman' | 'final' | null;
-  }) => {
+  }, studioTranscriptRestoredIds: readonly string[] = []) => {
+    retireVoiceTranscript();
+    retireDeckMutationOwner();
+    retireHandoffRequest();
     const { state: sessionState, blocked: blockedViewerUrls } = sanitizeRestoredLayoutViewerUrls(
       restoredSessionState || {},
       LAYOUT_VIEWER_URL_POLICY,
@@ -3218,8 +3996,11 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }
 
     const safeHistoricalMessages = historicalMessages.map(message => {
+      const cleanMessage = { ...message } as DirectorMessage & { clientOutlineReplayOf?: string; clientTerminalOutlineRevisionOf?: string };
+      delete cleanMessage.clientOutlineReplayOf;
+      delete cleanMessage.clientTerminalOutlineRevisionOf;
       const guarded = guardDirectorLayoutUrlMessage(
-        message as DirectorMessage & { payload: Record<string, any> },
+        cleanMessage as DirectorMessage & { payload: Record<string, any> },
         LAYOUT_VIEWER_URL_POLICY,
       );
       if (guarded.ingress?.status === 'blocked') {
@@ -3298,38 +4079,102 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       sessionState.blankPresentationUrl ||
       sessionState.strawmanPreviewUrl ||
       sessionState.finalPresentationUrl
-    ) ? sessionIdRef.current : null;
+    ) ? (sessionState.deckOwnerSessionId === undefined
+      ? sessionIdRef.current
+      : sessionState.deckOwnerSessionId) : null;
 
-    setStateWithCache(prev => ({
-      ...prev,
-      messages: scrubBuildControlCapabilityMessages(safeHistoricalMessages),
-      // CRITICAL FIX: Use computed display URL based on activeVersion
-      // This ensures the correct presentation version is shown
-      presentationUrl: displayUrl,
-      presentationId: displayId,
-      strawmanPreviewUrl: sessionState.strawmanPreviewUrl || null,
-      strawmanPresentationId: sessionState.strawmanPresentationId || null,
-      finalPresentationUrl: sessionState.finalPresentationUrl || null,
-      finalPresentationId: sessionState.finalPresentationId || null,
-      deckOwnerSessionId: restoredDeckOwnerSessionId,
-      // NEW: Blank presentation state (Builder V2)
-      blankPresentationUrl: sessionState.blankPresentationUrl || null,
-      blankPresentationId: sessionState.blankPresentationId || null,
-      isBlankPresentation: sessionState.isBlankPresentation || false,
-      activeVersion: activeVersion,
-      slideCount: sessionState.slideCount || null,
-      slideStructure: sessionState.slideStructure || null,
-      currentStage: sessionState.currentStage || null,
-      currentStatus: null, // Always clear status on session restore
-      ephemeralMessageIds: [],
-      ephemeralFadeToken: 0,
-      tokenUsage: (sessionState as any).tokenUsage || null,
-      tokenUsageMessageId: (sessionState as any).tokenUsageMessageId || null,
-      templateIngestResult: (sessionState as any).templateIngestResult || null,
-      templateIngestError: null,
-      templateIngestJobId: null,
-    }));
-  }, [setStateWithCache]);
+    // A DB snapshot can finish after a response was received or before a
+    // debounced save completes. Preserve that same-session transcript in memory,
+    // not only in the cache writer's separate merge. Never reuse another
+    // session's cached messages during an asynchronous session adoption.
+    const historySessionId = sessionState.deckOwnerSessionId
+      || safeHistoricalMessages[0]?.session_id
+      || sessionIdRef.current;
+    const cachedHistory = historySessionId === sessionIdRef.current && sessionCache.isCacheValid()
+      ? sessionCache.getCachedState()
+      : null;
+    const cachedUserIds = new Set(cachedHistory?.userMessages?.map(message => message.id) || []);
+    const cachedBotMessages = (cachedHistory?.messages || []).filter(message => !cachedUserIds.has(message.message_id));
+
+    setStateWithCache(prev => {
+      // An incomplete DB snapshot must not erase a final deck already owned
+      // by this selected session. Explicit version/new-build/final claims win.
+      const retainFinal = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+        && sessionState.deckOwnerSessionId === historySessionId
+        && prev.deckOwnerSessionId === historySessionId
+        && prev.activeVersion === 'final'
+        && !!prev.finalPresentationId && !!prev.finalPresentationUrl
+        && prev.presentationId === prev.finalPresentationId
+        && prev.presentationUrl === prev.finalPresentationUrl
+        && Number.isInteger(prev.slideCount) && (prev.slideCount ?? 0) > 0
+        && evaluateLayoutViewerUrl(prev.finalPresentationUrl, LAYOUT_VIEWER_URL_POLICY).status === 'allowed'
+        && !restoredSessionState?.finalPresentationId && !restoredSessionState?.finalPresentationUrl
+        && sessionState.activeVersion !== 'blank' && sessionState.activeVersion !== 'strawman'
+        && (sessionState.currentStage == null || sessionState.currentStage === 6);
+      const restoredFinalId = retainFinal ? prev.finalPresentationId : sessionState.finalPresentationId || null;
+      const restoredFinalUrl = retainFinal ? prev.finalPresentationUrl : sessionState.finalPresentationUrl || null;
+      const restoredVersion = retainFinal ? 'final' : activeVersion;
+      const restoredOwner = retainFinal ? prev.deckOwnerSessionId : restoredDeckOwnerSessionId;
+      const retainBlank = retainFinal && !restoredSessionState?.blankPresentationId && !restoredSessionState?.blankPresentationUrl
+        && !!prev.blankPresentationId && !!prev.blankPresentationUrl
+        && evaluateLayoutViewerUrl(prev.blankPresentationUrl, LAYOUT_VIEWER_URL_POLICY).status === 'allowed';
+      const retainStrawman = retainFinal && !restoredSessionState?.strawmanPresentationId && !restoredSessionState?.strawmanPreviewUrl
+        && !!prev.strawmanPresentationId && !!prev.strawmanPreviewUrl
+        && evaluateLayoutViewerUrl(prev.strawmanPreviewUrl, LAYOUT_VIEWER_URL_POLICY).status === 'allowed';
+      const restoredMessages = mergeDirectorChatHistory(historySessionId, safeHistoricalMessages, cachedBotMessages, prev.messages)
+        .reduce<DirectorMessage[]>((accepted, message) => {
+          accepted.push(projectVerifiedOutlineReplay(message, accepted, {
+            isTerminal: restoredVersion === 'final' && !!restoredFinalId && !!restoredFinalUrl,
+            socketSessionId: sessionIdRef.current,
+            displayedSessionId: historySessionId,
+            deckOwnerSessionId: restoredOwner ?? null,
+            finalPresentationId: restoredFinalId,
+            finalPresentationUrl: restoredFinalUrl,
+          }));
+          return accepted;
+        }, []);
+      const privateRestoreIds = studioTranscriptRestoredIds.map(message_id => ({ message_id }));
+      const unknownReceipt = createVoiceTranscript(cacheVoiceMessages(cachedHistory), prev.messages, prev.ephemeralMessageIds);
+      const restoredReceipt = unknownReceipt ? completeStudioVoiceTranscriptRestore(unknownReceipt, {
+        ownershipAdmitted: historySessionId === voiceTranscriptAuthorityRef.current.sessionId,
+        historicalMessages: [...safeHistoricalMessages, ...privateRestoreIds], cachedMessages: cacheVoiceMessages(cachedHistory),
+        priorVisibleMessages: prev.messages, acceptedMessages: restoredMessages,
+        ephemeralIds: prev.ephemeralMessageIds,
+      }) : null;
+      return {
+        ...prev,
+        messages: restoredMessages,
+        studioVoiceTranscriptReceipt: restoredReceipt,
+        studioAutomaticBlankSelection: null,
+        // CRITICAL FIX: Use computed display URL based on activeVersion
+        // This ensures the correct presentation version is shown
+        presentationUrl: retainFinal ? restoredFinalUrl : displayUrl,
+        presentationId: retainFinal ? restoredFinalId : displayId,
+        strawmanPreviewUrl: retainStrawman ? prev.strawmanPreviewUrl : sessionState.strawmanPreviewUrl || null,
+        strawmanPresentationId: retainStrawman ? prev.strawmanPresentationId : sessionState.strawmanPresentationId || null,
+        finalPresentationUrl: restoredFinalUrl,
+        finalPresentationId: restoredFinalId,
+        deckOwnerSessionId: restoredOwner,
+        // NEW: Blank presentation state (Builder V2)
+        blankPresentationUrl: retainBlank ? prev.blankPresentationUrl : sessionState.blankPresentationUrl || null,
+        blankPresentationId: retainBlank ? prev.blankPresentationId : sessionState.blankPresentationId || null,
+        isBlankPresentation: process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+          ? restoredVersion === 'blank' : sessionState.isBlankPresentation || false,
+        activeVersion: restoredVersion,
+        slideCount: retainFinal ? prev.slideCount : sessionState.slideCount || null,
+        slideStructure: retainFinal ? prev.slideStructure : sessionState.slideStructure || null,
+        ...(retainFinal ? {} : { currentStage: sessionState.currentStage || null }),
+        currentStatus: null, // Always clear status on session restore
+        ephemeralMessageIds: [],
+        ephemeralFadeToken: 0,
+        tokenUsage: (sessionState as any).tokenUsage || null,
+        tokenUsageMessageId: (sessionState as any).tokenUsageMessageId || null,
+        templateIngestResult: (sessionState as any).templateIngestResult || null,
+        templateIngestError: null,
+        templateIngestJobId: null,
+      };
+    });
+  }, [retireDeckMutationOwner, retireHandoffRequest, sessionCache, setStateWithCache, retireVoiceTranscript]);
 
   // Auto-connect on mount (only once)
   useEffect(() => {
@@ -3385,6 +4230,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     sendMessage,
     sendMessageWhenConnected,
     sendElementDirectiveResult,
+    sendElementEditResult, // CHAT-ELEMENT-EDIT
     sendControlMessage,
     applyTemplateIngestReady,
     sendThemeSelection,
@@ -3397,6 +4243,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
     awaitingDirectorReply,
     stopAwaitingReply: clearAwaitReply,
+    trackHandoffRequest,
 
     // Utility
     isReady: state.connected,

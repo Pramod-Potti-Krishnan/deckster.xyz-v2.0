@@ -1,34 +1,65 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useLayoutEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Sparkles, MessageSquare, Layout, Users, ArrowRight, Play, X } from "lucide-react"
+import { Sparkles, MessageSquare, Layout, Users, ArrowRight, Play, X, Target, ListChecks, FileText, Download, Globe } from "lucide-react"
 import { useSession } from "next-auth/react"
+
+import './studio-onboarding.css'
+
+const STUDIO_ONBOARDING = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+
+const studioChapters = [
+  { title: 'Start with a spark.', description: 'Tell the Director what you are making, who it is for and what it should help them decide.',
+    cards: [{ icon: Sparkles, title: 'The topic', text: 'Start with your idea or the subject you want to explore.' },
+      { icon: Users, title: 'The audience', text: 'Describe who will read or hear your presentation.' },
+      { icon: Target, title: 'The outcome', text: 'Explain the decision, understanding or next step you want to support.' }],
+    note: 'Use Chat to work through the brief and respond to the Director’s questions.' },
+  { title: 'Shape the story.', description: 'Review your deck on the canvas, then choose a slide or element to refine.',
+    cards: [{ icon: MessageSquare, title: 'Talk it through', text: 'Give feedback in Chat as the story takes shape.' },
+      { icon: Layout, title: 'Work on the canvas', text: 'Choose a slide from the filmstrip. Use the available tools to add, select and edit.' },
+      { icon: ListChecks, title: 'Review the details', text: 'Open the Inspector to work with the selected deck, slide or element.' }],
+    note: 'Tools become available as your deck is built. The current deck and selection determine which actions you can use.' },
+  { title: 'Make it ready to share.', description: 'Review the supporting words, then choose how to deliver your presentation.',
+    cards: [{ icon: FileText, title: 'Script, notes and sources', text: 'Open Notes below the canvas to review each slide’s script, speaker notes and references.' },
+      { icon: Download, title: 'Download a ready deck', text: 'Use Download to choose the available PDF or PowerPoint format.' },
+      { icon: Globe, title: 'Manage sharing', text: 'Use Publish to review access, permitted downloads and the current sharing settings.' }],
+    note: 'Available delivery actions depend on the current deck. Enter Studio to continue your work.' },
+]
 
 interface OnboardingModalProps {
   open?: boolean
   onClose?: () => void
+  onCloseAutoFocus?: (event: Event) => void
+  replay?: boolean
 }
 
-export function OnboardingModal({ open: controlledOpen, onClose }: OnboardingModalProps) {
+export function OnboardingModal({ open: controlledOpen, onClose, onCloseAutoFocus, replay = false }: OnboardingModalProps) {
   const [currentStep, setCurrentStep] = useState(0)
   const [open, setOpen] = useState(false)
   const { data: session } = useSession()
+  const studioTitleRef = useRef<HTMLHeadingElement>(null)
 
   useEffect(() => {
-    // Check if user has seen onboarding
-    const hasSeenOnboarding = localStorage.getItem('hasSeenOnboarding')
-    const isNewUser = localStorage.getItem('isNewUser')
-    
-    if (!hasSeenOnboarding && session && (isNewUser === 'true' || controlledOpen)) {
-      setOpen(true)
-      localStorage.removeItem('isNewUser')
+    if (STUDIO_ONBOARDING && replay) return
+    const checkOnboarding = () => {
+      // Check if user has seen onboarding
+      const hasSeenOnboarding = localStorage.getItem('hasSeenOnboarding')
+      const isNewUser = localStorage.getItem('isNewUser')
+
+      if (!hasSeenOnboarding && session && (isNewUser === 'true' || controlledOpen)) {
+        setOpen(true)
+        localStorage.removeItem('isNewUser')
+      }
     }
-  }, [session, controlledOpen])
+    if (STUDIO_ONBOARDING) {
+      try { checkOnboarding() } catch { /* Explicit replay still works without browser storage. */ }
+    } else checkOnboarding()
+  }, [session, controlledOpen, replay])
 
   const steps = [
     {
@@ -129,7 +160,9 @@ export function OnboardingModal({ open: controlledOpen, onClose }: OnboardingMod
   }
 
   const handleClose = () => {
-    localStorage.setItem('hasSeenOnboarding', 'true')
+    if (STUDIO_ONBOARDING) {
+      try { localStorage.setItem('hasSeenOnboarding', 'true') } catch { /* Dismissal remains available. */ }
+    } else localStorage.setItem('hasSeenOnboarding', 'true')
     setOpen(false)
     onClose?.()
   }
@@ -139,6 +172,41 @@ export function OnboardingModal({ open: controlledOpen, onClose }: OnboardingMod
   }
 
   const isOpen = controlledOpen !== undefined ? controlledOpen : open
+
+  useLayoutEffect(() => {
+    if (STUDIO_ONBOARDING && isOpen) setCurrentStep(0)
+  }, [isOpen])
+
+  if (STUDIO_ONBOARDING) {
+    const chapter = studioChapters[currentStep]
+    return <Dialog open={isOpen} onOpenChange={(next) => !next && handleClose()}>
+      <DialogContent data-studio-v4-shell="true" data-studio-onboarding="true"
+        onCloseAutoFocus={onCloseAutoFocus}
+        onOpenAutoFocus={(event) => { event.preventDefault(); studioTitleRef.current?.focus() }}>
+        <DialogHeader className="studio-onboarding-header">
+          <span className="studio-onboarding-eyebrow">Deckster / Studio · A quick introduction</span>
+          <DialogTitle ref={studioTitleRef} tabIndex={-1} aria-live="polite">{chapter.title}</DialogTitle>
+          <DialogDescription>{chapter.description}</DialogDescription>
+        </DialogHeader>
+        <div className="studio-onboarding-body">
+          <ol className="studio-onboarding-chapters" aria-label="Introduction chapters">
+            {['The spark', 'The story', 'Your stage'].map((label, index) => <li key={label} aria-current={currentStep === index ? 'step' : undefined}><b>{index + 1}</b>{label}</li>)}
+          </ol>
+          <div className="studio-onboarding-cards">
+            {chapter.cards.map(({ icon: Icon, title, text }) => <article key={title}><Icon aria-hidden="true" /><h3>{title}</h3><p>{text}</p></article>)}
+          </div>
+          <p className="studio-onboarding-note">{chapter.note}</p>
+        </div>
+        <footer className="studio-onboarding-footer">
+          <Button variant="ghost" onClick={handleSkip}>Skip introduction</Button>
+          <div>
+            <Button variant="ghost" disabled={currentStep === 0} onClick={() => setCurrentStep(currentStep - 1)}>Back</Button>
+            <Button className="studio-onboarding-next" onClick={handleNext}>{currentStep === steps.length - 1 ? 'Enter Studio' : 'Next'}<ArrowRight className="ml-2 h-4 w-4" /></Button>
+          </div>
+        </footer>
+      </DialogContent>
+    </Dialog>
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>

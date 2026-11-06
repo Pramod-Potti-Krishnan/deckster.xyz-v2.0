@@ -3,13 +3,32 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type MutableRefObject,
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
 } from "react"
-import { Focus, Minus, Plus, RotateCcw } from "lucide-react"
+import { Focus, List, Maximize2, Minimize2, Minus, Network, Plus, RotateCcw, ScanSearch } from "lucide-react"
+import {
+  STUDIO_NODE_HALO, studioFullscreenActive, studioFullscreenLabel, studioFullscreenSupported, studioHaloId, studioNodeBadge, studioP2SecondBrainOn,
+} from "@/lib/studio-p2-second-brain"
+
+import './studio-graph-controls.css'
+import { StudioKnowledgeMapToolbar } from './studio-knowledge-map-toolbar'
+import { knowledgeFitScale } from '@/lib/studio-knowledge-map-toolbar'
+import { placeCleanLabels } from '@/lib/studio-knowledge-map-labels'
+import './studio-p2-second-brain.css'
+
+const STUDIO_GRAPH_CONTROLS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+// J6 finding L6 (card PASS2-J6-FINDINGS): "- 100% +" read against the fitted view, one "Reset map", "Focus entity" only while something is selected (Studio controls only). Exact "true" enables it; default off.
+const MAP_TOOLBAR = STUDIO_GRAPH_CONTROLS && process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_MAP_TOOLBAR === 'true'
+// J6 finding L7 (card PASS2-J6-FINDINGS): entity names as clean text under the node (no dark plate), wrapped instead of cut at 25 characters (Studio controls only). Exact "true" enables it; default off.
+const MAP_LABELS = STUDIO_GRAPH_CONTROLS && process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_MAP_LABELS === 'true'
+// PASS2 SB-05/06 (NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN, default off; needs the Studio shell): a soft glow and a count badge on each node, clearer label plates, and Full screen.
+const STUDIO_P2_MAP = studioP2SecondBrainOn(process.env.NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN, process.env.NEXT_PUBLIC_STUDIO_V4_SHELL)
 
 export interface KgViewNode {
   node_id: string
@@ -63,6 +82,44 @@ interface ViewTransform {
 
 const MIN_SCALE = 0.45
 const MAX_SCALE = 3.5
+
+/** Presentation only: the page owns the in-memory access lifetime and opaque key. */
+export interface KgGraphPresentationState {
+  key: object
+  width: number
+  height: number
+  view: ViewTransform
+  showList: boolean
+}
+
+export interface KgGraphPresentation {
+  key: object
+  stateRef: MutableRefObject<KgGraphPresentationState | null>
+}
+
+interface LayoutInputs {
+  nodes: KgViewNode[]
+  edges: KgViewEdge[]
+  width: number
+  height: number
+}
+
+function validView(view: ViewTransform): boolean {
+  return Number.isFinite(view.x) && Number.isFinite(view.y) &&
+    Number.isFinite(view.scale) && view.scale >= MIN_SCALE && view.scale <= MAX_SCALE
+}
+
+function readPresentation(presentation: KgGraphPresentation | undefined, width: number, height: number): KgGraphPresentationState | null {
+  const state = presentation?.stateRef.current
+  if (!state || state.key !== presentation?.key || state.width !== width || state.height !== height ||
+    !Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0 ||
+    !state.view || !validView(state.view) || typeof state.showList !== "boolean") return null
+  return { key: state.key, width, height, view: { ...state.view }, showList: state.showList }
+}
+
+function matchesLayout(inputs: LayoutInputs | null, nodes: KgViewNode[], edges: KgViewEdge[], width: number, height: number): boolean {
+  return Boolean(inputs && inputs.nodes === nodes && inputs.edges === edges && inputs.width === width && inputs.height === height)
+}
 
 function computeLayout(
   nodes: KgViewNode[],
@@ -167,6 +224,65 @@ function friendlyRelation(relation: string): string {
   return relation.replace(/_/g, " ").toLowerCase()
 }
 
+function compactGraphLabel(text: string, limit: number): string {
+  return text.length > limit ? `${text.slice(0, limit - 1)}…` : text
+}
+function graphLabelWidth(text: string, fontSize: number, minimum = 40): number {
+  const glyphs = [...text].reduce((sum, char) => sum + (/[MW@#%&]/.test(char) ? 1.05 : /[mw]/.test(char) ? .96 : /[iIl.,:;!|' ]/.test(char) ? .34 : /[A-Z]/.test(char) ? .8 : char.charCodeAt(0) > 255 ? 1.05 : .68), 0)
+  return Math.max(minimum, glyphs * fontSize + 20)
+}
+
+interface LabelBox { x: number; y: number; width: number; height: number }
+interface EntityLabelPlacement extends LabelBox { point: LayoutNode; fontSize: number; offsetY: number; lines?: string[]; lineHeight?: number; extraRow?: boolean }
+function labelBoxesOverlap(a: LabelBox, b: LabelBox): boolean {
+  const gap = 5
+  return a.x < b.x + b.width + gap && a.x + a.width + gap > b.x && a.y < b.y + b.height + gap && a.y + a.height + gap > b.y
+}
+
+/** Place annotations in painted pixels without moving a node or changing an edge.
+ * Priority labels stay visible; ordinary collisions yield to real node/list inspection. */
+function placeStudioLabels(layout: LayoutNode[], edges: KgViewEdge[], labeledIds: Set<string>, selectedId: string | null | undefined, hoverId: string | null, activeId: string | null, paintedScale: number, viewport?: LabelBox) {
+  const occupied: LabelBox[] = []
+  const entities: EntityLabelPlacement[] = []
+  const relations = new Set<string>()
+  const circles = layout.map(point => ({ x: point.x * paintedScale, y: point.y * paintedScale, r: point.r * paintedScale + 3 }))
+  const hitsCircle = (box: LabelBox) => circles.some(circle => {
+    const x = Math.max(box.x, Math.min(circle.x, box.x + box.width)), y = Math.max(box.y, Math.min(circle.y, box.y + box.height))
+    return Math.hypot(circle.x - x, circle.y - y) < circle.r
+  })
+  const priority = (point: LayoutNode) => point.node_id === hoverId ? 0 : point.node_id === selectedId ? 1 : 2
+  const candidates = layout.filter(point => labeledIds.has(point.node_id) || priority(point) < 2).sort((a, b) => priority(a) - priority(b) || b.salience - a.salience)
+  for (const point of candidates) {
+    const important = priority(point) < 2, fontSize = important ? 15 : 13
+    // Reserve the same displayed text as the rendered plate, including wide glyphs.
+    const width = graphLabelWidth(compactGraphLabel(point.name, 25), fontSize), height = 24, radius = point.r * paintedScale
+    const offsets = [-radius - 29, radius + 5]
+    const makeBox = (offsetY: number): LabelBox => ({ x: point.x * paintedScale - width / 2, y: point.y * paintedScale + offsetY, width, height })
+    const clear = (offset: number, avoidCircles: boolean) => { const box = makeBox(offset); return !occupied.some(other => labelBoxesOverlap(box, other)) && (!avoidCircles || !hitsCircle(box)) }
+    const fitsView = (offset: number) => { const box = makeBox(offset); return !viewport || box.x >= viewport.x && box.y >= viewport.y && box.x + box.width <= viewport.x + viewport.width && box.y + box.height <= viewport.y + viewport.height }
+    let offsetY = offsets.find(offset => clear(offset, true) && fitsView(offset))
+    if (important && offsetY === undefined) offsetY = offsets.find(offset => clear(offset, false) && fitsView(offset))
+    // A panned-offscreen selection still owns a label and the existing Focus control.
+    if (important && offsetY === undefined) offsetY = offsets.find(offset => clear(offset, false))
+    if (important && offsetY === undefined) {
+      // At most two priority entities exist. A bounded extra row keeps both accessible
+      // even when their nodes coincide; the small leader shows its own node anchor.
+      offsetY = [1, 2, 3].map(row => offsets[0] - row * 32).find(offset => clear(offset, false))
+    }
+    if (offsetY === undefined) continue
+    const box = makeBox(offsetY); occupied.push(box); entities.push({ ...box, point, fontSize, offsetY })
+  }
+  if (activeId) for (const edge of edges.filter(edge => edge.src_node_id === activeId || edge.dst_node_id === activeId).slice(0, 8)) {
+    const source = layout.find(point => point.node_id === edge.src_node_id), target = layout.find(point => point.node_id === edge.dst_node_id)
+    if (!source || !target) continue
+    const label = friendlyRelation(edge.relation), width = graphLabelWidth(compactGraphLabel(label, 20), 11, 62)
+    const box = { x: (source.x + target.x) / 2 * paintedScale - width / 2, y: (source.y + target.y) / 2 * paintedScale - 11, width, height: 22 }
+    if (occupied.some(other => labelBoxesOverlap(box, other)) || hitsCircle(box)) continue
+    occupied.push(box); relations.add(`${edge.src_node_id}-${edge.dst_node_id}-${edge.relation}`)
+  }
+  return { entities, relations }
+}
+
 export function KgGraphView({
   nodes,
   edges,
@@ -174,6 +290,7 @@ export function KgGraphView({
   onSelect,
   width = 960,
   height = 610,
+  presentation,
 }: {
   nodes: KgViewNode[]
   edges: KgViewEdge[]
@@ -181,17 +298,62 @@ export function KgGraphView({
   onSelect?: (nodeId: string) => void
   width?: number
   height?: number
+  presentation?: KgGraphPresentation
 }) {
   const svgRef = useRef<SVGSVGElement | null>(null)
+  const rootRef = useRef<HTMLDivElement | null>(null)
   const panRef = useRef<{ pointerId: number; x: number; y: number } | null>(null)
   const [hoverId, setHoverId] = useState<string | null>(null)
-  const [view, setView] = useState<ViewTransform>({ x: 0, y: 0, scale: 1 })
+  const [initialPresentation] = useState(() => readPresentation(presentation, width, height))
+  const [view, setView] = useState<ViewTransform>(() => initialPresentation?.view ?? { x: 0, y: 0, scale: 1 })
+  const [showList, setShowList] = useState(() => initialPresentation?.showList ?? false)
+  const restoredInputsRef = useRef<LayoutInputs | null>(initialPresentation ? { nodes, edges, width, height } : null)
+  const [fittedInputs, setFittedInputs] = useState<LayoutInputs | null>(() => initialPresentation ? { nodes, edges, width, height } : null)
+  const [canvasScale, setCanvasScale] = useState(1)
+  // SB-06 (flag on): whether the browser can show the map full screen, and whether it does now (Esc leaves it, which this learns from the browser's own event).
+  const [canFullscreen, setCanFullscreen] = useState(false)
+  const [fullscreen, setFullscreen] = useState(false)
+  useEffect(() => {
+    if (!STUDIO_P2_MAP) return
+    setCanFullscreen(studioFullscreenSupported(document))
+    const sync = () => setFullscreen(studioFullscreenActive(document, rootRef.current))
+    document.addEventListener("fullscreenchange", sync)
+    return () => document.removeEventListener("fullscreenchange", sync)
+  }, [])
+  const toggleFullscreen = () => {
+    const root = rootRef.current
+    if (!root) return
+    // A refused request (the browser said no) changes nothing; the button stays as it was.
+    if (studioFullscreenActive(document, root)) void Promise.resolve(document.exitFullscreen?.()).catch(() => undefined)
+    else void Promise.resolve(root.requestFullscreen?.()).catch(() => undefined)
+  }
+
+  // Keep the accepted graph/layout transform, but make Studio labels readable at
+  // their painted CSS size even when the SVG is letterboxed or the map is zoomed.
+  useLayoutEffect(() => {
+    if (!STUDIO_GRAPH_CONTROLS || showList) return
+    const svg = svgRef.current
+    if (!svg) return
+    const measure = () => {
+      const matrix = svg.getScreenCTM()
+      if (!matrix) return
+      const scale = Math.hypot(matrix.a, matrix.b)
+      if (Number.isFinite(scale) && scale > 0) setCanvasScale(scale)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(svg)
+    return () => observer.disconnect()
+  }, [height, width, showList])
+  const labelScale = STUDIO_GRAPH_CONTROLS ? 1 / (canvasScale * view.scale) : 1
 
   const layout = useMemo(
     () => computeLayout(nodes, edges, width, height),
     [nodes, edges, width, height]
   )
   const byId = useMemo(() => new Map(layout.map((point) => [point.node_id, point])), [layout])
+  // Flag on: the scale fitGraph() gives this layout, which is what the readout calls 100%.
+  const fitScale = useMemo(() => MAP_TOOLBAR ? knowledgeFitScale(layout, width, height) : 1, [layout, width, height])
 
   const labeledIds = useMemo(() => {
     const sorted = [...layout].sort((a, b) => b.salience - a.salience)
@@ -202,7 +364,11 @@ export function KgGraphView({
     [nodes]
   )
 
-  const activeId = hoverId || selectedId
+  // Search can select a real entity outside this bounded or filtered map.
+  // Its detail remains inspectable without dimming every visible map entity.
+  const activeId = hoverId && byId.has(hoverId) ? hoverId : selectedId && byId.has(selectedId) ? selectedId : null
+  const selectedPoint = selectedId ? byId.get(selectedId) : undefined
+  const entityTypes = useMemo(() => Array.from(new Set(nodes.map(node => node.entity_type))).sort(), [nodes])
   const neighborIds = useMemo(() => {
     if (!activeId) return null
     const ids = new Set<string>([activeId])
@@ -212,6 +378,8 @@ export function KgGraphView({
     }
     return ids
   }, [activeId, edges])
+
+  const studioLabels = useMemo<ReturnType<typeof placeStudioLabels> | null>(() => STUDIO_GRAPH_CONTROLS ? (MAP_LABELS ? placeCleanLabels : placeStudioLabels)(layout, edges, labeledIds, selectedId, hoverId, activeId, canvasScale * view.scale, { x: -view.x * canvasScale, y: -view.y * canvasScale, width: width * canvasScale, height: height * canvasScale }) : null, [layout, edges, labeledIds, selectedId, hoverId, activeId, canvasScale, view.scale, view.x, view.y, width, height])
 
   const fitGraph = useCallback(() => {
     if (layout.length === 0) {
@@ -236,8 +404,40 @@ export function KgGraphView({
   }, [height, layout, width])
 
   useEffect(() => {
+    // Keep a valid restored tuple through StrictMode's setup rehearsal. A real
+    // layout change invalidates restoration and uses the accepted automatic fit.
+    if (matchesLayout(restoredInputsRef.current, nodes, edges, width, height)) return
+    restoredInputsRef.current = null
     fitGraph()
-  }, [fitGraph])
+    setFittedInputs({ nodes, edges, width, height })
+  }, [fitGraph, nodes, edges, width, height])
+
+  useLayoutEffect(() => {
+    // Publish only after the matching fit/restoration has committed. In
+    // particular, never bind a previous view to new data before passive fit.
+    // No cleanup writes: a retired parent holder stays retired on unmount.
+    if (!presentation || !matchesLayout(fittedInputs, nodes, edges, width, height) || !validView(view)) return
+    presentation.stateRef.current = { key: presentation.key, width, height, view: { ...view }, showList }
+  }, [presentation?.key, presentation?.stateRef, fittedInputs, nodes, edges, width, height, view, showList])
+
+  const focusSelected = () => {
+    if (!selectedPoint) return
+    const scale = Math.max(view.scale, 1.8)
+    setView({ scale, x: width / 2 - selectedPoint.x * scale, y: height / 2 - selectedPoint.y * scale })
+  }
+
+  // The SVG is letterboxed when the panel aspect ratio differs from its
+  // viewBox. Use its actual transform so wheel anchors and drag distance
+  // follow the pointer at every panel size.
+  const canvasPoint = useCallback((clientX: number, clientY: number) => {
+    const svg = svgRef.current
+    const matrix = svg?.getScreenCTM()
+    if (!svg || !matrix) return null
+    const point = svg.createSVGPoint()
+    point.x = clientX
+    point.y = clientY
+    return point.matrixTransform(matrix.inverse())
+  }, [])
 
   const zoomAround = useCallback(
     (nextScale: number, anchorX = width / 2, anchorY = height / 2) => {
@@ -258,13 +458,12 @@ export function KgGraphView({
   const handleWheel = useCallback(
     (event: ReactWheelEvent<SVGSVGElement>) => {
       event.preventDefault()
-      const rect = event.currentTarget.getBoundingClientRect()
-      const anchorX = ((event.clientX - rect.left) / rect.width) * width
-      const anchorY = ((event.clientY - rect.top) / rect.height) * height
+      const anchor = canvasPoint(event.clientX, event.clientY)
+      if (!anchor) return
       const factor = event.deltaY > 0 ? 0.9 : 1.1
-      zoomAround(view.scale * factor, anchorX, anchorY)
+      zoomAround(view.scale * factor, anchor.x, anchor.y)
     },
-    [height, view.scale, width, zoomAround]
+    [canvasPoint, view.scale, zoomAround]
   )
 
   const handlePointerDown = useCallback((event: ReactPointerEvent<SVGSVGElement>) => {
@@ -278,13 +477,15 @@ export function KgGraphView({
     (event: ReactPointerEvent<SVGSVGElement>) => {
       const pan = panRef.current
       if (!pan || pan.pointerId !== event.pointerId) return
-      const rect = event.currentTarget.getBoundingClientRect()
-      const dx = ((event.clientX - pan.x) / rect.width) * width
-      const dy = ((event.clientY - pan.y) / rect.height) * height
+      const previous = canvasPoint(pan.x, pan.y)
+      const next = canvasPoint(event.clientX, event.clientY)
+      if (!previous || !next) return
+      const dx = next.x - previous.x
+      const dy = next.y - previous.y
       panRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY }
       setView((current) => ({ ...current, x: current.x + dx, y: current.y + dy }))
     },
-    [height, width]
+    [canvasPoint]
   )
 
   const endPan = useCallback((event: ReactPointerEvent<SVGSVGElement>) => {
@@ -296,21 +497,25 @@ export function KgGraphView({
 
   if (nodes.length === 0) return null
 
+  // SB-06 (flag on): the Full screen button, drawn in the map's own toolbar or, with the J6 toolbar on, handed to it as `extra`. Off, or where the browser cannot, it is `false`.
+  const p2FullscreenButton = STUDIO_P2_MAP && canFullscreen && <button type="button" data-studio-p2-fullscreen="true" onClick={toggleFullscreen} aria-pressed={fullscreen} aria-label={studioFullscreenLabel(fullscreen)} title={studioFullscreenLabel(fullscreen)}>{fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}<span>{studioFullscreenLabel(fullscreen)}</span></button>
+
   return (
-    <div className="relative h-full overflow-hidden rounded-2xl bg-[#070b18] lg:min-h-[520px]">
-      <div className="lg:hidden">
-        <div className="border-b border-white/10 px-4 py-3">
+    <div ref={rootRef} data-studio-graph-view={STUDIO_GRAPH_CONTROLS ? 'true' : undefined} data-studio-p2-map={STUDIO_P2_MAP ? 'true' : undefined} data-studio-graph-mode={showList ? 'list' : 'map'} className="relative h-full overflow-hidden rounded-2xl bg-[#070b18] lg:min-h-[520px]">
+      <div data-studio-graph-controls={STUDIO_GRAPH_CONTROLS ? 'mobile' : undefined} className={STUDIO_GRAPH_CONTROLS && showList ? "skg-entity-view" : "lg:hidden"}>
+        <div data-studio-graph-control={STUDIO_GRAPH_CONTROLS ? 'heading' : undefined} className="border-b border-white/10 px-4 py-3">
           <p className="text-sm font-medium text-white">Entities by relevance</p>
           <p className="mt-0.5 text-xs text-slate-400">
-            Select an entity to inspect its relationships and source evidence.
+            {nodes.length} loaded entities. Select one to inspect its relationships and source evidence.
           </p>
         </div>
-        <ul className="max-h-[430px] overflow-y-auto p-2" aria-label="Knowledge graph entities">
+        <ul data-studio-graph-control={STUDIO_GRAPH_CONTROLS ? 'list' : undefined} className="max-h-[430px] overflow-y-auto p-2" aria-label="Knowledge graph entities">
           {mobileNodes.map((node) => (
             <li key={node.node_id}>
               <button
                 type="button"
                 onClick={() => onSelect?.(node.node_id)}
+                data-studio-graph-control={STUDIO_GRAPH_CONTROLS ? 'entity' : undefined}
                 aria-pressed={selectedId === node.node_id}
                 className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 ${
                   selectedId === node.node_id ? "bg-white/10" : "hover:bg-white/[0.06]"
@@ -322,8 +527,8 @@ export function KgGraphView({
                   aria-hidden
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium text-slate-100">{node.name}</span>
-                  <span className="mt-0.5 block truncate text-xs text-slate-400">
+                  <span data-studio-graph-control={STUDIO_GRAPH_CONTROLS ? 'name' : undefined} className="block truncate text-sm font-medium text-slate-100">{node.name}</span>
+                  <span data-studio-graph-control={STUDIO_GRAPH_CONTROLS ? 'context' : undefined} className="mt-0.5 block truncate text-xs text-slate-400">
                     {node.entity_type.toLowerCase()} · seen {node.mention_count}×
                   </span>
                 </span>
@@ -333,54 +538,80 @@ export function KgGraphView({
         </ul>
       </div>
 
-      <div className="absolute right-3 top-3 z-10 hidden items-center gap-1 rounded-xl border border-white/10 bg-slate-950/80 p-1 shadow-xl backdrop-blur lg:flex">
-        <button
-          type="button"
-          onClick={() => zoomAround(view.scale * 1.2)}
-          className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
-          aria-label="Zoom in"
-          title="Zoom in"
-        >
-          <Plus className="h-4 w-4" />
-        </button>
-        <button
-          type="button"
-          onClick={() => zoomAround(view.scale / 1.2)}
-          className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
-          aria-label="Zoom out"
-          title="Zoom out"
-        >
-          <Minus className="h-4 w-4" />
-        </button>
-        <button
-          type="button"
-          onClick={fitGraph}
-          className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
-          aria-label="Fit graph to view"
-          title="Fit graph"
-        >
-          <Focus className="h-4 w-4" />
-        </button>
-        <button
-          type="button"
-          onClick={() => setView({ x: 0, y: 0, scale: 1 })}
-          className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
-          aria-label="Reset graph view"
-          title="Reset view"
-        >
-          <RotateCcw className="h-4 w-4" />
-        </button>
-      </div>
+      {MAP_TOOLBAR ? (
+        <StudioKnowledgeMapToolbar
+          showList={showList}
+          viewScale={view.scale}
+          fitScale={fitScale}
+          selectedName={selectedPoint?.name}
+          hasSelection={Boolean(selectedPoint)}
+          onToggleList={() => setShowList(current => !current)}
+          onZoomIn={() => zoomAround(view.scale * 1.2)}
+          onZoomOut={() => zoomAround(view.scale / 1.2)}
+          onReset={fitGraph}
+          onFocus={focusSelected}
+          {...(p2FullscreenButton ? { extra: p2FullscreenButton } : {})}
+        />
+      ) : (
+        <div data-studio-graph-toolbar={STUDIO_GRAPH_CONTROLS ? 'true' : undefined} role="group" aria-label="Knowledge map controls" className="absolute right-3 top-3 z-10 hidden items-center gap-1 rounded-xl border border-white/10 bg-slate-950/80 p-1 shadow-xl backdrop-blur lg:flex">
+          {STUDIO_GRAPH_CONTROLS && <button type="button" onClick={() => setShowList(current => !current)} aria-pressed={showList} aria-label={showList ? "Show knowledge map" : "Show entity list"} title={showList ? "Show map" : "Entity list"}>{showList ? <Network className="h-4 w-4" /> : <List className="h-4 w-4" />}<span>{showList ? "Map" : "Entity list"}</span></button>}
+          <button
+            type="button"
+            onClick={() => zoomAround(view.scale * 1.2)}
+            disabled={STUDIO_GRAPH_CONTROLS && showList}
+            className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+            aria-label="Zoom in"
+            title="Zoom in"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => zoomAround(view.scale / 1.2)}
+            disabled={STUDIO_GRAPH_CONTROLS && showList}
+            className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+            aria-label="Zoom out"
+            title="Zoom out"
+          >
+            <Minus className="h-4 w-4" />
+          </button>
+          {STUDIO_GRAPH_CONTROLS && <output className="skg-zoom" aria-label="Map zoom">{Math.round(view.scale * 100)}%</output>}
+          <button
+            type="button"
+            onClick={fitGraph}
+            disabled={STUDIO_GRAPH_CONTROLS && showList}
+            className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+            aria-label="Fit graph to view"
+            title="Fit graph"
+          >
+            <Focus className="h-4 w-4" />
+          </button>
+          {STUDIO_GRAPH_CONTROLS && <button type="button" onClick={focusSelected} disabled={showList || !selectedPoint} aria-label="Focus selected entity" title={selectedPoint ? `Focus ${selectedPoint.name}` : "Select an entity on this map to focus it"}><ScanSearch className="h-4 w-4" /><span>Focus entity</span></button>}
+          <button
+            type="button"
+            onClick={() => setView({ x: 0, y: 0, scale: 1 })}
+            disabled={STUDIO_GRAPH_CONTROLS && showList}
+            className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+            aria-label="Reset graph view"
+            title="Reset view"
+          >
+            <RotateCcw className="h-4 w-4" />
+          </button>
+          {p2FullscreenButton}
+        </div>
+      )}
 
-      <div className="pointer-events-none absolute bottom-3 left-3 z-10 hidden rounded-lg border border-white/10 bg-slate-950/65 px-2.5 py-1.5 text-[11px] text-slate-400 backdrop-blur lg:block">
+      <div data-studio-graph-hint={STUDIO_GRAPH_CONTROLS ? 'true' : undefined} className="pointer-events-none absolute bottom-3 left-3 z-10 hidden rounded-lg border border-white/10 bg-slate-950/65 px-2.5 py-1.5 text-[11px] text-slate-400 backdrop-blur lg:block">
         Scroll to zoom · drag to explore
       </div>
+
+      {STUDIO_GRAPH_CONTROLS && <div className="skg-legend" aria-label="Entity type legend">{entityTypes.map(type => <span key={type}><i style={{ backgroundColor: typeColor(type) }} />{type.replace(/_/g, " ").toLowerCase()}</span>)}<span className="skg-relation-key"><i />Recorded relation</span></div>}
 
       <svg
         ref={svgRef}
         viewBox={`0 0 ${width} ${height}`}
         preserveAspectRatio="xMidYMid meet"
-        className="hidden h-full w-full cursor-grab select-none touch-none active:cursor-grabbing lg:block lg:min-h-[520px]"
+        className={STUDIO_GRAPH_CONTROLS && showList ? "hidden" : "hidden h-full w-full cursor-grab select-none touch-none active:cursor-grabbing lg:block lg:min-h-[520px]"}
         role="group"
         aria-label={`Knowledge graph with ${nodes.length} entities and ${edges.length} relations`}
         onWheel={handleWheel}
@@ -398,6 +629,13 @@ export function KgGraphView({
           <pattern id="kg-dot-grid" width="28" height="28" patternUnits="userSpaceOnUse">
             <circle cx="1" cy="1" r="1" fill="#94a3b8" opacity="0.13" />
           </pattern>
+          {STUDIO_P2_MAP && entityTypes.map(type => (
+            <radialGradient key={`halo-${type}`} id={studioHaloId(entityTypes, type)} cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor={typeColor(type)} stopOpacity="0.5" />
+              <stop offset="55%" stopColor={typeColor(type)} stopOpacity="0.16" />
+              <stop offset="100%" stopColor={typeColor(type)} stopOpacity="0" />
+            </radialGradient>
+          ))}
           <filter id="kg-node-glow" x="-120%" y="-120%" width="340%" height="340%">
             <feGaussianBlur stdDeviation="5" result="blur" />
             <feMerge>
@@ -406,7 +644,7 @@ export function KgGraphView({
             </feMerge>
           </filter>
         </defs>
-        <rect width={width} height={height} fill="#070b18" />
+        <rect width={width} height={height} fill={STUDIO_GRAPH_CONTROLS ? "#10182b" : "#070b18"} />
         <rect width={width} height={height} fill="url(#kg-canvas-glow)" />
         <rect width={width} height={height} fill="url(#kg-dot-grid)" />
 
@@ -442,25 +680,27 @@ export function KgGraphView({
               const source = byId.get(edge.src_node_id)
               const target = byId.get(edge.dst_node_id)
               if (!source || !target) return null
+              if (STUDIO_GRAPH_CONTROLS && !studioLabels?.relations.has(`${edge.src_node_id}-${edge.dst_node_id}-${edge.relation}`)) return null
               const label = friendlyRelation(edge.relation)
               const x = (source.x + target.x) / 2
               const y = (source.y + target.y) / 2
-              const labelWidth = Math.max(42, Math.min(label.length * 5.4 + 14, 126))
+              const labelWidth = STUDIO_GRAPH_CONTROLS ? graphLabelWidth(compactGraphLabel(label, 20), 11, 62) : Math.max(42, Math.min(label.length * 5.4 + 14, 126))
               return (
-                <g key={`label-${edge.src_node_id}-${edge.dst_node_id}-${edge.relation}`}>
+                <g key={`label-${edge.src_node_id}-${edge.dst_node_id}-${edge.relation}`} data-studio-graph-label={STUDIO_GRAPH_CONTROLS ? "relation" : undefined} transform={STUDIO_GRAPH_CONTROLS ? `translate(${x} ${y}) scale(${labelScale})` : undefined} className={STUDIO_GRAPH_CONTROLS ? "pointer-events-none" : undefined}>
+                  {STUDIO_GRAPH_CONTROLS && <title>{label}</title>}
                   <rect
-                    x={x - labelWidth / 2}
-                    y={y - 9}
+                    x={(STUDIO_GRAPH_CONTROLS ? 0 : x) - labelWidth / 2}
+                    y={STUDIO_GRAPH_CONTROLS ? -11 : y - 9}
                     width={labelWidth}
-                    height={18}
-                    rx={9}
+                    height={STUDIO_GRAPH_CONTROLS ? 22 : 18}
+                    rx={STUDIO_GRAPH_CONTROLS ? 8 : 9}
                     fill="#0F172A"
                     stroke="#475569"
                     strokeWidth={0.7}
                     opacity={0.96}
                   />
-                  <text x={x} y={y + 3} textAnchor="middle" fill="#CBD5E1" fontSize={8.5}>
-                    {label.length > 20 ? `${label.slice(0, 19)}…` : label}
+                  <text x={STUDIO_GRAPH_CONTROLS ? 0 : x} y={STUDIO_GRAPH_CONTROLS ? 4 : y + 3} textAnchor="middle" fill="#CBD5E1" fontSize={STUDIO_GRAPH_CONTROLS ? 11 : 8.5}>
+                    {compactGraphLabel(label, 20)}
                   </text>
                 </g>
               )
@@ -479,6 +719,7 @@ export function KgGraphView({
                 className="cursor-pointer outline-none"
                 opacity={dimmed ? 0.18 : 1}
                 role="button"
+                aria-pressed={STUDIO_GRAPH_CONTROLS ? isSelected : undefined}
                 tabIndex={0}
                 aria-label={`${point.name}, ${point.entity_type.toLowerCase()}, seen ${point.mention_count} times`}
                 onClick={(event) => {
@@ -496,6 +737,7 @@ export function KgGraphView({
                 onFocus={() => setHoverId(point.node_id)}
                 onBlur={() => setHoverId(null)}
               >
+                {STUDIO_P2_MAP && <circle data-studio-p2-halo="true" r={point.r * STUDIO_NODE_HALO} fill={`url(#${studioHaloId(entityTypes, point.entity_type)})`} className="pointer-events-none" />}
                 {(isSelected || isHovered) && (
                   <circle
                     r={point.r + 11}
@@ -515,7 +757,11 @@ export function KgGraphView({
                   <title>{`${point.name} (${point.entity_type}) — seen ${point.mention_count}×`}</title>
                 </circle>
                 <circle r={Math.max(point.r - 4, 2)} fill="#FFFFFF" opacity={0.08} />
-                {showLabel && (
+                {STUDIO_P2_MAP && (() => {
+                  const badge = studioNodeBadge(point.mention_count, point.r)
+                  return badge ? <text data-studio-p2-badge="true" textAnchor="middle" dominantBaseline="central" fontSize={badge.fontSize} fontWeight={700} fill="#0B1220" className="pointer-events-none select-none">{badge.text}</text> : null
+                })()}
+                {showLabel && !STUDIO_GRAPH_CONTROLS && (
                   <g className="pointer-events-none">
                     <rect
                       x={-Math.min(point.name.length * 3.1 + 8, 78)}
@@ -539,6 +785,27 @@ export function KgGraphView({
                 )}
               </g>
             )
+          })}
+          {MAP_LABELS && studioLabels?.entities.map(({ point, height: textHeight, fontSize, offsetY, lines = [], lineHeight = fontSize + 3, extraRow = false }) => {
+            const dimmed = neighborIds ? !neighborIds.has(point.node_id) : false
+            const radius = point.r * canvasScale * view.scale
+            const emphasised = point.node_id === selectedId || point.node_id === hoverId
+            return <g key={`entity-label-${point.node_id}`} data-studio-graph-label="entity" data-studio-graph-label-node={point.node_id} data-studio-graph-label-clean="true" aria-hidden="true" className="pointer-events-none" opacity={dimmed ? .18 : 1} transform={`translate(${point.x} ${point.y}) scale(${labelScale})`}>
+              {extraRow && <line data-studio-graph-label-leader="true" x1={0} y1={-radius} x2={0} y2={offsetY + textHeight} stroke="#81949f" strokeWidth={.7} opacity={.6} />}
+              <text x={0} textAnchor="middle" fill={emphasised ? "#FFFFFF" : "#DCE6F2"} fontSize={fontSize} fontWeight={emphasised ? 600 : 500} paintOrder="stroke" stroke="#10182B" strokeWidth={3} strokeLinejoin="round">
+                {lines.map((line, index) => <tspan key={index} x={0} y={offsetY + fontSize + index * lineHeight}>{line}</tspan>)}
+              </text>
+            </g>
+          })}
+          {!MAP_LABELS && studioLabels?.entities.map(({ point, width: plateWidth, height: plateHeight, fontSize, offsetY }) => {
+            const dimmed = neighborIds ? !neighborIds.has(point.node_id) : false
+            const radius = point.r * canvasScale * view.scale
+            const extraRow = offsetY < -radius - 29
+            return <g key={`entity-label-${point.node_id}`} data-studio-graph-label="entity" data-studio-graph-label-node={point.node_id} aria-hidden="true" className="pointer-events-none" opacity={dimmed ? .18 : 1} transform={`translate(${point.x} ${point.y}) scale(${labelScale})`}>
+              {extraRow && <line data-studio-graph-label-leader="true" x1={0} y1={-radius} x2={0} y2={offsetY + plateHeight} stroke="#81949f" strokeWidth={.7} opacity={.6} />}
+              <rect x={-plateWidth / 2} y={offsetY} width={plateWidth} height={plateHeight} rx={8} fill="#020617" opacity={.92} style={STUDIO_P2_MAP ? { stroke: typeColor(point.entity_type), strokeWidth: 1, strokeOpacity: .75 } : undefined} />
+              <text x={0} y={offsetY + 17} textAnchor="middle" fill={STUDIO_P2_MAP ? "#F8FAFC" : "#E2E8F0"} fontSize={fontSize} fontWeight={STUDIO_P2_MAP ? 600 : 500}>{compactGraphLabel(point.name, 25)}</text>
+            </g>
           })}
         </g>
       </svg>

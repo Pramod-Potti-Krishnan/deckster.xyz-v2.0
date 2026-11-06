@@ -1,0 +1,24 @@
+{
+  "case": "403-entitlement-other-user",
+  "what": "Write class enforced, a header minted for a different user.",
+  "request": {
+    "method": "PATCH",
+    "path": "/api/users/user-a/templates/t-plain",
+    "json_body": {
+      "name": "Fresh name"
+    },
+    "entitlement_header": "X-Deckster-Entitlement signed for another user (value not recorded)"
+  },
+  "response": {
+    "status": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json_body": {
+      "error": "This request does not match your signed-in account.",
+      "code": "USER_MISMATCH",
+      "detail": "This request does not match your signed-in account.",
+      "retryable": false
+    }
+  }
+}

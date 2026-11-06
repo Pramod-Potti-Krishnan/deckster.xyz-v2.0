@@ -1,0 +1,52 @@
+[
+  {
+    "checkpoint": "01-connected-one-turn-sent",
+    "hookMessageIds": ["msg-greeting","msg-reply"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":"user","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "02-dropped-retry-1-scheduled",
+    "hookMessageIds": ["msg-greeting","msg-reply"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":"user","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "03-reconnected-after-two-refusals",
+    "hookMessageIds": ["msg-greeting","msg-reply"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":"user","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "04-every-ordinary-close-reconnected",
+    "hookMessageIds": ["msg-greeting","msg-reply"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":"user","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "05-final",
+    "hookMessageIds": ["msg-greeting","msg-reply"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":"user","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  }
+]

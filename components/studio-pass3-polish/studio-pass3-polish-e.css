@@ -1,0 +1,34 @@
+/* STUDIO PASS 3 POLISH, PR E (FRONTEND-2; flag NEXT_PUBLIC_STUDIO_PASS3_POLISH, PR A's, exact "true", default off, build-time). Two side effects of PR A's section 2 (studio-pass3-polish.css: text
+   controls are 16px on a phone, so iOS Safari does not zoom the page when one takes focus), each put right with one small rule, in this file of its own (PR A's stylesheet is not edited).
+
+   THE SCOPE RULE is PR A's: every rule starts with html[data-studio-pass3-polish="true"], which lib/studio-pass3-polish.ts sets on <html> only with the flag on, so with the flag off not one rule here matches
+   anything. Both rules are for a phone (max-width: 640px, PR A's breakpoint), sit inside the Studio shell ([data-studio-v4-shell="true"]) and end with PR A's section 2 guard, the :not() that keeps them off
+   FRONTEND-1's areas (Settings and profile pages, Billing, Shortcuts, Your details, the account menu, Publish, the published viewer and its ask panel, Admin, Docs and Help). No !important.
+   The typed or chosen value keeps PR A's 16px: iOS decides the zoom on the control's own font size, and neither rule changes it.
+
+   SECTIONS (E1, E2: named apart from PR A's numbered sections 1-5 and its append point):
+     E1. the Director prompt's empty hint fits one line on a phone
+     E2. the Intelligence page's five task selects end in an ellipsis before the chevron on a phone */
+
+/* ===== SECTION E1: the Director prompt's empty hint fits one line on a phone ===== */
+/* PR A makes the prompt 16px with a 1.5 line (it was 13.6px on a 20px line), and its section 4 makes the composer toolbar 48px tall (it was 44px). The prompt is a 96px box with 12px of padding above and a 56px
+   bottom padding that the absolutely placed toolbar sits in. At 390px the hint "Ask for a change, or describe a new deck…" wraps at 16px (and at 13.6px), so its second 24px line ran from 36px to 60px, under the
+   toolbar from 48px down: half of it was covered. Only the hint is made smaller (::placeholder), to the prompt's own 12px on an 18px line (studio-composer-popups-v2.css: the prompt without the Studio type scale),
+   which fits on one line at 390px (12px to 30px, clear of the toolbar). The text a person types is still 16px. */
+@media (max-width: 640px) {
+  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] [data-studio-composer-prompt="true"] > textarea[data-studio-v4-type-role="prompt"]:not(:is([data-studio-settings], [data-studio-billing], [data-studio-p2-shortcuts], [data-studio-personal="details"], [data-studio-v4-profile], [data-studio-publish], [data-studio-publish-popup], [data-studio-publish-wizard], [data-studio-qa-inbox], [data-studio-published-viewer], [data-studio-published-ask], [data-studio-published-qa], [data-studio-p2-admin], [data-studio-p2-docs], [data-studio-p2-help], [data-studio-help-content]) *)::placeholder {
+    font-size: 12px;
+    line-height: 18px;
+  }
+}
+
+/* ===== SECTION E2: the Intelligence task selects end in an ellipsis before the chevron on a phone ===== */
+/* The five task selects (intelligence-p2.css: .sp-p2-pick select, padding 7px 6px, 11px type) draw the browser's own chevron over their right padding. At 11px "Recommended — Gemini 3 Flash Preview" ended well
+   short of it; at PR A's 16px it runs on under the chevron ("Flas▾"). Each gets 24px of right padding, so its text box ends before the chevron, and text-overflow: ellipsis, so a value that does not fit ends in
+   "…" there. Nothing else changes: the font size (16px), the height, the left padding and the width are PR A's and the page's. */
+@media (max-width: 640px) {
+  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] main[data-studio-personal="intelligence"] .sp-p2-pick > select:not(:is([data-studio-settings], [data-studio-billing], [data-studio-p2-shortcuts], [data-studio-personal="details"], [data-studio-v4-profile], [data-studio-publish], [data-studio-publish-popup], [data-studio-publish-wizard], [data-studio-qa-inbox], [data-studio-published-viewer], [data-studio-published-ask], [data-studio-published-qa], [data-studio-p2-admin], [data-studio-p2-docs], [data-studio-p2-help], [data-studio-help-content]) *) {
+    padding-right: 24px;
+    text-overflow: ellipsis;
+  }
+}

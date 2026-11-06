@@ -1,0 +1,68 @@
+{
+ "body": {
+  "checkpoint": {
+   "deck_import": {
+    "composer": {
+     "as_is_only": true,
+     "deployed_git_sha": "c1b0712553",
+     "health_read": true,
+     "template_progress": true
+    },
+    "error": {
+     "code": "TIMEOUT",
+     "message": "This is taking too long. Try again.",
+     "retryable": true
+    },
+    "phase": "failed",
+    "template_id": null,
+    "title": "Q3 Board Review",
+    "version": "director-deck-import-v1",
+    "waiting": null
+   }
+  },
+  "completed_at": null,
+  "created_at": null,
+  "deck_import": {
+   "error": {
+    "code": "TIMEOUT",
+    "message": "This is taking too long. Try again.",
+    "retryable": true
+   },
+   "notes": null,
+   "phase": "failed",
+   "progress": null,
+   "result": null,
+   "stage": "failed",
+   "title": "Q3 Board Review",
+   "version": "director-deck-import-v1",
+   "waiting": null,
+   "what_changed": {
+    "headline": null,
+    "items": []
+   }
+  },
+  "errors": [
+   "This is taking too long. Try again."
+  ],
+  "job_id": "stage-import-e8cba764-5ed3-41f2-ab2c-354f5ba081df",
+  "per_slide_fidelity": [],
+  "presentation_id": null,
+  "session_id": "fresh-session",
+  "slide_count": null,
+  "status": "failed",
+  "template_id": null,
+  "updated_at": null,
+  "upload_ref": {
+   "file_name": "Q3 Board Review.pptx",
+   "kind": "pptx",
+   "purpose": "deck_import",
+   "researcher_session_id": "fresh-session",
+   "session_id": "fresh-session",
+   "storage_path": "fresh-session/1_Q3 Board Review.pptx"
+  },
+  "user_id": "owner",
+  "viewer_url": null
+ },
+ "description": "The slot never freed before Director's job deadline",
+ "status": 200
+}

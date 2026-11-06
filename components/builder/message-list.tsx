@@ -9,6 +9,7 @@ import {
   ExternalLink,
   User,
   ChevronDown,
+  Check,
 } from "lucide-react"
 import { FileChip, type UploadedFile } from "@/components/file-chip"
 import {
@@ -21,6 +22,19 @@ import {
   type StatusUpdate,
 } from "@/hooks/use-deckster-websocket-v2"
 import { debugLog } from "@/lib/debug-log"
+import type { StudioFrontendTranscriptReceipt } from '@/hooks/use-builder-session'
+import {
+  DIRECTOR_522_INITIAL_GREETING,
+  inferStudioGreetingPrefixCertificate,
+  coalesceCertifiedStudioGreetingPrefix,
+  type InferredGreetingPrefixCertificate,
+} from '@/lib/studio-greeting-lifecycle'
+import { latchOpeningGreetings, NO_HIDDEN_GREETINGS, studioWelcomeTrimOn } from '@/lib/studio-welcome-trim' // STUDIO-WELCOME-TRIM
+import { deduplicateDirectorTranscript, type DirectorTranscriptEntry } from "@/lib/director-transcript"
+import { classifyDirectorMessage, getDirectorActionPolicy } from "@/lib/studio-director-message-policy"
+import { directorHistoryTimestamp } from "@/lib/director-chat-history"
+import { askAnswerKey, lockApprovalGatePolicy } from "@/lib/director-ask-identity"
+import { coalesceOutlineStateReplays, presentTerminalOutlineRevisions, STUDIO_OUTLINE_CANVAS_ENABLED, hideBuiltDeckStructureResends, outlineCanvasRelation, type HistoricalActionStatus, type OutlineHistoryStatus } from "@/lib/director-history-presentation"
 import {
   attachmentsFromPayload,
   type UserChatMessage,
@@ -29,24 +43,69 @@ import { shouldShowBuildWorkingPulse } from "@/lib/build-progress-visibility"
 import { hasLiveTrackedEphemeralMessage } from "@/lib/slide-compose-async"
 import { LAYOUT_VIEWER_URL_POLICY } from "@/lib/layout-service-client"
 import { evaluateLayoutViewerUrl } from "@/lib/layout-viewer-url-policy"
+import { viewOnlyIfEnabled } from "@/lib/present-view-only"
 // MDC (P2): flag-gated clarity rendering — flag-off keeps the exact legacy JSX.
 import { QuestionCard } from "@/components/builder/chat/question-card"
 import { CHAT_CLARITY, CHAT_QUESTIONS } from "@/lib/mdc-flags"
 import type { QuestionSet } from "@/types/mdc"
 import { shouldRerouteEphemeral } from "@/lib/build-narration-heuristics"
+import { StudioWelcome, StudioFirstRunStarters, type StudioDirectorConnectionState, type StudioPresentationContext, type StudioWelcomeGreeting } from "@/components/builder/chat/studio-welcome"
+import { StudioOutlineCard } from "@/components/builder/chat/studio-outline-card"
+import { STUDIO_STRAWMAN_CHAT_ENABLED } from "@/lib/studio-strawman-chat" // STRAWMAN-CHAT
+import { StudioRecoveryCard } from "@/components/builder/chat/studio-recovery-card"
+import { studioChatRecoveryCard, type StudioChatRecoveryInput } from "@/lib/studio-chat-recovery"
+import { findAnsweredChoice, suggestionKey, type AnsweredChoice } from "@/lib/studio-chat-answered-choice"
+import { StudioBulkEditRow } from "@/components/builder/chat/studio-bulk-edit-card" // BULK-EDIT-UNDO
+import { StudioUndoChip } from "@/components/builder/chat/studio-undo-chip" // BULK-EDIT-UNDO
+import { STUDIO_BULK_EDIT_ENABLED, STUDIO_CHAT_UNDO_ENABLED } from "@/lib/studio-bulk-edit-wire" // BULK-EDIT-UNDO
+import { bulkEditAskDecision, chooseBulkEdit, sendStudioUndo } from "@/lib/studio-bulk-edit-store" // BULK-EDIT-UNDO
+import { noteStudioChatLines } from "@/lib/studio-bulk-edit-store" // CHAT-UNDO-V2
+import "./studio-director.css"
+import "./studio-chat-polish.css"
+import "./studio-chat-answered.css"
+import "./studio-chat-composer.css"
+import { StudioChatCleanJob } from "@/components/builder/chat/studio-chat-clean" // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN, default off)
+import type { ChatCleanThreadProps } from "@/lib/studio-chat-clean" // CHAT-CLEAN
+import "./studio-chat-clean.css" // CHAT-CLEAN: every rule keyed to [data-studio-chat-clean], an attribute the chat column carries only with the flag on
+import { STUDIO_CHAT_CLEAN_ORDER_ENABLED, chatCleanHiddenNoteId, chatCleanLastGateId, chatCleanNotePlan, chatCleanRowTime } from "@/lib/studio-chat-clean-order" // CHAT-CLEAN-ORDER (NEXT_PUBLIC_STUDIO_CHAT_CLEAN_ORDER, default off)
+import { StudioChatCleanNotesAt, StudioChatCleanOrderTail } from "@/components/builder/chat/studio-chat-clean-order" // CHAT-CLEAN-ORDER
 
 export interface MessageListProps {
   sessionId?: string | null
+  studioFrontendTranscriptReceipt?: StudioFrontendTranscriptReceipt | null
+  studioGreetingSafety?: {
+    pendingRestoration: boolean
+    pendingWork: boolean
+    noticePresent: boolean
+    hasUserIntent: () => boolean
+  }
   userMessages: UserChatMessage[]
   messages: DirectorMessage[]
   userMessageIdsRef: React.RefObject<Set<string>>
   userMessageContentMapRef: React.RefObject<Map<string, string>>
   hasSeenWelcomeRef: React.RefObject<boolean>
   answeredActionsRef: React.RefObject<Set<string>>
-  onActionClick: (action: ActionRequest['payload']['actions'][0], messageId: string) => void
+  /** Third argument: the key under which the owner records the answer to THIS ask (the bare id unless
+   * NEXT_PUBLIC_STUDIO_ASK_CARD_IDENTITY_ENABLED, then id + the frame's timestamp). */
+  onActionClick: (action: ActionRequest['payload']['actions'][0], messageId: string, answerKey?: string) => void
+  /** Approval gates stay inactive while a build runs, is stopped or is over (flag NEXT_PUBLIC_STUDIO_ASK_CARD_IDENTITY_ENABLED only). */
+  askGatesLocked?: boolean
   // MDC (P2/P3): sends a composed answer through the normal chat send path.
   // Optional — when absent, structured question rendering falls back to plain.
-  onSubmitAnswers?: (text: string) => void
+  onSubmitAnswers?: (text: string, displayText?: string) => void
+  /** Local starter selection only. The owner preserves an existing composer draft. */
+  onDraftPrompt?: (text: string) => void
+  /** Actual connection state; the welcome guide never infers readiness from status. */
+  connectionState?: StudioDirectorConnectionState
+  /** Supplied open-artifact context for local empty-chat guidance only. */
+  presentationContext?: StudioPresentationContext
+  /** PASS2 #2 (NEXT_PUBLIC_STUDIO_FIRST_RUN_V2): the small row of stage actions the first-run welcome carries under its starters. */
+  studioFirstRunActions?: React.ReactNode
+  /** PASS2 #2 fix-forward (NEXT_PUBLIC_STUDIO_FIRST_RUN_V2, J2 pass-2 P1): an existing session's history is still being fetched, so "nothing has been said yet"
+   *  is not yet known. While true no welcome is drawn (first-run or plain); the page's loading states carry the wait. Passed only with the flag on. */
+  studioRestoring?: boolean
+  /** PASS2B G01 (NEXT_PUBLIC_STUDIO_WELCOME_POLISH): the signed-in user's display name for the welcome's time-of-day greeting. Passed only with the flag on. */
+  studioWelcomeGreeting?: StudioWelcomeGreeting
   messagesEndRef: React.RefObject<HTMLDivElement | null>
   // Rich strawman: per-slide context keyed by slide_index. Drives narrative_role chip + key_message subtitle.
   slideContextByIndex?: Record<number, SlideContextItem> | null
@@ -62,6 +121,18 @@ export interface MessageListProps {
   // thinking-stream is rerouted to the canvas + DirectorPresence and never
   // renders in chat. False/undefined = today's behavior, byte-for-byte.
   suppressEphemeral?: boolean
+  /** PASS2 #4 (NEXT_PUBLIC_STUDIO_OUTLINE_CANVAS): message_id of the outline frame the canvas is showing. Undefined when off. */
+  studioOutlineOnCanvas?: string | null
+  /** PASS2-DIRECTOR-CHAT PR D, item 7 (NEXT_PUBLIC_STUDIO_CHAT_RECOVERY): facts the page already holds (the transport notice, the hook's
+   *  reconnect status, whether the last status was an error), read only, to word the recovery card. Undefined when the flag is off. */
+  studioRecovery?: StudioChatRecoveryInput
+  studioChatClean?: ChatCleanThreadProps // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN): the build narration, the thread notes and the composer's mode for the inline job card; passed only with the flag on
+}
+
+// Keep the native pre component identity stable across transcript/status rerenders.
+// ReactMarkdown treats a changed renderer function as a new component and remounts it.
+function StudioDirectorCodeBlock({ node, ...props }: React.ComponentProps<'pre'> & { node?: unknown }) {
+  return <pre {...props} data-studio-director-code="true" tabIndex={0} role="region" aria-label="Director code block" />
 }
 
 function EvidenceBadge({ context }: { context?: SlideContextItem }) {
@@ -85,6 +156,7 @@ function EvidenceBadge({ context }: { context?: SlideContextItem }) {
 
   return (
     <Badge
+      data-studio-director-evidence={ready ? "ready" : "missing"}
       variant="secondary"
       title={title || undefined}
       className={
@@ -98,8 +170,32 @@ function EvidenceBadge({ context }: { context?: SlideContextItem }) {
   )
 }
 
+function HistoricalActionCard({ message, status, studio, chosen }: { message: ActionRequest; status: HistoricalActionStatus; studio: boolean; chosen?: AnsweredChoice }) {
+  const questions = (message.payload as { question_set?: QuestionSet }).question_set
+  // PASS2-DIRECTOR-CHAT PR D, item 8: `chosen` is passed only with NEXT_PUBLIC_STUDIO_CHAT_ANSWERED_CHOICE on and only when the user's own reply
+  // names an option (lib/studio-chat-answered-choice). Absent, every spread below adds nothing and every child is exactly what it was.
+  const mark = (picked: boolean | undefined) => picked ? { 'data-studio-chat-chosen': 'true' } : undefined
+  return (
+    <div data-studio-director-ask={studio ? 'history' : undefined} data-studio-director-history-action={studio ? status : undefined} data-director-action-id={message.message_id} aria-label="Earlier Director choices" {...(chosen ? { 'data-studio-chat-answered': 'true' } : undefined)}>
+      <p data-studio-director-part="heading" className="text-[10px] text-muted-foreground">{status === 'answered' ? 'Answered' : 'Earlier step'}</p>
+      <p data-studio-director-part="prompt" className="text-xs whitespace-pre-wrap mb-2">{message.payload.prompt_text}</p>
+      {questions?.intro && <p className="text-xs whitespace-pre-wrap">{questions.intro}</p>}
+      {questions?.questions?.map(question => <div key={question.id} className="text-xs mb-2"><p>{question.text}</p><ul>{question.suggestions?.map((suggestion, index) => {
+        const picked = chosen?.suggestions.includes(suggestionKey(question.id, suggestion.label))
+        return <li key={index} {...mark(picked)}>{picked ? <>{suggestion.label}<Check className="h-3 w-3" aria-hidden="true" /><span className="sr-only"> (your choice)</span></> : suggestion.label}</li>
+      })}</ul></div>)}
+      <div className="flex flex-wrap gap-1.5">{message.payload.actions.map((action, index) => {
+        const picked = chosen?.actionIndex === index
+        return <Button key={index} data-studio-director-option={studio ? 'action' : undefined} size="sm" variant="outline" disabled {...(picked ? { ...mark(true), 'aria-pressed': true } : undefined)}>{picked ? <>{action.label}<Check className="h-3 w-3" aria-hidden="true" /></> : action.label}</Button>
+      })}</div>
+    </div>
+  )
+}
+
 export function MessageList({
   sessionId,
+  studioFrontendTranscriptReceipt,
+  studioGreetingSafety,
   userMessages,
   messages,
   userMessageIdsRef,
@@ -107,7 +203,14 @@ export function MessageList({
   hasSeenWelcomeRef,
   answeredActionsRef,
   onActionClick,
+  askGatesLocked,
   onSubmitAnswers,
+  onDraftPrompt,
+  connectionState,
+  presentationContext,
+  studioFirstRunActions,
+  studioRestoring,
+  studioWelcomeGreeting,
   messagesEndRef,
   slideContextByIndex,
   ephemeralFadeToken,
@@ -116,13 +219,88 @@ export function MessageList({
   currentStatus,
   isGeneratingFinal = false,
   suppressEphemeral,
+  studioOutlineOnCanvas,
+  studioRecovery,
+  studioChatClean, // CHAT-CLEAN
 }: MessageListProps) {
+  const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+  // PASS2 #4: off, no outline card receives these props, so it renders exactly as before. On, every card the canvas outline stands
+  // for (the frame itself or a re-sent copy with the same content) folds to the summary, and an older, different outline folds too,
+  // marked as replaced (lib/director-history-presentation outlineCanvasRelation).
+  const canvasOutline = STUDIO_OUTLINE_CANVAS_ENABLED && studioOutlineOnCanvas
+    ? messages.find(message => message.message_id === studioOutlineOnCanvas) ?? null : null
+  const outlineCanvasProps = (message: SlideUpdate) => {
+    if (!STUDIO_OUTLINE_CANVAS_ENABLED) return undefined
+    const relation = outlineCanvasRelation(message, canvasOutline, studioOutlineOnCanvas)
+    return { onCanvas: relation === 'canvas', canvasSuperseded: relation === 'earlier', outlineLabel: true, deckSlideCount: presentationContext?.slideCount ?? null }
+  }
+  const greetingProjectionRef = useRef<{
+    receipt: StudioFrontendTranscriptReceipt | null
+    revision: number
+    eligibleIds: Set<string>
+    userIntentSeen: boolean
+    nonIntroSeen: boolean
+    certificate: InferredGreetingPrefixCertificate | null
+  }>({ receipt: null, revision: 0, eligibleIds: new Set(), userIntentSeen: false, nonIntroSeen: false, certificate: null })
+
+  const { historicalActions, activeActionIds } = lockApprovalGatePolicy(
+    getDirectorActionPolicy(messages, answeredActionsRef.current, sessionId, userMessages), messages, askGatesLocked)
+  // Old card callbacks may survive a parent history transition. Validate at
+  // interaction time against render-current IDs rather than a captured list.
+  const activeActionsRef = useRef(activeActionIds)
+  activeActionsRef.current = activeActionIds
+  const messagesRef = useRef(messages)
+  messagesRef.current = messages
+  // The answer is recorded against the ask instance on screen, not against an id a later ask may re-use.
+  const answerKeyFor = (messageId: string) => {
+    const ask = messagesRef.current.find(message => message.type === 'action_request' && message.message_id === messageId)
+    return ask ? askAnswerKey(ask) : messageId
+  }
+  const onCurrentActionClick = (action: ActionRequest['payload']['actions'][0], messageId: string) => {
+    const answerKey = answerKeyFor(messageId)
+    if (!activeActionsRef.current.has(messageId) || answeredActionsRef.current.has(answerKey)) return
+    onActionClick(action, messageId, answerKey)
+  }
+  const currentAnswerSubmit = (messageId: string) => onSubmitAnswers
+    ? (text: string, displayText?: string) => {
+        if (activeActionsRef.current.has(messageId) && !answeredActionsRef.current.has(answerKeyFor(messageId))) onSubmitAnswers(text, displayText)
+      }
+    : undefined
+  // BULK-EDIT-UNDO (flags NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO, default off): Director's whole-deck edit card and the Undo chip. Both send through onActionClick, the page's one answer path (user_message.data.action_value).
+  const bulkEditChoose = (action: ActionRequest['payload']['actions'][0], messageId: string) => chooseBulkEdit(action, messageId, { active: activeActionsRef.current, answered: answeredActionsRef.current, answerKey: answerKeyFor(messageId), send: onActionClick }) // BULK-EDIT-UNDO
+  const undoChange = (changeId: string, messageId: string) => sendStudioUndo(sessionId, changeId, messageId, { answered: answeredActionsRef.current, send: onActionClick }) // BULK-EDIT-UNDO
+  // PASS2 #2 (flag NEXT_PUBLIC_STUDIO_FIRST_RUN_V2, default off): Director's opening greeting alone is still a first run, so the
+  // welcome holds once Director has said hello. Off, only a blank-deck notice (or nothing) counts, exactly as before.
+  const firstRunV2 = studio && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true'
+  // J2 pass-2 P1 (same flag): a transcript with no user turn is also what an existing session looks like for the moment its history is loading.
+  // The page says so (studioRestoring); until it is confirmed new or restored, no "nothing here yet" welcome is drawn. An open deck's own
+  // welcome ("What would you like to change?", presentationContext) is true whatever the history says, so it stays. Off, firstRunV2 is false.
+  const restoringSession = firstRunV2 && studioRestoring === true && !presentationContext
+  const isEmptyStudioConversation = studio && !restoringSession && userMessages.length === 0 && messages.every(message =>
+    ((message.type === 'slide_update' && (message as SlideUpdate).payload.is_blank === true)
+      || (firstRunV2 && message.type === 'chat_message' && (message as V2ChatMessage).payload.text === DIRECTOR_522_INITIAL_GREETING))
+      && !classifyDirectorMessage(message, {
+        userMessageIds: userMessageIdsRef.current,
+        userMessageContentMap: userMessageContentMapRef.current,
+      }).isUserMessage,
+  )
+  // STUDIO-WELCOME-TRIM (flag NEXT_PUBLIC_STUDIO_WELCOME_TRIM, first-run welcome only, default off; lib/studio-welcome-trim.ts): Director's opening greeting is not drawn. A greeting seen while the conversation is still the empty first run (the answer just above,
+  // STUDIO-WELCOME-TRIM: no open deck) is remembered by id and stays hidden for as long as it is in the transcript, so the first message does not bring it back above that message. A greeting never seen empty (a restored history, an open deck, a same-text reply after a user turn) is drawn as today.
+  const trimGreetingsRef = useRef<ReadonlySet<string>>(NO_HIDDEN_GREETINGS) // STUDIO-WELCOME-TRIM
+  const trimmedGreetingIds = firstRunV2 && studioWelcomeTrimOn() ? (trimGreetingsRef.current = latchOpeningGreetings(trimGreetingsRef.current, messages, isEmptyStudioConversation && !presentationContext)) : NO_HIDDEN_GREETINGS // STUDIO-WELCOME-TRIM
   // Thinking-stream fade-out: when slide_update lands, fade tracked ephemeral
   // chat bubbles to opacity 0 over 300ms then unmount them on the next tick.
   const [fadingIds, setFadingIds] = useState<Set<string>>(new Set())
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set())
   const [expandedThinkingGroups, setExpandedThinkingGroups] = useState<Set<string>>(new Set())
   const lastFadeTokenRef = useRef(0)
+
+  useEffect(() => {
+    if (!isEmptyStudioConversation) return
+    // A fresh guide starts at its heading; populated transcripts retain their owner’s following behavior.
+    const viewport = messagesEndRef.current?.closest<HTMLElement>('[data-radix-scroll-area-viewport]')
+    if (viewport) viewport.scrollTop = 0
+  }, [isEmptyStudioConversation, messagesEndRef])
 
   useEffect(() => {
     setFadingIds(new Set())
@@ -159,28 +337,30 @@ export function MessageList({
         for (const id of idsToFade) next.add(id)
         return next
       })
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+      if (!isEmptyStudioConversation) messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
       onEphemeralFadeComplete?.()
     }, 350) // 300ms transition + 50ms buffer
     return () => clearTimeout(t)
-  }, [ephemeralFadeToken, ephemeralMessageIds, messages, messagesEndRef, onEphemeralFadeComplete])
+  }, [ephemeralFadeToken, ephemeralMessageIds, messages, messagesEndRef, onEphemeralFadeComplete, isEmptyStudioConversation])
   // Combine, classify, deduplicate, sort, filter, and group messages
   const processedMessages = useMemo(() => {
     const trackedEphemeralIds = new Set(ephemeralMessageIds || [])
-    const combined = [
+    const combined: DirectorTranscriptEntry[] = [
       ...userMessages.map(m => ({ ...m, messageType: 'user' as const })),
       ...messages.map(m => {
         const mAny = m as any;
-        let classificationMethod = 'DEFAULT';
+        const classification = classifyDirectorMessage(m, {
+          userMessageIds: userMessageIdsRef.current,
+          userMessageContentMap: userMessageContentMapRef.current,
+        });
+        const { classificationMethod, isUserMessage } = classification;
 
         // PRIORITY 1: Check Director's role field (proper fix from Director team)
-        if (mAny.role === 'user') {
+        if (classificationMethod === 'ROLE_FIELD') {
           userMessageIdsRef.current.add(m.message_id);
-          classificationMethod = 'ROLE_FIELD';
 
           const text = mAny.payload?.text || mAny.content || '';
-          const normalizedTimestamp = m.timestamp?.endsWith('Z') ? m.timestamp : m.timestamp + 'Z';
-          const timestamp = new Date(normalizedTimestamp).getTime();
+          const timestamp = directorHistoryTimestamp(m.timestamp);
 
           debugLog('✅ Director role field detected, transforming to user message format:', {
             message_id: m.message_id,
@@ -200,26 +380,13 @@ export function MessageList({
           };
         }
 
-        // PRIORITY 2: Check if message ID is in our tracking ref
-        let isUserMessage = userMessageIdsRef.current.has(m.message_id);
-        if (isUserMessage) {
-          classificationMethod = 'USER_MESSAGE_IDS_REF';
-        }
-
-        // PRIORITY 3: Content matching fallback (backward compatibility workaround)
-        if (!isUserMessage && mAny.payload?.text) {
-          const normalizedContent = (typeof mAny.payload.text === 'string' ? mAny.payload.text : '').trim().toLowerCase();
-          const matchingUserId = userMessageContentMapRef.current.get(normalizedContent);
-          if (matchingUserId) {
-            isUserMessage = true;
-            classificationMethod = 'CONTENT_MATCH';
-            userMessageIdsRef.current.add(m.message_id);
-            debugLog('🎯 Content match fallback (pre-Director-fix message):', {
-              directorMessageId: m.message_id,
-              matchedUserId: matchingUserId,
-              content: normalizedContent.substring(0, 30)
-            });
-          }
+        if (classification.trackUserId) {
+          userMessageIdsRef.current.add(m.message_id);
+          debugLog('🎯 Content match fallback (pre-Director-fix message):', {
+            directorMessageId: m.message_id,
+            matchedUserId: classification.matchingUserId,
+            content: classification.normalizedContent!.substring(0, 30)
+          });
         }
 
         debugLog('🔍 Message classification:', {
@@ -231,67 +398,97 @@ export function MessageList({
           isInUserMessageIds: userMessageIdsRef.current.has(m.message_id),
           classifiedAs: isUserMessage ? 'USER' : 'BOT'
         });
-        return { ...m, messageType: isUserMessage ? 'user' as const : 'bot' as const };
+        if (isUserMessage) {
+          return {
+            id: m.message_id,
+            text: mAny.payload?.text || mAny.content || '',
+            timestamp: directorHistoryTimestamp(m.timestamp),
+            attachments: attachmentsFromPayload(mAny.payload),
+            messageType: 'user' as const,
+          };
+        }
+        return { ...m, messageType: 'bot' as const };
       })
     ];
 
     debugLog('📊 Message rendering - userMessages:', userMessages.length, 'botMessages:', messages.length, 'combined:', combined.length);
 
-    // Deduplicate messages by ID and content
-    const seenIds = new Set<string>();
-    const seenContent = new Map<string, any>();
-
-    const deduplicated = combined.filter(item => {
-      const id = item.messageType === 'user' ? item.id : (item as any).message_id;
-      const content = item.messageType === 'user'
-        ? item.text
-        : (item as any).payload?.text || JSON.stringify((item as any).payload);
-
-      if (seenIds.has(id)) {
-        return false;
-      }
-
-      const contentKey = `${content}`.trim().toLowerCase();
-      const existingMessage = seenContent.get(contentKey);
-
-      if (existingMessage) {
-        if (item.messageType === 'user' && existingMessage.messageType !== 'user') {
-          seenIds.delete(existingMessage.id || existingMessage.message_id);
-          seenContent.set(contentKey, item);
-          seenIds.add(id);
-          return true;
-        } else if (item.messageType !== 'user' && existingMessage.messageType === 'user') {
-          return false;
-        } else {
-          return false;
-        }
-      }
-
-      seenIds.add(id);
-      seenContent.set(contentKey, item);
-      return true;
-    });
+    const deduplicated = deduplicateDirectorTranscript(combined, userMessages);
 
     debugLog('📊 After deduplication:', deduplicated.length);
 
     const parseTimestamp = (ts: string | undefined): number => {
       if (!ts) return 0;
-      const normalized = ts.endsWith('Z') ? ts : ts + 'Z';
-      return new Date(normalized).getTime();
+      return directorHistoryTimestamp(ts);
     };
 
     const sorted = deduplicated.sort((a, b) => {
       const timeA = a.messageType === 'user'
         ? a.timestamp
-        : (a as any).clientTimestamp || parseTimestamp((a as any).timestamp);
+        : typeof (a as any).clientTimestamp === 'number' && Number.isFinite((a as any).clientTimestamp)
+          ? (a as any).clientTimestamp
+          : parseTimestamp((a as any).timestamp);
       const timeB = b.messageType === 'user'
         ? b.timestamp
-        : (b as any).clientTimestamp || parseTimestamp((b as any).timestamp);
+        : typeof (b as any).clientTimestamp === 'number' && Number.isFinite((b as any).clientTimestamp)
+          ? (b as any).clientTimestamp
+          : parseTimestamp((b as any).timestamp);
       return timeA - timeB;
     });
 
-    // Filter out duplicate welcome messages
-    const filtered = sorted.filter((item, index) => {
+    const presented = presentTerminalOutlineRevisions(coalesceOutlineStateReplays(sorted))
+    let studioPresented: readonly typeof presented[number][] = presented
+    if (studio) {
+      const receipt = studioFrontendTranscriptReceipt ?? null
+      let projection = greetingProjectionRef.current
+      if (projection.receipt !== receipt) {
+        projection = { receipt, revision: 0, eligibleIds: new Set(receipt?.restoredAssistantIds ?? []),
+          userIntentSeen: false, nonIntroSeen: false, certificate: null }
+        greetingProjectionRef.current = projection
+      }
+      projection.revision += 1
+      if (receipt && receipt.sessionId === sessionId && studioGreetingSafety) {
+        const knownUser = studioGreetingSafety.hasUserIntent() || userMessages.length > 0
+          || userMessageIdsRef.current.size > 0 || sorted.some(entry => entry.messageType === 'user')
+        // Admit live IDs only before any observed user/nonintro boundary. Loaded
+        // IDs remain independently bounded by their exact private receipt.
+        if (!projection.userIntentSeen && !projection.nonIntroSeen && !knownUser) {
+          for (const entry of sorted) {
+            const bot = entry as DirectorMessage & { role?: string }
+            if (entry.messageType === 'bot' && bot.role === 'assistant'
+              && bot.type === 'chat_message' && (bot as V2ChatMessage).payload.text === DIRECTOR_522_INITIAL_GREETING) {
+              projection.eligibleIds.add(bot.message_id)
+            } else if (!receipt.restoredAssistantIds.includes(bot.message_id)) break
+          }
+        }
+        projection.userIntentSeen ||= knownUser
+        projection.nonIntroSeen ||= sorted.some(entry => entry.messageType === 'bot'
+          && (entry.type !== 'chat_message' || (entry as V2ChatMessage).payload.text !== DIRECTOR_522_INITIAL_GREETING))
+        const owner = { userId: receipt.userId, sessionId: receipt.sessionId,
+          generation: receipt.generation, transcriptRevision: projection.revision }
+        // Re-certification uses only previously eligible IDs. Later genuine
+        // equal-text answers are outside the initial consecutive prefix.
+        const mayCertify = !projection.certificate || (!projection.userIntentSeen && !projection.nonIntroSeen)
+        const certificate = mayCertify ? inferStudioGreetingPrefixCertificate(sorted, owner, {
+          ...owner, origin: 'completed-owned-frontend-load', completedFrontendLoad: true,
+          observedFreshFromCreation: false, noUserInOwnedChannels: !knownUser,
+          hasEverUserIntent: projection.userIntentSeen, hasEverNonIntroConversation: projection.nonIntroSeen,
+          historyUncertain: false, pendingRestoration: studioGreetingSafety.pendingRestoration,
+          pendingWork: studioGreetingSafety.pendingWork, noticePresent: studioGreetingSafety.noticePresent,
+          restoredAssistantIds: receipt.restoredAssistantIds, eligibleIntroIds: [...projection.eligibleIds],
+        }) : null
+        if (certificate) projection.certificate = certificate
+        const projected = coalesceCertifiedStudioGreetingPrefix(sorted, owner, projection.certificate, {
+          historyUncertain: false, pendingRestoration: studioGreetingSafety.pendingRestoration,
+        })
+        studioPresented = presentTerminalOutlineRevisions(coalesceOutlineStateReplays([...projected]))
+      }
+    }
+    if (trimmedGreetingIds.size > 0) studioPresented = studioPresented.filter(entry => entry.messageType === 'user' || !trimmedGreetingIds.has((entry as DirectorMessage).message_id)) // STUDIO-WELCOME-TRIM: the hidden opening greeting is not drawn; the raw transcript is untouched
+    // Preserve the legacy welcome policy outside Studio. Studio uses a bounded
+    // display prefix; raw messages still drive history/actions/persistence.
+    // PASS2 #4 (flag on, Studio only): a built deck's structure re-sent on reconnect is state, not a new outline card.
+    const filtered = studio ? (STUDIO_OUTLINE_CANVAS_ENABLED ? hideBuiltDeckStructureResends([...studioPresented]) : [...studioPresented]) : presented.filter((item, index) => {
       if (item.messageType === 'bot') {
         const msg = item as DirectorMessage;
         if (msg.type === 'chat_message') {
@@ -341,6 +538,14 @@ export function MessageList({
 
       if (current.messageType === 'bot') {
         const botMsg = current as DirectorMessage;
+
+        // Automatic blank initialization is state, like presentation_init.
+        // Keep its raw entry without grouping away a following real decision.
+        if (studio && botMsg.type === 'slide_update' && (botMsg as SlideUpdate).payload.is_blank === true) {
+          processedMessages.push(current);
+          i++;
+          continue;
+        }
 
         if (botMsg.type === 'chat_message' && (botMsg as V2ChatMessage).payload.ephemeral === true) {
           const thinkingMessages: V2ChatMessage[] = []
@@ -415,7 +620,7 @@ export function MessageList({
     }
 
     return processedMessages;
-  }, [userMessages, messages, ephemeralMessageIds, userMessageIdsRef, userMessageContentMapRef, hasSeenWelcomeRef, answeredActionsRef, suppressEphemeral]);
+  }, [userMessages, messages, ephemeralMessageIds, userMessageIdsRef, userMessageContentMapRef, hasSeenWelcomeRef, answeredActionsRef, suppressEphemeral, studio, sessionId, studioFrontendTranscriptReceipt, studioGreetingSafety, trimmedGreetingIds]); // STUDIO-WELCOME-TRIM
 
   const hasVisibleThinkingStream = processedMessages.some((item) => {
     if (item.messageType !== 'bot') return false
@@ -430,12 +635,53 @@ export function MessageList({
     narrationOwnsChat: !!suppressEphemeral,
   })
 
+  // CHAT-UNDO-V2 (NEXT_PUBLIC_STUDIO_CHAT_UNDO, default off): tell the Undo chip's store which Director lines are in the chat, so a chip goes under its change's own anchor line (Director's anchor_message_id, else the replayed
+  // CHAT-UNDO-V2: anchor_history_id) and never under a line that is not here. Read-only on the list; the chips below draw in this same pass.
+  if (STUDIO_CHAT_UNDO_ENABLED && studio) noteStudioChatLines(sessionId, processedMessages, removedIds) // CHAT-UNDO-V2
+
+  const welcomeBusy = isGeneratingFinal || currentStatus?.status === 'thinking' || currentStatus?.status === 'generating'
+
+  // PASS2-DIRECTOR-CHAT PR B (flag NEXT_PUBLIC_STUDIO_CHAT_POLISH, Studio shell only, default off): DIRECTOR / YOU speaker labels and a
+  // tinted user turn, a 13px Director body, a lighter thinking row. Presentation only: on, each message root below gains one
+  // data-studio-chat-polish attribute and studio-chat-polish.css does the rest. Off, this is undefined and spreading it adds nothing,
+  // so the markup, the keys and every handler are exactly what they were.
+  const chatPolish = (kind: 'message' | 'thinking' = 'message') => studio && process.env.NEXT_PUBLIC_STUDIO_CHAT_POLISH === 'true' ? { 'data-studio-chat-polish': kind } : undefined
+
+  // PASS2-DIRECTOR-CHAT PR D, item 8 (flag NEXT_PUBLIC_STUDIO_CHAT_ANSWERED_CHOICE, Studio shell only, default off): an answered ask shows the option
+  // the user chose. Read at render from the list already sorted above: the next user turn after the ask names the option (lib/studio-chat-answered-
+  // choice). It writes nothing (no state, no ref) and never changes whether a card is answered or live; off, this returns undefined and spreading
+  // it adds nothing.
+  const answeredChoice = studio && process.env.NEXT_PUBLIC_STUDIO_CHAT_ANSWERED_CHOICE === 'true'
+  const answeredChoiceProps = (index: number, ask: ActionRequest, status: HistoricalActionStatus) => {
+    if (!answeredChoice || status !== 'answered') return undefined
+    const chosen = findAnsweredChoice(processedMessages, index, ask)
+    return chosen ? { chosen } : undefined
+  }
+
+  // PASS2-DIRECTOR-CHAT PR D, item 7 (flag NEXT_PUBLIC_STUDIO_CHAT_RECOVERY, Studio shell only, default off): a calm card at the end of the transcript
+  // when something interrupted Director. Words only, from facts the page passes down read-only; the card has no button, so the existing message box
+  // stays the only resend. Off, this is null and nothing is rendered.
+  const recoveryCard = studio && process.env.NEXT_PUBLIC_STUDIO_CHAT_RECOVERY === 'true' ? studioChatRecoveryCard(studioRecovery) : null
+  // CHAT-CLEAN-ORDER (NEXT_PUBLIC_STUDIO_CHAT_CLEAN_ORDER, default off; lib/studio-chat-clean-order.ts): the thread's notes (stopped / paused / resumed, the user's directions) are drawn between the rows, where they happened, and the tail's working line is kept honest. Off, this is null and nothing below it renders or changes.
+  const chatCleanOrder = STUDIO_CHAT_CLEAN_ORDER_ENABLED && studio && studioChatClean ? { thread: studioChatClean, plan: chatCleanNotePlan(processedMessages.map(row => ({ kind: row.messageType === 'user' ? 'user' as const : 'bot' as const, time: chatCleanRowTime(row) })), studioChatClean.notes, chatCleanHiddenNoteId(studioChatClean.notes, studioChatClean.composer.mode)) } : null // CHAT-CLEAN-ORDER
+  if (chatCleanOrder) studioChatClean = undefined // CHAT-CLEAN-ORDER: the tail below is drawn by StudioChatCleanOrderTail instead; the prop's own line then renders nothing
+
   return (
     <>
+      {isEmptyStudioConversation && (
+        <StudioWelcome
+          onDraftPrompt={onDraftPrompt}
+          connectionState={connectionState}
+          presentationContext={presentationContext}
+          busy={welcomeBusy}
+          {...(firstRunV2 ? { firstRun: true } : {})}
+          {...(studioWelcomeGreeting ? { greeting: studioWelcomeGreeting } : {})}
+        />
+      )}
       {processedMessages.map((item, index) => {
         if (item.messageType === 'user') {
           return (
-            <div key={item.id} className="flex gap-3 justify-end animate-in fade-in duration-200">
+            <div key={item.id} data-studio-director-message={studio ? "user" : undefined} className="flex gap-3 justify-end animate-in fade-in duration-200" {...chatPolish()}>
               <div className="flex-1 max-w-[85%] text-right">
                 <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">You</p>
                 <p className="text-xs text-gray-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap break-words">{item.text}</p>
@@ -471,6 +717,7 @@ export function MessageList({
         const msg = item as any;
         return (
           <React.Fragment key={msg.message_id || msg.id}>
+            {chatCleanOrder?.plan.before[index] ? <StudioChatCleanNotesAt notes={chatCleanOrder.plan.before[index]} /> : null}{/* CHAT-CLEAN-ORDER: notes that happened just before this row */}
             {(() => {
               if (msg.type === 'combined_strawman') {
                 const { slideUpdate, presentationUrl, actionRequest } = msg;
@@ -479,15 +726,16 @@ export function MessageList({
                   : null
 
                 return (
-                  <div className="flex gap-3 animate-in fade-in duration-200">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
+                  <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200" {...chatPolish()}>
+                    <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
                       <Sparkles className="h-3 w-3 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
+                      <p data-studio-director-part="speaker" className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
 
                       {/* Slide Structure Card */}
-                      <div className="mt-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-800">
+                      {studio && slideUpdate ? <StudioOutlineCard payload={slideUpdate.payload} historyStatus={slideUpdate.clientOutlineHistoryStatus} contextByIndex={slideContextByIndex} renderEvidence={(context) => <EvidenceBadge context={context} />} {...outlineCanvasProps(slideUpdate)} /> : (
+                      <div data-studio-director-part="outline" className="mt-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-800">
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className="text-sm">📊</span>
                           <p className="text-xs font-medium text-gray-900 dark:text-slate-100">
@@ -497,11 +745,11 @@ export function MessageList({
                         <p className="text-[11px] text-gray-500 dark:text-slate-400 mb-2">
                           {slideUpdate?.payload.slides.length} slides · {slideUpdate?.payload.metadata.presentation_duration} min · {slideUpdate?.payload.metadata.overall_theme}
                         </p>
-                        <div className="space-y-1 max-h-36 overflow-y-auto">
+                        <div data-studio-director-part="outline-slides" className="space-y-1 max-h-36 overflow-y-auto">
                           {slideUpdate?.payload.slides.map((slide: any, i: number) => {
                             const ctx = slideContextByIndex?.[i]
                             return (
-                              <div key={i} className="text-[11px] py-1 px-2 bg-white dark:bg-slate-900 rounded border border-gray-100 dark:border-slate-800">
+                              <div key={i} data-studio-director-part="outline-slide" className="text-[11px] py-1 px-2 bg-white dark:bg-slate-900 rounded border border-gray-100 dark:border-slate-800">
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   <span className="text-gray-400 dark:text-slate-500">{slide.slide_number}.</span>
                                   <span className="text-gray-700 dark:text-slate-200">{slide.title}</span>
@@ -521,10 +769,11 @@ export function MessageList({
                           })}
                         </div>
                       </div>
+                      )}
 
                       {/* Presentation Ready */}
                       {presentationUrl && (
-                        <div className="mt-2 flex items-center gap-2 p-2.5 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-800">
+                        <div data-studio-director-part="preview-ready" className="mt-2 flex items-center gap-2 p-2.5 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-800">
                           <span className="text-sm">✅</span>
                           <div className="flex-1 min-w-0">
                             <p className="text-xs text-gray-700 dark:text-slate-200">{presentationUrl.payload.message}</p>
@@ -537,7 +786,7 @@ export function MessageList({
                             disabled={presentationUrlDecision?.status !== 'allowed'}
                             onClick={() => {
                               if (presentationUrlDecision?.status === 'allowed') {
-                                window.open(presentationUrlDecision.url, '_blank', 'noopener,noreferrer')
+                                window.open(viewOnlyIfEnabled(presentationUrlDecision.url), '_blank', 'noopener,noreferrer')
                               }
                             }}
                           >
@@ -548,20 +797,22 @@ export function MessageList({
                       )}
 
                       {/* Action Buttons — MDC (P2): card treatment behind CHAT_CLARITY */}
-                      {CHAT_CLARITY && actionRequest && !answeredActionsRef.current.has(actionRequest.message_id) && (
+                      {actionRequest && historicalActions.has(actionRequest.message_id) && <HistoricalActionCard message={actionRequest} status={historicalActions.get(actionRequest.message_id)!} studio={studio} {...answeredChoiceProps(index, actionRequest, historicalActions.get(actionRequest.message_id)!)} />}
+                      {(CHAT_CLARITY || studio) && actionRequest && !historicalActions.has(actionRequest.message_id) && (
                         <div className="mt-3">
                           <QuestionCard
+                            studio={studio}
                             promptText={actionRequest.payload.prompt_text}
                             actions={actionRequest.payload.actions}
                             messageId={actionRequest.message_id}
-                            onActionClick={onActionClick}
+                            onActionClick={onCurrentActionClick}
                             questionSet={(actionRequest.payload as { question_set?: QuestionSet }).question_set ?? null}
                             structuredEnabled={CHAT_QUESTIONS}
-                            onSubmitAnswers={onSubmitAnswers}
+                            onSubmitAnswers={currentAnswerSubmit(actionRequest.message_id)}
                           />
                         </div>
                       )}
-                      {!CHAT_CLARITY && actionRequest && !answeredActionsRef.current.has(actionRequest.message_id) && (
+                      {!CHAT_CLARITY && !studio && actionRequest && !historicalActions.has(actionRequest.message_id) && (
                         <div className="mt-3">
                           <p className="text-xs text-gray-700 dark:text-slate-200 mb-2">{actionRequest.payload.prompt_text}</p>
                           <div className="flex flex-wrap gap-1.5">
@@ -570,7 +821,7 @@ export function MessageList({
                                 key={i}
                                 size="sm"
                                 variant={action.primary ? "default" : "outline"}
-                                onClick={() => onActionClick(action, actionRequest.message_id)}
+                                onClick={() => onCurrentActionClick(action, actionRequest.message_id)}
                                 className={action.primary
                                   ? "text-xs h-7 bg-gray-900 dark:bg-slate-600 hover:bg-gray-800 dark:hover:bg-slate-700 dark:bg-slate-700"
                                   : "text-xs h-7 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 dark:bg-slate-800"
@@ -596,13 +847,13 @@ export function MessageList({
                 const canExpand = visibleMessages.length > 1
 
                 return (
-                  <div className={`flex gap-3 animate-in fade-in duration-200 transition-opacity duration-300 ${isFading ? 'opacity-0' : ''}`}>
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
+                  <div data-studio-director-message={studio ? "director" : undefined} className={`flex gap-3 animate-in fade-in duration-200 transition-opacity duration-300 ${isFading ? 'opacity-0' : ''}`} {...chatPolish('thinking')}>
+                    <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
                       <Sparkles className="h-3 w-3 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
-                      <div className="rounded-lg border border-purple-100 bg-purple-50/60 px-2.5 py-2">
+                      <p data-studio-director-part="speaker" className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
+                      <div data-studio-director-part="thinking" className="rounded-lg border border-purple-100 bg-purple-50/60 px-2.5 py-2">
                         <button
                           type="button"
                           className="w-full flex items-center gap-2 text-left disabled:cursor-default"
@@ -620,6 +871,7 @@ export function MessageList({
                             })
                           }}
                           aria-expanded={isExpanded}
+                          aria-label={studio ? `${latestMessage.payload.text}. Director progress: ${visibleMessages.length} update${visibleMessages.length === 1 ? '' : 's'}${canExpand ? (isExpanded ? ', collapse details' : ', expand details') : ''}` : undefined}
                         >
                           <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center gap-0.5">
                             <span className="h-1 w-1 rounded-full bg-purple-500 animate-pulse" />
@@ -635,7 +887,7 @@ export function MessageList({
                         </button>
 
                         {isExpanded && (
-                          <div className="mt-2 max-h-24 overflow-y-auto border-t border-purple-100 pt-2 space-y-1">
+                          <div data-studio-director-part="progress-history" tabIndex={studio ? 0 : undefined} role={studio ? "region" : undefined} aria-label={studio ? "Director progress updates" : undefined} className="mt-2 max-h-24 overflow-y-auto border-t border-purple-100 pt-2 space-y-1">
                             {visibleMessages.map((thought) => (
                               <p key={thought.message_id} className="text-[11px] leading-relaxed text-gray-500 dark:text-slate-400">
                                 {thought.payload.text}
@@ -652,15 +904,18 @@ export function MessageList({
                 if (removedIds.has(chatMsg.message_id)) return null
                 const isFading = fadingIds.has(chatMsg.message_id)
                 return (
-                  <div className={`flex gap-3 animate-in fade-in duration-200 transition-opacity duration-300 ${isFading ? 'opacity-0' : ''}`}>
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
+                  <div data-studio-director-message={studio ? "director" : undefined} className={`flex gap-3 animate-in fade-in duration-200 transition-opacity duration-300 ${isFading ? 'opacity-0' : ''}`} {...chatPolish()}>
+                    <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
                       <Sparkles className="h-3 w-3 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
-                      <div className="text-xs text-gray-700 dark:text-slate-200 leading-relaxed">
+                      <p data-studio-director-part="speaker" className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
+                      <div data-studio-director-part="body" className="text-xs text-gray-700 dark:text-slate-200 leading-relaxed">
                         <ReactMarkdown
                           components={{
+                            ...(studio ? {
+                              pre: StudioDirectorCodeBlock,
+                            } : {}),
                             a: ({ node, ...props }) => (
                               <a
                                 {...props}
@@ -679,51 +934,56 @@ export function MessageList({
                         </ReactMarkdown>
                       </div>
                       {chatMsg.payload.sub_title && (
-                        <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-1">{chatMsg.payload.sub_title}</p>
+                        <p data-studio-director-part="subtitle" className="text-[11px] text-gray-500 dark:text-slate-400 mt-1">{chatMsg.payload.sub_title}</p>
                       )}
                       {chatMsg.payload.list_items && chatMsg.payload.list_items.length > 0 && (
-                        <ul className="text-[11px] mt-1.5 space-y-0.5">
+                        <ul data-studio-director-part="message-list-items" className="text-[11px] mt-1.5 space-y-0.5">
                           {chatMsg.payload.list_items.map((listItem, i) => (
                             <li key={i} className="ml-4 list-disc text-gray-600 dark:text-slate-300">{listItem}</li>
                           ))}
                         </ul>
                       )}
+                      {STUDIO_CHAT_UNDO_ENABLED && studio && <StudioUndoChip sessionId={sessionId} messageId={chatMsg.message_id} undo={undoChange} />}{/* BULK-EDIT-UNDO: the Undo chip (default off) */}
                     </div>
                   </div>
                 )
               } else if (msg.type === 'action_request') {
                 const actionMsg = msg as ActionRequest
-                if (answeredActionsRef.current.has(actionMsg.message_id)) {
-                  return null
+                const bulkAsk = STUDIO_BULK_EDIT_ENABLED && studio ? bulkEditAskDecision(actionMsg) : null // BULK-EDIT-UNDO
+                if (bulkAsk?.kind === 'hidden') return null // BULK-EDIT-UNDO: a bulk_edit_confirm that does not validate draws nothing
+                if (bulkAsk?.kind === 'card') return <StudioBulkEditRow ask={actionMsg} model={bulkAsk.model} sessionId={sessionId} status={historicalActions.get(actionMsg.message_id)} chosenValue={actionMsg.payload.actions[findAnsweredChoice(processedMessages, index, actionMsg)?.actionIndex ?? -1]?.value ?? null} choose={bulkEditChoose} rowProps={chatPolish()} /> // BULK-EDIT-UNDO
+                if (historicalActions.has(actionMsg.message_id)) {
+                  return <HistoricalActionCard message={actionMsg} status={historicalActions.get(actionMsg.message_id)!} studio={studio} {...answeredChoiceProps(index, actionMsg, historicalActions.get(actionMsg.message_id)!)} />
                 }
-                if (CHAT_CLARITY) {
+                if (CHAT_CLARITY || studio) {
                   return (
-                    <div className="flex gap-3 animate-in fade-in duration-200">
-                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
+                    <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200" {...chatPolish()}>
+                      <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
                         <Sparkles className="h-3 w-3 text-white" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
+                        <p data-studio-director-part="speaker" className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
                         <QuestionCard
+                          studio={studio}
                           promptText={actionMsg.payload.prompt_text}
                           actions={actionMsg.payload.actions}
                           messageId={actionMsg.message_id}
-                          onActionClick={onActionClick}
+                          onActionClick={onCurrentActionClick}
                           questionSet={(actionMsg.payload as { question_set?: QuestionSet }).question_set ?? null}
                           structuredEnabled={CHAT_QUESTIONS}
-                          onSubmitAnswers={onSubmitAnswers}
+                          onSubmitAnswers={currentAnswerSubmit(actionMsg.message_id)}
                         />
                       </div>
                     </div>
                   )
                 }
                 return (
-                  <div className="flex gap-3 animate-in fade-in duration-200">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
+                  <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200">
+                    <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
                       <Sparkles className="h-3 w-3 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
+                      <p data-studio-director-part="speaker" className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
                       <p className="text-xs text-gray-700 dark:text-slate-200 mb-2">{actionMsg.payload.prompt_text}</p>
                       <div className="flex flex-wrap gap-1.5">
                         {actionMsg.payload.actions.map((action, i) => (
@@ -731,7 +991,7 @@ export function MessageList({
                             key={i}
                             size="sm"
                             variant={action.primary ? "default" : "outline"}
-                            onClick={() => onActionClick(action, actionMsg.message_id)}
+                            onClick={() => onCurrentActionClick(action, actionMsg.message_id)}
                             className={action.primary
                               ? "text-xs h-7 bg-gray-900 dark:bg-slate-600 hover:bg-gray-800 dark:hover:bg-slate-700 dark:bg-slate-700"
                               : "text-xs h-7 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 dark:bg-slate-800"
@@ -745,15 +1005,18 @@ export function MessageList({
                   </div>
                 )
               } else if (msg.type === 'slide_update') {
-                const slideMsg = msg as SlideUpdate
+                const slideMsg = msg as SlideUpdate & { clientOutlineHistoryStatus?: OutlineHistoryStatus }
+                if (studio && slideMsg.payload.is_blank === true) return null
+                if (STUDIO_STRAWMAN_CHAT_ENABLED && studio) return null // STRAWMAN-CHAT: no outline card in the chat (F-08, PK 31 Oct), so no empty Director row for it either; Director's one line and its buttons are their own rows
                 return (
-                  <div className="flex gap-3 animate-in fade-in duration-200">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
+                  <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200" {...chatPolish()}>
+                    <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
                       <Sparkles className="h-3 w-3 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
-                      <div className="mt-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-800">
+                      <p data-studio-director-part="speaker" className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
+                      {studio ? <StudioOutlineCard payload={slideMsg.payload} historyStatus={slideMsg.clientOutlineHistoryStatus} contextByIndex={slideContextByIndex} renderEvidence={(context) => <EvidenceBadge context={context} />} {...outlineCanvasProps(slideMsg)} /> : (
+                      <div data-studio-director-part="outline" className="mt-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-800">
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className="text-sm">📊</span>
                           <p className="text-xs font-medium text-gray-900 dark:text-slate-100">
@@ -763,11 +1026,11 @@ export function MessageList({
                         <p className="text-[11px] text-gray-500 dark:text-slate-400 mb-2">
                           {slideMsg.payload.slides.length} slides · {slideMsg.payload.metadata.presentation_duration} min · {slideMsg.payload.metadata.overall_theme}
                         </p>
-                        <div className="space-y-1 max-h-36 overflow-y-auto">
+                        <div data-studio-director-part="outline-slides" className="space-y-1 max-h-36 overflow-y-auto">
                           {slideMsg.payload.slides.map((slide, i) => {
                             const ctx = slideContextByIndex?.[i]
                             return (
-                              <div key={i} className="text-[11px] py-1 px-2 bg-white dark:bg-slate-900 rounded border border-gray-100 dark:border-slate-800">
+                              <div key={i} data-studio-director-part="outline-slide" className="text-[11px] py-1 px-2 bg-white dark:bg-slate-900 rounded border border-gray-100 dark:border-slate-800">
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   <span className="text-gray-400 dark:text-slate-500">{slide.slide_number}.</span>
                                   <span className="text-gray-700 dark:text-slate-200">{slide.title}</span>
@@ -787,6 +1050,7 @@ export function MessageList({
                           })}
                         </div>
                       </div>
+                      )}
                     </div>
                   </div>
                 )
@@ -805,17 +1069,21 @@ export function MessageList({
               }
               return null
             })()}
+            {chatCleanOrder?.plan.after[index] ? <StudioChatCleanNotesAt notes={chatCleanOrder.plan.after[index]} /> : null}{/* CHAT-CLEAN-ORDER: notes that happened just after this row */}
           </React.Fragment>
         )
       })}
+      {isEmptyStudioConversation && firstRunV2 && !presentationContext && (
+        <StudioFirstRunStarters onDraftPrompt={onDraftPrompt} busy={welcomeBusy}>{studioFirstRunActions}</StudioFirstRunStarters>
+      )}
       {showWorkingPulse && (
-        <div className="flex gap-3 animate-in fade-in duration-200">
-          <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
+        <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200" {...chatPolish('thinking')}>
+          <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
             <Sparkles className="h-3 w-3 text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
-            <div className="rounded-lg border border-purple-100 bg-purple-50/60 px-2.5 py-2 dark:border-slate-800 dark:bg-slate-900">
+            <p data-studio-director-part="speaker" className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
+            <div data-studio-director-part="thinking" role={studio ? "status" : undefined} className="rounded-lg border border-purple-100 bg-purple-50/60 px-2.5 py-2 dark:border-slate-800 dark:bg-slate-900">
               <div className="flex items-center gap-2">
                 <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center gap-0.5">
                   <span className="h-1 w-1 rounded-full bg-purple-500 animate-pulse" />
@@ -830,7 +1098,15 @@ export function MessageList({
           </div>
         </div>
       )}
-      <div ref={messagesEndRef} />
+      {chatCleanOrder ? <StudioChatCleanOrderTail {...chatCleanOrder.thread} notes={chatCleanOrder.plan.tail} gate={chatCleanLastGateId(messages)} currentStatus={currentStatus} /> : null}{/* CHAT-CLEAN-ORDER: the notes after the last row and the job card, with the stale working line closed */}
+      {studioChatClean ? <StudioChatCleanJob {...studioChatClean} currentStatus={currentStatus} /> : null}{/* CHAT-CLEAN: the notes and the inline job card (or Director's one status line) at the end of the thread; off, null */}
+      {/* PR D (recovery flag on): the card shares the end anchor's slot, so with the flag off the child list is exactly the base's. */}
+      {recoveryCard ? (
+        <>
+          <StudioRecoveryCard card={recoveryCard} />
+          <div ref={messagesEndRef} />
+        </>
+      ) : <div ref={messagesEndRef} />}
     </>
   )
 }

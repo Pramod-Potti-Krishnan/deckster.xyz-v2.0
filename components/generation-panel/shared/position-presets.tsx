@@ -1,6 +1,9 @@
 'use client'
 
 import { TextLabsPositionConfig, POSITION_PRESETS, TEXT_LABS_ELEMENT_DEFAULTS, TextLabsComponentType, GRID_CELL_SIZE } from '@/types/textlabs'
+import './studio-generation-geometry.css'
+
+const STUDIO_GEOMETRY = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
 
 interface PositionPresetsProps {
   positionConfig: TextLabsPositionConfig
@@ -35,17 +38,18 @@ export function PositionPresets({
   const pixelH = positionConfig.position_height * GRID_CELL_SIZE
 
   return (
-    <div className="space-y-2">
+    <div data-studio-v4-shell={STUDIO_GEOMETRY ? 'true' : undefined} data-studio-generation-geometry={STUDIO_GEOMETRY ? 'position' : undefined} className="space-y-2">
       {/* Auto/Manual Toggle — inline layout */}
-      <div className="flex items-center justify-between gap-2">
+      <div data-studio-geometry-heading={STUDIO_GEOMETRY ? 'true' : undefined} className="flex items-center justify-between gap-2">
         <label className="text-[11px] font-medium text-gray-600 dark:text-slate-300 whitespace-nowrap">Positioning</label>
-        <div className="flex gap-1">
+        <div data-studio-geometry-group={STUDIO_GEOMETRY ? 'position-mode' : undefined} role={STUDIO_GEOMETRY ? 'group' : undefined} aria-label={STUDIO_GEOMETRY ? 'Positioning' : undefined} className="flex gap-1">
           {[
             { value: 'auto', label: 'Auto' },
             { value: 'manual', label: 'Manual' },
           ].map(option => (
             <button
               key={option.value}
+              aria-pressed={STUDIO_GEOMETRY ? (positionConfig.auto_position ? 'auto' : 'manual') === option.value : undefined}
               onClick={() => {
                 const isAuto = option.value === 'auto'
                 onChange({
@@ -73,7 +77,7 @@ export function PositionPresets({
       </div>
 
       {/* Calculated Size Display */}
-      <div className="text-[10px] text-gray-400 dark:text-slate-500">
+      <div data-studio-geometry-summary={STUDIO_GEOMETRY ? 'true' : undefined} className="text-[10px] text-gray-400 dark:text-slate-500">
         Size: {positionConfig.position_width} x {positionConfig.position_height} grid ({pixelW} x {pixelH} px)
       </div>
 
@@ -82,10 +86,11 @@ export function PositionPresets({
           {/* Position Presets Grid */}
           <div className="space-y-1">
             <label className="text-[10px] text-gray-400 dark:text-slate-500">Presets</label>
-            <div className="grid grid-cols-3 gap-1">
+            <div data-studio-geometry-group={STUDIO_GEOMETRY ? 'presets' : undefined} role={STUDIO_GEOMETRY ? 'group' : undefined} aria-label={STUDIO_GEOMETRY ? 'Position presets' : undefined} className="grid grid-cols-3 gap-1">
               {Object.entries(POSITION_PRESETS).map(([key, preset]) => (
                 <button
                   key={key}
+                  aria-pressed={STUDIO_GEOMETRY ? positionConfig.start_col === preset.start_col && positionConfig.start_row === preset.start_row && positionConfig.position_width === preset.width && positionConfig.position_height === preset.height : undefined}
                   onClick={() => applyPreset(key)}
                   className={`px-1.5 py-1 rounded text-[10px] transition-colors ${
                     positionConfig.start_col === preset.start_col &&
@@ -103,7 +108,7 @@ export function PositionPresets({
           </div>
 
           {/* Col/Row Inputs (hidden when auto) */}
-          <div className="grid grid-cols-2 gap-2">
+          <div data-studio-geometry-pair={STUDIO_GEOMETRY ? 'true' : undefined} className="grid grid-cols-2 gap-2">
             {[
               { label: 'Col', field: 'start_col' as const, min: 1, max: 32 },
               { label: 'Row', field: 'start_row' as const, min: 1, max: 18 },
@@ -111,6 +116,7 @@ export function PositionPresets({
               <div key={field} className="space-y-1">
                 <label className="text-[10px] text-gray-400 dark:text-slate-500">{label}</label>
                 <input
+                  aria-label={STUDIO_GEOMETRY ? `${label} (grid)` : undefined}
                   type="number"
                   value={positionConfig[field]}
                   min={min}
@@ -129,7 +135,7 @@ export function PositionPresets({
       )}
 
       {/* Width/Height Inputs (always visible) */}
-      <div className="grid grid-cols-2 gap-2">
+      <div data-studio-geometry-pair={STUDIO_GEOMETRY ? 'true' : undefined} className="grid grid-cols-2 gap-2">
         {[
           { label: 'Width', field: 'position_width' as const, min: 0.2, max: 32 },
           { label: 'Height', field: 'position_height' as const, min: 0.2, max: 18 },
@@ -137,6 +143,7 @@ export function PositionPresets({
           <div key={field} className="space-y-1">
             <label className="text-[10px] text-gray-400 dark:text-slate-500">{label}</label>
             <input
+              aria-label={STUDIO_GEOMETRY ? `${label} (grid)` : undefined}
               type="number"
               value={positionConfig[field]}
               min={min}
