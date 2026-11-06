@@ -74,6 +74,10 @@ export const BILLING_F4F6_PIN_EDITS = {
   [
    "    const now = applyAll(registry.LATER_STRIPS.slice(registry.LATER_STRIPS.indexOf(stripModelPickerSimple) + 1), rel, disk(rel)), edits = PIN_EDITS[rel]; eq(now.split(edits[0][0]).length - 1, 1, `${rel}: the taught line is there once`); eq(stripModule.putBackPin(rel, now), baseText(rel), `${rel}: putting it back gives the base's proof`); eq(stripModelPickerSimple(rel, now), baseText(rel)) // LATER-CHANGES: registry read (BILLING-F4F6): the proof is read as this change left it, the lines the changes registered AFTER it taught it (#569's Redeem v4 line ...) put back\n",
    "    const now = disk(rel), edits = PIN_EDITS[rel]; eq(now.split(edits[0][0]).length - 1, 1, `${rel}: the taught line is there once`); eq(stripModule.putBackPin(rel, now), baseText(rel), `${rel}: putting it back gives the base's proof`); eq(stripModelPickerSimple(rel, now), baseText(rel))\n"
+  ],
+  [
+   "function scopeHead(ref = 'HEAD') { const head = git('rev-parse', `${ref}^{commit}`).trim(), parents = parentsOf(head); return parents.length === 2 && (() => { try { git('merge-base', '--is-ancestor', parents[0], BASE_COMMIT); return true } catch { return false } })() && ownOf(parents[0]).length === 0 && ownOf(parents[1]).length > 0 ? parents[1] : head } // LATER-CHANGES: registry read (BILLING-F4F6): a gate merge's first parent is dev, which is under this change's base; a chain step that merged this change's line into another branch (a56ad7bd ...) is an ordinary tip, its own scope head\n",
+   "function scopeHead(ref = 'HEAD') { const head = git('rev-parse', `${ref}^{commit}`).trim(), parents = parentsOf(head); return parents.length === 2 && ownOf(parents[0]).length === 0 && ownOf(parents[1]).length > 0 ? parents[1] : head }\n"
   ]
  ],
  "scripts/test-studio-model-choice.mjs": [
