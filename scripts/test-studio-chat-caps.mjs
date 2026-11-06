@@ -399,12 +399,12 @@ const scopeCommittedFiles = head => {
   assert.deepEqual([...touched].sort(), [...CHAT_CAPS_SCOPE_FILES].sort(), 'the files this change\'s own commits touch (net of what they put back) are exactly its scope')
   assert.deepEqual([...net].filter(rel => CHAT_CAPS_SCOPE_FILES.has(rel) || !registry.LATER_CHANGE_FILES.has(rel)).sort(), [...CHAT_CAPS_SCOPE_FILES].sort(), 'and the whole committed diff from BASE is nothing else (a file the registry names for a later change, like the after-merge proof fix stacked on this head, is left to that change; an unregistered file still fails)')
   for (const rel of CHAT_CAPS_FILES) {
-    const now = git('show', `${head}:${rel}`), diff = lineDiff(baseText(rel), now)
+    const now = laterStrips(rel, git('show', `${head}:${rel}`)), diff = lineDiff(baseText(rel), now) // a later change stacked on this head (its lines registered) reads as this change left it
     assert.ok(diff.length === MARKED_COUNT[rel] && diff.every(line => line.startsWith('+') && CHAT_CAPS_MARKER_RE.test(line)), `${rel}: ${MARKED_COUNT[rel]} added lines, each with the marker, none removed`)
     assert.equal(stripChatCaps(rel, now), baseText(rel), `${rel}: without its marked lines the file is the base's, byte for byte`)
   }
   for (const rel of CHAT_CAPS_NEW_FILES) assert.equal(git('cat-file', '-t', `${head}:${rel}`).trim(), 'blob', rel)
-  for (const rel of CHAT_CAPS_PIN_FILES) assert.equal(stripChatCaps(rel, git('show', `${head}:${rel}`)), baseText(rel), `${rel}: an older proof taught: put back it is the base's`)
+  for (const rel of CHAT_CAPS_PIN_FILES) assert.equal(stripChatCaps(rel, laterStrips(rel, git('show', `${head}:${rel}`))), baseText(rel), `${rel}: an older proof taught: put back it is the base's (a later change's registered lines out first)`)
   for (const rel of ['app/builder/page.tsx', 'components/builder/message-list.tsx', 'lib/studio-chat-parity.ts', 'lib/studio-chat-parity-runners.ts', 'lib/chat-theme-export.ts', 'lib/studio-flow-control.ts', 'hooks/use-studio-flow-control.ts', 'package.json']) assert.ok(!touched.has(rel), `${rel} is not touched by this change`)
 }
 const scopeEnvAndRegistry = head => {
@@ -413,14 +413,16 @@ const scopeEnvAndRegistry = head => {
   assert.equal(envText.split(CHAT_CAPS_ENV_BLOCK).length - 1, 1, 'this change\'s block is there exactly once, verbatim')
   assert.ok(envText.includes(`\n\n${CHAT_CAPS_ENV_BLOCK}`), 'a blank line before the block')
   assert.ok(envText.endsWith(CHAT_CAPS_ENV_BLOCK), 'the block is the last one')
-  const diff = diffLines(git('diff', '-U0', `${BASE_COMMIT}..${head}`, '--', 'scripts/studio-later-changes.mjs'))
+  const reg = git('show', `${head}:scripts/studio-later-changes.mjs`).split('\n')
+  /** Registry lines a change registered AFTER this one added (in each list, below this change's line, in the registered shape): that change's, not this one's. A stray line is still counted. */
+  const laterRegistry = (() => { const later = new Set(); let after = false; for (const line of reg) { if (/^export const LATER_/.test(line)) after = false; else if (line.includes('studio-chat-caps-strip.mjs')) after = true; else if (after && line.includes('// LATER-CHANGE:') && /-strip\.mjs/.test(line)) later.add(line) } return later })()
+  const diff = diffLines(git('diff', '-U0', `${BASE_COMMIT}..${head}`, '--', 'scripts/studio-later-changes.mjs')).filter(line => !(line.startsWith('+') && laterRegistry.has(line.slice(1))))
   assert.equal(diff.filter(line => line.startsWith('-')).length, 0, 'the registry loses no line')
   const own = diff.filter(line => line.includes('studio-chat-caps-strip.mjs'))
   assert.equal(own.length, 3, 'the registry gains exactly this change\'s three lines'); for (const line of own) assert.ok(line.startsWith('+') && line.includes('// LATER-CHANGE:'), line.slice(0, 140))
   assert.deepEqual(own.map(line => /\)\.(\w+), \/\//.exec(line)?.[1]), ['CHAT_CAPS_SCOPE_FILES', 'CHAT_CAPS_ENV_BLOCK', 'stripChatCaps'])
   assert.equal(diff.length, 3, 'and nothing else in the registry')
-  const reg = git('show', `${head}:scripts/studio-later-changes.mjs`).split('\n')
-  for (const line of own) { const at = reg.indexOf(line.slice(1)); assert.ok(at > 0 && baseText('scripts/studio-later-changes.mjs').split('\n').includes(reg[at - 1]) && reg[at - 1].includes('// LATER-CHANGE:') && reg[at + 1].startsWith('  // one line per later change'), `at the TRUE END of its list, right after a registered line its base already has: ${line.slice(1, 80)}`) }
+  for (const line of own) { const at = reg.indexOf(line.slice(1)); assert.ok(at > 0 && baseText('scripts/studio-later-changes.mjs').split('\n').includes(reg[at - 1]) && reg[at - 1].includes('// LATER-CHANGE:') && (reg[at + 1].startsWith('  // one line per later change') || laterRegistry.has(reg[at + 1])), `at the TRUE END of its list (or followed only by a later change's registered line), right after a registered line its base already has: ${line.slice(1, 80)}`) }
 }
 const scopeAll = head => { scopeOwnCommits(head); scopeCommittedFiles(head); scopeEnvAndRegistry(head) }
 
