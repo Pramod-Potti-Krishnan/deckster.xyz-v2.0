@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth-options"
+import { getServerTier } from "@/lib/quota/server-tier"
 import { debitWallet, recordPlanUsage, InsufficientFundsError } from "@/lib/wallet"
 import { tokensToUsdCents } from "@/lib/pricing/tokens"
 import { getQuotaStatus, fitsWithinCaps, type Tier } from "@/lib/quota/quota"
@@ -13,7 +14,8 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = session.user.id
-    const tier = (session.user.tier ?? "free") as Tier
+    // Security: tier comes from the database, never from the (client-influenced) session.
+    const tier = await getServerTier(session.user.id)
 
     const { messageId, tokens, actionType } = await request.json()
 
