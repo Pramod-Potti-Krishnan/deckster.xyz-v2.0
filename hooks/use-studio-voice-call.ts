@@ -4,7 +4,7 @@ import { createElement, useEffect, useRef, useState, useSyncExternalStore, type 
 import type { VoiceCallController, VoiceCallSnapshot } from '@/lib/studio-voice-call-controller'
 import type { VoiceCallStageProps } from '@/components/builder/voice-call/voice-call-stage'
 import type { VoiceAction } from '@/lib/studio-voice-call-ui'
-import { STUDIO_VOICE_CALL_UI_ENABLED, STUDIO_VOICE_COMPANION, companionChoices, isTalkKey, nextCompanion, readCompanionChoice, spaceBelongsToTarget, voiceCallBus, disarmVoiceTurn, writeCompanionChoice, type VoiceCallComposerProps } from '@/lib/studio-voice-call-ui'
+import { STUDIO_VOICE_CALL_BUTTONS, STUDIO_VOICE_CALL_UI_ENABLED, STUDIO_VOICE_COMPANION, companionChoices, isTalkKey, nextCompanion, readCompanionChoice, spaceBelongsToTarget, voiceCallBus, disarmVoiceTurn, writeCompanionChoice, type VoiceCallComposerProps } from '@/lib/studio-voice-call-ui'
 
 export interface UseStudioVoiceCallOptions {
   /** The Studio shell (the call needs the flag too, read here). Off: nothing is loaded, listened to, timed or asked for. */
@@ -122,6 +122,6 @@ export function useStudioVoiceCall(options: UseStudioVoiceCallOptions): StudioVo
         onRetry: () => { void controller.startCall(controller.getSnapshot().mode) }, onDismissNotice: () => controller.dismissNotice(),
       })
       : null,
-    composerProps: { active: snapshot.active || snapshot.starting, busy: snapshot.starting, disabled: false, onStart: mode => { void controller.startCall(mode) } },
+    composerProps: { active: snapshot.active || snapshot.starting, busy: snapshot.starting, disabled: false, onStart: mode => { void controller.startCall(mode) }, buttons: STUDIO_VOICE_CALL_BUTTONS },
   }
 }

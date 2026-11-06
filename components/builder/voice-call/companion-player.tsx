@@ -3,8 +3,8 @@
 import React, { useEffect, useRef, useState } from 'react'
 import type { BirdMotionManifest } from '@/lib/studio/voice/bird-motion'
 import {
-  BLINK_EVERY_MS, clipsForScene, framedWidth, framingRect, initialsFor, loadCompanionPack, mouthShapeIndex, nextDelayMs, planPoseAt, portraitUrl, scenePlan, stepFrameIndex, stillFrameIndex, clipDurationSec,
-  type ClipLike, type CompanionScene, type FramingRect,
+  BLINK_EVERY_MS, clipsForScene, containPlan, framedBox, framingRect, initialsFor, loadCompanionPack, mouthShapeIndex, nextDelayMs, planPoseAt, portraitUrl, scenePlan, stepFrameIndex, stillFrameIndex, clipDurationSec,
+  type ClipLike, type CompanionFraming, type CompanionScene, type FramingRect,
 } from '@/lib/studio-voice-call-ui'
 import { createLayeredPainter, parsedLayeredFace } from './layered-face'
 
@@ -21,9 +21,11 @@ export interface CompanionPlayerProps {
   scene: CompanionScene
   /** The scene is a celebration that dances. */
   dance: boolean
-  framing: 'disc' | 'chest'
-  /** CSS pixels: the disc's width and height, or the chest view's height. */
+  framing: CompanionFraming
+  /** CSS pixels: the disc's width and height, or the video framing's height (at most). */
   size: number
+  /** CSS pixels: the widest the video framing may be (the stage's width); it is then shorter, keeping its aspect. */
+  maxWidth?: number
   reducedMotion: boolean
   /** What is coming out of the speaker now (0..1), read every animation frame. */
   getLevel: () => number
@@ -41,7 +43,7 @@ export interface LayerPaintInput {
   context: CanvasRenderingContext2D
   canvas: HTMLCanvasElement
   pack: LoadedPack
-  /** The body frame's id and its decoded bitmap, drawn from `rect` (frame pixels) over the whole canvas. */
+  /** The body frame's id and its decoded bitmap, drawn from `rect` (frame pixels) by one uniform scale, centred (lib: containPlan). */
   frame: string
   bitmap: ImageBitmap
   rect: FramingRect
@@ -78,8 +80,8 @@ async function fetchJson(url: string): Promise<unknown> {
 }
 
 /** The pack's manifest (the Face pack for the disc when the pack has one and it loads), parsed by the core through the compatibility view (lib: loadCompanionPack). null when there is no pack here or it is refused. */
-function loadPack(pack: string, framing: 'disc' | 'chest'): Promise<LoadedPack | null> {
-  const key = `${pack}:${framing}`
+function loadPack(pack: string, framing: CompanionFraming): Promise<LoadedPack | null> {
+  const key = `${pack}:${framing === 'disc' ? 'disc' : 'body'}`
   let found = packs.get(key)
   if (!found) {
     found = (async () => {
@@ -136,7 +138,7 @@ class FrameStore {
   }
 }
 
-export function CompanionPlayer({ pack, scene, dance, framing, size, reducedMotion, getLevel }: CompanionPlayerProps) {
+export function CompanionPlayer({ pack, scene, dance, framing, size, maxWidth, reducedMotion, getLevel }: CompanionPlayerProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const [loaded, setLoaded] = useState<LoadedPack | null | undefined>(undefined)
@@ -145,7 +147,8 @@ export function CompanionPlayer({ pack, scene, dance, framing, size, reducedMoti
   const live = useRef({ scene, dance, reducedMotion, getLevel })
   live.current = { scene, dance, reducedMotion, getLevel }
   const rect: FramingRect | null = loaded ? framingRect(loaded.manifest, framing) : null
-  const width = framedWidth(framing, size, rect)
+  const box = framedBox(framing, size, rect, maxWidth)
+  const width = box.width, height = box.height
 
   useEffect(() => {
     let cancelled = false
@@ -160,7 +163,7 @@ export function CompanionPlayer({ pack, scene, dance, framing, size, reducedMoti
     if (!loaded || !canvas || !rect) return
     const dpr = Math.min(2, typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1)
     canvas.width = Math.max(1, Math.round(width * dpr))
-    canvas.height = Math.max(1, Math.round(size * dpr))
+    canvas.height = Math.max(1, Math.round(height * dpr))
     const context = canvas.getContext('2d')
     if (!context) return
     const store = new FrameStore(loaded, Math.min(1, (canvas.width * 1.25) / rect.sw))
@@ -182,9 +185,11 @@ export function CompanionPlayer({ pack, scene, dance, framing, size, reducedMoti
     const draw = (id: string): boolean => {
       const bitmap = store.get(id) ?? store.get(loaded.manifest.neutral)
       if (!bitmap) return false
-      const k = bitmap.width / loaded.manifest.size.width
+      // One scale for x and y (contain, centred, letterboxed): the frame is drawn at its own aspect, whatever the box (lib: containPlan).
+      const b = bitmap.width / loaded.manifest.size.width
+      const plan = containPlan(rect, loaded.manifest.size, canvas.width, canvas.height)
       context.clearRect(0, 0, canvas.width, canvas.height)
-      context.drawImage(bitmap, rect.sx * k, rect.sy * k, rect.sw * k, rect.sh * k, 0, 0, canvas.width, canvas.height)
+      if (plan.src.sw > 0 && plan.src.sh > 0) context.drawImage(bitmap, plan.src.sx * b, plan.src.sy * b, plan.src.sw * b, plan.src.sh * b, plan.dst.x, plan.dst.y, plan.dst.w, plan.dst.h)
       shownId = id
       painter?.({ context, canvas, pack: loaded, frame: store.has(id) ? id : loaded.manifest.neutral, bitmap, rect, scene: currentScene, level: live.current.getLevel(), timeSec: (performance.now() - sceneStart) / 1000, reduced: live.current.reducedMotion })
       return true
@@ -257,7 +262,7 @@ export function CompanionPlayer({ pack, scene, dance, framing, size, reducedMoti
       if (watch) window.clearInterval(watch)
       store.dispose()
     }
-  }, [loaded, framing, size, width, reducedMotion]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loaded, framing, size, width, height, reducedMotion]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const ready = !!loaded && drawn
   // No usable catalog (missing, or refused by the parser): the portrait, still; the level ring around it (the stage's own in the audio call, the portrait's own in the video call) is what shows the voice. Its own failure: the initials.
@@ -272,11 +277,11 @@ export function CompanionPlayer({ pack, scene, dance, framing, size, reducedMoti
       data-companion-pack={pack}
       data-companion-framing={framing}
       data-companion-reduced={reducedMotion ? 'true' : undefined}
-      style={{ width, height: size }}
+      style={{ width, height }}
       role="img"
       aria-label={`${pack} the companion`}
     >
-      {loaded ? <canvas ref={canvasRef} style={{ width, height: size, opacity: ready ? 1 : 0 }} aria-hidden /> : null}
+      {loaded ? <canvas ref={canvasRef} style={{ width, height, opacity: ready ? 1 : 0 }} aria-hidden /> : null}
       {portrait ? <img className="studio-voice-portrait" src={portraitUrl(pack)} alt="" draggable={false} onError={() => setNoPortrait(pack)} /> : null}
       {!ready && !portrait ? <span className="studio-voice-initials" aria-hidden>{initialsFor(pack)}</span> : null}
     </div>

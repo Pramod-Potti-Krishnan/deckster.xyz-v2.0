@@ -2,13 +2,14 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown, ChevronUp, Mic, MicOff, PhoneOff, Repeat, Square, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, Maximize2, Mic, MicOff, Minimize2, PhoneOff, Repeat, Square, X } from 'lucide-react'
 import { CompanionPlayer } from './companion-player'
 import './voice-call.css'
 import type { VoiceCallSnapshot } from '@/lib/studio-voice-call-controller'
 import {
   AUDIO_DISC_PX, AUDIO_DISC_PX_PHONE, DEFAULT_SCENE_FILE, MUTED_HINT, MUTE_LABEL, TALK_HINT, TALK_LATCHED_HINT, TRANSCRIPT_EMPTY, TRANSCRIPT_HIDE_LABEL, TRANSCRIPT_SHOW_LABEL, TRANSCRIPT_TITLE, UNMUTE_LABEL,
   VOICE_PHONE_MEDIA, companionName, nextCompanion, ringLevel, sceneFileFrom, sceneUrl, talkLabel, videoCharacterPx,
+  type VideoFraming,
 } from '@/lib/studio-voice-call-ui'
 
 export interface VoiceCallStageProps {
@@ -112,6 +113,9 @@ export function VoiceCallStage({ snapshot, pack, choices, onChooseCompanion, get
   const rootRef = useRef<HTMLElement | null>(null)
   const ringRef = useRef<HTMLDivElement | null>(null)
   const [height, setHeight] = useState(0)
+  const [stageWidth, setStageWidth] = useState(0)
+  /** The video call's framing: the chest close-up (full head and both hands), or the whole character (the small toggle in the top bar). */
+  const [videoFraming, setVideoFraming] = useState<VideoFraming>('chest')
   const [collapsed, setCollapsed] = useState(false)
   const art = useSceneArt(pack, live && mode === 'video')
   useLevelVariable(ringRef, getLevel, live && !snapshot.reducedMotion && (snapshot.holding || snapshot.scene === 'speaking'))
@@ -119,7 +123,7 @@ export function VoiceCallStage({ snapshot, pack, choices, onChooseCompanion, get
   useEffect(() => {
     const element = rootRef.current
     if (!element || !live) return
-    const read = () => setHeight(element.clientHeight)
+    const read = () => { setHeight(element.clientHeight); setStageWidth(element.clientWidth) }
     read()
     if (typeof ResizeObserver === 'undefined') return
     const watch = new ResizeObserver(read)
@@ -174,6 +178,11 @@ export function VoiceCallStage({ snapshot, pack, choices, onChooseCompanion, get
                 {choices.length > 2 ? <span className="studio-voice-pack-dots" aria-hidden>{choices.map(choice => <i key={choice} data-choice={choice} data-on={choice === pack ? 'true' : 'false'} />)}</span> : null}
               </button>
             ) : null}
+            {mode === 'video' ? (
+              <button type="button" className="studio-voice-icon" data-studio-voice-framing={videoFraming} aria-pressed={videoFraming === 'full'} onClick={() => setVideoFraming(videoFraming === 'full' ? 'chest' : 'full')} aria-label={videoFraming === 'full' ? 'Show close-up' : 'Show full length'} title={videoFraming === 'full' ? 'Close-up' : 'Full length'}>
+                {videoFraming === 'full' ? <Minimize2 aria-hidden className="h-4 w-4" /> : <Maximize2 aria-hidden className="h-4 w-4" />}
+              </button>
+            ) : null}
             <button type="button" className="studio-voice-icon" disabled={!controls.stop} onClick={onStop} aria-label="Stop" title="Stop">
               <Square aria-hidden className="h-3.5 w-3.5 fill-current" />
             </button>
@@ -189,7 +198,7 @@ export function VoiceCallStage({ snapshot, pack, choices, onChooseCompanion, get
         <div className="studio-voice-figure">
           {mode === 'video' ? (
             <div ref={ringRef} className="studio-voice-actor" data-ring={snapshot.scene}>
-              <CompanionPlayer pack={pack} scene={snapshot.scene} dance={snapshot.dance} framing="chest" size={videoCharacterPx(height)} reducedMotion={snapshot.reducedMotion} getLevel={getLevel} />
+              <CompanionPlayer pack={pack} scene={snapshot.scene} dance={snapshot.dance} framing={videoFraming} size={videoCharacterPx(height)} maxWidth={stageWidth > 0 ? stageWidth - 16 : undefined} reducedMotion={snapshot.reducedMotion} getLevel={getLevel} />
             </div>
           ) : (
             <div ref={ringRef} className="studio-voice-halo" data-ring={snapshot.scene}>

@@ -1513,7 +1513,7 @@ export function ChatInput({
             </div>
 
             {chatClean ? <StudioChatCleanSendSide composer={chatClean.composer} onStop={chatClean.onStop} picker={{ sessionId: chatClean.sessionId, disabled: !user || isLoadingSession }} research={chatCleanResearch} /> : null}{/* CHAT-CLEAN: the model picker (the gauge button) and Stop beside Send; the stylesheet moves the research options button above next to them and hides Send while Stop shows */}
-            {voiceCall ? <VoiceCallButtons {...voiceCall} studio={studio} /> : null}{/* VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL): the Audio and Video call buttons, right beside Send; the only things that ask for the microphone */}
+            {voiceCall ? <VoiceCallButtons {...voiceCall} studio={studio} place="toolbar" /> : null}{/* VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL): the Audio and Video call buttons right beside Send (NEXT_PUBLIC_STUDIO_VOICE_CALL_BUTTONS "a"; else null here); the only things that ask for the microphone */}
             {/* Right: Send button - rounded square with up arrow */}
             {isTemplateReuseRunning ? (
               <StudioComposerHint enabled={studio} label="Stop template reuse">
@@ -1557,6 +1557,7 @@ export function ChatInput({
           )}
         </div>
       </form>
+      {voiceCall ? <VoiceCallButtons {...voiceCall} studio={studio} place="under" /> : null}{/* VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL_BUTTONS "b" / "c", the default): the Call and Video pills on their own row under the box ("c" right-aligned under Send); "a": null */}
       {studio && (
         <div data-studio-composer-part="footer">
           {chatClean?.composer.hint ? <span data-studio-chat-clean-hint="true">{chatClean.composer.hint}</span> : null}{/* CHAT-CLEAN: the v3 hint while a build runs or is held; the stylesheet hides the base's hint beside it */}

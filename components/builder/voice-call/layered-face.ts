@@ -7,6 +7,7 @@
  */
 import { callMouth, CALL_MOUTH_REST, composeCompanionFace, parseCompanionFace, sceneExpression, type CallMouthMemory, type CompanionFace, type CompanionFaceLayer, type BirdMotionManifest as LayeredManifest } from '@/lib/studio/voice-v2'
 import type { BirdMotionManifest } from '@/lib/studio/voice/bird-motion'
+import { containPlan } from '@/lib/studio-voice-call-ui'
 
 export interface LayeredPack { manifest: BirdMotionManifest; base: string; layered: Record<string, unknown> | null }
 export interface LayeredPaintInput {
@@ -54,16 +55,17 @@ export function createLayeredPainter(pack: LayeredPack, face: CompanionFace, dep
     if (!plan) return
     const body = plan.bodies[0]!
     const { context: ctx, canvas, rect, bitmap } = input
-    const kx = canvas.width / rect.sw, ky = canvas.height / rect.sh
-    const bx = bitmap.width / pack.manifest.size.width, by = bitmap.height / pack.manifest.size.height
+    // The body's own plan (one scale k for x and y): the head anchor and every patch go through the same k, so the face stays on the head at any box.
+    const { k, ox, oy, src, dst } = containPlan(rect, pack.manifest.size, canvas.width, canvas.height)
+    const b = bitmap.width / pack.manifest.size.width
     ctx.save()
     try {
       // Breathing moves the body and its face together (a slow transform, never a frame): redraw the body under the breath.
       if (plan.breathY) {
         ctx.clearRect(0, 0, canvas.width, canvas.height)
-        ctx.drawImage(bitmap, rect.sx * bx, (rect.sy - plan.breathY) * by, rect.sw * bx, rect.sh * by, 0, 0, canvas.width, canvas.height)
+        if (src.sw > 0 && src.sh > 0) ctx.drawImage(bitmap, src.sx * b, src.sy * b, src.sw * b, src.sh * b, dst.x, dst.y + plan.breathY * k, dst.w, dst.h)
       }
-      ctx.setTransform(kx, 0, 0, ky, -rect.sx * kx, (plan.breathY - rect.sy) * ky)
+      ctx.setTransform(k, 0, 0, k, ox, oy + plan.breathY * k)
       ctx.translate(body.head.x, body.head.y); ctx.rotate(body.head.rot); ctx.scale(body.head.scale, body.head.scale)
       for (const kind of ['mouth', 'eyes', 'brows'] as const) {
         const layers = body.layers.filter(l => l.kind === kind && l.opacity > 0)

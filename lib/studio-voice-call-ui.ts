@@ -511,7 +511,7 @@ export interface PackCatalog<T> { manifest: T; layered: Record<string, unknown> 
  * loads: a v1 pack points at it from its manifest (`motion/face/manifest.json`), a v2 pack keeps its native Face catalog at the pack's root (`face/manifest.json`, self-contained, picked explicitly: the two are never combined).
  * A Face catalog that is missing or refused leaves the whole character, cropped. null when the whole character cannot be read or is refused: the caller draws the pack's portrait instead. Never throws. Pure: `fetchJson` and `parse` are the caller's.
  */
-export async function loadCompanionPack<T>(pack: string, framing: 'disc' | 'chest', fetchJson: (url: string) => Promise<unknown>, parse: (raw: unknown) => T): Promise<PackCatalog<T> | null> {
+export async function loadCompanionPack<T>(pack: string, framing: CompanionFraming, fetchJson: (url: string) => Promise<unknown>, parse: (raw: unknown) => T): Promise<PackCatalog<T> | null> {
   const root = `/companions/${pack}/motion/`
   const read = (url: string) => loadCatalog(url, fetchJson, raw => { const view = compatCatalog(raw); return { manifest: parse(view.catalog), layered: view.layered, pointer: faceCatalogPointer(view.catalog) } })
   try {
@@ -654,11 +654,20 @@ export const SAFE_AREA = 0.9
 export interface FramingManifest { size: { width: number; height: number }; bbox: { x: number; y: number; width: number; height: number }; variant?: string }
 export interface FramingRect { sx: number; sy: number; sw: number; sh: number }
 
+/** Garud's chest window for the video call, in a 768 x 768 motion frame (streams/companions-expansion/CANVAS.md): the full head and both hands, from mid-thigh up. Scaled to each pack's own `size`, never assumed. */
+export const CHEST_WINDOW = { x: -16, y: 48, width: 800, height: 560 }
+/** The frame size Garud's numbers are measured in. */
+export const CHEST_WINDOW_FRAME = 768
+/** How the video call frames the character: the chest close-up (the default) or the whole character (a toggle on the call screen). */
+export type VideoFraming = 'chest' | 'full'
+export type CompanionFraming = 'disc' | VideoFraming
+
 /**
- * The rectangle of a frame to draw. A Face pack (variant "face", a native crop of the head and shoulders) is drawn whole in the disc. A full pack is cropped: the disc to the head and shoulders (the top 40% of the
- * character, a square centred on it), the chest to head to mid-chest (the top 62%, as wide as the character, at most 1.15 times as wide as tall).
+ * The rectangle of a frame to draw (it may reach past the frame's edges: what lies outside is transparent, never stretched in). A Face pack (variant "face") is drawn whole, at its own aspect, in the disc.
+ * A full pack in the disc is the head and shoulders (the top 40% of the character, a square centred on it). The chest is Garud's chest window, scaled to the pack's size, moved up or widened (keeping its aspect) only when the
+ * character's box would leave it, so the face and hands are never cut. Full length is the whole frame.
  */
-export function framingRect(manifest: FramingManifest, framing: 'disc' | 'chest'): FramingRect {
+export function framingRect(manifest: FramingManifest, framing: CompanionFraming): FramingRect {
   const { size, bbox } = manifest
   if (manifest.variant === 'face' && framing === 'disc') return { sx: 0, sy: 0, sw: size.width, sh: size.height }
   const cx = bbox.x + bbox.width / 2
@@ -666,13 +675,38 @@ export function framingRect(manifest: FramingManifest, framing: 'disc' | 'chest'
     const side = Math.min(bbox.height * 0.4, size.width)
     return { sx: clamp(cx - side / 2, 0, size.width - side), sy: bbox.y, sw: side, sh: side }
   }
-  const sh = bbox.height * 0.62
-  const sw = Math.min(bbox.width, sh * 1.15, size.width)
-  return { sx: clamp(cx - sw / 2, 0, size.width - sw), sy: bbox.y, sw, sh }
+  if (framing === 'full') return { sx: 0, sy: 0, sw: size.width, sh: size.height }
+  const unit = size.width / CHEST_WINDOW_FRAME
+  let sx = CHEST_WINDOW.x * unit, sy = CHEST_WINDOW.y * unit, sw = CHEST_WINDOW.width * unit, sh = CHEST_WINDOW.height * unit
+  const aspect = sw / sh
+  if (bbox.y < sy) sy = bbox.y
+  const left = Math.min(sx, bbox.x), right = Math.max(sx + sw, bbox.x + bbox.width)
+  if (right - left > sw) { sw = right - left; sh = sw / aspect }
+  sx = Math.min(Math.max(sx, bbox.x + bbox.width - sw), bbox.x)
+  return { sx, sy, sw, sh }
 }
-/** The CSS width of the companion: the disc is a square of `size`; the chest view is `size` tall and as wide as its crop (no pack read yet: a square). */
-export function framedWidth(framing: 'disc' | 'chest', size: number, rect: FramingRect | null): number {
-  return rect && framing === 'chest' ? Math.round(size * rect.sw / rect.sh) : size
+
+/** Where a framing rectangle lands on a canvas: ONE scale for x and y (contain), centred, letterboxed. `k` maps frame pixels to canvas pixels; a frame point (x, y) is at (ox + x * k, oy + y * k). `src` is the part of the rectangle inside the frame, `dst` where it is drawn. */
+export interface DrawPlan { k: number; ox: number; oy: number; src: FramingRect; dst: { x: number; y: number; w: number; h: number } }
+export function containPlan(rect: FramingRect, frame: { width: number; height: number }, canvasW: number, canvasH: number): DrawPlan {
+  const k = Math.min(canvasW / rect.sw, canvasH / rect.sh)
+  const ox = (canvasW - rect.sw * k) / 2 - rect.sx * k, oy = (canvasH - rect.sh * k) / 2 - rect.sy * k
+  const x0 = Math.max(rect.sx, 0), y0 = Math.max(rect.sy, 0), x1 = Math.min(rect.sx + rect.sw, frame.width), y1 = Math.min(rect.sy + rect.sh, frame.height)
+  const src = { sx: x0, sy: y0, sw: Math.max(0, x1 - x0), sh: Math.max(0, y1 - y0) }
+  return { k, ox, oy, src, dst: { x: ox + x0 * k, y: oy + y0 * k, w: src.sw * k, h: src.sh * k } }
+}
+
+/** The CSS box of the companion. The disc is a square of `size`. A video framing is as wide as its crop at `size` tall, but never wider than `maxWidth` (the stage): then it is the stage's width and shorter, keeping the crop's aspect. No pack read yet: a square. */
+export function framedBox(framing: CompanionFraming, size: number, rect: FramingRect | null, maxWidth?: number): { width: number; height: number } {
+  if (!rect || framing === 'disc') return { width: size, height: size }
+  const aspect = rect.sw / rect.sh
+  const cap = maxWidth && maxWidth > 0 ? maxWidth : Infinity
+  const width = Math.min(size * aspect, cap)
+  return { width: Math.round(width), height: Math.round(width / aspect) }
+}
+/** The CSS width of the companion (framedBox's, with no stage cap). */
+export function framedWidth(framing: CompanionFraming, size: number, rect: FramingRect | null): number {
+  return framedBox(framing, size, rect).width
 }
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
@@ -717,7 +751,18 @@ export interface VoiceCallComposerProps {
   busy: boolean
   disabled: boolean
   onStart: (mode: CallMode) => void
+  /** Where the buttons sit (NEXT_PUBLIC_STUDIO_VOICE_CALL_BUTTONS). */
+  buttons: CallButtonsVariant
 }
+/** Where the two call buttons sit (NEXT_PUBLIC_STUDIO_VOICE_CALL_BUTTONS, build-time, only with the call flag on): "a" beside Send, "b" a row of pills just under the chat box, "c" (the default, PK's pick) two compact pills on their own row right under Send, right-aligned. Anything else is "c". */
+export type CallButtonsVariant = 'a' | 'b' | 'c'
+export const DEFAULT_CALL_BUTTONS: CallButtonsVariant = 'c'
+export function callButtonsVariantFrom(value: string | undefined): CallButtonsVariant {
+  return value === 'a' || value === 'b' || value === 'c' ? value : DEFAULT_CALL_BUTTONS
+}
+export const STUDIO_VOICE_CALL_BUTTONS: CallButtonsVariant = callButtonsVariantFrom(process.env.NEXT_PUBLIC_STUDIO_VOICE_CALL_BUTTONS)
+/** The short word on a pill. */
+export const callButtonWord = (mode: CallMode): string => (mode === 'video' ? 'Video' : 'Call')
 export function callButtonLabel(mode: CallMode): string {
   return mode === 'video' ? 'Start a video call' : 'Start an audio call'
 }

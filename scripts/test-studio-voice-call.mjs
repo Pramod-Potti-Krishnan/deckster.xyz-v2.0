@@ -284,9 +284,54 @@ function uiSuite(ui, over = {}) {
   const disc = ui.framingRect(full, 'disc'), chest = ui.framingRect(full, 'chest')
   eq([Math.round(disc.sw), Math.round(disc.sh), disc.sy], [248, 248, 92], 'framing: the disc of a full pack is the head and shoulders, a square at the top of the character')
   ok(Math.abs(disc.sx + disc.sw / 2 - (47 + 655 / 2)) < 1, 'framing: ...centred on the character')
-  eq([Math.round(chest.sh), chest.sy, Math.round(chest.sw)], [384, 92, 441], 'framing: the chest is the top 62% of the character, at most 1.15 times as wide as tall')
-  eq([ui.framedWidth('disc', 88, chest), ui.framedWidth('disc', 88, null), ui.framedWidth('chest', 240, chest), ui.framedWidth('chest', 240, null)], [88, 88, 276, 240], 'framing: the disc is a square, the chest is as wide as its crop (a square before the pack is read)')
-  eq(ui.framingRect(face, 'chest'), ui.framingRect(face, 'chest'), 'framing: deterministic'); ok(chest.sx >= 0 && chest.sx + chest.sw <= 768 && disc.sx >= 0 && disc.sx + disc.sw <= 768, 'framing: inside the canvas')
+  eq([chest.sx, chest.sy, chest.sw, chest.sh], [-16, 48, 800, 560], 'framing: the chest is Garud\'s chest window (800 x 560 at (-16, 48) in a 768 frame)')
+  eq(ui.framingRect(full, 'full'), { sx: 0, sy: 0, sw: 768, sh: 768 }, 'framing: full length is the whole frame')
+  eq([ui.framedWidth('disc', 88, chest), ui.framedWidth('disc', 88, null), ui.framedWidth('chest', 240, chest), ui.framedWidth('chest', 240, null)], [88, 88, 343, 240], 'framing: the disc is a square, the chest is as wide as its crop (a square before the pack is read)')
+  eq(ui.framedBox('chest', 520, chest, 374), { width: 374, height: 262 }, 'framing: a phone\'s chest view is the stage\'s width, never wider, and keeps its aspect')
+  eq(ui.framingRect(face, 'chest'), ui.framingRect(face, 'chest'), 'framing: deterministic'); ok(disc.sx >= 0 && disc.sx + disc.sw <= 768, 'framing: the disc is inside the canvas')
+  // -- NO STRETCH, for every pack: one scale (contain), each surface at its own aspect, read from the pack's own manifest --------------------------------
+  {
+    const surfaces = []
+    for (const name of fs.readdirSync(path.join(root, 'public/companions')).sort()) for (const rel of ['motion/manifest.json', 'motion/face/manifest.json', 'face/manifest.json']) {
+      const file = path.join(root, 'public/companions', name, rel)
+      if (fs.existsSync(file)) { const m = JSON.parse(fs.readFileSync(file, 'utf8')); surfaces.push({ id: `${name}/${rel}`, m }) }
+    }
+    ok(surfaces.length >= 6 && surfaces.some(x => x.id === 'felix/motion/face/manifest.json') && surfaces.some(x => x.id === 'maya/face/manifest.json'), 'no-stretch: every pack\'s surfaces are read (Felix\'s Face, a v2 person\'s native Face, the motion frames)')
+    const boxes = [[176, 176], [148, 148], [374, 262], [640, 460], [300, 600]]
+    const ratio = (rect, m, w, h) => { const p = ui.containPlan(rect, m.size, w, h); return { r: p.dst.w / p.dst.h, s: p.src.sw / p.src.sh, p } }
+    for (const { id, m } of surfaces) for (const framing of ['disc', 'chest', 'full']) {
+      const rect = ui.framingRect(m, framing)
+      for (const [w, h] of boxes) for (const box of [[w, h], [ui.framedBox(framing, h, rect, w).width, ui.framedBox(framing, h, rect, w).height]]) {
+        const { r, s: sr, p } = ratio(rect, m, box[0], box[1])
+        ok(Math.abs(r / sr - 1) < 0.01, `no-stretch: ${id} ${framing} in ${box[0]}x${box[1]} keeps its source aspect (${r.toFixed(3)} vs ${sr.toFixed(3)})`)
+        ok(p.dst.w <= box[0] + 0.5 && p.dst.h <= box[1] + 0.5, `no-stretch: ${id} ${framing} is contained (letterboxed) in ${box[0]}x${box[1]}`)
+      }
+      if (framing === 'disc' && m.variant === 'face') { const { r } = ratio(rect, m, 176, 176); ok(Math.abs(r / (m.size.width / m.size.height) - 1) < 0.01, `no-stretch: ${id}, a Face surface of ${m.size.width}x${m.size.height}, is drawn at its own aspect in the round disc`) }
+      if (framing === 'chest' && m.variant !== 'face') {
+        const b = m.bbox
+        ok(rect.sx <= b.x && rect.sx + rect.sw >= b.x + b.width && rect.sy <= b.y, `framing: ${id} chest holds the full head and both hands (the character's box across, and its top)`)
+      }
+    }
+    // a bird still: 377 x 512 (bob's talk-0), and a 768 motion frame, contained in a square and a wide slot
+    for (const [sw, sh] of [[377, 512], [768, 768], [668, 487]]) for (const [w, h] of [[176, 176], [400, 240]]) {
+      const p = ui.containPlan({ sx: 0, sy: 0, sw, sh }, { width: sw, height: sh }, w, h)
+      ok(Math.abs((p.dst.w / p.dst.h) / (sw / sh) - 1) < 0.01, `no-stretch: a ${sw}x${sh} still keeps its aspect in ${w}x${h}`)
+      ok(Math.abs(p.dst.x + p.dst.w / 2 - w / 2) < 0.5 && Math.abs(p.dst.y + p.dst.h / 2 - h / 2) < 0.5, `no-stretch: a ${sw}x${sh} still is centred in ${w}x${h}`)
+    }
+    // a character wider than Garud's window, or taller: the window grows (same aspect) instead of cutting it
+    const wide = { size: { width: 768, height: 768 }, bbox: { x: -40, y: 20, width: 848, height: 700 } }, wr = ui.framingRect(wide, 'chest')
+    ok(wr.sx <= -40 && wr.sx + wr.sw >= 808 && wr.sy <= 20 && Math.abs(wr.sw / wr.sh - 800 / 560) < 1e-9, 'framing: a character past Garud\'s window widens it (same aspect), never cut')
+    const big = { size: { width: 1536, height: 1536 }, bbox: { x: 280, y: 250, width: 1056, height: 1162 } }
+    eq(ui.framingRect(big, 'chest'), { sx: -32, sy: 96, sw: 1600, sh: 1120 }, 'framing: Garud\'s window scales with the pack\'s own size (no 768 assumed)')
+    // the painter's head transform is uniform (one k), the same k as the body
+    ok(/ctx\.setTransform\(k, 0, 0, k,/.test(SOURCES[LAYERED]) && !/\bkx\b|\bky\b/.test(SOURCES[LAYERED]), 'no-stretch: the layered face uses the body\'s one scale k for its head anchor and patches')
+    ok(SOURCES[PLAYER].includes('containPlan(rect, loaded.manifest.size, canvas.width, canvas.height)') && ![SOURCES[PLAYER], SOURCES[LAYERED]].some(t => /drawImage\([^)]*, 0, 0, canvas\.width, canvas\.height\)/.test(t)), 'no-stretch: the player draws through containPlan, never over the whole canvas')
+    ok(!/object-fit:\s*(fill|cover)/.test(SOURCES[CSS]), 'no-stretch: no companion image is filled or covered')
+  }
+  // -- the call buttons' placement (NEXT_PUBLIC_STUDIO_VOICE_CALL_BUTTONS) ---------------------------------------------------------------------------
+  eq([undefined, '', 'a', 'b', 'c', 'C', 'd', ' a'].map(ui.callButtonsVariantFrom), ['c', 'c', 'a', 'b', 'c', 'c', 'c', 'c'], 'buttons: a, b or c; the default and anything else is c')
+  eq(ui.DEFAULT_CALL_BUTTONS, 'c', 'buttons: the default is c (PK\'s pick)')
+  eq([ui.callButtonWord('audio'), ui.callButtonWord('video')], ['Call', 'Video'], 'buttons: the pills\' short words')
   eq([ui.AUDIO_DISC_PX, ui.AUDIO_DISC_PX_PHONE, ui.VOICE_PHONE_MEDIA], [176, 148, '(max-width: 767px)'], 'sizes: the audio call\'s disc is 176 px (148 on a phone), and a phone is 767 px and narrower')
   eq(['bob', 'deckster-owl', 'a', 'x-y-z', '', 'DECK'].map(ui.initialsFor), ['B', 'DO', 'A', 'XY', 'D', 'DECK'.slice(0, 1)], 'initials: one or two capitals')
   eq(ui.callControls({ active: false, starting: false, phase: 'idle', speakingNow: false, connected: true }), { talk: false, stop: false, mute: false, end: false }, 'controls: nothing before the call')
@@ -1187,14 +1232,19 @@ async function stageSuiteBody(over = {}) {
   // the two buttons beside Send
   const buttons = makeHost({ env: ENV_ON, over, stubs: { '../studio-composer-hint': { StudioComposerHint: noHint } } }).load(BUTTONS)
   const starts = []
-  const b = p => renderToStaticMarkup(React.createElement(buttons.VoiceCallButtons, { active: false, busy: false, disabled: false, onStart: mode => starts.push(mode), studio: true, ...p }))
+  const b = p => renderToStaticMarkup(React.createElement(buttons.VoiceCallButtons, { active: false, busy: false, disabled: false, onStart: mode => starts.push(mode), studio: true, buttons: 'a', place: 'toolbar', ...p }))
   ok(b({}).includes('data-studio-voice-call="buttons"') && b({}).includes('role="group"') && b({}).includes('aria-label="Start a call"'), 'buttons: one group beside Send')
   ok(b({}).includes('aria-label="Start an audio call"') && b({}).includes('aria-label="Start a video call"') && b({}).includes('data-voice-mode="audio"') && b({}).includes('data-voice-mode="video"') && (b({}).match(/type="button"/g) ?? []).length === 2, 'buttons: Audio and Video, two buttons, one tap each')
-  ok(b({}).indexOf('data-voice-mode="audio"') < b({}).indexOf('data-voice-mode="video"') && b({}).includes('>Audio<') && b({}).includes('>Video<') && b({}).includes('studio-voice-start-word hidden'), 'buttons: Audio first; each has its word, shown on a phone only (the stylesheet)')
+  ok(b({}).indexOf('data-voice-mode="audio"') < b({}).indexOf('data-voice-mode="video"') && !b({}).includes('studio-voice-start-word'), 'buttons: Audio first; variant a is two icon squares (the big phone slabs are gone)')
+  for (const v of ['a', 'b', 'c']) {
+    const here = b({ buttons: v, place: v === 'a' ? 'toolbar' : 'under' }), there = b({ buttons: v, place: v === 'a' ? 'under' : 'toolbar' })
+    ok(here.includes(`data-voice-buttons="${v}"`) && (here.match(/type="button"/g) ?? []).length === 2 && there === '', `buttons: variant ${v} renders once, in its own place (${v === 'a' ? 'beside Send' : 'under the box'})`)
+  }
+  ok(b({ buttons: 'c', place: 'under' }).includes('>Call<') && b({ buttons: 'c', place: 'under' }).includes('>Video<') && b({ buttons: 'b', place: 'under' }).includes('studio-voice-pill') && !b({ buttons: 'c', place: 'under' }).includes('data-studio-v4-send'), 'buttons: b and c are pills with an icon and a short label; Send is not one of them')
   ok((b({ busy: true }).match(/disabled=""/g) ?? []).length === 2 && (b({ disabled: true }).match(/disabled=""/g) ?? []).length === 2 && !/disabled=""/.test(b({})), 'buttons: both off while the microphone is asked for')
   ok(!b({ studio: true }).includes('title=') && b({ studio: false }).includes('title="Start an audio call"') && b({ studio: false }).includes('title="Start a video call"'), 'buttons: a tooltip in the shell, a title elsewhere')
   {
-    const rootNode = new Root(); rootNode.setElement(React.createElement(buttons.VoiceCallButtons, { active: false, busy: false, disabled: false, onStart: mode => starts.push(mode), studio: true })); await settleRoot(rootNode)
+    const rootNode = new Root(); rootNode.setElement(React.createElement(buttons.VoiceCallButtons, { active: false, busy: false, disabled: false, onStart: mode => starts.push(mode), studio: true, buttons: 'a', place: 'toolbar' })); await settleRoot(rootNode)
     starts.length = 0; for (const node of hostNodes(rootNode.tree, n => n.type === 'button')) node.props.onClick()
     eq(starts, ['audio', 'video'], 'buttons: Audio starts an audio call, Video a video call')
     let kept = 0; for (const node of hostNodes(rootNode.tree, n => n.type === 'button')) node.props.onMouseDown({ preventDefault: () => { kept++ } })
@@ -1389,10 +1439,12 @@ function sourceSuite(sources, { base = null } = {}) {
   ok(ws.indexOf(sentTap) > ws.indexOf(fields) && lines(ws)[lines(ws).indexOf(sentTap) - 1].includes('wsRef.current.send(JSON.stringify(message));'), 'ws: ...right after the send')
   ok(!ws.includes('onVoiceCall') && !ws.includes('getUserMedia') && !/mode:\s*'voice'/.test(ws.replace(sentTap, '')), 'ws: no new option, no microphone; the mode is written in the lib only')
   // the composer
-  eq(lines(input).filter(line => MARK.test(line)).length, 12, 'input: twelve marked lines (three imports, the prop, its destructuring, the line that hides the composer during a call, the two buttons; the six of the focus: import, flag ref, the effect\'s open, its two lines, its close)')
+  eq(lines(input).filter(line => MARK.test(line)).length, 13, 'input: thirteen marked lines (three imports, the prop, its destructuring, the line that hides the composer during a call, the buttons beside Send (a) and under the box (b, c); the six of the focus: import, flag ref, the effect\'s open, its two lines, its close)')
   lineOf(input, "import { VoiceCallButtons } from './voice-call/voice-call-buttons' // VOICE-CALL"); lineOf(input, "import type { VoiceCallComposerProps } from '@/lib/studio-voice-call-ui' // VOICE-CALL")
   lineOf(input, '  voiceCall?: VoiceCallComposerProps // VOICE-CALL'); lineOf(input, '  voiceCall, // VOICE-CALL')
-  const btn = lineOf(input, '{voiceCall ? <VoiceCallButtons {...voiceCall} studio={studio} /> : null}{/* VOICE-CALL')
+  const btn = lineOf(input, '{voiceCall ? <VoiceCallButtons {...voiceCall} studio={studio} place="toolbar" /> : null}{/* VOICE-CALL')
+  const under = lineOf(input, '{voiceCall ? <VoiceCallButtons {...voiceCall} studio={studio} place="under" /> : null}{/* VOICE-CALL')
+  ok(input.indexOf(under) > input.indexOf('      </form>') && input.indexOf(under) < input.indexOf('data-studio-composer-part="footer"'), 'input: variants b and c sit on their own row right under the box (after the form, before the footer)')
   ok(input.indexOf(btn) > input.indexOf('{chatClean ? <StudioChatCleanSendSide') && input.indexOf(btn) < input.indexOf('{isTemplateReuseRunning ? (') && input.indexOf(btn) < input.indexOf('data-studio-v4-send="true"') && input.indexOf(btn) > input.indexOf('aria-label="Build theme"'), 'input: the two call buttons sit right beside Send: after the toolbar\'s tools and the chat-clean send side, before Send')
   const hide = lineOf(input, 'if (voiceCall?.active) return null // VOICE-CALL')
   const mainReturn = input.indexOf('  return (\n    <div\n      data-studio-v4-chrome=')
@@ -1444,7 +1496,7 @@ function sourceSuite(sources, { base = null } = {}) {
   // .env.example
   ok(env.endsWith(`\n${strip.VOICE_CALL_ENV_BLOCK}`) && strip.VOICE_CALL_ENV_BLOCK.endsWith('\n'), '.env.example: the block is the last thing in the file, after one blank line')
   eq(lines(env).filter(line => line === 'NEXT_PUBLIC_STUDIO_VOICE_COMPANION="felix"').length, 1, '.env.example: the companion once, "felix"'); eq(lines(env).filter(line => /^NEXT_PUBLIC_STUDIO_VOICE_CALL=/.test(line)).length, 1, '.env.example: the call flag is on ELEMENT-3\'s one line, not repeated here')
-  ok(lines(strip.VOICE_CALL_ENV_BLOCK).filter(line => line && !line.startsWith('#') && line !== 'NEXT_PUBLIC_STUDIO_VOICE_COMPANION="felix"').length === 0, '.env.example: the block is comments and its one assignment')
+  ok(lines(strip.VOICE_CALL_ENV_BLOCK).filter(line => line && !line.startsWith('#') && line !== 'NEXT_PUBLIC_STUDIO_VOICE_COMPANION="felix"' && line !== 'NEXT_PUBLIC_STUDIO_VOICE_CALL_BUTTONS="c"').length === 0, '.env.example: the block is comments and its two assignments (the companion, and the buttons\' place, default c)')
   ok(lines(env.slice(env.indexOf('# STUDIO VOICE CALL UI'))).every(line => !/exact "true" enables it/.test(line)), '.env.example: the block does not use the phrase older proofs read')
   if (base) {
     for (const rel of strip.VOICE_CALL_FILES) {
@@ -1471,13 +1523,13 @@ function sourceSuite(sources, { base = null } = {}) {
   ok(strip.stripVoiceCall(PAGE, 'a\nb // VOICE-CALL-X\nc // X-VOICE-CALL\nd // VOICE-CALL\ne // NEXT_PUBLIC_STUDIO_VOICE_CALL\n') === 'a\nb // VOICE-CALL-X\nc // X-VOICE-CALL\ne // NEXT_PUBLIC_STUDIO_VOICE_CALL\n', 'strip: the marker is a whole token')
   ok(strip.stripVoiceCall(PAGE, 42) === 42, 'strip: not text comes back as it is')
   ok(sources[BROWSER].includes('blob: await toWav(heard, context)') && sources[BROWSER].includes('encodeWavPcm16(resampleLinear(mixToMono(channels), decoded.sampleRate, VOICE_WAV_RATE), VOICE_WAV_RATE)') && sources[BROWSER].includes("type: 'audio/wav'"), 'browser: what was recorded is decoded, mixed to mono, brought to 16 kHz and sent as WAV (ROUTER-1: hearing takes base64 WAV)')
-  ok(sources[PLAYER].includes('const width = framedWidth(framing, size, rect)'), 'player: its width is the lib\'s (the disc is a square, the chest as wide as its crop)')
+  ok(sources[PLAYER].includes('const box = framedBox(framing, size, rect, maxWidth)'), 'player: its box is the lib\'s (the disc is a square, a video framing as wide as its crop, capped at the stage)')
   ok(sources[PLAYER].includes('const catalog = await loadCompanionPack(pack, framing, fetchJson, core.parseBirdMotionManifest)') && sources[PLAYER].includes('core.resolveCompanionClip(manifest, name)') && !sources[PLAYER].includes('loadCatalog('), 'player: the whole character and its Face pack both read through the lib\'s pack loader (the compatibility view, companion clips merged when the base lacks them), and every clip is resolved through the core (a pack without one falls back)')
   // the v2 seam: one function, null today (the compatibility view), called right after the body is drawn, and the loop repaints every frame when a painter is there
   ok(sources[PLAYER].includes("export function layeredPainterFor(pack: Pick<LoadedPack, 'layered' | 'manifest' | 'base'>): LayerPainter | null {") && sources[PLAYER].includes('const face = parsedLayeredFace(pack)') && (sources[PLAYER].match(/layeredPainterFor\(/g) ?? []).length === 2, 'player: the v2 renderer plugs in at one function (layeredPainterFor), which parses the face section and returns null (the compatibility view) when it does not parse')
   ok(sources[PLAYER].includes('const painter = layeredPainterFor(loaded)') && /context\.drawImage\(bitmap[^\n]*\n\s*shownId = id\n\s*painter\?\.\(\{ context, canvas, pack: loaded, frame: store\.has\(id\) \? id : loaded\.manifest\.neutral, bitmap, rect, scene: currentScene, level: live\.current\.getLevel\(\), timeSec: \(performance\.now\(\) - sceneStart\) \/ 1000, reduced: live\.current\.reducedMotion \}\)/.test(sources[PLAYER]) && sources[PLAYER].includes('if (next.id !== shownId || !store.has(next.id) || painter) {') && sources[PLAYER].includes('layered: catalog.layered'), 'player: a painter is called with the body just drawn, the loop repaints each frame when there is one (the body holds while the mouth changes), and the pack keeps its layered section')
   ok(sources[PLAYER].includes("const portrait = loaded === null && noPortrait !== pack") && sources[PLAYER].includes('src={portraitUrl(pack)}') && sources[PLAYER].includes('onError={() => setNoPortrait(pack)}') && sources[PLAYER].includes("data-companion-art={loaded === null ? (portrait ? 'portrait' : 'initials') : undefined}") && sources[PLAYER].includes('{!ready && !portrait ? <span className="studio-voice-initials"'), 'player: a pack with no usable catalog shows its portrait, and the initials only when that fails too')
-  ok(sources[STAGE].includes('size={videoCharacterPx(height)}') && sources[STAGE].includes("useLevelVariable(ringRef, getLevel, live && !snapshot.reducedMotion && (snapshot.holding || snapshot.scene === 'speaking'))") && sources[STAGE].includes('const read = () => setHeight(element.clientHeight)') && sources[STAGE].includes('new ResizeObserver(read)'), 'stage: the character is as tall as the call\'s measured height allows (it follows a resize), and the level ring is driven only while you talk or it speaks, never in reduced motion')
+  ok(sources[STAGE].includes('size={videoCharacterPx(height)}') && sources[STAGE].includes("useLevelVariable(ringRef, getLevel, live && !snapshot.reducedMotion && (snapshot.holding || snapshot.scene === 'speaking'))") && sources[STAGE].includes('const read = () => { setHeight(element.clientHeight); setStageWidth(element.clientWidth) }') && sources[STAGE].includes('maxWidth={stageWidth > 0 ? stageWidth - 16 : undefined}') && sources[STAGE].includes('new ResizeObserver(read)'), 'stage: the character is as tall as the call\'s measured height allows and never wider than the stage (it follows a resize), and the level ring is driven only while you talk or it speaks, never in reduced motion')
   ok(/if \(plan\.accent\) \{[\s\S]{0,260}overlay = \{ clip: plan\.accent\.clip[\s\S]{0,400}mouthShapeIndex\(/.test(sources[PLAYER]), 'player: an accent can play while it speaks (before the mouth is drawn)')
   // the stylesheet: nothing global, nothing that reaches an element without the call's own attributes
   const css = sources[CSS]
@@ -1485,7 +1537,7 @@ function sourceSuite(sources, { base = null } = {}) {
   const keyed = line => selectorParts(line.slice(0, line.indexOf('{'))).every(part => part.includes('[data-studio-voice-call="'))
   ok(lines(css).filter(line => /^[^\s@/}]/.test(line) && !keyed(line)).length === 0, 'css: every rule is keyed to the call\'s own attribute')
   ok(!/\[data-studio-v4-send\]/.test(css) && !/(^|\n)(html|body|button|\*)\b/.test(css), 'css: nothing reaches Send or any element the call does not own')
-  ok(/@media \(max-width: 767px\)[\s\S]*position: fixed; inset: 0; z-index: 200/.test(css) && /studio-voice-start-word \{ display: inline; \}/.test(css) && /\[data-studio-chat-clean\] \[data-studio-v4-composer-toolbar\] button\[data-studio-voice-call="button"\]\[data-voice-mode\] \{ width: 24px; height: 24px/.test(css) && /flex: 0 0 20%/.test(css), 'css: the stage is the whole screen on a phone, the buttons are the chat-clean 24 px square beside Send (a word on each on a phone), the transcript is a fifth')
+  ok(/@media \(max-width: 767px\)[\s\S]*position: fixed; inset: 0; z-index: 200/.test(css) && !/studio-voice-start-word/.test(css) && /\[data-studio-voice-call="buttons"\]\[data-voice-buttons="c"\] \{ justify-content: flex-end; \}/.test(css) && /\[data-studio-chat-clean\] \[data-studio-v4-composer-toolbar\] button\[data-studio-voice-call="button"\]\[data-voice-mode\] \{ width: 24px; height: 24px/.test(css) && /flex: 0 0 20%/.test(css), 'css: the stage is the whole screen on a phone, the buttons are the chat-clean 24 px square beside Send (a word on each on a phone), the transcript is a fifth')
   ok(/prefers-reduced-motion: reduce/.test(css) && /max-width: 767px/.test(css), 'css: reduced motion and the phone layout are there')
 }
 
@@ -1813,7 +1865,15 @@ const mutants = [
   [BUTTONS, 'the buttons stay on while the mic is asked for', 'disabled={disabled || busy}', 'disabled={disabled}'],
   [BUTTONS, 'a press takes the draft\'s focus', 'onMouseDown={event => event.preventDefault()}', 'onMouseDown={() => {}}'],
   [BUTTONS, 'only one button', 'CALL_MODES.map(mode', "CALL_MODES.slice(0, 1).map(mode"],
-  [BUTTONS, 'the word shows on a desktop', 'studio-voice-start-word hidden', 'studio-voice-start-word'],
+  [BUTTONS, 'variant c is drawn beside Send too', "if ((place === 'toolbar') !== (variant === 'a')) return null", "if (place === 'toolbar' && variant === 'b') return null"],
+  [UI, 'the default variant is a', "export const DEFAULT_CALL_BUTTONS: CallButtonsVariant = 'c'", "export const DEFAULT_CALL_BUTTONS: CallButtonsVariant = 'a'"],
+  [UI, 'a stretch on a non-Felix pack (a Face surface drawn at the disc\'s aspect)', "if (manifest.variant === 'face' && framing === 'disc') return { sx: 0, sy: 0, sw: size.width, sh: size.height }", "if (manifest.variant === 'face' && framing === 'disc') return { sx: 0, sy: 0, sw: size.width, sh: size.width * 0.82 }"],
+  [UI, 'contain becomes fill (kx != ky)', "const k = Math.min(canvasW / rect.sw, canvasH / rect.sh)\n  const ox = (canvasW - rect.sw * k) / 2 - rect.sx * k, oy = (canvasH - rect.sh * k) / 2 - rect.sy * k", "const k = canvasW / rect.sw, ky = canvasH / rect.sh\n  const ox = -rect.sx * k, oy = -rect.sy * ky"],
+  [LAYERED, 'the face uses its own kx / ky', 'ctx.setTransform(k, 0, 0, k, ox, oy + plan.breathY * k)', 'ctx.setTransform(k, 0, 0, k * 1.1, ox, oy + plan.breathY * k)'],
+  [PLAYER, 'the player stretches the frame over the canvas', 'plan.dst.x, plan.dst.y, plan.dst.w, plan.dst.h)', '0, 0, canvas.width, canvas.height)'],
+  [UI, 'a face crop that cuts the hands (a tight chest window)', 'export const CHEST_WINDOW = { x: -16, y: 48, width: 800, height: 560 }', 'export const CHEST_WINDOW = { x: 184, y: 48, width: 400, height: 280 }'],
+  [UI, 'the window never grows to hold the character', 'if (right - left > sw) { sw = right - left; sh = sw / aspect }', 'void left'],
+  [UI, 'the phone close-up is not capped to the stage', 'const width = Math.min(size * aspect, cap)', 'const width = size * aspect'],
   [UI, 'the Face pack does not read its catalog', 'const face = await read(url)', 'const face = { manifest: parse(await fetchJson(url)), layered: null }'],
   [UI, 'the whole character does not read its catalog', 'const main = await read(`${root}manifest.json`)', 'const main = { manifest: parse(await fetchJson(`${root}manifest.json`)), layered: null, pointer: null }'],
   [UI, 'the catalog is asked for every time', '  if (needsCompanionCatalog(raw)) {\n    try {', '  if (true) {\n    try {'],

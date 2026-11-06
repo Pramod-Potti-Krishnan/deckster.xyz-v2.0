@@ -12,7 +12,7 @@ import { VOICE_CALL_ART_FILES } from './studio-voice-call-art-files.mjs'
 export { VOICE_CALL_ART_FILES }
 
 export const BASE_COMMIT = 'abf52d4d4858b24cdb62549325ae5b9eed36624e' // origin/studio-v4-dev-preparation-code (#554 merged) at the start of this change
-export const VOICE_CALL_FLAGS = ['NEXT_PUBLIC_STUDIO_VOICE_CALL', 'NEXT_PUBLIC_STUDIO_VOICE_COMPANION']
+export const VOICE_CALL_FLAGS = ['NEXT_PUBLIC_STUDIO_VOICE_CALL', 'NEXT_PUBLIC_STUDIO_VOICE_COMPANION', 'NEXT_PUBLIC_STUDIO_VOICE_CALL_BUTTONS']
 export const VOICE_CALL_MARKER = 'VOICE-CALL'
 /** The marker as a WHOLE token: VOICE-CALL-X and X-VOICE-CALL are not this change's. */
 export const VOICE_CALL_MARKER_RE = /(?<![\w-])VOICE-CALL(?![\w-])/
@@ -89,6 +89,9 @@ export const VOICE_CALL_ENV_BLOCK = `# STUDIO VOICE CALL UI (FRONTEND-1, W6 P4-2
 # (one tap on the character's name in its top bar, a dot for each; remembered on that device, localStorage). Maya is a v2 layered-face pack (her native Face catalog is face/ at her root): she is drawn in her compatibility view (her body poses,
 # gestures, talk slots and blink; the mouth, eyes and brows do not change) until the v2 player lands. A pack that is missing or refused by the parser shows its portrait, and its initials when that is missing too.
 NEXT_PUBLIC_STUDIO_VOICE_COMPANION="felix"
+# STUDIO VOICE CALL BUTTONS: where the two call buttons sit, only with NEXT_PUBLIC_STUDIO_VOICE_CALL on (build-time). "a" two square buttons beside Send; "b" a row of Call and Video pills (icon + label, the companion accent) just under
+# the chat box; "c" (the default, PK's pick) two compact pills on their own row right under Send, right-aligned, Send staying primary (the same row under the input on a phone). Anything else is "c".
+NEXT_PUBLIC_STUDIO_VOICE_CALL_BUTTONS="c"
 `
 
 /** A commit of this change: its subject starts "Voice call:" (the older scope proofs that read first-parent subjects leave these out). */
