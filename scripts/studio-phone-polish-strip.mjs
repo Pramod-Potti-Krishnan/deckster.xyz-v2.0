@@ -7,7 +7,7 @@
 // The older proofs this change teaches (PIN_EDITS, tests only, every line carries the registry-read mark): the two that read the first-parent line of BASE..HEAD for their own commits' subjects (one more inserted line each, for "Phone polish:", as the phone hints did).
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = 'fb1e2aaf9559ec7d420a617b48c65a976798486f' // restacked 6 Nov onto dev fb1e2aaf (#570, #588, #567, #587, #583, #575 in); was 3e1ce88e (#564), the branch this change was made on
+export const BASE_COMMIT = '21b5fc08089eb0f4fd1db80f5eb954cc787df748' // restacked 6 Nov onto dev 21b5fc08 (#591, #571, #570 in); was fb1e2aaf
 export const PHONE_POLISH_FLAG = 'NEXT_PUBLIC_STUDIO_PHONE_POLISH'
 export const PHONE_POLISH_MARKER = 'PHONE-POLISH'
 /** The marker as a WHOLE token: PHONE-POLISH is this change's; PHONE-POLISH-X and X-PHONE-POLISH are not. */
@@ -58,7 +58,6 @@ export const PHONE_POLISH_PIN_EDITS = {
   'scripts/test-studio-chat-element-edit.mjs': [[FIRST_PARENT_LINE, '']],
   // FRONTEND-1 lane, taught with FRONTEND-1's OK (4 Nov 14:48Z): both read components/user-profile-menu*.tsx raw, so they strip later changes first
   "scripts/test-studio-p2-profile-menu.mjs": [["import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (PHONE-POLISH)\n", ""], ["const read = rel => stripP2Polish(rel, stripLaterChanges(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))) // LATER-CHANGES: registry read (PHONE-POLISH)\n", "const read = rel => stripP2Polish(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))\n"]],
-  "scripts/test-studio-p2-polish.mjs": [["import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (PHONE-POLISH)\n", ""], ["const read = rel => stripLaunchWording(rel, stripLaterChanges(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))) // LATER-CHANGES: registry read (PHONE-POLISH)\n", "const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))\n"]],
 }
 
 /** The proof without this change's edits (the base commit's file). Idempotent: a proof that has none of the edits comes back as it is. */
