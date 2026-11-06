@@ -26,6 +26,7 @@ import { stripVoiceCore } from './studio-voice-core-strip.mjs' // LATER-CHANGES:
 //                 response or a log; body validation; If-Match read-modify-write on both scopes (PUT replaces the deck map); session ownership; R3 404; the timeline filtered; the route set grows by 3
 //   N. scope      the committed diff of this change's own commits (subject "Model choice: ...") holds exactly its files; the registry gains three lines; .env.example only its block
 //   O. mutants    each one must make A-N fail
+import { LATER_CHANGE_FILES } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (BILLING-F4F6)
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
@@ -787,7 +788,7 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
     deep([...new Set(strip.MODEL_CHOICE_ENV_BLOCK.match(/\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b/g))].sort(), ['MODEL_ROUTER_FRONTEND_KEY', 'NEXT_PUBLIC_STUDIO_MODEL_CHOICE'], 'the block names no other variable (older pins refuse their own names in a later block)')
     const baseRegistryLines = new Set(baseOf(REGISTRY).split('\n')) // a registry line another change added (flow control's, Arrange's) is not this change's
     eq(read(REGISTRY).split('\n').filter(line => !line.includes('studio-model-choice-strip.mjs') && (baseRegistryLines.has(line) || !line.includes('// LATER-CHANGE: '))).join('\n'), baseOf(REGISTRY))
-    for (const rel of strip.MODEL_CHOICE_PIN_FILES) { eq(strip.putBackPin(rel, flow.stripFlowControl(rel, read(rel))), baseOf(rel), rel); for (const [has] of strip.MODEL_CHOICE_PIN_EDITS[rel]) { eq(read(rel).split(has).length, 2); ok((has.includes(strip.MODEL_CHOICE_PIN_MARK) || has.includes(strip.MODEL_CHOICE_TWIN_PIN_MARK)) && has.endsWith('\n')) } }
+    for (const rel of strip.MODEL_CHOICE_PIN_FILES) { eq(strip.putBackPin(rel, flow.stripFlowControl(rel, reg.LATER_STRIPS.slice(reg.LATER_STRIPS.findIndex(later => later.name === 'stripModelChoice') + 1).reduce((out, later) => { const next = typeof later === 'function' ? later(rel, out) : out; return typeof next === 'string' ? next : out }, read(rel)))), baseOf(rel), rel); for (const [has] of strip.MODEL_CHOICE_PIN_EDITS[rel]) { eq(read(rel).split(has).length, 2); ok((has.includes(strip.MODEL_CHOICE_PIN_MARK) || has.includes(strip.MODEL_CHOICE_TWIN_PIN_MARK)) && has.endsWith('\n')) } } // LATER-CHANGES: registry read (BILLING-F4F6): the taught proof is read as this change left it, the lines the changes registered AFTER it added (#581's two lines in the legal short links proof) put back
     for (const rel of strip.MODEL_CHOICE_SCOPE_FILES) ok(reg.LATER_CHANGE_FILES.has(rel), rel)
     eq(reg.stripLaterChanges(PAGE, hooked), basePage); eq(reg.stripLaterEnvBlocks(ENV, read(ENV)).includes('MODEL_CHOICE'), false)
   })
@@ -979,9 +980,12 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
   await check('M: the route set grows by exactly the three new routes; each route is thin and server-only', () => {
     const routesOf = files => [...new Set(files.filter(file => /^app\/(.*\/)?(page|route)\.(tsx|ts|jsx|js)$/.test(file)).map(file => '/' + file.replace(/^app\//, '').replace(/(^|\/)(page|route)\.\w+$/, '').split('/').filter(segment => segment && !/^\(.*\)$/.test(segment)).join('/')))].sort()
     const before = routesOf(git('ls-tree', '-r', '--name-only', BASE, '--', 'app').split('\n').filter(Boolean))
-    const after = routesOf(git('ls-files', '-co', '--exclude-standard', '--', 'app').split('\n').filter(Boolean))
+    const baseFiles = new Set(git('ls-tree', '-r', '--name-only', BASE, '--', 'app').split('\n').filter(Boolean)) // LATER-CHANGES: registry read (BILLING-F4F6): a later change's new route (app/api/wallet/precheck) is its own
+    const after = routesOf(git('ls-files', '-co', '--exclude-standard', '--', 'app').split('\n').filter(Boolean).filter(file => baseFiles.has(file) || strip.MODEL_CHOICE_SCOPE_FILES.has(file) || !LATER_CHANGE_FILES.has(file))) // LATER-CHANGES: registry read (BILLING-F4F6)
+    { const after = routesOf(git('ls-tree', '-r', '--name-only', 'd4e62e0b0affcab480694e056af3946ec23a9136', '--', 'app').split('\n').filter(Boolean)) // LATER-CHANGES: registry read (PROOFS-AFTER-MERGE), #521 robust after merge: the route set is read at this change's OWN head d4e62e0b (#521's last commit, a fixed input), so a later change's own routes, added or deleted (#584's /api/wallet/precheck, #585's /usage, #589's /api/usage/credits, #571 C-07's deleted dev mock-token route), are that change's business
     deep(after.filter(route => !before.includes(route)), ['/api/model-choice/prefs', '/api/model-choice/prefs/deck/[deckKey]', '/api/model-choice/used/[buildId]']); deep(before.filter(route => !after.includes(route)), [])
     eq(after.length, before.length + 3)
+    } // LATER-CHANGES: registry read (PROOFS-AFTER-MERGE), #521: the end of the block above
     deep([...strip.MODEL_CHOICE_ROUTES], [USER_ROUTE, DECK_ROUTE, USED_ROUTE])
     for (const rel of strip.MODEL_CHOICE_NEW_FILES) ok(!/^app\/api\/models\//.test(rel), `${rel}: outside app/api/models/, the model catalog change's path family (scripts/studio-stack-tolerant.mjs, #473)`)
     for (const rel of strip.MODEL_CHOICE_ROUTES) { const source = read(rel); ok(!/['"]use client['"]/.test(source) && !/console\./.test(source), rel); ok(/from '@\/lib\/studio-model-choice-server'/.test(source), rel) }

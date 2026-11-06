@@ -318,13 +318,12 @@ function ModelDesignPreview({ viewIsDesign = false, onRestoreView, onStatus }: {
               <tr><th scope="row">Tool support</th><td>{chosen.tools ? "Yes" : "No"}</td><td>{alternative.tools ? "Yes" : "No"}</td></tr>
               {catalogRefreshed && <>
                 <tr><th scope="row">Release status</th><td>{releaseLabel(chosen.releaseStage)}</td><td>{releaseLabel(alternative.releaseStage)}</td></tr>
-                <tr><th scope="row">Price per 1M tokens</th><td>{priceLabel(chosen)}</td><td>{priceLabel(alternative)}</td></tr>
                 <tr><th scope="row">Structured output</th><td>{chosen.structuredOutput === undefined ? "Not listed" : chosen.structuredOutput ? "Yes" : "No"}</td><td>{alternative.structuredOutput === undefined ? "Not listed" : alternative.structuredOutput ? "Yes" : "No"}</td></tr>
                 <tr><th scope="row">Input types</th><td>{inputsLabel(chosen.inputModalities)}</td><td>{inputsLabel(alternative.inputModalities)}</td></tr>
               </>}
             </tbody>
           </table>
-          <p className="sp-comparison-note">{catalogRefreshed ? "Snapshot specifications and public list prices only. Speed, quality, and live availability have not been verified." : "Snapshot specifications only. Speed, quality, pricing, and live availability have not been verified."}</p>
+          <p className="sp-comparison-note">{catalogRefreshed ? "Snapshot specifications only. Speed, quality, and live availability have not been verified." : "Snapshot specifications only. Speed, quality, pricing, and live availability have not been verified."}</p>
           <button type="button" className="sp-button sp-button-accent" style={catalogRefreshed && chosen === alternative ? DISABLED_ACTION_OPAQUE : undefined} disabled={chosen === alternative} onClick={() => choose(activeTask, comparison)}>Use in design preview <ArrowRight size={15} aria-hidden="true" /></button>
         </aside>
       </div>

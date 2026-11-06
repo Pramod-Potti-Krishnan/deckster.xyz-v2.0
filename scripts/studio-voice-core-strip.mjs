@@ -110,8 +110,8 @@ export const VOICE_CORE_PROOF_EDITS = {
       ""
     ],
     [
-      "const read = rel => stripVoiceCore(rel, fs.readFileSync(path.join(root, rel), 'utf8'))\n",
-      "const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')\n"
+      "const read = rel => stripLaterChanges(rel, stripVoiceCore(rel, fs.readFileSync(path.join(root, rel), 'utf8')))\n",
+      "const read = rel => stripLaterChanges(rel, fs.readFileSync(path.join(root, rel), 'utf8'))\n"
     ]
   ],
   "scripts/test-studio-legal-short-links.mjs": [
@@ -130,8 +130,8 @@ export const VOICE_CORE_PROOF_EDITS = {
       ""
     ],
     [
-      "const read = rel => stripLaunchWording(rel, stripVoiceCore(rel, fs.readFileSync(path.join(ROOT, rel), 'utf8')))\n",
-      "const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(ROOT, rel), 'utf8'))\n"
+      "const read = rel => stripLaunchWording(rel, stripLaterChanges(rel, stripVoiceCore(rel, fs.readFileSync(path.join(ROOT, rel), 'utf8'))))\n",
+      "const read = rel => stripLaunchWording(rel, stripLaterChanges(rel, fs.readFileSync(path.join(ROOT, rel), 'utf8')))\n"
     ],
     [
       "import { stripVoiceCore, voiceCoreProofDiffLines } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): normalize only this port's exact proof metadata\n",
@@ -148,8 +148,8 @@ export const VOICE_CORE_PROOF_EDITS = {
       ""
     ],
     [
-      "const tryRead = rel => { try { return stripVoiceCore(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')) } catch { return null } }\n",
-      "const tryRead = rel => { try { return fs.readFileSync(path.join(repoRoot, rel), 'utf8') } catch { return null } }\n"
+      "const tryRead = rel => { try { return stripApiHardening(rel, stripVoiceCore(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))) } catch { return null } } // LATER-CHANGE: PROGRAM-1 API hardening reads through its strip\n",
+      "const tryRead = rel => { try { return stripApiHardening(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')) } catch { return null } } // LATER-CHANGE: PROGRAM-1 API hardening reads through its strip\n"
     ],
     [
       "import { stripVoiceCore, voiceCoreProofDiffLines } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): normalize only this port's exact proof metadata\n",
@@ -166,8 +166,8 @@ export const VOICE_CORE_PROOF_EDITS = {
       ""
     ],
     [
-      "const read = rel => stripLaunchWording(rel, stripVoiceCore(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))\n",
-      "const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))\n"
+      "const read = rel => stripLaunchWording(rel, stripLaterChanges(rel, stripVoiceCore(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))) // LATER-CHANGES: registry read (PHONE-SHELL-COVERAGE)\n",
+      "const read = rel => stripLaunchWording(rel, stripLaterChanges(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))) // LATER-CHANGES: registry read (PHONE-SHELL-COVERAGE)\n"
     ]
   ],
   "scripts/test-studio-p2-polish.mjs": [
@@ -176,8 +176,8 @@ export const VOICE_CORE_PROOF_EDITS = {
       ""
     ],
     [
-      "const read = rel => stripLaunchWording(rel, stripVoiceCore(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))\n",
-      "const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))\n"
+      "const read = rel => stripLaunchWording(rel, stripLaterChanges(rel, stripVoiceCore(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))))\n",
+      "const read = rel => stripLaunchWording(rel, stripLaterChanges(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))\n"
     ]
   ],
   "scripts/test-studio-p2-profile-page.mjs": [
@@ -206,8 +206,8 @@ export const VOICE_CORE_PROOF_EDITS = {
       ""
     ],
     [
-      "const readFile = file => stripVoiceCore(file, fs.readFileSync(path.join(repoRoot, rel(file)), 'utf8'))\n",
-      "const readFile = file => fs.readFileSync(path.join(repoRoot, rel(file)), 'utf8')\n"
+      "const readFile = file => stripApiHardening(rel(file), stripVoiceCore(file, fs.readFileSync(path.join(repoRoot, rel(file)), 'utf8'))) // LATER-CHANGE: PROGRAM-1 API hardening reads through its strip\n",
+      "const readFile = file => stripApiHardening(rel(file), fs.readFileSync(path.join(repoRoot, rel(file)), 'utf8')) // LATER-CHANGE: PROGRAM-1 API hardening reads through its strip\n"
     ]
   ],
   "scripts/test-studio-stage-open-gate.mjs": [

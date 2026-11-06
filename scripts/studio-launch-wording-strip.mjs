@@ -4,6 +4,8 @@
 // scripts/test-studio-launch-wording.mjs proves that stripping gives back the base commit's file byte for byte (nothing is changed that is not listed here) and that every listed change is inert
 // with the flag off. New files (no base text to put back): lib/studio-launch-wording.ts, and the strip module, the test and its package.json entry.
 
+import { stripUxHonesty } from "./studio-ux-honesty-strip.mjs" // UX-HONESTY: see stripLaunchWording
+
 export const BASE_COMMIT = "3183d0083bcff2061f5e0e7070fb0114f068e188"
 
 // [text this change has, text the base has]
@@ -149,6 +151,7 @@ export const LAUNCH_NEW_FILES = ["lib/studio-launch-wording.ts"]
 
 /** `text` of repo file `rel` without this change's edits (any other file comes back as it is). */
 export function stripLaunchWording(rel, text) {
+  text = stripUxHonesty(rel, text) // UX-HONESTY: FRONTEND-1's honesty rewrites (no flag) and UX-09 lines come out first, innermost, so the pins that read through this strip see the files as they were
   const changes = CHANGES[rel]
   return changes ? changes.reduce((out, [from, to]) => out.replace(from, () => to), text) : text
 }

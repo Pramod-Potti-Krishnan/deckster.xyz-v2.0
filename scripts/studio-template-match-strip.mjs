@@ -51,6 +51,8 @@ export const STUDIO_TEMPLATE_MATCH_NEW_FILES = [
   'scripts/studio-template-match-strip.mjs',
   'scripts/test-studio-template-match.mjs',
   'scripts/studio-template-match-fixtures/frames.json',
+  'scripts/studio-template-match-fixtures/frames-p47c.json', // P4-7c proof (tests only): DIRECTOR-2's M6 and M7, verbatim
+  'scripts/test-studio-template-match-p47c.mjs', // P4-7c proof (tests only): what the M6 / M7 frames must draw
 ]
 
 /** The older proofs this change teaches: [text the proof has now, text the proof had before] per edit, whole lines, so putting them back gives the previous file byte for byte. Every line the proof has now carries STUDIO_TEMPLATE_MATCH_PIN_MARK. */
