@@ -35,6 +35,7 @@ import React from 'react'
 import jsxRuntimeReal from 'react/jsx-runtime'
 import ReactDOMServer from 'react-dom/server'
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
+import { stripLaterChanges } from './studio-later-changes.mjs' // taught (FRONTEND-1, pre-promo UX-01): a later change's lines come out first, through the later-changes registry
 
 const { renderToStaticMarkup } = ReactDOMServer
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -71,7 +72,7 @@ const STACK_PKG_CHANGES = [['    "test:studio-model-catalog": "node scripts/test
 const STACK_SHOWN = new Map(), stackShow = (commit, rel) => { const key = `${commit}:${rel}`; if (!STACK_SHOWN.has(key)) STACK_SHOWN.set(key, git('show', key)); return STACK_SHOWN.get(key) } // stacked after #475: a commit's file, read once (the strip is held to fixed inputs, whatever HEAD carries)
 const OWN = [LIB, ROUTE, UI, CSS, LAYOUT, ENV, PKG, STRIP]
 for (const rel of [LIB, ROUTE, UI, CSS, LAYOUT, STRIP]) assert.ok(fs.existsSync(path.join(ROOT, rel)), `${rel} exists`)
-const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(ROOT, rel), 'utf8'))
+const read = rel => stripLaunchWording(rel, stripLaterChanges(rel, fs.readFileSync(path.join(ROOT, rel), 'utf8')))
 const SOURCES = Object.fromEntries(OWN.map(rel => [rel, read(rel)]))
 const stripComments = text => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\'"`])\/\/[^\n]*/g, '$1')
 const git = (...args) => execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
