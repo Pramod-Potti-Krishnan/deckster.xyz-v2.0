@@ -159,7 +159,7 @@ function stripFailures(files, mod = strip) {
   }
   const env = files['.env.example'] || ''
   if (env.split('\n' + mod.API_HARDENING_ENV_BLOCK).length !== 2) out.push('.env.example: the block is not there exactly once')
-  if (!env.endsWith(mod.API_HARDENING_ENV_BLOCK)) out.push('.env.example: the block is not at the end')
+  if (!registry.LATER_ENV_BLOCKS.slice(registry.LATER_ENV_BLOCKS.indexOf(mod.API_HARDENING_ENV_BLOCK) + 1).reduce((text, block) => { const body = String(block).replace(/^\n+/, '').replace(/\n+$/, ''); return body === '' ? text : text.replace(`\n${body}\n`, () => '') }, env).endsWith(mod.API_HARDENING_ENV_BLOCK)) out.push('.env.example: the block is not at the end') // LATER-CHANGES: registry read (BILLING-F4F6): the block is the last one of this change and the ones before it; the blocks registered AFTER this one (#569, #584 ...) are read past
   if (!/^STUDIO_API_HARDENING_V1_ENABLED="false"$/m.test(mod.API_HARDENING_ENV_BLOCK) || !/^ADMIN_EMAILS=""$/m.test(mod.API_HARDENING_ENV_BLOCK)) out.push('env block: flag off and ADMIN_EMAILS empty')
   return out
 }
@@ -172,7 +172,7 @@ function registryFailures(text) {
     const lines = body.split('\n').filter(line => line.includes('LATER-CHANGE'))
     const mine = lines.filter(line => line.includes(`'./studio-api-hardening-strip.mjs')).${name}`))
     if (mine.length !== 1) out.push(`${list}: ${mine.length} lines`)
-    else if (lines.at(-1) !== mine[0]) out.push(`${list}: not the last line`)
+    else if (((base) => lines.slice(lines.indexOf(mine[0]) + 1).some(line => base.includes(line)))(((baseOf('scripts/studio-later-changes.mjs') || '').split(`export const ${list} = `)[1] || '').split('\n  // one line per later change, above this comment')[0].split('\n'))) out.push(`${list}: not after every line of its base`) // LATER-CHANGES: registry read (BILLING-F4F6): this change's line comes after every line its base registry has; the lines registered AFTER it (#569, #584 ...) are read past
   }
   return out
 }
@@ -213,7 +213,7 @@ assert.ok(stripFailures(files, deleting).length > 0, 'mutant survived: strip lis
 const regText = read('scripts/studio-later-changes.mjs')
 const regMutants = {
   'strip line removed': regText.replace(/\n.*\.stripApiHardening, \/\/ LATER-CHANGE.*/, ''),
-  'env line not last': regText.replace(/(\n.*\.[A-Z0-9_]+_ENV_BLOCK, \/\/ LATER-CHANGE.*)(\n.*\.API_HARDENING_ENV_BLOCK, \/\/ LATER-CHANGE.*)/, '$2$1'), // LATER-CHANGES: registry read (API-HARDENING, restack onto 1bb42d7f): swap with whichever registered block line sits just above
+  'env line above an older one': (() => { const mineLine = regText.split('\n').find(line => line.includes('.API_HARDENING_ENV_BLOCK, // LATER-CHANGE')), older = (baseOf('scripts/studio-later-changes.mjs') || '').split('\n').filter(line => /_ENV_BLOCK, \/\/ LATER-CHANGE/.test(line)).at(-1); return regText.replace(`${mineLine}\n`, () => '').replace(older, () => `${mineLine}\n${older}`) })(), // LATER-CHANGES: registry read (BILLING-F4F6): this change's block line moved above the last env block line its base has (a line registered before it), whatever was registered after it
   'scope line doubled': regText.replace(/(\n.*\.API_HARDENING_SCOPE_FILES, \/\/ LATER-CHANGE.*)/, '$1$1'),
 }
 for (const [name, text] of Object.entries(regMutants)) { assert.notEqual(text, regText, name); assert.ok(registryFailures(text).length > 0, `mutant survived: ${name}`) }
