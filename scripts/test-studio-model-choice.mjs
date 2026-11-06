@@ -25,6 +25,7 @@
 //                 response or a log; body validation; If-Match read-modify-write on both scopes (PUT replaces the deck map); session ownership; R3 404; the timeline filtered; the route set grows by 3
 //   N. scope      the committed diff of this change's own commits (subject "Model choice: ...") holds exactly its files; the registry gains three lines; .env.example only its block
 //   O. mutants    each one must make A-N fail
+import { LATER_CHANGE_FILES } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (BILLING-F4F6)
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
@@ -978,7 +979,8 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
   await check('M: the route set grows by exactly the three new routes; each route is thin and server-only', () => {
     const routesOf = files => [...new Set(files.filter(file => /^app\/(.*\/)?(page|route)\.(tsx|ts|jsx|js)$/.test(file)).map(file => '/' + file.replace(/^app\//, '').replace(/(^|\/)(page|route)\.\w+$/, '').split('/').filter(segment => segment && !/^\(.*\)$/.test(segment)).join('/')))].sort()
     const before = routesOf(git('ls-tree', '-r', '--name-only', BASE, '--', 'app').split('\n').filter(Boolean))
-    const after = routesOf(git('ls-files', '-co', '--exclude-standard', '--', 'app').split('\n').filter(Boolean))
+    const baseFiles = new Set(git('ls-tree', '-r', '--name-only', BASE, '--', 'app').split('\n').filter(Boolean)) // LATER-CHANGES: registry read (BILLING-F4F6): a later change's new route (app/api/wallet/precheck) is its own
+    const after = routesOf(git('ls-files', '-co', '--exclude-standard', '--', 'app').split('\n').filter(Boolean).filter(file => baseFiles.has(file) || strip.MODEL_CHOICE_SCOPE_FILES.has(file) || !LATER_CHANGE_FILES.has(file))) // LATER-CHANGES: registry read (BILLING-F4F6)
     deep(after.filter(route => !before.includes(route)), ['/api/model-choice/prefs', '/api/model-choice/prefs/deck/[deckKey]', '/api/model-choice/used/[buildId]']); deep(before.filter(route => !after.includes(route)), [])
     eq(after.length, before.length + 3)
     deep([...strip.MODEL_CHOICE_ROUTES], [USER_ROUTE, DECK_ROUTE, USED_ROUTE])

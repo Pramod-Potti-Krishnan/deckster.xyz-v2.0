@@ -75,6 +75,8 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-tier-update-guard-strip.mjs')).TIER_GUARD_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, security P0 H4-01: server-side tier/entitlement only (no flag: security; no .env.example block)
   ...(await import('./studio-template-proof-order-strip.mjs')).TEMPLATE_PROOF_ORDER_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, #587 template-match proof order (tests only): the proof undoes later changes before its own put-back
   ...(await import('./studio-phone-shell-coverage-strip.mjs')).PHONE_SHELL_COVERAGE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B58 phone shell coverage: on a phone Help and the builder load-error screen draw the bottom tab bar (NEXT_PUBLIC_STUDIO_PHONE_SHELL_COVERAGE)
+  ...(await import('./studio-billing-f4-f6-strip.mjs')).BILLING_F4F6_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, L-BILLING F4 debit switch + F6 single price source (WALLET_DEBIT_SOURCE)
+  ...(await import('./studio-billing-f5-usage-strip.mjs')).BILLING_F5_USAGE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, L-BILLING F5 quota and refusal screens + Usage page (NEXT_PUBLIC_STUDIO_USAGE_PAGE)
   ...(await import('./studio-phone-polish-strip.mjs')).PHONE_POLISH_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B59 phone polish: the More sheet's hint and Escape, the landscape buttons clear of the page number (NEXT_PUBLIC_STUDIO_PHONE_POLISH)
   // one line per later change, above this comment
 ])
@@ -121,6 +123,9 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-phone-landscape-strip.mjs')).PHONE_LANDSCAPE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape, PR 1 (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   (await import('./studio-phone-hints-strip.mjs')).PHONE_HINTS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-13 phone hints, PR 2 (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
   (await import('./studio-phone-shell-coverage-strip.mjs')).PHONE_SHELL_COVERAGE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B58 phone shell coverage (NEXT_PUBLIC_STUDIO_PHONE_SHELL_COVERAGE)
+  (await import('./studio-billing-f4-f6-strip.mjs')).BILLING_F4F6_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, L-BILLING F4 debit switch + F6 single price source (WALLET_DEBIT_SOURCE)
+  (await import('./studio-billing-f5-usage-strip.mjs')).BILLING_F5_USAGE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, L-BILLING Usage page (NEXT_PUBLIC_STUDIO_USAGE_PAGE)
+  (await import('./studio-billing-f5-usage-strip.mjs')).BILLING_F5_QUOTA_SCREENS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, L-BILLING F5 quota and refusal screens (NEXT_PUBLIC_STUDIO_QUOTA_SCREENS)
   (await import('./studio-phone-polish-strip.mjs')).PHONE_POLISH_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B59 phone polish (NEXT_PUBLIC_STUDIO_PHONE_POLISH)
   // one line per later change, above this comment
 ]
@@ -178,6 +183,8 @@ export const LATER_STRIPS = [
   (await import('./studio-tier-update-guard-strip.mjs')).stripTierUpdateGuard, // LATER-CHANGE: FRONTEND-1, security P0 H4-01: server-side tier/entitlement only (no flag: security)
   (await import('./studio-template-proof-order-strip.mjs')).stripTemplateProofOrder, // LATER-CHANGE: FRONTEND-2, #587 template-match proof order (tests only)
   (await import('./studio-phone-shell-coverage-strip.mjs')).stripPhoneShellCoverage, // LATER-CHANGE: FRONTEND-2, B58 phone shell coverage (NEXT_PUBLIC_STUDIO_PHONE_SHELL_COVERAGE)
+  (await import('./studio-billing-f4-f6-strip.mjs')).stripBillingF4F6, // LATER-CHANGE: FRONTEND-1, L-BILLING F4 debit switch + F6 single price source (WALLET_DEBIT_SOURCE)
+  (await import('./studio-billing-f5-usage-strip.mjs')).stripBillingF5Usage, // LATER-CHANGE: FRONTEND-1, L-BILLING F5 quota and refusal screens + Usage page (NEXT_PUBLIC_STUDIO_USAGE_PAGE)
   (await import('./studio-phone-polish-strip.mjs')).stripPhonePolish, // LATER-CHANGE: FRONTEND-2, B59 phone polish (NEXT_PUBLIC_STUDIO_PHONE_POLISH)
   // one line per later change, above this comment
 ]

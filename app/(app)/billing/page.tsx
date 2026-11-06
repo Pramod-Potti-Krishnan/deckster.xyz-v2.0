@@ -13,7 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CreditCard, Calendar, Crown, Sparkles, Shield, Check, X, AlertCircle, Download, Wallet, Plus, Loader2 } from "lucide-react"
 import { useWallet } from "@/hooks/use-wallet"
 import { features } from "@/lib/config"
-import { PRICING_TIERS } from "@/lib/marketing/homepage-v2-pricing"
+import { PRICING_TIERS, TOPUP_PACKS, planMonthlyPriceLabel } from "@/lib/marketing/homepage-v2-pricing" // BILLING-F4F6
 import { studioBillingPriceLine, studioNextPlan, studioPlanForTier, studioPlanLines, type StudioBillingQuota } from "@/lib/studio-billing"
 import { StudioBillingCapacity } from "@/components/billing/studio-billing-capacity"
 import "@/components/billing/studio-billing.css"
@@ -205,11 +205,11 @@ function BillingPageContent() {
                         ? "$290/year"
                         : "$29/month"
                       : user.tier === "premium"
-                        ? "$100/month"
+                        ? planMonthlyPriceLabel("premium") // BILLING-F4F6
                         : user.tier === "pro"
-                          ? "$50/month"
+                          ? planMonthlyPriceLabel("pro") // BILLING-F4F6
                           : user.tier === "starter"
-                            ? "$20/month"
+                            ? planMonthlyPriceLabel("starter") // BILLING-F4F6
                             : "No charge"}
                   </p>
                 </div>
@@ -329,12 +329,7 @@ function BillingPageContent() {
               <div>
                 <h4 className="text-sm font-medium mb-2">Add Credits</h4>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" data-studio-billing-packs={studioShell ? "true" : undefined}>
-                  {[
-                    { id: "pack_10", label: "$10" },
-                    { id: "pack_25", label: "$25" },
-                    { id: "pack_50", label: "$50" },
-                    { id: "pack_100", label: "$100" },
-                  ].map((pack) => (
+                  {TOPUP_PACKS.map((pack) => ( // BILLING-F4F6
                     <Button
                       key={pack.id}
                       variant="outline"
