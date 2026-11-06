@@ -72,6 +72,9 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-template-match-strip.mjs')).STUDIO_TEMPLATE_MATCH_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, W2 P4-7/8 template match: Studio shows the template Director applied, with Change / Undo, source chips and an auto-apply check (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH)
   ...(await import('./studio-phone-landscape-strip.mjs')).PHONE_LANDSCAPE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape (PR 1): a phone turned sideways gets a viewing stage with a hamburger and a plus (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   ...(await import('./studio-phone-hints-strip.mjs')).PHONE_HINTS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, F-13 phone hints (PR 2): the portrait rotate card, swipe to change slide, Full screen (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
+  ...(await import('./studio-tier-update-guard-strip.mjs')).TIER_GUARD_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, security P0 H4-01: server-side tier/entitlement only (no flag: security; no .env.example block)
+  ...(await import('./studio-template-proof-order-strip.mjs')).TEMPLATE_PROOF_ORDER_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, #587 template-match proof order (tests only): the proof undoes later changes before its own put-back
+  ...(await import('./studio-phone-shell-coverage-strip.mjs')).PHONE_SHELL_COVERAGE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B58 phone shell coverage: on a phone Help and the builder load-error screen draw the bottom tab bar (NEXT_PUBLIC_STUDIO_PHONE_SHELL_COVERAGE)
   ...(await import('./studio-api-hardening-strip.mjs')).API_HARDENING_SCOPE_FILES, // LATER-CHANGE: PROGRAM-1, Studio API hardening v1: approved-user gate, session owners, body allow-lists, unlock lockout, spoken-answer cache, admin = ADMIN_EMAILS (users, coupons, cleanup-sessions, /admin); activate id fix (STUDIO_API_HARDENING_V1_ENABLED / ADMIN_EMAILS)
   // one line per later change, above this comment
 ])
@@ -117,6 +120,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-template-match-strip.mjs')).STUDIO_TEMPLATE_MATCH_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, W2 P4-7/8 template match (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH)
   (await import('./studio-phone-landscape-strip.mjs')).PHONE_LANDSCAPE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape, PR 1 (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   (await import('./studio-phone-hints-strip.mjs')).PHONE_HINTS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-13 phone hints, PR 2 (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
+  (await import('./studio-phone-shell-coverage-strip.mjs')).PHONE_SHELL_COVERAGE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B58 phone shell coverage (NEXT_PUBLIC_STUDIO_PHONE_SHELL_COVERAGE)
   (await import('./studio-api-hardening-strip.mjs')).API_HARDENING_ENV_BLOCK, // LATER-CHANGE: PROGRAM-1, Studio API hardening v1 (STUDIO_API_HARDENING_V1_ENABLED / ADMIN_EMAILS)
   // one line per later change, above this comment
 ]
@@ -171,6 +175,9 @@ export const LATER_STRIPS = [
   (await import('./studio-template-match-strip.mjs')).stripStudioTemplateMatch, // LATER-CHANGE: FRONTEND-2, W2 P4-7/8 template match (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH)
   (await import('./studio-phone-landscape-strip.mjs')).stripPhoneLandscape, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape, PR 1 (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   (await import('./studio-phone-hints-strip.mjs')).stripPhoneHints, // LATER-CHANGE: FRONTEND-1, F-13 phone hints, PR 2 (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
+  (await import('./studio-tier-update-guard-strip.mjs')).stripTierUpdateGuard, // LATER-CHANGE: FRONTEND-1, security P0 H4-01: server-side tier/entitlement only (no flag: security)
+  (await import('./studio-template-proof-order-strip.mjs')).stripTemplateProofOrder, // LATER-CHANGE: FRONTEND-2, #587 template-match proof order (tests only)
+  (await import('./studio-phone-shell-coverage-strip.mjs')).stripPhoneShellCoverage, // LATER-CHANGE: FRONTEND-2, B58 phone shell coverage (NEXT_PUBLIC_STUDIO_PHONE_SHELL_COVERAGE)
   (await import('./studio-api-hardening-strip.mjs')).stripApiHardening, // LATER-CHANGE: PROGRAM-1, Studio API hardening v1 (STUDIO_API_HARDENING_V1_ENABLED / ADMIN_EMAILS)
   // one line per later change, above this comment
 ]
