@@ -40,6 +40,8 @@ const sha = text => crypto.createHash('sha256').update(text).digest('hex').slice
 /** Every OTHER registered change's strip, in the registry's order (this change's is left out): a file is read as this change left it, whatever other changes marked in it. */
 const applyAll = (list, rel, text) => list.reduce((out, strip) => { const next = typeof strip === 'function' ? strip(rel, out) : out; return typeof next === 'string' ? next : out }, text)
 const otherStrips = (rel, text) => applyAll(registry.LATER_STRIPS.filter(strip => strip !== stripPhoneShellCoverage), rel, text)
+/** Only the strips of the changes registered AFTER this one, in the registry's order: on a branch stacked after this change a later change's own lines (its subject filter beside this one's in a taught proof, ...) are undone first, so a file reads as this change left it. */
+const laterStrips = (rel, text) => { const at = registry.LATER_STRIPS.indexOf(stripPhoneShellCoverage); return applyAll(at === -1 ? [] : registry.LATER_STRIPS.slice(at + 1), rel, text) }
 
 let passed = 0
 const failed = []
@@ -350,10 +352,10 @@ await check('Help: its header and workspace are the shell\'s own elements, and t
 console.log('5. pins')
 const diffLines = text => text.split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
 const lineDiff = (before, after) => { const b = before.split('\n'), a = after.split('\n'), out = []; let i = 0, j = 0; while (i < b.length || j < a.length) { if (b[i] === a[j]) { i++; j++ } else if (a[j] !== undefined && !b.slice(i).includes(a[j])) { out.push(`+${a[j++]}`) } else if (b[i] !== undefined && !a.slice(j).includes(b[i])) { out.push(`-${b[i++]}`) } else { out.push(`-${b[i++]}`); out.push(`+${a[j++]}`) } } return out }
-function provePins(readNow = read, at = '') {
+function provePins(readNow = read, at = '', later = laterStrips) {
   const a = m => (at ? `${at}: ${m}` : m)
   for (const rel of PHONE_SHELL_COVERAGE_FILES) {
-    const now = readNow(rel), base = baseText(rel), marked = now.split('\n').filter(line => PHONE_SHELL_COVERAGE_MARKER_RE.test(line))
+    const now = later(rel, readNow(rel)), base = baseText(rel), marked = now.split('\n').filter(line => PHONE_SHELL_COVERAGE_MARKER_RE.test(line))
     assert.equal(stripPhoneShellCoverage(rel, now), base, a(`${rel}: without its marked lines it is the base's, byte for byte`))
     assert.equal(stripPhoneShellCoverage(rel, stripPhoneShellCoverage(rel, now)), base, a(`${rel}: stripping twice changes nothing more`))
     assert.equal(marked.length, 3, a(`${rel}: three marked lines`))
@@ -369,7 +371,7 @@ function provePins(readNow = read, at = '') {
   for (const [rel, expr] of Object.entries(guard)) assert.ok(readNow(rel).includes(expr), a(`${rel}: the bar is drawn exactly where the rail is, and with the flag`))
   assert.ok(readNow(HELP).includes('{signedIn && <StudioRail '), a('Help: the rail\'s own condition is unchanged')); assert.ok(readNow(VIEWS).includes('{studioShell && ('), a('the screen: the rail\'s own condition is unchanged'))
   for (const rel of PHONE_SHELL_COVERAGE_PIN_FILES) {
-    const now = readNow(rel), base = baseText(rel)
+    const now = later(rel, readNow(rel)), base = baseText(rel)
     assert.equal(stripPhoneShellCoverage(rel, now), base, a(`${rel}: an older proof taught: put back it is the base's, byte for byte`))
     assert.equal(stripPhoneShellCoverage(rel, stripPhoneShellCoverage(rel, now)), base, a(`${rel}: put back twice changes nothing more`))
     for (const [has, was] of PHONE_SHELL_COVERAGE_PIN_EDITS[rel]) { assert.equal(now.split(has).length - 1, 1, a(`${rel}: a taught line is there exactly once`)); for (const line of has.split('\n').filter(Boolean)) assert.ok(line.includes(PHONE_SHELL_COVERAGE_PIN_MARK), a(`${rel}: a taught line carries the registry-read mark`)); assert.ok(!was.includes(PHONE_SHELL_COVERAGE_PIN_MARK)) }
@@ -449,12 +451,18 @@ const scopeEnvAndRegistry = head => {
 const scopeAll = head => { scopeOwnCommits(head); scopeCommittedFiles(head); scopeEnvAndRegistry(head) }
 
 const HEAD = scopeHead('HEAD')
-await check(`this change's own commits (subject starts "${PHONE_SHELL_COVERAGE_SUBJECT}", found across the whole line, no merges) exist, with the co-author line; none could be taken for an older change's`, () => { scopeOwnCommits(HEAD) })
-await check('the committed files are exactly this change\'s; every line added to an app file is a marked pure insertion; the strip gives the base back byte for byte; the phone shell\'s own files, the page and the layout are not touched', () => scopeCommittedFiles(HEAD))
-await check('.env.example is the base plus the block (after one blank line); the registry gains exactly its three marked lines and loses none', () => scopeEnvAndRegistry(HEAD))
+/** This change's own commits on the FIRST-PARENT line of `head` from BASE. Merged into dev, its commits come in by a merge's second parent and that line has none of them: dev past the merge, a branch stacked after this change, a later change's gate merge. */
+const ownOnLine = head => git('rev-list', '--first-parent', '--no-merges', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean).filter(c => isOwnSubject(subjectOf(c)))
+/** There the committed diff from BASE holds the later changes' work too, so the scope checks stand down; the pins above (read past the later changes' strips) and every other section still run. On this change's own branch, and on its gate merge through HEAD^2, they all run. */
+const ON_OWN_LINE = ownOnLine(HEAD).length > 0
+const scopeCheck = (label, fn) => (ON_OWN_LINE ? check(label, fn) : undefined)
+if (!ON_OWN_LINE) console.log('NOTE scope: no commit of this change on the first-parent line from BASE (merged into dev: its commits are on a second parent); the scope checks stand down, the pins above cover the files')
+await scopeCheck(`this change's own commits (subject starts "${PHONE_SHELL_COVERAGE_SUBJECT}", found across the whole line, no merges) exist, with the co-author line; none could be taken for an older change's`, () => { scopeOwnCommits(HEAD) })
+await scopeCheck('the committed files are exactly this change\'s; every line added to an app file is a marked pure insertion; the strip gives the base back byte for byte; the phone shell\'s own files, the page and the layout are not touched', () => scopeCommittedFiles(HEAD))
+await scopeCheck('.env.example is the base plus the block (after one blank line); the registry gains exactly its three marked lines and loses none', () => scopeEnvAndRegistry(HEAD))
 const gateMerge = (dev, head) => plumb(['commit-tree', plumb(['merge-tree', '--write-tree', dev, head]).split('\n')[0], '-p', dev, '-p', head, '-m', 'gate-style merge (local, no ref)'])
 const GATE = gateMerge(BASE_COMMIT, HEAD)
-await check('GATE-SAFE: on a gate-style merge (first parent BASE, second parent this change\'s head) the scope head is HEAD^2 and the whole scope section passes against it; the merged tree is read too', () => {
+await scopeCheck('GATE-SAFE: on a gate-style merge (first parent BASE, second parent this change\'s head) the scope head is HEAD^2 and the whole scope section passes against it; the merged tree is read too', () => {
   assert.deepEqual(parentsOf(GATE), [BASE_COMMIT, HEAD])
   assert.deepEqual(git('log', '--format=%H', '--first-parent', '--no-merges', `${BASE_COMMIT}..${GATE}`).split('\n').filter(Boolean), [], 'the gate\'s first-parent, no-merges line from BASE is empty: why HEAD itself cannot be used')
   assert.equal(scopeHead(GATE), HEAD, 'HEAD^2 is the change\'s head')
@@ -462,7 +470,7 @@ await check('GATE-SAFE: on a gate-style merge (first parent BASE, second parent 
   for (const rel of PHONE_SHELL_COVERAGE_FILES) assert.equal(stripPhoneShellCoverage(rel, git('show', `${GATE}:${rel}`)), baseText(rel), `the merged tree, without this change's lines, is the base's ${rel}`)
   assert.equal(scopeHead(HEAD), HEAD, 'a branch head is used as it is'); assert.equal(scopeHead(BASE_COMMIT), BASE_COMMIT, 'BASE itself is used as it is')
 })
-await check('mutant caught: the old first-parent own-commit query finds no own commit on the gate-style merge, and without the HEAD^2 rule the scope head is the merge itself', () => {
+await scopeCheck('mutant caught: the old first-parent own-commit query finds no own commit on the gate-style merge, and without the HEAD^2 rule the scope head is the merge itself', () => {
   const head = scopeHead(GATE, { gateRule: false })
   assert.equal(head, GATE)
   assert.throws(() => scopeOwnCommits(head, { firstParentOnly: true }), /no own commit yet/)
@@ -481,13 +489,13 @@ const commitWith = (parent, edits, message) => {
 const TRAILER = '\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>'
 const unrelated = commitWith(BASE_COMMIT, { 'unrelated-after-base.txt': 'unrelated\n' }, 'Dev: an unrelated commit after BASE')
 const ADVANCED_GATE = gateMerge(unrelated, HEAD)
-await check('GATE-SAFE after dev moved on: a gate merge whose first parent is a dev commit past BASE: the scope head is still this change\'s head and the scope section passes', () => {
+await scopeCheck('GATE-SAFE after dev moved on: a gate merge whose first parent is a dev commit past BASE: the scope head is still this change\'s head and the scope section passes', () => {
   assert.deepEqual(parentsOf(ADVANCED_GATE), [unrelated, HEAD]); assert.notEqual(parentsOf(ADVANCED_GATE)[0], BASE_COMMIT)
   assert.equal(scopeHead(ADVANCED_GATE), HEAD)
   scopeAll(scopeHead(ADVANCED_GATE)); scopeEnvAndRegistry(ADVANCED_GATE)
   assert.equal(ownOf(ADVANCED_GATE).length, ownOf(HEAD).length, 'the same own commits are found on the merge')
 })
-await check('mutant caught: a stray file in a "Phone shell coverage:" commit, an own commit without the co-author line, an unmarked line added to a screen, and a touched foreign file (the bar, the phone shell\'s stylesheet) fail the scope', () => {
+await scopeCheck('mutant caught: a stray file in a "Phone shell coverage:" commit, an own commit without the co-author line, an unmarked line added to a screen, and a touched foreign file (the bar, the phone shell\'s stylesheet) fail the scope', () => {
   const stray = commitWith(HEAD, { 'stray-phone-shell-coverage.txt': 'stray\n' }, `${PHONE_SHELL_COVERAGE_SUBJECT} a stray file${TRAILER}`)
   assert.ok(ownOf(stray).includes(stray)); assert.doesNotThrow(() => scopeCommittedFiles(HEAD)); assert.throws(() => scopeCommittedFiles(stray), /exactly its scope/)
   const noTrailer = commitWith(HEAD, {}, `${PHONE_SHELL_COVERAGE_SUBJECT} no trailer`)
@@ -500,6 +508,21 @@ await check('mutant caught: a stray file in a "Phone shell coverage:" commit, an
     const foreign = commitWith(HEAD, { [rel]: git('show', `${HEAD}:${rel}`) + '\n' }, `${PHONE_SHELL_COVERAGE_SUBJECT} touches ${rel}${TRAILER}`)
     assert.throws(() => scopeCommittedFiles(foreign), /exactly its scope|is not touched/, rel)
   }
+})
+// a branch stacked after this change: dev's merge brings it in by its SECOND parent, then a later change adds its own subject filter beside this change's in a taught proof
+const SYN = { file: 'scripts/test-studio-deck-sync-truth.mjs', mark: 'registry read (SYNTHETIC-LATER)' }
+const synStrip = (rel, text) => (rel === SYN.file && typeof text === 'string' ? text.split('\n').filter(line => !line.includes(SYN.mark)).join('\n') : text)
+const stackedAfter = () => {
+  const dev = gateMerge(BASE_COMMIT, HEAD), taught = git('show', `${dev}:${SYN.file}`).split('\n')
+  const at = taught.findIndex(line => line.includes('registry read (PHONE-SHELL-COVERAGE)')); assert.ok(at > 0, 'this change\'s subject filter is in the taught proof')
+  taught.splice(at + 1, 0, `  shas.splice(0, shas.length, ...shas.filter(sha => !/^Synthetic later:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: ${SYN.mark}: a made-up change stacked after this one`)
+  return commitWith(dev, { [SYN.file]: taught.join('\n') }, `Synthetic later: a change stacked after this one${TRAILER}`)
+}
+await scopeCheck('ROBUST AFTER MERGE: on a branch stacked after this change (dev\'s merge brings it in by a second parent, then a later change adds its subject filter beside this one\'s in a taught proof) no own commit is on the first-parent line, so the scope checks stand down there, and the pins, read past the later change\'s strip, still pass', () => {
+  const later = stackedAfter(), readAt = rel => git('show', `${later}:${rel}`)
+  assert.equal(ownOf(later).length, ownOf(HEAD).length, 'this change\'s commits are all there, by the second parent'); assert.deepEqual(ownOnLine(later), [], 'none of them on the first-parent line')
+  provePins(readAt, 'stacked after', (rel, text) => synStrip(rel, laterStrips(rel, text)))
+  assert.throws(() => provePins(readAt, 'stacked after, not told', laterStrips), /put back it is the base's/, 'mutant caught: without the later change\'s strip, its line breaks the put-back')
 })
 
 // ===== 7. mutants (each one edit of the real sources, fed to the same checks) ===========================================================================
