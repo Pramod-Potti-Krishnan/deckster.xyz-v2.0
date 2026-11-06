@@ -55,7 +55,7 @@ export const BILLING_SECURITY_EDITS = {
   ],
   "scripts/test-studio-p2-admin.mjs": [
     [
-      "    eq(stripLaterChanges(rel, read(rel)), baseSource(rel), `${label}: ${rel} is the base commit's file, byte for byte`) // LATER-CHANGES: registry read (BILLING-SECURITY): every registered later change's lines come out (D1 in cleanup-sessions, billing security in the redeem route)\n",
+      "    eq(stripLaterChanges(rel, read(rel)), baseSource(rel), `${label}: ${rel} is the base commit's file, byte for byte`) // LATER-CHANGES: registry read (BILLING-SECURITY + TIER-GUARD, unioned on the restack onto 1bb42d7f): every registered later change's lines come out (D1 and TIER-GUARD in cleanup-sessions and lib/auth-options.ts, billing security in the redeem route)\n",
       "    eq(rel === 'app/api/admin/cleanup-sessions/route.ts' ? stripLaterChanges(rel, read(rel)) : read(rel), baseSource(rel), `${label}: ${rel} is the base commit's file, byte for byte`)\n"
     ]
   ]
