@@ -1,4 +1,7 @@
 import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
+import { directorRestSignHeaders } from '@/lib/studio-director-rest-sign' // DIRECTOR-REST-SIGN
+import { resolveDirectorUserId } from '@/lib/studio-director-rest-sign'
+import { directorEmailFallbackRead, missOnNotFound } from '@/lib/studio-director-email-fallback' // DUAL-LOOKUP
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
@@ -19,7 +22,7 @@ function directorBaseUrl(): string {
 async function resolveUserId(): Promise<string | null> {
   const session = await getServerSession(authOptions);
   const uid = (session?.user as { id?: string } | undefined)?.id || session?.user?.email;
-  return uid ?? null;
+  return resolveDirectorUserId(uid);
 }
 
 // GET /api/ingest-jobs/{jobId} → Director ingest-job status/result
@@ -30,8 +33,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ job
   try {
     const r = await fetch(
       `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/ingest-jobs/${encodeURIComponent(jobId)}`,
-      { cache: 'no-store' },
+      { cache: 'no-store', headers: await directorRestSignHeaders(userId, 'GET', { path: `/api/users/${encodeURIComponent(userId)}/ingest-jobs/${encodeURIComponent(jobId)}` }) }, // DIRECTOR-REST-SIGN
     );
+    const legacy = await directorEmailFallbackRead(r, userId, (id, headers) => fetch(`${directorBaseUrl()}/api/users/${encodeURIComponent(id)}/ingest-jobs/${encodeURIComponent(jobId)}`, { cache: 'no-store', headers }), missOnNotFound) // DUAL-LOOKUP
+    if (legacy) return NextResponse.json(await legacy.json(), { status: legacy.status }) // DUAL-LOOKUP
     const body = await r.json();
     return NextResponse.json(body, { status: r.status });
   } catch (error) {

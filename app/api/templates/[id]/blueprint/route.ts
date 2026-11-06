@@ -1,4 +1,6 @@
 import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
+import { directorRestSignHeaders } from '@/lib/studio-director-rest-sign' // DIRECTOR-REST-SIGN
+import { resolveDirectorUserId } from '@/lib/studio-director-rest-sign'
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
@@ -10,7 +12,7 @@ function directorBaseUrl(): string {
 async function resolveUserId(): Promise<string | null> {
   const session = await getServerSession(authOptions);
   const uid = (session?.user as { id?: string } | undefined)?.id || session?.user?.email;
-  return uid ?? null;
+  return resolveDirectorUserId(uid);
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -30,7 +32,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}/blueprint`,
       {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await directorRestSignHeaders(userId, 'PATCH', { path: `/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}/blueprint` })) }, // DIRECTOR-REST-SIGN
         body: JSON.stringify(payload),
       },
     );

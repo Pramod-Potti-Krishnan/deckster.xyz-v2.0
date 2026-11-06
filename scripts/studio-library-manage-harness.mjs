@@ -10,6 +10,7 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { LATER_CHANGE_FILES } from './studio-later-changes.mjs' // the files of the changes stacked after bulk edit + chat undo (they register there) are stacked files too
+import { stripDualLookup } from './studio-dual-lookup-strip.mjs' // LATER-CHANGES: registry read (DUAL-LOOKUP): the flip enablers' Director routes (REST-sign + dual lookup) are read as dev's
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -155,7 +156,7 @@ export function makeReader(mutations, envName) {
   const index = process.env[envName] === undefined ? null : Number(process.env[envName])
   return rel => {
     let source = fs.readFileSync(path.join(root, rel), 'utf8')
-    source = stripLaunchWording(rel, source) // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING: its flag-gated edits come out first
+    source = stripLaunchWording(rel, stripDualLookup(rel, source)) // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING: its flag-gated edits come out first // LATER-CHANGES: registry read (DUAL-LOOKUP): the strips registered after this change (the flip enablers' whole-text pin edits, chained on this change's taught lines) are put back first, newest first
     const mutation = index === null ? null : mutations[index]
     if (mutation && mutation.file === rel) {
       assert.ok(source.includes(mutation.from), `mutation "${mutation.name}" no longer applies; update MUTATIONS`)

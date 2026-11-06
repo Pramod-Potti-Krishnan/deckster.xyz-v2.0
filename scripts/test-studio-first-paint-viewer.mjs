@@ -23,6 +23,7 @@ import ts from 'typescript'
 import React from 'react'
 import { FIRST_PAINT_BASE_COMMIT, FIRST_PAINT_ENV_BLOCK, FIRST_PAINT_FILES, FIRST_PAINT_MARKER, stripFirstPaint } from './studio-first-paint-strip.mjs'
 import { stripPass3PolishB } from './studio-pass3-polish-b-strip.mjs' // LATER-CHANGES: registry read (PASS3-POLISH-B)
+const { stripFlipEnablers } = await import('./studio-flip-enablers-strip.mjs') // LATER-CHANGES: registry read (FLIP-ENABLERS): program1/studio-flip-enablers' viewer lines come out first
 
 const require = createRequire(import.meta.url)
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -40,7 +41,7 @@ let checks = 0
 const check = (fn, ...args) => { checks++; return fn(...args) }
 
 // =========================================================== Part 1: source pins ===========================================================
-const viewerText = chatParityStrip.stripChatParity(VIEWER, read(VIEWER)) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out before the byte pin below
+const viewerText = chatParityStrip.stripChatParity(VIEWER, stripFlipEnablers(VIEWER, read(VIEWER))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out before the byte pin below
 const baseViewer = baseSource(VIEWER)
 check(assert.equal, sha(stripFirstPaint(VIEWER, viewerText)), sha(baseViewer), 'flag-off identity: the viewer without this change\'s lines is the base commit\'s, byte for byte')
 check(assert.ok, !stripFirstPaint(VIEWER, viewerText).includes(FIRST_PAINT_MARKER), 'the viewer without this change\'s lines carries no marker')

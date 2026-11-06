@@ -1,4 +1,6 @@
 import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
+import { directorRestSignHeaders } from '@/lib/studio-director-rest-sign' // DIRECTOR-REST-SIGN
+import { resolveDirectorUserId } from '@/lib/studio-director-rest-sign'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
@@ -23,7 +25,7 @@ export async function POST(
 ) {
   const session = await getServerSession(authOptions)
   const sessionUser = session?.user as SessionUser | undefined
-  const userId = sessionUser?.id || sessionUser?.email
+  const userId = await resolveDirectorUserId(sessionUser?.id || sessionUser?.email)
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
@@ -63,7 +65,7 @@ export async function POST(
       `${directorBaseUrl()}/api/sessions/${encodeURIComponent(sourceSessionId)}/handoff`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await directorRestSignHeaders(userId, 'POST', { path: `/api/sessions/${encodeURIComponent(sourceSessionId)}/handoff` })) }, // DIRECTOR-REST-SIGN
         body: JSON.stringify(payload),
         cache: 'no-store',
       },

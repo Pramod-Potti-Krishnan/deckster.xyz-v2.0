@@ -6,6 +6,7 @@ import { UploadedFile } from '@/components/file-chip'
 import { validateFile } from '@/lib/file-validation'
 import { getKnowledgeServiceUrl, uploadConfig } from '@/lib/config'
 import { ingestStatusPollUrl, type IngestStatusPollIdentity } from '@/lib/researcher-ingest-status-auth'
+import { researcherUploadUrl } from '@/lib/researcher-upload-proxy'
 import {
   getEnrichmentLabel,
   resolveEnrichmentOutcome,
@@ -177,7 +178,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
       if (owner.researcherSessionId) return owner.researcherSessionId
       if (owner.researcherSessionPromise) return owner.researcherSessionPromise
       const pending = (async () => {
-        const response = await fetch(`${getResearcherBaseUrl()}/api/v1/sessions/create`, {
+        const response = await fetch(researcherUploadUrl(getResearcherBaseUrl(), 'sessions/create', { sessionId: owner.sessionId, userId: owner.userId }), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -213,7 +214,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     }
 
     researcherSessionPromiseRef.current = (async () => {
-      const response = await fetch(`${getResearcherBaseUrl()}/api/v1/sessions/create`, {
+      const response = await fetch(researcherUploadUrl(getResearcherBaseUrl(), 'sessions/create', { sessionId: currentSessionId, userId }), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -248,8 +249,9 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     researcherSessionId: string,
     file: File,
     contentType: string,
+    proxyIdentity?: IngestStatusPollIdentity,
   ): Promise<StorageUploadUrlResponse> => {
-    const response = await fetch(`${getResearcherBaseUrl()}/api/v1/files/storage-upload-url`, {
+    const response = await fetch(researcherUploadUrl(getResearcherBaseUrl(), 'files/storage-upload-url', proxyIdentity), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -293,8 +295,9 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     storagePath: string,
     file: File,
     contentType: string,
+    proxyIdentity?: IngestStatusPollIdentity,
   ): Promise<ProcessUploadedResponse> => {
-    const response = await fetch(`${getResearcherBaseUrl()}/api/v1/files/process-uploaded`, {
+    const response = await fetch(researcherUploadUrl(getResearcherBaseUrl(), 'files/process-uploaded', proxyIdentity), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -510,8 +513,13 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
       const contentType = file.type || 'application/octet-stream'
       const researcherSessionId = await ensureResearcherSession(owner)
       updateFile(fileId, { uploadProgress: 10 }, owner)
+      // NEXT_PUBLIC_STUDIO_RESEARCHER_PROXY_ENABLED (off): which chat session + owner kind the same-origin proxy signs for. Unused when off.
+      const proxyIdentity: IngestStatusPollIdentity = {
+        sessionId: (STUDIO_UPLOAD_OWNERSHIP ? owner?.sessionId : sessionIdRef.current) ?? '',
+        userId: STUDIO_UPLOAD_OWNERSHIP ? owner?.userId : userId,
+      }
 
-      const uploadUrl = await requestStorageUploadUrl(researcherSessionId, file, contentType)
+      const uploadUrl = await requestStorageUploadUrl(researcherSessionId, file, contentType, proxyIdentity)
       updateFile(fileId, { uploadProgress: 25 }, owner)
 
       await putFileToStorage(uploadUrl.signed_url, file, contentType)
@@ -557,6 +565,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
           uploadUrl.storage_path,
           file,
           contentType,
+          proxyIdentity,
         )
       } catch (error) {
         const errorMessage = error instanceof Error

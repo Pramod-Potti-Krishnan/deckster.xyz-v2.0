@@ -979,6 +979,7 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
     const routesOf = files => [...new Set(files.filter(file => /^app\/(.*\/)?(page|route)\.(tsx|ts|jsx|js)$/.test(file)).map(file => '/' + file.replace(/^app\//, '').replace(/(^|\/)(page|route)\.\w+$/, '').split('/').filter(segment => segment && !/^\(.*\)$/.test(segment)).join('/')))].sort()
     const before = routesOf(git('ls-tree', '-r', '--name-only', BASE, '--', 'app').split('\n').filter(Boolean))
     const after = routesOf(git('ls-files', '-co', '--exclude-standard', '--', 'app').split('\n').filter(Boolean))
+    after.splice(0, after.length, ...after.filter(route => before.includes(route) || !['/api/director/sessions/[sourceSessionId]/library', '/api/downloads/access-token', '/api/presentations/[id]/viewer-ticket', '/api/researcher/upload/[step]'].includes(route))) // LATER-CHANGES: registry read (FLIP-ENABLERS): program1/studio-flip-enablers, registered after this change, adds four routes of its own (library, Downloads access token, viewer ticket, Researcher upload); past them the route set is this change's
     deep(after.filter(route => !before.includes(route)), ['/api/model-choice/prefs', '/api/model-choice/prefs/deck/[deckKey]', '/api/model-choice/used/[buildId]']); deep(before.filter(route => !after.includes(route)), [])
     eq(after.length, before.length + 3)
     deep([...strip.MODEL_CHOICE_ROUTES], [USER_ROUTE, DECK_ROUTE, USED_ROUTE])
