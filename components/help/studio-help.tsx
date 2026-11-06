@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { Copy, Mail } from "lucide-react"
 import { StudioRail } from "@/components/layout/studio-rail"
+import { StudioPhoneTabBar } from "@/components/layout/studio-phone-tab-bar" // PHONE-SHELL-COVERAGE (NEXT_PUBLIC_STUDIO_PHONE_SHELL_COVERAGE, default off): on a phone Help draws the bottom tab bar next to the rail, as the account pages do
+import { STUDIO_PHONE_SHELL_COVERAGE_ENABLED } from "@/lib/studio-phone-shell-coverage" // PHONE-SHELL-COVERAGE
 import { BackToBuilderButton } from "@/components/layout/app-header"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -22,6 +24,7 @@ export function StudioHelpFrame({ signedIn, accountLoading = false, children }: 
   return (
     <div data-studio-v4-shell="true" data-studio-help="true">
       {signedIn && <StudioRail studioEntry={<BackToBuilderButton rail />} />}
+      {signedIn && STUDIO_PHONE_SHELL_COVERAGE_ENABLED && <StudioPhoneTabBar />}{/* PHONE-SHELL-COVERAGE: a DIRECT child of the shell root, only where the rail is drawn; shown at 640 px and narrower only */}
       <div data-studio-v4-shell-column="true">
         <header data-studio-v4-shell-header="true" data-studio-help-part="header">
           <div><strong>Help</strong><nav aria-label="Help navigation">{accountLoading ? <span role="status">Loading account…</span> : signedIn ? <BackToBuilderButton /> : <Link href="/auth/signin">Sign in</Link>}</nav></div>
