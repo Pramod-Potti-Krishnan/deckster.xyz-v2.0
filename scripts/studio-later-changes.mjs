@@ -75,6 +75,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-tier-update-guard-strip.mjs')).TIER_GUARD_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, security P0 H4-01: server-side tier/entitlement only (no flag: security; no .env.example block)
   ...(await import('./studio-template-proof-order-strip.mjs')).TEMPLATE_PROOF_ORDER_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, #587 template-match proof order (tests only): the proof undoes later changes before its own put-back
   ...(await import('./studio-phone-shell-coverage-strip.mjs')).PHONE_SHELL_COVERAGE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B58 phone shell coverage: on a phone Help and the builder load-error screen draw the bottom tab bar (NEXT_PUBLIC_STUDIO_PHONE_SHELL_COVERAGE)
+  ...(await import('./studio-ux-honesty-strip.mjs')).UX_HONESTY_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, UX honesty (no flag) + UX-09 page headings (NEXT_PUBLIC_STUDIO_PAGE_HEADINGS)
   ...(await import('./studio-model-picker-simple-strip.mjs')).MODEL_PICKER_SIMPLE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, F-14 simplified model picker: the composer's slider picker as a calmer popover or phone sheet, the preset's name, the router's writing model, a reset icon (NEXT_PUBLIC_STUDIO_MODEL_PICKER_SIMPLE)
   ...(await import('./studio-intelligence-simple-strip.mjs')).INTELLIGENCE_SIMPLE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, UX-02 Intelligence page as one preset slider (NEXT_PUBLIC_STUDIO_INTELLIGENCE_SIMPLE)
   // one line per later change, above this comment
@@ -122,6 +123,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-phone-landscape-strip.mjs')).PHONE_LANDSCAPE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape, PR 1 (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   (await import('./studio-phone-hints-strip.mjs')).PHONE_HINTS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-13 phone hints, PR 2 (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
   (await import('./studio-phone-shell-coverage-strip.mjs')).PHONE_SHELL_COVERAGE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B58 phone shell coverage (NEXT_PUBLIC_STUDIO_PHONE_SHELL_COVERAGE)
+  (await import('./studio-ux-honesty-strip.mjs')).PAGE_HEADINGS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, UX-09 page headings (NEXT_PUBLIC_STUDIO_PAGE_HEADINGS)
   (await import('./studio-model-picker-simple-strip.mjs')).MODEL_PICKER_SIMPLE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-14 simplified model picker (NEXT_PUBLIC_STUDIO_MODEL_PICKER_SIMPLE)
   (await import('./studio-intelligence-simple-strip.mjs')).INTELLIGENCE_SIMPLE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, UX-02 Intelligence page as one preset slider (NEXT_PUBLIC_STUDIO_INTELLIGENCE_SIMPLE)
   // one line per later change, above this comment
@@ -180,6 +182,7 @@ export const LATER_STRIPS = [
   (await import('./studio-tier-update-guard-strip.mjs')).stripTierUpdateGuard, // LATER-CHANGE: FRONTEND-1, security P0 H4-01: server-side tier/entitlement only (no flag: security)
   (await import('./studio-template-proof-order-strip.mjs')).stripTemplateProofOrder, // LATER-CHANGE: FRONTEND-2, #587 template-match proof order (tests only)
   (await import('./studio-phone-shell-coverage-strip.mjs')).stripPhoneShellCoverage, // LATER-CHANGE: FRONTEND-2, B58 phone shell coverage (NEXT_PUBLIC_STUDIO_PHONE_SHELL_COVERAGE)
+  (await import('./studio-ux-honesty-strip.mjs')).stripUxHonesty, // LATER-CHANGE: FRONTEND-1, UX honesty (no flag) + UX-09 page headings (NEXT_PUBLIC_STUDIO_PAGE_HEADINGS)
   (await import('./studio-model-picker-simple-strip.mjs')).stripModelPickerSimple, // LATER-CHANGE: FRONTEND-1, F-14 simplified model picker (NEXT_PUBLIC_STUDIO_MODEL_PICKER_SIMPLE)
   (await import('./studio-intelligence-simple-strip.mjs')).stripIntelligenceSimple, // LATER-CHANGE: FRONTEND-1, UX-02 Intelligence page as one preset slider (NEXT_PUBLIC_STUDIO_INTELLIGENCE_SIMPLE)
   // one line per later change, above this comment
