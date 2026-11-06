@@ -670,10 +670,12 @@ function buildTests(S) {
     assert.ok(lines(HARNESS, '-').length <= 1 && lines(HARNESS, '-').every(line => /#469 deck-mutation dedupe\)/.test(line)), 'stacked scope: the harness: at most its comment line was extended')
     const harnessAdded = lines(HARNESS, '+').filter(line => !/FRONTEND-1 template rename|'app\/api\/templates\/\[id\]\/route\.ts'/.test(line)) // minus the template rename's (PR #477) two lines in the stacked list
     assert.ok(harnessAdded.length >= 3 && harnessAdded.every(line => /narration|NARRATION/.test(line)), 'stacked scope: the stacked list gains this change\'s files only')
+    { const lines = (rel, sign) => (gitOut('diff', '-U0', BASE_COMMIT, OWN_HEAD, '--', rel) ?? '').split('\n').filter(line => line.startsWith(sign) && !line.startsWith(sign.repeat(3))) // LATER-CHANGES: registry read (PROOFS-AFTER-MERGE), #475 robust after merge: the siblings' lines are read at this change's OWN head (a fixed input, like the strip above), so a later change's registered lines in them (pre-promo's stripLaterChanges import, #590's reducer block) are that change's business
     for (const rel of SIBLINGS.filter(rel => changed.includes(rel))) {
       assert.ok(lines(rel, '+').every(line => /NarrationRouter|narration-router|NARRATION_ROUTER|#475|stripLaunchWording|STUDIO_LAUNCH_WORDING/.test(line)), `stacked scope: ${rel}: every added line names this change`)
       assert.ok(lines(rel, '-').length <= 12, `stacked scope: ${rel}: only a few lines were extended (up to eight of the stack, plus the lines stripLaunchWording needs in them)`)
     }
+    } // LATER-CHANGES: registry read (PROOFS-AFTER-MERGE), #475: the end of the block above
   })
   test('the stack-tolerant rules (scripts/studio-stack-tolerant.mjs) on this change: a base line dropped from package.json, this change\'s line left after its strip or gone from HEAD, an own file missing and a stray in its family are refused; a later PR\'s line and file are taken', () => {
     const names = gitOut('diff', '--name-only', BASE_COMMIT, 'HEAD', '--', '.'), baseText = baseSource(PKG)

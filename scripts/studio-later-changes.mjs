@@ -75,6 +75,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-tier-update-guard-strip.mjs')).TIER_GUARD_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, security P0 H4-01: server-side tier/entitlement only (no flag: security; no .env.example block)
   ...(await import('./studio-template-proof-order-strip.mjs')).TEMPLATE_PROOF_ORDER_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, #587 template-match proof order (tests only): the proof undoes later changes before its own put-back
   ...(await import('./studio-phone-shell-coverage-strip.mjs')).PHONE_SHELL_COVERAGE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B58 phone shell coverage: on a phone Help and the builder load-error screen draw the bottom tab bar (NEXT_PUBLIC_STUDIO_PHONE_SHELL_COVERAGE)
+  ...(await import('./studio-proofs-after-merge-strip.mjs')).PROOFS_AFTER_MERGE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, older proofs robust after merge (tests only): #475 narration-router reads its siblings, #521 model-choice its route set, at their own heads
   // one line per later change, above this comment
 ])
 
@@ -176,6 +177,7 @@ export const LATER_STRIPS = [
   (await import('./studio-tier-update-guard-strip.mjs')).stripTierUpdateGuard, // LATER-CHANGE: FRONTEND-1, security P0 H4-01: server-side tier/entitlement only (no flag: security)
   (await import('./studio-template-proof-order-strip.mjs')).stripTemplateProofOrder, // LATER-CHANGE: FRONTEND-2, #587 template-match proof order (tests only)
   (await import('./studio-phone-shell-coverage-strip.mjs')).stripPhoneShellCoverage, // LATER-CHANGE: FRONTEND-2, B58 phone shell coverage (NEXT_PUBLIC_STUDIO_PHONE_SHELL_COVERAGE)
+  (await import('./studio-proofs-after-merge-strip.mjs')).stripProofsAfterMerge, // LATER-CHANGE: FRONTEND-2, older proofs robust after merge (tests only)
   // one line per later change, above this comment
 ]
 
