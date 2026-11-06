@@ -3,6 +3,7 @@
 // F6: plan and pack prices are written once, in lib/marketing/homepage-v2-pricing.ts (PRICING_TIERS, TOPUP_PACKS, marked appended lines); Billing, the top-up modal and the Stripe top-up route read them.
 // Those are REPLACED lines; BILLING_F4F6_EDITS holds [text now, text before] and stripBillingF4F6 puts the old text back. The derived strings equal the old literals, so output is byte-identical.
 // PK ruling (v1 caps): under flat_strict only, lib/quota/quota.ts uses the monthly cap alone and the UTC calendar month (marked lines; one replaced line in BILLING_F4F6_EDITS).
+// One older proof (scripts/test-studio-p2-docs.mjs) has one line widened to read lib/marketing/homepage-v2-pricing.ts through the registry; BILLING_F4F6_PIN_EDITS holds [text now, text before] and stripBillingF4F6 puts the old line back, so the base's proof is the file byte for byte once this change is stripped.
 // Plain node, no imports.
 
 export const BASE_COMMIT = '3e1ce88eec23fbfd33f249332d06a65ad05ffc40' // origin/studio-v4-dev-preparation-code at the start of this change (stacked on #575, frontend1/tier-update-guard)
@@ -45,6 +46,12 @@ export const BILLING_F4F6_EDITS = {
   ]
  ]
 }
+export const BILLING_F4F6_PIN_EDITS = {
+ "scripts/test-studio-p2-docs.mjs": [[
+  "for (const file of [DATA_COMPARISONS, DATA_EXAMPLES, DATA_TEMPLATES, 'app/examples/page.tsx', 'app/templates/page.tsx', 'app/compare/[competitor]/page.tsx', PRICING_SOURCE, 'lib/auth-options.ts', 'app/auth/signup/page.tsx', 'app/auth/signin/page.tsx']) eq(file === 'lib/auth-options.ts' || file === PRICING_SOURCE ? stripLaterChanges(file, read(file)) : read(file), baseSource(file), `${file} is the base commit's, byte for byte`) // LATER-CHANGES: registry read (TIER-GUARD)\n",
+  "for (const file of [DATA_COMPARISONS, DATA_EXAMPLES, DATA_TEMPLATES, 'app/examples/page.tsx', 'app/templates/page.tsx', 'app/compare/[competitor]/page.tsx', PRICING_SOURCE, 'lib/auth-options.ts', 'app/auth/signup/page.tsx', 'app/auth/signin/page.tsx']) eq(file === 'lib/auth-options.ts' ? stripLaterChanges(file, read(file)) : read(file), baseSource(file), `${file} is the base commit's, byte for byte`) // LATER-CHANGES: registry read (TIER-GUARD)\n"
+ ]]
+}
 export const BILLING_F4F6_NEW_FILES = ['lib/billing/wallet-debit-source.ts', 'app/api/wallet/precheck/route.ts', 'scripts/studio-billing-f4-f6-strip.mjs', 'scripts/test-studio-billing-f4-f6.mjs']
 export const BILLING_F4F6_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', 'scripts/test-studio-p2-account.mjs', 'scripts/test-studio-launch-wording.mjs', 'scripts/test-studio-model-choice.mjs', 'scripts/test-studio-p2-docs.mjs', 'scripts/test-stripe-real-tier-webhook.mjs'] // the last three are pins taught to read the files above through the registry (their marked lines)
 export const BILLING_F4F6_SCOPE_FILES = new Set([...BILLING_F4F6_FILES, ...Object.keys(BILLING_F4F6_EDITS), ...BILLING_F4F6_NEW_FILES, ...BILLING_F4F6_OWN_EDITS])
@@ -53,6 +60,7 @@ export const BILLING_F4F6_ENV_BLOCK = "# WALLET DEBIT SOURCE (FRONTEND-1; L-BILL
 export function stripBillingF4F6(rel, text) {
   if (typeof text !== 'string') return text
   let out = text
+  if (rel in BILLING_F4F6_PIN_EDITS) return BILLING_F4F6_PIN_EDITS[rel].reduce((acc, [has, was]) => acc.replace(has, () => was), out) // an older proof this change taught: its base line, so a proof that holds it byte for byte reads it as it was; idempotent
   if (rel in BILLING_F4F6_EDITS) out = BILLING_F4F6_EDITS[rel].reduce((acc, [now, before]) => acc.replace(now, () => before), out)
   if (BILLING_F4F6_FILES.includes(rel) || rel in BILLING_F4F6_EDITS) out = out.split('\n').filter(line => !BILLING_F4F6_MARKER_RE.test(line)).join('\n')
   return out
