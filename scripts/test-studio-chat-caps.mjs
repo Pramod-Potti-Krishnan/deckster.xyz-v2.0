@@ -344,7 +344,7 @@ function provePins(readNow = read, at = '', later = laterStrips) {
     const has = CHAT_CAPS_PIN_EDITS[rel].flatMap(([h]) => h.split('\n').filter(Boolean)), was = CHAT_CAPS_PIN_EDITS[rel].flatMap(([, w]) => w.split('\n').filter(Boolean))
     assert.deepEqual(added, has.map(l => `+${l}`), a(`${rel}: exactly the taught lines are added, each with the mark`)); assert.deepEqual(removed, was.map(l => `-${l}`), a(`${rel}: only the base lines they replace are gone`))
     const lines = now.split('\n'), taught = lines.findIndex(l => l.includes(CHAT_CAPS_PIN_MARK))
-    if (CHAT_CAPS_FIRST_PARENT_PINS.includes(rel)) assert.ok(was.length === 0 && lines[taught - 1].startsWith(CHAT_CAPS_PIN_AFTER), a(`${rel}: an insertion right after the phone shell coverage's subject filter`))
+    if (CHAT_CAPS_FIRST_PARENT_PINS.includes(rel)) assert.ok(was.length === 0 && base.split('\n').includes(lines[taught - 1]) && /shas\.filter\(sha => !\/\^/.test(lines[taught - 1]), a(`${rel}: an insertion right after a subject filter its base already has (the last one before it, whichever change that is)`))
     else {
       const open = /^  \{ const head = (stripBulkEditUndo|stripLaterChanges)\(HOOK, read\(HOOK\)\) \/\/ /.exec(lines[taught]), close = lines.findIndex((l, i) => i > taught && l.includes(CHAT_CAPS_PIN_MARK))
       assert.ok(was.length === 0 && open && now.includes(`import { ${open[1]} } from`), a(`${rel}: a block opens with the hook read through a strip the proof already imports`))
@@ -420,7 +420,7 @@ const scopeEnvAndRegistry = head => {
   assert.deepEqual(own.map(line => /\)\.(\w+), \/\//.exec(line)?.[1]), ['CHAT_CAPS_SCOPE_FILES', 'CHAT_CAPS_ENV_BLOCK', 'stripChatCaps'])
   assert.equal(diff.length, 3, 'and nothing else in the registry')
   const reg = git('show', `${head}:scripts/studio-later-changes.mjs`).split('\n')
-  for (const line of own) { const at = reg.indexOf(line.slice(1)); assert.ok(at > 0 && reg[at - 1].includes('studio-phone-shell-coverage-strip.mjs') && reg[at + 1].startsWith('  // one line per later change'), `at the TRUE END of its list, after PHONE_SHELL_COVERAGE: ${line.slice(1, 80)}`) }
+  for (const line of own) { const at = reg.indexOf(line.slice(1)); assert.ok(at > 0 && baseText('scripts/studio-later-changes.mjs').split('\n').includes(reg[at - 1]) && reg[at - 1].includes('// LATER-CHANGE:') && reg[at + 1].startsWith('  // one line per later change'), `at the TRUE END of its list, right after a registered line its base already has: ${line.slice(1, 80)}`) }
 }
 const scopeAll = head => { scopeOwnCommits(head); scopeCommittedFiles(head); scopeEnvAndRegistry(head) }
 
@@ -433,7 +433,7 @@ const scopeCheck = (label, fn) => (ON_OWN_LINE ? check(label, fn) : undefined)
 if (!ON_OWN_LINE) console.log('NOTE scope: no commit of this change on the first-parent line from BASE (merged into dev: its commits are on a second parent); the scope checks stand down, the pins above cover the files')
 await scopeCheck(`this change's own commits (subject starts "${CHAT_CAPS_SUBJECT}", found across the whole line, no merges) exist, with the co-author line; none could be taken for an older change's`, () => { scopeOwnCommits(HEAD) })
 await scopeCheck('the committed files are exactly this change\'s; every line added to an app file is a marked pure insertion; the strip gives the base back byte for byte; the page, the cards and the executors are not touched', () => scopeCommittedFiles(HEAD))
-await scopeCheck('.env.example is the base plus the block (after one blank line, the last one); the registry gains exactly its three marked lines at the true end of each list, after PHONE_SHELL_COVERAGE, and loses none', () => scopeEnvAndRegistry(HEAD))
+await scopeCheck('.env.example is the base plus the block (after one blank line, the last one); the registry gains exactly its three marked lines at the true end of each list, after the last registered line of its base, and loses none', () => scopeEnvAndRegistry(HEAD))
 const gateMerge = (dev, head) => plumb(['commit-tree', plumb(['merge-tree', '--write-tree', dev, head]).split('\n')[0], '-p', dev, '-p', head, '-m', 'gate-style merge (local, no ref)'])
 const GATE = ON_OWN_LINE ? gateMerge(BASE_COMMIT, HEAD) : null
 await scopeCheck('GATE-SAFE: on a gate-style merge (first parent BASE, second parent this change\'s head) the scope head is HEAD^2 and the whole scope section passes against it; the merged tree is read too', () => {
