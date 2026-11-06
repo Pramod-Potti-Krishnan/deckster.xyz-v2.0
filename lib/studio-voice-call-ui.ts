@@ -667,7 +667,7 @@ export type CompanionFraming = 'disc' | VideoFraming
  * A full pack in the disc is the head and shoulders (the top 40% of the character, a square centred on it). The chest is Garud's chest window, scaled to the pack's size, moved up or widened (keeping its aspect) only when the
  * character's box would leave it, so the face and hands are never cut. Full length is the whole frame.
  */
-export function framingRect(manifest: FramingManifest, framing: CompanionFraming): FramingRect {
+export function framingRect(manifest: FramingManifest, framing: CompanionFraming, options: { tight?: boolean } = {}): FramingRect {
   const { size, bbox } = manifest
   if (manifest.variant === 'face' && framing === 'disc') return { sx: 0, sy: 0, sw: size.width, sh: size.height }
   const cx = bbox.x + bbox.width / 2
@@ -683,8 +683,16 @@ export function framingRect(manifest: FramingManifest, framing: CompanionFraming
   const left = Math.min(sx, bbox.x), right = Math.max(sx + sw, bbox.x + bbox.width)
   if (right - left > sw) { sw = right - left; sh = sw / aspect }
   sx = Math.min(Math.max(sx, bbox.x + bbox.width - sw), bbox.x)
+  if (options.tight) {
+    // The phone close-up (PK 6 Nov): the same rows, narrowed to the character's box plus a margin, so at the stage's width it is drawn larger. The box holds the full head and both hands in every frame, so nothing is cut.
+    const pad = size.width * TIGHT_CHEST_PAD
+    const left = Math.max(sx, bbox.x - pad), right = Math.min(sx + sw, bbox.x + bbox.width + pad)
+    return { sx: left, sy, sw: right - left, sh }
+  }
   return { sx, sy, sw, sh }
 }
+/** The margin either side of the character's box in the phone close-up, as a share of the frame's width. */
+export const TIGHT_CHEST_PAD = 0.03
 
 /** Where a framing rectangle lands on a canvas: ONE scale for x and y (contain), centred, letterboxed. `k` maps frame pixels to canvas pixels; a frame point (x, y) is at (ox + x * k, oy + y * k). `src` is the part of the rectangle inside the frame, `dst` where it is drawn. */
 export interface DrawPlan { k: number; ox: number; oy: number; src: FramingRect; dst: { x: number; y: number; w: number; h: number } }
@@ -694,6 +702,19 @@ export function containPlan(rect: FramingRect, frame: { width: number; height: n
   const x0 = Math.max(rect.sx, 0), y0 = Math.max(rect.sy, 0), x1 = Math.min(rect.sx + rect.sw, frame.width), y1 = Math.min(rect.sy + rect.sh, frame.height)
   const src = { sx: x0, sy: y0, sw: Math.max(0, x1 - x0), sh: Math.max(0, y1 - y0) }
   return { k, ox, oy, src, dst: { x: ox + x0 * k, y: oy + y0 * k, w: src.sw * k, h: src.sh * k } }
+}
+
+/** The audio disc (PK 6 Nov): ONE scale for x and y that COVERS the canvas, k = max(dw / sw, dh / sh), centred; what falls outside the disc is cut, nothing is stretched and no edge of the frame shows inside it. Same fields as containPlan. */
+export function coverPlan(rect: FramingRect, frame: { width: number; height: number }, canvasW: number, canvasH: number): DrawPlan {
+  const k = Math.max(canvasW / rect.sw, canvasH / rect.sh)
+  const ox = (canvasW - rect.sw * k) / 2 - rect.sx * k, oy = (canvasH - rect.sh * k) / 2 - rect.sy * k
+  const x0 = Math.max(rect.sx, 0), y0 = Math.max(rect.sy, 0), x1 = Math.min(rect.sx + rect.sw, frame.width), y1 = Math.min(rect.sy + rect.sh, frame.height)
+  const src = { sx: x0, sy: y0, sw: Math.max(0, x1 - x0), sh: Math.max(0, y1 - y0) }
+  return { k, ox, oy, src, dst: { x: ox + x0 * k, y: oy + y0 * k, w: k * src.sw, h: k * src.sh } }
+}
+/** The plan for a framing: the disc covers, a video framing is contained. */
+export function framingPlan(framing: CompanionFraming, rect: FramingRect, frame: { width: number; height: number }, canvasW: number, canvasH: number): DrawPlan {
+  return framing === 'disc' ? coverPlan(rect, frame, canvasW, canvasH) : containPlan(rect, frame, canvasW, canvasH)
 }
 
 /** The CSS box of the companion. The disc is a square of `size`. A video framing is as wide as its crop at `size` tall, but never wider than `maxWidth` (the stage): then it is the stage's width and shorter, keeping the crop's aspect. No pack read yet: a square. */

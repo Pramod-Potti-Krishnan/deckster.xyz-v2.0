@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import type { BirdMotionManifest } from '@/lib/studio/voice/bird-motion'
 import {
-  BLINK_EVERY_MS, clipsForScene, containPlan, framedBox, framingRect, initialsFor, loadCompanionPack, mouthShapeIndex, nextDelayMs, planPoseAt, portraitUrl, scenePlan, stepFrameIndex, stillFrameIndex, clipDurationSec,
+  BLINK_EVERY_MS, clipsForScene, framingPlan, framedBox, framingRect, initialsFor, loadCompanionPack, mouthShapeIndex, nextDelayMs, planPoseAt, portraitUrl, scenePlan, stepFrameIndex, stillFrameIndex, clipDurationSec,
   type ClipLike, type CompanionFraming, type CompanionScene, type FramingRect,
 } from '@/lib/studio-voice-call-ui'
 import { createLayeredPainter, parsedLayeredFace } from './layered-face'
@@ -26,6 +26,8 @@ export interface CompanionPlayerProps {
   size: number
   /** CSS pixels: the widest the video framing may be (the stage's width); it is then shorter, keeping its aspect. */
   maxWidth?: number
+  /** The phone close-up: the chest rows narrowed to the character's box, so it is drawn larger at the stage's width (lib: framingRect `tight`). */
+  tight?: boolean
   reducedMotion: boolean
   /** What is coming out of the speaker now (0..1), read every animation frame. */
   getLevel: () => number
@@ -43,10 +45,12 @@ export interface LayerPaintInput {
   context: CanvasRenderingContext2D
   canvas: HTMLCanvasElement
   pack: LoadedPack
-  /** The body frame's id and its decoded bitmap, drawn from `rect` (frame pixels) by one uniform scale, centred (lib: containPlan). */
+  /** The body frame's id and its decoded bitmap, drawn from `rect` (frame pixels) by one uniform scale, centred (lib: framingPlan). */
   frame: string
   bitmap: ImageBitmap
   rect: FramingRect
+  /** The framing the body was drawn in: the disc covers, a video framing is contained (lib: framingPlan); the patches go through the same plan. */
+  framing?: CompanionFraming
   scene: CompanionScene
   /** 0..1, what is coming out of the speaker now. */
   level: number
@@ -138,7 +142,7 @@ class FrameStore {
   }
 }
 
-export function CompanionPlayer({ pack, scene, dance, framing, size, maxWidth, reducedMotion, getLevel }: CompanionPlayerProps) {
+export function CompanionPlayer({ pack, scene, dance, framing, tight = false, size, maxWidth, reducedMotion, getLevel }: CompanionPlayerProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const [loaded, setLoaded] = useState<LoadedPack | null | undefined>(undefined)
@@ -146,7 +150,7 @@ export function CompanionPlayer({ pack, scene, dance, framing, size, maxWidth, r
   const [noPortrait, setNoPortrait] = useState<string | null>(null) // the pack whose portrait could not be shown
   const live = useRef({ scene, dance, reducedMotion, getLevel })
   live.current = { scene, dance, reducedMotion, getLevel }
-  const rect: FramingRect | null = loaded ? framingRect(loaded.manifest, framing) : null
+  const rect: FramingRect | null = loaded ? framingRect(loaded.manifest, framing, { tight }) : null
   const box = framedBox(framing, size, rect, maxWidth)
   const width = box.width, height = box.height
 
@@ -185,13 +189,13 @@ export function CompanionPlayer({ pack, scene, dance, framing, size, maxWidth, r
     const draw = (id: string): boolean => {
       const bitmap = store.get(id) ?? store.get(loaded.manifest.neutral)
       if (!bitmap) return false
-      // One scale for x and y (contain, centred, letterboxed): the frame is drawn at its own aspect, whatever the box (lib: containPlan).
+      // One scale for x and y, centred: the video framing is contained (letterboxed), the disc is covered (cut, never stretched) (lib: framingPlan).
       const b = bitmap.width / loaded.manifest.size.width
-      const plan = containPlan(rect, loaded.manifest.size, canvas.width, canvas.height)
+      const plan = framingPlan(framing, rect, loaded.manifest.size, canvas.width, canvas.height)
       context.clearRect(0, 0, canvas.width, canvas.height)
       if (plan.src.sw > 0 && plan.src.sh > 0) context.drawImage(bitmap, plan.src.sx * b, plan.src.sy * b, plan.src.sw * b, plan.src.sh * b, plan.dst.x, plan.dst.y, plan.dst.w, plan.dst.h)
       shownId = id
-      painter?.({ context, canvas, pack: loaded, frame: store.has(id) ? id : loaded.manifest.neutral, bitmap, rect, scene: currentScene, level: live.current.getLevel(), timeSec: (performance.now() - sceneStart) / 1000, reduced: live.current.reducedMotion })
+      painter?.({ context, canvas, pack: loaded, frame: store.has(id) ? id : loaded.manifest.neutral, bitmap, rect, framing, scene: currentScene, level: live.current.getLevel(), timeSec: (performance.now() - sceneStart) / 1000, reduced: live.current.reducedMotion })
       return true
     }
     const pick = (now: number): { id: string; clip: string } => {
@@ -262,7 +266,7 @@ export function CompanionPlayer({ pack, scene, dance, framing, size, maxWidth, r
       if (watch) window.clearInterval(watch)
       store.dispose()
     }
-  }, [loaded, framing, size, width, height, reducedMotion]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loaded, framing, tight, size, width, height, reducedMotion]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const ready = !!loaded && drawn
   // No usable catalog (missing, or refused by the parser): the portrait, still; the level ring around it (the stage's own in the audio call, the portrait's own in the video call) is what shows the voice. Its own failure: the initials.

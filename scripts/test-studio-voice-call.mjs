@@ -325,7 +325,52 @@ function uiSuite(ui, over = {}) {
     eq(ui.framingRect(big, 'chest'), { sx: -32, sy: 96, sw: 1600, sh: 1120 }, 'framing: Garud\'s window scales with the pack\'s own size (no 768 assumed)')
     // the painter's head transform is uniform (one k), the same k as the body
     ok(({ ...SOURCES, ...over })[LAYERED].includes('ctx.setTransform(k, 0, 0, k, ox, oy + plan.breathY * k)') && !/\bkx\b|\bky\b/.test(({ ...SOURCES, ...over })[LAYERED]), 'no-stretch: the layered face uses the body\'s one scale k for its head anchor and patches')
-    ok(({ ...SOURCES, ...over })[PLAYER].includes('containPlan(rect, loaded.manifest.size, canvas.width, canvas.height)') && ![({ ...SOURCES, ...over })[PLAYER], ({ ...SOURCES, ...over })[LAYERED]].some(t => /drawImage\([^)]*, 0, 0, canvas\.width, canvas\.height\)/.test(t)), 'no-stretch: the player draws through containPlan, never over the whole canvas')
+    ok(({ ...SOURCES, ...over })[PLAYER].includes('framingPlan(framing, rect, loaded.manifest.size, canvas.width, canvas.height)') && ({ ...SOURCES, ...over })[LAYERED].includes("framingPlan(input.framing ?? 'chest', rect, pack.manifest.size, canvas.width, canvas.height)") && ({ ...SOURCES, ...over })[PLAYER].includes('rect, framing, scene: currentScene') && ![({ ...SOURCES, ...over })[PLAYER], ({ ...SOURCES, ...over })[LAYERED]].some(t => /drawImage\([^)]*, 0, 0, canvas\.width, canvas\.height\)/.test(t)), 'no-stretch: the player and the layered face draw through framingPlan (the same plan), never over the whole canvas')
+    // -- PK 6 Nov: the audio disc COVERS (k = max), one scale, centred, for every pack's disc surface, at the desktop and phone disc sizes ------------------------------
+    eq([ui.framingPlan('disc', { sx: 0, sy: 0, sw: 668, sh: 487 }, { width: 668, height: 487 }, 176, 176).k, ui.framingPlan('chest', { sx: 0, sy: 0, sw: 668, sh: 487 }, { width: 668, height: 487 }, 176, 176).k].map(x => Math.round(x * 1e6) / 1e6), [Math.round(176 / 487 * 1e6) / 1e6, Math.round(176 / 668 * 1e6) / 1e6], 'disc: the disc covers (k = max), a video framing is contained (k = min)')
+    let discSurfaces = 0
+    for (const name of fs.readdirSync(path.join(root, 'public/companions')).sort()) {
+      const face = ['motion/face/manifest.json', 'face/manifest.json'].map(rel => path.join(root, 'public/companions', name, rel)).find(f => fs.existsSync(f))
+      const m = JSON.parse(fs.readFileSync(face ?? path.join(root, 'public/companions', name, 'motion/manifest.json'), 'utf8'))
+      const rect = ui.framingRect(m, 'disc')
+      for (const side of [ui.AUDIO_DISC_PX, ui.AUDIO_DISC_PX_PHONE]) {
+        const p = ui.framingPlan('disc', rect, m.size, side, side)
+        const kx = p.dst.w / p.src.sw, ky = p.dst.h / p.src.sh
+        ok(Math.abs(kx / ky - 1) < 0.01, `disc: ${name} (${m.size.width}x${m.size.height}) in ${side} px has one scale for x and y (${kx.toFixed(4)} vs ${ky.toFixed(4)})`)
+        ok(p.dst.x <= 0.01 && p.dst.y <= 0.01 && p.dst.x + p.dst.w >= side - 0.01 && p.dst.y + p.dst.h >= side - 0.01, `disc: ${name} in ${side} px is fully covered (no flat edge inside the circle)`)
+        ok(Math.abs(p.ox + (rect.sx + rect.sw / 2) * p.k - side / 2) < 0.5 && Math.abs(p.oy + (rect.sy + rect.sh / 2) * p.k - side / 2) < 0.5, `disc: ${name} in ${side} px is centred`)
+        discSurfaces++
+      }
+    }
+    ok(discSurfaces >= 6, 'disc: every pack is checked at both disc sizes (Bob, Felix and Maya at least)')
+    // -- PK 6 Nov: the phone close-up is larger than before, still holds the full head and both hands, stays within the stage and keeps one scale --------------------------
+    for (const name of fs.readdirSync(path.join(root, 'public/companions')).sort()) {
+      const m = JSON.parse(fs.readFileSync(path.join(root, 'public/companions', name, 'motion/manifest.json'), 'utf8')), b = m.bbox
+      const before = ui.framingRect(m, 'chest'), tight = ui.framingRect(m, 'chest', { tight: true })
+      const boxBefore = ui.framedBox('chest', 520, before, 374), boxTight = ui.framedBox('chest', 520, tight, 374)
+      const kBefore = boxBefore.width / before.sw, kTight = boxTight.width / tight.sw
+      ok(kTight > kBefore * 1.05 && boxTight.height > boxBefore.height, `close-up: ${name} on a 390 px phone is drawn larger (${boxBefore.width}x${boxBefore.height} at k ${kBefore.toFixed(3)} -> ${boxTight.width}x${boxTight.height} at k ${kTight.toFixed(3)})`)
+      ok(boxTight.width <= 374, `close-up: ${name} stays within the stage's width`)
+      ok(tight.sx <= b.x && tight.sx + tight.sw >= b.x + b.width && tight.sy <= b.y && tight.sy === before.sy && tight.sh === before.sh, `close-up: ${name} still holds the full head and both hands (the character's box across, its top, and the same rows)`)
+      const p = ui.framingPlan('chest', tight, m.size, boxTight.width, boxTight.height)
+      ok(Math.abs((p.dst.w / p.src.sw) / (p.dst.h / p.src.sh) - 1) < 0.01, `close-up: ${name} keeps one scale for x and y`)
+    }
+    eq(ui.framingRect(full, 'chest', { tight: false }), ui.framingRect(full, 'chest'), 'close-up: desktop (not tight) is the close-up as before')
+    ok(({ ...SOURCES, ...over })[STAGE].includes('framing={videoFraming} tight={phone} size={videoCharacterPx(height)}') && ({ ...SOURCES, ...over })[PLAYER].includes('framingRect(loaded.manifest, framing, { tight })'), 'close-up: the stage asks for the tight close-up on a phone only, and the player frames with it')
+    // -- PK 6 Nov: Send at the right edge with the "c" pills under it, only under VOICE_CALL + "c" -----------------------------------------------------------------------
+    {
+      const css = ({ ...SOURCES, ...over })[CSS], cleanCss = read('components/builder/studio-chat-clean.css')
+      const C = 'form:has(+ [data-studio-voice-call="buttons"][data-voice-buttons="c"])'
+      const rules = [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^}]*)\}/g)].map(m => ({ sel: m[1].trim(), body: m[2] }))
+      const sendRules = rules.filter(r => /\[data-studio-v4-send\]/.test(r.sel))
+      ok(sendRules.length === 2 && sendRules.every(r => r.sel.split(',').every(one => one.trim().startsWith(C + ' '))), 'send: every rule that moves Send is keyed to the "c" pill row right after the form (flag off, "a" or "b": no such row, nothing moves)')
+      const last = sendRules.find(r => /order:\s*99/.test(r.body)), maxOrder = Math.max(...[...cleanCss.matchAll(/order:\s*(\d+)/g)].map(m => Number(m[1])), ...[...css.matchAll(/order:\s*(\d+)/g)].map(m => Number(m[1])).filter(n => n !== 99))
+      ok(!!last && maxOrder < 99 && /> \[data-studio-v4-send\]$/.test(last.sel), `send: under "c" Send is the last toolbar item (order 99, above every other order: ${maxOrder})`)
+      ok(sendRules.some(r => /margin-left:\s*auto/.test(r.body) && r.sel.includes(':not(:has(> .studio-chat-clean-model))')), 'send: without the model picker Send takes the free space itself, so it stands at the right edge')
+      const input = ({ ...SOURCES, ...over })[INPUT], formEnd = input.indexOf('</form>'), next = input.indexOf('{voiceCall ? <VoiceCallButtons {...voiceCall} studio={studio} place="under" />', formEnd)
+      ok(formEnd > 0 && next > formEnd && !/\S/.test(input.slice(formEnd + 7, next)), 'send: the "c" pill row is the very next sibling of the form (the selector\'s +)')
+      ok(input.indexOf('data-studio-v4-send="true"') > input.indexOf('<StudioChatCleanSendSide'), 'send: Send comes after the model picker in the toolbar')
+    }
     ok(!/object-fit:\s*(fill|cover)/.test(({ ...SOURCES, ...over })[CSS]), 'no-stretch: no companion image is filled or covered')
   }
   // -- the call buttons' placement (NEXT_PUBLIC_STUDIO_VOICE_CALL_BUTTONS) ---------------------------------------------------------------------------
@@ -1528,7 +1573,7 @@ function sourceSuite(sources, { base = null } = {}) {
   ok(sources[PLAYER].includes('const catalog = await loadCompanionPack(pack, framing, fetchJson, core.parseBirdMotionManifest)') && sources[PLAYER].includes('core.resolveCompanionClip(manifest, name)') && !sources[PLAYER].includes('loadCatalog('), 'player: the whole character and its Face pack both read through the lib\'s pack loader (the compatibility view, companion clips merged when the base lacks them), and every clip is resolved through the core (a pack without one falls back)')
   // the v2 seam: one function, null today (the compatibility view), called right after the body is drawn, and the loop repaints every frame when a painter is there
   ok(sources[PLAYER].includes("export function layeredPainterFor(pack: Pick<LoadedPack, 'layered' | 'manifest' | 'base'>): LayerPainter | null {") && sources[PLAYER].includes('const face = parsedLayeredFace(pack)') && (sources[PLAYER].match(/layeredPainterFor\(/g) ?? []).length === 2, 'player: the v2 renderer plugs in at one function (layeredPainterFor), which parses the face section and returns null (the compatibility view) when it does not parse')
-  ok(sources[PLAYER].includes('const painter = layeredPainterFor(loaded)') && /context\.drawImage\(bitmap[^\n]*\n\s*shownId = id\n\s*painter\?\.\(\{ context, canvas, pack: loaded, frame: store\.has\(id\) \? id : loaded\.manifest\.neutral, bitmap, rect, scene: currentScene, level: live\.current\.getLevel\(\), timeSec: \(performance\.now\(\) - sceneStart\) \/ 1000, reduced: live\.current\.reducedMotion \}\)/.test(sources[PLAYER]) && sources[PLAYER].includes('if (next.id !== shownId || !store.has(next.id) || painter) {') && sources[PLAYER].includes('layered: catalog.layered'), 'player: a painter is called with the body just drawn, the loop repaints each frame when there is one (the body holds while the mouth changes), and the pack keeps its layered section')
+  ok(sources[PLAYER].includes('const painter = layeredPainterFor(loaded)') && /context\.drawImage\(bitmap[^\n]*\n\s*shownId = id\n\s*painter\?\.\(\{ context, canvas, pack: loaded, frame: store\.has\(id\) \? id : loaded\.manifest\.neutral, bitmap, rect, framing, scene: currentScene, level: live\.current\.getLevel\(\), timeSec: \(performance\.now\(\) - sceneStart\) \/ 1000, reduced: live\.current\.reducedMotion \}\)/.test(sources[PLAYER]) && sources[PLAYER].includes('if (next.id !== shownId || !store.has(next.id) || painter) {') && sources[PLAYER].includes('layered: catalog.layered'), 'player: a painter is called with the body just drawn, the loop repaints each frame when there is one (the body holds while the mouth changes), and the pack keeps its layered section')
   ok(sources[PLAYER].includes("const portrait = loaded === null && noPortrait !== pack") && sources[PLAYER].includes('src={portraitUrl(pack)}') && sources[PLAYER].includes('onError={() => setNoPortrait(pack)}') && sources[PLAYER].includes("data-companion-art={loaded === null ? (portrait ? 'portrait' : 'initials') : undefined}") && sources[PLAYER].includes('{!ready && !portrait ? <span className="studio-voice-initials"'), 'player: a pack with no usable catalog shows its portrait, and the initials only when that fails too')
   ok(sources[STAGE].includes('size={videoCharacterPx(height)}') && sources[STAGE].includes("useLevelVariable(ringRef, getLevel, live && !snapshot.reducedMotion && (snapshot.holding || snapshot.scene === 'speaking'))") && sources[STAGE].includes('const read = () => { setHeight(element.clientHeight); setStageWidth(element.clientWidth) }') && sources[STAGE].includes('maxWidth={stageWidth > 0 ? stageWidth - 16 : undefined}') && sources[STAGE].includes("onClick={() => setVideoFraming(videoFraming === 'full' ? 'chest' : 'full')}") && sources[STAGE].includes('framing={videoFraming}') && sources[STAGE].includes("useState<VideoFraming>('chest')") && sources[STAGE].includes('new ResizeObserver(read)'), 'stage: the character is as tall as the call\'s measured height allows and never wider than the stage (it follows a resize), and the level ring is driven only while you talk or it speaks, never in reduced motion')
   ok(/if \(plan\.accent\) \{[\s\S]{0,260}overlay = \{ clip: plan\.accent\.clip[\s\S]{0,400}mouthShapeIndex\(/.test(sources[PLAYER]), 'player: an accent can play while it speaks (before the mouth is drawn)')
@@ -1537,7 +1582,7 @@ function sourceSuite(sources, { base = null } = {}) {
   const selectorParts = selector => { const out = []; let depth = 0, cur = ''; for (const ch of selector) { if (ch === '(') depth++; if (ch === ')') depth--; if (ch === ',' && depth === 0) { out.push(cur); cur = '' } else cur += ch } out.push(cur); return out }
   const keyed = line => selectorParts(line.slice(0, line.indexOf('{'))).every(part => part.includes('[data-studio-voice-call="'))
   ok(lines(css).filter(line => /^[^\s@/}]/.test(line) && !keyed(line)).length === 0, 'css: every rule is keyed to the call\'s own attribute')
-  ok(!/\[data-studio-v4-send\]/.test(css) && !/(^|\n)(html|body|button|\*)\b/.test(css), 'css: nothing reaches Send or any element the call does not own')
+  ok(!/\[data-studio-v4-send\]/.test(lines(css).filter(line => !line.startsWith('form:has(+ [data-studio-voice-call="buttons"][data-voice-buttons="c"]) ')).join('\n')) && !/(^|\n)(html|body|button|\*)\b/.test(css), 'css: nothing reaches Send (but the "c" row\'s two rules, PK 6 Nov) or any element the call does not own')
   ok(/@media \(max-width: 767px\)[\s\S]*position: fixed; inset: 0; z-index: 200/.test(css) && !/studio-voice-start-word/.test(css) && /\[data-studio-voice-call="buttons"\]\[data-voice-buttons="c"\] \{ justify-content: flex-end; \}/.test(css) && /\[data-studio-chat-clean\] \[data-studio-v4-composer-toolbar\] button\[data-studio-voice-call="button"\]\[data-voice-mode\] \{ width: 24px; height: 24px/.test(css) && /flex: 0 0 20%/.test(css), 'css: the stage is the whole screen on a phone, the buttons are the chat-clean 24 px square beside Send (a word on each on a phone), the transcript is a fifth')
   ok(/prefers-reduced-motion: reduce/.test(css) && /max-width: 767px/.test(css), 'css: reduced motion and the phone layout are there')
 }
@@ -1637,6 +1682,19 @@ if (process.env.VOICE_TEST_SKIP_MUTANTS === '1') { release(); console.log(`SKIPP
 // E. Mutants: every one must be caught
 // ============================================================================================================================================
 const mutants = [
+  // PK 6 Nov rulings
+  [UI, 'the disc contains instead of covering', 'const k = Math.max(canvasW / rect.sw, canvasH / rect.sh)', 'const k = Math.min(canvasW / rect.sw, canvasH / rect.sh)'],
+  [UI, 'the disc scales x and y apart (kx != ky)', 'w: k * src.sw, h: k * src.sh', 'w: (canvasW / rect.sw) * src.sw, h: k * src.sh'],
+  [UI, 'the disc is not centred', 'const ox = (canvasW - rect.sw * k) / 2 - rect.sx * k, oy = (canvasH - rect.sh * k) / 2 - rect.sy * k\n  const x0 = Math.max(rect.sx, 0), y0 = Math.max(rect.sy, 0), x1 = Math.min(rect.sx + rect.sw, frame.width), y1 = Math.min(rect.sy + rect.sh, frame.height)\n  const src = { sx: x0, sy: y0, sw: Math.max(0, x1 - x0), sh: Math.max(0, y1 - y0) }\n  return { k, ox, oy, src, dst: { x: ox + x0 * k, y: oy + y0 * k, w: k * src.sw', 'const ox = -rect.sx * k, oy = -rect.sy * k\n  const x0 = Math.max(rect.sx, 0), y0 = Math.max(rect.sy, 0), x1 = Math.min(rect.sx + rect.sw, frame.width), y1 = Math.min(rect.sy + rect.sh, frame.height)\n  const src = { sx: x0, sy: y0, sw: Math.max(0, x1 - x0), sh: Math.max(0, y1 - y0) }\n  return { k, ox, oy, src, dst: { x: ox + x0 * k, y: oy + y0 * k, w: k * src.sw'],
+  [UI, 'the close-up cuts the face or a hand', 'const pad = size.width * TIGHT_CHEST_PAD', 'const pad = -size.width * 0.08'],
+  [UI, 'the close-up cuts the head (rows moved down)', 'return { sx: left, sy, sw: right - left, sh }', 'return { sx: left, sy: sy + sh * 0.1, sw: right - left, sh }'],
+  [UI, 'the close-up is not larger', 'if (options.tight) {', 'if (false) {'],
+  [STAGE, 'the close-up is tight on desktop too', 'tight={phone}', 'tight={true}'],
+  [PLAYER, 'the disc is drawn contained', 'framingPlan(framing, rect, loaded.manifest.size, canvas.width, canvas.height)', "framingPlan('chest', rect, loaded.manifest.size, canvas.width, canvas.height)"],
+  [CSS, 'Send moves with the flag off', 'form:has(+ [data-studio-voice-call="buttons"][data-voice-buttons="c"]) [data-studio-v4-composer-toolbar] > [data-studio-v4-send] { order: 99; }', '[data-studio-v4-composer-toolbar] > [data-studio-v4-send] { order: 99; }'],
+  [CSS, 'Send moves under variant a', 'form:has(+ [data-studio-voice-call="buttons"][data-voice-buttons="c"]) [data-studio-v4-composer-toolbar] > [data-studio-v4-send] { order: 99; }', 'form:has(+ [data-studio-voice-call="buttons"][data-voice-buttons="a"]) [data-studio-v4-composer-toolbar] > [data-studio-v4-send] { order: 99; }'],
+  [CSS, 'Send moves under variant b', 'form:has(+ [data-studio-voice-call="buttons"][data-voice-buttons="c"]) [data-studio-v4-composer-toolbar]:not(', 'form:has(+ [data-studio-voice-call="buttons"][data-voice-buttons="b"]) [data-studio-v4-composer-toolbar]:not('],
+  [CSS, 'Send is not last under c', '> [data-studio-v4-send] { order: 99; }', '> [data-studio-v4-send] { order: 5; }'],
   // the lib
   [UI, 'flag: anything but "true" turns it on', "return value === 'true'", "return value !== 'false'"],
   [UI, 'companion: any name is a folder', "/^[a-z0-9][a-z0-9-]{0,31}$/.test(value)", "typeof value === 'string' && value.length > 0"],

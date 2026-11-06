@@ -19,6 +19,10 @@
   --pill: var(--ss-accent, var(--sv4-accent, #7c3aed)); color: var(--pill); background: color-mix(in srgb, var(--pill) 10%, transparent); border: 1px solid color-mix(in srgb, var(--pill) 38%, transparent); }
 [data-voice-buttons="c"] [data-studio-voice-call="pill"] { height: 26px; padding: 0 10px 0 8px; font-size: 12px; }
 [data-voice-buttons="c"] [data-studio-voice-call="pill"] svg { width: 13px; height: 13px; }
+/* "c" only (PK 6 Nov): Send stands at the RIGHT edge of the toolbar, so the pills sit directly under it, on desktop and phone. Keyed to the "c" row that follows the form, so with the flag off or under "a" / "b" nothing here matches.
+   With CHAT_CLEAN the model picker (order 10, margin-left auto) and the research button (order 11) stay before it; without the picker Send takes the free space itself. */
+form:has(+ [data-studio-voice-call="buttons"][data-voice-buttons="c"]) [data-studio-v4-composer-toolbar] > [data-studio-v4-send] { order: 99; }
+form:has(+ [data-studio-voice-call="buttons"][data-voice-buttons="c"]) [data-studio-v4-composer-toolbar]:not(:has(> .studio-chat-clean-model)) > [data-studio-v4-send] { margin-left: auto; }
 [data-voice-buttons="b"] [data-studio-voice-call="pill"] { height: 32px; padding: 0 14px 0 11px; font-size: 13px; }
 [data-studio-voice-call="pill"]:hover:not(:disabled) { background: color-mix(in srgb, var(--pill) 18%, transparent); }
 [data-studio-voice-call="pill"]:focus-visible { outline: 2px solid var(--pill); outline-offset: 2px; }

@@ -7,13 +7,14 @@
  */
 import { callMouth, CALL_MOUTH_REST, composeCompanionFace, parseCompanionFace, sceneExpression, type CallMouthMemory, type CompanionFace, type CompanionFaceLayer, type BirdMotionManifest as LayeredManifest } from '@/lib/studio/voice-v2'
 import type { BirdMotionManifest } from '@/lib/studio/voice/bird-motion'
-import { containPlan } from '@/lib/studio-voice-call-ui'
+import { framingPlan, type CompanionFraming } from '@/lib/studio-voice-call-ui'
 
 export interface LayeredPack { manifest: BirdMotionManifest; base: string; layered: Record<string, unknown> | null }
 export interface LayeredPaintInput {
   context: CanvasRenderingContext2D; canvas: HTMLCanvasElement
   frame: string; bitmap: CanvasImageSource & { width: number; height: number }
   rect: { sx: number; sy: number; sw: number; sh: number }
+  framing?: CompanionFraming
   scene: string; level: number; timeSec: number; reduced?: boolean
 }
 export interface LayeredPainterDeps {
@@ -55,8 +56,8 @@ export function createLayeredPainter(pack: LayeredPack, face: CompanionFace, dep
     if (!plan) return
     const body = plan.bodies[0]!
     const { context: ctx, canvas, rect, bitmap } = input
-    // The body's own plan (one scale k for x and y): the head anchor and every patch go through the same k, so the face stays on the head at any box.
-    const { k, ox, oy, src, dst } = containPlan(rect, pack.manifest.size, canvas.width, canvas.height)
+    // The body's own plan (one scale k for x and y; the disc covers, a video framing is contained): the head anchor and every patch go through the same k, so the face stays on the head at any box.
+    const { k, ox, oy, src, dst } = framingPlan(input.framing ?? 'chest', rect, pack.manifest.size, canvas.width, canvas.height)
     const b = bitmap.width / pack.manifest.size.width
     ctx.save()
     try {

@@ -198,7 +198,7 @@ export function VoiceCallStage({ snapshot, pack, choices, onChooseCompanion, get
         <div className="studio-voice-figure">
           {mode === 'video' ? (
             <div ref={ringRef} className="studio-voice-actor" data-ring={snapshot.scene}>
-              <CompanionPlayer pack={pack} scene={snapshot.scene} dance={snapshot.dance} framing={videoFraming} size={videoCharacterPx(height)} maxWidth={stageWidth > 0 ? stageWidth - 16 : undefined} reducedMotion={snapshot.reducedMotion} getLevel={getLevel} />
+              <CompanionPlayer pack={pack} scene={snapshot.scene} dance={snapshot.dance} framing={videoFraming} tight={phone} size={videoCharacterPx(height)} maxWidth={stageWidth > 0 ? stageWidth - 16 : undefined} reducedMotion={snapshot.reducedMotion} getLevel={getLevel} />
             </div>
           ) : (
             <div ref={ringRef} className="studio-voice-halo" data-ring={snapshot.scene}>
