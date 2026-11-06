@@ -76,6 +76,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-template-proof-order-strip.mjs')).TEMPLATE_PROOF_ORDER_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, #587 template-match proof order (tests only): the proof undoes later changes before its own put-back
   ...(await import('./studio-phone-shell-coverage-strip.mjs')).PHONE_SHELL_COVERAGE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B58 phone shell coverage: on a phone Help and the builder load-error screen draw the bottom tab bar (NEXT_PUBLIC_STUDIO_PHONE_SHELL_COVERAGE)
   ...(await import('./studio-ux-honesty-strip.mjs')).UX_HONESTY_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, UX honesty (no flag) + UX-09 page headings (NEXT_PUBLIC_STUDIO_PAGE_HEADINGS)
+  ...(await import('./studio-prepromo-strip.mjs')).PREPROMO_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, pre-promotion fixes C-07 / C-06 / UX-01 (no flag: security and honesty fixes apply everywhere; no .env.example block)
   // one line per later change, above this comment
 ])
 
@@ -179,6 +180,7 @@ export const LATER_STRIPS = [
   (await import('./studio-template-proof-order-strip.mjs')).stripTemplateProofOrder, // LATER-CHANGE: FRONTEND-2, #587 template-match proof order (tests only)
   (await import('./studio-phone-shell-coverage-strip.mjs')).stripPhoneShellCoverage, // LATER-CHANGE: FRONTEND-2, B58 phone shell coverage (NEXT_PUBLIC_STUDIO_PHONE_SHELL_COVERAGE)
   (await import('./studio-ux-honesty-strip.mjs')).stripUxHonesty, // LATER-CHANGE: FRONTEND-1, UX honesty (no flag) + UX-09 page headings (NEXT_PUBLIC_STUDIO_PAGE_HEADINGS)
+  (await import('./studio-prepromo-strip.mjs')).stripPrepromo, // LATER-CHANGE: FRONTEND-1, pre-promotion fixes C-07 / C-06 / UX-01 (no flag)
   // one line per later change, above this comment
 ]
 
