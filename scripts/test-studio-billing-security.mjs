@@ -96,7 +96,7 @@ if (process.argv.includes('--mutation-check')) {
   const isMerge = has('HEAD^2')
   let own = headLine, from = 'HEAD (this branch)'
   if (!headLine.some(isOwn) && isMerge && !isAncestor(P1_COMMIT, 'HEAD^1')) { own = line('HEAD^2'); from = 'HEAD^2 (gate merge: the PR is the second parent)' }
-  const merged = !own.some(isOwn) && isAncestor(P1_COMMIT, 'HEAD') && (!isMerge || isAncestor(P1_COMMIT, 'HEAD^1'))
+  const merged = !own.some(isOwn) && isAncestor(P1_COMMIT, 'HEAD') && (!isMerge || isAncestor(P1_COMMIT, 'HEAD^1') || isAncestor(P1_COMMIT, 'HEAD^2')) // LATER-CHANGES: registry read (BILLING-SECURITY, Option L chain): on a gate merge whose second parent is a chain tip stacked after this change, P1's commit is under that tip but this change's own commits sit on a second parent of the chain, not on the tip's first-parent line: the scope stands down, as after a merge into dev
   if (merged) console.log('NOTE own commits: this change is already in dev\'s first-parent history (merged, or the registry is past it); its commits are on a second parent, so the own-commit scope checks stand down; the registry checks below still run')
   else {
   console.log(`own commits read from ${from}`)
