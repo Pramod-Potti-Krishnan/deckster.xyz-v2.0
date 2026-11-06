@@ -536,10 +536,12 @@ await check('the strip gives each edited file its base back, byte for byte; a fi
     ok(!stripModelChoiceDeckSave(rel, read(rel)).includes('STUDIO_MODEL_CHOICE_DECK_SAVE'), rel)
   }
   eq(stripModelChoiceDeckSave('hooks/use-deckster-websocket-v2.ts', 'x'), 'x')
+  { const read = rel => git('show', `6f68e33ffe5e9d8e502ba95a4234ad044ee86399:${rel}`) // LATER-CHANGES: registry read (PROOFS-AFTER-MERGE), #542 robust after merge: E reads each taught proof at this change's own head 6f68e33f, a fixed input, so a later change's lines in it (#584's registry import and route-set lines in #521's proof) are that change's business
   for (const rel of stripModule.MODEL_CHOICE_DECK_SAVE_PIN_FILES) {
     eq(stripModelChoiceDeckSave(rel, laterStrips(rel, read(rel))), baseFile(rel), `${rel}: the taught proof without this change's line is the base's, byte for byte`) // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: the strips of the changes registered after this one come out first (their pins on this proof come back out)
     for (const [has] of stripModule.MODEL_CHOICE_DECK_SAVE_PIN_EDITS[rel]) { eq(read(rel).split(has).length, 2, `${rel}: the taught line is there once`); ok(has.includes(stripModule.MODEL_CHOICE_DECK_SAVE_PIN_MARK) && has.endsWith('\n'), 'and carries the mark') }
   }
+  } // LATER-CHANGES: registry read (PROOFS-AFTER-MERGE), #542 E: the end of the block above
   eq(registry.stripLaterChanges(SERVER, read(SERVER)), registry.stripLaterChanges(SERVER, baseFile(SERVER)), 'through the registry the file is the base')
   const readers = git('grep', '-l', 'STUDIO_MODEL_CHOICE_DECK_SAVE', '--', 'app', 'lib', 'hooks', 'components', 'types', 'middleware.ts', 'next.config.mjs').split('\n').filter(Boolean).sort()
   deep(readers, [...MODEL_CHOICE_DECK_SAVE_FILES].sort(), 'no other source file reads or names the flag')
@@ -671,6 +673,7 @@ async function scopeChecks(ref, title) {
       eq(stripModelChoiceDeckSave(rel, laterStrips(rel, at(rel))), baseFile(rel), `${rel}: without its marked lines the file is the base's, byte for byte`) // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: the strips of the changes registered after this one come out first
     }
     for (const rel of MODEL_CHOICE_DECK_SAVE_NEW_FILES) eq(git('cat-file', '-t', `${ref}:${rel}`).trim(), 'blob', rel)
+    { const ref = '6f68e33ffe5e9d8e502ba95a4234ad044ee86399', at = rel => git('show', `${ref}:${rel}`) // LATER-CHANGES: registry read (PROOFS-AFTER-MERGE), #542 robust after merge: F reads each taught proof at this change's own head 6f68e33f (on HEAD and on the gate's merge alike), a fixed input, so a later change's lines in it (#584's registry import and route-set lines in #521's proof) are that change's business
     for (const rel of stripModule.MODEL_CHOICE_DECK_SAVE_PIN_FILES) {
       const diff = strippedDiff(rel, ref).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line)), edits = stripModule.MODEL_CHOICE_DECK_SAVE_PIN_EDITS[rel] // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: the diff of the file as this change left it (the later changes' marked lines out)
       const lines = text => text.split('\n').length - 1
@@ -678,6 +681,7 @@ async function scopeChecks(ref, title) {
       for (const line of diff.filter(line => line.startsWith('+'))) ok(line.includes(stripModule.MODEL_CHOICE_DECK_SAVE_PIN_MARK), `${rel}: every line added carries the mark`)
       eq(stripModelChoiceDeckSave(rel, laterStrips(rel, at(rel))), baseFile(rel), `${rel}: the taught proof is the base's without the lines`) // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: the strips of the changes registered after this one come out first
     }
+    } // LATER-CHANGES: registry read (PROOFS-AFTER-MERGE), #542 F: the end of the block above
   })
   await check(`${title}: .env.example is the base plus the block (after one blank line); the registry gains exactly its three marked lines and loses none; no secret-shaped literal in the new files`, () => {
     eq(registry.stripLaterEnvBlocks(ENV, at(ENV)), registry.stripLaterEnvBlocks(ENV, `${baseFile(ENV)}\n${MODEL_CHOICE_DECK_SAVE_ENV_BLOCK}`))
