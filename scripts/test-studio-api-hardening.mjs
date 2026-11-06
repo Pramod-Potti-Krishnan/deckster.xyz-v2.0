@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
-import { stripLaterEnvBlocks } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (API-HARDENING, restack onto 1bb42d7f): the later changes' .env.example blocks
+import { LATER_CHANGE_FILES, stripLaterEnvBlocks } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (API-HARDENING, restack onto 1bb42d7f): the later changes' .env.example blocks
+import { PREPROMO_BASE, PREPROMO_DELETED } from './studio-prepromo-strip.mjs' // LATER-CHANGES: registry read (API-HARDENING, restack onto 21b5fc08): #571 deletes the mock-token route (C-07), so this pin reads the route's base text from git at PREPROMO_BASE
 
 // Studio API hardening v1 (security audit items 2, 5, 6, 7, 9, 10; item 4, the mock-token deletion, lives in #571). Pure decisions are executed from
 // lib/api-hardening-core.ts; the route wiring is pinned by reading the route sources. No network, no database.
@@ -176,7 +177,9 @@ function registryFailures(text) {
 }
 
 const owned = [...Object.keys(strip.API_HARDENING_EDITS), '.env.example', 'app/api/dev/mock-token/route.ts', 'app/api/admin/coupons/route.ts', 'app/api/admin/coupons/[id]/route.ts', 'app/api/admin/cleanup-sessions/route.ts']
-const files = Object.fromEntries(owned.map(rel => [rel, read(rel)]))
+const MOCK = 'app/api/dev/mock-token/route.ts'
+const mockDeletedLater = PREPROMO_DELETED.includes(MOCK) && LATER_CHANGE_FILES.has(MOCK) && !exists(MOCK) // LATER-CHANGES: registry read (API-HARDENING, restack onto 21b5fc08): a registered later change deletes the route; every assertion about it below is unchanged and reads its base text
+const files = Object.fromEntries(owned.map(rel => [rel, rel === MOCK && mockDeletedLater ? git('show', `${PREPROMO_BASE}:${MOCK}`) : read(rel)])) // LATER-CHANGES: registry read (API-HARDENING, restack onto 21b5fc08): mock-token from PREPROMO_BASE when a registered later change deletes it
 same(stripFailures(files), [], 'strip contract')
 same(registryFailures(read('scripts/studio-later-changes.mjs')), [], 'registry lines')
 assert.ok(registry.LATER_CHANGE_FILES.has('app/api/admin/coupons/route.ts'))
@@ -188,10 +191,10 @@ for (const rel of Object.keys(strip.API_HARDENING_EDITS)) assert.ok(strip.API_HA
 const own = git('log', '--no-merges', '--format=%H %s', `${BASE}..HEAD`).split('\n').filter(Boolean).filter(line => line.slice(41).includes(strip.API_HARDENING_SUBJECT))
 assert.ok(own.length >= 1, 'at least one own commit')
 const ownFiles = new Set(own.flatMap(line => git('show', '--name-only', '--format=', line.slice(0, 40)).split('\n').filter(Boolean)))
-for (const rel of ownFiles) assert.ok(strip.API_HARDENING_SCOPE_FILES.has(rel) || git('diff', '--name-only', `${BASE}..HEAD`, '--', rel).trim() === '', `own commit touches ${rel}, outside scope, and leaves it changed`) // a file put back to the base (mock-token, the D1 proof) nets to nothing
+for (const rel of ownFiles) assert.ok(strip.API_HARDENING_SCOPE_FILES.has(rel) || git('diff', '--name-only', `${BASE}..HEAD`, '--', rel).trim() === (rel === MOCK && mockDeletedLater ? MOCK : ''), `own commit touches ${rel}, outside scope, and leaves it changed`) // a file put back to the base (mock-token, the D1 proof) nets to nothing; LATER-CHANGES: registry read (API-HARDENING, restack onto 21b5fc08): mock-token nets to exactly the registered later change's deletion
 const changed = git('diff', '--name-only', `${BASE}..HEAD`).split('\n').filter(Boolean).filter(rel => strip.API_HARDENING_SCOPE_FILES.has(rel))
 for (const rel of changed) assert.ok(ownFiles.has(rel), `${rel} changed but not by an own commit`)
-assert.equal(git('diff', '--name-only', `${BASE}..HEAD`, '--', 'app/api/dev/mock-token/route.ts').trim(), '', 'mock-token untouched in the committed tree')
+assert.equal(git('diff', '--name-only', `${BASE}..HEAD`, '--', 'app/api/dev/mock-token/route.ts').trim(), mockDeletedLater ? MOCK : '', 'mock-token untouched in the committed tree') // LATER-CHANGES: registry read (API-HARDENING, restack onto 21b5fc08): untouched, or exactly the registered later change's deletion
 
 // mutants: each must be caught.
 const mutants = {
