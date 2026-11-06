@@ -3,6 +3,7 @@ import type { NextRequestWithAuth } from "next-auth/middleware"
 import { NextResponse } from "next/server"
 import type { NextFetchEvent } from "next/server"
 import { studioP2AdminOn } from "@/lib/studio-p2-admin"
+import { isAdminEmail } from "@/lib/api-hardening-core"
 
 const couponAuthEnabled = process.env.COUPON_AUTH_ENABLED === "true"
 
@@ -44,7 +45,12 @@ const guarded = withAuth(
 const adminGuarded = withAuth(
   function adminMiddleware(req) {
     const email = (req as any).nextauth.token?.email
-    if (!email || email !== process.env.DEV_BYPASS_EMAIL) {
+    // STUDIO_API_HARDENING_V1_ENABLED: on, ADMIN_EMAILS only; off, DEV_BYPASS_EMAIL as before.
+    if (!isAdminEmail(email, {
+      STUDIO_API_HARDENING_V1_ENABLED: process.env.STUDIO_API_HARDENING_V1_ENABLED,
+      DEV_BYPASS_EMAIL: process.env.DEV_BYPASS_EMAIL,
+      ADMIN_EMAILS: process.env.ADMIN_EMAILS,
+    })) {
       return NextResponse.redirect(new URL("/builder", req.url))
     }
     return NextResponse.next()

@@ -30,6 +30,7 @@ import { execFileSync } from 'node:child_process'
 import ts from 'typescript'
 import postcss from 'postcss'
 import { stripLaterChanges } from './studio-later-changes.mjs' // FRONTEND-2's registry: a later registered change's lines (D1 in the cleanup-sessions route) come out before the byte pin
+import { stripApiHardening } from './studio-api-hardening-strip.mjs' // LATER-CHANGE: PROGRAM-1 API hardening (STUDIO_API_HARDENING_V1_ENABLED): its route lines come out before this pin reads them
 
 // the time zone of the admin's browser in every date check below (the machine's own would make the expiry and the "Expires" words depend on where this runs)
 process.env.TZ = 'America/New_York'
@@ -37,7 +38,7 @@ const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const requireFromRepo = createRequire(path.join(repoRoot, 'package.json'))
 const { format: dateFnsFormat } = requireFromRepo('date-fns')
 const BASE_COMMIT = process.env.P2_ADMIN_BASE || 'fae962006b080e26eb70c2add7066ca1edf8eca2'
-const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
+const read = rel => stripApiHardening(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))
 const baseCache = new Map()
 const baseSource = rel => {
   if (!baseCache.has(rel)) {
@@ -1658,7 +1659,7 @@ function proveIdentity(label = 'identity') {
   // what the admin pages call or are guarded by that this change does not touch: the old pages, the approval and clean-up routes, the redeem route, the session options, the root layout. (The three list / coupon
   // routes and the middleware ARE changed, behind the flag: their flag-off identity is proved by running them against the base commit's, in proveRoutes and proveMiddleware.)
   for (const rel of [PAGE_USERS, PAGE_COUPONS, ROUTE_APPROVE, 'app/api/admin/cleanup-sessions/route.ts', 'app/api/coupons/redeem/route.ts', 'lib/auth-options.ts', 'app/layout.tsx']) {
-    eq(rel === 'app/api/admin/cleanup-sessions/route.ts' || rel === 'lib/auth-options.ts' ? stripLaterChanges(rel, read(rel)) : read(rel), baseSource(rel), `${label}: ${rel} is the base commit's file, byte for byte`) // LATER-CHANGES: registry read (TIER-GUARD)
+    eq(stripLaterChanges(rel, read(rel)), baseSource(rel), `${label}: ${rel} is the base commit's file, byte for byte`) // LATER-CHANGES: registry read (BILLING-SECURITY + TIER-GUARD, unioned on the restack onto 1bb42d7f): every registered later change's lines come out (D1 and TIER-GUARD in cleanup-sessions and lib/auth-options.ts, billing security in the redeem route)
   }
   deepEq(fs.readdirSync(path.join(repoRoot, 'app/admin/users')).sort(), ['layout.tsx', 'page.tsx'], `${label}: app/admin/users holds the page and the layout`)
   deepEq(fs.readdirSync(path.join(repoRoot, 'app/admin/coupons')).sort(), ['layout.tsx', 'page.tsx'], `${label}: app/admin/coupons holds the page and the layout`)

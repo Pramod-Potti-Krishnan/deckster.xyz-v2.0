@@ -6,6 +6,7 @@ import { authOptions } from '@/lib/auth-options'
 import { isKgEntitled } from '@/lib/kg-entitlement'
 import { prisma } from '@/lib/prisma'
 import { getUserSubscription } from '@/lib/stripe/stripe-utils'
+import { requireApprovedUser } from '@/lib/api-hardening'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -23,6 +24,9 @@ function base64UrlJson(value: Record<string, unknown>): string {
  * id and a live KG entitlement snapshot for Director to verify.
  */
 export async function GET(request: NextRequest) {
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): approved users only, read from the DB. Off, this returns null and nothing changes.
+  const notApproved = await requireApprovedUser()
+  if (notApproved) return notApproved
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
