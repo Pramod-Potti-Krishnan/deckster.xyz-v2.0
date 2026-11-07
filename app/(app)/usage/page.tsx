@@ -6,6 +6,7 @@ import { useEffect, useState } from "react"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { formatCredits, isStudioQuotaScreensOn, isStudioUsagePageOn, refusalCopy, usageView, utcMonthPeriod, type UsageView } from "@/lib/studio-billing-usage"
+import { StudioUsageCredits } from "@/components/studio-usage-credits" // USAGE-CREDITS
 
 export default function UsagePage() {
   if (!isStudioUsagePageOn()) notFound()
@@ -58,6 +59,7 @@ function UsageBody() {
       ) : isStudioQuotaScreensOn() && view.state === "low" ? (
         <p className="mt-4 text-sm">You're running low on plan credits. <Link href="/billing#top-up" className="underline">Top up</Link> or <Link href="/billing" className="underline">upgrade</Link>.</p>
       ) : null}
+      <StudioUsageCredits className="mt-6" />{/* USAGE-CREDITS */}
     </main>
   )
 }

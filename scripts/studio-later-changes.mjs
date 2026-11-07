@@ -88,6 +88,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-usage-credits-strip.mjs')).USAGE_CREDITS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B62 usage credits: Studio's server read of the Model Router's usage read API and a credits view for the Usage page (NEXT_PUBLIC_STUDIO_USAGE_CREDITS)
   ...(await import('./studio-chat-caps-strip.mjs')).CHAT_CAPS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B61 chat caps: C-D1's Studio reader, Director's sync chat_capabilities read into a read-only snapshot (NEXT_PUBLIC_STUDIO_CHAT_CAPS_META)
   ...(await import('./studio-chain-test-fix-strip.mjs')).CHAIN_TEST_FIX_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, Option L chain test fix (tests only)
+  ...(await import('./studio-usage-credits-page-strip.mjs')).USAGE_CREDITS_PAGE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B63 usage credits page: the credits view on FRONTEND-1's Usage page, two marked lines (no flag of its own: NEXT_PUBLIC_STUDIO_USAGE_CREDITS is B62's; no .env.example block)
   ...(await import('./studio-voice-core-strip.mjs')).VOICE_CORE_SCOPE_FILES, // LATER-CHANGE: ELEMENT-3, pure Director voice core (NEXT_PUBLIC_STUDIO_VOICE_CALL)
   // one line per later change, above this comment
 ])
@@ -215,6 +216,7 @@ export const LATER_STRIPS = [
   (await import('./studio-usage-credits-strip.mjs')).stripUsageCredits, // LATER-CHANGE: FRONTEND-2, B62 usage credits (NEXT_PUBLIC_STUDIO_USAGE_CREDITS)
   (await import('./studio-chat-caps-strip.mjs')).stripChatCaps, // LATER-CHANGE: FRONTEND-2, B61 chat caps (NEXT_PUBLIC_STUDIO_CHAT_CAPS_META)
   (await import('./studio-chain-test-fix-strip.mjs')).stripChainTestFix, // LATER-CHANGE: FRONTEND-1, Option L chain test fix (tests only)
+  (await import('./studio-usage-credits-page-strip.mjs')).stripUsageCreditsPage, // LATER-CHANGE: FRONTEND-2, B63 usage credits page (NEXT_PUBLIC_STUDIO_USAGE_CREDITS is B62's; no flag of its own)
   (await import('./studio-voice-core-strip.mjs')).stripVoiceCore, // LATER-CHANGE: ELEMENT-3, voice port compatibility pin
   // one line per later change, above this comment
 ]
