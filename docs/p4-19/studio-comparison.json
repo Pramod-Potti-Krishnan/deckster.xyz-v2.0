@@ -3895,5 +3895,60 @@
     ],
     "suitesTypesBuilds": "not rerun; OPS-2 seat2 gate owns them",
     "dependencyRuling": "PROGRAM-1 approved option a: retain Vitest5.0.3; OPS-2 one online install on seat2"
+  },
+  "mayaV2Followup": {
+    "base": "dcb9c9007423a4004d6ae98eb12c481997263fc4",
+    "branch": "element3/p4-19-maya-v2-core",
+    "sourceCommit": "b3a812e",
+    "sourceFaceSha256": "7ac34352e22e50f4973568b1d09d6f2a560f5d307b66c0f3ef0544f8648aa99e",
+    "sourceFaceIdentity": "byte-identical",
+    "voiceFixtures": {
+      "files": 13,
+      "passed": 286,
+      "retained": 225,
+      "new": 61
+    },
+    "strictClientCoreTypes": "passed",
+    "strictPinnedCompositorAndSamplerConsumerTypes": "passed",
+    "deliveredManifestValidation": [
+      {
+        "variant": "motion",
+        "bodyFrames": 77,
+        "angles": [
+          "front",
+          "left",
+          "right"
+        ],
+        "clips": 61,
+        "states": 23,
+        "totalBytes": 4791288
+      },
+      {
+        "variant": "face",
+        "bodyFrames": 77,
+        "angles": [
+          "front",
+          "left",
+          "right"
+        ],
+        "clips": 61,
+        "states": 23,
+        "totalBytes": 4999106
+      }
+    ],
+    "fullStudioSuites": "not rerun for this follow-up",
+    "noRuntimeChanges": "no app/components/hooks/public/styles/types/dependency/flag/transport edits",
+    "limits": [
+      "JSON validation only; no image decode",
+      "no actual rendering, audio sync or physical-device acceptance",
+      "no connected providers, paid calls or real audio"
+    ],
+    "fixtureTypeCorrection": {
+      "source": "FRONTEND-1 #573 fixture type annotation",
+      "runtimeChanges": false,
+      "strictCoreAndNewFixtureTypes": "passed using existing local Vitest type declarations",
+      "focusedFaceFixturesPassed": 19,
+      "prior286FixtureEvidence": "retained; only fixture annotations changed"
+    }
   }
 }
