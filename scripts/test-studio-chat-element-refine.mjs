@@ -1,3 +1,4 @@
+import { voiceCoreProofDiffLines } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): normalize only this port's exact proof metadata
 // FRONTEND-2 Pass 3: refine an element from chat, Studio half (NEXT_PUBLIC_CHAT_ELEMENT_REFINE, exact "true", default off).
 //
 //   node scripts/test-studio-chat-element-refine.mjs                 # everything, offline (recorded Director frames + recorded Layout replies)
@@ -699,8 +700,8 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
     'scripts/test-studio-duplicate-deck.mjs', 'scripts/test-studio-deck-mutation-dedupe.mjs', 'scripts/studio-library-manage-harness.mjs']
   for (const rel of READS_THROUGH_STRIP) {
     if (rel === 'scripts/studio-library-manage-harness.mjs') { const v = stackFileTolerant(git('show', `${STACK[475].head}:${rel}`), read(rel)); assert.ok(v.ok, `${rel}: ${v.reason}`); if (!v.exact) continue } // stacked after #475: a later PR's lines in the harness are taken, the stack's (#475's head) kept in order (scripts/studio-stack-tolerant.mjs); as the stack left it, it is checked below as before
-    const removed = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n').filter(line => line.startsWith('-') && !line.startsWith('---'))
-    const added = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n').filter(line => line.startsWith('+') && !line.startsWith('+++'))
+    const removed = voiceCoreProofDiffLines(rel, git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n')).filter(line => line.startsWith('-') && !line.startsWith('---'))
+    const added = voiceCoreProofDiffLines(rel, git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n')).filter(line => line.startsWith('+') && !line.startsWith('+++'))
     added.splice(0, added.length, ...added.filter(line => !/^\+import \{ strip(PublishReviewFit|VersionHistoryDeckOnly|ComposeEntitlement) \} from '\.\/studio-(publish-review-fit|version-history-deck-only|compose-entitlement)-strip\.mjs'/.test(line))) // stacked after #475: the E2E-2 stack (#492 publish review fit, #493 version history deck only, #494 compose entitlement) adds one strip import each to the roots
     added.splice(0, added.length, ...added.filter(line => !/^\+import \{ strip(PublishPreviewInventory|PaymentsOpenSoon) \} from '\.\/studio-(publish-preview-inventory|payments-open-soon)-strip\.mjs'/.test(line))) // #475 stacked: the strip roots' two later import lines (#495's publish preview inventory and payments open soon) are those changes', not this change's
     added.splice(0, added.length, ...added.filter(line => !/^\+import \{ stripBulkEditUndo \} from '\.\/studio-bulk-edit-undo-strip\.mjs'|LATER-CHANGES: registry read \(CHAT-ADD-STACKING\)/.test(line))) // stacked after #475: the bulk edit + chat undo change (NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO) chains its strip into this root with one import line; that line is a later PR's, not this change's // LATER-CHANGES: registry read (CHAT-ADD-STACKING): this root's filter also takes the chat add stacking's one import and one call in the pins that read the generation hook (B48; stacked after #475)

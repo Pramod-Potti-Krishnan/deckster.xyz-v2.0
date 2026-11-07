@@ -24,6 +24,7 @@ import { addTemplateMatchCap, templateMatchBaseCaps } from '@/lib/studio-templat
 import { templateMatchFrameReceived, templateMatchSocketOpened } from '@/hooks/use-studio-template-match'; // STUDIO-TEMPLATE-MATCH
 import { STUDIO_FLOW_AMEND_ENABLED, STUDIO_FLOW_FOCUS_ENABLED, flowBus, isFlowFocusFrameType, isFlowSettledPhase, takeFlowInstructions } from '@/lib/studio-flow-control'; // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_FOCUS / _FLOW_AMEND, default off)
 import { STUDIO_CHAT_CAPS_META_ENABLED, chatCapsSyncReceived } from '@/lib/studio-chat-caps'; // CHAT-CAPS-META (NEXT_PUBLIC_STUDIO_CHAT_CAPS_META, default off): Director's sync_response chat_capabilities, read into a read-only snapshot
+import { STUDIO_VOICE_CALL_UI_ENABLED, addVoiceCallFields, isVoiceCallFrameType, voiceCallBus } from '@/lib/studio-voice-call-ui'; // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL, default off)
 import type { ManualDeckContext } from '@/lib/manual-deck-workflow';
 import type { DeckFooterConfig, DeckIdentity } from '@/lib/deck-identity';
 import {
@@ -1986,6 +1987,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_AMEND, default off): every build_phase is shown to the flow hook first (steer_pending, applied_to, settled). `settled` is a phase the narration does not know (it would read
             // FLOW-CONTROL: as "running"), so that frame goes no further. Every other build_phase carries on exactly as before.
             if (STUDIO_FLOW_AMEND_ENABLED && parsedMessage.type === 'build_phase') { if (parsedMessage.session_id === socketSessionId && isCurrentSocket()) flowBus.phase?.(parsedMessage.payload); if (isFlowSettledPhase(parsedMessage.payload)) return; } // FLOW-CONTROL
+            // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL, default off): the call is shown the frames that say what Director is doing (status_update, build_phase, build_event, slide_progress, chat_message, slide_built, slide_failed, action_request), for this socket's session only. The frame carries on exactly as before.
+            if (STUDIO_VOICE_CALL_UI_ENABLED && isVoiceCallFrameType(parsedMessage.type) && parsedMessage.session_id === socketSessionId && isCurrentSocket()) voiceCallBus.frame?.(parsedMessage); // VOICE-CALL
             // BULK-EDIT-UNDO (NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO, default off): Director's chat lines (the Undo chip's anchor), the bulk-edit confirm (its chip titles) and its receipts and summary,
             // BULK-EDIT-UNDO: change_recorded and undo_result go to this tab's store (lib/studio-bulk-edit-store.ts), here, ahead of the allowlist. The frames it takes (receipts, summary, change_recorded, undo_result) stop
             // BULK-EDIT-UNDO: here: they never reach the reducer, the transcript or the cache, and they do not unlock the turn. Director sends them only to a client that advertised bulk_edit1 / undo1 (the caps below, flag on only),
@@ -3459,6 +3462,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       if (BULK_EDIT_UNDO_CLIENT_CAPS.length > 0) addBulkEditUndoCaps(message.data as unknown as Record<string, unknown>); // BULK-EDIT-UNDO: bulk_edit1 / undo1 in client_caps, each with its own flag. Off: nothing.
       if (STUDIO_CHAT_COMMANDS_ENABLED) addChatCommandsFields(message.data as unknown as Record<string, unknown>, text); // CHAT-COMMANDS: mentions2 / commands1 in client_caps, the picked file / template / theme references whose token is still in the text, and the command hint. Off: nothing.
       if (CHAT_PARITY_CAPS.length > 0) addChatParityCaps(message.data as unknown as Record<string, unknown>); // CHAT-PARITY: themes1 / identity1 / templates1, after #522's element_edit1 / notes1, the bulk-edit caps and #532's mentions2 / commands1: the last caps line in client_caps, each with its own flag. Off: nothing.
+      if (typeof STUDIO_VOICE_CALL_UI_ENABLED !== 'undefined' && STUDIO_VOICE_CALL_UI_ENABLED) addVoiceCallFields(message.data as unknown as Record<string, unknown>, text); // VOICE-CALL: only the one armed voice turn (its exact words) gets data.mode "voice" and the cap voice1, after every other cap. Off, or any other message: nothing. (The typeof lets the older proofs that run buildUserMessage in a bare sandbox read this line without naming the flag there.)
       return message;
     };
 
@@ -3479,6 +3483,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}, use_knowledge_graph=${message.data.use_knowledge_graph ?? false}, theme=${message.data.theme?.mode ?? 'none'}, template_overrides=${message.data.element_overrides ? Object.keys(message.data.element_overrides).length : 0}, action=${message.data.action_value ?? 'none'}, manual_deck=${message.data.manual_deck?.policy ?? 'none'}, identity=${message.data.deck_identity ? 'yes' : 'no'}, handoff=${message.data.handoff_idempotency_key ? 'yes' : 'no'}]`
       );
       wsRef.current.send(JSON.stringify(message));
+      if (STUDIO_VOICE_CALL_UI_ENABLED && (message.data as unknown as Record<string, unknown>).mode === 'voice') voiceCallBus.sent?.(text); // VOICE-CALL: Director has the voice turn
       if (STUDIO_CHAT_COMMANDS_ENABLED) chatCommandsSent(text); // CHAT-COMMANDS: the picks and the command this message used are spent. Off: nothing.
       const turnSequence = ++sentTurnSequenceRef.current;
       const key = message.data.handoff_idempotency_key;
