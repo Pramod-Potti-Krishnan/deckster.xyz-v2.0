@@ -2018,7 +2018,11 @@ const mutants = [
 const survivors = [], crashes = [], stale = []
 let mutantCount = 0
 const before = checks
-for (const mutant of mutants) {
+const SHARD = /^([1-9]\d*)\/([1-9]\d*)$/.exec(process.env.VOICE_TEST_MUTANT_SHARD || '1/4') || (process.env.VOICE_TEST_MUTANT_SHARD === 'all' ? [null, '1', '1'] : null) // SHARDS (carrier 2): 326 mutants re-run sections A-D each (~2 s), about 12.7 min in one process, over the 600 s gate limit; this script runs shard 1/4, test-studio-voice-call-mutants-2.mjs, -3.mjs and -4.mjs run 2/4, 3/4 and 4/4 (all four together = every mutant, as before); VOICE_TEST_MUTANT_SHARD=all runs them all here
+if (!SHARD || +SHARD[1] > +SHARD[2]) throw new Error(`VOICE_TEST_MUTANT_SHARD must be k/n (k <= n) or all, got ${process.env.VOICE_TEST_MUTANT_SHARD}`)
+const inShard = index => index % +SHARD[2] === +SHARD[1] - 1
+for (const [index, mutant] of mutants.entries()) {
+  if (!inShard(index)) continue
   const [rel, name, from, to] = mutant
   mutantCount++
   const text = SOURCES[rel]
@@ -2065,7 +2069,7 @@ checks = before + 0
 console.log(`stale mutants: ${stale.join('; ') || 'none'}; survivors: ${survivors.join('; ') || 'none'}`)
 eq(stale, [], 'every mutant still matches its source')
 eq(survivors, [], `every mutant is caught (survivors: ${survivors.join('; ') || 'none'})`)
-console.log(`PASS E  ${mutantCount} mutants (${stripMutants} of the strip), every one caught${crashes.length ? ` (${crashes.length} by a thrown error)` : ''}`)
+console.log(`PASS E  shard ${SHARD[1]}/${SHARD[2]} of ${mutants.length}: ${mutantCount} mutants (${stripMutants} of the strip), every one caught${crashes.length ? ` (${crashes.length} by a thrown error)` : ''}`)
 if (process.env.VOICE_TEST_VERBOSE) for (const crash of crashes) console.log(`  threw: ${crash}`)
 release()
 console.log(`OK studio voice call: ${checks} checks`)
