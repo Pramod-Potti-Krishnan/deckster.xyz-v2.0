@@ -137,6 +137,10 @@ export interface ElementDirectiveResult {
 
 // ---- K7: capabilities on sync_response ---------------------------------------
 
+export interface MdcChatCapabilityMeta { confirm: boolean; client_directive: boolean } // CHAT-CAPS-META (NEXT_PUBLIC_STUDIO_CHAT_CAPS_META): one C-D1 entry, two literal booleans; read only through lib/studio-chat-caps.ts
 export interface MdcSyncExtras {
   chat_capabilities?: Record<string, boolean>
+    | Record<string, MdcChatCapabilityMeta> // CHAT-CAPS-META: Director's C-D1 shape (DIRECTOR_CHAT_CAPS_META_ENABLED): the same advertised keys, {confirm, client_directive} each
+  chat_capability_meta?: Record<string, MdcChatCapabilityMeta> // CHAT-CAPS-META: the C2/C4 sibling for older readers; a legacy true's hint
+  chat_operation_meta?: Record<string, MdcChatCapabilityMeta> // CHAT-CAPS-META: per-operation hints ("templates.delete_template"); a mixed group's false is no permission to skip a card
 }

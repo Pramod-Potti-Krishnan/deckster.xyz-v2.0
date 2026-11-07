@@ -2,6 +2,7 @@ import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
+import { REFINE_BODY_KEYS, isApiHardeningEnabled, pickAllowedKeys, requireApprovedUser, requireSessionOwner } from '@/lib/api-hardening'
 
 export const maxDuration = 300
 
@@ -19,6 +20,9 @@ function directorBaseUrl(): string {
 }
 
 export async function POST(req: NextRequest) {
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): approved users only, read from the DB. Off, this returns null and nothing changes.
+  const notApproved = await requireApprovedUser()
+  if (notApproved) return notApproved
   if (process.env.NEXT_PUBLIC_SLIDE_REFINER_ENABLED !== 'true') {
     return NextResponse.json(
       { error: 'Slide Refiner is disabled' },
@@ -40,8 +44,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): the session (and presentation) must be the caller's own. Off, null.
+  const notOwner = await requireSessionOwner(sessionUser?.id, body.session_id, body.presentation_id)
+  if (notOwner) return notOwner
+
   const payload = {
-    ...body,
+    // Hardening on: only the keys the Studio sends are forwarded.
+    ...(isApiHardeningEnabled() ? pickAllowedKeys(body, REFINE_BODY_KEYS) : body),
     user_id: userId,
   }
 

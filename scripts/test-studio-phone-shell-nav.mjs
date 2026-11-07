@@ -476,7 +476,7 @@ function proveScope(at = '') {
   const a = message => (at ? `${at}: scope: ${message}` : `scope: ${message}`)
   ok([...PHONE_SHELL_NAV_SCOPE_FILES].every(rel => fs.existsSync(path.join(root, rel))), a('every file listed exists'))
   eq(PHONE_SHELL_NAV_SCOPE_FILES.size, PHONE_SHELL_NAV_FILES.length + PHONE_SHELL_NAV_NEW_FILES.length + PHONE_SHELL_NAV_OWN_EDITS.length, a('the lists do not overlap'))
-  const family = ['lib', 'components/layout', 'scripts'].flatMap(dir => fs.readdirSync(path.join(root, dir)).filter(name => /phone-shell|phone-tab/.test(name) && !/builder-top/.test(name)).map(name => `${dir}/${name}`))
+  const family = ['lib', 'components/layout', 'scripts'].flatMap(dir => fs.readdirSync(path.join(root, dir)).filter(name => /phone-shell|phone-tab/.test(name) && !/builder-top|phone-shell-coverage/.test(name)).map(name => `${dir}/${name}`)) // LATER-CHANGES: registry read (PHONE-SHELL-COVERAGE): the coverage change's own files (it has its own proof and list) are not this family
   deep(family.filter(rel => !PHONE_SHELL_NAV_SCOPE_FILES.has(rel)), [], a('no file of this change\'s family is missing from its list'))
   for (const rel of PHONE_SHELL_NAV_SCOPE_FILES) nomatch(rel, /^components\/layout\/(studio-rail|app-header)\.tsx$|^components\/user-profile-menu|test-studio-p2-|launch-wording|env-append-tolerant|^app\/\(app\)\/settings|^components\/settings|publish|^app\/admin|docs/, a(`${rel}: not the rail, the account header, the account menu or a FRONTEND-1 file`))
   const committed = ownCommitted()

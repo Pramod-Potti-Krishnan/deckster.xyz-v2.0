@@ -2,6 +2,7 @@ import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
+import { requireApprovedUser } from '@/lib/api-hardening'
 
 /**
  * Template Builder proxy → Director CRUD (TEMPLATE_PLAN.md §5 C2).
@@ -47,6 +48,9 @@ export async function GET() {
 
 // POST /api/templates → save the agreed deck as a template ({name, source_session_id})
 export async function POST(req: NextRequest) {
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): approved users only, read from the DB. Off, this returns null and nothing changes.
+  const notApproved = await requireApprovedUser()
+  if (notApproved) return notApproved
   const userId = await resolveUserId();
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

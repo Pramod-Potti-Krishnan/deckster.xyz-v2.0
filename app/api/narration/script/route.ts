@@ -28,6 +28,7 @@ import { resolveBudget, COMPRESSED_RATIO } from '@/lib/narration/budget';
 import { allocate, allocatedSeconds } from '@/lib/narration/allocate';
 import { draftSlideScript, DraftError } from '@/lib/narration/draft';
 import { narrationCallContext } from '@/lib/narration/model-router';
+import { requireApprovedUser } from '@/lib/api-hardening'
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -69,6 +70,9 @@ function slideText(slide: Record<string, any>): string {
 }
 
 export async function POST(request: NextRequest) {
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): approved users only, read from the DB. Off, this returns null and nothing changes.
+  const notApproved = await requireApprovedUser()
+  if (notApproved) return notApproved
   try {
     const auth = await getServerSession(authOptions);
     if (!auth?.user?.email) {

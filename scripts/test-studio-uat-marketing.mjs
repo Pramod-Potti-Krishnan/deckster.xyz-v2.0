@@ -1,3 +1,4 @@
+import { stripVoiceCore } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): remove only this later port's exact test metadata
 // UAT MARKETING PORT (flag NEXT_PUBLIC_STUDIO_UAT_MARKETING, default off): the seven Landing pages take the UAT design from a parallel tree; off, nothing of it renders.
 //
 // Run: node scripts/test-studio-uat-marketing.mjs   (plain node: transpile + vm, no network, no browser, no env; needs the two pinned commits in the clone: git fetch the full history)
@@ -23,6 +24,7 @@ import vm from 'node:vm'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
+import { stripApiHardening } from './studio-api-hardening-strip.mjs' // LATER-CHANGE: PROGRAM-1 API hardening (STUDIO_API_HARDENING_V1_ENABLED): its lines come out before this pin reads them
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const require = createRequire(import.meta.url)
@@ -46,7 +48,7 @@ const sha = value => crypto.createHash('sha1').update(value).digest('hex')
 function collect(fn) { const was = failures; failures = []; try { fn() } catch (error) { failures.push(`threw: ${error.message}`) } const found = failures; failures = was; return found }
 
 const rel = p => p.split('/').join(path.sep)
-const readFile = file => fs.readFileSync(path.join(repoRoot, rel(file)), 'utf8')
+const readFile = file => stripApiHardening(rel(file), stripVoiceCore(file, fs.readFileSync(path.join(repoRoot, rel(file)), 'utf8'))) // LATER-CHANGE: PROGRAM-1 API hardening reads through its strip
 const SOURCE_FILES = [
   'lib/studio-uat-marketing.ts', 'lib/marketing/v3-uat-view.ts', 'lib/marketing/v3-uat-content.ts', 'lib/marketing/v3-metadata.ts', 'hooks/use-v3-deck-uat.ts', 'styles/marketing-v3-uat.css',
   'components/marketing/v3-uat/flag.ts', 'components/marketing/v3-uat/shell.tsx', 'components/marketing/v3-uat/pages/metadata.ts',
