@@ -2,6 +2,7 @@ import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
+import { requireApprovedUser } from '@/lib/api-hardening'
 
 function directorBaseUrl(): string {
   return requireServiceUrl('Director', [{ name: 'DIRECTOR_API_URL', value: process.env.DIRECTOR_API_URL }])
@@ -33,6 +34,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): approved users only, read from the DB. Off, this returns null and nothing changes.
+  const notApproved = await requireApprovedUser()
+  if (notApproved) return notApproved
   const userId = await resolveUserId()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   let payload: unknown

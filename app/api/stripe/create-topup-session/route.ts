@@ -3,14 +3,10 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth-options"
 import { getStripe } from "@/lib/stripe/stripe"
 import { getOrCreateStripeCustomer } from "@/lib/stripe/stripe-utils"
+import { TOPUP_PACKS } from "@/lib/marketing/homepage-v2-pricing" // BILLING-F4F6
 import { PAYMENTS_OPEN_SOON_BODY, PAYMENTS_OPEN_SOON_STATUS, STUDIO_PAYMENTS_OPEN_SOON_ENABLED } from "@/lib/studio-payments-open-soon"
 
-const CREDIT_PACKS = [
-  { id: "pack_10", label: "$10", amountCents: 1000 },
-  { id: "pack_25", label: "$25", amountCents: 2500 },
-  { id: "pack_50", label: "$50", amountCents: 5000 },
-  { id: "pack_100", label: "$100", amountCents: 10000 },
-] as const
+const CREDIT_PACKS = TOPUP_PACKS // BILLING-F4F6: the one pack list, lib/marketing/homepage-v2-pricing.ts
 
 type PackId = (typeof CREDIT_PACKS)[number]["id"]
 

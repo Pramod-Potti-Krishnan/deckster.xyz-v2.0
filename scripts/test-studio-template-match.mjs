@@ -677,6 +677,7 @@ const ALL_CAP_FLAGS = { NEXT_PUBLIC_CHAT_DIRECTIVES: 'true', NEXT_PUBLIC_CHAT_TH
 const lines = text => text.split('\n')
 const MARK = strip.STUDIO_TEMPLATE_MATCH_MARKER_RE
 function wsHookChecks(hookText) {
+  hookText = registry.LATER_STRIPS.slice(registry.LATER_STRIPS.indexOf(strip.stripStudioTemplateMatch) + 1).reduce((out, later) => { const next = typeof later === 'function' ? later(WS_HOOK, out) : out; return typeof next === 'string' ? next : out }, hookText) // LATER-CHANGES: registry read (PROOFS-AFTER-MERGE), #564 robust after merge: the socket hook is read past the strips of the changes registered after this one, so a later change's own line in the cap chain (the voice call's) is that change's business
   const rows = lines(hookText), marked = rows.filter(row => MARK.test(row))
   eq(marked.length, 6, 'the socket hook: six marked lines (three imports, the cap, the connect send, the frame)')
   const only = needle => { const hit = rows.filter(row => row.includes(needle)); ok(hit.length === 1, `exactly one line with: ${needle.slice(0, 80)} (${hit.length})`); return hit[0] }
@@ -857,14 +858,14 @@ if (baseOk) {
     for (const rel of strip.STUDIO_TEMPLATE_MATCH_NEW_FILES) eq(git('cat-file', '-t', `${head}:${rel}`).trim(), 'blob', rel)
     for (const rel of strip.STUDIO_TEMPLATE_MATCH_PIN_FILES) { // the older proofs this change teaches: one registry-read edit each, every taught line marked, put back byte for byte
       const now = git('show', `${head}:${rel}`), base = baseText(rel)
-      ok(ctx.norm(rel, strip.stripStudioTemplateMatch(rel, now)) === ctx.norm(rel, base), `${rel}: the proof this change taught, put back, is the base's`)
-      ok(strip.stripStudioTemplateMatch(rel, strip.stripStudioTemplateMatch(rel, now)) === strip.stripStudioTemplateMatch(rel, now), `${rel}: putting back twice changes nothing`)
+      ok(ctx.norm(rel, strip.stripStudioTemplateMatch(rel, laterStrips(rel, now))) === ctx.norm(rel, base), `${rel}: the proof this change taught, put back, is the base's`) // later changes' strips first (a later change may rewrite a taught line), then this one's
+      ok(strip.stripStudioTemplateMatch(rel, strip.stripStudioTemplateMatch(rel, laterStrips(rel, now))) === strip.stripStudioTemplateMatch(rel, laterStrips(rel, now)), `${rel}: putting back twice changes nothing`)
       for (const [has, was] of strip.STUDIO_TEMPLATE_MATCH_PIN_EDITS[rel]) {
-        eq(now.split(has).length - 1, 1, `${rel}: a taught edit is there once`)
+        eq(laterStrips(rel, now).split(has).length - 1, 1, `${rel}: a taught edit is there once`)
         for (const line of has.split('\n').filter(Boolean)) ok(line.includes(strip.STUDIO_TEMPLATE_MATCH_PIN_MARK), `${rel}: every taught line carries the registry-read mark: ${line.slice(0, 80)}`)
         ok(!strip.STUDIO_TEMPLATE_MATCH_MARKER_RE.test(was), `${rel}: what a taught edit replaces is not marked`)
       }
-      for (const row of diffLines(git('diff', '-U0', blobOf(ctx.norm(rel, base)), blobOf(ctx.norm(rel, now))))) if (row.startsWith('+')) ok(row.includes(strip.STUDIO_TEMPLATE_MATCH_PIN_MARK), `${rel}: an added line without the mark: ${row.slice(0, 100)}`)
+      for (const row of diffLines(git('diff', '-U0', blobOf(ctx.norm(rel, base)), blobOf(ctx.norm(rel, laterStrips(rel, now)))))) if (row.startsWith('+')) ok(row.includes(strip.STUDIO_TEMPLATE_MATCH_PIN_MARK), `${rel}: an added line without the mark: ${row.slice(0, 100)}`)
     }
     ok(strip.STUDIO_TEMPLATE_MATCH_PIN_FILES.length > 0 && strip.STUDIO_TEMPLATE_MATCH_PIN_FILES.every(rel => !strip.STUDIO_TEMPLATE_MATCH_FILES.includes(rel) && !strip.STUDIO_TEMPLATE_MATCH_NEW_FILES.includes(rel)), 'the taught proofs are a list of their own')
     for (const rel of NEVER) ok(!touched.has(rel), `${rel} is not touched by this change`)
