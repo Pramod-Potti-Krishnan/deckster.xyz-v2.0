@@ -90,6 +90,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-chain-test-fix-strip.mjs')).CHAIN_TEST_FIX_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, Option L chain test fix (tests only)
   ...(await import('./studio-usage-credits-page-strip.mjs')).USAGE_CREDITS_PAGE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B63 usage credits page: the credits view on FRONTEND-1's Usage page, two marked lines (no flag of its own: NEXT_PUBLIC_STUDIO_USAGE_CREDITS is B62's; no .env.example block)
   ...(await import('./studio-voice-core-strip.mjs')).VOICE_CORE_SCOPE_FILES, // LATER-CHANGE: ELEMENT-3, pure Director voice core (NEXT_PUBLIC_STUDIO_VOICE_CALL)
+  ...(await import('./studio-voice-call-strip.mjs')).VOICE_CALL_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, W6 P4-20 voice call UI: the call button, the docked companion, push-to-talk, the router speech contract (NEXT_PUBLIC_STUDIO_VOICE_CALL / _VOICE_COMPANION)
   // one line per later change, above this comment
 ])
 
@@ -147,6 +148,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-usage-credits-strip.mjs')).USAGE_CREDITS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B62 usage credits (NEXT_PUBLIC_STUDIO_USAGE_CREDITS / MODEL_ROUTER_USAGE_READ_KEY)
   (await import('./studio-chat-caps-strip.mjs')).CHAT_CAPS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B61 chat caps (NEXT_PUBLIC_STUDIO_CHAT_CAPS_META)
   (await import('./studio-voice-core-strip.mjs')).VOICE_CORE_ENV_BLOCK, // LATER-CHANGE: ELEMENT-3, Director voice opt-in
+  (await import('./studio-voice-call-strip.mjs')).VOICE_CALL_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, W6 P4-20 voice call UI (NEXT_PUBLIC_STUDIO_VOICE_COMPANION; the call flag's own line is ELEMENT-3's)
   // one line per later change, above this comment
 ]
 
@@ -218,6 +220,7 @@ export const LATER_STRIPS = [
   (await import('./studio-chain-test-fix-strip.mjs')).stripChainTestFix, // LATER-CHANGE: FRONTEND-1, Option L chain test fix (tests only)
   (await import('./studio-usage-credits-page-strip.mjs')).stripUsageCreditsPage, // LATER-CHANGE: FRONTEND-2, B63 usage credits page (NEXT_PUBLIC_STUDIO_USAGE_CREDITS is B62's; no flag of its own)
   (await import('./studio-voice-core-strip.mjs')).stripVoiceCore, // LATER-CHANGE: ELEMENT-3, voice port compatibility pin
+  (await import('./studio-voice-call-strip.mjs')).stripVoiceCall, // LATER-CHANGE: FRONTEND-1, W6 P4-20 voice call UI (NEXT_PUBLIC_STUDIO_VOICE_CALL)
   // one line per later change, above this comment
 ]
 

@@ -6915,6 +6915,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       }
     }
   }, [sendMessageWhenConnected, currentSessionId, wsSessionId, setPendingActionInput, persistence, researchEnabled, webSearchEnabled, extendedGenerationEnabled, knowledgeGraphEnabled, canUseKnowledgeGraph, sessionStoreName, buildSendOptions, activeTemplate, session, toast])
+  // VOICE-CALL (P4-20, NEXT_PUBLIC_STUDIO_VOICE_CALL): the docked companion and the composer's call button. With the flag off it loads, listens to, times and asks for nothing. The words of a voice turn go through the ordinary send; a spoken yes to a card is the card's own button (handleActionClick), so the call is set up after both.
+  const voiceCall = useStudioVoiceCall({ enabled: studioShell, sendTurn: text => handleSendMessage(undefined, text), sendAction: handleActionClick, sessionKey: currentSessionId || wsSessionId, connected }) // VOICE-CALL
 
   const handleCancelTemplateReuse = useCallback(() => {
     const sent = sendControlMessage('cancel_template_reuse')
@@ -7920,6 +7922,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   )}
                   {flowControl.bar}{/* FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_AMEND): the calm line and Resume / Rebuild while the build is held; off, null */}
                   <BuilderQuotaRefusal />{/* BILLING-F5-USAGE (NEXT_PUBLIC_STUDIO_QUOTA_SCREENS): out of credits / plan refusal screen; off, null */}
+                  {voiceCall.dock}{/* VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL): the call, a stage over the chat column while it is on (the composer is hidden then), the microphone notice above the composer otherwise; off, null */}
 
                   {chatCleanOn ? <StudioChatCleanBar composer={chatCleanComposer} onContinue={chatCleanContinue} /> : null}{/* CHAT-CLEAN: the slim "Stopped at slide N · slides 1–N kept · Continue" bar above the composer while the build is held (the flow bar above it is hidden by the stylesheet); off, null */}
                   {workflowBrief && <div className="studio-brief-handoff" role="region" aria-label="Brief ready">
@@ -7928,6 +7931,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                     <button type="button" onClick={() => resolveWorkflowBrief(false)}>Keep my message</button>
                   </div>}
                   <ChatInput
+                    {...(voiceCall.composerProps ? { voiceCall: voiceCall.composerProps } : {})} // VOICE-CALL: the composer's call button (null with the flag off)
                     {...(chatCleanShell ? { studioChatClean: { composer: chatCleanComposer, onStop: chatCleanStop, onSendDirections: chatCleanSendDirections, sessionId: currentSessionId } } : {}) /* CHAT-CLEAN: Send <-> Stop, new directions while held, the "+" menu, the research chips and the model picker */}
                     composerTextareaRef={studioShell ? textareaRef : undefined}
                     studioSavedThemeRequest={savedThemeWorkflowId ? { id: savedThemeWorkflowId, key: workflowKey } : undefined}
@@ -8468,6 +8472,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 }
 // FLOW-CONTROL: this import sits here, not with the others, on purpose: an older proof slices this file by the positions of a parse that does not see FLOW-CONTROL lines, so nothing of the flow flags may come before the Builder's runners.
 import { useStudioFlowControl } from '@/hooks/use-studio-flow-control' // FLOW-CONTROL
+// VOICE-CALL: placed here too, after the Builder's runners, for the same reason.
+import { useStudioVoiceCall } from '@/hooks/use-studio-voice-call' // VOICE-CALL
 import { STUDIO_CHAT_CLEAN_ENABLED, chatCleanComposerState, chatCleanInstructions, chatCleanRootAttributes } from '@/lib/studio-chat-clean' // CHAT-CLEAN: placed here with the flow import, after the Builder's runners, for the same older proof
 import { flowBus } from '@/lib/studio-flow-control' // CHAT-CLEAN: the one-request hand-over of the resume's instructions (taken by sendBuildControl, whatever the flow flags)
 import { StudioChatCleanBar, useStudioChatCleanNotes } from '@/components/builder/chat/studio-chat-clean' // CHAT-CLEAN
