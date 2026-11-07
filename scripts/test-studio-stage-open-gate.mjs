@@ -1,3 +1,4 @@
+import { stripVoiceCore } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): remove only this later port's exact test metadata
 // FRONTEND-2 (B52, 30 Oct): the stage open gate. PK UAT feedback F-03, flag NEXT_PUBLIC_STUDIO_STAGE_OPEN_GATE (exact "true", default off; with NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 on, as on dev).
 // The chat stays full-width through Director's clarifying questions; the deck stage opens only on the strawman or build streaming, a ready deck, or an explicit ask, then stays open for the session.
 //

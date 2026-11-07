@@ -1,3 +1,4 @@
+import { stripVoiceCore, voiceCoreProofDiffLines } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): normalize only this port's exact proof metadata
 // FRONTEND-2, BY10: Studio's narration model calls through the model router (server flag NARRATION_VIA_ROUTER, only the string "true", default off).
 // Run: node scripts/test-studio-narration-router.mjs   (plain node: transpile + vm, no network, no install; `git show` reads the base commit)
 //
@@ -57,7 +58,7 @@ const HARNESS = 'scripts/studio-library-manage-harness.mjs'
 const STACK_TOLERANT = 'scripts/studio-stack-tolerant.mjs' // the scope and shared-file rules for a tree that holds later PRs too (read from its text, so the mutants below can edit it)
 const NR_PKG_CHANGES = [['    "test:studio-narration-router": "node scripts/test-studio-narration-router.mjs"', '']] // this change's one package.json line
 
-const tryRead = rel => { try { return stripApiHardening(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')) } catch { return null } } // LATER-CHANGE: PROGRAM-1 API hardening reads through its strip
+const tryRead = rel => { try { return stripApiHardening(rel, stripVoiceCore(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))) } catch { return null } } // LATER-CHANGE: PROGRAM-1 API hardening reads through its strip
 const baseCache = new Map()
 const headCache = new Map()
 const ownHeadSource = rel => { if (!headCache.has(rel)) headCache.set(rel, gitOut('show', `${OWN_HEAD}:${rel}`)); return headCache.get(rel) }
@@ -662,7 +663,7 @@ function buildTests(S) {
     console.log(scope.line)
     for (const rel of scope.checked) assert.ok(own.has(rel), `stacked scope: ${rel} is not this change's`)
     for (const rel of [LIB, DRAFT, TTS, SPOKEN, R_SCRIPT, R_RENDER, R_SPEAK, R_SAMPLE, ENV, PKG, STRIP, HARNESS]) assert.ok(changed.includes(rel), `stacked scope: ${rel} is part of this change`)
-    const lines = (rel, sign) => (gitOut('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel) ?? '').split('\n').filter(line => line.startsWith(sign) && !line.startsWith(sign.repeat(3)))
+    const lines = (rel, sign) => voiceCoreProofDiffLines(rel, (gitOut('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel) ?? '').split('\n')).filter(line => line.startsWith(sign) && !line.startsWith(sign.repeat(3)))
     assert.equal(lines(ENV, '-').length, 0, 'stacked scope: .env.example only gains lines (a pure insertion)')
     assert.ok(lines(ENV, '+').every(line => /^\+(#|[A-Z][A-Z0-9_]*=|$)/.test(line)) && lines(ENV, '+').some(line => line.startsWith('+NARRATION_VIA_ROUTER=')), 'stacked scope: and they are comments, blanks and assignments, this block among them (a later change\'s block may follow)')
     assert.ok(lines(PKG, '-').length <= 1 && lines(PKG, '-').every(line => /test:studio-model-catalog/.test(line)), 'stacked scope: package.json: at most #473\'s entry, which gains a comma')
