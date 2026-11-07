@@ -23,10 +23,14 @@ import {
   uploadFile,
   KnowledgeServiceError,
 } from '@/lib/knowledge-service-client';
+import { requireApprovedUser } from '@/lib/api-hardening'
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
 
 export async function POST(req: NextRequest) {
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): approved users only, read from the DB. Off, this returns null and nothing changes.
+  const notApproved = await requireApprovedUser()
+  if (notApproved) return notApproved
   try {
     // 1. Authenticate user
     const session = await getServerSession(authOptions);

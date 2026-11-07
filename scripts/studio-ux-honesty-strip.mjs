@@ -142,6 +142,11 @@ export const UX_HONESTY_NEW_FILES = ['scripts/studio-ux-honesty-strip.mjs', 'scr
 /** The older proofs and strips this change teaches (one marked line each). */
 export const UX_HONESTY_PIN_FILES = ['scripts/studio-launch-wording-strip.mjs', 'scripts/test-studio-p2-docs.mjs']
 
+/** The older proof this change rewrites in place (UX-05 Help head-count): [text it has now, text it had]; put back by stripUxHonesty so a later change's proof that pins the file byte for byte reads it as it was. UX-HONESTY: restack onto dev 1bb42d7f (6 Nov) */
+export const UX_HONESTY_PIN_EDITS = {
+  "scripts/test-studio-p2-docs.mjs": [["  // UX-HONESTY (FRONTEND-1 UX-05, no flag): the Help page no longer claims a head-count (\"eight specialists\" was unverified); it reads the LIVE file, not the restored base, and holds the new truth\n  const helpNow = fs.readFileSync(path.join(repoRoot, 'app/help/page.tsx'), 'utf8')\n  nomatch(helpNow, /\\b(?:four|six|seven|eight|nine|\\d+)\\s+(?:AI\\s+)?(?:specialists|agents)\\b/i, 'the Help page states no agent head-count')\n  match(helpNow, /You talk to the Director in plain English\\./, 'the Help page still says the Director coordinates the specialists')\n", "  const sentence = /Deckster runs as eight specialists:[^\"]*/.exec(read('app/help/page.tsx'))?.[0]\n  ok(sentence, 'the Help page tells of the eight specialists')\n  for (const name of AGENT_NAMES) ok(sentence.includes(name), `the Help page's sentence names ${name}`)\n  eq(NUMBER_WORDS[AGENT_NAMES.length], 'eight', 'the Help page says eight, and the team is eight')\n"]],
+}
+
 export const PAGE_HEADINGS_ENV_BLOCK = "# STUDIO PAGE HEADINGS (FRONTEND-1, UX-09). On only for the string \"true\" (and only with NEXT_PUBLIC_STUDIO_V4_SHELL); default off, and then nothing runs. Build-time value: change it on Vercel and redeploy.\n# On: the Studio account pages (Decks, Templates, Themes, Intelligence, Details, Settings, Billing ...) share one page container (1152 px wide, 32 px gutter; 16 px on a phone) and one page heading style (28 px, 24 px on a phone).\nNEXT_PUBLIC_STUDIO_PAGE_HEADINGS=\"false\"\n"
 
 /** Every file this change's commits touch. */
@@ -151,7 +156,8 @@ export const UX_HONESTY_SCOPE_FILES = new Set([...Object.keys(UX_HONESTY_EDITS),
 export function stripUxHonesty(rel, text) {
   if (typeof text !== 'string') return text
   let out = text
-  for (const [now, was] of UX_HONESTY_EDITS[rel] || []) out = out.replace(now, () => was)
+  for (const [now, was] of UX_HONESTY_EDITS[rel] || []) if (!(was.includes(now) && out.includes(was))) out = out.replace(now, () => was) // UX-HONESTY: idempotent (restack onto 1bb42d7f: p2-docs now reads through the registry AND stripLaunchWording, so this runs twice; a pair whose old text holds its new text is not put back twice)
+  for (const [now, was] of UX_HONESTY_PIN_EDITS[rel] || []) if (!(was.includes(now) && out.includes(was))) out = out.replace(now, () => was) // UX-HONESTY: its own p2-docs rewrite put back too (restack onto 1bb42d7f)
   if (PAGE_HEADINGS_FILES.includes(rel)) out = out.split('\n').filter(line => !PAGE_HEADINGS_MARKER_RE.test(line)).join('\n')
   return out
 }

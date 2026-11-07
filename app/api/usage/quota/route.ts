@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth-options"
+import { getServerTier } from "@/lib/quota/server-tier"
 import { getQuotaStatus, type Tier } from "@/lib/quota/quota"
 
 export async function GET() {
@@ -10,7 +11,8 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const tier = (session.user.tier ?? "free") as Tier
+    // Security: tier comes from the database, never from the (client-influenced) session.
+    const tier = await getServerTier(session.user.id)
     const status = await getQuotaStatus(session.user.id, tier)
 
     return NextResponse.json(status)

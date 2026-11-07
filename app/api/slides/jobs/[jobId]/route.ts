@@ -2,6 +2,7 @@ import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
+import { requireSessionOwner } from '@/lib/api-hardening'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,6 +35,10 @@ export async function GET(
   if (!sessionId) {
     return NextResponse.json({ error: 'session_id is required' }, { status: 400 })
   }
+
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): the session (and presentation) must be the caller's own. Off, null.
+  const notOwner = await requireSessionOwner(sessionUser?.id, sessionId, presentationId)
+  if (notOwner) return notOwner
 
   const { jobId } = await params
   const query = new URLSearchParams({

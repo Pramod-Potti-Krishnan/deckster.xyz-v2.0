@@ -9,6 +9,7 @@ import {
   textLabsSignedRequestsEnabled,
   textLabsSigningSecret,
 } from '@/lib/text-labs-identity-mint'
+import { requireApprovedUser } from '@/lib/api-hardening'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -21,6 +22,9 @@ const NO_STORE = { 'Cache-Control': 'no-store' }
  * issued. Logs carry reason codes only, never the token, the secret or the user id.
  */
 export async function GET() {
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): approved users only, read from the DB. Off, this returns null and nothing changes.
+  const notApproved = await requireApprovedUser()
+  if (notApproved) return notApproved
   if (!textLabsSignedRequestsEnabled()) {
     return NextResponse.json({ token_enabled: false }, { headers: NO_STORE })
   }

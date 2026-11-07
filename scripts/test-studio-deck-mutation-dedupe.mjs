@@ -1,3 +1,4 @@
+import { stripVoiceCore } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): remove only this later port's exact test metadata
 // FRONTEND-2: a chat add-slide was counted twice (flag NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE, exact "true", default off).
 // Run: node scripts/test-studio-deck-mutation-dedupe.mjs   (plain node: transpile + vm, no network; `git show` reads the base commit)
 //
@@ -36,7 +37,7 @@ const PAGE = 'app/builder/page.tsx'
 const FLAG = 'NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE'
 const SHARED_APPEND_ONLY = ['.env.example', 'package.json']
 
-const read = rel => stripDeckSyncTruth(rel, stripFirstPaint(rel, stripLaunchWording(rel, readFileSync(path.join(repoRoot, rel), 'utf8')))) // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): the lines of the change stacked after this one come out first
+const read = rel => stripDeckSyncTruth(rel, stripFirstPaint(rel, stripLaunchWording(rel, stripVoiceCore(rel, readFileSync(path.join(repoRoot, rel), 'utf8'))))) // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): the lines of the change stacked after this one come out first
 const readIf = rel => existsSync(path.join(repoRoot, rel)) ? read(rel) : null
 const baseCache = new Map()
 const baseSource = rel => {
