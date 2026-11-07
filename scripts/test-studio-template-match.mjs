@@ -677,6 +677,7 @@ const ALL_CAP_FLAGS = { NEXT_PUBLIC_CHAT_DIRECTIVES: 'true', NEXT_PUBLIC_CHAT_TH
 const lines = text => text.split('\n')
 const MARK = strip.STUDIO_TEMPLATE_MATCH_MARKER_RE
 function wsHookChecks(hookText) {
+  hookText = registry.LATER_STRIPS.slice(registry.LATER_STRIPS.indexOf(strip.stripStudioTemplateMatch) + 1).reduce((out, later) => { const next = typeof later === 'function' ? later(WS_HOOK, out) : out; return typeof next === 'string' ? next : out }, hookText) // LATER-CHANGES: registry read (PROOFS-AFTER-MERGE), #564 robust after merge: the socket hook is read past the strips of the changes registered after this one, so a later change's own line in the cap chain (the voice call's) is that change's business
   const rows = lines(hookText), marked = rows.filter(row => MARK.test(row))
   eq(marked.length, 6, 'the socket hook: six marked lines (three imports, the cap, the connect send, the frame)')
   const only = needle => { const hit = rows.filter(row => row.includes(needle)); ok(hit.length === 1, `exactly one line with: ${needle.slice(0, 80)} (${hit.length})`); return hit[0] }

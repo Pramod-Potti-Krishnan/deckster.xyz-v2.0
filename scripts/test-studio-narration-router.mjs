@@ -593,6 +593,7 @@ function buildTests(S) {
       }
     }
     for (const dir of ['lib', 'app', 'components', 'hooks']) walk(dir)
+    { const now = hits.slice(); assert.ok(now.every(rel => !/^(components|hooks)\//.test(rel) && !/['"]use client['"]/.test(fs.readFileSync(path.join(repoRoot, rel), 'utf8'))), `every file that reads the key name is server code, never a client component or hook: ${now.join(', ')}`); hits.splice(0, hits.length, ...(gitOut('grep', '-l', 'MODEL_ROUTER_STUDIO_KEY', OWN_HEAD, '--', 'lib', 'app', 'components', 'hooks') ?? '').split('\n').filter(Boolean).map(hit => hit.slice(OWN_HEAD.length + 1)).filter(rel => /\.(ts|tsx|js|jsx|mjs)$/.test(rel))) } // LATER-CHANGES: registry read (PROOFS-AFTER-MERGE), #475 robust after merge: "read in model-router.ts alone" is checked at this change's own head c1a7378 (a fixed input); a later change's server file that reads the same name (the voice call's speech router) is that change's business, and every reader now must still be server code
     assert.deepEqual(hits, [LIB])
     assert.ok(!/['"]use client['"]/.test(lib))
   })
@@ -637,7 +638,7 @@ function buildTests(S) {
     for (const rel of NARRATION_ROUTER_FILES) {
       const baseText = baseSource(rel)
       if (baseText == null) { console.log(`SKIP ${rel} strip against the base: the base commit is not in this clone`); continue }
-      assert.ok(sameAsBase(rel, stripNarrationRouter(rel, S[rel]), baseText, /NARRATION_VIA_ROUTER|MODEL_ROUTER_URL|MODEL_ROUTER_STUDIO_KEY/) || (rel === PKG && loadStack(S[STACK_TOLERANT]).sameOrTolerant(rel, S[rel], stripNarrationRouter(rel, S[rel]), baseText, NR_PKG_CHANGES).ok), `${rel} without this change's lines is ${BASE_COMMIT.slice(0, 7)}'s file byte for byte (.env.example: a later change's block may follow; package.json: a later PR's lines, every base line kept in order)`)
+      assert.ok(sameAsBase(rel, stripNarrationRouter(rel, S[rel]), baseText, /^(?:NARRATION_VIA_ROUTER|MODEL_ROUTER_URL|MODEL_ROUTER_STUDIO_KEY)=/) || (rel === PKG && loadStack(S[STACK_TOLERANT]).sameOrTolerant(rel, S[rel], stripNarrationRouter(rel, S[rel]), baseText, NR_PKG_CHANGES).ok), `${rel} without this change's lines is ${BASE_COMMIT.slice(0, 7)}'s file byte for byte (.env.example: a later change's block may follow; package.json: a later PR's lines, every base line kept in order)`) // LATER-CHANGES: registry read (PROOFS-AFTER-MERGE), #475 robust after merge: a later .env.example block may name these variables in a comment (the voice call's does); it may not set them
       assert.equal(stripNarrationRouter(rel, stripNarrationRouter(rel, S[rel])), stripNarrationRouter(rel, S[rel]), `${rel}: stripping twice changes nothing more`)
       assert.equal(stripNarrationRouter(rel, baseText), baseText, `${rel}: a file without the lines comes back as it is`)
     }
