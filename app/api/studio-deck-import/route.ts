@@ -6,6 +6,7 @@ import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
 import { requireComposerServiceUrl } from '@/lib/composer-library'
 import { restEntitlementHeaders } from '@/lib/director-rest-entitlement'
 import { DECK_IMPORT_START_MAX_BYTES, DECK_IMPORT_WORDS, parseDeckImportStart } from '@/lib/studio-deck-import'
+import { requireApprovedUser } from '@/lib/api-hardening'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +19,9 @@ export const dynamic = 'force-dynamic'
 // when BOTH this feature's flag AND DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED are on (the helper then also needs the existing DIRECTOR_WS_AUTH_SECRET). With either flag off no header is added and
 // nothing reads that secret. The browser never sees the header, the secret or this helper.
 export async function POST(req: NextRequest) {
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): approved users only, read from the DB. Off, this returns null and nothing changes.
+  const notApproved = await requireApprovedUser()
+  if (notApproved) return notApproved
   if (process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT !== 'true') {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }

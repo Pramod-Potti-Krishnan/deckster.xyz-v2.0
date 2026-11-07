@@ -1,8 +1,12 @@
 import { ServiceUrlConfigError } from '@/lib/service-url'
 import { NextRequest, NextResponse } from 'next/server'
 import { getKgBaseUrl, kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
+import { requireApprovedUser } from '@/lib/api-hardening'
 
 export async function POST(request: NextRequest) {
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): approved users only, read from the DB. Off, this returns null and nothing changes.
+  const notApproved = await requireApprovedUser()
+  if (notApproved) return notApproved
   const gate = await requireKgEntitled()
   if (gate.error) return gate.error
 

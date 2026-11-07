@@ -2,6 +2,7 @@ import { ServiceUrlConfigError } from '@/lib/service-url'
 import { NextRequest, NextResponse } from 'next/server'
 import { getKgBaseUrl, kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
 import { studioKgAskBackendBody, studioKgAskCheck, studioKgAskOn } from '@/lib/studio-kg-ask'
+import { requireApprovedUser } from '@/lib/api-hardening'
 
 // "Ask your second brain" (flag NEXT_PUBLIC_STUDIO_KG_ASK, default off): POST /api/v1/kg/query on the Researcher (KgQueryRequest -> KgQueryResponse, see lib/studio-kg-ask.ts).
 // Same pattern as the other /api/knowledge-graph/* routes: the paid-entitlement gate first, KNOWLEDGE_SERVICE_URL, X-API-Key from KNOWLEDGE_API_KEY. The backend route is keyed by a
@@ -9,6 +10,9 @@ import { studioKgAskBackendBody, studioKgAskCheck, studioKgAskOn } from '@/lib/s
 // With the flag off this route does not exist: 404 before anything else runs (no session read, no backend call).
 // NEXT_PUBLIC_ is inlined at build time, so the rule is the build's. The Studio shell part of the rule is the page's (it only decides whether the box is drawn).
 export async function POST(request: NextRequest) {
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): approved users only, read from the DB. Off, this returns null and nothing changes.
+  const notApproved = await requireApprovedUser()
+  if (notApproved) return notApproved
   if (process.env.NEXT_PUBLIC_STUDIO_KG_ASK !== 'true') {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }

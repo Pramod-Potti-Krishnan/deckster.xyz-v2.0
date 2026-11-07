@@ -1,3 +1,4 @@
+import { announceQuotaRefusal, isStudioQuotaScreensOn, walletPrecheckAllows } from '@/lib/studio-billing-usage' // BILLING-F5-USAGE
 import { useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from './use-auth';
 import { composerThemeFromSync, composerThemeSyncBlocked, readComposerAdoption, type ComposerAdoption } from '@/lib/composer-theme-policy';
@@ -22,6 +23,7 @@ import { STUDIO_TEMPLATE_MATCH_ENABLED, isTemplateMatchMessage } from '@/lib/stu
 import { addTemplateMatchCap, templateMatchBaseCaps } from '@/lib/studio-template-match-wire'; // STUDIO-TEMPLATE-MATCH
 import { templateMatchFrameReceived, templateMatchSocketOpened } from '@/hooks/use-studio-template-match'; // STUDIO-TEMPLATE-MATCH
 import { STUDIO_FLOW_AMEND_ENABLED, STUDIO_FLOW_FOCUS_ENABLED, flowBus, isFlowFocusFrameType, isFlowSettledPhase, takeFlowInstructions } from '@/lib/studio-flow-control'; // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_FOCUS / _FLOW_AMEND, default off)
+import { STUDIO_CHAT_CAPS_META_ENABLED, chatCapsSyncReceived } from '@/lib/studio-chat-caps'; // CHAT-CAPS-META (NEXT_PUBLIC_STUDIO_CHAT_CAPS_META, default off): Director's sync_response chat_capabilities, read into a read-only snapshot
 import { STUDIO_VOICE_CALL_UI_ENABLED, addVoiceCallFields, isVoiceCallFrameType, voiceCallBus } from '@/lib/studio-voice-call-ui'; // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL, default off)
 import type { ManualDeckContext } from '@/lib/manual-deck-workflow';
 import type { DeckFooterConfig, DeckIdentity } from '@/lib/deck-identity';
@@ -1898,6 +1900,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 ...(rawMessage.type === 'error' && typeof payload.detail === 'string' ? { detail: payload.detail } : {}),
                 ...(rawMessage.type === 'auth_expired' && typeof payload.discarded_message_type === 'string' ? { discardedMessageType: payload.discarded_message_type } : {}),
               };
+              if (rawMessage.type === 'error') announceQuotaRefusal(payload.code); // BILLING-F5-USAGE: Director D1 QUOTA_EXCEEDED / PLAN_REQUIRED -> the Builder's refusal screen (off: no-op)
               const previousNotice = transportNoticeRef.current;
               if (previousNotice?.requiresResend && previousNotice.sessionId === socketSessionId) {
                 // A later transport error is new information, not proof that the
@@ -2258,6 +2261,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   break;
 
                 case 'sync_response':
+                  if (STUDIO_CHAT_CAPS_META_ENABLED) chatCapsSyncReceived(message.payload, { frameSessionId: message.session_id, socketSessionId, currentSessionId: sessionIdRef.current, isCurrent: isCurrentSocket }); // CHAT-CAPS-META: this socket's current-session sync replaces the read-only snapshot (lib/studio-chat-caps.ts: legacy true or C-D1 {confirm, client_directive}); nothing is sent and no state changes. Off: not read
                   if (COMPOSER_LIBRARY_ENABLED && socketSessionId === sessionIdRef.current &&
                       (!message.session_id || message.session_id === sessionIdRef.current)) {
                     const themeState = composerThemeFromSync(message.payload.composer_adoption, message.payload.presentation_id, Boolean(blockedIngress));
@@ -3531,6 +3535,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     timeoutMs: number = SEND_RECONNECT_TIMEOUT_MS,
     isCurrentRequest?: () => boolean,
   ): Promise<boolean> => {
+    if (isStudioQuotaScreensOn() && !(await walletPrecheckAllows())) return false; // BILLING-F5-USAGE: F4 pre-build check (404 = allowed)
     const origin = { ...turnSubmissionLifecycleRef.current };
     const isCurrentTurn = () => (
       turnSubmissionLifecycleRef.current.active &&

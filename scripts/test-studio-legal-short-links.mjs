@@ -29,6 +29,7 @@ import {
   BASE_COMMIT, LEGAL_SHORT_LINKS_BULK_EDIT_PROOF, LEGAL_SHORT_LINKS_COMMIT_SUBJECT, LEGAL_SHORT_LINKS_OLDER_PROOFS, LEGAL_SHORT_LINKS_POLISH_F_PROOF, LEGAL_SHORT_LINKS_ENV_BLOCK, LEGAL_SHORT_LINKS_FLAG, LEGAL_SHORT_LINKS_NEW_FILES, LEGAL_SHORT_LINKS_OWN_EDITS, LEGAL_SHORT_LINKS_SCOPE_FILES, UAT_COMMIT,
 } from './studio-legal-short-links-strip.mjs'
 import { LATER_CHANGE_FILES, LATER_ENV_BLOCKS, LATER_STRIPS, stripLaterEnvBlocks } from './studio-later-changes.mjs'
+import { stripApiHardening } from './studio-api-hardening-strip.mjs' // LATER-CHANGE: PROGRAM-1 API hardening (STUDIO_API_HARDENING_V1_ENABLED): its route lines come out before this pin reads them
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const nodeRequire = createRequire(import.meta.url)
@@ -266,7 +267,7 @@ const UNTOUCHED = [
 ]
 function proveUntouched(at = '') {
   const a = message => (at ? `${at}: ${message}` : message)
-  for (const rel of UNTOUCHED) eq(sha(read(rel)), sha(baseOf(rel)), a(`${rel} is the base commit's, byte for byte`))
+  for (const rel of UNTOUCHED) eq(sha(stripApiHardening(rel, read(rel))), sha(baseOf(rel)), a(`${rel} is the base commit's, byte for byte`))
   for (const rel of [TERMS, PRIVACY, HELPER]) {
     let found = true
     try { git('cat-file', '-e', `${BASE}:${rel}`) } catch { found = false }

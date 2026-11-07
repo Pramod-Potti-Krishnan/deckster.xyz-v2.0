@@ -8,6 +8,8 @@
  */
 import { Layers } from 'lucide-react'
 import { StudioRail } from '@/components/layout/studio-rail'
+import { StudioPhoneTabBar } from '@/components/layout/studio-phone-tab-bar' // PHONE-SHELL-COVERAGE (NEXT_PUBLIC_STUDIO_PHONE_SHELL_COVERAGE, default off): on a phone the load-error screen draws the bottom tab bar next to the rail, as the Builder does
+import { STUDIO_PHONE_SHELL_COVERAGE_ENABLED } from '@/lib/studio-phone-shell-coverage' // PHONE-SHELL-COVERAGE
 import { StudioNavigationHint } from '@/components/layout/studio-navigation-hint'
 import { StudioProblemCard } from '@/components/builder/studio-problem-card'
 import { StudioSessionHygieneStyles } from '@/components/builder/studio-session-hygiene-style-tag'
@@ -96,6 +98,7 @@ export function StudioSessionProblemView({ problem, studioShell }: { problem: St
           )}
         />
       )}
+      {studioShell && STUDIO_PHONE_SHELL_COVERAGE_ENABLED && <StudioPhoneTabBar />}{/* PHONE-SHELL-COVERAGE: a DIRECT child of the shell root, only where the rail is drawn; shown at 640 px and narrower only */}
       <main data-studio-problem-main="true">
         <StudioProblemCard eyebrow={copy.eyebrow} title={copy.title} body={copy.body} role="alert">
           {problem === 'load_error' && (

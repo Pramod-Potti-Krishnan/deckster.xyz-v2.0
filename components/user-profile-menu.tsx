@@ -37,6 +37,7 @@ import { StudioNavigationHint } from "@/components/layout/studio-navigation-hint
 import { StudioProfileMenuP2 } from "@/components/user-profile-menu-p2"
 import { STUDIO_P2_POLISH_ENABLED } from "@/lib/studio-p2-polish"
 import "./user-profile-studio-v4.css"
+import { studioPhoneMenuCloseFocus } from "@/lib/studio-phone-polish" // PHONE-POLISH
 
 // ---------------------------------------------------------------------------
 // Inline quota bar — shows daily + weekly remaining % as thin progress bars
@@ -122,13 +123,14 @@ function UsageRemaining({ data, isExpanded, onToggle }: { data: QuotaSnapshot; i
 // Main component
 // ---------------------------------------------------------------------------
 
-export function UserProfileMenu({ studioLabels = false, studioPalette = false, sessionUsage }: { studioLabels?: boolean; studioPalette?: boolean; sessionUsage?: ReactNode } = {}) {
+export function UserProfileMenu({ studioLabels = false, studioPalette = false, sessionUsage, returnFocusOnClose = true /* PHONE-POLISH */ }: { studioLabels?: boolean; studioPalette?: boolean; sessionUsage?: ReactNode; returnFocusOnClose?: boolean /* PHONE-POLISH */ } = {}) {
   const { user, logout, isLoading } = useAuth()
   const router = useRouter()
   const { theme, setTheme } = useTheme()
   const [isOpen, setIsOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
   const accountTrigger = useRef<HTMLButtonElement>(null)
+  const menuCloseFocus = returnFocusOnClose === false ? (event: Event) => studioPhoneMenuCloseFocus(event, accountTrigger.current, document.activeElement) : undefined // PHONE-POLISH: set only by the phone More sheet (flag on); undefined everywhere else, so Radix returns the focus to the avatar as it always did
   const aboutReplay = useStudioAboutReplay({ onOpenChange: setAboutOpen, restoreFocus: () => accountTrigger.current?.focus() })
   const [quota, setQuota] = useState<QuotaSnapshot | null>(null)
   // NEXT_PUBLIC_STUDIO_P2_POLISH (PP-6): the last quota read failed. Only set with the flag on, so the capacity card can say "Usage unavailable" instead of silently not being there.
@@ -215,8 +217,8 @@ export function UserProfileMenu({ studioLabels = false, studioPalette = false, s
           </Button>
         </DropdownMenuTrigger>
       </StudioNavigationHint>
-      {p2Menu ? <StudioProfileMenuP2 name={user.name} email={user.email} image={user.image} initials={userInitials} tierLabel={quota?.tierLabel} sessionTier={user.tier} quotaFailed={quotaFailed} sessionUsage={sessionUsage} quota={quota} theme={theme} onTheme={setTheme} onNavigate={handleNavigation} onAbout={() => { setIsOpen(false); setAboutOpen(true) }} onLogout={handleLogout} {...(versionHistoryRow ? { versionHistoryRow /* VERSION-HISTORY-V2 */ } : {})} /> : (
-      <DropdownMenuContent data-studio-v4-profile={studioPalette ? "true" : undefined} data-studio-profile-fidelity={studioProfile ? "true" : undefined} side={studioProfile ? "right" : undefined} sideOffset={studioProfile ? 8 : undefined} align="end" className="w-64">
+      {p2Menu ? <StudioProfileMenuP2 name={user.name} email={user.email} image={user.image} initials={userInitials} tierLabel={quota?.tierLabel} sessionTier={user.tier} quotaFailed={quotaFailed} sessionUsage={sessionUsage} quota={quota} theme={theme} onTheme={setTheme} onNavigate={handleNavigation} onAbout={() => { setIsOpen(false); setAboutOpen(true) }} onLogout={handleLogout} {...(versionHistoryRow ? { versionHistoryRow /* VERSION-HISTORY-V2 */ } : {})} {...(menuCloseFocus ? { onCloseAutoFocus: menuCloseFocus } : {}) /* PHONE-POLISH */} /> : (
+      <DropdownMenuContent data-studio-v4-profile={studioPalette ? "true" : undefined} data-studio-profile-fidelity={studioProfile ? "true" : undefined} side={studioProfile ? "right" : undefined} sideOffset={studioProfile ? 8 : undefined} align="end" className="w-64" {...(menuCloseFocus ? { onCloseAutoFocus: menuCloseFocus } : {}) /* PHONE-POLISH */}>
         <DropdownMenuLabel data-studio-profile-identity={studioProfile ? "true" : undefined} className="font-normal">
           <div className="flex flex-col space-y-1">
             <div className="flex items-center gap-2">
