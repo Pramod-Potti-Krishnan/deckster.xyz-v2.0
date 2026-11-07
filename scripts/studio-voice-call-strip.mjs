@@ -36,6 +36,9 @@ export const VOICE_CALL_NEW_FILES = [
   'docs/p4-20/VOICE-CALL-UI.md',
   'scripts/studio-voice-call-strip.mjs',
   'scripts/test-studio-voice-call.mjs',
+  'scripts/test-studio-voice-call-mutants-2.mjs', // SHARDS (carrier 2): the mutant shards 2/4, 3/4 and 4/4 of the proof above
+  'scripts/test-studio-voice-call-mutants-3.mjs',
+  'scripts/test-studio-voice-call-mutants-4.mjs',
   // P4-21: the end-to-end replay of DIRECTOR-2's P4-18 recordings (V0 typed, V1 and V2 voice) and the copies of the recorder's README and CONTRACT it reads
   'scripts/test-studio-voice-call-replay.mjs',
   'scripts/fixtures/studio-voice-call-replay/README.md',
