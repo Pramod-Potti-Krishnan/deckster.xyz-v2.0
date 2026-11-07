@@ -1,6 +1,7 @@
 // P4-19: exact, reversible compatibility views for older Studio source proofs. No runtime code is changed.
 export const VOICE_CORE_ENV_BLOCK = "# Director companion calls: opt in only (P4-19).\nNEXT_PUBLIC_STUDIO_VOICE_CALL=false\n";
 export const VOICE_CORE_SCOPE_FILES = new Set([
+  "scripts/test-studio-api-hardening.mjs",
   ".env.example",
   "docs/p4-19/RESULT.md",
   "docs/p4-19/VOICE-CORE.md",
@@ -65,6 +66,12 @@ export function isVoiceCoreCommitSubject(value) {
 }
 export const VOICE_CORE_SCOPE_PIN = "  shas.splice(0, shas.length, ...shas.filter(sha => !isVoiceCoreCommitSubject(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): the pure voice port owns these later commits; this proof still checks its original files\n";
 export const VOICE_CORE_PROOF_EDITS = {
+  "scripts/test-studio-api-hardening.mjs": [
+    [
+      "const otherStrips = (rel, text) => typeof text !== 'string' ? text : ((t) => rel !== 'prisma/schema.prisma' ? t : LATER_STRIPS.filter(fn => fn !== strip.stripApiHardening).reduce((out, fn) => { const next = typeof fn === 'function' ? fn(rel, out) : out; return typeof next === 'string' ? next : out }, t))(LATER_STRIPS.slice(LATER_STRIPS.indexOf(strip.stripApiHardening) + 1).reduce((out, fn) => { const next = typeof fn === 'function' ? fn(rel, out) : out; return typeof next === 'string' ? next : out }, text)) // LATER-CHANGES: registry read (STUDIO-VOICE-CORE, carrier 2): every owned file is first read past the changes registered AFTER this one (the voice port teaches the legal short links proof two lines); then, as before, // LATER-CHANGES: registry read (API-HARDENING, Option L chain): the schema is read as this change left it, whatever the changes registered before it marked in it (#576's schema model, added after BASE); every other owned file is compared as before, because the registered strips of changes already in BASE put back older text this change's pairs do not expect\n",
+      "const otherStrips = (rel, text) => typeof text !== 'string' || rel !== 'prisma/schema.prisma' ? text : LATER_STRIPS.filter(fn => fn !== strip.stripApiHardening).reduce((out, fn) => { const next = typeof fn === 'function' ? fn(rel, out) : out; return typeof next === 'string' ? next : out }, text) // LATER-CHANGES: registry read (API-HARDENING, Option L chain): the schema is read as this change left it, whatever the changes registered before it marked in it (#576's schema model, added after BASE); every other owned file is compared as before, because the registered strips of changes already in BASE put back older text this change's pairs do not expect\n"
+    ]
+  ],
   "scripts/test-studio-deck-sync-truth.mjs": [
     [
       "  shas.splice(0, shas.length, ...shas.filter(sha => !/^(?:Port pure Director voice core and fixture tests behind opt-in flag$|Add safe companion gesture hints and legacy clip fallbacks$|Document final Director voice fields and sentence-gap gesture wiring$|Voice core:)/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): the pure voice port owns these later commits; this proof still checks its original files\n",
