@@ -102,6 +102,11 @@ form:has(+ [data-studio-voice-call="buttons"][data-voice-buttons="c"]) [data-stu
 [data-studio-voice-call="stage"] .studio-voice-lines { position: absolute; z-index: 2; left: 14px; right: 14px; bottom: 84px; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
 [data-studio-voice-call="stage"] .studio-voice-lines p { margin: 0; max-width: 560px; padding: 4px 12px; border-radius: 12px; text-align: center; overflow-wrap: anywhere; font-size: 13px; line-height: 18px; color: var(--ss-text); }
 [data-studio-voice-call="stage"] .studio-voice-hint, [data-studio-voice-call="stage"] .studio-voice-progress { color: var(--ss-muted); font-size: 12.5px; }
+/* HINT-CLEAR (PK 7 Nov): in the VIDEO call the words (the hint, the progress line, the subtitle) sit in the free space under the top bar, above the character's head, so they never cover it (the figure ends 92 px above the bottom and the headroom above the head is empty at phone and desktop width); with a notice up (it takes that place) they stay above the talk button as before. The AUDIO call keeps its place: its disc is centred, clear of them. */
+@media (min-width: 768px) and (min-height: 680px) { /* HINT-CLEAR: a window shorter than this has no headroom above the head (the character fills it), so the words stay above the talk button there, as before */
+  [data-studio-voice-call="stage"][data-voice-mode="video"] .studio-voice-lines { top: 66px; bottom: auto; } /* HINT-CLEAR */
+  [data-studio-voice-call="stage"][data-voice-mode="video"] .studio-voice-notice ~ .studio-voice-lines { top: auto; bottom: 84px; } /* HINT-CLEAR */
+}
 [data-studio-voice-call="stage"] .studio-voice-talk-row { position: absolute; z-index: 3; left: 0; right: 0; bottom: 14px; display: flex; justify-content: center; padding: 0 14px; }
 [data-studio-voice-call="stage"] .studio-voice-talk { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 52px; min-width: 220px; padding: 0 30px; border-radius: 9999px; border: 1px solid var(--ss-line); background: var(--ss-action); color: var(--ss-on-action); font-size: 15px; font-weight: 600; touch-action: none; user-select: none; -webkit-user-select: none; white-space: nowrap; box-shadow: 0 8px 22px rgb(0 0 0 / 0.18); }
 [data-studio-voice-call="stage"] .studio-voice-talk:hover:not(:disabled) { background: var(--ss-action-hover); }
@@ -140,6 +145,8 @@ form:has(+ [data-studio-voice-call="buttons"][data-voice-buttons="c"]) [data-stu
   [data-studio-voice-call="stage"] .studio-voice-initials { font-size: 2rem; }
   [data-studio-voice-call="stage"][data-voice-mode="audio"] .studio-voice-figure { padding-bottom: 80px; }
   [data-studio-voice-call="stage"] .studio-voice-lines { bottom: 90px; }
+  [data-studio-voice-call="stage"][data-voice-mode="video"] .studio-voice-lines { top: 76px; bottom: auto; } /* HINT-CLEAR: under the phone's taller top bar */
+  [data-studio-voice-call="stage"][data-voice-mode="video"] .studio-voice-notice ~ .studio-voice-lines { top: auto; bottom: 90px; } /* HINT-CLEAR */
   [data-studio-voice-call="stage"] .studio-voice-notice { top: 68px; }
 }
 @media (prefers-reduced-motion: reduce) {
