@@ -4,6 +4,7 @@ import type { ReactNode } from "react"
 import { ChevronDown, ListOrdered } from "lucide-react"
 import type { SlideContextItem, SlideUpdate } from "@/hooks/use-deckster-websocket-v2"
 import { STUDIO_STRAWMAN_CHAT_ENABLED } from "@/lib/studio-strawman-chat" // STRAWMAN-CHAT
+import { STUDIO_OUTLINE_CARD_G4_ENABLED, outlineCardG4View } from "@/lib/studio-outline-card-g4" // OUTLINE-CARD-G4
 
 interface StudioOutlineCardProps {
   payload: SlideUpdate["payload"]
@@ -31,6 +32,7 @@ export function StudioOutlineCard({ payload, contextByIndex, renderEvidence, his
           const context = contextByIndex?.[index]
           const hasResearch = Boolean(context?.research_status || context?.research_ready != null
             || context?.citation_count != null || context?.source_types?.length || context?.research_issues?.length)
+          const g4 = outlineCardG4View(STUDIO_OUTLINE_CARD_G4_ENABLED, slide, context, hasResearch) // OUTLINE-CARD-G4: flag off = the slide's own narrative, no subtitle, hasResearch
           return (
             <li key={slide.slide_id || index}>
               <details data-studio-director-part="outline-review-slide">
@@ -48,10 +50,11 @@ export function StudioOutlineCard({ payload, contextByIndex, renderEvidence, his
                   <ChevronDown size={13} aria-hidden="true" />
                 </summary>
                 <div data-studio-director-part="outline-review-content">
+                  {g4.subtitle && <p data-studio-director-part="outline-review-subtitle">{g4.subtitle}</p>}{/* OUTLINE-CARD-G4 */}
                   {context?.key_message && <p data-studio-director-part="outline-review-takeaway"><b>Key message</b>{context.key_message}</p>}
-                  {slide.narrative && <p>{slide.narrative}</p>}
+                  {g4.narrative && <p>{g4.narrative}</p>}{/* OUTLINE-CARD-G4 */}
                   {slide.key_points?.length > 0 && <ul>{slide.key_points.map((point, pointIndex) => <li key={pointIndex}>{point}</li>)}</ul>}
-                  {hasResearch && (
+                  {g4.research && ( // OUTLINE-CARD-G4
                     <div data-studio-director-part="research-details">
                       <strong>Research details</strong>
                       {context?.research_status && <p><b>Status</b>{context.research_status.replace(/_/g, " ")}</p>}
