@@ -367,7 +367,7 @@ async function proveDelete(texts = {}) {
   // storage that throws, is absent, or holds junk: the client works in memory, never throws
   for (const storage of [throwingStorage(), null]) {
     const lib = libOf(texts), client = new lib.MockSpawnClient({ userId: 'user-a', storage, random: seeded(8), now: () => NOW, timers: manualTimers() })
-    assert.deepEqual(await listOf(client), [])
+    await assert.doesNotReject(() => client.listPacks(), 'a storage that throws reads as no companions, never as an error'); assert.deepEqual(await listOf(client), [])
     let job = await toPick(lib, client); job = client.advance((await client.pickMaster(job.id, 'c1')).id); const entry = await client.saveDisplayName(job.id, 'In Memory')
     assert.deepEqual(await listOf(client, 'id'), [entry.id], 'kept in memory when it cannot be stored'); await client.deletePack(entry.id); assert.deepEqual(await listOf(client), [])
   }
@@ -811,3 +811,125 @@ await scopeCheck('LINEAR STACK: an unregistered file in the later commit still f
   const straySubject = commitWith(HEAD, { 'stray-later-change.txt': 'stray\n' }, `Proofs after merge: an unregistered file${TRAILER}`)
   assert.throws(() => scopeCommittedFiles(straySubject), /nothing else/, 'a later commit with another subject that touches a file the registry does not name still fails')
 })
+
+// ===== M. mutants (each one edit of the real sources, fed to the same checks) ======================================================================
+if (!process.env.CHECK_ONLY) console.log('mutants')
+const AREAS = {
+  flag: t => proveFlag(t), leaks: t => proveNoLeaks(t), route: t => proveRoute(t), consent: t => proveConsent(t), consentClient: t => proveConsentClient(t), stages: t => proveStages(t), privacy: t => provePrivacy(t), hold: t => provePhotoHold(t), pick: t => provePickDiscards(t),
+  ids: t => proveIds(t), del: t => proveDelete(t), refusal: t => proveRefusal(t), resolve: t => proveResolve(t), fallback: t => proveFallback(t), steps: t => proveSteps(t), container: t => proveContainer(t),
+}
+/** One edit of one real source (`from` must be there exactly once), fed to the named checks in turn: caught when any of them fails an assertion. */
+const BEHAVIOUR = [
+  // the flag, the route, the components
+  ['flag: "1" is read as on', LIB, "process.env.NEXT_PUBLIC_STUDIO_AVATAR_SPAWN === 'true'", "(process.env.NEXT_PUBLIC_STUDIO_AVATAR_SPAWN === 'true' || process.env.NEXT_PUBLIC_STUDIO_AVATAR_SPAWN === '1')", 'flag'],
+  ['flag: the Studio shell is not required', LIB, "process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && ", '', 'flag'],
+  ['flag off: the route does not call notFound()', PAGE, '  if (!STUDIO_AVATAR_SPAWN_ENABLED) notFound()\n', '', 'route'],
+  ['flag off: the component draws', APP, '  if (!STUDIO_AVATAR_SPAWN_ENABLED) return null\n', '', 'route'],
+  // consent
+  ['consent: the check is skipped in the page (Continue enabled with items unticked)', STEPS, 'disabled={!all || !!busy}', 'disabled={!!busy}', 'consent', 'container'],
+  ['consent: three of four items are enough', LIB, 'return CONSENT_ITEMS.every(item => ticked.includes(item.id))', 'return CONSENT_ITEMS.slice(0, 3).every(item => ticked.includes(item.id))', 'consent'],
+  ['consent: every set counts as ticked', LIB, 'return CONSENT_ITEMS.every(item => ticked.includes(item.id))', 'return true', 'consent', 'container'],
+  ['consent: the client skips the check (a job without consent)', LIB, "    if (!consentComplete(consent)) throw new Error('consent_incomplete')\n", '', 'consentClient'],
+  // the photo
+  ['photo persisted: the photo is written to storage at upload', LIB, '    // Only the size and the type are looked at. The bytes are never read, kept or sent.\n', "    // Only the size and the type are looked at. The bytes are never read, kept or sent.\n    if (this.storage) this.storage.setItem('deckster.studio.avatarSpawn.photo', 'data:image/jpeg;base64,' + JSON.stringify(file))\n", 'privacy'],
+  ['photo read: the client reads the photo\'s bytes', LIB, '    // Only the size and the type are looked at. The bytes are never read, kept or sent.\n', '    try { await (file as unknown as Blob).arrayBuffer() } catch { /* ignored */ }\n', 'privacy'],
+  ['photo persisted: a preview address is stored with the entry', LIB, 'createdAt: e.createdAt }))', "createdAt: e.createdAt, preview: 'data:image/png;base64,AAAA' }))", 'privacy'],
+  ['photo kept: an entry read back keeps its extra fields', LIB, 'return { id: v.id, displayName: name, packBaseUrl: base, owner: { app: owner.app, tenantId: owner.tenantId, userId }, createdAt: v.createdAt }', 'return { ...v, id: v.id } as unknown as StoredCompanionEntry', 'privacy'],
+  ['photo kept: picking does not let go of it', LIB, '  hold.discard()\n  return client.pickMaster(jobId, candidateId)', '  return client.pickMaster(jobId, candidateId)', 'pick', 'container'],
+  ['photo kept: it is let go of AFTER the pick', LIB, '  hold.discard()\n  return client.pickMaster(jobId, candidateId)', '  const next = client.pickMaster(jobId, candidateId)\n  hold.discard()\n  return next', 'pick'],
+  ['photo kept: the page calls pickMaster itself (no discard)', APP, 'setJob(await pickAndDiscard(client, hold(), job.id, selectedId))', 'setJob(await client.pickMaster(job.id, selectedId))', 'container'],
+  ['photo kept: a refused job keeps it', APP, "if (next.stage === 'refused') { hold().discard(); setPreviewUrl(null); setHasFile(false) }", "if (next.stage === 'refused') { setPreviewUrl(null); setHasFile(false) }", 'container'],
+  ['photo kept: leaving the page keeps it', APP, 'useEffect(() => () => holdRef.current?.discard(), [])', 'useEffect(() => () => undefined, [])', 'container'],
+  ['photo kept: cancel keeps it', APP, '  const reset = () => {\n    hold().discard()\n', '  const reset = () => {\n', 'container'],
+  ['photo kept: discard() does not revoke the preview', LIB, 'if (url && this.urls) { try { this.urls.revokeObjectURL(url) } catch { /* nothing to release */ } }', '', 'hold'],
+  ['photo: the page reads it with a FileReader', APP, 'onFile={file => { setPreviewUrl(hold().hold(file)); setHasFile(true) }}', 'onFile={file => { new FileReader().readAsDataURL(file); setPreviewUrl(hold().hold(file)); setHasFile(true) }}', 'leaks'],
+  ['photo: the page writes to localStorage', APP, '  const refresh = () =>', "  const stash = () => localStorage.setItem('p', String(previewUrl))\n  const refresh = () =>", 'leaks'],
+  ['no network: the page fetches', APP, '    const timer = setInterval(() => {', "    void fetch('/api/studio/companions')\n    const timer = setInterval(() => {", 'leaks'],
+  ['logs: the client logs the photo', LIB, '    const size = Number(file?.size), type', '    console.log(file)\n    const size = Number(file?.size), type', 'leaks'],
+  ['logs: a step logs a name', STEPS, 'onClick={() => onAskDelete(entry.id)}', 'onClick={() => { console.log(entry.displayName); onAskDelete(entry.id) }}', 'leaks'],
+  // ids
+  ['id: derived from the name', LIB, 'const entry: StoredCompanionEntry = { id: job.packId,', "const entry: StoredCompanionEntry = { id: 'u-' + name.toLowerCase().replace(/[^a-z0-9]/g, '').padEnd(26, 'x').slice(0, 26),", 'ids'],
+  ['id: 25 characters', LIB, 'return `u-${randomChars(26, random)}`', 'return `u-${randomChars(25, random)}`', 'ids'],
+  ['id: upper-case letters in the alphabet', LIB, "const ID_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789'", "const ID_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'", 'ids'],
+  ['registry: the key has no user id', LIB, 'export const registryKey = (userId: string): string => `${REGISTRY_KEY_PREFIX}${userId}`', 'export const registryKey = (userId: string): string => REGISTRY_KEY_PREFIX', 'privacy', 'del'],
+  ['registry: another user\'s entry is accepted', LIB, ' || owner.userId !== userId', '', 'del'],
+  ['registry: a read is not inside try/catch', LIB, ': []\n  } catch { return null }\n}\n/** Writes', ': []\n  } finally { /* none */ }\n}\n/** Writes', 'del'],
+  // delete
+  ['delete: does not remove the entry', LIB, '    if (kept.length !== entries.length) this.save(kept)\n', '', 'del'],
+  ['delete: removes every entry', LIB, 'kept = entries.filter(e => e.id !== packId)', 'kept = entries.filter(() => false)', 'del'],
+  ['delete: without a confirm', STEPS, 'onClick={() => onAskDelete(entry.id)}', 'onClick={() => onConfirmDelete(entry.id)}', 'container'],
+  ['delete: the notice does not say the pack and previews are deleted', LIB, "} The companion's pack and its previews are deleted.`", '}`', 'steps', 'container'],
+  ['pick: does not mark the chosen companion', APP, 'onChoose={id => { setChosenId(id); setNotice(null) }}', 'onChoose={() => { setNotice(null) }}', 'container'],
+  // refusal
+  ['refusal: the screen offers a Continue', STEPS, '<button type="button" className="sas-secondary" onClick={onBack}>Back to my companions</button>', '<button type="button" className="sas-primary" onClick={onBack}>Continue</button><button type="button" className="sas-secondary" onClick={onBack}>Back to my companions</button>', 'refusal'],
+  ['refusal: two codes share one message', LIB, "public_figure: 'We cannot make a companion that looks like a well-known public figure or an existing character.',", "public_figure: 'We could not make a good likeness from this photo. A bright, in-focus, front-on photo with only you in it works best.',", 'refusal'],
+  ['refusal: the raw code is shown', STEPS, '<p data-sas-part="refusal-message">{REFUSAL_MESSAGES[code]}</p>', '<p data-sas-part="refusal-message">{code}: {REFUSAL_MESSAGES[code]}</p>', 'refusal'],
+  ['refusal: the client never refuses', LIB, "      if (job.refuseWith) { job.stage = 'refused'; job.refusal = job.refuseWith; job.progress = 0; return }\n", '', 'refusal'],
+  ['refusal: a refused job can still be picked', LIB, "    if (job.stage !== 'pick') throw new Error('wrong_stage')\n", '', 'stages'],
+  // stages
+  ['stages: three candidates', LIB, "  { id: 'c4', label: 'Option 4', previewUrl: '/companions/maya/portrait-256.webp' },\n", '', 'stages'],
+  ['stages: a candidate that is not committed', LIB, "{ id: 'c1', label: 'Option 1', previewUrl: '/companions/maya/portrait-512.webp' }", "{ id: 'c1', label: 'Option 1', previewUrl: '/companions/maya/portrait-999.webp' }", 'stages'],
+  ['stages: a client without a user', LIB, "    if (typeof options.userId !== 'string' || options.userId === '') throw new Error('user_required')\n", '', 'stages'],
+  ['steps: Save companion enabled with no name', STEPS, 'disabled={cleanDisplayName(name) === null || !!busy}', 'disabled={!!busy}', 'steps'],
+  // resolve and fallback
+  ['resolve: ".." climbs out of the base', LIB, "if (part === '..') { if (kept.length === 0) return null; kept.pop(); continue }", "if (part === '..') { kept.pop(); continue }", 'resolve'],
+  ['resolve: a percent gets through', LIB, String.raw`/[\u0000-\u001f\u007f\\?#%]/.test(manifestRelativePath)`, String.raw`/[\u0000-\u001f\u007f\\?#]/.test(manifestRelativePath)`, 'resolve'],
+  ['resolve: a scheme gets through', LIB, ' || /^[A-Za-z][A-Za-z0-9+.-]*:/.test(manifestRelativePath)', '', 'resolve'],
+  ['resolve: a base with ".." is accepted', LIB, "  if (value.split('/').includes('..')) return null\n", '', 'resolve'],
+  ['fallback: the portrait before the pack', LIB, "  if (manifest && portrait) chain.push({ kind: 'pack', url: manifest, still: portrait })\n  if (portrait) chain.push({ kind: 'portrait', url: portrait, still: portrait })\n", "  if (portrait) chain.push({ kind: 'portrait', url: portrait, still: portrait })\n  if (manifest && portrait) chain.push({ kind: 'pack', url: manifest, still: portrait })\n", 'fallback'],
+  ['fallback: Felix first', LIB, "chain.push({ kind: 'felix'", "chain.unshift({ kind: 'felix'", 'fallback'],
+  ['fallback: nothing loads, not Felix', LIB, 'return chain[chain.length - 1]', 'return chain[0]', 'fallback'],
+  ['fallback: a thumbnail does not step to the next picture', STEPS, ' onError={() => setAt(current => Math.min(current + 1, stills.length - 1))}', '', 'fallback'],
+]
+for (const [label, rel, from, to, ...areas] of BEHAVIOUR) {
+  await mutant(label, async () => { const texts = { [rel]: swap(read(rel), from, to) }; for (const area of areas) await AREAS[area](texts) })
+}
+await mutant('styling: a new colour', () => proveCss(swap(read(CSS), '--sas-danger: var(--sa-danger, #b03f35);', '--sas-danger: var(--sa-danger, #ff00aa);')))
+await mutant('styling: a gradient', () => proveCss(swap(read(CSS), '.sas-fill { height: 100%; border-radius: 999px; background: var(--sas-teal); }', '.sas-fill { height: 100%; border-radius: 999px; background: linear-gradient(var(--sas-teal), var(--sas-line)); }')))
+await mutant('styling: the purple accent token', () => proveCss(swap(read(CSS), '--sas-teal: var(--ss-teal, #1f6f72);', '--sas-teal: var(--ss-accent, #1f6f72);')))
+
+// the strip, the registry, the env block
+const REG_NOW = read(REGISTRY), regLinesOf = text => text.split('\n')
+const PIN0 = AVATAR_SPAWN_PIN_FILES[0], PIN1 = AVATAR_SPAWN_PIN_FILES[1]
+await mutant('strip: a strip that leaves a line (a taught proof is not put back)', () => proveStrip((rel, text) => (rel === PIN0 ? text : stripAvatarSpawn(rel, text))))
+await mutant('strip: a strip that is not idempotent (it takes one more line away each time)', () => proveStrip((rel, text) => { const out = stripAvatarSpawn(rel, text); return rel === PIN1 && out === text ? out.replace(/^import [^\n]*\n/m, '') : out }))
+await mutant('strip: a strip that edits a file it does not own', () => proveStrip((rel, text) => (rel === 'app/builder/page.tsx' ? `${text}x` : stripAvatarSpawn(rel, text))))
+await mutant('strip: a strip that takes the base\'s own filter too', () => proveStrip((rel, text) => stripAvatarSpawn(rel, text).replace(/^ {2}shas\.splice[^\n]*Chat caps:[^\n]*\n/m, '')))
+await mutant('strip: a taught proof keeps a second, unmarked line', () => proveStrip(stripAvatarSpawn, rel => (rel === PIN0 ? read(rel).replace(AVATAR_SPAWN_PIN_EDITS[rel][0][0], `${AVATAR_SPAWN_PIN_EDITS[rel][0][0]}  // stray\n`) : read(rel))))
+await mutant('strip: a taught line without the registry-read mark', () => proveStrip(stripAvatarSpawn, rel => (rel === PIN1 ? swap(read(rel), 'registry read (AVATAR-SPAWN): on a branch', 'on a branch') : read(rel))))
+await mutant('strip: a taught line that is not a subject filter for this change', () => proveStrip(stripAvatarSpawn, rel => (rel === PIN1 ? swap(read(rel), '!/^Avatar spawn mock:/', '!/^Avatar spawn:/') : read(rel))))
+await mutant('strip: a taught line put somewhere that is not after the usage credits page\'s filter', () => proveStrip(stripAvatarSpawn, rel => {
+  if (rel !== PIN0) return read(rel)
+  const lines = read(rel).split('\n'), at = lines.findIndex(l => l.includes(AVATAR_SPAWN_PIN_MARK)), [line] = lines.splice(at, 1); lines.splice(lines.findIndex(l => l.includes('registry read (CHAT-CAPS-META)')) + 1, 0, line); return lines.join('\n')
+}))
+await mutant('draft: a draft anchor that is not dev\'s line', () => proveStripData(AVATAR_SPAWN_DRAFT.map((d, i) => (i === 3 ? { ...d, anchor: 'import { studioNavLabels } from "@/lib/studio-nav-labels" ' } : d))))
+await mutant('draft: a draft line without the marker', () => proveStripData(AVATAR_SPAWN_DRAFT.map((d, i) => (i === 0 ? { ...d, line: d.line.replace(' // AVATAR-SPAWN', ' //') } : d))))
+await mutant('draft: a draft applied (its file is in the scope)', () => { const d = AVATAR_SPAWN_DRAFT[0]; assert.ok(!AVATAR_SPAWN_SCOPE_FILES.has(d.file), 'positive control: not in scope'); proveStripData(AVATAR_SPAWN_DRAFT.map((x, i) => (i === 0 ? { ...x, file: 'scripts/studio-later-changes.mjs', after: 1 } : x))) })
+await mutant('registry: the files line above the voice call\'s (not the true end of its list)', () => { const reg = regLinesOf(REG_NOW), at = reg.findIndex(l => l.includes(OWN_NAME) && l.includes('SCOPE_FILES')), [line] = reg.splice(at, 1); reg.splice(reg.findIndex(l => l.includes('studio-voice-call-strip.mjs') && l.includes('SCOPE_FILES')), 0, line); proveRegistryText(reg.join('\n')) })
+await mutant('registry: the strip line moved above the usage credits page\'s', () => { const reg = regLinesOf(REG_NOW), at = reg.findIndex(l => l.includes(OWN_NAME) && l.includes('stripAvatarSpawn')), [line] = reg.splice(at, 1); reg.splice(reg.findIndex(l => l.includes('studio-usage-credits-page-strip.mjs') && l.includes('stripUsageCreditsPage')), 0, line); proveRegistryText(reg.join('\n')) })
+await mutant('registry: the strip line missing', () => proveRegistryText(regLinesOf(REG_NOW).filter(l => !(l.includes(OWN_NAME) && l.includes('stripAvatarSpawn'))).join('\n')))
+await mutant('registry: the env block line missing', () => proveRegistryText(regLinesOf(REG_NOW).filter(l => !(l.includes(OWN_NAME) && l.includes('ENV_BLOCK'))).join('\n')))
+await mutant('registry: the files line missing', () => proveRegistryText(regLinesOf(REG_NOW).filter(l => !(l.includes(OWN_NAME) && l.includes('SCOPE_FILES'))).join('\n')))
+await mutant('registry: a line of dev\'s registry lost', () => { const reg = regLinesOf(REG_NOW); reg.splice(reg.findIndex(l => l.includes('studio-chat-caps-strip.mjs') && l.includes('stripChatCaps')), 1); proveRegistryText(reg.join('\n')) })
+await mutant('registry: a second files line (two lines in one list)', () => { const reg = regLinesOf(REG_NOW), at = reg.findIndex(l => l.includes(OWN_NAME) && l.includes('SCOPE_FILES')); reg.splice(at + 1, 0, reg[at]); proveRegistryText(reg.join('\n')) })
+await mutant('registry: a registry line that is not in the registered shape below ours', () => { const reg = regLinesOf(REG_NOW), at = reg.findIndex(l => l.includes(OWN_NAME) && l.includes('stripAvatarSpawn')); reg.splice(at + 1, 0, "  (await import('./studio-x-strip.mjs')).stripX, // not registered"); proveRegistryText(reg.join('\n')) })
+await mutant('registry: the env block line in the files list', () => { const reg = regLinesOf(REG_NOW), at = reg.findIndex(l => l.includes(OWN_NAME) && l.includes('ENV_BLOCK')), [line] = reg.splice(at, 1); reg.splice(reg.findIndex(l => l.includes(OWN_NAME) && l.includes('SCOPE_FILES')) + 1, 0, line); proveRegistryText(reg.join('\n')) })
+const ENV_NOW = read('.env.example')
+await mutant('env: .env.example without the block', () => proveEnv(swap(ENV_NOW, `\n${AVATAR_SPAWN_ENV_BLOCK}`, '')))
+await mutant('env: the flag documented as on', () => proveEnv(swap(ENV_NOW, 'NEXT_PUBLIC_STUDIO_AVATAR_SPAWN="false"', 'NEXT_PUBLIC_STUDIO_AVATAR_SPAWN="true"')))
+await mutant('env: no blank line before the block', () => proveEnv(swap(ENV_NOW, `\n\n${AVATAR_SPAWN_ENV_BLOCK}`, `\n${AVATAR_SPAWN_ENV_BLOCK}`)))
+await mutant('env: another line added to .env.example', () => proveEnv(`${ENV_NOW}NEXT_PUBLIC_STUDIO_SOMETHING_ELSE="false"\n`))
+await mutant('env: a line of dev\'s .env.example lost', () => proveEnv(swap(ENV_NOW, 'NEXT_PUBLIC_STUDIO_VOICE_CALL_BUTTONS="c"\n', '')))
+if (ON_OWN_LINE) {
+  await mutant('scope: a stray file in an own commit', () => scopeBreakers['a stray file in an own commit']())
+  await mutant('scope: an own commit without the co-author line', () => scopeBreakers['an own commit without the co-author line']())
+  await mutant('scope: the old first-parent query (finds no own commit on the gate-style merge)', () => scopeOwnCommits(GATE, { firstParentOnly: true }))
+  await mutant('scope: the HEAD^2 rule dropped (the scope runs against the merge itself)', () => { assert.equal(scopeHead(GATE, { gateRule: false }), HEAD, 'the scope head is the change\'s head') })
+  await mutant('scope: a DRAFT line applied to the rail (an existing app file edited in an own commit)', () => scopeCommittedFiles(commitWith(HEAD, { 'components/layout/studio-rail.tsx': swap(git('show', `${HEAD}:components/layout/studio-rail.tsx`), 'import { studioNavLabels } from "@/lib/studio-nav-labels"\n', 'import { studioNavLabels } from "@/lib/studio-nav-labels"\nimport { STUDIO_AVATAR_SPAWN_ENABLED } from "@/lib/studio-avatar-spawn" // AVATAR-SPAWN\n') }, `${AVATAR_SPAWN_SUBJECT} applies a draft line${TRAILER}`)))
+  await mutant('scope: a stray line in the Usage page in an own commit', () => scopeCommittedFiles(commitWith(HEAD, { 'app/(app)/usage/page.tsx': `${git('show', `${HEAD}:app/(app)/usage/page.tsx`)}\n` }, `${AVATAR_SPAWN_SUBJECT} edits the Usage page${TRAILER}`)))
+  await mutant('scope: a later commit with an unregistered file stacked on this head', () => scopeCommittedFiles(laterCommit(HEAD, { registryLines: true, extra: { 'stray-later-change.txt': 'stray\n' } }), { later: synLater }))
+  await mutant('scope: the later change\'s strip not told to the pins (its line breaks the put-back)', () => proveStrip(stripAvatarSpawn, rel => git('show', `${laterCommit(HEAD, { registryLines: true })}:${rel}`), laterStrips, 'linear stack, not told'))
+}
+
+console.log(`\n${passed} passed, ${failed.length} failed; mutants ${caught} caught, ${missed.length} missed`)
+if (failed.length || missed.length) { for (const label of failed) console.error(`  failed: ${label}`); for (const label of missed) console.error(`  missed: ${label}`); process.exit(1) }
