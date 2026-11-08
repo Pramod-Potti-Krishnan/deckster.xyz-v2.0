@@ -73,7 +73,7 @@ export const OUTLINE_CARD_G4_OWN_EDITS = ['.env.example', 'scripts/studio-later-
 export const OUTLINE_CARD_G4_SCOPE_FILES = new Set([...OUTLINE_CARD_G4_FILES, ...OUTLINE_CARD_G4_NEW_FILES, ...OUTLINE_CARD_G4_OWN_EDITS])
 
 /** The whole .env.example block: its comment and its line. */
-export const OUTLINE_CARD_G4_ENV_BLOCK = `# STUDIO OUTLINE CARD G4 (FRONTEND-1; DIRECTOR-2's read-only diagnosis G-4 of the outline card). On for the exact value "true"; default off, and then the card renders byte for byte as it did. Build-time value: change it on Vercel and redeploy. It acts only where the card is drawn (NEXT_PUBLIC_STUDIO_STRAWMAN_CHAT on draws no outline card at all).
+export const OUTLINE_CARD_G4_ENV_BLOCK = `# STUDIO OUTLINE CARD G4 (FRONTEND-1; DIRECTOR-2's read-only diagnosis G-4 of the outline card). On for the exact value "true"; default off, and then the card renders byte for byte as it did. Build-time value: change it on Vercel and redeploy. It acts only where the card is drawn (with the Studio strawman chat on, the chat draws no outline card at all).
 # On, in a slide's expanded body: (a) a leading "Key message:" line of the narrative that repeats the slide's key message is left out (the key message is drawn once, under "Key message"); (b) the slide's subtitle is drawn first, when it has one; (c) the "Research details" block is not drawn when the status is "conceptual" with no citations, no source types and no issues. The key points are not touched.
 # No new text, no Director change, nothing sent.
 NEXT_PUBLIC_STUDIO_OUTLINE_CARD_G4="false"
