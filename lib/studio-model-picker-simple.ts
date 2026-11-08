@@ -106,5 +106,11 @@ export function simpleView(args: { catalogue: ChoiceCatalogue | null; state: Pic
   return { ...common, title: PICKER_AUTO_LABEL, line: { lead: null, name: PICKER_AUTO_DETAIL }, list: { heading: null, rows: [] } }
 }
 
+/** The view while the thumb is dragged to `tier` (nothing is saved yet): the title, the line and the spoken value follow the stop, built WITHOUT `own` (a dragged stop is not "your default"), and the reset stays exactly as the saved view has it. */
+export function simpleDragView(args: { catalogue: ChoiceCatalogue | null; scope: 'deck' | 'user'; tier: PickerTier; saved: SimpleView; stops?: PickerStop[] }): SimpleView {
+  const preview = simpleView({ catalogue: args.catalogue, state: { kind: 'tier', tier: args.tier }, scope: args.scope, stops: args.stops })
+  return { ...preview, resetEnabled: args.saved.resetEnabled }
+}
+
 /** What the reset icon writes: null, which is "Use my default" on a deck and Auto on the reusable default. */
 export const simpleResetChoice = null

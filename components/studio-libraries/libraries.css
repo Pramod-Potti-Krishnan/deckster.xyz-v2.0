@@ -2,6 +2,7 @@
   --sl-bg: #f5f7f4; --sl-panel: #ffffff; --sl-soft: #edf2ed; --sl-line: #dbe4dc;
   --sl-text: #2c3c36; --sl-muted: #64736b; --sl-teal: #287b78; --sl-accent: #7152ad;
   --sl-danger: #98483d; --sl-warning-bg: #fbf5ed;
+  --sl-disabled-bg: #edf2ed; --sl-disabled-text: #5a6862; --sl-disabled-line: #7a8a81; /* a11y: disabled primary meets WCAG AA (text 4.5:1, outline 3:1 on bg/panel) */ /* A11Y-PICKER-FOLLOWUPS */
   color: var(--sl-text); background: var(--sl-bg); border-radius: inherit;
   padding: 28px clamp(18px, 3vw, 44px) 24px; min-width: 0; min-height: 100%;
   font-size: 14px; line-height: 1.5;
@@ -10,6 +11,7 @@
   --sl-bg: #202b28; --sl-panel: #25312e; --sl-soft: #2c3b35; --sl-line: #3d4e45;
   --sl-text: #e3eae5; --sl-muted: #afbeb3; --sl-teal: #8dcac3; --sl-accent: #c3a9ed;
   --sl-danger: #efafa1; --sl-warning-bg: #3a302b;
+  --sl-disabled-bg: #2c3b35; --sl-disabled-text: #afbeb3; --sl-disabled-line: #7f9187; /* A11Y-PICKER-FOLLOWUPS */
 }
 .studio-library * { box-sizing: border-box; }
 .studio-library :is(button, input, textarea, select) { font: inherit; }
@@ -47,6 +49,7 @@
 .studio-library .sl-button, .studio-library .sl-primary, .studio-library .sl-confirm button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 9px 13px; border: 1px solid var(--sl-line); border-radius: 7px; background: var(--sl-panel); color: var(--sl-text); font-size: 12px; text-decoration: none; }
 .studio-library .sl-primary { background: #287b78; border-color: #287b78; color: #fff; }
 .studio-library .sl-primary:not(:disabled):hover { background: #226966; }
+.studio-library .sl-primary:disabled { opacity: 1; background: var(--sl-disabled-bg); border-color: var(--sl-disabled-line); color: var(--sl-disabled-text); } /* A11Y-PICKER-FOLLOWUPS */
 .studio-library .sl-button:not(:disabled):hover, .studio-library .sl-icon-button:not(:disabled):hover { background: var(--sl-soft); }
 .studio-library .sl-text-button { border: 0; background: transparent; color: var(--sl-teal); font-size: 11px; padding: 6px 0; }
 .studio-library .sl-icon-button { display: grid; place-items: center; border: 1px solid var(--sl-line); border-radius: 6px; background: var(--sl-panel); padding: 7px; color: var(--sl-muted); }
