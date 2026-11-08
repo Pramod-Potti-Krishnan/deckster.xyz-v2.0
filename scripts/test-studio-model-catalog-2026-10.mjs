@@ -5,6 +5,7 @@ import path from 'node:path'
 import vm from 'node:vm'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
+import { stripA11yPickerFollowups } from './studio-a11y-picker-followups-strip.mjs' // LATER-CHANGES: registry read (RESTACK-UX-A11Y): the stacked a11y change's lines come out of the workspace source this proof renders
 
 // NEXT_PUBLIC_STUDIO_MODEL_CATALOG_2026_10 (default off). Offline: no DOM, auth, storage, socket or service is exercised.
 //   1. flag OFF: the 2026-08-20.1 catalog file is byte-identical, and the Intelligence workspace renders to the exact bytes the base
@@ -43,7 +44,7 @@ const refreshedExists = fs.existsSync(refreshedPath)
 const refreshed = refreshedExists ? readJson('model-catalog-snapshot-2026-10.json') : null
 
 // ---- harness: the component source, compiled, with its imports mocked --------------------------------------------------------------
-const source = fs.readFileSync(path.join(workspaceDir, 'intelligence-workspace.tsx'), 'utf8')
+const source = stripA11yPickerFollowups('components/studio-personal/intelligence-workspace.tsx', fs.readFileSync(path.join(workspaceDir, 'intelligence-workspace.tsx'), 'utf8')) // LATER-CHANGES: registry read (RESTACK-UX-A11Y): the base render hash is of the workspace as it was before the stacked a11y change's aria-label
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX }, reportDiagnostics: true })
 assert.equal(compiled.diagnostics.length, 0)
 
