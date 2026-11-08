@@ -42,7 +42,7 @@ function checkIdentity(files, stripFn) {
 }
 const files = Object.fromEntries(strip.PAGE_CONSISTENCY_FILES.map(rel => [rel, read(rel)]))
 checkIdentity(files, strip.stripPageConsistency)
-ok(read('.env.example') === `${git('show', `${strip.BASE_COMMIT}:.env.example`)}\n${strip.PAGE_CONSISTENCY_ENV_BLOCK}`, '.env.example is the base plus the block')
+ok(registry.stripLaterEnvBlocks('.env.example', read('.env.example')) === registry.stripLaterEnvBlocks('.env.example', git('show', `${strip.BASE_COMMIT}:.env.example`)) && read('.env.example').includes(strip.PAGE_CONSISTENCY_ENV_BLOCK), '.env.example is the base plus the block') // LATER-CHANGES: registry read (RESTACK-UX-PC): dev's newer env blocks sit between the base and this block; they come out through the registry, the block itself must still be there
 ok(/^NEXT_PUBLIC_STUDIO_PAGE_CONSISTENCY="false"$/m.test(strip.PAGE_CONSISTENCY_ENV_BLOCK), 'the block defaults the flag to "false"')
 const reg = read('scripts/studio-later-changes.mjs')
 ok((reg.match(/studio-page-consistency-strip\.mjs.*LATER-CHANGE/g) || []).length === 3, 'registered: three LATER-CHANGE lines')
