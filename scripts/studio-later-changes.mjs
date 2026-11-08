@@ -94,6 +94,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-page-consistency-strip.mjs')).PAGE_CONSISTENCY_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, UX-07 / UX-10 Billing and Settings on the Studio shell, one create label (NEXT_PUBLIC_STUDIO_PAGE_CONSISTENCY)
   ...(await import('./studio-ux-polish-2-strip.mjs')).UX_POLISH_2_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, UX polish 2: one Studio accent, Docs on it, Intelligence overlap (NEXT_PUBLIC_STUDIO_UX_POLISH_2)
   ...(await import('./studio-restack-ux-pc-proofs-strip.mjs')).RESTACK_UX_PC_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, restack of FRONTEND-1's page consistency: older proofs read the later changes right after the merge onto newer dev (tests only)
+  ...(await import('./studio-restack-ux-polish2-proofs-strip.mjs')).RESTACK_UX_POLISH2_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, restack of FRONTEND-1's UX polish 2: older proofs read the later changes right after the merge onto newer dev (tests only)
   // one line per later change, above this comment
 ])
 
@@ -229,6 +230,7 @@ export const LATER_STRIPS = [
   (await import('./studio-page-consistency-strip.mjs')).stripPageConsistency, // LATER-CHANGE: FRONTEND-1, UX-07 / UX-10 page consistency (NEXT_PUBLIC_STUDIO_PAGE_CONSISTENCY)
   (await import('./studio-ux-polish-2-strip.mjs')).stripUxPolish2, // LATER-CHANGE: FRONTEND-1, UX polish 2 (NEXT_PUBLIC_STUDIO_UX_POLISH_2)
   (await import('./studio-restack-ux-pc-proofs-strip.mjs')).stripRestackUxPc, // LATER-CHANGE: FRONTEND-2, restack of FRONTEND-1's page consistency: older proofs read the later changes right after the merge onto newer dev (tests only)
+  (await import('./studio-restack-ux-polish2-proofs-strip.mjs')).stripRestackUxPolish2, // LATER-CHANGE: FRONTEND-2, restack of FRONTEND-1's UX polish 2: older proofs read the later changes right after the merge onto newer dev (tests only)
   // one line per later change, above this comment
 ]
 

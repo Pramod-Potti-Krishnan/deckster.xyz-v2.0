@@ -60,8 +60,8 @@ function checkIdentity(files) {
     const base = git('show', `${strip.BASE_COMMIT}:${rel}`).split('\n')
     ok(files[rel].split('\n').filter(line => !base.includes(line)).every(line => strip.UX_POLISH_2_MARKER_RE.test(line)), `${rel}: every added line carries the marker`)
   }
-  ok(files['.env.example'] === `${git('show', `${strip.BASE_COMMIT}:.env.example`)}\n${strip.UX_POLISH_2_ENV_BLOCK}`, '.env.example is the base plus the block')
-  const regDiff = git('diff', '-U0', `${strip.BASE_COMMIT}`, '--', 'scripts/studio-later-changes.mjs').split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
+  ok(registry.stripLaterEnvBlocks('.env.example', files['.env.example']) === registry.stripLaterEnvBlocks('.env.example', git('show', `${strip.BASE_COMMIT}:.env.example`)) && files['.env.example'].includes(strip.UX_POLISH_2_ENV_BLOCK), '.env.example is the base plus the block') // LATER-CHANGES: registry read (RESTACK-UX-POLISH2): the blocks of the changes stacked under this one sit between the base and this block; they come out through the registry, the block itself must still be there
+  const regDiff = git('diff', '-U0', `${strip.BASE_COMMIT}`, '--', 'scripts/studio-later-changes.mjs').split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line) && line.includes('studio-ux-polish-2-strip.mjs')) // LATER-CHANGES: registry read (RESTACK-UX-POLISH2): only this change's own registry lines count; the restack strips are registered after it
   ok(regDiff.length === 3 && regDiff.every(line => line.startsWith('+') && line.includes('studio-ux-polish-2-strip.mjs') && line.includes('LATER-CHANGE')), 'the registry gains exactly three lines')
 }
 function checkFlag(text) {
