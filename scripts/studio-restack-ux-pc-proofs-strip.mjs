@@ -3,6 +3,7 @@
 // Every edit is registered here as a [has, was] pair, so a pin that reads these proof files through the registry gets them as they were before this change; the strip is plain data and idempotent.
 // The two first-parent subject filters (chat-element-edit and deck-sync-truth) carry the shared mark RESTACK-UX-PROOFS and are byte for byte the same on the sibling restack branches, so they merge cleanly.
 // The ux-honesty hunk is FRONTEND-1's ce72dbd0, copied byte for byte (so the stacked branch that has it merges the same change cleanly); it carries no mark.
+// The voice-call proof carries FRONTEND-1's OK'd 4-line pin edit (to-FRONTEND-2.md line 545, FE1-OK-REQUEST-2.md; #603's UX_FINDINGS_E_FE1_PROOF_OK), byte for byte and with #603's mark, so this branch and #603 merge clean in any order: its file is in the scope below and the strip puts it back.
 export const RESTACK_UX_PC_SUBJECT = /^Restack UX proofs:/
 export const RESTACK_UX_PC_MARK = "LATER-CHANGES: registry read (RESTACK-UX-PC)"
 /** [the text this change put in, the text it replaced] per edit (a pure insertion: the replaced text is empty), so putting them back gives the file as it was before this change, byte for byte. */
@@ -83,6 +84,24 @@ export const RESTACK_UX_PC_EDITS = {
   [
    "  shas.splice(0, shas.length, ...shas.filter(sha => !/^(?:UX|A11y|Restack UX proofs): /.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (RESTACK-UX-PROOFS): FRONTEND-1's UX restacks and their proof fixes (#600-#602): their first-parent commits are theirs, not this change's\n",
    ""
+  ]
+ ],
+ "scripts/test-studio-voice-call.mjs": [
+  [
+   "const laterRegistry = await import('./studio-later-changes.mjs') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n",
+   ""
+  ],
+  [
+   "const laterEnvOut = text => laterRegistry.LATER_ENV_BLOCKS.slice(laterRegistry.LATER_ENV_BLOCKS.indexOf(strip.VOICE_CALL_ENV_BLOCK) + 1).reduce((out, block) => out.replace(`\\n${block}`, ''), text) // LATER-CHANGES: registry read (UX-FINDINGS-E)\n",
+   ""
+  ],
+  [
+   "  ok(laterEnvOut(env).endsWith(`\\n${strip.VOICE_CALL_ENV_BLOCK}`) && strip.VOICE_CALL_ENV_BLOCK.endsWith('\\n'), '.env.example: the block is the last thing in the file, after one blank line') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n",
+   "  ok(env.endsWith(`\\n${strip.VOICE_CALL_ENV_BLOCK}`) && strip.VOICE_CALL_ENV_BLOCK.endsWith('\\n'), '.env.example: the block is the last thing in the file, after one blank line')\n"
+  ],
+  [
+   "    ok(laterEnvOut(`${envDiff.map(line => line.slice(1)).join('\\n')}\\n`).trimEnd().endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly its block (after ELEMENT-3\\'s two lines)') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n",
+   "    ok(envDiff.map(line => line.slice(1)).join('\\n').endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly its block (after ELEMENT-3\\'s two lines)')\n"
   ]
  ]
 }
