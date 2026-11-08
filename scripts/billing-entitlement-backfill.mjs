@@ -3,7 +3,7 @@
 //   node scripts/billing-entitlement-backfill.mjs --accounts <accounts.json>            prints the planned PUTs; sends nothing, reads no environment value, touches no database
 //   STUDIO_ROUTER_ENTITLEMENTS_PUSH=true node scripts/billing-entitlement-backfill.mjs --accounts <accounts.json> --apply
 //                                                                                        the ONLY write path: needs BOTH --apply and the flag; then each planned PUT goes through pushEntitlement
-//                                                                                        (lib/billing/router-entitlements.ts: the router address and ROUTER_ENTITLEMENTS_API_KEY from the server environment)
+//                                                                                        (lib/billing/router-entitlements.ts: the router address and MODEL_ROUTER_BILLING_KEY from the server environment)
 //
 // <accounts.json> is a JSON array an operator exports (this script never reads Studio's database: UAT's database is the shared production Supabase). Each entry:
 //   { "cohort": "qa", "user": { "id", "tier", "updatedAt" }, "subscription": { "status", "tier", "currentPeriodStart", "currentPeriodEnd", "updatedAt" } | null }

@@ -67,6 +67,7 @@ export const CREDITS_PER_CENT = 1
 /**
  * The monthly price id each plan's Upgrade button sends to the existing checkout (app/api/stripe/create-checkout-session). Pro's is the one the Billing page already sends.
  * Starter's and Max's are refused by that checkout until FRONTEND-1's F1 accepts them (see the PR's DRAFT line for the checkout route); the button changes nothing about checkout.
+ * Only a Free account is offered checkout (the Billing page's rule); with no id set the plan shows a disabled "Coming soon".
  * Each read is a literal process.env.NEXT_PUBLIC_ name so Next inlines it.
  */
 export function studioPlanCheckoutPriceId(id: StudioBillingPlanId): string | undefined {
@@ -120,6 +121,7 @@ export const STUDIO_BILLING_PLANS_WORDS = {
   aboutDecks: (decks: number) => `About ${decks} decks a month`,
   aboutNote: 'Deck counts are estimates. The credits a deck uses depend on its length, research and images.',
   upgrade: 'Upgrade',
+  comingSoon: 'Coming soon',
   current: 'Your plan',
   spendOrder: 'Your plan credits are used first, then your top-up credits. Plan credits reset each month; top-up credits never expire.',
   packsTitle: 'Top up',

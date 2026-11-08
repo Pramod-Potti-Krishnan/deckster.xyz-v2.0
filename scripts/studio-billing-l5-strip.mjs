@@ -6,11 +6,13 @@
 // work and are proven without them (the preview route /billing/plans, the proof's renders and vm runs).
 // Its marker is BILLING-L5 (a WHOLE token). What this change adds to existing files: .env.example (one block, appended at the true end), the registry (three lines, at the true end of each list) and ONE subject-filter
 // line in each of the two older proofs that read the first-parent commits of BASE..HEAD for their own subjects (the pin table below, tests only, every line carries the registry-read mark), as B62 / B63 did.
+// It also carries FRONTEND-1's OK'd voice-call pin edit from #603 byte for byte (BILLING_L5_FE1_PROOF_OK: four lines of scripts/test-studio-voice-call.mjs, their own UX-FINDINGS-E mark kept), so that its
+// ".env.example block is the last thing in the file" pins read past this change's block.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs). Plain node, no imports, nothing read from disk or git here.
 
 export const BASE_COMMIT = 'eeb78d4f4b7676d75c244746f1edc7da1d269478' // Studio dev (7 Nov), the merge of #598
 export const BILLING_L5_FLAGS = ['NEXT_PUBLIC_STUDIO_BILLING_PLANS', 'STUDIO_ROUTER_ENTITLEMENTS_PUSH', 'STUDIO_METER_RECEIVER_ENABLED']
-export const BILLING_L5_KEY_NAMES = ['ROUTER_ENTITLEMENTS_API_KEY', 'METER_WEBHOOK_SECRET']
+export const BILLING_L5_KEY_NAMES = ['MODEL_ROUTER_BILLING_KEY', 'METER_WEBHOOK_SECRET']
 export const BILLING_L5_MARKER = 'BILLING-L5'
 /** The marker as a WHOLE token: BILLING-L5 is this change's; BILLING-L5X, X-BILLING-L5, BILLING-L50 and any other prefix or suffix are not. */
 export const BILLING_L5_MARKER_RE = /(?<![\w-])BILLING-L5(?![\w-])/
@@ -52,9 +54,13 @@ export const BILLING_L5_DRAFTS = [
   { file: 'lib/auth-options.ts', before: '  debug: process.env.NODE_ENV === "development",', line: 285,
     add: '  events: { createUser: async ({ user }) => { await pushEntitlementForUser(user.id, "signup") } }, // BILLING-L5: Free, pushed once when the account is created; never throws' },
   { file: 'app/api/account/route.ts', after: 'import { getStripe } from "@/lib/stripe/stripe"', line: 5,
-    add: 'import { buildEntitlement, pushEntitlement } from "@/lib/billing/router-entitlements" // BILLING-L5' },
+    add: 'import { buildCancelEntitlement, pushEntitlement } from "@/lib/billing/router-entitlements" // BILLING-L5' },
   { file: 'app/api/account/route.ts', before: '    // 2. Payment rows have no cascade relation — remove them explicitly.', line: 45,
-    add: '    await pushEntitlement(buildEntitlement({ id: userId, tier: "free", updatedAt: new Date() }, null, "cancel")) // BILLING-L5: the router row goes to Free before the account is deleted; never throws' },
+    add: '    await pushEntitlement(buildCancelEntitlement(userId, new Date())) // BILLING-L5: the router row goes to status canceled (Free) before the account is deleted; never throws' },
+  { file: 'app/api/stripe/create-checkout-session/route.ts', after: "import { PAYMENTS_OPEN_SOON_BODY, PAYMENTS_OPEN_SOON_STATUS, STUDIO_PAYMENTS_OPEN_SOON_ENABLED } from '@/lib/studio-payments-open-soon'", line: 7,
+    add: "import { prisma } from '@/lib/prisma' // BILLING-L5" },
+  { file: 'app/api/stripe/create-checkout-session/route.ts', before: '    // BILLING-SECURITY begin checkout-cycle', line: 19,
+    add: '    if (process.env.NEXT_PUBLIC_STUDIO_BILLING_PLANS === "true" && (await prisma.subscription.findFirst({ where: { userId: session.user.id, status: { in: ["active", "trialing", "past_due"] } }, select: { id: true } }))) return NextResponse.json({ error: "You already have a plan. Change it from Manage Subscription." }, { status: 409 }) // BILLING-L5: never a second subscription' },
 ]
 /** No DRAFT for app/api/wallet/debit/route.ts: dev already reads the WALLET_DEBIT_SOURCE switch there (line 19, BILLING-F4F6, FRONTEND-1's), and the meter receiver reads the same switch. */
 export const BILLING_L5_WALLET_DEBIT_ALREADY = { file: 'app/api/wallet/debit/route.ts', line: 19, has: 'if (!flatDebitEnabled()) return NextResponse.json(' }
@@ -66,14 +72,34 @@ export const BILLING_L5_PIN_EDITS = {
   'scripts/test-studio-deck-sync-truth.mjs': [[FIRST_PARENT_LINE, '']],
   'scripts/test-studio-chat-element-edit.mjs': [[FIRST_PARENT_LINE, '']],
 }
+/**
+ * FRONTEND-1's voice-call proof with the after-merge edit FRONTEND-1 OK'd, carried BYTE FOR BYTE from #603 (UX findings E, 21d254c6; to-FRONTEND-2.md line 545, FE1-OK-REQUEST-2.md, 8 Nov):
+ * its ".env.example block is the last thing in the file" pins (L1543, L1634) read the file past the env blocks registered after theirs, so a later block (this change's) is not an extra.
+ * [line now, line before] per edit, whole lines; was = '' for an inserted line. The lines keep #603's own mark (UX-FINDINGS-E). Put back, the proof is dev's, byte for byte. No other line of theirs is edited.
+ */
+export const BILLING_L5_FE1_PROOF_OK = {
+  'scripts/test-studio-voice-call.mjs': [
+    ["const laterRegistry = await import('./studio-later-changes.mjs') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", ''],
+    ["const laterEnvOut = text => laterRegistry.LATER_ENV_BLOCKS.slice(laterRegistry.LATER_ENV_BLOCKS.indexOf(strip.VOICE_CALL_ENV_BLOCK) + 1).reduce((out, block) => out.replace(`\\n${block}`, ''), text) // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", ''],
+    ["  ok(laterEnvOut(env).endsWith(`\\n${strip.VOICE_CALL_ENV_BLOCK}`) && strip.VOICE_CALL_ENV_BLOCK.endsWith('\\n'), '.env.example: the block is the last thing in the file, after one blank line') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", "  ok(env.endsWith(`\\n${strip.VOICE_CALL_ENV_BLOCK}`) && strip.VOICE_CALL_ENV_BLOCK.endsWith('\\n'), '.env.example: the block is the last thing in the file, after one blank line')\n"],
+    ["    ok(laterEnvOut(`${envDiff.map(line => line.slice(1)).join('\\n')}\\n`).trimEnd().endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly its block (after ELEMENT-3\\'s two lines)') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", "    ok(envDiff.map(line => line.slice(1)).join('\\n').endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly its block (after ELEMENT-3\\'s two lines)')\n"],
+  ],
+}
+/** The anchor the two inserted voice-call lines go right after. */
+export const BILLING_L5_FE1_PROOF_ANCHOR = "const core = await import('./studio-voice-core-strip.mjs')"
+export const BILLING_L5_FE1_PROOF_FILES = Object.keys(BILLING_L5_FE1_PROOF_OK)
+
 /** Where each taught line goes: right after the last subject filter the base proof has, B63's "Usage credits page:" (the line that starts with this text). */
 export const BILLING_L5_PIN_AFTER = "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Usage credits page:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (USAGE-CREDITS-PAGE)"
 
 /** The older proofs this change teaches. */
 export const BILLING_L5_PIN_FILES = Object.keys(BILLING_L5_PIN_EDITS)
 
-/** Files this change edits that are not app code: .env.example (its block, appended), the registry (three lines: its files, its block, its strip) and the older proofs it teaches. */
-export const BILLING_L5_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', ...BILLING_L5_PIN_FILES]
+/** Every [has, was] pair this change makes, by file: the two taught proofs, then FRONTEND-1's OK'd voice-call pin edit. */
+export const BILLING_L5_EDITS = { ...BILLING_L5_PIN_EDITS, ...BILLING_L5_FE1_PROOF_OK }
+
+/** Files this change edits that are not app code: .env.example (its block, appended), the registry (three lines: its files, its block, its strip), the older proofs it teaches and the voice-call pin carry. */
+export const BILLING_L5_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', ...BILLING_L5_PIN_FILES, ...BILLING_L5_FE1_PROOF_FILES]
 
 /** Every file this change's commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
 export const BILLING_L5_SCOPE_FILES = new Set([...BILLING_L5_FILES, ...BILLING_L5_NEW_FILES, ...BILLING_L5_OWN_EDITS])
@@ -81,16 +107,19 @@ export const BILLING_L5_SCOPE_FILES = new Set([...BILLING_L5_FILES, ...BILLING_L
 /** The whole .env.example block: its comments and its six lines (appended at the end of the file, after one blank line). The two key values are EMPTY: nothing secret is written down. */
 export const BILLING_L5_ENV_BLOCK = `# STUDIO BILLING L5 (FRONTEND-2; B67; L-BILLING, the Studio half). Three switches, each on only for the exact value "true" and off by default; off, nothing changes. 1 credit = $0.01; the screens show credits only.
 # NEXT_PUBLIC_STUDIO_BILLING_PLANS (build-time): the Plan & credits section (Free 150, Starter 2,000, Pro 5,000, Max 10,000 credits a month; top-ups of 1,000 / 2,500 / 5,000 credits) and its preview page /billing/plans,
-# a 404 while it is off. Its Upgrade and top-up buttons start the existing checkouts and keep the payments-open-soon state; Starter and Max can be bought only once checkout accepts them (FRONTEND-1's F1).
+# a 404 while it is off. Only a Free account is offered checkout (the existing one, keeping the payments-open-soon state); a paid account gets the pricing page. Starter and Max can be bought only once checkout accepts them (FRONTEND-1's F1).
 # STUDIO_ROUTER_ENTITLEMENTS_PUSH (server, runtime): after a plan change Studio sends the person's plan to the Model Router (PUT /v1/entitlements/{user id}) at the same Model Router address Studio's narration uses,
-# with ROUTER_ENTITLEMENTS_API_KEY: SERVER-ONLY (never a NEXT_PUBLIC_ name, never sent to the browser or logged), a router key with the entitlements scope only, minted by OPS-2. Leave it empty until the router's entitlements API is on.
+# with MODEL_ROUTER_BILLING_KEY: SERVER-ONLY (never a NEXT_PUBLIC_ name, never sent to the browser or logged), the router key with the entitlements scope only (the router's mint tool, key "billing"), minted by OPS-2.
+# Leave it empty until the router's entitlements API is on, and switch the Stripe real-tier mapping on first (until then a live paid plan is not pushed).
 # STUDIO_METER_RECEIVER_ENABLED (server, runtime): POST /api/internal/meter takes the router's signed meter feed (a 404 while it is off). METER_WEBHOOK_SECRET is SERVER-ONLY, the same value the router signs with; empty, the route answers 503.
-# METER_RECEIVER_MODE: "receipt_only" (the default, and anything but "apply") checks and acknowledges each event and writes nothing. "apply" takes the top-up part off the wallet once per event, only while the wallet debit source above is router.
+# Do NOT enable it until durable storage or apply exists: receipt_only acknowledges without storing, and while it is off the router keeps every event as a dead letter it can replay.
+# METER_RECEIVER_MODE: "receipt_only" (the default, and anything but "apply") checks and acknowledges each event and writes nothing. "apply" takes the top-up part off the wallet once per event, only while the
+# wallet debit source above is router; do NOT set it before the router sends from_topup (until then apply answers 503). Any 4xx, 401 included, dead-letters an event: after a secret mismatch fix the secret, then OPS-2 runs the router's admin replay.
 NEXT_PUBLIC_STUDIO_BILLING_PLANS="false"
 STUDIO_ROUTER_ENTITLEMENTS_PUSH="false"
 STUDIO_METER_RECEIVER_ENABLED="false"
 METER_RECEIVER_MODE="receipt_only"
-ROUTER_ENTITLEMENTS_API_KEY=
+MODEL_ROUTER_BILLING_KEY=
 METER_WEBHOOK_SECRET=
 `
 
@@ -101,9 +130,9 @@ function putBackLine(text, has, was) {
   return at === -1 ? text : text.slice(0, at) + was + text.slice(at + has.length)
 }
 
-/** The file without this change's lines: an older proof this change taught gets its base text back. Any other file is returned as it is (this change marks no line in an app file). Idempotent. */
+/** The file without this change's lines: an older proof this change taught, and the voice-call proof, get their base text back. Any other file is returned as it is (this change marks no line in an app file). Idempotent. */
 export function stripBillingL5(rel, text) {
   if (typeof text !== 'string') return text
-  if (!Object.prototype.hasOwnProperty.call(BILLING_L5_PIN_EDITS, rel)) return text
-  return BILLING_L5_PIN_EDITS[rel].reduce((out, [has, was]) => putBackLine(out, has, was), text)
+  if (!Object.prototype.hasOwnProperty.call(BILLING_L5_EDITS, rel)) return text
+  return BILLING_L5_EDITS[rel].reduce((out, [has, was]) => putBackLine(out, has, was), text)
 }

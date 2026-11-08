@@ -1,11 +1,13 @@
 'use client'
 
 // BILLING-L5 (FRONTEND-2, B67; L-BILLING F1/F2/F5 copy), the view. Flag NEXT_PUBLIC_STUDIO_BILLING_PLANS (exact "true", default off): off, <StudioPlanCredits /> draws nothing (no wrapper is left behind).
-// What it draws: Free and the three paid plans with their monthly credits (monthly only, P3), each paid plan's image cap, "about N decks" as copy (P4) and, for each plan above the person's own, an Upgrade button;
+// What it draws: Free and the three paid plans with their monthly credits (monthly only, P3), each paid plan's image cap, "about N decks" as copy (P4) and an Upgrade for each plan above the person's own;
 // the spend-order line; the three top-up packs as credits ("1,000 credits for $10"); and the person's credits from the EXISTING usage-credits view (components/studio-usage-credits.tsx, which reads /api/usage/credits
 // itself, behind its own flag NEXT_PUBLIC_STUDIO_USAGE_CREDITS). No new fetch of usage is made here.
-// Checkout is NOT changed: the Upgrade button IS the existing UpgradeButton (the same POST to /api/stripe/create-checkout-session the Billing page makes) and a pack button makes the Billing page's own top-up request
-// (POST /api/stripe/create-topup-session with the pack id). While NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON is on, UpgradeButton shows its own "Payments open soon" state and every pack button is disabled with that line under the packs.
+// Checkout is NOT changed, and the Billing page's rule is kept: ONLY a Free account gets the checkout button (the existing UpgradeButton, the same POST to /api/stripe/create-checkout-session the Billing
+// page makes). A paid account, or one whose tier is unknown, gets a link to /pricing instead (as the Billing page's "Upgrade to ..." does), never a second subscription. A plan whose public price id is not
+// set shows a disabled "Coming soon". A pack button makes the Billing page's own top-up request (POST /api/stripe/create-topup-session with the pack id).
+// While NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON is on, UpgradeButton shows its own "Payments open soon" state, the /pricing upgrades and every pack button are disabled with that line.
 // Credits only: a price is drawn only on an Upgrade button or a pack button; no "$" next to a usage number; no tokens, provider cost or margin anywhere.
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -93,6 +95,7 @@ export function StudioPlanCreditsView({ currentTier, usageState, className }: St
         {cards.map(card => {
           const mine = current === card.id
           const offer = card.buttonPrice !== null && (current === null || RANK[card.id] > RANK[current])
+          const label = `${WORDS.upgrade} · ${card.buttonPrice}`
           return (
             <li key={card.id} className="flex flex-col gap-2 rounded-lg border p-4" data-studio-plan={card.id} aria-current={mine ? 'true' : undefined}>
               <h3 className="text-base font-semibold">{card.name}</h3>
@@ -102,9 +105,17 @@ export function StudioPlanCreditsView({ currentTier, usageState, className }: St
               <div className="mt-auto pt-2">
                 {mine ? (
                   <span className="text-sm font-medium" data-studio-plan-value="current">{WORDS.current}</span>
-                ) : offer ? (
-                  <UpgradeButton priceId={card.checkoutPriceId ?? ''} billingCycle="monthly" label={`${WORDS.upgrade} · ${card.buttonPrice}`} className="w-full" />
-                ) : null}
+                ) : !offer ? null : current === 'free' ? (
+                  STUDIO_PAYMENTS_OPEN_SOON_ENABLED || card.checkoutPriceId ? (
+                    <UpgradeButton priceId={card.checkoutPriceId ?? ''} billingCycle="monthly" label={label} className="w-full" />
+                  ) : (
+                    <Button disabled aria-disabled="true" className="w-full" data-studio-plan-value="coming-soon">{WORDS.comingSoon}</Button>
+                  )
+                ) : STUDIO_PAYMENTS_OPEN_SOON_ENABLED ? (
+                  <Button disabled aria-disabled="true" title={PAYMENTS_OPEN_SOON_LINE} className="w-full" data-studio-plan-value="pricing">{PAYMENTS_OPEN_SOON_LINE}</Button>
+                ) : (
+                  <a href="/pricing" className="inline-flex w-full items-center justify-center rounded-md border px-4 py-2 text-sm font-medium" data-studio-plan-value="pricing">{label}</a>
+                )}
               </div>
             </li>
           )

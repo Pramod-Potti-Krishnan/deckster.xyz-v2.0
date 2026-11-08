@@ -3,24 +3,35 @@
 // Flag STUDIO_ROUTER_ENTITLEMENTS_PUSH (server, runtime, exact "true", default off). Off, every push function returns { skipped: true, reason: "flag_off" } BEFORE it reads any other environment value,
 // the database or the network, and logs nothing: the callers behave exactly as today.
 //
-// The router contract (model-router TIER4-entitlements.md, MR-3 design doc A3/A4/A6, D3/D4/D5/D7/D13; ROUTER-2 to confirm before the flag goes on):
-//   PUT {router}/v1/entitlements/{user_id}, Authorization: Bearer <key with ONLY the `entitlements` scope>, JSON body, strict (extra keys refused):
-//     { plan: free|starter|pro|premium, status: <the Stripe status as stored>, period_start, period_end (ISO with Z; required for paid plans, left out for Free: the router uses the UTC calendar month, D7),
-//       source: a label (stripe, signup, cancel, nightly, backfill), source_version: integer ms, strictly increasing per user }
+// The router contract (model-router TIER4-entitlements.md, MR-3 design doc A3/A4/A6, D3/D4/D5/D7/D13; confirmed by ROUTER-2 on 8 Nov against router uat b3a65fad):
+//   PUT {router}/v1/entitlements/{user_id}, Authorization: Bearer <key with ONLY the `entitlements` scope>, JSON body, strict (extra keys refused, exact JSON types):
+//     { plan: free|starter|pro|premium, status: active|trialing|past_due|canceled|unpaid|incomplete|incomplete_expired|paused, period_start, period_end (ISO with an offset; required for paid plans,
+//       at most 32 days; left out for Free: the router uses the UTC calendar month, D7), source: a provenance label (^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$: stripe, signup, cancel, backfill),
+//       source_version: a JSON INTEGER of epoch ms, strictly increasing per user, at most now + 1 day }
+//   There is no separate push-label field: cancel and backfill are `source` values. A cancellation is status canceled (with a higher source_version), not a label.
 //   plan_credits is LEFT OUT (D3 / P5: the registry's monthly_credits is the source; a mismatching value is a 422).
-//   Answers: 200 {applied:true, stored_version} | 200 {applied:false, reason: stale|replay, stored_version} (out-of-order is normal: never retried) | 409 version_conflict | 413 | 422 (invalid_user_id,
-//   invalid_entitlement, invalid_period, period_too_long, plan_credits_mismatch, future_version) | 503 entitlement_store_unavailable.
-// source_version = Subscription.updatedAt in ms (D13); a person with no subscription row is Free at User.updatedAt in ms. A period over 32 days (yearly) is not pushed (P3 monthly only; the router would refuse it).
-// The router's own reading of each status (A6, shadow only): active / trialing keep the plan; past_due keeps it until 72 h after the period; canceled, unpaid, incomplete, incomplete_expired are Free at once.
+//   Answers: 200 {applied:true, stored_version} | 200 {applied:false, reason: stale|replay, stored_version} (out-of-order is normal: never retried) | 404 while the router's ENTITLEMENTS_API_ENABLED is
+//   off ("router not ready", not a retry loop) | 409 version_conflict | 413 | 422 (invalid_user_id, invalid_entitlement, invalid_period, period_too_long, plan_credits_mismatch, future_version,
+//   future_period_start: push a paid period at activation) | 503 entitlement_store_unavailable.
+// source_version = Subscription.updatedAt in ms (D13); a person with no subscription row is Free at User.updatedAt in ms; a cancel is stamped with the moment it happens.
+// The subscription pushed is the person's most relevant row: the newest active / trialing / past_due one, else the newest of any status (so a late deletion of an OLD subscription cannot push
+// "canceled" over a live one).
+// Yearly subscriptions are NOT pushed (P3: monthly only in v1; the router refuses a period over 32 days, and D4's monthly sub-periods are not built). Before enforcement: stop selling yearly
+// in checkout, or push monthly sub-periods.
+// While STRIPE_REAL_TIER_MAPPING_ENABLED is not "true" the webhook writes "pro" for every subscription, so a live paid plan (active / trialing / past_due) is not pushed then (skipped:
+// tier_mapping_off): flip that flag first. Free and inactive rows are pushed either way (the router reads them as Free).
+// The router's own reading of each status (A6, shadow only): active / trialing keep the plan; past_due keeps it until 72 h after the period; canceled, unpaid, incomplete, incomplete_expired, paused are Free at once.
 //
 // The base address comes from the repo's no-fallback helper (requireServiceUrl, lib/service-url.ts) over the router address the narration and usage-credits code already use: no default, no production host.
-// The key's NAME is ROUTER_ENTITLEMENTS_API_KEY (server-only; minted by OPS-2 with the `entitlements` scope only). It goes only into the Authorization header: never into a result, a log or an error.
-// A push never throws and never fails its caller: it returns a typed outcome; the nightly re-push and the reconcile repair a missed one. Logs carry the user id and an outcome word only.
+// The key's NAME is MODEL_ROUTER_BILLING_KEY (server-only; what the router's mint_studio_key.sh --key billing stores: label studio-billing, scope entitlements only). It goes only into the
+// Authorization header: never into a result, a log or an error.
+// A push never throws and never fails its caller: it returns a typed outcome and the caller logs it. TODO (no job exists yet): the spec's nightly re-push and reconcile, which would repair a
+// missed push; until then a failed push (timeout, 503) leaves the router's row stale until the person's next plan event. A push waits at most PUSH_TIMEOUT_MS. Logs carry the user id and an outcome word only.
 import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
 import { prisma } from '@/lib/prisma'
 
 export const ROUTER_ENTITLEMENTS_PUSH_FLAG = 'STUDIO_ROUTER_ENTITLEMENTS_PUSH'
-export const ROUTER_ENTITLEMENTS_KEY_NAME = 'ROUTER_ENTITLEMENTS_API_KEY'
+export const ROUTER_ENTITLEMENTS_KEY_NAME = 'MODEL_ROUTER_BILLING_KEY'
 
 /** On only for the exact string "true". */
 export function routerEntitlementsPushOn(value: string | null | undefined): boolean {
@@ -85,8 +96,8 @@ export type EntitlementBuildFailure =
 
 export type BuiltEntitlement = { ok: true; userId: string; body: RouterEntitlementBody } | { ok: false; reason: EntitlementBuildFailure }
 
-export type PushSkipReason = 'flag_off' | EntitlementBuildFailure | 'unknown_user' | 'not_an_entitlement_event' | 'no_subscription' | 'unknown_subscription'
-export type PushError = 'unconfigured' | 'network' | 'timeout' | 'unauthorized' | 'version_conflict' | 'refused' | 'too_large' | 'unavailable' | 'malformed' | 'unexpected' | 'failed'
+export type PushSkipReason = 'flag_off' | EntitlementBuildFailure | 'tier_mapping_off' | 'unknown_user' | 'not_an_entitlement_event' | 'no_subscription' | 'unknown_subscription'
+export type PushError = 'unconfigured' | 'network' | 'timeout' | 'unauthorized' | 'not_ready' | 'version_conflict' | 'refused' | 'too_large' | 'unavailable' | 'malformed' | 'unexpected' | 'failed'
 
 export type PushOutcome =
   | { skipped: true; reason: PushSkipReason }
@@ -146,6 +157,24 @@ export function buildEntitlement(user: EntitlementUser, subscription: Entitlemen
   }
 }
 
+/** A cancel (the account is being deleted): plan free, status canceled, stamped with the moment of the cancel in ms (above every earlier version). No period: the router ignores it for Free. */
+export function buildCancelEntitlement(userId: string, at: Date): BuiltEntitlement {
+  if (typeof userId !== 'string' || !ROUTER_USER_ID.test(userId)) return { ok: false, reason: 'invalid_user_id' }
+  const version = ms(at)
+  if (version === null) return { ok: false, reason: 'invalid_version' }
+  return { ok: true, userId, body: { plan: 'free', status: 'canceled', source: 'cancel', source_version: version } }
+}
+
+const LIVE_STATUSES: readonly string[] = ['active', 'trialing', 'past_due']
+
+/** The person's most relevant subscription row: the newest live one (active, trialing, past_due), else the newest of any status; null with none. */
+export function pickSubscription<T extends { status: string; updatedAt: Date | string }>(rows: readonly T[] | null | undefined): T | null {
+  if (!rows || rows.length === 0) return null
+  const newest = (list: readonly T[]) => list.reduce((best, row) => ((ms(row.updatedAt) ?? -1) > (ms(best.updatedAt) ?? -1) ? row : best))
+  const live = rows.filter(row => LIVE_STATUSES.includes(row.status))
+  return newest(live.length > 0 ? live : rows)
+}
+
 const fail = (error: PushError, status: number | null = null, code: string | null = null): PushOutcome => ({ skipped: false, ok: false, error, status, code })
 
 /** The router's `error.code`, or null: only a short plain code is read, nothing else of its body. */
@@ -164,6 +193,7 @@ function routerErrorCode(text: string): string | null {
 export async function pushEntitlement(built: BuiltEntitlement): Promise<PushOutcome> {
   if (!routerEntitlementsPushOn(process.env.STUDIO_ROUTER_ENTITLEMENTS_PUSH)) return { skipped: true, reason: 'flag_off' }
   if (!built || built.ok !== true) return { skipped: true, reason: built?.reason ?? 'invalid_user_id' }
+  if (built.body.plan !== 'free' && LIVE_STATUSES.includes(built.body.status) && process.env.STRIPE_REAL_TIER_MAPPING_ENABLED !== 'true') return { skipped: true, reason: 'tier_mapping_off' }
   try {
     let base: string
     try {
@@ -172,7 +202,7 @@ export async function pushEntitlement(built: BuiltEntitlement): Promise<PushOutc
       if (error instanceof ServiceUrlConfigError) return fail('unconfigured')
       throw error
     }
-    const key = (process.env.ROUTER_ENTITLEMENTS_API_KEY ?? '').trim()
+    const key = (process.env.MODEL_ROUTER_BILLING_KEY ?? '').trim()
     if (!KEY_SHAPE.test(key)) return fail('unconfigured')
     const body = JSON.stringify(built.body)
     if (body.length > MAX_PUSH_BYTES) return fail('too_large')
@@ -205,6 +235,7 @@ export async function pushEntitlement(built: BuiltEntitlement): Promise<PushOutc
     }
     const code = routerErrorCode(text)
     if (res.status === 401 || res.status === 403) return fail('unauthorized', res.status, code)
+    if (res.status === 404) return fail('not_ready', 404, code)
     if (res.status === 409) return fail('version_conflict', 409, code)
     if (res.status === 413) return fail('too_large', 413, code)
     if (res.status === 422) return fail('refused', 422, code)
@@ -222,7 +253,7 @@ export function entitlementPushLogLine(userId: string, source: EntitlementSource
   return `[router-entitlements] user=${who} source=${source} outcome=${word}`
 }
 
-/** Read one person and their newest subscription, build, push, log one line. Flag off: skipped before the database is read, and nothing is logged. Never throws. */
+/** Read one person and their most relevant subscription (pickSubscription), build, push, log one line. Flag off: skipped before the database is read, and nothing is logged. Never throws. */
 export async function pushEntitlementForUser(userId: string, source: EntitlementSource): Promise<PushOutcome> {
   if (!routerEntitlementsPushOn(process.env.STUDIO_ROUTER_ENTITLEMENTS_PUSH)) return { skipped: true, reason: 'flag_off' }
   let outcome: PushOutcome
@@ -233,12 +264,13 @@ export async function pushEntitlementForUser(userId: string, source: Entitlement
     if (!user) {
       outcome = { skipped: true, reason: typeof userId === 'string' && ROUTER_USER_ID.test(userId) ? 'unknown_user' : 'invalid_user_id' }
     } else {
-      const subscription = await prisma.subscription.findFirst({
+      const rows = await prisma.subscription.findMany({
         where: { userId: user.id },
         orderBy: { updatedAt: 'desc' },
+        take: 20,
         select: { status: true, tier: true, currentPeriodStart: true, currentPeriodEnd: true, updatedAt: true },
       })
-      outcome = await pushEntitlement(buildEntitlement(user, subscription, source))
+      outcome = await pushEntitlement(buildEntitlement(user, pickSubscription(rows), source))
     }
   } catch {
     outcome = fail('failed')
