@@ -232,6 +232,8 @@ async function cardChecks(overrides = {}) {
 // ============================================================================================================================================
 /** The strips of the changes registered after this one come out first (none today): a later change that touches these files must not hide this change's edits from the identity check. */
 const laterStrips = (rel, text) => { const strips = registry.LATER_STRIPS, at = strips.indexOf(stripModule.stripOutlineCardG4); return (at === -1 ? [] : strips.slice(at + 1)).reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text) }
+/** The older proofs this change teaches (their first-parent scope checks leave the commits whose subject starts "Outline card G4:" out). */
+const PIN_FILES = ['scripts/test-studio-chat-element-edit.mjs', 'scripts/test-studio-deck-sync-truth.mjs']
 const SECRET = /(sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{12,}|eyJ[A-Za-z0-9_-]{20,}\.|-----BEGIN [A-Z ]*PRIVATE KEY|ghp_[A-Za-z0-9]{20,}|xox[bp]-)/
 /** The only two base lines this change rewrites (the narrative paragraph and the research condition), as the base has them. */
 const REWRITTEN = new Set(['                  {slide.narrative && <p>{slide.narrative}</p>}', '                  {hasResearch && ('])
@@ -263,6 +265,14 @@ function sourceChecks(texts, mod = stripModule) {
     for (const line of diff.added) assert.match(line, OUTLINE_CARD_G4_MARKER_RE, `${rel}: a line added to the file carries the marker: ${line.trim().slice(0, 100)}`)
     for (const line of diff.removed) assert.ok(rel === CARD && REWRITTEN.has(line), `${rel}: a base line is lost that this change does not rewrite: ${line.trim().slice(0, 100)}`)
     assert.equal(diff.removed.length, rel === CARD ? 2 : 0, `${rel}: the base lines this change rewrites`)
+  }
+  // the older proofs this change teaches: each gains one marked line (the first-parent walk leaves this change's commits out) and is the base's without it
+  assert.deepEqual([...mod.OUTLINE_CARD_G4_PIN_FILES].sort(), PIN_FILES, 'the older proofs this change teaches')
+  for (const rel of PIN_FILES) {
+    const now = laterStrips(rel, texts[rel]), diff = lineDiff(baseText(rel), now)
+    assert.equal(stripOutlineCardG4(rel, now), baseText(rel), `${rel}: without this change's line the proof is the base's, byte for byte`)
+    assert.deepEqual([diff.removed.length, diff.added.length], [0, 1], `${rel}: the proof gains one line and loses none`)
+    assert.ok(diff.added[0].includes(mod.OUTLINE_CARD_G4_PIN_MARK) && diff.added[0].includes('^Outline card G4:'), `${rel}: the line carries the pin mark and names this change's subject`)
   }
   assert.match(texts[HOOK], /^      subtitle\?: string \| null; \/\/ OUTLINE-CARD-G4$/m, 'the slide type gains `subtitle?: string | null`')
   // the lib: one literal env read, import-free; nothing else reads the env
@@ -311,7 +321,7 @@ function messageProblems(subject, body) {
 // ============================================================================================================================================
 // run
 // ============================================================================================================================================
-const TEXTS = Object.fromEntries([LIB, CARD, HOOK, '.env.example', REGISTRY, STRIP, 'scripts/test-studio-outline-card-g4.mjs'].map(rel => [rel, read(rel)]))
+const TEXTS = Object.fromEntries([LIB, CARD, HOOK, '.env.example', REGISTRY, STRIP, 'scripts/test-studio-outline-card-g4.mjs', ...PIN_FILES].map(rel => [rel, read(rel)]))
 
 await check('1. the lib: the flag, (a) the narrative, (b) the subtitle, (c) the empty research rule, the view the card reads', () => libChecks())
 await check('2. the REAL card: flag off is the base card\'s markup byte for byte (every variant, every odd flag value); flag on does (a), (b) and (c) and nothing else, with their negatives', () => cardChecks())
@@ -401,6 +411,12 @@ await check('mutant caught: the card\'s marker is on a different line (a base li
   const mutant = mutate(CARD_TEXT, '                  {g4.research && ( // OUTLINE-CARD-G4\n', '                  {g4.research && (  // OUTLINE-CARD-G4\n', 'spacing')
   assert.ok(await throws(() => sourceChecks({ ...TEXTS, [CARD]: mutant })), 'the strip pair no longer matches, so the file is not put back')
 })
+await check('mutant caught: a taught proof with an unmarked extra line, or without this change\'s line', async () => {
+  const rel = PIN_FILES[0], text = TEXTS[rel]
+  assert.ok(await throws(() => sourceChecks({ ...TEXTS, [rel]: text + '// stray\n' })), 'an unmarked extra line')
+  assert.ok(await throws(() => sourceChecks({ ...TEXTS, [rel]: text.split('\n').filter(line => !line.includes('registry read (OUTLINE-CARD-G4)')).join('\n') })), 'the line removed (the proof would fail on this change\'s own commits)')
+  assert.ok(await throws(() => sourceChecks({ ...TEXTS, [rel]: text.replace('registry read (OUTLINE-CARD-G4)', 'registry read (OTHER)') })), 'the pin mark changed')
+})
 await check('mutant caught: .env.example with the flag on by default, or the block missing', async () => {
   assert.ok(await throws(() => sourceChecks({ ...TEXTS, '.env.example': TEXTS['.env.example'].replace(`${FLAG}="false"`, `${FLAG}="true"`) })))
   assert.ok(await throws(() => sourceChecks({ ...TEXTS, '.env.example': baseText('.env.example') })))
@@ -411,6 +427,8 @@ const STRIP_MUTANTS = [
   ['the narrative pair puts back the marked line', "`                  {slide.narrative && <p>{slide.narrative}</p>}\\n`],", "`                  {g4.narrative && <p>{g4.narrative}</p>}\\n`],"],
   ['the research pair puts back a different condition', "`                  {hasResearch && (\\n`],", "`                  {hasResearch && !x && (\\n`],"],
   ['the subtitle pair is missing', "    [`                  {g4.subtitle && <p data-studio-director-part=\"outline-review-subtitle\">{g4.subtitle}</p>}${JSX_MARK}\\n`, ''],\n", ''],
+  ['the element-edit pin pair is missing', "    [`${SPLICE}${OUTLINE_CARD_G4_PIN_MARK}: on a branch stacked after this change (the outline card G4's), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files\\n`, ''],\n", ''],
+  ['the deck-sync pin pair puts back a changed line', "the first-parent commits are its own, not this change's; with none left the identity checks cover the files\\n`, ''],", "the first-parent commits are its own, not this change's; with none left the identity checks cover the files\\n`, 'x\\n'],"],
   ['the hook pair is missing', "    [`      subtitle?: string | null; ${MARK}\\n`, ''],\n", ''],
   ['the strip touches a file it does not own', 'if (!(rel in OUTLINE_CARD_G4_EDITS) && !(rel in OUTLINE_CARD_G4_PIN_EDITS)) return text', "if (rel === 'app/builder/page.tsx') return text.toUpperCase()"],
 ]

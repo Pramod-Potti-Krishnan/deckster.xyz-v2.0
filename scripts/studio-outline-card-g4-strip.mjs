@@ -46,9 +46,18 @@ export const OUTLINE_CARD_G4_EDITS = {
   ],
 }
 
-/** The older proofs this change teaches: [text the proof has now, text the proof had before] per edit (none yet). Every line the proof has now that this change touched carries OUTLINE_CARD_G4_PIN_MARK. */
+/** The older proofs this change teaches: [text the proof has now, text the proof had before] per edit, so putting them back gives the previous file byte for byte. Every line the proof has now that this change touched carries OUTLINE_CARD_G4_PIN_MARK. */
 export const OUTLINE_CARD_G4_PIN_MARK = 'LATER-CHANGES: registry read (OUTLINE-CARD-G4)'
-export const OUTLINE_CARD_G4_PIN_EDITS = {}
+const SPLICE = "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Outline card G4:/.test(git('log', '-1', '--format=%s', sha)))) // "
+export const OUTLINE_CARD_G4_PIN_EDITS = {
+  // two older proofs walk the first-parent line of BASE..HEAD without merges and require every subject on it to be their own: this change's commits (subject "Outline card G4:") are left out of that line, like every later change's
+  'scripts/test-studio-chat-element-edit.mjs': [
+    [`${SPLICE}${OUTLINE_CARD_G4_PIN_MARK}: on a branch stacked after this change (the outline card G4's), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files\n`, ''],
+  ],
+  'scripts/test-studio-deck-sync-truth.mjs': [
+    [`${SPLICE}${OUTLINE_CARD_G4_PIN_MARK}: on a branch stacked after this change (the outline card G4's), the first-parent commits are its own, not this change's; with none left the identity checks cover the files\n`, ''],
+  ],
+}
 
 /** The file with this change's edits put back (the previous text). Used by the strip and the proof. */
 export function putBackOutlineCardG4(rel, text) {
