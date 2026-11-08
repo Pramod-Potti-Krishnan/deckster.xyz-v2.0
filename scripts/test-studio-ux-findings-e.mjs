@@ -3,10 +3,10 @@
 //   node scripts/test-studio-ux-findings-e.mjs        (plain node: transpile + vm of the REAL sources, react-dom/server for the markup, a small effect runner for the hook; no network, no browser, no .next, no Next runtime; well under 2 minutes)
 //
 // What it proves:
-//  A. the flag reader: on only for the exact "true" (and the Studio shell); "1", "TRUE", " true", "yes" and "" are off; the logo and nav switches the same; the profile redirect names one route; the intro-once rules (played / first time / another account /
-//     storage down) are the ones written, and FRONTEND-1's REAL intro code (its seenWorkspaces, its store, its screens, its open event, its seen gate) reads what they write;
+//  A. the flag reader: on only for the exact "true" (and the Studio shell); "1", "TRUE", " true", "yes" and "" are off; the logo and nav switches the same; the profile redirect names one route; the intro-once rules (played / returning with any mark / first time on a browser with none /
+//     storage down) are the ones written (marks are never emptied), and FRONTEND-1's REAL intro code (its seenWorkspaces, its store, its screens, its open event, its seen gate) reads what they write;
 //  B. the mount: null with the flag off, and nothing drawn with it on; with the flag off the hook sets no attribute, adds no listener, writes no storage and redirects nowhere; with it on it sets the attribute (and the logo / nav attributes only with their own
-//     flags), takes them off on unmount, records the intro as played, and redirects /settings/profile (and only that) to /studio/details. FRONTEND-1's four lines (a DRAFT until OK'd: UX_FINDINGS_E_FE1_DRAFT, then UX_FINDINGS_E_FE1_OK) are checked
+//     flags), takes them off on unmount, records the intro as played, and redirects /settings/profile (and only that) to /studio/details. FRONTEND-1's four lines (OK'd by them, 22:20Z 7 Nov: UX_FINDINGS_E_FE1_OK) are checked
 //     once each, at their anchor, pure insertions, marked; the account layout renders the same markup with and without them. The Builder page needs the real Next runtime: its hook line is checked by position and by the same hook harness, not rendered;
 //  C. the stylesheet is PARSED: every rule (also inside @media) is scoped under html[data-studio-ux-findings-e="true"], no !important, no colour, every class and attribute it names is live in the sources, every finding has its rule;
 //  D. the strip: put back = dev for every edited file, idempotent, an untouched file unchanged, every taught line carries the mark;
@@ -27,7 +27,7 @@ import * as jsxRuntime from 'react/jsx-runtime'
 import { renderToStaticMarkup } from 'react-dom/server'
 import ts from 'typescript'
 import {
-  BASE_COMMIT, UX_FINDINGS_E_EDITS, UX_FINDINGS_E_ENV_BLOCK, UX_FINDINGS_E_FE1_DRAFT, UX_FINDINGS_E_FE1_DRAFT_EDITS, UX_FINDINGS_E_FE1_FILES, UX_FINDINGS_E_FE1_OK, UX_FINDINGS_E_FIRST_PARENT_LINE, UX_FINDINGS_E_FLAG,
+  BASE_COMMIT, UX_FINDINGS_E_EDITS, UX_FINDINGS_E_ENV_BLOCK, UX_FINDINGS_E_FE1_FILES, UX_FINDINGS_E_FE1_OK, UX_FINDINGS_E_FIRST_PARENT_LINE, UX_FINDINGS_E_FLAG,
   UX_FINDINGS_E_MARKER_RE, UX_FINDINGS_E_NEW_FILES, UX_FINDINGS_E_OWN_EDITS, UX_FINDINGS_E_PIN_AFTER, UX_FINDINGS_E_PIN_EDITS, UX_FINDINGS_E_PIN_FILES, UX_FINDINGS_E_PIN_MARK, UX_FINDINGS_E_REGISTRY_ENV_LINE,
   UX_FINDINGS_E_REGISTRY_FILES_LINE, UX_FINDINGS_E_REGISTRY_STRIP_LINE, UX_FINDINGS_E_SCOPE_FILES, UX_FINDINGS_E_SUBJECT, stripUxFindingsE,
 } from './studio-ux-findings-e-strip.mjs'
@@ -158,28 +158,42 @@ await check('UX-11: /settings/profile (and its trailing-slash spelling) goes to 
   assert.equal(l.studioUxFindingsEProfileTarget('/settings/profile'), '/studio/details'); assert.equal(l.studioUxFindingsEProfileTarget('/settings/profile/'), '/studio/details')
   for (const route of ['/settings', '/settings/account', '/settings/profile/x', '/studio/details', '/profile', '/dashboard', '/builder', '', null, undefined]) assert.equal(l.studioUxFindingsEProfileTarget(route), null, String(route))
 })
-await check('UX-08: the intro-once rules: first time for a user empties the store, an intro that opened marks every screen and the user, a played user keeps every screen seen, another account gets its own first intro, storage down never throws', () => {
+await check('UX-08: the intro-once rules: a browser with no mark plays one intro (nothing is done until it opens, then it marks every screen and the user); a browser that already holds ANY mark plays none (the user\'s mark is written, every screen marked seen, nothing emptied); a played user keeps every screen seen; storage down never throws', () => {
   const l = lib(ON), SCREENS = [...l.STUDIO_UX_FINDINGS_E_INTRO_SCREENS], store = l.STUDIO_UX_FINDINGS_E_INTRO_STORE, key = l.studioUxFindingsEIntroKey
   assert.equal(key('u1'), 'deckster-studio-ux-e-intro-once:u1'); assert.notEqual(key('u1'), key('u2'), 'the user id is in the key')
-  const win = makeWindow({ [store]: JSON.stringify(['decks']) }); win.__decksterWorkspaceIntrosV2.add('decks')
-  assert.equal(l.studioUxFindingsEIntroReconcile(win, 'u1', false), 'first', 'first time for u1: the old per-page marks are emptied so one intro plays'); assert.equal(win.data.has(store), false); assert.equal(win.__decksterWorkspaceIntrosV2.size, 0)
-  l.studioUxFindingsEIntroPlayed(win, 'u1'); assert.equal(win.data.get(key('u1')), '1'); assert.deepEqual(JSON.parse(win.data.get(store)), SCREENS); assert.deepEqual([...win.__decksterWorkspaceIntrosV2].sort(), [...SCREENS].sort())
-  win.data.delete(store); win.__decksterWorkspaceIntrosV2.clear()
-  assert.equal(l.studioUxFindingsEIntroReconcile(win, 'u1', false), 'played', 'u1 again: played'); assert.deepEqual(JSON.parse(win.data.get(store)), SCREENS, 'every screen seen again')
-  assert.equal(l.studioUxFindingsEIntroReconcile(win, 'u2', false), 'first', 'another account on this browser has its own first intro'); assert.equal(win.data.has(store), false); assert.equal(win.data.get(key('u1')), '1', 'u1\'s mark is kept')
-  assert.equal(l.studioUxFindingsEIntroReconcile(win, 'u3', true), 'played', 'an intro that opened before the id was known was this user\'s'); assert.equal(win.data.get(key('u3')), '1')
+  // a browser with no mark: one intro. Nothing is written until it opens.
+  const fresh = makeWindow(); assert.equal(l.studioUxFindingsEIntroHasMark(fresh), false); assert.equal(l.studioUxFindingsEIntroSettle(fresh), false); assert.equal(l.studioUxFindingsEIntroReconcile(fresh, 'u1', false), 'first', 'no mark anywhere: the first intro plays'); assert.deepEqual(fresh.writes, [], 'and nothing is written or emptied before it opens')
+  l.studioUxFindingsEIntroPlayed(fresh, 'u1'); assert.equal(fresh.data.get(key('u1')), '1'); assert.deepEqual(JSON.parse(fresh.data.get(store)), SCREENS); assert.deepEqual([...fresh.__decksterWorkspaceIntrosV2].sort(), [...SCREENS].sort(), 'one intro opened: every screen marked, the user marked')
+  // a returning browser: ANY mark (one screen, the memory twin alone) means no intro, and no mark is emptied
+  for (const [name, win] of [['one screen in the store', makeWindow({ [store]: JSON.stringify(['decks']) })], ['an unknown name in the store', makeWindow({ [store]: JSON.stringify(['x']) })], ['the memory twin alone', (() => { const w = makeWindow(); w.__decksterWorkspaceIntrosV2.add('decks'); return w })()]]) {
+    assert.equal(l.studioUxFindingsEIntroHasMark(win), true, name); assert.equal(l.studioUxFindingsEIntroReconcile(win, 'u1', false), 'returning', `${name}: returning`)
+    assert.equal(win.data.get(key('u1')), '1', `${name}: the user's mark is written`); assert.deepEqual(JSON.parse(win.data.get(store)), SCREENS, `${name}: every screen is marked seen, so nothing plays`); assert.equal(win.writes.some(([k, v]) => k === store && v === null), false, `${name}: the marks are never emptied`)
+  }
+  const early = makeWindow({ [store]: JSON.stringify(['decks']) }); assert.equal(l.studioUxFindingsEIntroSettle(early), true, 'without an id, the settle marks every screen'); assert.deepEqual(JSON.parse(early.data.get(store)), SCREENS); assert.equal(early.data.has(key('u1')), false, 'and writes no user mark (no id)')
+  for (const bad of ['', 'not json', '{}', '[]', '[1,2]', 'null']) assert.equal(l.studioUxFindingsEIntroHasMark(makeWindow({ [store]: bad })), false, `${JSON.stringify(bad)} is no mark`)
+  // a played user, another account, an intro that opened before the id
+  const win = makeWindow({ [key('u1')]: '1' }); assert.equal(l.studioUxFindingsEIntroReconcile(win, 'u1', false), 'played', 'u1 again: played'); assert.deepEqual(JSON.parse(win.data.get(store)), SCREENS, 'every screen seen again')
+  assert.equal(l.studioUxFindingsEIntroReconcile(win, 'u2', false), 'returning', 'another account on a browser that holds marks plays none'); assert.equal(win.data.get(key('u1')), '1', 'u1\'s mark is kept')
+  assert.equal(l.studioUxFindingsEIntroReconcile(makeWindow(), 'u3', true), 'played', 'an intro that opened before the id was known was this user\'s')
   const quiet = makeWindow(); assert.equal(l.studioUxFindingsEIntroReconcile(quiet, '', false), 'first'); l.studioUxFindingsEIntroPlayed(quiet, ''); assert.deepEqual(quiet.writes, [], 'no user id, no write')
-  const down = makeWindow({}, { storageThrows: true }); assert.doesNotThrow(() => { l.studioUxFindingsEIntroReconcile(down, 'u1', false); l.studioUxFindingsEIntroPlayed(down, 'u1') }); assert.equal(down.__decksterWorkspaceIntrosV2.size, SCREENS.length, 'with storage down the intro\'s own memory set still marks every screen')
+  const down = makeWindow({}, { storageThrows: true }); assert.doesNotThrow(() => { l.studioUxFindingsEIntroReconcile(down, 'u1', false); l.studioUxFindingsEIntroPlayed(down, 'u1'); l.studioUxFindingsEIntroSettle(down) }); assert.equal(down.__decksterWorkspaceIntrosV2.size, SCREENS.length, 'with storage down the intro\'s own memory set still marks every screen')
 })
-await check('UX-08 meets FRONTEND-1\'s REAL intro: the store, screens and open event are theirs; their seenWorkspaces reads every screen as seen after an intro played, and none for another account; the seen gate and the write they have are still there', () => {
+await check('UX-08 meets FRONTEND-1\'s REAL intro: the store, screens and open event are theirs; their seenWorkspaces reads nothing as seen on a browser with no mark (one intro plays) and every screen as seen once one played or the browser already held any mark (none plays, nothing emptied); the seen gate and the write they have are still there', () => {
   const l = lib(ON), real = realIntro()
   assert.equal(real.store, l.STUDIO_UX_FINDINGS_E_INTRO_STORE); assert.equal(real.openEvent, l.STUDIO_UX_FINDINGS_E_INTRO_OPEN_EVENT); assert.deepEqual([...real.screens].sort(), [...l.STUDIO_UX_FINDINGS_E_INTRO_SCREENS].sort(), 'the intro\'s COPY keys are the screens this reuses')
   assert.ok(MOUNT_SRC.includes('STUDIO_UX_FINDINGS_E_INTRO_OPEN_EVENT')); assert.equal(l.STUDIO_UX_FINDINGS_E_INTRO_MEMORY, '__decksterWorkspaceIntrosV2', 'the intro\'s in-memory twin'); assert.ok(read(INTRO).includes('__decksterWorkspaceIntrosV2?: Set<Screen>'))
   assert.equal(real.gate, true, 'the intro still skips a seen screen unless it is an explicit replay'); assert.equal(real.writes, true)
-  const win = makeWindow(); l.studioUxFindingsEIntroReconcile(win, 'u1', false)
-  assert.deepEqual([...real.seenWorkspaces(win)], [], 'first time: nothing is seen, so the first intro plays'); l.studioUxFindingsEIntroPlayed(win, 'u1'); win.__decksterWorkspaceIntrosV2.clear()
+  // no mark anywhere: their code sees nothing as seen, so the first intro plays; once it opened, every screen is seen
+  const win = makeWindow(); l.studioUxFindingsEIntroSettle(win); l.studioUxFindingsEIntroReconcile(win, 'u1', false)
+  assert.deepEqual([...real.seenWorkspaces(win)], [], 'a browser with no mark: nothing is seen, so the first intro plays'); l.studioUxFindingsEIntroPlayed(win, 'u1'); win.__decksterWorkspaceIntrosV2.clear()
   assert.deepEqual([...real.seenWorkspaces(win)].sort(), [...real.screens].sort(), 'after one intro played, their code reads every screen as seen (no page opens another)')
-  l.studioUxFindingsEIntroReconcile(win, 'u2', false); assert.deepEqual([...real.seenWorkspaces(win)], [], 'another account: their code reads nothing as seen, so its first intro plays once')
+  // a returning browser (any mark): their code reads every screen as seen, for every account, and no mark was emptied
+  for (const marks of [['decks'], ['builder', 'templates'], ['models']]) for (const user of ['u1', 'u2']) {
+    const back = makeWindow({ [l.STUDIO_UX_FINDINGS_E_INTRO_STORE]: JSON.stringify(marks) }); back.__decksterWorkspaceIntrosV2 = undefined
+    l.studioUxFindingsEIntroSettle(back); l.studioUxFindingsEIntroReconcile(back, user, false)
+    assert.deepEqual([...real.seenWorkspaces(back)].sort(), [...real.screens].sort(), `returning with ${marks} (${user}): their seenWorkspaces reads every screen as seen, so no intro plays`); assert.equal(back.writes.some(([k, v]) => k === real.store && v === null), false, 'no mark emptied')
+    for (const mark of marks) assert.ok(JSON.parse(back.data.get(real.store)).includes(mark), `${mark} is still marked`)
+  }
 })
 
 // ===== B. the mount and the hook =================================================================================================================
@@ -202,14 +216,21 @@ function proveHook(mountText = MOUNT_SRC, libMode = 'real') {
     assert.deepEqual([...run.win.attrs.keys()].sort(), names.sort(), `attributes with ${JSON.stringify(extra)}`); for (const value of run.win.attrs.values()) assert.equal(value, 'true')
     run.unmount(); assert.equal(run.win.attrs.size, 0, 'unmount takes every attribute off')
   }
-  // the intro: an intro opening for a known user records it just after (the last write); before the id is known it is recorded once the id is
-  const known = runner(ON, { text: mountText, win: makeWindow({ 'deckster-studio-workspace-intros-v2': '["decks"]' }) }); known.hook('u1'); assert.equal(known.win.data.has('deckster-studio-workspace-intros-v2'), false, 'first time for u1: the old marks are emptied'); assert.equal(known.win.listenerCount('deckster:workspace-intro-open'), 1)
-  known.win.dispatch('deckster:workspace-intro-open', 'owner'); assert.deepEqual(known.win.writes.filter(([k]) => k.startsWith('deckster-studio-ux-e')), [], 'nothing is written inside the event: the intro writes its own screen right after it'); known.win.data.set('deckster-studio-workspace-intros-v2', '["decks"]'); known.win.__decksterWorkspaceIntrosV2.add('decks'); known.win.flush() // the intro's own write, right after its event
-  assert.equal(known.win.data.get('deckster-studio-ux-e-intro-once:u1'), '1'); assert.equal(JSON.parse(known.win.data.get('deckster-studio-workspace-intros-v2')).length, 7, 'every screen is marked, after the intro\'s own write')
+  // the intro, a browser with no mark: nothing is written until an intro opens; it is then recorded just after the intro's own write (the last write), and an intro that opened before the id was known is recorded once the id is
+  const S = 'deckster-studio-workspace-intros-v2', ONCE = 'deckster-studio-ux-e-intro-once:u1'
+  const known = runner(ON, { text: mountText }); known.hook('u1'); assert.deepEqual(known.win.writes, [], 'no mark: nothing written, nothing emptied: the first intro plays'); assert.equal(known.win.listenerCount('deckster:workspace-intro-open'), 1)
+  known.win.dispatch('deckster:workspace-intro-open', 'owner'); assert.deepEqual(known.win.writes, [], 'nothing is written inside the event: the intro writes its own screen right after it')
+  known.win.data.set(S, '["decks"]'); known.win.__decksterWorkspaceIntrosV2.add('decks'); known.win.flush() // the intro's own write, right after its event
+  assert.equal(known.win.data.get(ONCE), '1'); assert.equal(JSON.parse(known.win.data.get(S)).length, 7, 'every screen is marked, after the intro\'s own write')
   known.unmount(); assert.equal(known.win.listenerCount('deckster:workspace-intro-open'), 0, 'unmount takes the listener off')
-  const early = runner(ON, { text: mountText }); early.hook(''); early.win.dispatch('deckster:workspace-intro-open', 'owner'); early.win.flush(); assert.equal(early.win.data.has('deckster-studio-ux-e-intro-once:u1'), false, 'no id yet: nothing recorded'); early.hook('u1')
-  assert.equal(early.win.data.get('deckster-studio-ux-e-intro-once:u1'), '1', 'the id arrives: the intro that opened before it is this user\'s'); assert.equal(JSON.parse(early.win.data.get('deckster-studio-workspace-intros-v2')).length, 7)
-  const again = runner(ON, { text: mountText, win: makeWindow({ 'deckster-studio-ux-e-intro-once:u1': '1' }) }); again.hook('u1'); assert.equal(JSON.parse(again.win.data.get('deckster-studio-workspace-intros-v2')).length, 7, 'a played user: every screen is seen before any intro looks')
+  const early = runner(ON, { text: mountText }); early.hook(''); early.win.dispatch('deckster:workspace-intro-open', 'owner'); early.win.flush(); assert.equal(early.win.data.has(ONCE), false, 'no id yet: nothing recorded'); early.hook('u1')
+  assert.equal(early.win.data.get(ONCE), '1', 'the id arrives: the intro that opened before it is this user\'s'); assert.equal(JSON.parse(early.win.data.get(S)).length, 7)
+  // a returning browser (ANY mark, no user mark): no intro plays and no mark is emptied; the screens are marked before the session has loaded, the user mark once the id is known
+  const back = runner(ON, { text: mountText, win: makeWindow({ [S]: '["decks"]' }) }); back.hook('')
+  assert.equal(JSON.parse(back.win.data.get(S)).length, 7, 'the marks are completed before any id is known, so no intro opens'); assert.equal(back.win.data.has(ONCE), false, 'no id, no user mark yet'); assert.equal(back.win.writes.some(([k, v]) => k === S && v === null), false, 'nothing emptied')
+  back.hook('u1'); assert.equal(back.win.data.get(ONCE), '1', 'the id arrives: the user\'s mark is written'); assert.equal(back.win.writes.some(([k, v]) => k === S && v === null), false, 'still nothing emptied')
+  const real = realIntro(); back.win.__decksterWorkspaceIntrosV2.clear(); assert.deepEqual([...real.seenWorkspaces(back.win)].sort(), [...real.screens].sort(), 'FRONTEND-1\'s real seenWorkspaces reads every screen as seen')
+  const again = runner(ON, { text: mountText, win: makeWindow({ [ONCE]: '1' }) }); again.hook('u1'); assert.equal(JSON.parse(again.win.data.get(S)).length, 7, 'a played user: every screen is seen before any intro looks')
   // the redirect, from the mount (the session's user id feeds the same hook)
   const profile = runner(ON, { text: mountText, user: { id: 'u1' }, path: '/settings/profile' }); profile.mount(); assert.deepEqual(profile.replaced, ['/studio/details'], '/settings/profile goes to Your details'); assert.equal(profile.win.attrs.get('data-studio-ux-findings-e'), 'true', 'and the mount set the attribute')
   assert.equal(profile.win.data.has('deckster-studio-ux-e-intro-once:u1'), false, 'the mount handed the session user to the hook: u1\'s first intro is still to come'); profile.mount(); assert.deepEqual(profile.replaced, ['/studio/details'], 're-rendering on the same route does not redirect again')
@@ -217,8 +238,7 @@ function proveHook(mountText = MOUNT_SRC, libMode = 'real') {
   const byEmail = runner(ON, { text: mountText, user: { email: 'a@example.invalid' } }); byEmail.mount(); assert.equal(byEmail.win.data.has('deckster-studio-workspace-intros-v2'), false); byEmail.win.dispatch('deckster:workspace-intro-open', 'o'); byEmail.win.flush(); assert.equal(byEmail.win.data.get('deckster-studio-ux-e-intro-once:a@example.invalid'), '1', 'the Builder\'s own id rule (id, else email) is the key')
 }
 await check('B: the mount is null with the flag off (and with every near-miss value) and draws nothing with it on; flag off the hook sets no attribute, adds no listener, writes no storage and redirects nowhere; flag on it sets the attribute (logo / nav only with their flags), records the intro as played just after the intro\'s own write, and redirects /settings/profile only', () => proveHook())
-const FE1_DRAFT_OR_OK = Object.keys(UX_FINDINGS_E_FE1_OK).length > 0 ? UX_FINDINGS_E_FE1_OK : UX_FINDINGS_E_FE1_DRAFT
-const FE1_APPLIED = Object.keys(UX_FINDINGS_E_FE1_OK).length > 0
+const FE1 = UX_FINDINGS_E_FE1_OK
 const diffLines = text => text.split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
 const lineDiff = (before, after) => { const b = before.split('\n'), a = after.split('\n'), out = []; let i = 0, j = 0; while (i < b.length || j < a.length) { if (b[i] === a[j]) { i++; j++ } else if (a[j] !== undefined && !b.slice(i).includes(a[j])) { out.push(`+${a[j++]}`) } else if (b[i] !== undefined && !a.slice(j).includes(b[i])) { out.push(`-${b[i++]}`) } else { out.push(`-${b[i++]}`); out.push(`+${a[j++]}`) } } return out }
 /** The file with the entries' lines inserted, each right after its anchor line (how the file looks once they are applied). */
@@ -234,20 +254,14 @@ function proveFe1Lines(rel, text, entries, strip, at = '') {
   const diff = lineDiff(base, text); assert.deepEqual(diff.filter(line => line.startsWith('-')), [], a('nothing of dev\'s is removed or rewritten')); assert.deepEqual(diff, entries.map(({ line }) => `+${line}`), a('exactly the lines are added, in order'))
   assert.equal(strip(rel, text), base, a(`${rel}: without the lines it is dev's, byte for byte`)); assert.equal(strip(rel, strip(rel, text)), base, a('and put back twice changes nothing more'))
 }
-/** The pairs of a file's entries (was = '') as a strip over a table. */
-const stripOver = table => (rel, text) => (table[rel] ?? []).reduce((out, [has, was]) => { let at = out.indexOf(has); while (at !== -1 && !(at === 0 || out[at - 1] === '\n')) at = out.indexOf(has, at + 1); return at === -1 ? out : out.slice(0, at) + was + out.slice(at + has.length) }, text)
-const draftStrip = stripOver(UX_FINDINGS_E_FE1_DRAFT_EDITS)
 function proveFe1(readNow = rel => laterStrips(rel, read(rel)), at = '') {
-  for (const [rel, entries] of Object.entries(FE1_DRAFT_OR_OK)) {
-    const now = readNow(rel); proveFe1Lines(rel, FE1_APPLIED ? now : applyEntries(baseText(rel), entries), entries, FE1_APPLIED ? stripUxFindingsE : draftStrip, at)
-    if (!FE1_APPLIED) assert.equal(now, baseText(rel), at ? `${at}: ${rel}` : `${rel} is dev's file until FRONTEND-1 OKs the lines (phase 1: nothing applied)`)
-  }
-  const layout = FE1_DRAFT_OR_OK[LAYOUT], builder = FE1_DRAFT_OR_OK[BUILDER]
-  assert.equal(layout.length, 2, 'two lines in the account layout: the import and the mount'); assert.equal(builder.length, 2, 'two lines in the Builder: the import and the hook call'); assert.deepEqual(Object.keys(FE1_DRAFT_OR_OK).sort(), [LAYOUT, BUILDER].sort(), 'only those two files of FRONTEND-1\'s')
+  for (const [rel, entries] of Object.entries(FE1)) proveFe1Lines(rel, readNow(rel), entries, stripUxFindingsE, at)
+  const layout = FE1[LAYOUT], builder = FE1[BUILDER]
+  assert.equal(layout.length, 2, 'two lines in the account layout: the import and the mount'); assert.equal(builder.length, 2, 'two lines in the Builder: the import and the hook call'); assert.deepEqual(Object.keys(FE1).sort(), [LAYOUT, BUILDER].sort(), 'only those two files of FRONTEND-1\'s')
   assert.match(layout[0].line, /^import \{ StudioUxFindingsEMount \} from "@\/components\/studio-ux-findings-e\/studio-ux-findings-e-mount" \/\/ UX-FINDINGS-E/); assert.equal(layout[1].line.replace(/\{\/\*.*\*\/\}$/, ''), '      <StudioUxFindingsEMount />'); assert.match(layout[1].line, /\{\/\* UX-FINDINGS-E: [^*]*\*\/\}$/)
   assert.match(builder[0].line, /^import \{ useStudioUxFindingsE \} from '@\/components\/studio-ux-findings-e\/studio-ux-findings-e-mount' \/\/ UX-FINDINGS-E/); assert.match(builder[1].line, /^ {2}useStudioUxFindingsE\(authScopeUserId\) \/\/ UX-FINDINGS-E/)
 }
-await check('FRONTEND-1\'s four lines (a draft until OK\'d, then the OK\'d ones): once each, as whole lines, right after their anchor in dev\'s file, pure insertions, all marked; stripped, the file is dev\'s byte for byte; until they answer no file of theirs is touched', () => proveFe1())
+await check('FRONTEND-1\'s four OK\'d lines (22:20Z): once each, as whole lines, right after their anchor in dev\'s file, pure insertions, all marked; stripped, the file is dev\'s byte for byte; no other byte of their two files changes', () => proveFe1())
 /** The account layout rendered with every import but the mount stubbed: the markup with the lines is the markup without them, flag off and on. */
 function renderLayout(text, env) {
   const stub = name => function Stub() { return h('i', { 'data-stub': name }) }
@@ -261,14 +275,14 @@ function renderLayout(text, env) {
   return renderToStaticMarkup(h(mod.default, null, h('main', null, 'page')))
 }
 await check('the account layout renders the same markup with and without FRONTEND-1\'s lines (flag off, flag on, shell off): the mount returns null; sha256 shown', () => {
-  const base = baseText(LAYOUT), now = FE1_APPLIED ? laterStrips(LAYOUT, read(LAYOUT)) : applyEntries(base, FE1_DRAFT_OR_OK[LAYOUT]), rows = []
-  if (!FE1_APPLIED) assert.notEqual(now, base, 'the draft lines are in the text rendered')
+  const base = baseText(LAYOUT), now = laterStrips(LAYOUT, read(LAYOUT)), rows = []
+  assert.notEqual(now, base, 'the lines are in the text rendered')
   for (const env of [{}, { [SHELL]: 'true' }, { [UX_FINDINGS_E_FLAG]: 'true' }, { [UX_FINDINGS_E_FLAG]: 'true', [SHELL]: 'true' }, { [UX_FINDINGS_E_FLAG]: '1', [SHELL]: 'true' }]) {
     const withLines = renderLayout(now, env), without = renderLayout(base, env); assert.equal(withLines, without, `${JSON.stringify(env)}: the layout's markup is the same with and without the lines`); rows.push(sha(withLines))
   }
   console.log(`     account layout markup sha256/16 (with the lines = without): ${rows.join(' ')}`)
 })
-const BUILDER_TEXT = FE1_APPLIED ? laterStrips(BUILDER, read(BUILDER)) : applyEntries(baseText(BUILDER), FE1_DRAFT_OR_OK[BUILDER])
+const BUILDER_TEXT = laterStrips(BUILDER, read(BUILDER))
 function proveBuilderHook(text = BUILDER_TEXT) {
   const lines = text.split('\n'), hookAt = lines.findIndex(line => /^ {2}useStudioUxFindingsE\(authScopeUserId\) \/\/ UX-FINDINGS-E/.test(line)), fn = lines.findIndex(line => line === 'function BuilderAuthBoundary() {'), early = lines.findIndex(line => line === '  if (isLoading) return <BuilderLoadingState />')
   assert.ok(fn > 0 && hookAt > fn && hookAt < early, 'the hook call is inside BuilderAuthBoundary, above its first early return (a hook may not come after one)'); assert.equal(lines[hookAt - 1], "  const authScopeUserId = user?.id ?? user?.email ?? ''", 'right after the id it is given')
@@ -591,22 +605,28 @@ await scopeCheck('LINEAR STACK: an unregistered file in the later commit still f
 // ===== H. mutants (each one edit of the real sources, fed to the same checks) ====================================================================
 if (!process.env.CHECK_ONLY) console.log('mutants')
 const withoutLine = (text, line) => { const lines = text.split('\n'), at = lines.indexOf(line); if (at < 0) throw new SwapError('the line is there'); lines.splice(at, 1); return lines }
-const DRAFT_LAYOUT = FE1_DRAFT_OR_OK[LAYOUT], DRAFT_BUILDER = FE1_DRAFT_OR_OK[BUILDER]
+const DRAFT_LAYOUT = FE1[LAYOUT], DRAFT_BUILDER = FE1[BUILDER]
 const layoutNow = applyEntries(baseText(LAYOUT), DRAFT_LAYOUT), builderNow = applyEntries(baseText(BUILDER), DRAFT_BUILDER)
-const fe1Mutant = (rel, entries, text) => { if (text === applyEntries(baseText(rel), entries)) throw new SwapError('the edit did not change the file'); proveFe1Lines(rel, text, entries, draftStrip, 'mutant') }
+const fe1Mutant = (rel, entries, text) => { if (text === applyEntries(baseText(rel), entries)) throw new SwapError('the edit did not change the file'); proveFe1Lines(rel, text, entries, stripUxFindingsE, 'mutant') }
 await mutant('A: the flag reads "1" as on', () => proveFlag(swap(LIB_SRC, "process.env.NEXT_PUBLIC_STUDIO_UX_FINDINGS_E === 'true'", "(process.env.NEXT_PUBLIC_STUDIO_UX_FINDINGS_E === 'true' || process.env.NEXT_PUBLIC_STUDIO_UX_FINDINGS_E === '1')")))
 await mutant('A: the flag ignores the Studio shell', () => proveFlag(swap(LIB_SRC, " && process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'\n/** The rail", "\n/** The rail")))
 await mutant('B: the mount draws something with the flag on (a wrapper)', () => proveHook(swap(MOUNT_SRC, '  return null\n}\n\n/** Drawn', '  return <div />\n}\n\n/** Drawn')))
 await mutant('B: the mount draws its active part with the flag off', () => proveHook(swap(MOUNT_SRC, 'return STUDIO_UX_FINDINGS_E_ENABLED ? <StudioUxFindingsEActive /> : null', 'return <StudioUxFindingsEActive />')))
 await mutant('B: the hook sets the attribute with the flag off (its guard dropped)', () => proveHook(swap(MOUNT_SRC, '    if (!STUDIO_UX_FINDINGS_E_ENABLED) return\n    const root = document.documentElement', '    const root = document.documentElement')))
-await mutant('B: the hook adds its listener with the flag off', () => proveHook(swap(MOUNT_SRC, '    if (!STUDIO_UX_FINDINGS_E_ENABLED) return\n    // The intro sends', '    // The intro sends')))
+await mutant('B: the hook adds its listener with the flag off', () => proveHook(swap(MOUNT_SRC, '    if (!STUDIO_UX_FINDINGS_E_ENABLED) return\n    // A browser that already', '    // The intro sends')))
 await mutant('B: the hook empties the store with the flag off', () => proveHook(swap(MOUNT_SRC, '    if (!STUDIO_UX_FINDINGS_E_ENABLED || !userId) return\n    studioUxFindingsEIntroReconcile', '    if (!userId) return\n    studioUxFindingsEIntroReconcile')))
 await mutant('B: the unmount leaves the attribute', () => proveHook(swap(MOUNT_SRC, '    return () => names.forEach(name => root.removeAttribute(name))\n', '')))
 await mutant('B: the intro is recorded inside the event (before the intro\'s own write, which would then overwrite it)', () => proveHook(swap(MOUNT_SRC, 'window.setTimeout(() => studioUxFindingsEIntroPlayed(window as unknown as StudioUxFindingsEIntroHost, user.current), 0)', 'studioUxFindingsEIntroPlayed(window as unknown as StudioUxFindingsEIntroHost, user.current)')))
 await mutant('B: the logo attribute is set without the logo flag', () => proveHook(swap(MOUNT_SRC, '...(STUDIO_UX_FINDINGS_E_NEW_LOGO ? [STUDIO_UX_FINDINGS_E_LOGO_ATTR] : [])', '...[STUDIO_UX_FINDINGS_E_LOGO_ATTR]')))
 await mutant('B: /settings/profile is not redirected', () => proveHook(swap(MOUNT_SRC, '    if (target) router.replace(target)', '    if (target) void target')))
 await mutant('B: every settings route is redirected (the profile target is read too loosely)', () => { const l = swap(LIB_SRC, "if (pathname === STUDIO_UX_FINDINGS_E_PROFILE_FROM || pathname === `${STUDIO_UX_FINDINGS_E_PROFILE_FROM}/`)", "if (typeof pathname === 'string' && pathname.startsWith('/settings'))"); assert.equal(lib(ON, l).studioUxFindingsEProfileTarget('/settings/account'), null) })
-await mutant('A: the intro-once rule does not empty the store for a first-time user (another account would see nothing)', () => { const l = lib(ON, swap(LIB_SRC, "  try { host.localStorage?.removeItem(STUDIO_UX_FINDINGS_E_INTRO_STORE) } catch { /* Nothing to empty. */ }\n", '')); const win = makeWindow({ 'deckster-studio-workspace-intros-v2': '["decks"]' }); l.studioUxFindingsEIntroReconcile(win, 'u2', false); assert.equal(win.data.has('deckster-studio-workspace-intros-v2'), false, 'first time: emptied') })
+const returningWindow = () => makeWindow({ 'deckster-studio-workspace-intros-v2': '["decks"]' })
+const proveReturning = l => { const win = returningWindow(); assert.equal(l.studioUxFindingsEIntroReconcile(win, 'u1', false), 'returning'); assert.equal(win.writes.some(([k, v]) => k === 'deckster-studio-workspace-intros-v2' && v === null), false, 'the marks are never emptied'); assert.deepEqual(JSON.parse(win.data.get('deckster-studio-workspace-intros-v2')).length, 7, 'every screen is marked seen: no intro plays'); assert.equal(win.data.get('deckster-studio-ux-e-intro-once:u1'), '1') }
+await mutant('A: the OLD behaviour: a returning browser has its marks emptied so an intro plays again (the empty-the-marks rule)', () => proveReturning(lib(ON, swap(LIB_SRC, "  if (studioUxFindingsEIntroHasMark(host)) { studioUxFindingsEIntroPlayed(host, userId); return 'returning' }\n  return 'first'", "  try { host.localStorage?.removeItem(STUDIO_UX_FINDINGS_E_INTRO_STORE) } catch { /* Nothing to empty. */ }\n  host[STUDIO_UX_FINDINGS_E_INTRO_MEMORY]?.clear()\n  return 'first'"))))
+await mutant('A: a returning browser is not recognised (the user mark is written but the screens are not marked)', () => proveReturning(lib(ON, swap(LIB_SRC, "  if (studioUxFindingsEIntroHasMark(host)) { studioUxFindingsEIntroPlayed(host, userId); return 'returning' }", "  if (studioUxFindingsEIntroHasMark(host)) { try { host.localStorage?.setItem(studioUxFindingsEIntroKey(userId), '1') } catch { /* no */ } return 'returning' }"))))
+await mutant('A: any mark is read too narrowly (only the "decks" mark counts)', () => proveReturning(lib(ON, swap(LIB_SRC, "stored.some(value => typeof value === 'string')", "stored.includes('builder')"))))
+await mutant('A: a browser with no mark is settled too (an intro could never play)', () => { const l = lib(ON, swap(LIB_SRC, "  if (!studioUxFindingsEIntroHasMark(host)) return false\n  markEveryScreenSeen(host)", "  markEveryScreenSeen(host)")); const fresh = makeWindow(); l.studioUxFindingsEIntroSettle(fresh); assert.deepEqual(fresh.writes, [], 'a browser with no mark: nothing written, so the first intro plays') })
+await mutant('B: the mount does not settle a returning browser before the id is known (the session race shows an extra intro)', () => proveHook(swap(MOUNT_SRC, "    studioUxFindingsEIntroSettle(window as unknown as StudioUxFindingsEIntroHost)\n", '')))
 await mutant('A: the intro mark is not written with the user id in its key', () => { const l = lib(ON, swap(LIB_SRC, '`deckster-studio-ux-e-intro-once:${userId}`', "'deckster-studio-ux-e-intro-once'")); assert.notEqual(l.studioUxFindingsEIntroKey('u1'), l.studioUxFindingsEIntroKey('u2'), 'the user id is in the key') })
 await mutant('B: FRONTEND-1\'s layout mount line moved off its anchor (to the top of the file)', () => fe1Mutant(LAYOUT, DRAFT_LAYOUT, (() => { const lines = withoutLine(layoutNow, DRAFT_LAYOUT[1].line); lines.splice(0, 0, DRAFT_LAYOUT[1].line); return lines.join('\n') })()))
 await mutant('B: FRONTEND-1\'s Builder hook line moved off its anchor (below the first early return)', () => fe1Mutant(BUILDER, DRAFT_BUILDER, (() => { const lines = withoutLine(builderNow, DRAFT_BUILDER[1].line); lines.splice(lines.indexOf('  if (isLoading) return <BuilderLoadingState />') + 1, 0, DRAFT_BUILDER[1].line); return lines.join('\n') })()))

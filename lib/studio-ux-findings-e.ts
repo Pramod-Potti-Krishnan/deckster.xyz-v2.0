@@ -1,6 +1,6 @@
 // UX findings E (FRONTEND-2, B64; PROGRAM-1's item E from FRONTEND-1's 4 Nov UX pass): NEXT_PUBLIC_STUDIO_UX_FINDINGS_E, exact "true", default off, read at build time, and only with the Studio shell. Import-free.
 // On: a client mount (components/studio-ux-findings-e/studio-ux-findings-e-mount.tsx) sets data-studio-ux-findings-e="true" on <html>; components/studio-ux-findings-e/studio-ux-findings-e.css (every rule scoped to it) does UX-12 / UX-19 / UX-22 / UX-26 / UX-27.
-// Two findings are not CSS: UX-08 (the workspace intro plays once for a signed-in user on a browser, then never again; FRONTEND-1's own seen-store is reused, nothing in the intro changes) and UX-11 (/settings/profile goes to "Your details").
+// Two findings are not CSS: UX-08 (the workspace intro plays once on a browser, then never again; a browser that already holds any intro mark plays none; FRONTEND-1's own seen-store is reused, nothing in the intro changes) and UX-11 (/settings/profile goes to "Your details").
 // Off: nothing here is read, no attribute is set, no store is touched and no redirect is made, so every page renders as before.
 
 export const STUDIO_UX_FINDINGS_E_ENABLED = process.env.NEXT_PUBLIC_STUDIO_UX_FINDINGS_E === 'true' && process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
@@ -51,17 +51,32 @@ export function studioUxFindingsEIntroPlayed(host: StudioUxFindingsEIntroHost, u
   markEveryScreenSeen(host)
 }
 
+/** Some intro has already played on this browser: any mark in FRONTEND-1's store, or in the intro's in-memory twin. */
+export function studioUxFindingsEIntroHasMark(host: StudioUxFindingsEIntroHost): boolean {
+  if ((host[STUDIO_UX_FINDINGS_E_INTRO_MEMORY]?.size ?? 0) > 0) return true
+  try {
+    const stored: unknown = JSON.parse(host.localStorage?.getItem(STUDIO_UX_FINDINGS_E_INTRO_STORE) || '[]')
+    return Array.isArray(stored) && stored.some(value => typeof value === 'string')
+  } catch { return false }
+}
+
+/** A browser that already holds a mark plays no intro by itself: every screen is marked seen and nothing is emptied. Needs no user id, so it can run before the session has loaded. Returns whether it marked. */
+export function studioUxFindingsEIntroSettle(host: StudioUxFindingsEIntroHost): boolean {
+  if (!studioUxFindingsEIntroHasMark(host)) return false
+  markEveryScreenSeen(host)
+  return true
+}
+
 /**
- * `userId` is known and nothing has opened yet (`openedEarly` is true when an intro opened before the id was known: that one was this user's).
- * Played for this user already: every screen is marked seen. First time for this user on this browser: the store is emptied (screens another account, or the old per-page rule, had marked) so the
- * first intro plays once. Returns what it found.
+ * `userId` is known (`openedEarly` is true when an intro opened before the id was known: that one was this user's).
+ * Played for this user already: every screen is marked seen. No mark for this user but the browser already holds one (the old per-page rule, an earlier visit, another account): the user's mark is written and every screen
+ * is marked seen, so nothing plays; the marks are never emptied. A browser with no mark at all: nothing is done, so exactly one intro plays, and its open event records it. Returns what it found.
  */
-export function studioUxFindingsEIntroReconcile(host: StudioUxFindingsEIntroHost, userId: string, openedEarly: boolean): 'played' | 'first' {
+export function studioUxFindingsEIntroReconcile(host: StudioUxFindingsEIntroHost, userId: string, openedEarly: boolean): 'played' | 'returning' | 'first' {
   if (!userId) return 'first'
   let played = openedEarly
   try { played = played || host.localStorage?.getItem(studioUxFindingsEIntroKey(userId)) === '1' } catch { /* Storage unavailable: only what this page saw counts. */ }
   if (played) { studioUxFindingsEIntroPlayed(host, userId); return 'played' }
-  try { host.localStorage?.removeItem(STUDIO_UX_FINDINGS_E_INTRO_STORE) } catch { /* Nothing to empty. */ }
-  host[STUDIO_UX_FINDINGS_E_INTRO_MEMORY]?.clear()
+  if (studioUxFindingsEIntroHasMark(host)) { studioUxFindingsEIntroPlayed(host, userId); return 'returning' }
   return 'first'
 }
