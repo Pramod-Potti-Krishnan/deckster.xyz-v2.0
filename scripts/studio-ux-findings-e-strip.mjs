@@ -6,6 +6,7 @@
 // (the Builder sits outside that layout, and its loading skeleton, its Director header and the intro need the attribute). FRONTEND-1 OK'd those exact lines (to-FRONTEND-2.md line 528, 22:20Z, 7 Nov), anchors checked against dev eeb78d4f.
 // Every line this change adds to an EXISTING app file carries the marker UX-FINDINGS-E (a WHOLE token). Strip them and the file is dev's, byte for byte (stripUxFindingsE(rel, text)).
 // The older proofs this change teaches (tests only, every line carries the registry-read mark): the two that read the first-parent commits of BASE..HEAD for their own commits' subjects get one more inserted line each, for "UX findings E:".
+// FRONTEND-1 also OK'd two after-merge edits of THEIR proofs (test-studio-ux-honesty, test-studio-voice-call: UX_FINDINGS_E_FE1_PROOF_OK), carried here with the mark and put back by the strip.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
 export const BASE_COMMIT = 'eeb78d4f4b7676d75c244746f1edc7da1d269478' // Studio dev (7 Nov), the merge of #598
@@ -72,12 +73,32 @@ export const UX_FINDINGS_E_ENV_FILE = '.env.example'
 const fe1Pairs = lines => Object.fromEntries(Object.entries(lines).map(([rel, list]) => [rel, list.map(({ line }) => [`${line}\n`, ''])]))
 export const UX_FINDINGS_E_FE1_EDITS = fe1Pairs(UX_FINDINGS_E_FE1_OK)
 
-/** Every [has, was] pair this change makes, by file: .env.example, the registry, the two taught proofs and FRONTEND-1's two files. */
+/**
+ * FRONTEND-1's two PROOFS with the after-merge edits FRONTEND-1 OK'd (to-FRONTEND-2.md line 545, FE1-OK-REQUEST-2.md, 8 Nov): each reads a file raw, so a later change's marked lines show up in it. [line now, line before] per edit, whole lines;
+ * was = '' for an inserted line. Every line now carries UX_FINDINGS_E_PIN_MARK. Put back, each proof is dev's, byte for byte. These are the ONLY edits of FRONTEND-1's proofs this change makes; every other proof of theirs stays untouched.
+ */
+export const UX_FINDINGS_E_FE1_PROOF_OK = {
+  'scripts/test-studio-ux-honesty.mjs': [
+    ["const phFiles = { [LIB_PH]: read(LIB_PH), [LAYOUT]: registry.LATER_STRIPS.slice(registry.LATER_STRIPS.indexOf(strip.stripUxHonesty) + 1).reduce((text, fn) => fn(LAYOUT, text), read(LAYOUT)), [CSS_PH]: read(CSS_PH) } // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", "const phFiles = { [LIB_PH]: read(LIB_PH), [LAYOUT]: read(LAYOUT), [CSS_PH]: read(CSS_PH) }\n"],
+  ],
+  'scripts/test-studio-voice-call.mjs': [
+    ["const laterRegistry = await import('./studio-later-changes.mjs') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", ''],
+    ["const laterEnvOut = text => laterRegistry.LATER_ENV_BLOCKS.slice(laterRegistry.LATER_ENV_BLOCKS.indexOf(strip.VOICE_CALL_ENV_BLOCK) + 1).reduce((out, block) => out.replace(`\\n${block}`, ''), text) // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", ''],
+    ["  ok(laterEnvOut(env).endsWith(`\\n${strip.VOICE_CALL_ENV_BLOCK}`) && strip.VOICE_CALL_ENV_BLOCK.endsWith('\\n'), '.env.example: the block is the last thing in the file, after one blank line') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", "  ok(env.endsWith(`\\n${strip.VOICE_CALL_ENV_BLOCK}`) && strip.VOICE_CALL_ENV_BLOCK.endsWith('\\n'), '.env.example: the block is the last thing in the file, after one blank line')\n"],
+    ["    ok(laterEnvOut(`${envDiff.map(line => line.slice(1)).join('\\n')}\\n`).trimEnd().endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly its block (after ELEMENT-3\\'s two lines)') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", "    ok(envDiff.map(line => line.slice(1)).join('\\n').endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly its block (after ELEMENT-3\\'s two lines)')\n"],
+  ],
+}
+/** The anchor the two inserted voice-call lines go right after, and the two proofs. */
+export const UX_FINDINGS_E_FE1_PROOF_ANCHOR = "const core = await import('./studio-voice-core-strip.mjs')"
+export const UX_FINDINGS_E_FE1_PROOF_FILES = Object.keys(UX_FINDINGS_E_FE1_PROOF_OK)
+
+/** Every [has, was] pair this change makes, by file: .env.example, the registry, the two taught proofs, FRONTEND-1's two files and FRONTEND-1's two OK'd proof edits. */
 export const UX_FINDINGS_E_EDITS = {
   [UX_FINDINGS_E_ENV_FILE]: [[ENV_HAS, '']],
   [UX_FINDINGS_E_REGISTRY]: [[`${UX_FINDINGS_E_REGISTRY_FILES_LINE}\n`, ''], [`${UX_FINDINGS_E_REGISTRY_ENV_LINE}\n`, ''], [`${UX_FINDINGS_E_REGISTRY_STRIP_LINE}\n`, '']],
   ...UX_FINDINGS_E_PIN_EDITS,
   ...UX_FINDINGS_E_FE1_EDITS,
+  ...UX_FINDINGS_E_FE1_PROOF_OK,
 }
 
 /** New files (no base text to put back). */
@@ -94,7 +115,7 @@ export const UX_FINDINGS_E_FE1_FILES = Object.keys(UX_FINDINGS_E_FE1_OK)
 export const UX_FINDINGS_E_OWN_EDITS = [UX_FINDINGS_E_ENV_FILE, UX_FINDINGS_E_REGISTRY, ...UX_FINDINGS_E_PIN_FILES]
 
 /** Every file this change's commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
-export const UX_FINDINGS_E_SCOPE_FILES = new Set([...UX_FINDINGS_E_FE1_FILES, ...UX_FINDINGS_E_NEW_FILES, ...UX_FINDINGS_E_OWN_EDITS])
+export const UX_FINDINGS_E_SCOPE_FILES = new Set([...UX_FINDINGS_E_FE1_FILES, ...UX_FINDINGS_E_FE1_PROOF_FILES, ...UX_FINDINGS_E_NEW_FILES, ...UX_FINDINGS_E_OWN_EDITS])
 
 /** `text` with one whole line taken out: `has` is the line with its newline, and it counts only at the start of a line (never the tail of a longer one). Only the first occurrence goes: a line that is there twice is a merge mistake the older pins must still see. */
 function putBackLine(text, has, was) {

@@ -149,7 +149,7 @@ function checkHeadings(files) {
   ok(/h1\[data-studio-page-heading="true"\] \{ font-size: 28px/.test(css), 'UX-09: one heading size')
   ok(/\[data-studio-page-container="outer"\] \{[^}]*max-width: 1152px[^}]*padding-left: 32px/.test(css), 'UX-09: one container width and gutter')
 }
-const phFiles = { [LIB_PH]: read(LIB_PH), [LAYOUT]: read(LAYOUT), [CSS_PH]: read(CSS_PH) }
+const phFiles = { [LIB_PH]: read(LIB_PH), [LAYOUT]: registry.LATER_STRIPS.slice(registry.LATER_STRIPS.indexOf(strip.stripUxHonesty) + 1).reduce((text, fn) => fn(LAYOUT, text), read(LAYOUT)), [CSS_PH]: read(CSS_PH) } // LATER-CHANGES: registry read (UX-FINDINGS-E)
 const before = checks
 checkHeadings(phFiles)
 ok(registry.LATER_CHANGE_FILES.has(LAYOUT) && registry.LATER_STRIPS.includes(strip.stripUxHonesty) && registry.LATER_ENV_BLOCKS.includes(strip.PAGE_HEADINGS_ENV_BLOCK), 'UX-09: registered in scripts/studio-later-changes.mjs')

@@ -8,6 +8,8 @@
 //  B. the mount: null with the flag off, and nothing drawn with it on; with the flag off the hook sets no attribute, adds no listener, writes no storage and redirects nowhere; with it on it sets the attribute (and the logo / nav attributes only with their own
 //     flags), takes them off on unmount, records the intro as played, and redirects /settings/profile (and only that) to /studio/details. FRONTEND-1's four lines (OK'd by them, 22:20Z 7 Nov: UX_FINDINGS_E_FE1_OK) are checked
 //     once each, at their anchor, pure insertions, marked; the account layout renders the same markup with and without them. The Builder page needs the real Next runtime: its hook line is checked by position and by the same hook harness, not rendered;
+//     FRONTEND-1 also OK'd two after-merge edits of THEIR proofs (test-studio-ux-honesty line 152; test-studio-voice-call two inserted lines and two changed ones): each OK'd line is there once, at its anchor, carries the registry-read mark, and put back both
+//     proofs are dev's; the lane guard still refuses every OTHER proof of theirs;
 //  C. the stylesheet is PARSED: every rule (also inside @media) is scoped under html[data-studio-ux-findings-e="true"], no !important, no colour, every class and attribute it names is live in the sources, every finding has its rule;
 //  D. the strip: put back = dev for every edited file, idempotent, an untouched file unchanged, every taught line carries the mark;
 //  E. the registry: exactly this change's THREE lines (files, env block, strip), each at the true end of its list; .env.example is dev's plus the block at the true end;
@@ -27,7 +29,7 @@ import * as jsxRuntime from 'react/jsx-runtime'
 import { renderToStaticMarkup } from 'react-dom/server'
 import ts from 'typescript'
 import {
-  BASE_COMMIT, UX_FINDINGS_E_EDITS, UX_FINDINGS_E_ENV_BLOCK, UX_FINDINGS_E_FE1_FILES, UX_FINDINGS_E_FE1_OK, UX_FINDINGS_E_FIRST_PARENT_LINE, UX_FINDINGS_E_FLAG,
+  BASE_COMMIT, UX_FINDINGS_E_EDITS, UX_FINDINGS_E_ENV_BLOCK, UX_FINDINGS_E_FE1_FILES, UX_FINDINGS_E_FE1_OK, UX_FINDINGS_E_FE1_PROOF_ANCHOR, UX_FINDINGS_E_FE1_PROOF_FILES, UX_FINDINGS_E_FE1_PROOF_OK, UX_FINDINGS_E_FIRST_PARENT_LINE, UX_FINDINGS_E_FLAG,
   UX_FINDINGS_E_MARKER_RE, UX_FINDINGS_E_NEW_FILES, UX_FINDINGS_E_OWN_EDITS, UX_FINDINGS_E_PIN_AFTER, UX_FINDINGS_E_PIN_EDITS, UX_FINDINGS_E_PIN_FILES, UX_FINDINGS_E_PIN_MARK, UX_FINDINGS_E_REGISTRY_ENV_LINE,
   UX_FINDINGS_E_REGISTRY_FILES_LINE, UX_FINDINGS_E_REGISTRY_STRIP_LINE, UX_FINDINGS_E_SCOPE_FILES, UX_FINDINGS_E_SUBJECT, stripUxFindingsE,
 } from './studio-ux-findings-e-strip.mjs'
@@ -262,6 +264,39 @@ function proveFe1(readNow = rel => laterStrips(rel, read(rel)), at = '') {
   assert.match(builder[0].line, /^import \{ useStudioUxFindingsE \} from '@\/components\/studio-ux-findings-e\/studio-ux-findings-e-mount' \/\/ UX-FINDINGS-E/); assert.match(builder[1].line, /^ {2}useStudioUxFindingsE\(authScopeUserId\) \/\/ UX-FINDINGS-E/)
 }
 await check('FRONTEND-1\'s four OK\'d lines (22:20Z): once each, as whole lines, right after their anchor in dev\'s file, pure insertions, all marked; stripped, the file is dev\'s byte for byte; no other byte of their two files changes', () => proveFe1())
+/** FRONTEND-1's two proofs with the after-merge edits they OK'd (UX_FINDINGS_E_FE1_PROOF_OK): the file as `table` makes it from dev's text (an inserted line goes right after the anchor, a changed line takes its dev line's place). */
+function applyProofTable(rel, base, table) {
+  let out = base
+  for (const [has, was] of table[rel]) {
+    if (was === '') { const lines = out.split('\n'), at = lines.indexOf(UX_FINDINGS_E_FE1_PROOF_ANCHOR); if (at < 0) throw new SwapError('the proof anchor is missing'); lines.splice(at + 1 + lines.slice(at + 1).findIndex(l => !table[rel].some(([h, w]) => w === '' && h === `${l}\n`)), 0, has.replace(/\n$/, '')); out = lines.join('\n') } else out = swap(out, was, has)
+  }
+  return out
+}
+/** Each OK'd proof line: there once as a whole line, carrying the registry-read mark, at its anchor (an inserted line right after the anchor line, a changed line where dev's line was, its neighbours dev's); nothing else of dev's changes; put back, the proof is dev's. */
+function proveFe1Proofs(readNow = rel => laterStrips(rel, read(rel)), at = '', table = UX_FINDINGS_E_FE1_PROOF_OK) {
+  const a = m => (at ? `${at}: ${m}` : m)
+  assert.deepEqual(Object.keys(table).sort(), ['scripts/test-studio-ux-honesty.mjs', 'scripts/test-studio-voice-call.mjs'], a('exactly the two proofs FRONTEND-1 OK\'d'))
+  assert.deepEqual(table['scripts/test-studio-ux-honesty.mjs'].map(([, was]) => was === ''), [false], a('ux-honesty: one changed line')); assert.deepEqual(table['scripts/test-studio-voice-call.mjs'].map(([, was]) => was === ''), [true, true, false, false], a('voice-call: two inserted lines, two changed ones'))
+  for (const [rel, pairs] of Object.entries(table)) {
+    const base = baseText(rel), now = readNow(rel), lines = now.split('\n'), baseLines = base.split('\n')
+    assert.equal(lines.filter(line => line.includes(UX_FINDINGS_E_PIN_MARK)).length, pairs.length, a(`${rel}: ${pairs.length} lines carry the registry-read mark and no other`))
+    for (const [has, was] of pairs) {
+      const line = has.replace(/\n$/, ''), idx = lines.indexOf(line)
+      assert.ok(line.endsWith(` ${UX_FINDINGS_E_PIN_MARK}`), a(`${rel}: an OK'd line carries the registry-read mark`)); assert.equal(count(`\n${now}`, `\n${has}`), 1, a(`${rel}: the OK'd line is there exactly once, as a whole line`))
+      if (was === '') { const anchorAt = lines.indexOf(UX_FINDINGS_E_FE1_PROOF_ANCHOR); assert.equal(count(`\n${base}`, `\n${UX_FINDINGS_E_FE1_PROOF_ANCHOR}\n`), 1, a('dev has the anchor once')); assert.ok(idx > anchorAt && idx <= anchorAt + pairs.filter(([, w]) => w === '').length, a(`${rel}: an inserted line is right after the anchor line`)) }
+      else {
+        const old = was.replace(/\n$/, ''), baseAt = baseLines.indexOf(old); assert.equal(count(`\n${base}`, `\n${was}`), 1, a(`${rel}: dev has the changed line exactly once`)); assert.equal(count(`\n${now}`, `\n${was}`), 0, a(`${rel}: dev's line is gone`))
+        const inserted = pairs.filter(([, w], i) => w === '' && baseLines.indexOf(UX_FINDINGS_E_FE1_PROOF_ANCHOR) < baseAt).length
+        assert.equal(idx, baseAt + inserted, a(`${rel}: the changed line is where dev's line was`)); assert.equal(lines[idx - 1], baseLines[baseAt - 1], a('its upper neighbour is dev\'s')); assert.equal(lines[idx + 1], baseLines[baseAt + 1], a('its lower neighbour is dev\'s'))
+      }
+    }
+    const diff = lineDiff(base, now), hasLines = pairs.flatMap(([has]) => has.split('\n').filter(Boolean)), wasLines = pairs.flatMap(([, was]) => was.split('\n').filter(Boolean))
+    assert.deepEqual(diff.filter(line => line.startsWith('+')), hasLines.map(line => `+${line}`), a(`${rel}: exactly the OK'd lines are added`)); assert.deepEqual(diff.filter(line => line.startsWith('-')), wasLines.map(line => `-${line}`), a(`${rel}: only dev's changed lines are gone`))
+    assert.equal(stripUxFindingsE(rel, now), base, a(`${rel}: put back it is dev's, byte for byte`)); assert.equal(stripUxFindingsE(rel, stripUxFindingsE(rel, now)), base, a('and put back twice changes nothing more'))
+  }
+}
+await check('FRONTEND-1\'s two OK\'d after-merge proof edits (test-studio-ux-honesty: one changed line; test-studio-voice-call: two inserted lines after the strip import and two changed ones): each OK\'d line once, as a whole line, at its anchor, carrying the registry-read mark; nothing else of dev\'s changes; put back both proofs are dev\'s', () => proveFe1Proofs())
+
 /** The account layout rendered with every import but the mount stubbed: the markup with the lines is the markup without them, flag off and on. */
 function renderLayout(text, env) {
   const stub = name => function Stub() { return h('i', { 'data-stub': name }) }
@@ -384,7 +419,7 @@ console.log('D. the strip')
 const LEGACY_FILES = ['app/(app)/dashboard/page.tsx', 'hooks/use-auth.ts', 'components/workspace-intro/workspace-intro.tsx', 'scripts/test-studio-usage-credits-page.mjs', 'scripts/test-studio-chat-caps.mjs', 'lib/studio-ux-findings-e.ts']
 function proveStrip(strip, readNow = read, later = laterStrips, at = '') {
   const a = m => (at ? `${at}: ${m}` : m)
-  assert.deepEqual(Object.keys(UX_FINDINGS_E_EDITS).sort(), [ENV_FILE, REGISTRY, ...UX_FINDINGS_E_PIN_FILES, ...UX_FINDINGS_E_FE1_FILES].sort(), a('the strip edits .env.example, the registry, the two older proofs and FRONTEND-1\'s OK\'d files, nothing else'))
+  assert.deepEqual(Object.keys(UX_FINDINGS_E_EDITS).sort(), [ENV_FILE, REGISTRY, ...UX_FINDINGS_E_PIN_FILES, ...UX_FINDINGS_E_FE1_FILES, ...UX_FINDINGS_E_FE1_PROOF_FILES].sort(), a('the strip edits .env.example, the registry, the two older proofs, FRONTEND-1\'s OK\'d files and their two OK\'d proof edits, nothing else'))
   for (const [rel, edits] of Object.entries(UX_FINDINGS_E_EDITS)) {
     const now = asThisChangeLeftIt(rel, later(rel, readNow(rel))), base = baseText(rel)
     assert.equal(strip(rel, now), base, a(`${rel}: put back it is dev's, byte for byte`)); assert.equal(strip(rel, strip(rel, now)), base, a(`${rel}: put back twice changes nothing more`))
@@ -485,7 +520,9 @@ const scopeOwnCommits = (head, opts) => {
   return own
 }
 /** Lanes this change must not touch (FRONTEND-1's, COMPOSER-2's, the reconnect proof): the four OK'd lines are the only thing of theirs. */
-const LANES = /^(scripts\/test-studio-(p2-|billing-|launch-wording|env-append-tolerant|route-params|admin-email-guard|uat-marketing|deck-title|flow-control|ux-honesty)|scripts\/test-atlas-help-recovery|scripts\/test-director-websocket-reconnect|scripts\/test-(deck-card-thumbnail|first-paint)|lib\/studio-flow-control\.ts|hooks\/use-studio-flow-control\.ts|lib\/studio-launch-wording\.ts)/
+const LANES = /^(scripts\/test-studio-(p2-|billing-|launch-wording|env-append-tolerant|route-params|admin-email-guard|uat-marketing|deck-title|flow-control|ux-honesty|voice-call)|scripts\/test-atlas-help-recovery|scripts\/test-director-websocket-reconnect|scripts\/test-(deck-card-thumbnail|first-paint)|lib\/studio-flow-control\.ts|hooks\/use-studio-flow-control\.ts|lib\/studio-launch-wording\.ts)/
+/** The lane guard: no file of FRONTEND-1's, COMPOSER-2's or the reconnect proof's lane is touched, except the two proofs FRONTEND-1 OK'd (UX_FINDINGS_E_FE1_PROOF_FILES). */
+const assertLanes = touched => { for (const rel of touched) assert.ok(!LANES.test(rel) || UX_FINDINGS_E_FE1_PROOF_FILES.includes(rel), `${rel} is in FRONTEND-1's, COMPOSER-2's or the reconnect proof's lane: only the OK'd lines and the two OK'd proof edits may be`) }
 const UNTOUCHED = ['components/workspace-intro/workspace-intro.tsx', 'components/studio-intro-replay.tsx', 'components/builder/studio-introduction.tsx', 'components/builder/chat/studio-director-header.tsx', 'components/builder/studio-session-hygiene.tsx', 'components/builder/studio-session-hygiene-styles.ts',
   'components/layout/app-header.tsx', 'app/(app)/settings/profile/page.tsx', 'app/(app)/dashboard/page.tsx', 'components/studio-personal/details-workspace.tsx', 'components/studio-personal/account-identity-preview.tsx', 'components/studio-personal/intelligence-p2.tsx', 'components/studio-libraries/themes-workspace.tsx',
   'components/studio-libraries/library-controls.tsx', 'lib/studio-intelligence-p2.ts', 'lib/studio-launch-wording.ts', 'middleware.ts', 'next.config.mjs', 'app/layout.tsx', 'package.json', 'pnpm-lock.yaml', 'tsconfig.json']
@@ -495,11 +532,11 @@ const scopeCommittedFiles = (head, { later = laterStrips, registered = registry.
   const net = new Set(git('diff', '--name-only', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)); for (const rel of [...touched]) if (!net.has(rel)) touched.delete(rel)
   assert.deepEqual([...touched].sort(), [...UX_FINDINGS_E_SCOPE_FILES].sort(), 'the files this change\'s own commits touch (net of what they put back) are exactly its scope')
   assert.deepEqual([...net].filter(rel => UX_FINDINGS_E_SCOPE_FILES.has(rel) || !registered.has(rel)).sort(), [...UX_FINDINGS_E_SCOPE_FILES].sort(), 'and the whole committed diff from BASE is nothing else (a file the registry names for a later change, stacked on this head, is left to that change; an unregistered file still fails)')
-  proveFe1(rel => later(rel, git('show', `${head}:${rel}`)), 'committed'); proveCss(git('show', `${head}:${CSS}`))
+  proveFe1(rel => later(rel, git('show', `${head}:${rel}`)), 'committed'); proveFe1Proofs(rel => later(rel, git('show', `${head}:${rel}`)), 'committed'); proveCss(git('show', `${head}:${CSS}`))
   for (const rel of UX_FINDINGS_E_NEW_FILES) { assert.equal(git('cat-file', '-t', `${head}:${rel}`).trim(), 'blob', rel); assert.throws(() => git('cat-file', '-e', `${BASE_COMMIT}:${rel}`), undefined, `${rel} is new: dev has none`) }
   for (const rel of UX_FINDINGS_E_PIN_FILES) assert.equal(stripUxFindingsE(rel, later(rel, git('show', `${head}:${rel}`))), baseText(rel), `${rel}: an older proof taught: put back it is dev's (a later change's registered lines out first)`)
   for (const rel of UNTOUCHED) assert.ok(!touched.has(rel), `${rel} is not touched by this change`)
-  for (const rel of touched) assert.ok(!LANES.test(rel), `${rel} is in FRONTEND-1's, COMPOSER-2's or the reconnect proof's lane: only the OK'd lines may be`)
+  assertLanes(touched)
 }
 const scopeAll = (head, opts) => { scopeOwnCommits(head); scopeCommittedFiles(head, opts); proveRegistryAt(head) }
 
@@ -553,9 +590,9 @@ const scopeBreakers = {
   'a stray file in an own commit': () => { const stray = commitWith(HEAD, { 'stray-ux-findings-e.txt': 'stray\n' }, `${UX_FINDINGS_E_SUBJECT} a stray file${TRAILER}`); assert.ok(ownOf(stray).includes(stray)); assert.doesNotThrow(() => scopeCommittedFiles(HEAD)); scopeCommittedFiles(stray) },
   'an own commit without the co-author line': () => { const c = commitWith(HEAD, {}, `${UX_FINDINGS_E_SUBJECT} no trailer`); assert.throws(() => scopeOwnCommits(c), error => /^[0-9a-f]{8}$/.test(error.message), 'the commit without the trailer is named'); scopeOwnCommits(c) },
 }
-await scopeCheck('scope: a stray file in an own commit fails the files check, an own commit without the co-author line is named, a touched file of FRONTEND-1\'s intro, Director header, skeleton or honesty proof fails it, and a real own commit set still passes', () => {
+await scopeCheck('scope: a stray file in an own commit fails the files check, an own commit without the co-author line is named, a touched file of FRONTEND-1\'s intro, Director header, skeleton, or of a proof of theirs that was NOT OK\'d (p2-intelligence, voice-call-replay) fails it, and a real own commit set still passes', () => {
   assert.throws(scopeBreakers['a stray file in an own commit'], /exactly its scope/); assert.throws(scopeBreakers['an own commit without the co-author line'], error => /^[0-9a-f]{8}$/.test(error.message), 'the commit without the trailer is named')
-  for (const rel of ['components/workspace-intro/workspace-intro.tsx', 'components/builder/chat/studio-director-header.tsx', 'components/builder/studio-session-hygiene.tsx', 'scripts/test-studio-ux-honesty.mjs']) {
+  for (const rel of ['components/workspace-intro/workspace-intro.tsx', 'components/builder/chat/studio-director-header.tsx', 'components/builder/studio-session-hygiene.tsx', 'scripts/test-studio-p2-intelligence.mjs', 'scripts/test-studio-voice-call-replay.mjs']) {
     const foreign = commitWith(HEAD, { [rel]: `${git('show', `${HEAD}:${rel}`)}\n` }, `${UX_FINDINGS_E_SUBJECT} touches ${rel}${TRAILER}`)
     assert.notEqual(git('show', `${foreign}:${rel}`), git('show', `${HEAD}:${rel}`), `positive control: ${rel} is changed`); assert.throws(() => scopeCommittedFiles(foreign), /exactly its scope|is not touched|lane/, rel)
   }
@@ -580,7 +617,7 @@ const laterCommit = (onto, { registryLines = false, extra = {} } = {}) => {
   return commitWith(onto, edits, `Synthetic later: a change stacked after this one${TRAILER}`)
 }
 const synLater = (rel, text) => synStrip(rel, laterStrips(rel, text))
-function provePins(readAt, at, later) { proveFe1(rel => later(rel, readAt(rel)), at); proveStrip(stripUxFindingsE, readAt, later, at) }
+function provePins(readAt, at, later) { proveFe1(rel => later(rel, readAt(rel)), at); proveFe1Proofs(rel => later(rel, readAt(rel)), at); proveStrip(stripUxFindingsE, readAt, later, at) }
 await check('ROBUST AFTER MERGE: on a branch stacked after this change (dev\'s merge brings it in by a second parent, then a later change adds its subject filter beside this one\'s in a taught proof) no own commit is on the first-parent line, the scope stands down there, and the pins, read past the later change\'s strip, still pass', () => {
   const dev = ON_OWN_LINE ? gateMerge(BASE_COMMIT, HEAD) : HEAD, later = laterCommit(dev), readAt = rel => git('show', `${later}:${rel}`)
   assert.equal(ownOf(later).length, ownOf(HEAD).length, 'this change\'s commits are all there (by the second parent)'); if (ON_OWN_LINE) assert.deepEqual(ownOnLine(later), [], 'none of them on the first-parent line: the scope checks stand down there')
@@ -666,6 +703,19 @@ await mutant('E: a registry line that is not in the registered shape below ours'
 await mutant('E: .env.example gains a second block', () => proveEnvText(`${read(ENV_FILE)}\n# a block\nNEXT_PUBLIC_X="false"\n`))
 await mutant('E: the block is not at the true end (a line follows it)', () => proveEnvText(`${read(ENV_FILE)}NEXT_PUBLIC_X="false"\n`))
 await mutant('E: the flag is on by default in the block', () => proveEnvText(read(ENV_FILE).replace('NEXT_PUBLIC_STUDIO_UX_FINDINGS_E="false"', 'NEXT_PUBLIC_STUDIO_UX_FINDINGS_E="true"')))
+const UXH = 'scripts/test-studio-ux-honesty.mjs', VCALL = 'scripts/test-studio-voice-call.mjs'
+const proofNow = (rel, table = UX_FINDINGS_E_FE1_PROOF_OK) => applyProofTable(rel, baseText(rel), table)
+const proofReader = (over = {}, table) => rel => (rel in over ? over[rel] : proofNow(rel, table ?? UX_FINDINGS_E_FE1_PROOF_OK))
+await mutant('B: an OK\'d proof line edited by one character (ux-honesty: + 1 becomes + 2)', () => { const [[has]] = UX_FINDINGS_E_FE1_PROOF_OK[UXH]; proveFe1Proofs(proofReader({ [UXH]: swap(proofNow(UXH), has.replace(/\n$/, ''), has.replace(/\n$/, '').replace('indexOf(strip.stripUxHonesty) + 1', 'indexOf(strip.stripUxHonesty) + 2')) }), 'mutant') })
+await mutant('B: an OK\'d proof line edited by one character (voice-call: the changed .env.example line loses its trimEnd)', () => { const has = UX_FINDINGS_E_FE1_PROOF_OK[VCALL][3][0].replace(/\n$/, ''); proveFe1Proofs(proofReader({ [VCALL]: swap(proofNow(VCALL), has, has.replace('.trimEnd().endsWith', '.endsWith')) }), 'mutant') })
+await mutant('B: a taught proof line missing its mark in the file (voice-call: the helper line)', () => { const has = UX_FINDINGS_E_FE1_PROOF_OK[VCALL][1][0].replace(/\n$/, ''); proveFe1Proofs(proofReader({ [VCALL]: swap(proofNow(VCALL), has, has.replace(` ${UX_FINDINGS_E_PIN_MARK}`, '')) }), 'mutant') })
+await mutant('B: a taught proof line missing its mark in the OK\'d table itself (ux-honesty), the file built from it', () => { const table = { ...UX_FINDINGS_E_FE1_PROOF_OK, [UXH]: UX_FINDINGS_E_FE1_PROOF_OK[UXH].map(([has, was]) => [has.replace(` ${UX_FINDINGS_E_PIN_MARK}`, ''), was]) }; proveFe1Proofs(proofReader({}, table), 'mutant', table) })
+await mutant('B: an OK\'d proof edit is not applied (the ux-honesty proof is dev\'s)', () => proveFe1Proofs(proofReader({ [UXH]: baseText(UXH) }), 'mutant'))
+await mutant('B: the two inserted voice-call lines moved off their anchor (to the top of the file)', () => { const lines = proofNow(VCALL).split('\n'), moved = lines.splice(lines.indexOf(UX_FINDINGS_E_FE1_PROOF_ANCHOR) + 1, 2); lines.splice(1, 0, ...moved); proveFe1Proofs(proofReader({ [VCALL]: lines.join('\n') }), 'mutant') })
+await mutant('B: a changed voice-call line also rewrites its neighbour (an unmarked extra edit)', () => proveFe1Proofs(proofReader({ [VCALL]: swap(proofNow(VCALL), "  eq(lines(env).filter(line => line === 'NEXT_PUBLIC_STUDIO_VOICE_COMPANION=\"felix\"').length, 1,", "  eq(lines(env).filter(line => line === 'NEXT_PUBLIC_STUDIO_VOICE_COMPANION=\"felix\"').length, 2,") }), 'mutant'))
+await mutant('F: a third FRONTEND-1 proof that was NOT OK\'d is touched (p2-intelligence): the lane guard refuses it', () => { try { assertLanes(new Set([...UX_FINDINGS_E_SCOPE_FILES, 'scripts/test-studio-p2-intelligence.mjs'])) } catch (error) { assert.match(error.message, /lane/); throw error } })
+await mutant('F: another voice-call proof that was NOT OK\'d is touched (voice-call-replay): the lane guard refuses it', () => { try { assertLanes(new Set([...UX_FINDINGS_E_SCOPE_FILES, 'scripts/test-studio-voice-call-replay.mjs'])) } catch (error) { assert.match(error.message, /lane/); throw error } })
+await mutant('F: the lane guard does not name the OK\'d proofs at all (positive control: they are allowed, so a guard that bans them fails)', () => { assertLanes(new Set(UX_FINDINGS_E_FE1_PROOF_FILES)); const bad = touched => { for (const rel of touched) assert.ok(!LANES.test(rel), `${rel} lane`) }; bad(new Set(UX_FINDINGS_E_FE1_PROOF_FILES)) })
 if (ON_OWN_LINE) {
   await mutant('F: a stray file in an own commit', () => scopeBreakers['a stray file in an own commit']())
   await mutant('F: an own commit without the co-author line', () => scopeBreakers['an own commit without the co-author line']())
