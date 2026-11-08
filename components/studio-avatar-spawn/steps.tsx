@@ -135,7 +135,7 @@ export function RefusedStep({ code, onBack }: { code: RefusalCode; onBack: () =>
 export function CompanionThumb({ entry }: { entry: Pick<CompanionRegistryEntry, 'packBaseUrl'> }) {
   const stills = stillCandidates(companionFallbackChain(entry))
   const [at, setAt] = useState(0)
-  return <img className="sas-thumb" src={stills[Math.min(at, stills.length - 1)]} alt="" width={48} height={48} onError={() => setAt(current => Math.min(current + 1, stills.length - 1))} />
+  return <img className="sas-thumb" src={stills[Math.min(at, stills.length - 1)]} alt="" width={48} height={48} referrerPolicy="no-referrer" onError={() => setAt(current => Math.min(current + 1, stills.length - 1))} />
 }
 
 export function CompanionsList({ entries, chosenId, confirmingId, notice, onCreate, onChoose, onAskDelete, onConfirmDelete, onCancelDelete }: {

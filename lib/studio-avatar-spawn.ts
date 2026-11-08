@@ -330,6 +330,8 @@ export class MockSpawnClient implements SpawnClient {
   private readonly tenantId: string
   private readonly storage: MockStorage | null
   private memory: StoredCompanionEntry[] = []
+  /** Set when a write fails (quota full, Safari private mode: reading can still work while writing throws): from then on this session's list is the one in memory, so a read never brings back what a write could not store. */
+  private memoryOnly = false
   private readonly random: (() => number) | undefined
   private readonly now: () => number
   private readonly timers: MockTimers
@@ -351,12 +353,13 @@ export class MockSpawnClient implements SpawnClient {
   }
 
   private entries(): StoredCompanionEntry[] {
+    if (this.memoryOnly) return this.memory
     const stored = readRegistry(this.storage, this.userId)
     return stored === null ? this.memory : stored
   }
   private save(entries: StoredCompanionEntry[]): void {
-    this.memory = entries
-    writeRegistry(this.storage, this.userId, entries)
+    this.memory = entries // the entries just read from storage plus this change, so the switch to memory loses none
+    if (!writeRegistry(this.storage, this.userId, entries)) this.memoryOnly = true
   }
   private snapshot(job: InternalJob): SpawnJob {
     return { id: job.id, stage: job.stage, progress: job.progress, candidates: job.candidates.map(c => ({ ...c })), refusal: job.refusal, packId: job.packId, packBaseUrl: job.packBaseUrl }

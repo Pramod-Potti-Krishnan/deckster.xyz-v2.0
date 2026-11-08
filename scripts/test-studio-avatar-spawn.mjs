@@ -35,7 +35,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import ts from 'typescript'
 import { Root, hostNodes, textOf as nodeText } from './studio-chat-harness/mini-react.mjs'
 import {
-  AVATAR_SPAWN_DRAFT, AVATAR_SPAWN_EDITS, AVATAR_SPAWN_ENV_BLOCK, AVATAR_SPAWN_FLAG, AVATAR_SPAWN_MARKER_RE, AVATAR_SPAWN_NEW_FILES, AVATAR_SPAWN_OWN_EDITS, AVATAR_SPAWN_PIN_AFTER, AVATAR_SPAWN_PIN_EDITS,
+  AVATAR_SPAWN_DRAFT, AVATAR_SPAWN_EDITS, AVATAR_SPAWN_ENV_BLOCK, AVATAR_SPAWN_FE1_PROOF_FILES, AVATAR_SPAWN_FE1_PROOF_OK, AVATAR_SPAWN_FLAG, AVATAR_SPAWN_MARKER_RE, AVATAR_SPAWN_NEW_FILES, AVATAR_SPAWN_OWN_EDITS, AVATAR_SPAWN_PIN_AFTER, AVATAR_SPAWN_PIN_EDITS,
   AVATAR_SPAWN_PIN_FILES, AVATAR_SPAWN_PIN_MARK, AVATAR_SPAWN_SCOPE_FILES, AVATAR_SPAWN_SUBJECT, BASE_COMMIT, stripAvatarSpawn,
 } from './studio-avatar-spawn-strip.mjs'
 import * as registry from './studio-later-changes.mjs'
@@ -382,6 +382,47 @@ async function proveDelete(texts = {}) {
 }
 await check('delete removes the entry (listPacks and storage: no id, no name), only that pack and only that user\'s; a repeat or an unknown id erases nothing; storage that throws or is absent keeps it in memory; junk reads as empty; the picker group is empty with the flag off', () => proveDelete())
 
+// Storage where READING works and WRITING throws (quota full, Safari private mode). The review's MAJOR (605-review.md, finding 1): `entries()` never reached the memory store, so a save showed "Saved" and then an empty list, and a delete said erased:true while the entry came back.
+// A write that fails now switches the session to the memory store, carrying what it had read, so reads and writes stay consistent. The storage itself is never changed (it cannot be written).
+const REG_KEY_A = 'deckster.studio.avatarSpawn.entries.user-a'
+const readOnlyStorage = text => { const map = new Map(text === undefined ? [] : [[REG_KEY_A, text]]); return { map, attempts: 0, getItem(key) { return map.has(key) ? map.get(key) : null }, setItem() { this.attempts++; throw new Error('QuotaExceededError') } } }
+async function proveHalfFailingStorage(texts = {}, only = null) {
+  const on = part => only === null || only === part
+  // SAVE really shows: nothing stored, every write throws, and the list still has what was saved
+  if (on('save')) {
+    const s1 = readOnlyStorage(), f = await runFlow(texts, { names: ['Half One', 'Half Two'], storage: s1, seed: 31 })
+    assert.ok(s1.attempts >= 1 && s1.map.size === 0, 'positive control: the writes were tried, threw, and nothing was stored')
+    assert.deepEqual(await listOf(f.client, 'displayName'), ['Half One', 'Half Two'], 'a save shows its companion in the list although the write threw (not an empty list)')
+    assert.deepEqual(await listOf(f.client, 'id'), f.entries.map(e => e.id))
+  }
+  // DELETE really removes: what storage holds is read, then a delete is not undone by the next read
+  if (on('delete')) await proveHalfFailingDelete(texts)
+  // the REAL container on the same kind of storage: Save shows the companion, Delete removes it
+  if (on('page')) await proveHalfFailingPage(texts)
+}
+async function proveHalfFailingDelete(texts) {
+  const stored = await runFlow(texts, { names: ['Stored One', 'Stored Two'], seed: 5 }), text = stored.storage.map.get(REG_KEY_A), [one, two] = stored.entries
+  const s2 = readOnlyStorage(text), g = await runFlow(texts, { names: [], storage: s2, seed: 33 })
+  assert.deepEqual(await listOf(g.client, 'id'), [one.id, two.id], 'positive control: the stored list is read')
+  assert.deepEqual(plain(await g.client.deletePack(one.id)), { id: one.id, erased: true }, 'an erase receipt')
+  assert.deepEqual(await listOf(g.client, 'id'), [two.id], 'the deleted entry does not come back'); assert.deepEqual(await listOf(g.client, 'id'), [two.id], 'not on a second read either')
+  let job = await toPick(g.lib, g.client); job = g.client.advance((await g.client.pickMaster(job.id, 'c2')).id); const three = await g.client.saveDisplayName(job.id, 'Half Three')
+  assert.deepEqual(await listOf(g.client, 'id'), [two.id, three.id], 'a save after the switch keeps the entries it carried over and does not bring the deleted one back')
+  assert.deepEqual(plain(await g.client.deletePack(one.id)), { id: one.id, erased: false }, 'the deleted pack is not there to delete again')
+  await g.client.deletePack(two.id); await g.client.deletePack(three.id); assert.deepEqual(await listOf(g.client), [], 'all gone, and they stay gone')
+  assert.equal(s2.map.get(REG_KEY_A), text, 'the storage itself was never changed')
+}
+async function proveHalfFailingPage(texts) {
+  const s3 = readOnlyStorage(), c3 = new (libOf(texts).MockSpawnClient)({ userId: 'user-a', storage: s3, random: seeded(35), now: () => NOW, timers: manualTimers() }), ev = [], ids = [], m = mountApp({ texts, client: spyClient(c3, ev, ids), events: ev })
+  await toUpload(m, fakePhoto()); await m.click('Make my avatar'); c3.advance(ids[0]); await m.poll(); c3.advance(ids[0]); await m.poll()
+  m.nodes('input', node => node.props.type === 'radio')[1].props.onChange(); m.root.flush(); await m.settle(); await m.click("That's me"); c3.advance(ids[0]); await m.poll()
+  m.nodes('input', node => node.props.type === 'text')[0].props.onChange({ target: { value: 'Half Page' } }); m.root.flush(); await m.settle(); await m.click('Save companion')
+  assert.ok(s3.attempts >= 1 && s3.map.size === 0, 'positive control: the page\'s write threw'); assert.ok(m.text().includes('Saved Half Page.') && m.text().includes('Half Page') && !m.text().includes('You have no companions of your own yet.'), 'the page shows the saved companion in the list, not "no companions"')
+  await m.click('Delete'); await m.click('Delete companion')
+  assert.ok(m.text().includes('Deleted Half Page.') && m.text().includes('You have no companions of your own yet.') && !m.text().includes('Pick'), 'the page shows the delete: the list is empty, not the companion again'); assert.equal((await c3.listPacks()).length, 0, 'and the client agrees'); m.unmount()
+}
+await check('storage that READS but cannot WRITE (setItem throws): a save shows its companion, a delete removes it and it does not come back, the entries read are carried over, the storage is never changed; the page shows the same', () => proveHalfFailingStorage())
+
 // ===== G. refusals ==================================================================================================================================
 console.log('G. refusals')
 async function proveRefusal(texts = {}) {
@@ -444,7 +485,7 @@ function proveFallback(texts = {}) {
   assert.deepEqual(plain(lib.stillCandidates(lib.companionFallbackChain(entry))), ['/companions/u-abcdefghijklmnopqrstuvwxyz/portrait-512.webp', '/companions/felix/portrait-512.webp'], 'the distinct pictures, in order')
   for (const url of [chain[2].url, chain[2].still]) assert.ok(fs.existsSync(path.join(root, 'public', url)), `${url} is committed`)
   const steps = stepsOf(texts), thumb = html(steps.CompanionThumb, { entry }), felixThumb = html(steps.CompanionThumb, { entry: { packBaseUrl: '/companions/felix' } })
-  assert.match(thumb, /src="\/companions\/u-abcdefghijklmnopqrstuvwxyz\/portrait-512\.webp"/, 'a thumbnail starts at the pack\'s own portrait'); assert.match(felixThumb, /src="\/companions\/felix\/portrait-512\.webp"/)
+  assert.match(thumb, /src="\/companions\/u-abcdefghijklmnopqrstuvwxyz\/portrait-512\.webp"/, 'a thumbnail starts at the pack\'s own portrait'); assert.match(felixThumb, /src="\/companions\/felix\/portrait-512\.webp"/); assert.match(thumb, /referrerpolicy="no-referrer"/i, 'a thumbnail from a stored base sends no referrer')
   assert.match(html(steps.CompanionThumb, { entry: { packBaseUrl: 'javascript:alert(1)' } }), /src="\/companions\/felix\/portrait-512\.webp"/, 'an unsafe base shows Felix')
   assert.match(stepsOf(texts).CompanionThumb.toString(), /onError/, 'a failed picture steps to the next')
 }
@@ -586,17 +627,30 @@ await check('the styling adds no colour (every hex is already in the usage credi
 // ===== J. the strip, the registry, .env.example ======================================================================================================
 console.log('J. the strip, the registry, the env block')
 const SUBJECT_FILTER = /^ {2}shas\.splice\(0, shas\.length, \.\.\.shas\.filter\(sha => !\/\^Avatar spawn mock:\/\.test\(git\('log', '-1', '--format=%s', sha\)\)\)\) \/\/ LATER-CHANGES: registry read \(AVATAR-SPAWN\): /
-const LEGACY_FILES = ['app/builder/page.tsx', 'app/(app)/layout.tsx', 'app/(app)/usage/page.tsx', 'components/layout/studio-rail.tsx', 'lib/studio-voice-call-ui.ts', 'hooks/use-studio-voice-call.ts', 'app/api/account/route.ts', REGISTRY, '.env.example', 'scripts/test-studio-usage-credits-page.mjs', 'scripts/test-studio-voice-call.mjs']
+const LEGACY_FILES = ['app/builder/page.tsx', 'app/(app)/layout.tsx', 'app/(app)/usage/page.tsx', 'components/layout/studio-rail.tsx', 'lib/studio-voice-call-ui.ts', 'hooks/use-studio-voice-call.ts', 'app/api/account/route.ts', REGISTRY, '.env.example', 'scripts/test-studio-usage-credits-page.mjs']
+/** FRONTEND-1's voice-call proof and the four lines they OK'd (to-FRONTEND-2.md lines 545 / 528): the bytes are pinned by hash (the same four pairs #603 carries), each a whole line with the mark (the put-back text has none), the two inserted lines sit right after the anchor, four marked lines and no more. */
+const FE1_MARK = '// LATER-CHANGES: registry read (UX-FINDINGS-E)', FE1_ANCHOR = "const core = await import('./studio-voice-core-strip.mjs')", FE1_OK_SHA256 = 'a1d866850327b3d4d621ec1c135e5600400d1fd2a587e4d2fd3af58cd708d0c8', VCALL = AVATAR_SPAWN_FE1_PROOF_FILES[0]
+function proveFe1Proof(rel, now, a = m => m) {
+  const pairs = AVATAR_SPAWN_FE1_PROOF_OK[rel], hash = crypto.createHash('sha256')
+  for (const [has, was] of pairs) { hash.update(has); hash.update('\0'); hash.update(was); hash.update('\0') }
+  assert.equal(hash.digest('hex'), FE1_OK_SHA256, a(`${rel}: the OK'd lines are the four FRONTEND-1 OK'd, byte for byte`))
+  assert.equal(pairs.length, 4, a(`${rel}: four OK'd lines`)); assert.ok(pairs.every(([has, was], i) => has.endsWith('\n') && has.includes(FE1_MARK) && !was.includes(FE1_MARK) && (was === '') === (i < 2)), a(`${rel}: whole lines with the mark; two insertions, then two rewrites; the put-back text has no mark`))
+  const lines = now.split('\n'), base = baseText(rel).split('\n'), at = lines.indexOf(FE1_ANCHOR)
+  assert.ok(at >= 0 && at === base.indexOf(FE1_ANCHOR), a(`${rel}: the anchor line is where dev has it`)); assert.deepEqual(lines.slice(at + 1, at + 3), pairs.slice(0, 2).map(([has]) => has.slice(0, -1)), a(`${rel}: the two inserted lines sit right after the anchor`))
+  assert.equal(lines.filter(line => line.includes(FE1_MARK)).length, 4, a(`${rel}: four marked lines, no more`)); assert.equal(lines.length - base.length, 2, a(`${rel}: two lines longer than dev's`))
+}
 function proveStrip(strip, readNow = read, later = laterStrips, at = '') {
   const a = m => (at ? `${at}: ${m}` : m)
-  assert.deepEqual(Object.keys(AVATAR_SPAWN_EDITS).sort(), [...AVATAR_SPAWN_PIN_FILES].sort(), a('the strip edits the two older proofs it teaches and nothing else (no app file: new files only)'))
+  assert.deepEqual(Object.keys(AVATAR_SPAWN_EDITS).sort(), [...AVATAR_SPAWN_PIN_FILES, ...AVATAR_SPAWN_FE1_PROOF_FILES].sort(), a('the strip edits the two older proofs it teaches and FRONTEND-1\'s voice-call proof (the four lines they OK\'d) and nothing else (no app file: new files only)'))
   for (const [rel, edits] of Object.entries(AVATAR_SPAWN_EDITS)) {
-    const now = later(rel, readNow(rel)), base = baseText(rel)
+    // FRONTEND-1's voice-call proof carries the same four lines in every Draft (and #603): it is read as it is on disk, never past a later change's strip, which would take the same lines out first
+    const now = AVATAR_SPAWN_FE1_PROOF_FILES.includes(rel) ? readNow(rel) : later(rel, readNow(rel)), base = baseText(rel)
     assert.equal(strip(rel, now), base, a(`${rel}: put back it is the base's, byte for byte`)); assert.equal(strip(rel, strip(rel, now)), base, a(`${rel}: put back twice changes nothing more`))
     for (const [has, was] of edits) assert.equal(count(`\n${now}`, `\n${has}`), 1, a(`${rel}: an edited line is there exactly once`))
     const diff = lineDiff(base, now), has = edits.flatMap(([hasText]) => hasText.split('\n').filter(Boolean)), was = edits.flatMap(([, wasText]) => wasText.split('\n').filter(Boolean))
     assert.deepEqual(diff.filter(line => line.startsWith('+')), has.map(line => `+${line}`), a(`${rel}: exactly the taught lines are added`)); assert.deepEqual(diff.filter(line => line.startsWith('-')), was.map(line => `-${line}`), a(`${rel}: nothing of the base is gone`))
   }
+  for (const rel of AVATAR_SPAWN_FE1_PROOF_FILES) proveFe1Proof(rel, readNow(rel), a)
   for (const rel of AVATAR_SPAWN_PIN_FILES) {
     const now = later(rel, readNow(rel)), lines = now.split('\n'), marked = lines.filter(line => line.includes(AVATAR_SPAWN_PIN_MARK))
     assert.equal(marked.length, 1, a(`${rel}: one taught line, carrying the registry-read mark`)); assert.equal(`${marked[0]}\n`, AVATAR_SPAWN_PIN_EDITS[rel][0][0]); assert.ok(SUBJECT_FILTER.test(marked[0]), a(`${rel}: the taught line is a subject filter for "Avatar spawn mock:"`))
@@ -612,7 +666,7 @@ function proveStrip(strip, readNow = read, later = laterStrips, at = '') {
   assert.equal(strip(P, `x${line}`), `x${line}`, a('a line that merely ends with it is not it')); assert.equal(strip(P, `${line.replace(/\n$/, '')}x\n`), `${line.replace(/\n$/, '')}x\n`)
   assert.equal(strip(P, `a\n${line}${line}b\n`), `a\n${line}b\n`, a('a line that is there twice is a merge mistake: only the first goes, the older pins still see the second')); assert.equal(strip(P, 'a\nb\n'), 'a\nb\n', a('a proof without the line is returned as it is'))
 }
-await check('the strip: the two taught proofs put back are the base\'s, byte for byte, idempotent; each taught line is one subject filter with the registry-read mark, right after the usage credits page\'s filter; a file it does not own (also with the line in it), a longer line, a non-string and a proof without the line come back as they are; a doubled line is not hidden', () => proveStrip(stripAvatarSpawn))
+await check('the strip: the two taught proofs and FRONTEND-1\'s voice-call proof (their four OK\'d lines, byte for byte as #603 carries them) put back are the base\'s, byte for byte, idempotent; each taught line is one subject filter with the registry-read mark, right after the usage credits page\'s filter; a file it does not own (also with the line in it), a longer line, a non-string and a proof without the line come back as they are; a doubled line is not hidden', () => proveStrip(stripAvatarSpawn))
 
 function proveStripData(draft = AVATAR_SPAWN_DRAFT, stripText = read(STRIP)) {
   assert.doesNotMatch(stripText.replace(/"(?:[^"\\\n]|\\.)*"/g, '""').replace(/'(?:[^'\\\n]|\\.)*'/g, "''").replace(/`[^`]*`/g, '``').replace(/\/\/.*$/gm, ''), /^import |require\(|readFileSync|execFileSync/m, 'the strip is plain data: no imports, nothing read from disk or git')
@@ -699,6 +753,8 @@ const scopeOwnCommits = (head, opts) => {
 }
 /** Lanes this change must not touch (FRONTEND-1's, COMPOSER-2's, the reconnect proof): none of their files changes, the lines they would need are DRAFTS. */
 const LANES = /^(scripts\/test-studio-(p2-|billing-|launch-wording|env-append-tolerant|route-params|admin-email-guard|uat-marketing|deck-title|flow-control|voice-call)|scripts\/test-atlas-help-recovery|scripts\/test-director-websocket-reconnect|scripts\/test-(deck-card-thumbnail|first-paint)|lib\/studio-flow-control\.ts|hooks\/use-studio-flow-control\.ts|lib\/studio-voice-call|components\/builder\/voice-call\/|hooks\/use-studio-voice-call\.ts|components\/layout\/)/
+/** The lane guard: no file of FRONTEND-1's, COMPOSER-2's or the reconnect proof's lane is touched, except the one proof FRONTEND-1 OK'd (AVATAR_SPAWN_FE1_PROOF_FILES: exactly four lines of it, checked separately). */
+const assertLanes = (touched, allowed = AVATAR_SPAWN_FE1_PROOF_FILES) => { for (const rel of touched) assert.ok(!LANES.test(rel) || allowed.includes(rel), `${rel} is in FRONTEND-1's, COMPOSER-2's or the reconnect proof's lane: their lines are DRAFTS here`) }
 const UNTOUCHED = ['lib/studio-voice-call-ui.ts', 'hooks/use-studio-voice-call.ts', 'components/layout/studio-rail.tsx', 'components/builder/voice-call/voice-call-stage.tsx', 'components/builder/voice-call/companion-player.tsx', 'app/api/account/route.ts', 'app/(app)/layout.tsx', 'app/(app)/studio-v4-account.css', 'app/(app)/usage/page.tsx', 'components/studio-usage-credits.css', 'components/layout/studio-shell.css', 'hooks/use-auth.ts', 'package.json', 'pnpm-lock.yaml', 'tsconfig.json']
 const existsAt = (rev, rel) => { try { git('cat-file', '-e', `${rev}:${rel}`); return true } catch { return false } }
 const scopeCommittedFiles = (head, { later = laterStrips, registered = registry.LATER_CHANGE_FILES } = {}) => {
@@ -707,12 +763,13 @@ const scopeCommittedFiles = (head, { later = laterStrips, registered = registry.
   const net = new Set(git('diff', '--name-only', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)); for (const rel of [...touched]) if (!net.has(rel)) touched.delete(rel)
   assert.deepEqual([...touched].sort(), [...AVATAR_SPAWN_SCOPE_FILES].sort(), 'the files this change\'s own commits touch (net of what they put back) are exactly its scope')
   assert.deepEqual([...net].filter(rel => AVATAR_SPAWN_SCOPE_FILES.has(rel) || !registered.has(rel)).sort(), [...AVATAR_SPAWN_SCOPE_FILES].sort(), 'and the whole committed diff from BASE is nothing else (a file the registry names for a later change, stacked on this head, is left to that change; an unregistered file still fails)')
-  // NEW FILES ONLY: of the files this change touches, the ones dev already has are the registry, .env.example and the two taught proofs, never an app file
-  assert.deepEqual([...touched].filter(rel => existsAt(BASE_COMMIT, rel)).sort(), [...AVATAR_SPAWN_OWN_EDITS].sort(), 'new files only: the only existing files touched are .env.example, the registry and the two taught proofs')
+  // NEW FILES ONLY: of the files this change touches, the ones dev already has are the registry, .env.example, the two taught proofs and FRONTEND-1's voice-call proof (their four OK'd lines), never an app file
+  assert.deepEqual([...touched].filter(rel => existsAt(BASE_COMMIT, rel)).sort(), [...AVATAR_SPAWN_OWN_EDITS].sort(), 'new files only: the only existing files touched are .env.example, the registry, the two taught proofs and FRONTEND-1\'s voice-call proof')
   for (const rel of AVATAR_SPAWN_NEW_FILES) { assert.equal(git('cat-file', '-t', `${head}:${rel}`).trim(), 'blob', rel); assert.ok(!existsAt(BASE_COMMIT, rel), `${rel} is new: dev has none`) }
   for (const rel of AVATAR_SPAWN_PIN_FILES) assert.equal(stripAvatarSpawn(rel, later(rel, git('show', `${head}:${rel}`))), baseText(rel), `${rel}: an older proof taught: put back it is the base's (a later change's registered lines out first)`)
+  for (const rel of AVATAR_SPAWN_FE1_PROOF_FILES) { const text = git('show', `${head}:${rel}`); assert.equal(stripAvatarSpawn(rel, text), baseText(rel), `${rel}: FRONTEND-1's voice-call proof, the one file of theirs this change edits: put back it is the base's (exactly the four OK'd lines differ)`); proveFe1Proof(rel, text) }
   for (const rel of UNTOUCHED) { assert.ok(!touched.has(rel), `${rel} is not touched by this change`); assert.equal(sha(git('show', `${head}:${rel}`)), sha(baseText(rel)), `${rel}: flag off, an existing app file is dev's, byte for byte`) }
-  for (const rel of touched) assert.ok(!LANES.test(rel), `${rel} is in FRONTEND-1's, COMPOSER-2's or the reconnect proof's lane: their lines are DRAFTS here`)
+  assertLanes(touched)
 }
 const scopeAll = (head, opts) => { scopeOwnCommits(head); scopeCommittedFiles(head, opts); proveRegistryText(git('show', `${head}:${REGISTRY}`)); proveEnv(git('show', `${head}:.env.example`)) }
 
@@ -725,7 +782,7 @@ const scopeCheck = (label, fn) => (ON_OWN_LINE ? check(label, fn) : undefined)
 const scopeMutant = (label, fn) => (ON_OWN_LINE ? mutant(label, fn) : undefined)
 if (!ON_OWN_LINE) console.log('NOTE scope: no commit of this change on the first-parent line from BASE (merged into dev: its commits are on a second parent); the scope checks stand down, the pins above cover the files')
 await scopeCheck(`this change's own commits (subject starts "${AVATAR_SPAWN_SUBJECT}", found across the whole line, no merges) exist, with the co-author line; none could be taken for an older change's (the taught proofs' filters at dev do not match)`, () => { scopeOwnCommits(HEAD) })
-await scopeCheck('the committed files are exactly this change\'s (the page, the lib, the components, the strip, this proof, .env.example, the registry and the two taught proofs); NEW FILES ONLY: no existing app file changes (FRONTEND-1\'s rail, call hook and picker lib, the account route, the layout and the Usage page are dev\'s, byte for byte)', () => scopeCommittedFiles(HEAD))
+await scopeCheck('the committed files are exactly this change\'s (the page, the lib, the components, the strip, this proof, .env.example, the registry, the two taught proofs and FRONTEND-1\'s voice-call proof, only their four OK\'d lines); NEW FILES ONLY: no existing app file changes (FRONTEND-1\'s rail, call hook and picker lib, the account route, the layout and the Usage page are dev\'s, byte for byte)', () => scopeCommittedFiles(HEAD))
 await scopeCheck('the registry gains exactly this change\'s three marked lines at the true end of each list, right after the voice call\'s, and loses none; .env.example is dev\'s plus one block (after one blank line, the last)', () => { proveRegistryText(git('show', `${HEAD}:${REGISTRY}`)); proveEnv(git('show', `${HEAD}:.env.example`)) })
 const gateMerge = (dev, head) => plumb(['commit-tree', plumb(['merge-tree', '--write-tree', dev, head]).split('\n')[0], '-p', dev, '-p', head, '-m', 'gate-style merge (local, no ref)'])
 const GATE = ON_OWN_LINE ? gateMerge(BASE_COMMIT, HEAD) : null
@@ -735,6 +792,7 @@ await scopeCheck('GATE-SAFE: on a gate-style merge (first parent BASE, second pa
   assert.equal(scopeHead(GATE), HEAD, 'HEAD^2 is the change\'s head')
   scopeAll(scopeHead(GATE)); proveRegistryText(git('show', `${GATE}:${REGISTRY}`)); proveEnv(git('show', `${GATE}:.env.example`))
   for (const rel of AVATAR_SPAWN_PIN_FILES) assert.equal(stripAvatarSpawn(rel, git('show', `${GATE}:${rel}`)), baseText(rel), `the merged tree, without this change's taught line, is dev's ${rel}`)
+  for (const rel of AVATAR_SPAWN_FE1_PROOF_FILES) assert.equal(stripAvatarSpawn(rel, git('show', `${GATE}:${rel}`)), baseText(rel), `the merged tree, without the four OK'd lines, is dev's ${rel}`)
   assert.equal(scopeHead(HEAD), HEAD, 'a branch head is used as it is'); assert.equal(scopeHead(BASE_COMMIT), BASE_COMMIT, 'BASE itself is used as it is')
 })
 await scopeCheck('mutant caught: the old first-parent own-commit query finds no own commit on the gate-style merge, and without the HEAD^2 rule the scope head is the merge itself', () => {
@@ -765,13 +823,15 @@ const scopeBreakers = {
   'a stray file in an own commit': () => { const stray = commitWith(HEAD, { 'stray-avatar-spawn.txt': 'stray\n' }, `${AVATAR_SPAWN_SUBJECT} a stray file${TRAILER}`); assert.ok(ownOf(stray).includes(stray)); assert.doesNotThrow(() => scopeCommittedFiles(HEAD)); scopeCommittedFiles(stray) },
   'an own commit without the co-author line': () => { const c = commitWith(HEAD, {}, `${AVATAR_SPAWN_SUBJECT} no trailer`); assert.throws(() => scopeOwnCommits(c), error => /^[0-9a-f]{8}$/.test(error.message), 'the commit without the trailer is named'); scopeOwnCommits(c) },
 }
-const SNEAKY_FILES = ['components/layout/studio-rail.tsx', 'hooks/use-studio-voice-call.ts', 'lib/studio-voice-call-ui.ts', 'app/api/account/route.ts', 'app/(app)/usage/page.tsx']
-await scopeCheck('scope: a stray file in an own commit fails the files check, an own commit without the co-author line is named, and a line added to any existing app file (the rail, the call hook, the picker lib, the account route, the Usage page: the DRAFT files) fails it; a real own commit set still passes', () => {
+const SNEAKY_FILES = ['components/layout/studio-rail.tsx', 'hooks/use-studio-voice-call.ts', 'lib/studio-voice-call-ui.ts', 'app/api/account/route.ts', 'app/(app)/usage/page.tsx', 'scripts/test-studio-voice-call-replay.mjs']
+await scopeCheck('scope: a stray file in an own commit fails the files check, an own commit without the co-author line is named, and a line added to any existing app file (the rail, the call hook, the picker lib, the account route, the Usage page: the DRAFT files; another voice-call proof) fails it, a fifth line in FRONTEND-1\'s voice-call proof fails it (only their four OK\'d lines are allowed), the lane guard names exactly the OK\'d proof; a real own commit set still passes', () => {
   assert.throws(scopeBreakers['a stray file in an own commit'], /exactly its scope/); assert.throws(scopeBreakers['an own commit without the co-author line'], error => /^[0-9a-f]{8}$/.test(error.message), 'the commit without the trailer is named')
   for (const rel of SNEAKY_FILES) {
     const foreign = commitWith(HEAD, { [rel]: `${git('show', `${HEAD}:${rel}`)}\n// AVATAR-SPAWN: a draft line applied\n` }, `${AVATAR_SPAWN_SUBJECT} touches ${rel}${TRAILER}`)
     assert.notEqual(git('show', `${foreign}:${rel}`), git('show', `${HEAD}:${rel}`), `positive control: ${rel} is changed`); assert.throws(() => scopeCommittedFiles(foreign), /exactly its scope|is not touched|lane|new files only/, rel)
   }
+  assert.throws(() => scopeCommittedFiles(commitWith(HEAD, { [VCALL]: `${git('show', `${HEAD}:${VCALL}`)}// a fifth line\n` }, `${AVATAR_SPAWN_SUBJECT} a fifth voice-call line${TRAILER}`)), /put back it is the base's/, 'a fifth line in the voice-call proof')
+  assert.doesNotThrow(() => assertLanes(new Set(AVATAR_SPAWN_FE1_PROOF_FILES)), 'the OK\'d proof passes the lane guard'); for (const rel of ['scripts/test-studio-voice-call-replay.mjs', 'scripts/test-studio-voice-call-mutants-2.mjs', 'scripts/test-studio-billing-usage.mjs']) assert.throws(() => assertLanes(new Set([...AVATAR_SPAWN_FE1_PROOF_FILES, rel])), /lane/, `${rel}: not OK'd, refused`)
   scopeAll(HEAD)
 })
 
@@ -816,7 +876,7 @@ await scopeCheck('LINEAR STACK: an unregistered file in the later commit still f
 if (!process.env.CHECK_ONLY) console.log('mutants')
 const AREAS = {
   flag: t => proveFlag(t), leaks: t => proveNoLeaks(t), route: t => proveRoute(t), consent: t => proveConsent(t), consentClient: t => proveConsentClient(t), stages: t => proveStages(t), privacy: t => provePrivacy(t), hold: t => provePhotoHold(t), pick: t => provePickDiscards(t),
-  ids: t => proveIds(t), del: t => proveDelete(t), refusal: t => proveRefusal(t), resolve: t => proveResolve(t), fallback: t => proveFallback(t), steps: t => proveSteps(t), container: t => proveContainer(t),
+  ids: t => proveIds(t), del: t => proveDelete(t), half: t => proveHalfFailingStorage(t), refusal: t => proveRefusal(t), resolve: t => proveResolve(t), fallback: t => proveFallback(t), steps: t => proveSteps(t), container: t => proveContainer(t),
 }
 /** One edit of one real source (`from` must be there exactly once), fed to the named checks in turn: caught when any of them fails an assertion. */
 const BEHAVIOUR = [
@@ -880,10 +940,22 @@ const BEHAVIOUR = [
   ['fallback: Felix first', LIB, "chain.push({ kind: 'felix'", "chain.unshift({ kind: 'felix'", 'fallback'],
   ['fallback: nothing loads, not Felix', LIB, 'return chain[chain.length - 1]', 'return chain[0]', 'fallback'],
   ['fallback: a thumbnail does not step to the next picture', STEPS, ' onError={() => setAt(current => Math.min(current + 1, stills.length - 1))}', '', 'fallback'],
+  ['thumb: the picture is fetched with a referrer', STEPS, ' referrerPolicy="no-referrer"', '', 'fallback'],
+  // storage that reads but cannot write: each half of the fix, alone (the old behaviour is both)
+  ['storage: entries() ignores memory after a failed write (a save shows an empty list; a delete comes back)', LIB, '    if (this.memoryOnly) return this.memory\n', '', 'half'],
+  ['storage: a failed write is not remembered (the session stays on storage)', LIB, 'if (!writeRegistry(this.storage, this.userId, entries)) this.memoryOnly = true', 'writeRegistry(this.storage, this.userId, entries)', 'half'],
+  ['storage: the switch to memory drops the entries it had read (only the newest survives)', LIB, '    if (this.memoryOnly) return this.memory\n', '    if (this.memoryOnly) return this.memory.slice(-1)\n', 'half'],
 ]
 for (const [label, rel, from, to, ...areas] of BEHAVIOUR) {
   await mutant(label, async () => { const texts = { [rel]: swap(read(rel), from, to) }; for (const area of areas) await AREAS[area](texts) })
 }
+await mutant('storage: the OLD behaviour (a failed write is ignored and entries() reads storage only): reads work, writes throw, and the list is wrong', async () => {
+  const texts = { [LIB]: swap(swap(read(LIB), '    if (this.memoryOnly) return this.memory\n', ''), 'if (!writeRegistry(this.storage, this.userId, entries)) this.memoryOnly = true', 'writeRegistry(this.storage, this.userId, entries)') }
+  const passed = []
+  for (const part of ['save', 'delete', 'page']) { try { await proveHalfFailingStorage(texts, part); passed.push(part) } catch (error) { if (error?.code !== 'ERR_ASSERTION') throw error } }
+  if (passed.length) throw new Error(`the old behaviour passed the ${passed.join(', ')} case`)
+  assert.fail('the old behaviour fails the save case, the delete case and the page case, each alone')
+})
 await mutant('styling: a new colour', () => proveCss(swap(read(CSS), '--sas-danger: var(--sa-danger, #b03f35);', '--sas-danger: var(--sa-danger, #ff00aa);')))
 await mutant('styling: a gradient', () => proveCss(swap(read(CSS), '.sas-fill { height: 100%; border-radius: 999px; background: var(--sas-teal); }', '.sas-fill { height: 100%; border-radius: 999px; background: linear-gradient(var(--sas-teal), var(--sas-line)); }')))
 await mutant('styling: the purple accent token', () => proveCss(swap(read(CSS), '--sas-teal: var(--ss-teal, #1f6f72);', '--sas-teal: var(--ss-accent, #1f6f72);')))
@@ -893,6 +965,16 @@ const REG_NOW = read(REGISTRY), regLinesOf = text => text.split('\n')
 const PIN0 = AVATAR_SPAWN_PIN_FILES[0], PIN1 = AVATAR_SPAWN_PIN_FILES[1]
 await mutant('strip: a strip that leaves a line (a taught proof is not put back)', () => proveStrip((rel, text) => (rel === PIN0 ? text : stripAvatarSpawn(rel, text))))
 await mutant('strip: a strip that is not idempotent (it takes one more line away each time)', () => proveStrip((rel, text) => { const out = stripAvatarSpawn(rel, text); return rel === PIN1 && out === text ? out.replace(/^import [^\n]*\n/m, '') : out }))
+await mutant('strip: a strip that leaves the voice-call lines (FRONTEND-1\'s OK\'d edit stays in the proof)', () => proveStrip((rel, text) => (rel === VCALL ? text : stripAvatarSpawn(rel, text))))
+await mutant('strip: an OK\'d voice-call line edited by one character (the changed .env.example line loses its trimEnd)', () => proveStrip(stripAvatarSpawn, rel => (rel === VCALL ? swap(read(rel), ".trimEnd().endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly", ".endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly") : read(rel))))
+await mutant('strip: a fifth line in the voice-call proof (an unlisted edit beside the four OK\'d)', () => proveStrip(stripAvatarSpawn, rel => (rel === VCALL ? `${read(rel)}// a fifth line\n` : read(rel))))
+await mutant('strip: the two inserted voice-call lines moved off their anchor (to the top of the file)', () => proveStrip(stripAvatarSpawn, rel => {
+  if (rel !== VCALL) return read(rel)
+  const lines = read(rel).split('\n'), at = lines.indexOf(FE1_ANCHOR), moved = lines.splice(at + 1, 2); lines.splice(0, 0, ...moved); return lines.join('\n')
+}))
+await mutant('strip: an OK\'d voice-call line without its mark in the file (the helper line)', () => proveStrip(stripAvatarSpawn, rel => (rel === VCALL ? swap(read(rel), "''), text) // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", "''), text)\n") : read(rel))))
+await mutant('lanes: another voice-call proof that was NOT OK\'d is touched (the replay proof): the lane guard refuses it', () => assertLanes(new Set([...AVATAR_SPAWN_SCOPE_FILES, 'scripts/test-studio-voice-call-replay.mjs'])))
+await mutant('lanes: a lane guard that names no exemption refuses the OK\'d voice-call proof (positive control: it is allowed)', () => assertLanes(new Set(AVATAR_SPAWN_FE1_PROOF_FILES), []))
 await mutant('strip: a strip that edits a file it does not own', () => proveStrip((rel, text) => (rel === 'app/builder/page.tsx' ? `${text}x` : stripAvatarSpawn(rel, text))))
 await mutant('strip: a strip that takes the base\'s own filter too', () => proveStrip((rel, text) => stripAvatarSpawn(rel, text).replace(/^ {2}shas\.splice[^\n]*Chat caps:[^\n]*\n/m, '')))
 await mutant('strip: a taught proof keeps a second, unmarked line', () => proveStrip(stripAvatarSpawn, rel => (rel === PIN0 ? read(rel).replace(AVATAR_SPAWN_PIN_EDITS[rel][0][0], `${AVATAR_SPAWN_PIN_EDITS[rel][0][0]}  // stray\n`) : read(rel))))
@@ -926,6 +1008,8 @@ if (ON_OWN_LINE) {
   await mutant('scope: the old first-parent query (finds no own commit on the gate-style merge)', () => scopeOwnCommits(GATE, { firstParentOnly: true }))
   await mutant('scope: the HEAD^2 rule dropped (the scope runs against the merge itself)', () => { assert.equal(scopeHead(GATE, { gateRule: false }), HEAD, 'the scope head is the change\'s head') })
   await mutant('scope: a DRAFT line applied to the rail (an existing app file edited in an own commit)', () => scopeCommittedFiles(commitWith(HEAD, { 'components/layout/studio-rail.tsx': swap(git('show', `${HEAD}:components/layout/studio-rail.tsx`), 'import { studioNavLabels } from "@/lib/studio-nav-labels"\n', 'import { studioNavLabels } from "@/lib/studio-nav-labels"\nimport { STUDIO_AVATAR_SPAWN_ENABLED } from "@/lib/studio-avatar-spawn" // AVATAR-SPAWN\n') }, `${AVATAR_SPAWN_SUBJECT} applies a draft line${TRAILER}`)))
+  await mutant('scope: a fifth line added to FRONTEND-1\'s voice-call proof in an own commit (only their four OK\'d lines are allowed)', () => scopeCommittedFiles(commitWith(HEAD, { [VCALL]: `${git('show', `${HEAD}:${VCALL}`)}// a fifth line\n` }, `${AVATAR_SPAWN_SUBJECT} a fifth voice-call line${TRAILER}`)))
+  await mutant('scope: another FRONTEND-1 voice-call proof touched in an own commit (the replay proof was not OK\'d)', () => scopeCommittedFiles(commitWith(HEAD, { 'scripts/test-studio-voice-call-replay.mjs': `${git('show', `${HEAD}:scripts/test-studio-voice-call-replay.mjs`)}\n` }, `${AVATAR_SPAWN_SUBJECT} touches the replay proof${TRAILER}`)))
   await mutant('scope: a stray line in the Usage page in an own commit', () => scopeCommittedFiles(commitWith(HEAD, { 'app/(app)/usage/page.tsx': `${git('show', `${HEAD}:app/(app)/usage/page.tsx`)}\n` }, `${AVATAR_SPAWN_SUBJECT} edits the Usage page${TRAILER}`)))
   await mutant('scope: a later commit with an unregistered file stacked on this head', () => scopeCommittedFiles(laterCommit(HEAD, { registryLines: true, extra: { 'stray-later-change.txt': 'stray\n' } }), { later: synLater }))
   await mutant('scope: the later change\'s strip not told to the pins (its line breaks the put-back)', () => proveStrip(stripAvatarSpawn, rel => git('show', `${laterCommit(HEAD, { registryLines: true })}:${rel}`), laterStrips, 'linear stack, not told'))

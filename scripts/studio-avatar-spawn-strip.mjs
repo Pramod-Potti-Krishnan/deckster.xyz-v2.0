@@ -4,7 +4,7 @@
 // Every line this change adds to an EXISTING file carries the marker AVATAR-SPAWN (a WHOLE token): the .env.example block (its header and its flag line), the three registry lines (their LATER-CHANGE comment) and the two taught proofs.
 // Strip the lines and each existing file is dev's, byte for byte (stripAvatarSpawn(rel, text)); .env.example is taken back by the registry's block strip (scripts/studio-later-changes.mjs).
 // The older proofs this change teaches (tests only, every line carries the registry-read mark): the two that read the first-parent commits of BASE..HEAD for their own commits' subjects get one more inserted line each, for "Avatar spawn mock:",
-// as #567 / #568 / B61 / B63 did. How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
+// as #567 / #568 / B61 / B63 did. The one exception among FRONTEND-1's files: the four lines of their voice-call PROOF that FRONTEND-1 OK'd (to-FRONTEND-2.md lines 545 / 528, FE1-OK-REQUEST-2.md; AVATAR_SPAWN_FE1_PROOF_OK), byte for byte and with the same mark as #603's, so the Drafts merge clean in any order. How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
 export const BASE_COMMIT = 'eeb78d4f4b7676d75c244746f1edc7da1d269478' // Studio dev (8 Nov), the merge of #598
 export const AVATAR_SPAWN_FLAG = 'NEXT_PUBLIC_STUDIO_AVATAR_SPAWN'
@@ -36,11 +36,25 @@ export const AVATAR_SPAWN_PIN_EDITS = {
 export const AVATAR_SPAWN_PIN_AFTER = "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Usage credits page:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (USAGE-CREDITS-PAGE)"
 /** The older proofs this change teaches. */
 export const AVATAR_SPAWN_PIN_FILES = Object.keys(AVATAR_SPAWN_PIN_EDITS)
-/** Every [has, was] pair this change makes in an existing file, by file (the .env.example block is the registry's, below). */
-export const AVATAR_SPAWN_EDITS = { ...AVATAR_SPAWN_PIN_EDITS }
+/**
+ * FRONTEND-1's voice-call PROOF with the four lines FRONTEND-1 OK'd (to-FRONTEND-2.md lines 545 / 528, FE1-OK-REQUEST-2.md, 8 Nov), the same bytes, mark included, as #603's UX_FINDINGS_E_FE1_PROOF_OK (so this change and #603 merge clean in any order): a Draft that appends an .env.example block after
+ * voice-call's no longer trips its "the block is the last thing in the file" pin. [line now, line before] per edit, whole lines, was = '' for an inserted line (the two inserted lines go right after the line `const core = await import('./studio-voice-core-strip.mjs')`).
+ * Put back, the proof is dev's, byte for byte. These four lines are the ONLY edit of a FRONTEND-1 file this change makes; every other proof of theirs stays untouched.
+ */
+export const AVATAR_SPAWN_FE1_PROOF_OK = {
+  'scripts/test-studio-voice-call.mjs': [
+    ["const laterRegistry = await import('./studio-later-changes.mjs') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", ""],
+    ["const laterEnvOut = text => laterRegistry.LATER_ENV_BLOCKS.slice(laterRegistry.LATER_ENV_BLOCKS.indexOf(strip.VOICE_CALL_ENV_BLOCK) + 1).reduce((out, block) => out.replace(`\\n${block}`, ''), text) // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", ""],
+    ["  ok(laterEnvOut(env).endsWith(`\\n${strip.VOICE_CALL_ENV_BLOCK}`) && strip.VOICE_CALL_ENV_BLOCK.endsWith('\\n'), '.env.example: the block is the last thing in the file, after one blank line') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", "  ok(env.endsWith(`\\n${strip.VOICE_CALL_ENV_BLOCK}`) && strip.VOICE_CALL_ENV_BLOCK.endsWith('\\n'), '.env.example: the block is the last thing in the file, after one blank line')\n"],
+    ["    ok(laterEnvOut(`${envDiff.map(line => line.slice(1)).join('\\n')}\\n`).trimEnd().endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly its block (after ELEMENT-3\\'s two lines)') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", "    ok(envDiff.map(line => line.slice(1)).join('\\n').endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly its block (after ELEMENT-3\\'s two lines)')\n"],
+  ],
+}
+export const AVATAR_SPAWN_FE1_PROOF_FILES = Object.keys(AVATAR_SPAWN_FE1_PROOF_OK)
+/** Every [has, was] pair this change makes in an existing file, by file: the two taught proofs and FRONTEND-1's voice-call proof (the four OK'd lines). The .env.example block is the registry's, below. */
+export const AVATAR_SPAWN_EDITS = { ...AVATAR_SPAWN_PIN_EDITS, ...AVATAR_SPAWN_FE1_PROOF_OK }
 
-/** Files this change edits that are not app code: .env.example (its block, appended), the registry (three lines: its files, its block, its strip) and the older proofs it teaches. */
-export const AVATAR_SPAWN_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', ...AVATAR_SPAWN_PIN_FILES]
+/** Files this change edits that are not app code: .env.example (its block, appended), the registry (three lines: its files, its block, its strip), the older proofs it teaches and FRONTEND-1's voice-call proof (the four OK'd lines). */
+export const AVATAR_SPAWN_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', ...AVATAR_SPAWN_PIN_FILES, ...AVATAR_SPAWN_FE1_PROOF_FILES]
 
 /** Every file this change's commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
 export const AVATAR_SPAWN_SCOPE_FILES = new Set([...AVATAR_SPAWN_NEW_FILES, ...AVATAR_SPAWN_OWN_EDITS])
