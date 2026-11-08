@@ -92,6 +92,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-voice-core-strip.mjs')).VOICE_CORE_SCOPE_FILES, // LATER-CHANGE: ELEMENT-3, pure Director voice core (NEXT_PUBLIC_STUDIO_VOICE_CALL)
   ...(await import('./studio-voice-call-strip.mjs')).VOICE_CALL_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, W6 P4-20 voice call UI: the call button, the docked companion, push-to-talk, the router speech contract (NEXT_PUBLIC_STUDIO_VOICE_CALL / _VOICE_COMPANION)
   ...(await import('./studio-page-consistency-strip.mjs')).PAGE_CONSISTENCY_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, UX-07 / UX-10 Billing and Settings on the Studio shell, one create label (NEXT_PUBLIC_STUDIO_PAGE_CONSISTENCY)
+  ...(await import('./studio-restack-ux-pc-proofs-strip.mjs')).RESTACK_UX_PC_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, restack of FRONTEND-1's page consistency: older proofs read the later changes right after the merge onto newer dev (tests only)
   // one line per later change, above this comment
 ])
 
@@ -224,6 +225,7 @@ export const LATER_STRIPS = [
   (await import('./studio-voice-core-strip.mjs')).stripVoiceCore, // LATER-CHANGE: ELEMENT-3, voice port compatibility pin
   (await import('./studio-voice-call-strip.mjs')).stripVoiceCall, // LATER-CHANGE: FRONTEND-1, W6 P4-20 voice call UI (NEXT_PUBLIC_STUDIO_VOICE_CALL)
   (await import('./studio-page-consistency-strip.mjs')).stripPageConsistency, // LATER-CHANGE: FRONTEND-1, UX-07 / UX-10 page consistency (NEXT_PUBLIC_STUDIO_PAGE_CONSISTENCY)
+  (await import('./studio-restack-ux-pc-proofs-strip.mjs')).stripRestackUxPc, // LATER-CHANGE: FRONTEND-2, restack of FRONTEND-1's page consistency: older proofs read the later changes right after the merge onto newer dev (tests only)
   // one line per later change, above this comment
 ]
 
