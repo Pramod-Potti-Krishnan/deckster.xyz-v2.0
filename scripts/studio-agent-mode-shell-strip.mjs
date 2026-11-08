@@ -6,6 +6,7 @@
 // CONTRACT PENDING A-D1: DIRECTOR-2 has published no agent frame shape (nothing under streams/director2 or streams/pass5 names one), so the six inbound frames and the outbound card answer are this shell's own, in the { type, payload } envelope Studio reads.
 // The older proofs this change teaches (tests only, every line carries the registry-read mark): the two that read the first-parent commits of BASE..HEAD for their own commits' subjects get one more inserted line each, for "Agent mode shell:", right after
 // the last subject filter of the shape !/^...:/ (the usage credits page's), as #567 / #568 / #589 / B61 / B63 did. How the older pins reach this change: it REGISTERS its files, its .env.example block and its strip (scripts/studio-later-changes.mjs, three lines).
+// The one exception among FRONTEND-1's files: the four lines of their voice-call PROOF that FRONTEND-1 OK'd (to-FRONTEND-2.md lines 545 / 528, FE1-OK-REQUEST-2.md; AGENT_MODE_SHELL_FE1_PROOF_OK), byte for byte and with the same mark as #603's, so the Drafts merge clean in any order. No app file.
 // Plain node, no imports, nothing read from disk or git here.
 
 export const BASE_COMMIT = 'eeb78d4f4b7676d75c244746f1edc7da1d269478' // Studio dev (7 Nov), the merge of #598
@@ -39,11 +40,25 @@ export const AGENT_MODE_SHELL_PIN_EDITS = {
 /** Where each taught line goes: right after the last subject filter of the shape !/^...:/ the base proof has, B63's "Usage credits page:" (the line that starts with this text). */
 export const AGENT_MODE_SHELL_PIN_AFTER = "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Usage credits page:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (USAGE-CREDITS-PAGE)"
 export const AGENT_MODE_SHELL_PIN_FILES = Object.keys(AGENT_MODE_SHELL_PIN_EDITS)
-/** Every [has, was] pair this change makes to an existing file, by file: the two taught proofs. (No app file is edited: see the drafts.) */
-export const AGENT_MODE_SHELL_EDITS = { ...AGENT_MODE_SHELL_PIN_EDITS }
+/**
+ * FRONTEND-1's voice-call PROOF with the four lines FRONTEND-1 OK'd (to-FRONTEND-2.md lines 545 / 528, FE1-OK-REQUEST-2.md, 8 Nov), the same bytes, mark included, as #603's UX_FINDINGS_E_FE1_PROOF_OK (so this change and #603 merge clean in any order): a Draft that appends an .env.example block after
+ * voice-call's no longer trips its "the block is the last thing in the file" pin. [line now, line before] per edit, whole lines, was = '' for an inserted line (the two inserted lines go right after the line `const core = await import('./studio-voice-core-strip.mjs')`).
+ * Put back, the proof is dev's, byte for byte. These four lines are the ONLY edit of a FRONTEND-1 file this change makes; every other proof of theirs stays untouched.
+ */
+export const AGENT_MODE_SHELL_FE1_PROOF_OK = {
+  'scripts/test-studio-voice-call.mjs': [
+    ["const laterRegistry = await import('./studio-later-changes.mjs') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", ""],
+    ["const laterEnvOut = text => laterRegistry.LATER_ENV_BLOCKS.slice(laterRegistry.LATER_ENV_BLOCKS.indexOf(strip.VOICE_CALL_ENV_BLOCK) + 1).reduce((out, block) => out.replace(`\\n${block}`, ''), text) // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", ""],
+    ["  ok(laterEnvOut(env).endsWith(`\\n${strip.VOICE_CALL_ENV_BLOCK}`) && strip.VOICE_CALL_ENV_BLOCK.endsWith('\\n'), '.env.example: the block is the last thing in the file, after one blank line') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", "  ok(env.endsWith(`\\n${strip.VOICE_CALL_ENV_BLOCK}`) && strip.VOICE_CALL_ENV_BLOCK.endsWith('\\n'), '.env.example: the block is the last thing in the file, after one blank line')\n"],
+    ["    ok(laterEnvOut(`${envDiff.map(line => line.slice(1)).join('\\n')}\\n`).trimEnd().endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly its block (after ELEMENT-3\\'s two lines)') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", "    ok(envDiff.map(line => line.slice(1)).join('\\n').endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly its block (after ELEMENT-3\\'s two lines)')\n"],
+  ],
+}
+export const AGENT_MODE_SHELL_FE1_PROOF_FILES = Object.keys(AGENT_MODE_SHELL_FE1_PROOF_OK)
+/** Every [has, was] pair this change makes to an existing file, by file: the two taught proofs and FRONTEND-1's voice-call proof (the four OK'd lines). (No app file is edited: see the drafts.) */
+export const AGENT_MODE_SHELL_EDITS = { ...AGENT_MODE_SHELL_PIN_EDITS, ...AGENT_MODE_SHELL_FE1_PROOF_OK }
 
-/** Files this change edits that are not app code: .env.example (its block, appended), the registry (three lines: its files, its block, its strip) and the older proofs it teaches. */
-export const AGENT_MODE_SHELL_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', ...AGENT_MODE_SHELL_PIN_FILES]
+/** Files this change edits that are not app code: .env.example (its block, appended), the registry (three lines: its files, its block, its strip), the older proofs it teaches and FRONTEND-1's voice-call proof (the four OK'd lines). */
+export const AGENT_MODE_SHELL_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', ...AGENT_MODE_SHELL_PIN_FILES, ...AGENT_MODE_SHELL_FE1_PROOF_FILES]
 /** Every file this change's commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
 export const AGENT_MODE_SHELL_SCOPE_FILES = new Set([...AGENT_MODE_SHELL_NEW_FILES, ...AGENT_MODE_SHELL_OWN_EDITS])
 

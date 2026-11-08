@@ -30,7 +30,7 @@ import * as jsxRuntime from 'react/jsx-runtime'
 import { renderToStaticMarkup } from 'react-dom/server'
 import ts from 'typescript'
 import {
-  AGENT_MODE_SHELL_COMPONENT_FILES, AGENT_MODE_SHELL_DRAFTS, AGENT_MODE_SHELL_DRAFT_FILES, AGENT_MODE_SHELL_EDITS, AGENT_MODE_SHELL_ENV_BLOCK, AGENT_MODE_SHELL_FLAGS, AGENT_MODE_SHELL_MARKER_RE, AGENT_MODE_SHELL_NEW_FILES,
+  AGENT_MODE_SHELL_COMPONENT_FILES, AGENT_MODE_SHELL_DRAFTS, AGENT_MODE_SHELL_DRAFT_FILES, AGENT_MODE_SHELL_EDITS, AGENT_MODE_SHELL_ENV_BLOCK, AGENT_MODE_SHELL_FE1_PROOF_FILES, AGENT_MODE_SHELL_FE1_PROOF_OK, AGENT_MODE_SHELL_FLAGS, AGENT_MODE_SHELL_MARKER_RE, AGENT_MODE_SHELL_NEW_FILES,
   AGENT_MODE_SHELL_OWN_EDITS, AGENT_MODE_SHELL_PIN_AFTER, AGENT_MODE_SHELL_PIN_EDITS, AGENT_MODE_SHELL_PIN_FILES, AGENT_MODE_SHELL_PIN_MARK, AGENT_MODE_SHELL_SCOPE_FILES, AGENT_MODE_SHELL_SUBJECT, BASE_COMMIT, stripAgentModeShell,
 } from './studio-agent-mode-shell-strip.mjs'
 import * as registry from './studio-later-changes.mjs'
@@ -369,16 +369,29 @@ console.log('F. the strip, the env block, the registry and the drafts')
 const lineDiff = (before, after) => { const b = before.split('\n'), a = after.split('\n'), out = []; let i = 0, j = 0; while (i < b.length || j < a.length) { if (b[i] === a[j]) { i++; j++ } else if (a[j] !== undefined && !b.slice(i).includes(a[j])) { out.push(`+${a[j++]}`) } else if (b[i] !== undefined && !a.slice(j).includes(b[i])) { out.push(`-${b[i++]}`) } else { out.push(`-${b[i++]}`); out.push(`+${a[j++]}`) } } return out }
 const LEGACY_FILES = ['app/builder/page.tsx', 'hooks/use-deckster-websocket-v2.ts', LIB, REGISTRY, '.env.example', 'scripts/test-studio-usage-credits-page.mjs', 'scripts/test-studio-chat-caps.mjs', 'scripts/studio-chat-caps-strip.mjs']
 const SHAPE = /^ {2}shas\.splice\(0, shas\.length, \.\.\.shas\.filter\(sha => !\/\^Agent mode shell:\/\.test\(git\('log', '-1', '--format=%s', sha\)\)\)\) \/\/ LATER-CHANGES: registry read \(AGENT-MODE-SHELL\): /
+/** FRONTEND-1's voice-call proof and the four lines they OK'd (to-FRONTEND-2.md lines 545 / 528): the bytes are pinned by hash (the same four pairs #603 carries), each a whole line with the mark (the put-back text has none), the two inserted lines sit right after the anchor, four marked lines and no more. */
+const FE1_MARK = '// LATER-CHANGES: registry read (UX-FINDINGS-E)', FE1_ANCHOR = "const core = await import('./studio-voice-core-strip.mjs')", FE1_OK_SHA256 = 'a1d866850327b3d4d621ec1c135e5600400d1fd2a587e4d2fd3af58cd708d0c8', VCALL = AGENT_MODE_SHELL_FE1_PROOF_FILES[0]
+function proveFe1Proof(rel, now, a = m => m) {
+  const pairs = AGENT_MODE_SHELL_FE1_PROOF_OK[rel], hash = crypto.createHash('sha256')
+  for (const [has, was] of pairs) { hash.update(has); hash.update('\0'); hash.update(was); hash.update('\0') }
+  assert.equal(hash.digest('hex'), FE1_OK_SHA256, a(`${rel}: the OK'd lines are the four FRONTEND-1 OK'd, byte for byte`))
+  assert.equal(pairs.length, 4, a(`${rel}: four OK'd lines`)); assert.ok(pairs.every(([has, was], i) => has.endsWith('\n') && has.includes(FE1_MARK) && !was.includes(FE1_MARK) && (was === '') === (i < 2)), a(`${rel}: whole lines with the mark; two insertions, then two rewrites; the put-back text has no mark`))
+  const lines = now.split('\n'), base = baseText(rel).split('\n'), at = lines.indexOf(FE1_ANCHOR)
+  assert.ok(at >= 0 && at === base.indexOf(FE1_ANCHOR), a(`${rel}: the anchor line is where dev has it`)); deepEqual(lines.slice(at + 1, at + 3), pairs.slice(0, 2).map(([has]) => has.slice(0, -1)), a(`${rel}: the two inserted lines sit right after the anchor`))
+  assert.equal(lines.filter(line => line.includes(FE1_MARK)).length, 4, a(`${rel}: four marked lines, no more`)); assert.equal(lines.length - base.length, 2, a(`${rel}: two lines longer than dev's`))
+}
 function proveStrip(strip, readNow = read, later = laterStrips, at = '') {
   const a = m => (at ? `${at}: ${m}` : m)
-  deepEqual(Object.keys(AGENT_MODE_SHELL_EDITS).sort(), [...AGENT_MODE_SHELL_PIN_FILES].sort(), a('the strip edits the two older proofs it teaches and no app file'))
+  deepEqual(Object.keys(AGENT_MODE_SHELL_EDITS).sort(), [...AGENT_MODE_SHELL_PIN_FILES, ...AGENT_MODE_SHELL_FE1_PROOF_FILES].sort(), a('the strip edits the two older proofs it teaches and FRONTEND-1\'s voice-call proof (the four lines they OK\'d), and no app file'))
   for (const [rel, edits] of Object.entries(AGENT_MODE_SHELL_EDITS)) {
-    const now = later(rel, readNow(rel)), base = baseText(rel)
+    // FRONTEND-1's voice-call proof carries the same four lines in every Draft (and #603): it is read as it is on disk, never past a later change's strip, which would take the same lines out first
+    const now = AGENT_MODE_SHELL_FE1_PROOF_FILES.includes(rel) ? readNow(rel) : later(rel, readNow(rel)), base = baseText(rel)
     assert.equal(strip(rel, now), base, a(`${rel}: put back it is the base's, byte for byte`)); assert.equal(strip(rel, strip(rel, now)), base, a(`${rel}: put back twice changes nothing more`))
     for (const [has] of edits) assert.equal(count(`\n${now}`, `\n${has}`), 1, a(`${rel}: an edited line is there exactly once`))
     const diff = lineDiff(base, now), has = edits.flatMap(([hasText]) => hasText.split('\n').filter(Boolean)), was = edits.flatMap(([, wasText]) => wasText.split('\n').filter(Boolean))
     deepEqual(diff.filter(line => line.startsWith('+')), has.map(line => `+${line}`), a(`${rel}: exactly the edited lines are added`)); deepEqual(diff.filter(line => line.startsWith('-')), was.map(line => `-${line}`), a(`${rel}: nothing of the base is gone`))
   }
+  for (const rel of AGENT_MODE_SHELL_FE1_PROOF_FILES) proveFe1Proof(rel, readNow(rel), a)
   for (const rel of AGENT_MODE_SHELL_PIN_FILES) {
     const now = later(rel, readNow(rel)), lines = now.split('\n'), marked = lines.filter(line => line.includes(AGENT_MODE_SHELL_PIN_MARK))
     assert.equal(marked.length, 1, a(`${rel}: one taught line, carrying the registry-read mark`)); assert.equal(`${marked[0]}\n`, AGENT_MODE_SHELL_PIN_EDITS[rel][0][0]); assert.ok(SHAPE.test(marked[0]), a(`${rel}: the taught line is a subject filter for "Agent mode shell:"`))
@@ -392,7 +405,7 @@ function proveStrip(strip, readNow = read, later = laterStrips, at = '') {
   assert.equal(strip(rel0, `x${line}`), `x${line}`, a('a line that merely ends with it is not it')); assert.equal(strip(rel0, `${line.trimEnd()}x\n`), `${line.trimEnd()}x\n`)
   assert.equal(strip(rel0, `a\n${line}${line}b\n`), `a\n${line}b\n`, a('a line that is there twice is a merge mistake: only the first goes, the older pins still see the second')); assert.equal(strip(rel0, 'a\nb\n'), 'a\nb\n', a('a proof without the line is returned as it is'))
 }
-await check('the strip: the two taught proofs put back are the base\'s, byte for byte, idempotent; each taught line is one subject filter with the registry-read mark, right after a filter the base has; a file it does not own (also with the line in it), a longer line, a non-string and a proof without the line come back as they are; a doubled line is not hidden', () => proveStrip(stripAgentModeShell))
+await check('the strip: the two taught proofs and FRONTEND-1\'s voice-call proof (their four OK\'d lines, byte for byte as #603 carries them) put back are the base\'s, byte for byte, idempotent; each taught line is one subject filter with the registry-read mark, right after a filter the base has; a file it does not own (also with the line in it), a longer line, a non-string and a proof without the line come back as they are; a doubled line is not hidden', () => proveStrip(stripAgentModeShell))
 await check('the strip is plain data: no imports, nothing read from disk or git; its marker is a whole token; the subject is its own; the flags are the two named; no secret-shaped literal; no stdin pipe into git', () => {
   const text = read('scripts/studio-agent-mode-shell-strip.mjs')
   assert.doesNotMatch(text.replace(/"(?:[^"\\\n]|\\.)*"/g, '""').replace(/'(?:[^'\\\n]|\\.)*'/g, "''").replace(/`[^`]*`/g, '``').replace(/\/\/.*$/gm, ''), /^import |require\(|readFileSync|execFileSync/m, 'no imports, nothing read from disk or git')
@@ -518,6 +531,7 @@ const scopeCommittedFiles = (head, { later = laterStrips, registered = registry.
   deepEqual([...net].filter(rel => AGENT_MODE_SHELL_SCOPE_FILES.has(rel) || !registered.has(rel)).sort(), [...AGENT_MODE_SHELL_SCOPE_FILES].sort(), 'and the whole committed diff from BASE is nothing else (a file the registry names for a later change, stacked on this head, is left to that change; an unregistered file still fails)')
   for (const rel of AGENT_MODE_SHELL_NEW_FILES) { assert.equal(git('cat-file', '-t', `${head}:${rel}`).trim(), 'blob', rel); assert.throws(() => git('cat-file', '-e', `${BASE_COMMIT}:${rel}`), undefined, `${rel} is new: dev has none`) }
   for (const rel of AGENT_MODE_SHELL_PIN_FILES) assert.equal(stripAgentModeShell(rel, later(rel, git('show', `${head}:${rel}`))), baseText(rel), `${rel}: an older proof taught: put back it is the base's (a later change's registered lines out first)`)
+  for (const rel of AGENT_MODE_SHELL_FE1_PROOF_FILES) { const text = git('show', `${head}:${rel}`); assert.equal(stripAgentModeShell(rel, text), baseText(rel), `${rel}: FRONTEND-1's voice-call proof, the one file of theirs this change edits: put back it is the base's (exactly the four OK'd lines differ)`); proveFe1Proof(rel, text) }
   for (const rel of UNTOUCHED) assert.ok(!touched.has(rel), `${rel} is not touched by this change`)
   for (const rel of touched) assert.ok(!LANES.test(rel), `${rel} is in FRONTEND-1's, COMPOSER-2's or the reconnect proof's lane: no file of theirs may be touched`)
   assert.equal(git('diff', '--stat', `${BASE_COMMIT}..${head}`, '--', ...AGENT_MODE_SHELL_DRAFT_FILES).trim(), '', 'the drafts are not applied: the hook and the Builder page are dev\'s, byte for byte')
@@ -534,7 +548,7 @@ const scopeCheck = (label, fn) => (ON_OWN_LINE ? check(label, fn) : undefined)
 const scopeMutant = (label, fn) => (ON_OWN_LINE ? mutant(label, fn) : undefined)
 if (!ON_OWN_LINE) console.log('NOTE scope: no commit of this change on the first-parent line from BASE (merged into dev: its commits are on a second parent); the scope checks stand down, the pins above cover the files')
 await scopeCheck(`this change's own commits (subject starts "${AGENT_MODE_SHELL_SUBJECT}", found across the whole line, no merges) exist, with the co-author line; none could be taken for an older change's`, () => { scopeOwnCommits(HEAD) })
-await scopeCheck('the committed files are exactly this change\'s: the lib, the eight components, the strip, this proof, .env.example, the registry and the two taught proofs; the hook, the Builder page, the chat cards, the director styles, package.json and the lockfile are not touched; the drafts are not applied', () => scopeCommittedFiles(HEAD))
+await scopeCheck('the committed files are exactly this change\'s: the lib, the eight components, the strip, this proof, .env.example, the registry, the two taught proofs and FRONTEND-1\'s voice-call proof (only their four OK\'d lines); the hook, the Builder page, the chat cards, the director styles, package.json and the lockfile are not touched; the drafts are not applied', () => scopeCommittedFiles(HEAD))
 await scopeCheck('the registry gains exactly this change\'s three marked lines (files, env block, strip) at the true end of each list, right after studio-voice-call-strip.mjs\'s, and loses none; .env.example is dev\'s plus the registered blocks, this change\'s at the true end', () => proveRegistryAt(HEAD))
 const gateMerge = (dev, head) => plumb(['commit-tree', plumb(['merge-tree', '--write-tree', dev, head]).split('\n')[0], '-p', dev, '-p', head, '-m', 'gate-style merge (local, no ref)'])
 const GATE = ON_OWN_LINE ? gateMerge(BASE_COMMIT, HEAD) : null
@@ -544,6 +558,7 @@ await scopeCheck('GATE-SAFE: on a gate-style merge (first parent BASE, second pa
   assert.equal(scopeHead(GATE), HEAD, 'HEAD^2 is the change\'s head')
   scopeAll(scopeHead(GATE)); proveRegistryAt(GATE)
   for (const rel of AGENT_MODE_SHELL_PIN_FILES) assert.equal(stripAgentModeShell(rel, laterStrips(rel, git('show', `${GATE}:${rel}`))), baseText(rel), `${rel}: the merged tree, without this change's line, is dev's`)
+  for (const rel of AGENT_MODE_SHELL_FE1_PROOF_FILES) assert.equal(stripAgentModeShell(rel, git('show', `${GATE}:${rel}`)), baseText(rel), `${rel}: the merged tree, without the four OK'd lines, is dev's`)
   assert.equal(scopeHead(HEAD), HEAD, 'a branch head is used as it is'); assert.equal(scopeHead(BASE_COMMIT), BASE_COMMIT, 'BASE itself is used as it is')
 })
 await scopeCheck('mutant caught: the old first-parent own-commit query finds no own commit on the gate-style merge, and without the HEAD^2 rule the scope head is the merge itself', () => {
@@ -577,12 +592,13 @@ const scopeBreakers = {
   'an own commit without the co-author line': () => { const c = commitWith(HEAD, {}, `${AGENT_MODE_SHELL_SUBJECT} no trailer`); assert.throws(() => scopeOwnCommits(c), error => /^[0-9a-f]{8}$/.test(error.message), 'the commit without the trailer is named'); scopeOwnCommits(c) },
   'a draft applied to the hook in an own commit': () => { const d = AGENT_MODE_SHELL_DRAFTS.find(x => x.id === 'H6'), lines = hookNow.split('\n'); lines.splice(d.line, 0, ...d.add); const c = commitWith(HEAD, { 'hooks/use-deckster-websocket-v2.ts': lines.join('\n') }, `${AGENT_MODE_SHELL_SUBJECT} applies a draft${TRAILER}`); assert.doesNotThrow(() => scopeCommittedFiles(HEAD)); scopeCommittedFiles(c) },
 }
-await scopeCheck('scope: a stray file in an own commit fails the files check, an own commit without the co-author line is named, a draft applied to the hook or a touched file of FRONTEND-1\'s lane (the page, the hook, the question card, the billing lib) fails it, and a real own commit set still passes', () => {
+await scopeCheck('scope: a stray file in an own commit fails the files check, an own commit without the co-author line is named, a draft applied to the hook or a touched file of FRONTEND-1\'s lane (the page, the hook, the question card, the billing lib, another voice-call proof) fails it, a fifth line in FRONTEND-1\'s voice-call proof fails it (only their four OK\'d lines are allowed), and a real own commit set still passes', () => {
   assert.throws(scopeBreakers['a stray file in an own commit'], /exactly its scope/); assert.throws(scopeBreakers['an own commit without the co-author line'], error => /^[0-9a-f]{8}$/.test(error.message), 'the commit without the trailer is named'); assert.throws(scopeBreakers['a draft applied to the hook in an own commit'], /exactly its scope|is not touched|lane|not applied|NOT applied/)
-  for (const rel of ['app/builder/page.tsx', 'hooks/use-deckster-websocket-v2.ts', 'components/builder/chat/question-card.tsx', 'lib/studio-billing-usage.ts']) {
+  for (const rel of ['app/builder/page.tsx', 'hooks/use-deckster-websocket-v2.ts', 'components/builder/chat/question-card.tsx', 'lib/studio-billing-usage.ts', 'scripts/test-studio-voice-call-replay.mjs']) {
     const foreign = commitWith(HEAD, { [rel]: `${git('show', `${HEAD}:${rel}`)}\n` }, `${AGENT_MODE_SHELL_SUBJECT} touches ${rel}${TRAILER}`)
     assert.notEqual(git('show', `${foreign}:${rel}`), git('show', `${HEAD}:${rel}`), `positive control: ${rel} is changed`); assert.throws(() => scopeCommittedFiles(foreign), /exactly its scope|is not touched|lane/, rel)
   }
+  assert.throws(() => scopeCommittedFiles(commitWith(HEAD, { [VCALL]: `${git('show', `${HEAD}:${VCALL}`)}// a fifth line\n` }, `${AGENT_MODE_SHELL_SUBJECT} a fifth voice-call line${TRAILER}`)), /put back it is the base's/, 'a fifth line in the voice-call proof')
   scopeAll(HEAD)
 })
 
@@ -685,6 +701,14 @@ await mutant('F: a taught line put somewhere that is not after a subject filter'
   if (rel !== AGENT_MODE_SHELL_PIN_FILES[0]) return read(rel)
   const lines = read(rel).split('\n'), at = lines.findIndex(l => l.includes(AGENT_MODE_SHELL_PIN_MARK)), [line] = lines.splice(at, 1); lines.splice(lines.findIndex(l => l.startsWith('import ')), 0, line); return lines.join('\n')
 }))
+await mutant('F: a strip that leaves the voice-call lines (FRONTEND-1\'s OK\'d edit stays in the proof)', () => proveStrip((rel, text) => (rel === VCALL ? text : stripAgentModeShell(rel, text))))
+await mutant('F: an OK\'d voice-call line edited by one character (the changed .env.example line loses its trimEnd)', () => proveStrip(stripAgentModeShell, rel => (rel === VCALL ? swap(read(rel), ".trimEnd().endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly", ".endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly") : read(rel))))
+await mutant('F: a fifth line in the voice-call proof (an unlisted edit beside the four OK\'d)', () => proveStrip(stripAgentModeShell, rel => (rel === VCALL ? `${read(rel)}// a fifth line\n` : read(rel))))
+await mutant('F: the two inserted voice-call lines moved off their anchor (to the top of the file)', () => proveStrip(stripAgentModeShell, rel => {
+  if (rel !== VCALL) return read(rel)
+  const lines = read(rel).split('\n'), at = lines.indexOf(FE1_ANCHOR), moved = lines.splice(at + 1, 2); lines.splice(0, 0, ...moved); return lines.join('\n')
+}))
+await mutant('F: an OK\'d voice-call line without its mark in the file (the helper line)', () => proveStrip(stripAgentModeShell, rel => (rel === VCALL ? swap(read(rel), "''), text) // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", "''), text)\n") : read(rel))))
 const ENV_NOW = read('.env.example'), REG_NOW = read(REGISTRY), regLinesOf = text => text.split('\n')
 await mutant('F: the env block moved off the true end (above the voice call block)', () => { const body = ENV_NOW.slice(0, -AGENT_MODE_SHELL_ENV_BLOCK.length - 1), at = body.lastIndexOf('# STUDIO VOICE CALL UI'); assert.ok(at > 0); proveEnvText(`${body.slice(0, at)}${AGENT_MODE_SHELL_ENV_BLOCK}\n${body.slice(at)}\n`.replace(/\n\n\n$/, '\n')) })
 await mutant('F: a flag documented as "true"', () => proveEnvText(swap(ENV_NOW, 'NEXT_PUBLIC_AGENT_MODE="false"', 'NEXT_PUBLIC_AGENT_MODE="true"'), swap(AGENT_MODE_SHELL_ENV_BLOCK, 'NEXT_PUBLIC_AGENT_MODE="false"', 'NEXT_PUBLIC_AGENT_MODE="true"')))
@@ -712,6 +736,8 @@ if (ON_OWN_LINE) {
   await mutant('G: the old first-parent query (finds no own commit on the gate-style merge)', () => scopeOwnCommits(GATE, { firstParentOnly: true }))
   await mutant('G: the HEAD^2 rule dropped (the scope runs against the merge itself)', () => { assert.equal(scopeHead(GATE, { gateRule: false }), HEAD, 'the scope head is the change\'s head') })
   await mutant('G: a touched file of FRONTEND-1\'s lane (an own commit edits the Builder page)', () => scopeCommittedFiles(commitWith(HEAD, { 'app/builder/page.tsx': `${git('show', `${HEAD}:app/builder/page.tsx`)}\n` }, `${AGENT_MODE_SHELL_SUBJECT} edits their page${TRAILER}`)))
+  await mutant('G: a fifth line added to FRONTEND-1\'s voice-call proof in an own commit (only their four OK\'d lines are allowed)', () => scopeCommittedFiles(commitWith(HEAD, { [VCALL]: `${git('show', `${HEAD}:${VCALL}`)}// a fifth line\n` }, `${AGENT_MODE_SHELL_SUBJECT} a fifth voice-call line${TRAILER}`)))
+  await mutant('G: another FRONTEND-1 voice-call proof touched in an own commit (the replay proof was not OK\'d)', () => scopeCommittedFiles(commitWith(HEAD, { 'scripts/test-studio-voice-call-replay.mjs': `${git('show', `${HEAD}:scripts/test-studio-voice-call-replay.mjs`)}\n` }, `${AGENT_MODE_SHELL_SUBJECT} touches the replay proof${TRAILER}`)))
   await mutant('H: a later commit with an unregistered file stacked on this head', () => scopeCommittedFiles(laterCommit(HEAD, { registryLines: true, extra: { 'stray-later-change.txt': 'stray\n' } }), { later: synLater }))
   await mutant('H: the later change\'s strip not told to the pins (its line breaks the put-back)', () => provePins(rel => git('show', `${laterCommit(HEAD, { registryLines: true })}:${rel}`), 'linear stack, not told', laterStrips))
 }
