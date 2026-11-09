@@ -227,6 +227,7 @@ export interface SlideUpdate {
       diagrams_needed: string | null;
       structure_preference: string | null;
       speaker_notes?: string | null;
+      subtitle?: string | null; // OUTLINE-CARD-G4
     }>;
     affected_slides: string[] | null;
     preview_url?: string;  // Strawman preview URL (may be at payload root)
