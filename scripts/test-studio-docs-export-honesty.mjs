@@ -1,10 +1,11 @@
 // FRONTEND-1 UX G-06 (no flag): the Docs Export article lists only the formats the product downloads, PowerPoint and PDF (the same honesty rule as the Google Slides cut).
 // Run: node scripts/test-studio-docs-export-honesty.mjs   (plain node: transpile + vm, git show for the base; no network, no browser, no env)
 //   1. content/docs.ts, builder-guide/exports: no Images (PNG/JPEG) zip, no Embed Code, no Export Settings (quality, slide range, speaker-note / animation / web toggles, PDF password), no "choose quality" step,
-//      no Google Slides; the only "Export" menu targets are PowerPoint and PDF; both are still there. "quality" survives only in the Download Limits block, which the fact rules replace when NEXT_PUBLIC_STUDIO_P2_DOCS is on;
-//   2. with the agent and fact rules applied (the P2 docs path) the article has no such claim at all, "quality" included;
+//      no Google Slides; the only "Export" menu targets are PowerPoint and PDF; both are still there. The whole article, the Download Limits block included, names no quality ("one fixed quality, no selector");
+//   2. with the agent and fact rules applied (the P2 docs path) the article has no such claim at all, "quality" included; the fact rule that replaces the Download Limits block still matches the article (it follows the two lines this change cut);
 //   3. the code agrees: the download service offers pdf and pptx only, the download control has one fixed quality and no selector, no image / zip / password option;
-//   4. the honesty strip (scripts/studio-ux-honesty-strip.mjs) puts the removed text back byte for byte, so the older base-identity pins read content/docs.ts as it was;
+//   4. the honesty strip (scripts/studio-ux-honesty-strip.mjs) puts the removed text back byte for byte, so the older base-identity pins read content/docs.ts and content/studio-p2-docs-facts.ts as they were; both are read through the strips
+//      of the changes registered after the honesty strip (the registry), so a later change's lines never fail this proof;
 //   5. mutants: each claim put back (and each code feature added) is caught.
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -13,9 +14,14 @@ import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 import ts from 'typescript'
 import * as strip from './studio-ux-honesty-strip.mjs'
+import * as registry from './studio-later-changes.mjs' // LATER-CHANGES: registry read (UX-HONESTY)
 
 const root = path.resolve(new URL('..', import.meta.url).pathname)
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const applyAll = (list, rel, text) => list.reduce((out, fn) => { const next = typeof fn === 'function' ? fn(rel, out) : out; return typeof next === 'string' ? next : out }, text) // LATER-CHANGES: registry read (UX-HONESTY)
+/** Only the strips of the changes registered AFTER the honesty strip, in the registry's order: a later change's own lines come out first, so a file reads as this change left it. */
+const laterStrips = (rel, text) => { const at = registry.LATER_STRIPS.indexOf(strip.stripUxHonesty); return applyAll(at === -1 ? [] : registry.LATER_STRIPS.slice(at + 1), rel, text) } // LATER-CHANGES: registry read (UX-HONESTY)
+const readLater = rel => laterStrips(rel, read(rel)) // LATER-CHANGES: registry read (UX-HONESTY)
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20 })
 let checks = 0
 const ok = (value, message) => { checks++; assert.ok(value, message) }
@@ -41,13 +47,10 @@ const REMOVED = [
   /High Resolution/i, /High Quality/, /\*\*Draft\*\*/, /With Notes/,
   /Choose quality/i, /Select quality/i, /lower quality/i, /social media teasers/i, /Google Slides/i,
 ]
-// the Download Limits block names "quality" in the base text; the fact rules replace the whole block when the P2 docs flag is on
-const withoutDownloadLimits = text => text.replace(/## Download Limits[\s\S]*?(?=\n## )/, '')
-
 function checkArticle(docs) {
   const text = exportsOf(load(docs).docSections)
   for (const re of REMOVED) ok(!re.test(text), `the Export article does not match ${re}`)
-  ok(!/quality/i.test(withoutDownloadLimits(text)), 'no quality option outside the Download Limits block')
+  ok(!/quality/i.test(text), 'the Export article names no quality option anywhere, the Download Limits block included')
   const targets = [...text.matchAll(/Click "Export" → "([^"]+)"/g)].map(match => match[1])
   ok(targets.length === 2 && targets[0] === 'PowerPoint' && targets[1] === 'PDF', `the only Export menu targets are PowerPoint and PDF (found ${JSON.stringify(targets)})`)
   const formats = (text.split('## Export Formats')[1] || '').split(/\n## /)[0]
@@ -76,14 +79,16 @@ function checkCode(service, controls) {
   ok(/downloadPDF\(presentationUrl, quality\)/.test(controls) && /downloadPPTX\(presentationUrl, effectiveSlideCount, quality\)/.test(controls), 'the control offers a PDF download and a PowerPoint download')
 }
 
-// the older pins read content/docs.ts through the honesty strip: with the rewrites put back it is the base commit's file
-function checkStrip(docs) {
+// the older pins read content/docs.ts and the P2 docs fact rules through the honesty strip: with the rewrites put back they are the base commit's files
+function checkStrip(docs, facts) {
   ok(strip.stripUxHonesty(DOCS, docs) === git('show', `${strip.BASE_COMMIT}:${DOCS}`), 'content/docs.ts with the honesty rewrites put back is the base commit\'s file, byte for byte')
+  ok(strip.stripUxHonesty(FACTS, facts) === git('show', `${strip.BASE_COMMIT}:${FACTS}`), 'content/studio-p2-docs-facts.ts with the honesty rewrites put back is the base commit\'s file, byte for byte')
+  ok(strip.stripUxHonesty(DOCS, strip.stripUxHonesty(DOCS, docs)) === strip.stripUxHonesty(DOCS, docs) && strip.stripUxHonesty(FACTS, strip.stripUxHonesty(FACTS, facts)) === strip.stripUxHonesty(FACTS, facts), 'the strip is idempotent on both files')
 }
 
-const real = { docs: read(DOCS), agents: read(AGENTS), facts: read(FACTS), service: read(DOWNLOAD_SERVICE), controls: read(DOWNLOAD_CONTROLS) }
+const real = { docs: readLater(DOCS), agents: read(AGENTS), facts: readLater(FACTS), service: read(DOWNLOAD_SERVICE), controls: read(DOWNLOAD_CONTROLS) } // LATER-CHANGES: registry read (UX-HONESTY)
 function all(files) {
-  checkArticle(files.docs); checkFlagOn(files.docs, files.agents, files.facts); checkCode(files.service, files.controls); checkStrip(files.docs)
+  checkArticle(files.docs); checkFlagOn(files.docs, files.agents, files.facts); checkCode(files.service, files.controls); checkStrip(files.docs, files.facts)
 }
 all(real)
 const realChecks = checks
@@ -103,7 +108,11 @@ const MUTANTS = [
   ['docs', SHARE, `**Options:**\n- **High Resolution**: Print quality, larger size\n\n${SHARE}`, 'the PDF options list'],
   ['docs', '- PDF for client deliverables\n', '- PDF for client deliverables\n- Images for social media teasers\n', 'the images best practice'],
   ['docs', '- Check internet connection\n', '- Check internet connection\n- Try lower quality setting\n', 'the lower-quality troubleshooting step'],
-  ['docs', '- Reduce file size (fewer slides', '- Lower the quality to reduce file size (fewer slides', 'a quality option outside the Download Limits block'],
+  ['docs', '- Reduce file size (fewer slides', '- Lower the quality to reduce file size (fewer slides', 'a quality option in the troubleshooting tips'],
+  ['docs', '### Free Tier\n- 3 exports per presentation\n', '### Free Tier\n- 3 exports per presentation\n- Standard quality only\n', 'the Free tier quality line back in the Download Limits block'],
+  ['docs', '### Pro Tier\n- Unlimited exports\n', '### Pro Tier\n- Unlimited exports\n- All formats and quality levels\n', 'the Pro tier quality line back in the Download Limits block'],
+  ['facts', '### Free Tier\n- 3 exports per presentation\n', '### Free Tier\n- 3 exports per presentation\n- Standard quality only\n', 'a fact rule that no longer matches the article (the P2 docs path would show the old limits)'],
+  ['facts', '### Pro Tier\n- Unlimited exports\n', '### Pro Tier\n- Unlimited exports\n- All formats and quality levels\n', 'a fact rule that no longer matches the Pro tier lines'],
   ['docs', 'Click "Export" → "PDF"', 'Click "Export" → "Images"', 'an Images target on the Export menu'],
   ['docs', '### PDF Document\n', '', 'PDF dropped from the formats'],
   ['docs', '### PowerPoint (.pptx)\n', '### Google Slides\n', 'PowerPoint swapped for Google Slides'],

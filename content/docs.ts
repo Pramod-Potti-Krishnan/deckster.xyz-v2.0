@@ -769,12 +769,10 @@ Share within your organization:
 
 ### Free Tier
 - 3 exports per presentation
-- Standard quality only
 - PowerPoint and PDF only
 
 ### Pro Tier
 - Unlimited exports
-- All formats and quality levels
 - Priority export queue
 
 ### Enterprise Tier

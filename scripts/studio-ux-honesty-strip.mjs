@@ -2,7 +2,7 @@
 //   1. HONESTY (no flag, always on): content/docs.ts drops the Google Slides export claim and says "Deckster"; Help drops "eight specialists" and the hard-coded plan prices (points to the pricing page);
 //      Billing reads every plan fact from the pricing v2 list (lib/marketing/homepage-v2-pricing.ts, PRICING_TIERS) and states none of its own; /docs/api says "API access is not open yet" and lists no endpoint;
 //      Help and Docs name the create button by its current label ("New deck" / "+ Presentation"). G-06: the Docs Export article lists only PowerPoint and PDF (no Images PNG/JPEG zip, no Embed Code, no quality, slide-range or PDF password option:
-//      the download control offers PDF and PowerPoint at one fixed quality). These are rewrites, not insertions, so UX_HONESTY_EDITS holds [text now, text before] and the strip puts the
+//      the download control offers PDF and PowerPoint at one fixed quality; the Download Limits block names no quality either, and the P2 docs fact rule that replaces that block (content/studio-p2-docs-facts.ts) follows the article). These are rewrites, not insertions, so UX_HONESTY_EDITS holds [text now, text before] and the strip puts the
 //      before-text back: an older pin that holds one of these files to an earlier commit reads it as it was. scripts/test-studio-ux-honesty.mjs holds the NEW truth.
 //   2. UX-09 (flag NEXT_PUBLIC_STUDIO_PAGE_HEADINGS, the string "true", default off): one shared heading container and heading style on the Studio pages. Every line it adds to an existing file carries the
 //      marker PAGE-HEADINGS (a whole token) and is a pure insertion; the strip takes those lines out.
@@ -95,6 +95,10 @@ export const UX_HONESTY_EDITS = {
       "- Check internet connection\n- Try lower quality setting\n- Reduce file size"
     ],
     [
+      "### Free Tier\n- 3 exports per presentation\n- PowerPoint and PDF only\n\n### Pro Tier\n- Unlimited exports\n- Priority export queue\n",
+      "### Free Tier\n- 3 exports per presentation\n- Standard quality only\n- PowerPoint and PDF only\n\n### Pro Tier\n- Unlimited exports\n- All formats and quality levels\n- Priority export queue\n"
+    ],
+    [
       "Welcome to Deckster! This guide will help you create your first AI-powered presentation in just 5 minutes.\n",
       "Welcome to deckster! This guide will help you create your first AI-powered presentation in just 5 minutes.\n"
     ],
@@ -129,6 +133,12 @@ export const UX_HONESTY_EDITS = {
     [
       "Present directly from Deckster:\n",
       "Present directly from deckster:\n"
+    ]
+  ],
+  "content/studio-p2-docs-facts.ts": [
+    [
+      "### Free Tier\n- 3 exports per presentation\n- PowerPoint and PDF only\n\n### Pro Tier\n- Unlimited exports\n- Priority export queue\n",
+      "### Free Tier\n- 3 exports per presentation\n- Standard quality only\n- PowerPoint and PDF only\n\n### Pro Tier\n- Unlimited exports\n- All formats and quality levels\n- Priority export queue\n"
     ]
   ]
 }
