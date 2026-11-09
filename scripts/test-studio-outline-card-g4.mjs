@@ -9,7 +9,7 @@
 //   2. The REAL card on the offline React host. Flag off is the base card's markup byte for byte (the base card is read from git, BASE_COMMIT), for every card variant and for slides that carry exactly what the fix acts on.
 //      Flag on: (a), (b) and (c) one slide at a time, with the negatives (a different first narrative line, a different key message, no key message, any other status, any citation, any source type, any issue); where nothing applies
 //      the flag-on markup is the base's; the key points and everything outside the expanded bodies are the base's.
-//   3. The sources: every marked line, the strip gives each touched file its base back byte for byte, the registry, .env.example, the scope, the commits.
+//   3. The sources: every marked line, the strip gives each touched file its base back byte for byte, the registry, .env.example, the voice-call proof's four-line pin edit (the same four lines FRONTEND-2's #603 carries), the scope, the commits.
 //   4. Mutants: each must be caught.
 //
 //   node scripts/test-studio-outline-card-g4.mjs
@@ -35,6 +35,7 @@ const LIB = 'lib/studio-outline-card-g4.ts'
 const CARD = 'components/builder/chat/studio-outline-card.tsx'
 const HOOK = 'hooks/use-deckster-websocket-v2.ts'
 const STRIP = 'scripts/studio-outline-card-g4-strip.mjs'
+const VOICE_CALL = 'scripts/test-studio-voice-call.mjs'
 const REGISTRY = 'scripts/studio-later-changes.mjs'
 const read = rel => fs.readFileSync(path.join(repo, rel), 'utf8')
 let passed = 0, failed = 0
@@ -274,6 +275,18 @@ function sourceChecks(texts, mod = stripModule) {
     assert.deepEqual([diff.removed.length, diff.added.length], [0, 1], `${rel}: the proof gains one line and loses none`)
     assert.ok(diff.added[0].includes(mod.OUTLINE_CARD_G4_PIN_MARK) && diff.added[0].includes('^Outline card G4:'), `${rel}: the line carries the pin mark and names this change's subject`)
   }
+  // the voice-call proof: FRONTEND-1's four-line after-merge edit (2 lines inserted after the strip import, 2 lines changed), the same four lines FRONTEND-2's #603 carries byte for byte (so both merge clean in either order); every added line carries #603's mark
+  assert.deepEqual([...mod.OUTLINE_CARD_G4_VOICE_CALL_PIN_FILES], [VOICE_CALL], 'the one voice-call proof this change edits')
+  {
+    const now = texts[VOICE_CALL], diff = lineDiff(baseText(VOICE_CALL), now)
+    assert.equal(stripOutlineCardG4(VOICE_CALL, laterStrips(VOICE_CALL, now)), baseText(VOICE_CALL), `${VOICE_CALL}: without the four lines the proof is the base's, byte for byte`)
+    assert.equal(stripOutlineCardG4(VOICE_CALL, stripOutlineCardG4(VOICE_CALL, now)), stripOutlineCardG4(VOICE_CALL, now), `${VOICE_CALL}: stripping twice changes nothing more`)
+    assert.deepEqual([diff.removed.length, diff.added.length], [2, 4], `${VOICE_CALL}: two base lines changed and two lines inserted, nothing else`)
+    for (const line of diff.added) assert.ok(line.endsWith(mod.OUTLINE_CARD_G4_VOICE_CALL_PIN_MARK), `${VOICE_CALL}: a line added carries the registry-read mark: ${line.trim().slice(0, 90)}`)
+    const lines = now.split('\n'), at = lines.indexOf(mod.OUTLINE_CARD_G4_VOICE_CALL_PIN_ANCHOR)
+    assert.ok(at >= 0 && lines[at + 1].startsWith('const laterRegistry = await import(') && lines[at + 2].startsWith('const laterEnvOut = text =>'), `${VOICE_CALL}: the two inserted lines sit right after the strip import`)
+    assert.equal(now.split('\n').filter(line => line.includes('laterEnvOut(')).length, 2, `${VOICE_CALL}: the helper is read by the two .env.example pins`)
+  }
   assert.match(texts[HOOK], /^      subtitle\?: string \| null; \/\/ OUTLINE-CARD-G4$/m, 'the slide type gains `subtitle?: string | null`')
   // the lib: one literal env read, import-free; nothing else reads the env
   assert.equal((texts[LIB].match(/process\.env\.NEXT_PUBLIC_STUDIO_OUTLINE_CARD_G4\b/g) || []).length, 1, 'the lib reads the literal env name once')
@@ -321,7 +334,7 @@ function messageProblems(subject, body) {
 // ============================================================================================================================================
 // run
 // ============================================================================================================================================
-const TEXTS = Object.fromEntries([LIB, CARD, HOOK, '.env.example', REGISTRY, STRIP, 'scripts/test-studio-outline-card-g4.mjs', ...PIN_FILES].map(rel => [rel, read(rel)]))
+const TEXTS = Object.fromEntries([LIB, CARD, HOOK, '.env.example', REGISTRY, STRIP, 'scripts/test-studio-outline-card-g4.mjs', ...PIN_FILES, VOICE_CALL].map(rel => [rel, read(rel)]))
 
 await check('1. the lib: the flag, (a) the narrative, (b) the subtitle, (c) the empty research rule, the view the card reads', () => libChecks())
 await check('2. the REAL card: flag off is the base card\'s markup byte for byte (every variant, every odd flag value); flag on does (a), (b) and (c) and nothing else, with their negatives', () => cardChecks())
@@ -422,15 +435,23 @@ await check('mutant caught: .env.example with the flag on by default, or the blo
   assert.ok(await throws(() => sourceChecks({ ...TEXTS, '.env.example': baseText('.env.example') })))
 })
 const STRIP_TEXT = TEXTS[STRIP]
+/** The one line of the strip that holds `needle` (a mutant takes a whole [has, was] pair line out). */
+const stripLine = needle => { const found = STRIP_TEXT.split('\n').filter(line => line.includes(needle)); assert.equal(found.length, 1, `the strip has one line with ${needle}`); return found[0] }
 const STRIP_MUTANTS = [
-  ['the strip puts nothing back', 'return (OUTLINE_CARD_G4_EDITS[rel] || OUTLINE_CARD_G4_PIN_EDITS[rel] || []).reduce((out, [has, was]) => out.replace(has, () => was), text)', 'return text'],
+  ['the strip puts nothing back', 'return (OUTLINE_CARD_G4_EDITS[rel] || OUTLINE_CARD_G4_PIN_EDITS[rel] || OUTLINE_CARD_G4_VOICE_CALL_PIN_EDITS[rel] || []).reduce((out, [has, was]) => out.replace(has, () => was), text)', 'return text'],
   ['the narrative pair puts back the marked line', "`                  {slide.narrative && <p>{slide.narrative}</p>}\\n`],", "`                  {g4.narrative && <p>{g4.narrative}</p>}\\n`],"],
   ['the research pair puts back a different condition', "`                  {hasResearch && (\\n`],", "`                  {hasResearch && !x && (\\n`],"],
   ['the subtitle pair is missing', "    [`                  {g4.subtitle && <p data-studio-director-part=\"outline-review-subtitle\">{g4.subtitle}</p>}${JSX_MARK}\\n`, ''],\n", ''],
   ['the element-edit pin pair is missing', "    [`${SPLICE}${OUTLINE_CARD_G4_PIN_MARK}: on a branch stacked after this change (the outline card G4's), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files\\n`, ''],\n", ''],
   ['the deck-sync pin pair puts back a changed line', "the first-parent commits are its own, not this change's; with none left the identity checks cover the files\\n`, ''],", "the first-parent commits are its own, not this change's; with none left the identity checks cover the files\\n`, 'x\\n'],"],
   ['the hook pair is missing', "    [`      subtitle?: string | null; ${MARK}\\n`, ''],\n", ''],
-  ['the strip touches a file it does not own', 'if (!(rel in OUTLINE_CARD_G4_EDITS) && !(rel in OUTLINE_CARD_G4_PIN_EDITS)) return text', "if (rel === 'app/builder/page.tsx') return text.toUpperCase()"],
+  ['the strip touches a file it does not own', 'if (!(rel in OUTLINE_CARD_G4_EDITS) && !(rel in OUTLINE_CARD_G4_PIN_EDITS) && !(rel in OUTLINE_CARD_G4_VOICE_CALL_PIN_EDITS)) return text', "if (rel === 'app/builder/page.tsx') return text.toUpperCase()"],
+  ['the strip does not know the voice-call proof', 'if (!(rel in OUTLINE_CARD_G4_EDITS) && !(rel in OUTLINE_CARD_G4_PIN_EDITS) && !(rel in OUTLINE_CARD_G4_VOICE_CALL_PIN_EDITS)) return text', 'if (!(rel in OUTLINE_CARD_G4_EDITS) && !(rel in OUTLINE_CARD_G4_PIN_EDITS)) return text'],
+  ['the voice-call import pair is missing', `${stripLine("const laterRegistry = await import(")}\n`, ''],
+  ['the voice-call helper pair is missing', `${stripLine('const laterEnvOut = text =>')}\n`, ''],
+  ['the voice-call "last thing in the file" pair puts back a changed line', '"  ok(env.endsWith(', '"  ok(env.startsWith('],
+  ['the voice-call ".env.example adds its block" pair puts back a changed line', '"    ok(envDiff.map(', '"    ok(envDiff.filter('],
+  ['the voice-call ".env.example adds its block" pair is missing', `${stripLine("ok(laterEnvOut(`${envDiff")}\n`, ''],
 ]
 for (const [name, from, to] of STRIP_MUTANTS) {
   await check(`mutant caught: strip: ${name}`, async () => {

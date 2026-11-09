@@ -6,6 +6,7 @@
 // Every line this change adds to an EXISTING file carries the marker OUTLINE-CARD-G4 (matched as a whole token). Four of them are pure insertions in components/builder/chat/studio-outline-card.tsx (the import, the one view line,
 // the subtitle line) and in hooks/use-deckster-websocket-v2.ts (the optional `subtitle` on the slide type); TWO base lines of the card are rewritten (the narrative paragraph and the research condition), so the strip is a list of [has, was]
 // pairs, not a marker filter: putting each pair back gives the file at BASE_COMMIT byte for byte. The new files (a lib, this strip, a proof) have no base text.
+// FRONTEND-2's UX findings E (#603) carries the same four-line edit of FRONTEND-1's test-studio-voice-call.mjs (the .env.example "last thing in the file" pin must take out the env blocks registered after voice-call's); this change carries it too, BYTE-IDENTICAL, so both merge clean in either order.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
 export const BASE_COMMIT = 'eeb78d4f4b7676d75c244746f1edc7da1d269478' // origin/studio-v4-dev-preparation-code (#598 merged) at the start of this change
@@ -61,13 +62,30 @@ export const OUTLINE_CARD_G4_PIN_EDITS = {
 
 /** The file with this change's edits put back (the previous text). Used by the strip and the proof. */
 export function putBackOutlineCardG4(rel, text) {
-  return (OUTLINE_CARD_G4_EDITS[rel] || OUTLINE_CARD_G4_PIN_EDITS[rel] || []).reduce((out, [has, was]) => out.replace(has, () => was), text)
+  return (OUTLINE_CARD_G4_EDITS[rel] || OUTLINE_CARD_G4_PIN_EDITS[rel] || OUTLINE_CARD_G4_VOICE_CALL_PIN_EDITS[rel] || []).reduce((out, [has, was]) => out.replace(has, () => was), text)
 }
+
+/**
+ * FRONTEND-1's voice-call proof with the four-line after-merge edit FRONTEND-1 OK'd for UX findings E (FE1-OK-REQUEST-2.md section 2, #603 carries the same lines): its .env.example pins read the file raw, so a later change's env block
+ * shows up in it. [line now, line before] per edit, whole lines; was = '' for an inserted line. The lines carry UX_FINDINGS_E_PIN_MARK, not this change's mark, because they are #603's lines byte for byte. Put back, the proof is the base's.
+ */
+export const OUTLINE_CARD_G4_VOICE_CALL_PIN_MARK = '// LATER-CHANGES: registry read (UX-FINDINGS-E)'
+export const OUTLINE_CARD_G4_VOICE_CALL_PIN_EDITS = {
+  'scripts/test-studio-voice-call.mjs': [
+    ["const laterRegistry = await import('./studio-later-changes.mjs') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", ''],
+    ["const laterEnvOut = text => laterRegistry.LATER_ENV_BLOCKS.slice(laterRegistry.LATER_ENV_BLOCKS.indexOf(strip.VOICE_CALL_ENV_BLOCK) + 1).reduce((out, block) => out.replace(`\\n${block}`, ''), text) // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", ''],
+    ["  ok(laterEnvOut(env).endsWith(`\\n${strip.VOICE_CALL_ENV_BLOCK}`) && strip.VOICE_CALL_ENV_BLOCK.endsWith('\\n'), '.env.example: the block is the last thing in the file, after one blank line') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", "  ok(env.endsWith(`\\n${strip.VOICE_CALL_ENV_BLOCK}`) && strip.VOICE_CALL_ENV_BLOCK.endsWith('\\n'), '.env.example: the block is the last thing in the file, after one blank line')\n"],
+    ["    ok(laterEnvOut(`${envDiff.map(line => line.slice(1)).join('\\n')}\\n`).trimEnd().endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly its block (after ELEMENT-3\\'s two lines)') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", "    ok(envDiff.map(line => line.slice(1)).join('\\n').endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly its block (after ELEMENT-3\\'s two lines)')\n"],
+  ],
+}
+/** The proof it edits, and the anchor the two inserted lines go right after. */
+export const OUTLINE_CARD_G4_VOICE_CALL_PIN_FILES = Object.keys(OUTLINE_CARD_G4_VOICE_CALL_PIN_EDITS)
+export const OUTLINE_CARD_G4_VOICE_CALL_PIN_ANCHOR = "const core = await import('./studio-voice-core-strip.mjs')"
 
 /** The older proofs this change teaches. */
 export const OUTLINE_CARD_G4_PIN_FILES = Object.keys(OUTLINE_CARD_G4_PIN_EDITS)
 
-export const OUTLINE_CARD_G4_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', ...OUTLINE_CARD_G4_PIN_FILES]
+export const OUTLINE_CARD_G4_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', ...OUTLINE_CARD_G4_PIN_FILES, ...OUTLINE_CARD_G4_VOICE_CALL_PIN_FILES]
 
 /** Every file this change's commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
 export const OUTLINE_CARD_G4_SCOPE_FILES = new Set([...OUTLINE_CARD_G4_FILES, ...OUTLINE_CARD_G4_NEW_FILES, ...OUTLINE_CARD_G4_OWN_EDITS])
@@ -82,6 +100,6 @@ NEXT_PUBLIC_STUDIO_OUTLINE_CARD_G4="false"
 /** The file without this change's edits: each [has, was] pair put back; every other byte stays. Any other file is returned as it is. */
 export function stripOutlineCardG4(rel, text) {
   if (typeof text !== 'string') return text
-  if (!(rel in OUTLINE_CARD_G4_EDITS) && !(rel in OUTLINE_CARD_G4_PIN_EDITS)) return text
+  if (!(rel in OUTLINE_CARD_G4_EDITS) && !(rel in OUTLINE_CARD_G4_PIN_EDITS) && !(rel in OUTLINE_CARD_G4_VOICE_CALL_PIN_EDITS)) return text
   return putBackOutlineCardG4(rel, text)
 }
