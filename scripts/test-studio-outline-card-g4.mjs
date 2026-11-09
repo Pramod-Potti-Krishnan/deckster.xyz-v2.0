@@ -9,7 +9,8 @@
 //   2. The REAL card on the offline React host. Flag off is the base card's markup byte for byte (the base card is read from git, BASE_COMMIT), for every card variant and for slides that carry exactly what the fix acts on.
 //      Flag on: (a), (b) and (c) one slide at a time, with the negatives (a different first narrative line, a different key message, no key message, any other status, any citation, any source type, any issue); where nothing applies
 //      the flag-on markup is the base's; the key points and everything outside the expanded bodies are the base's.
-//   3. The sources: every marked line, the strip gives each touched file its base back byte for byte, the registry, .env.example, the voice-call proof's four-line pin edit (the same four lines FRONTEND-2's #603 carries), the scope, the commits.
+//   3. The sources: every marked line, the strip gives each touched file its base back byte for byte, the registry, .env.example, the voice-call proof's four-line pin edit (the same four lines FRONTEND-2's #603 carries), the scope (read from the
+//      COMMITTED diff BASE..HEAD only, never the working tree), the commits.
 //   4. Mutants: each must be caught.
 //
 //   node scripts/test-studio-outline-card-g4.mjs
@@ -319,9 +320,10 @@ function registryChecks(text, texts = TEXTS) {
   assert.equal(registry.stripLaterEnvBlocks('.env.example', texts['.env.example']).includes(FLAG), false, 'the registry takes the block out of .env.example')
 }
 
-/** The files that differ from the base: this change's own commits (found by SUBJECT across `rev-list --no-merges`, so a merge of dev does not hide or add any), the edited files, the staged ones and the new ones. */
+/** This change's own commits, found by SUBJECT across `rev-list --no-merges` (so a merge of dev does not hide or add any). */
 function ownCommits(ref = 'HEAD') { return git('rev-list', '--no-merges', `${BASE_COMMIT}..${ref}`).split('\n').filter(Boolean).filter(commit => git('log', '-1', '--format=%s', commit).startsWith(OUTLINE_CARD_G4_SUBJECT)) }
-function touchedFiles(commits) { return new Set([...commits.flatMap(commit => git('show', '--name-only', '--format=', commit).split('\n')), ...git('diff', '--name-only').split('\n'), ...git('diff', '--name-only', '--cached').split('\n'), ...git('ls-files', '--others', '--exclude-standard').split('\n')].filter(Boolean)) }
+/** The files that differ from the base: what this change's own commits touch, that the COMMITTED diff BASE..HEAD still shows (a file put back to the base nets to nothing). Nothing is read from the working tree, the index or the untracked files: a polluted tree must not fail the scope check. */
+function touchedFiles(commits) { const net = new Set(git('diff', '--name-only', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean)); return new Set(commits.flatMap(commit => git('show', '--name-only', '--format=', commit).split('\n')).filter(rel => rel && net.has(rel))) }
 function scopeCheck(commits, extra = []) { assert.deepEqual([...touchedFiles(commits), ...extra].filter(rel => !OUTLINE_CARD_G4_SCOPE_FILES.has(rel)).sort(), [], 'no file outside this change\'s scope differs from the base') }
 /** What is wrong with one commit message (an empty list: nothing). */
 function messageProblems(subject, body) {
@@ -459,14 +461,15 @@ for (const [name, from, to] of STRIP_MUTANTS) {
     assert.ok(await throws(() => sourceChecks(TEXTS, mutant)), 'section 3 must fail')
   })
 }
-await check('mutant caught: a stray file outside the scope (new, or in a commit) fails the scope check; a commit message without the subject or the co-author line fails the message check', async () => {
+await check('mutant caught: a stray file outside the scope (in a commit) fails the scope check, a polluted working tree does not; a commit message without the subject or the co-author line fails the message check', async () => {
   const own = ownCommits()
   assert.doesNotThrow(() => scopeCheck(own), 'the real tree passes')
   assert.ok(await throws(() => scopeCheck(own, ['stray-outline-card-g4.txt'])), 'a stray file fails the scope check')
   assert.ok(await throws(() => scopeCheck(own, ['app/builder/page.tsx'])), 'an app file nobody registered fails it too')
-  const stray = path.join(repo, 'stray-outline-card-g4.txt')
+  // the scope reads the COMMITTED diff only: an untracked file in the tree (or an edited, or a staged one) is not a file this change commits, so it changes nothing
+  const stray = path.join(repo, 'stray-outline-card-g4.txt'), before = [...touchedFiles(own)].sort()
   fs.writeFileSync(stray, 'stray\n')
-  try { assert.ok(await throws(() => scopeCheck(own)), 'a really new stray file fails it') } finally { fs.rmSync(stray) }
+  try { assert.deepEqual([...touchedFiles(own)].sort(), before, 'an untracked stray file does not change the files read'); assert.doesNotThrow(() => scopeCheck(own), 'and does not fail the scope check') } finally { fs.rmSync(stray) }
   assert.deepEqual(messageProblems('Outline card G4: a change', 'body\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n'), [], 'a good message has no problem')
   assert.deepEqual(messageProblems('Outline card G4: a change', 'body\n'), ['the co-author line'], 'no co-author line')
   assert.deepEqual(messageProblems('Fix the card', 'body\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n'), [`the subject starts "${OUTLINE_CARD_G4_SUBJECT}"`], 'another subject')
