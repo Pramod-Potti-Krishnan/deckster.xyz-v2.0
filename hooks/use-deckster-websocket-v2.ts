@@ -52,6 +52,7 @@ import {
   shouldReconnectDirectorOnOnline,
 } from '@/lib/director-reconnect-policy';
 import { STUDIO_ONE_LIVE_TAB_ENABLED, isDirectorSupersededClose } from '@/lib/studio-one-live-tab';
+import { linkedItemIdsField } from '@/lib/connectors-gdrive-session-links';
 import {
   buildControlEndpointFromWsUrl,
   createBuildControlRequestId,
@@ -601,6 +602,8 @@ export interface UserMessage {
     extended_generation: boolean;
     file_upload: boolean;
     use_knowledge_graph?: boolean;
+    // P4-15 slice 3 (NEXT_PUBLIC_STUDIO_CONNECTORS_SESSION_LINKS_ENABLED): Drive library items linked to this chat.
+    linked_item_ids?: string[];
     theme?: BuildThemeSelection;
     // Template Builder (reuse): when a saved template is locked in, these tell
     // Director to run the reuse path (skip strawman workflow → Fire #2 → Stage E).
@@ -625,6 +628,8 @@ export interface UserMessage {
 }
 
 export interface SendUserMessageOptions {
+  /** P4-15 slice 3: Drive library item ids linked to this chat ([] clears). Dropped unless the session-links flag is on. */
+  linkedItemIds?: string[];
   /** Compact transcript echo for composed answers (Director stores it). */
   displayText?: string;
   deepResearch?: boolean;
@@ -3419,6 +3424,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           extended_generation: options?.extendedGeneration ?? true,
           file_upload: options?.fileUpload ?? !!effectiveStoreName,
           use_knowledge_graph: options?.useKnowledgeGraph ?? false,
+          ...linkedItemIdsField(options?.linkedItemIds),
           ...(options?.theme && { theme: options.theme }),
           ...(options?.templateMode && { template_mode: true }),
           ...(options?.templateId && { template_id: options.templateId }),

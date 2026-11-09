@@ -14,6 +14,7 @@ import {
   CONNECTOR_TOKEN_TTL_SECONDS, ITEM_FIELDS, connectorErrorCode, connectorSessionId, pick,
   GDRIVE_NONCE_COOKIE, STATE_TTL_MS, buildGoogleAuthUrl, isGdriveConnectorEnabled, newNonce, signState, validateFileIds, verifyState, MAX_ITEMS_PER_POST,
 } from '@/lib/connectors-gdrive'
+import { isGdriveSessionLinksEnabled, validChatSessionId, validateLinkedItemIds } from '@/lib/connectors-gdrive-session-links'
 
 const notFound = () => NextResponse.json({ error: 'Not found' }, { status: 404 })
 const fail = (status: number, error: string) => NextResponse.json({ error }, { status })
@@ -43,8 +44,8 @@ function connectorIdentityHeader(ownerId: string): Record<string, string> {
   return { [RESEARCHER_SESSION_TOKEN_HEADER]: minted.token }
 }
 
-async function callResearcher(ownerId: string, path: string, method: 'GET' | 'POST', body?: Record<string, unknown>, query?: Record<string, string>) {
-  const identity = connectorIdentityHeader(ownerId)
+async function callResearcher(ownerId: string, path: string, method: 'GET' | 'POST' | 'DELETE', body?: Record<string, unknown>, query?: Record<string, string>, identityOverride?: Record<string, string>) {
+  const identity = identityOverride ?? connectorIdentityHeader(ownerId)
   const url = new URL(`${researcherBase()}/api/v1/connectors${path}`)
   for (const [k, v] of Object.entries(query ?? {})) url.searchParams.set(k, v)
   return fetch(url.toString(), {
@@ -148,4 +149,32 @@ export async function handleDisconnect(): Promise<NextResponse> {
   const g = await gate(); if (g.error) return g.error
   const msg = 'Could not disconnect Google Drive. Please try again.'
   return guarded(msg, async () => relay(await callResearcher(g.userId, '/gdrive/disconnect', 'POST', { owner_id: g.userId }), disconnectView, msg))
+}
+
+/** K-06 token scoped to ONE chat session (Researcher _require_chat_session_owner: sid == session_id, uid == owner). */
+function chatSessionIdentityHeader(ownerId: string, sessionId: string): Record<string, string> {
+  const secret = researcherSessionTokenSecret()
+  const minted = secret ? mintResearcherSessionToken({ secret, sessionId, userId: ownerId, ttlSeconds: CONNECTOR_TOKEN_TTL_SECONDS }) : null
+  if (!minted) throw new IdentityUnavailable('connector identity not configured')
+  return { [RESEARCHER_SESSION_TOKEN_HEADER]: minted.token }
+}
+
+const linksView = (d: Record<string, unknown>) => ({
+  session_id: typeof d.session_id === 'string' ? d.session_id : null,
+  linked: Array.isArray(d.linked) ? d.linked.filter(x => typeof x === 'string') : [],
+  unlinked: Array.isArray(d.unlinked) ? d.unlinked.filter(x => typeof x === 'string') : [],
+  rejected: Array.isArray(d.rejected) ? d.rejected.map(r => pick(r, ['id', 'error'])) : [],
+})
+
+/** POST = link, DELETE = unlink. Off (either flag): 404. Owner is always the session cuid. */
+export async function handleSessionLinks(req: Request, method: 'POST' | 'DELETE'): Promise<NextResponse> {
+  if (!isGdriveSessionLinksEnabled()) return notFound()
+  const g = await gate(); if (g.error) return g.error
+  const body = (await req.json().catch(() => null)) as { session_id?: unknown; item_ids?: unknown } | null
+  const sessionId = body?.session_id
+  const ids = validateLinkedItemIds(body?.item_ids)
+  if (!validChatSessionId(sessionId) || !ids || ids.length === 0) return fail(400, 'Please choose between 1 and 25 Drive files for this chat.')
+  const msg = method === 'POST' ? 'Could not add your Drive files to this chat. Please try again.' : 'Could not remove your Drive files from this chat. Please try again.'
+  return guarded(msg, async () => relay(await callResearcher(g.userId, '/gdrive/session-links', method,
+    { owner_id: g.userId, session_id: sessionId, item_ids: ids }, undefined, chatSessionIdentityHeader(g.userId, sessionId)), linksView, msg))
 }
