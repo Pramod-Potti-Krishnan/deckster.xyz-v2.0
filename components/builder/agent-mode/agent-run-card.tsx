@@ -40,9 +40,9 @@ export function AgentRunCard({ state, onControl }: { state: AgentRunState; onCon
       {state.steps.length > 0 ? (
         <ol data-studio-agent-part="steps" aria-label={AGENT_COPY.heading} className="mb-2 max-h-40 space-y-1 overflow-y-auto text-xs text-gray-700 dark:text-slate-200">
           {state.steps.map(step => (
-            <li key={step.n} data-studio-agent-step={step.state} className="flex items-start gap-1.5">
-              {step.state === "done" ? <Check className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" /> : step.state === "failed" ? <X className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" /> : <Loader2 className="mt-0.5 h-3 w-3 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
-              <span>{step.text}</span>
+            <li key={step.n} data-studio-agent-step={step.stepState} className="flex items-start gap-1.5">
+              {step.stepState === "done" ? <Check className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" /> : step.stepState === "failed" ? <X className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" /> : <Loader2 className="mt-0.5 h-3 w-3 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
+              <span>{step.label}</span>
             </li>
           ))}
         </ol>

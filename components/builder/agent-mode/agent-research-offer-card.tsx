@@ -6,7 +6,7 @@ import { AgentActionButton, AgentActions, AgentCardFrame, AgentCardText, type Ag
 
 /**
  * AGENT-MODE-SHELL, A4 (flag NEXT_PUBLIC_AGENT_MODE; off, null): the agent asks before it researches deeper than the plan you approved. "Deeper research on slides 3-5 adds about N credits. Add it?"
- * The agent never escalates on its own; nothing is sent until a button is clicked.
+ * The agent never escalates on its own; nothing is sent until a button is clicked. Skip is a Stop (the run stays stopped and asks again on Resume), so its button says so.
  */
 export function AgentResearchOfferCard({ state, onAnswer }: { state: AgentRunState } & AgentCardCallbacks) {
   const pending = state.pending
@@ -14,10 +14,10 @@ export function AgentResearchOfferCard({ state, onAnswer }: { state: AgentRunSta
   const runId = state.runId
   return (
     <AgentCardFrame kind="research_offer" label={AGENT_COPY.heading}>
-      <AgentCardText>{researchOfferWords(pending.slides, pending.extraCredits)}</AgentCardText>
+      <AgentCardText>{researchOfferWords(pending.slides, pending.estCredits)}</AgentCardText>
       <AgentActions>
-        <AgentActionButton choice="add" primary answered={pending.answered} onClick={() => onAnswer?.({ runId, card: "research_offer", choice: "add" })}>{AGENT_COPY.researchAdd}</AgentActionButton>
-        <AgentActionButton choice="skip" answered={pending.answered} onClick={() => onAnswer?.({ runId, card: "research_offer", choice: "skip" })}>{AGENT_COPY.researchSkip}</AgentActionButton>
+        <AgentActionButton choice="add" primary answered={pending.answered} onClick={() => onAnswer?.({ runId, card: "A4", choice: "add" })}>{AGENT_COPY.researchAdd}</AgentActionButton>
+        <AgentActionButton choice="skip" answered={pending.answered} onClick={() => onAnswer?.({ runId, card: "A4", choice: "skip" })}>{AGENT_COPY.researchStop}</AgentActionButton>
       </AgentActions>
     </AgentCardFrame>
   )

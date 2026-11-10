@@ -3,7 +3,8 @@
 // NEXT_PUBLIC_AUTHOR_MODE_PICKER (the Author option of the picker): each counts only as the exact string "true", is off by default, and works only with NEXT_PUBLIC_STUDIO_V4_SHELL "true". Off, every component returns null.
 // NOTHING IS APPLIED to FRONTEND-1's files: not the hook (hooks/use-deckster-websocket-v2.ts), not the Builder page (app/builder/page.tsx), not the chat cards. The lines they would need are the DRAFTS below (data, with the dev line numbers of their anchors);
 // the proof renders the components, and feeds the reducer, without any of them. Every DRAFT line carries the marker AGENT-MODE-SHELL (a WHOLE token) so that, once an owner applies one, a strip can take it out.
-// CONTRACT PENDING A-D1: DIRECTOR-2 has published no agent frame shape (nothing under streams/director2 or streams/pass5 names one), so the six inbound frames and the outbound card answer are this shell's own, in the { type, payload } envelope Studio reads.
+// THE AGENT FRAMES CONTRACT (agreed with AGENT-1, 9 Nov; streams/frontend2/AGENT-FRAMES-CONTRACT-FE2.md): the six inbound frames and the one outbound card answer are read exactly as AGENT-1's shared fixture has them, tests/fixtures/agent_frames_contract.json,
+// copied byte for byte from the Director repo (pramodpotti/director-v4.0, tests/fixtures/agent_frames_contract.json at 476a5617d68c5c76598700cf8172d1fbe5ca4b23, git blob cbd263a541d69d27c7edef52272b2ecabc0e62df, 9997 bytes); the proof drives every card from its examples.
 // The older proofs this change teaches (tests only, every line carries the registry-read mark): the two that read the first-parent commits of BASE..HEAD for their own commits' subjects get one more inserted line each, for "Agent mode shell:", right after
 // the last subject filter of the shape !/^...:/ (the usage credits page's), as #567 / #568 / #589 / B61 / B63 did. How the older pins reach this change: it REGISTERS its files, its .env.example block and its strip (scripts/studio-later-changes.mjs, three lines).
 // The one exception among FRONTEND-1's files: the four lines of their voice-call PROOF that FRONTEND-1 OK'd (to-FRONTEND-2.md lines 545 / 528, FE1-OK-REQUEST-2.md; AGENT_MODE_SHELL_FE1_PROOF_OK), byte for byte and with the same mark as #603's, so the Drafts merge clean in any order. No app file.
@@ -28,7 +29,9 @@ export const AGENT_MODE_SHELL_COMPONENT_FILES = [
   'components/builder/agent-mode/agent-run-cards.tsx',
   'components/builder/agent-mode/build-mode-picker.tsx',
 ]
-export const AGENT_MODE_SHELL_NEW_FILES = ['lib/studio-agent-mode.ts', ...AGENT_MODE_SHELL_COMPONENT_FILES, 'scripts/studio-agent-mode-shell-strip.mjs', 'scripts/test-studio-agent-mode-shell.mjs']
+/** AGENT-1's shared contract fixture, copied as it is (never reformatted): the one new data file. */
+export const AGENT_MODE_SHELL_FIXTURE = 'tests/fixtures/agent_frames_contract.json'
+export const AGENT_MODE_SHELL_NEW_FILES = ['lib/studio-agent-mode.ts', ...AGENT_MODE_SHELL_COMPONENT_FILES, AGENT_MODE_SHELL_FIXTURE, 'scripts/studio-agent-mode-shell-strip.mjs', 'scripts/test-studio-agent-mode-shell.mjs']
 
 /** The older proofs this change teaches: [text the proof has now, text the base commit's proof has] per edit, whole lines, so putting them back gives the base file byte for byte. Every line a taught proof has now carries AGENT_MODE_SHELL_PIN_MARK. */
 export const AGENT_MODE_SHELL_PIN_MARK = '// LATER-CHANGES: registry read (AGENT-MODE-SHELL)'
@@ -75,11 +78,12 @@ NEXT_PUBLIC_AUTHOR_MODE_PICKER="false"
 /**
  * The lines the shell needs in FRONTEND-1's files, NOT APPLIED (FRONTEND-2 asks the owner). Each is a pure insertion unless `where` says "replace". `line` is the anchor's line number in dev (BASE_COMMIT), `anchor` the whole line there, `add` the new
  * line(s), byte for byte, in order. The hook's last commits (git log) are FRONTEND-1's (Voice call, Billing); the Builder page is theirs too. build_mode itself is Director's opt-in key (MR-604: an optional "build_mode" on a user message).
- * The page has no plan today (no tier in app/builder/page.tsx): agentPlan is FRONTEND-1's to supply from the verified plan, and null keeps Agent disabled (fail closed). The agent answer frame is CONTRACT PENDING A-D1.
+ * The page has no plan today (no tier in app/builder/page.tsx): agentPlan is FRONTEND-1's to supply from the verified plan, and null keeps Agent disabled (fail closed). The answer frame is the contract's { type: 'agent_answer', data: { run_id, card, choice } }.
+ * The answer path (AGENT-1's reducer note 2): an answer goes out ONLY on the live, signed socket and is NEVER queued or replayed after a reconnect: H7 sends through agentAnswerSendable on the socket that is open now and returns false otherwise (no queue, no retry), and P7 marks the card answered only when it was sent.
  */
 export const AGENT_MODE_SHELL_DRAFTS = [
   { id: 'H1', file: 'hooks/use-deckster-websocket-v2.ts', line: 57, where: 'after', anchor: "import { STUDIO_ONE_LIVE_TAB_ENABLED, isDirectorSupersededClose } from '@/lib/studio-one-live-tab';",
-    add: ["import { STUDIO_AGENT_FRAME_TYPES, agentAnswerFrame, isAgentFrameType } from '@/lib/studio-agent-mode'; // AGENT-MODE-SHELL (NEXT_PUBLIC_AGENT_MODE, default off)"] },
+    add: ["import { STUDIO_AGENT_FRAME_TYPES, agentAnswerFrame, agentAnswerSendable, isAgentFrameType } from '@/lib/studio-agent-mode'; // AGENT-MODE-SHELL (NEXT_PUBLIC_AGENT_MODE, default off)"] },
   { id: 'H2', file: 'hooks/use-deckster-websocket-v2.ts', line: 117, where: 'after', anchor: "  'template_ingest_failed',",
     add: ["  ...(STUDIO_AGENT_FRAME_TYPES as unknown as BaseMessage['type'][]), // AGENT-MODE-SHELL: the six agent_* frame types, only with the flag (off: none, so they are dropped at ingress exactly as today)"] },
   { id: 'H3', file: 'hooks/use-deckster-websocket-v2.ts', line: 626, where: 'after', anchor: '    handoff_idempotency_key?: string;',
@@ -92,8 +96,8 @@ export const AGENT_MODE_SHELL_DRAFTS = [
     add: ['          ...(options?.buildMode && { build_mode: options.buildMode }), // AGENT-MODE-SHELL'] },
   { id: 'H7', file: 'hooks/use-deckster-websocket-v2.ts', line: 3616, where: 'after', anchor: "  chatParityBus.send = sendChatParityResult // CHAT-PARITY: the page's runner answers through the bus (lib/studio-chat-parity.ts)",
     add: [
-      "  const sendAgentAnswer = useCallback((answer: import('@/lib/studio-agent-mode').AgentAnswer): boolean => { // AGENT-MODE-SHELL (CONTRACT PENDING A-D1: the answer frame)",
-      '    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return false; try { wsRef.current.send(JSON.stringify(agentAnswerFrame(answer))); return true; } catch { return false; } // AGENT-MODE-SHELL',
+      "  const sendAgentAnswer = useCallback((answer: import('@/lib/studio-agent-mode').AgentAnswer): boolean => { // AGENT-MODE-SHELL (agent frames contract: the answer goes out only on the live, signed socket, never queued, never replayed after a reconnect)",
+      '    const socket = wsRef.current; if (!socket || !agentAnswerSendable(answer, socket.readyState === WebSocket.OPEN)) return false; try { socket.send(JSON.stringify(agentAnswerFrame(answer))); return true; } catch { return false; } // AGENT-MODE-SHELL: false leaves the card open for another click',
       '  }, []); // AGENT-MODE-SHELL',
     ] },
   { id: 'H8', file: 'hooks/use-deckster-websocket-v2.ts', line: 4239, where: 'after', anchor: '    sendControlMessage,', add: ['    sendAgentAnswer, // AGENT-MODE-SHELL'] },
@@ -107,14 +111,14 @@ export const AGENT_MODE_SHELL_DRAFTS = [
   { id: 'P6', file: 'app/builder/page.tsx', line: 2541, where: 'after', anchor: '    onMessage: (message) => {',
     add: ['      if (isAgentFrameType(message.type)) { dispatchAgentRun(message); return } // AGENT-MODE-SHELL: agent frames go to the run card\'s reducer'] },
   { id: 'P7', file: 'app/builder/page.tsx', line: 7924, where: 'after', anchor: '                  <BuilderQuotaRefusal />{/* BILLING-F5-USAGE (NEXT_PUBLIC_STUDIO_QUOTA_SCREENS): out of credits / plan refusal screen; off, null */}',
-    add: ['                  <AgentRunCards state={agentRun} onAnswer={answer => { if (sendAgentAnswer(answer)) dispatchAgentRun(agentAnswered(answer)) }} onControl={action => { sendBuildControl(action, buildNarration.buildId ?? undefined) }} />{/* AGENT-MODE-SHELL (NEXT_PUBLIC_AGENT_MODE): the estimate, run and A3 / A4 / A6 cards; off, null */}'] },
+    add: ['                  <AgentRunCards state={agentRun} onAnswer={answer => { if (agentAnswerOpenCard(agentRun, answer) && sendAgentAnswer(answer)) dispatchAgentRun(agentAnswered(answer)) }} onControl={action => { sendBuildControl(action, buildNarration.buildId ?? undefined) }} />{/* AGENT-MODE-SHELL (NEXT_PUBLIC_AGENT_MODE): the estimate, run and A3 / A4 / A6 cards; off, null */}'] },
   { id: 'P8', file: 'app/builder/page.tsx', line: 7933, where: 'before', anchor: '                  <ChatInput',
     add: ["                  <BuildModePicker value={buildMode} plan={agentPlan} onChange={mode => { if (mode !== 'standard') setBuildModeFrom(mode); setBuildMode(mode) }} />{/* AGENT-MODE-SHELL (NEXT_PUBLIC_AGENT_MODE / NEXT_PUBLIC_AUTHOR_MODE_PICKER): Standard / Author / Agent above the composer; off, null */}"] },
   { id: 'P9', file: 'app/builder/page.tsx', line: 8564, where: 'after', anchor: "import { BuilderQuotaRefusal } from '@/components/billing/builder-quota-refusal' // BILLING-F5-USAGE",
     add: [
       "import { AgentRunCards } from '@/components/builder/agent-mode/agent-run-cards' // AGENT-MODE-SHELL",
       "import { BuildModePicker } from '@/components/builder/agent-mode/build-mode-picker' // AGENT-MODE-SHELL",
-      "import { agentAnswered, agentRunReducer, buildModeOnWire, initialAgentRunState, isAgentFrameType, type AgentPlan, type BuildMode } from '@/lib/studio-agent-mode' // AGENT-MODE-SHELL",
+      "import { agentAnswerOpenCard, agentAnswered, agentRunReducer, buildModeOnWire, initialAgentRunState, isAgentFrameType, type AgentPlan, type BuildMode } from '@/lib/studio-agent-mode' // AGENT-MODE-SHELL",
     ] },
 ]
 /** The existing app files the drafts are for: none of them is edited by this change (the proof reads the committed diff). */

@@ -5,8 +5,8 @@ import { AGENT_COPY, STUDIO_AGENT_MODE_ENABLED, checkpointWords, type AgentRunSt
 import { AgentActionButton, AgentActions, AgentCardFrame, AgentCardText, type AgentCardCallbacks } from "./agent-card-parts"
 
 /**
- * AGENT-MODE-SHELL, A3 (flag NEXT_PUBLIC_AGENT_MODE; off, null): the spend checkpoint, at the estimate's high end or 80% of the cap. "Continue with up to N more credits, or finish now?" Nothing is sent
- * until a button is clicked, and once one is taken both are off.
+ * AGENT-MODE-SHELL, A3 (flag NEXT_PUBLIC_AGENT_MODE; off, null): the spend checkpoint, when the next step would take the run past 80% of its cap. "Continue with up to N more credits, or stop now?" A stop keeps the slides and the run
+ * can be resumed. Nothing is sent until a button is clicked, and once one is taken both are off.
  */
 export function AgentCheckpointCard({ state, onAnswer }: { state: AgentRunState } & AgentCardCallbacks) {
   const pending = state.pending
@@ -16,8 +16,8 @@ export function AgentCheckpointCard({ state, onAnswer }: { state: AgentRunState 
     <AgentCardFrame kind="checkpoint" label={AGENT_COPY.heading}>
       <AgentCardText>{checkpointWords(pending.usedCredits, pending.capCredits, pending.moreCredits)}</AgentCardText>
       <AgentActions>
-        <AgentActionButton choice="continue" primary answered={pending.answered} onClick={() => onAnswer?.({ runId, card: "checkpoint", choice: "continue" })}>{AGENT_COPY.checkpointContinue}</AgentActionButton>
-        <AgentActionButton choice="finish" answered={pending.answered} onClick={() => onAnswer?.({ runId, card: "checkpoint", choice: "finish" })}>{AGENT_COPY.checkpointFinish}</AgentActionButton>
+        <AgentActionButton choice="continue" primary answered={pending.answered} onClick={() => onAnswer?.({ runId, card: "A3", choice: "continue" })}>{AGENT_COPY.checkpointContinue}</AgentActionButton>
+        <AgentActionButton choice="stop" answered={pending.answered} onClick={() => onAnswer?.({ runId, card: "A3", choice: "stop" })}>{AGENT_COPY.checkpointStop}</AgentActionButton>
       </AgentActions>
     </AgentCardFrame>
   )

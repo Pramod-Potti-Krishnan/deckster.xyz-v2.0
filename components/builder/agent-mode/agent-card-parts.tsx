@@ -36,8 +36,8 @@ export function AgentActions({ children }: { children: React.ReactNode }) {
   return <div data-studio-director-part="actions" className="flex flex-wrap gap-1.5">{children}</div>
 }
 
-/** One explicit choice, drawn as the question card's action button. `answered` is the choice already taken (every button is then off, the taken one marked); the click is the only thing that sends anything. */
-export function AgentActionButton({ choice, primary = false, answered, onClick, children }: { choice: AgentChoice; primary?: boolean; answered?: AgentChoice | null; onClick?: () => void; children: React.ReactNode }) {
+/** One explicit choice, drawn as the question card's action button. `answered` is the choice already taken (every button is then off, the taken one marked); `disabled` turns this one button off (an estimate that has expired); the click is the only thing that sends anything. */
+export function AgentActionButton({ choice, primary = false, answered, disabled = false, onClick, children }: { choice: AgentChoice; primary?: boolean; answered?: AgentChoice | null; disabled?: boolean; onClick?: () => void; children: React.ReactNode }) {
   const taken = answered === choice
   return (
     <Button
@@ -48,7 +48,7 @@ export function AgentActionButton({ choice, primary = false, answered, onClick, 
       data-primary={primary ? "true" : undefined}
       data-answered={taken ? "true" : undefined}
       variant={primary ? "default" : "outline"}
-      disabled={Boolean(answered)}
+      disabled={Boolean(answered) || disabled}
       onClick={onClick}
       className={
         primary
