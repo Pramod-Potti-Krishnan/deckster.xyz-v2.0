@@ -1,5 +1,5 @@
 // UX findings E (FRONTEND-2, B64; PROGRAM-1's item E from FRONTEND-1's 4 Nov UX pass): NEXT_PUBLIC_STUDIO_UX_FINDINGS_E, exact "true", default off, read at build time, and only with the Studio shell. Import-free.
-// On: a client mount (components/studio-ux-findings-e/studio-ux-findings-e-mount.tsx) sets data-studio-ux-findings-e="true" on <html>; components/studio-ux-findings-e/studio-ux-findings-e.css (every rule scoped to it) does UX-12 / UX-19 / UX-22 / UX-26 / UX-27.
+// On: a client mount (components/studio-ux-findings-e/studio-ux-findings-e-mount.tsx) sets data-studio-ux-findings-e="true" on <html>; components/studio-ux-findings-e/studio-ux-findings-e.css (every rule scoped to it) does UX-19 / UX-22 / UX-26 / UX-27. UX-12 hides nothing (every helper line left is a "what appears where" line).
 // Two findings are not CSS: UX-08 (the workspace intro plays once on a browser, then never again; a browser that already holds any intro mark plays none; FRONTEND-1's own seen-store is reused, nothing in the intro changes) and UX-11 (/settings/profile goes to "Your details").
 // Off: nothing here is read, no attribute is set, no store is touched and no redirect is made, so every page renders as before.
 
@@ -31,22 +31,33 @@ export const STUDIO_UX_FINDINGS_E_INTRO_SCREENS = ['builder', 'decks', 'template
 export const STUDIO_UX_FINDINGS_E_INTRO_OPEN_EVENT = 'deckster:workspace-intro-open'
 /** The intro's in-memory twin of the store (a Set on window). */
 export const STUDIO_UX_FINDINGS_E_INTRO_MEMORY = '__decksterWorkspaceIntrosV2'
-/** This user's "the intro has played for me on this browser" mark (the user id is in the key). */
+/** An id, as opposed to an email: a non-empty string with no "@". The intro-once key carries the user id ONLY, never an email (the key outlives sign-out); a value that is not an id is "no id" and nothing is written. */
+export function studioUxFindingsEIsUserId(value: unknown): value is string {
+  return typeof value === 'string' && value.trim() !== '' && !value.includes('@')
+}
+/** This user's "the intro has played for me on this browser" mark (the user id is in the key). Callers check studioUxFindingsEIsUserId first; no key is ever built from an email. */
 export const studioUxFindingsEIntroKey = (userId: string) => `deckster-studio-ux-e-intro-once:${userId}`
 
 interface IntroStorage { getItem(key: string): string | null; setItem(key: string, value: string): void; removeItem(key: string): void }
 export interface StudioUxFindingsEIntroHost { localStorage?: IntroStorage; __decksterWorkspaceIntrosV2?: Set<string> }
 
-/** Every screen is marked as played (the store and its in-memory twin), so no intro starts by itself; "Replay intro" still works (an explicit replay skips the check). */
+/** Every screen is marked as played (the store and its in-memory twin), so no intro starts by itself; "Replay intro" still works (an explicit replay skips the check).
+ *  The store is UNIONED, never replaced: whatever it already holds stays (a screen FRONTEND-1 adds later keeps its mark), the seven screens are added, and nothing is written when they are all there already. */
 function markEveryScreenSeen(host: StudioUxFindingsEIntroHost): void {
   const memory = host[STUDIO_UX_FINDINGS_E_INTRO_MEMORY]
   if (memory) STUDIO_UX_FINDINGS_E_INTRO_SCREENS.forEach(screen => memory.add(screen))
-  try { host.localStorage?.setItem(STUDIO_UX_FINDINGS_E_INTRO_STORE, JSON.stringify([...STUDIO_UX_FINDINGS_E_INTRO_SCREENS])) } catch { /* Storage unavailable: the intro's own memory set keeps this page quiet. */ }
+  try {
+    const raw = host.localStorage?.getItem(STUDIO_UX_FINDINGS_E_INTRO_STORE)
+    let stored: unknown[] = []
+    try { const parsed: unknown = JSON.parse(raw || '[]'); if (Array.isArray(parsed)) stored = parsed } catch { /* Not JSON: nothing readable to keep. */ }
+    const missing = STUDIO_UX_FINDINGS_E_INTRO_SCREENS.filter(screen => !stored.includes(screen))
+    if (missing.length > 0) host.localStorage?.setItem(STUDIO_UX_FINDINGS_E_INTRO_STORE, JSON.stringify([...stored, ...missing]))
+  } catch { /* Storage unavailable: the intro's own memory set keeps this page quiet. */ }
 }
 
 /** An intro has opened for `userId`: record it, and mark every screen seen, so the next page does not open another. */
 export function studioUxFindingsEIntroPlayed(host: StudioUxFindingsEIntroHost, userId: string): void {
-  if (!userId) return
+  if (!studioUxFindingsEIsUserId(userId)) return
   try { host.localStorage?.setItem(studioUxFindingsEIntroKey(userId), '1') } catch { /* Storage unavailable: the memory set below still holds for this page. */ }
   markEveryScreenSeen(host)
 }
@@ -73,7 +84,7 @@ export function studioUxFindingsEIntroSettle(host: StudioUxFindingsEIntroHost): 
  * is marked seen, so nothing plays; the marks are never emptied. A browser with no mark at all: nothing is done, so exactly one intro plays, and its open event records it. Returns what it found.
  */
 export function studioUxFindingsEIntroReconcile(host: StudioUxFindingsEIntroHost, userId: string, openedEarly: boolean): 'played' | 'returning' | 'first' {
-  if (!userId) return 'first'
+  if (!studioUxFindingsEIsUserId(userId)) return 'first'
   let played = openedEarly
   try { played = played || host.localStorage?.getItem(studioUxFindingsEIntroKey(userId)) === '1' } catch { /* Storage unavailable: only what this page saw counts. */ }
   if (played) { studioUxFindingsEIntroPlayed(host, userId); return 'played' }

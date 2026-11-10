@@ -16,6 +16,7 @@ import { STUDIO_PASS3_POLISH_ENABLED } from "@/lib/studio-pass3-polish" // PASS3
 import { StudioPass3PolishMount } from "@/components/studio-pass3-polish/studio-pass3-polish-mount" // PASS3-POLISH
 import "@/components/studio-pass3-polish/studio-pass3-polish-e.css" // PASS3-POLISH-E (NEXT_PUBLIC_STUDIO_PASS3_POLISH, default off): every rule is scoped to data-studio-pass3-polish="true"; on a phone the Intelligence task selects end in an ellipsis before the chevron
 import { StudioPass3PolishGMount } from "@/components/studio-pass3-polish/studio-pass3-polish-g-mount" // PASS3-POLISH-G (NEXT_PUBLIC_STUDIO_PASS3_POLISH, default off): on iPhone and iPad the viewport meta gets maximum-scale=1, so a focused text control does not zoom the page
+import { STUDIO_UX_FINDINGS_E_ENABLED } from "@/lib/studio-ux-findings-e" // UX-FINDINGS-E (NEXT_PUBLIC_STUDIO_UX_FINDINGS_E, default off): the flag the mount below is drawn on, like its neighbours
 import { StudioUxFindingsEMount } from "@/components/studio-ux-findings-e/studio-ux-findings-e-mount" // UX-FINDINGS-E (NEXT_PUBLIC_STUDIO_UX_FINDINGS_E, default off): the attribute the findings stylesheet is scoped to, the intro once, /settings/profile to Your details
 import { STUDIO_PAGE_HEADINGS_ENABLED } from "@/lib/studio-page-headings" // PAGE-HEADINGS (UX-09, NEXT_PUBLIC_STUDIO_PAGE_HEADINGS, default off): one page container and heading style
 import { StudioPageHeadingsMount } from "@/components/studio-page-headings/studio-page-headings-mount" // PAGE-HEADINGS
@@ -39,7 +40,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       {STUDIO_DUPLICATE_COPY_TITLE_ENABLED && <StudioDuplicateCopyTitleMount />}
       {STUDIO_PASS3_POLISH_ENABLED && <StudioPass3PolishMount />}{/* PASS3-POLISH */}
       {STUDIO_PASS3_POLISH_ENABLED && <StudioPass3PolishGMount />}{/* PASS3-POLISH-G */}
-      <StudioUxFindingsEMount />{/* UX-FINDINGS-E: draws nothing; with the flag off it returns null */}
+      {STUDIO_UX_FINDINGS_E_ENABLED && <StudioUxFindingsEMount />}{/* UX-FINDINGS-E: draws nothing; with the flag off it is not drawn at all */}
       {STUDIO_PAGE_HEADINGS_ENABLED && <StudioPageHeadingsMount />}{/* PAGE-HEADINGS */}
     </div>
   )

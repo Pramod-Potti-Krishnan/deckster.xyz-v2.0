@@ -16,6 +16,8 @@
 //  F. scope over the COMMITTED diff, GATE-SAFE (own commits by subject across `rev-list --no-merges BASE..head`, HEAD^2 on the gate's merge, no hash-object --stdin), each with the co-author line; the whole-diff filter leaves a later REGISTERED file to its change;
 //  G. ROBUST AFTER MERGE (a second-parent synthetic) and a LINEAR STACK (a later change directly on this head adds registered-shape lines below ours and a subject-filter line beside ours; an unregistered file in it still fails);
 //  H. mutants are caught (each is one edit of the real sources, fed to the same checks).
+//  Review rulings applied 10 Nov (FRONTEND-1's "#603, your code, my rulings", to-FRONTEND-2.md 9 Nov 04:55Z): (4) the intro-once key is the user id only (an email is no id; nothing written), (5) the intro store is UNIONED, (7) the mount line is gated
+//  `{FLAG && <Mount />}` (and its flag imported from the lib), (6) UX-12 hides nothing, (3) the first-paint flash is documented in the mount. UX-11 is untouched (pending FRONTEND-1's answer on where /settings should land).
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
@@ -76,14 +78,14 @@ const compile = (file, text) => {
 }
 const h = React.createElement
 /** Load one real source in a new context. `overrides` replace any import; the lib is the REAL source with the same env; `globals` are the window / document of the test. */
-function load(rel, { env = {}, text, overrides = {}, globals = {} } = {}) {
+function load(rel, { env = {}, text, overrides = {}, globals = {}, libText } = {}) {
   const module = { exports: {} }
   const req = spec => {
     if (spec in overrides) return overrides[spec]
     if (spec === 'react') return React
     if (spec === 'react/jsx-runtime') return jsxRuntime
     if (spec.endsWith('.css')) return {}
-    if (spec === '@/lib/studio-ux-findings-e') return load(LIB, { env })
+    if (spec === '@/lib/studio-ux-findings-e') return load(LIB, { env, text: libText })
     throw new Error(`unexpected import ${spec} in ${rel}`)
   }
   vm.runInNewContext(compile(rel, text ?? read(rel)), { module, exports: module.exports, require: req, process: { env: { ...env } }, ...globals }, { filename: rel })
@@ -108,13 +110,13 @@ function makeWindow(store = {}, { storageThrows = false } = {}) {
   return win
 }
 /** A tiny effect runner: useRef persists, an effect runs on first render and when its deps change (a cleanup first), unmount runs every cleanup. */
-function runner(env, { text, user = null, path: pathname = '/dashboard', win = makeWindow() } = {}) {
+function runner(env, { text, libText, user = null, path: pathname = '/dashboard', win = makeWindow() } = {}) {
   const slots = [], refs = [], replaced = []
   let ix = 0, rix = 0, current = []
   const stubReact = { ...React, useRef: init => { const i = rix++; if (!(i in refs)) refs[i] = { current: init }; return refs[i] }, useLayoutEffect: (fn, deps) => { current.push([fn, deps]) }, useEffect: (fn, deps) => { current.push([fn, deps]) } }
   const router = { replace: to => replaced.push(to) }
   const overrides = { react: stubReact, 'next/navigation': { usePathname: () => state.path, useRouter: () => router }, 'next-auth/react': { useSession: () => ({ data: state.user ? { user: state.user } : null }) } }
-  const mod = load(MOUNT, { env, text, overrides, globals: { window: win, document: win.document } })
+  const mod = load(MOUNT, { env, text, libText, overrides, globals: { window: win, document: win.document } })
   const state = { user, path: pathname }
   const flush = () => {
     current.forEach(([fn, deps], i) => {
@@ -167,17 +169,19 @@ await check('UX-08: the intro-once rules: a browser with no mark plays one intro
   const fresh = makeWindow(); assert.equal(l.studioUxFindingsEIntroHasMark(fresh), false); assert.equal(l.studioUxFindingsEIntroSettle(fresh), false); assert.equal(l.studioUxFindingsEIntroReconcile(fresh, 'u1', false), 'first', 'no mark anywhere: the first intro plays'); assert.deepEqual(fresh.writes, [], 'and nothing is written or emptied before it opens')
   l.studioUxFindingsEIntroPlayed(fresh, 'u1'); assert.equal(fresh.data.get(key('u1')), '1'); assert.deepEqual(JSON.parse(fresh.data.get(store)), SCREENS); assert.deepEqual([...fresh.__decksterWorkspaceIntrosV2].sort(), [...SCREENS].sort(), 'one intro opened: every screen marked, the user marked')
   // a returning browser: ANY mark (one screen, the memory twin alone) means no intro, and no mark is emptied
-  for (const [name, win] of [['one screen in the store', makeWindow({ [store]: JSON.stringify(['decks']) })], ['an unknown name in the store', makeWindow({ [store]: JSON.stringify(['x']) })], ['the memory twin alone', (() => { const w = makeWindow(); w.__decksterWorkspaceIntrosV2.add('decks'); return w })()]]) {
+  const union = before => [...new Set([...before, ...SCREENS])]
+  for (const [name, win, before] of [['one screen in the store', makeWindow({ [store]: JSON.stringify(['decks']) }), ['decks']], ['an unknown name in the store', makeWindow({ [store]: JSON.stringify(['x']) }), ['x']], ['the memory twin alone', (() => { const w = makeWindow(); w.__decksterWorkspaceIntrosV2.add('decks'); return w })(), []]]) {
     assert.equal(l.studioUxFindingsEIntroHasMark(win), true, name); assert.equal(l.studioUxFindingsEIntroReconcile(win, 'u1', false), 'returning', `${name}: returning`)
-    assert.equal(win.data.get(key('u1')), '1', `${name}: the user's mark is written`); assert.deepEqual(JSON.parse(win.data.get(store)), SCREENS, `${name}: every screen is marked seen, so nothing plays`); assert.equal(win.writes.some(([k, v]) => k === store && v === null), false, `${name}: the marks are never emptied`)
+    assert.equal(win.data.get(key('u1')), '1', `${name}: the user's mark is written`); assert.deepEqual(JSON.parse(win.data.get(store)), union(before), `${name}: every screen is marked seen (what the store held stays), so nothing plays`); assert.equal(win.writes.some(([k, v]) => k === store && v === null), false, `${name}: the marks are never emptied`)
   }
-  const early = makeWindow({ [store]: JSON.stringify(['decks']) }); assert.equal(l.studioUxFindingsEIntroSettle(early), true, 'without an id, the settle marks every screen'); assert.deepEqual(JSON.parse(early.data.get(store)), SCREENS); assert.equal(early.data.has(key('u1')), false, 'and writes no user mark (no id)')
+  const early = makeWindow({ [store]: JSON.stringify(['decks']) }); assert.equal(l.studioUxFindingsEIntroSettle(early), true, 'without an id, the settle marks every screen'); assert.deepEqual(JSON.parse(early.data.get(store)), union(['decks'])); assert.equal(early.data.has(key('u1')), false, 'and writes no user mark (no id)')
   for (const bad of ['', 'not json', '{}', '[]', '[1,2]', 'null']) assert.equal(l.studioUxFindingsEIntroHasMark(makeWindow({ [store]: bad })), false, `${JSON.stringify(bad)} is no mark`)
   // a played user, another account, an intro that opened before the id
   const win = makeWindow({ [key('u1')]: '1' }); assert.equal(l.studioUxFindingsEIntroReconcile(win, 'u1', false), 'played', 'u1 again: played'); assert.deepEqual(JSON.parse(win.data.get(store)), SCREENS, 'every screen seen again')
   assert.equal(l.studioUxFindingsEIntroReconcile(win, 'u2', false), 'returning', 'another account on a browser that holds marks plays none'); assert.equal(win.data.get(key('u1')), '1', 'u1\'s mark is kept')
   assert.equal(l.studioUxFindingsEIntroReconcile(makeWindow(), 'u3', true), 'played', 'an intro that opened before the id was known was this user\'s')
   const quiet = makeWindow(); assert.equal(l.studioUxFindingsEIntroReconcile(quiet, '', false), 'first'); l.studioUxFindingsEIntroPlayed(quiet, ''); assert.deepEqual(quiet.writes, [], 'no user id, no write')
+  const mailed = makeWindow({ [store]: JSON.stringify(['decks']) }); assert.equal(l.studioUxFindingsEIntroReconcile(mailed, 'a@example.invalid', false), 'first', 'an email is no id'); assert.equal(l.studioUxFindingsEIntroReconcile(mailed, 'a@example.invalid', true), 'first'); l.studioUxFindingsEIntroPlayed(mailed, 'a@example.invalid'); assert.deepEqual(mailed.writes, [], 'an email is no id: the write is skipped entirely')
   const down = makeWindow({}, { storageThrows: true }); assert.doesNotThrow(() => { l.studioUxFindingsEIntroReconcile(down, 'u1', false); l.studioUxFindingsEIntroPlayed(down, 'u1'); l.studioUxFindingsEIntroSettle(down) }); assert.equal(down.__decksterWorkspaceIntrosV2.size, SCREENS.length, 'with storage down the intro\'s own memory set still marks every screen')
 })
 await check('UX-08 meets FRONTEND-1\'s REAL intro: the store, screens and open event are theirs; their seenWorkspaces reads nothing as seen on a browser with no mark (one intro plays) and every screen as seen once one played or the browser already held any mark (none plays, nothing emptied); the seen gate and the write they have are still there', () => {
@@ -197,6 +201,59 @@ await check('UX-08 meets FRONTEND-1\'s REAL intro: the store, screens and open e
     for (const mark of marks) assert.ok(JSON.parse(back.data.get(real.store)).includes(mark), `${mark} is still marked`)
   }
 })
+
+/** Review ruling (5): the store is UNIONED, never replaced. A mark FRONTEND-1 adds later (an eighth screen) survives every write, what was there keeps its place, and nothing is written when the seven screens are all there already. */
+function proveUnion(libText = LIB_SRC) {
+  const l = lib(ON, libText), SCREENS = [...l.STUDIO_UX_FINDINGS_E_INTRO_SCREENS], store = l.STUDIO_UX_FINDINGS_E_INTRO_STORE, FUTURE = 'future-screen'
+  const writesToStore = win => win.writes.filter(([k]) => k === store)
+  for (const [name, act] of [['Played', (win) => l.studioUxFindingsEIntroPlayed(win, 'u1')], ['Settle', (win) => l.studioUxFindingsEIntroSettle(win)], ['Reconcile (a returning browser)', (win) => l.studioUxFindingsEIntroReconcile(win, 'u1', false)], ['Reconcile (a played user)', (win) => { win.data.set(l.studioUxFindingsEIntroKey('u1'), '1'); l.studioUxFindingsEIntroReconcile(win, 'u1', false) }]]) {
+    const win = makeWindow({ [store]: JSON.stringify(['decks', FUTURE]) }); win.__decksterWorkspaceIntrosV2.add(FUTURE); act(win)
+    const got = JSON.parse(win.data.get(store)); assert.deepEqual(got.slice(0, 2), ['decks', FUTURE], `${name}: what the store held stays, in its place`); assert.ok(SCREENS.every(screen => got.includes(screen)), `${name}: every screen is marked`); assert.equal(new Set(got).size, got.length, `${name}: no screen twice`); assert.equal(got.length, SCREENS.length + 1, `${name}: the future screen plus the seven`)
+    assert.ok(win.__decksterWorkspaceIntrosV2.has(FUTURE) && SCREENS.every(screen => win.__decksterWorkspaceIntrosV2.has(screen)), `${name}: the in-memory twin is unioned too`)
+  }
+  // a store that already holds all seven (in any order, with an extra mark): not rewritten, whatever runs
+  for (const held of [[...SCREENS, FUTURE], [FUTURE, ...[...SCREENS].reverse()], [...SCREENS]]) {
+    const win = makeWindow({ [store]: JSON.stringify(held) }); l.studioUxFindingsEIntroSettle(win); l.studioUxFindingsEIntroReconcile(win, 'u1', false); l.studioUxFindingsEIntroPlayed(win, 'u1'); l.studioUxFindingsEIntroReconcile(win, 'u1', false)
+    assert.deepEqual(writesToStore(win), [], 'nothing is written when the union adds nothing'); assert.equal(win.data.get(store), JSON.stringify(held), 'the store is byte for byte as it was')
+  }
+  // one screen short: exactly one write, adding exactly that one
+  const short = makeWindow({ [store]: JSON.stringify([...SCREENS.slice(1), FUTURE]) }); l.studioUxFindingsEIntroPlayed(short, 'u1'); assert.equal(writesToStore(short).length, 1); assert.deepEqual(JSON.parse(short.data.get(store)), [...SCREENS.slice(1), FUTURE, SCREENS[0]], 'the missing screen is appended')
+  // nothing stored, or nothing readable: the seven screens (there is nothing to keep)
+  for (const bad of [undefined, '', 'not json', '{}', 'null', '"decks"']) { const win = makeWindow(bad === undefined ? {} : { [store]: bad }); l.studioUxFindingsEIntroPlayed(win, 'u1'); assert.deepEqual(JSON.parse(win.data.get(store)), SCREENS, `${JSON.stringify(bad)}: the seven screens`) }
+  // storage down: never throws
+  const down = makeWindow({}, { storageThrows: true }); assert.doesNotThrow(() => l.studioUxFindingsEIntroPlayed(down, 'u1'))
+}
+await check('UX-08 review ruling (5): the store is UNIONED with what it holds, never replaced: a mark FRONTEND-1 adds later survives Played, Settle and Reconcile, what was there keeps its place, the seven screens are added, the twin is unioned, and nothing is written when the union adds nothing', () => proveUnion())
+
+/** Review ruling (4): the intro-once key carries the user ID only. No value with an "@" is an id; no storage key and no write ever holds one. */
+const EMAILISH = ['a@example.invalid', 'a@b.invalid', '@', 'first.last+tag@example.invalid']
+const ONCE_PREFIX = 'deckster-studio-ux-e-intro-once'
+function proveNoAt(libText = LIB_SRC, mountText = MOUNT_SRC) {
+  const l = lib(ON, libText), store = l.STUDIO_UX_FINDINGS_E_INTRO_STORE, open = 'deckster:workspace-intro-open'
+  const noAt = (win, what) => { for (const key of win.data.keys()) assert.ok(!key.includes('@'), `${what}: the storage key ${key} holds an @`); for (const [key] of win.writes) assert.ok(!key.includes('@'), `${what}: a write to ${key} holds an @`); assert.deepEqual([...win.data.keys()].filter(key => key.startsWith(ONCE_PREFIX)), [], `${what}: no intro-once key for a value that is not an id`) }
+  for (const good of ['u1', '3f2b7c1e-0a54-4c1e-9d3a-7b1c2d3e4f50', 'cm0abc123def456', 'user_1']) assert.equal(l.studioUxFindingsEIsUserId(good), true, `${good} is an id`)
+  for (const bad of ['', '   ', ...EMAILISH, null, undefined, 5, {}, ['u1']]) assert.equal(l.studioUxFindingsEIsUserId(bad), false, `${JSON.stringify(bad)} is not an id`)
+  for (const value of EMAILISH) {
+    for (const held of [false, true]) {
+      const seed = () => makeWindow(held ? { [store]: '["decks"]' } : {})
+      // the lib on its own: the key is never built, nothing is written for it
+      const direct = seed(); l.studioUxFindingsEIntroPlayed(direct, value); assert.equal(l.studioUxFindingsEIntroReconcile(direct, value, false), 'first', `${value}: no id, so nothing is reconciled`); assert.equal(l.studioUxFindingsEIntroReconcile(direct, value, true), 'first'); noAt(direct, `lib, ${value}, store ${held ? 'held' : 'empty'}`)
+      // the Builder's way (the hook is handed `user?.id ?? user?.email ?? ''`): the value is an email, the intro opens, a timer fires
+      const builder = runner(ON, { text: mountText, libText, win: seed() }); builder.hook(value); builder.win.dispatch(open, 'owner'); builder.win.flush(); builder.hook(value); noAt(builder.win, `hook, ${value}`)
+      builder.hook('u1'); assert.equal(builder.win.data.get(`${ONCE_PREFIX}:u1`), '1', `${value}: once the id arrives, the intro that opened early is the id's`); noAt({ data: new Map([...builder.win.data].filter(([k]) => !k.startsWith(ONCE_PREFIX))), writes: builder.win.writes.filter(([k]) => !k.startsWith(ONCE_PREFIX)) }, `hook, ${value}, after the id`)
+      // the account layout's mount: a session whose user has only an email, or an id that is an email
+      for (const [label, session] of [['email only', { email: value }], ['id is an email', { id: value, email: value }]]) { const mounted = runner(ON, { text: mountText, libText, user: session, win: seed() }); mounted.mount(); mounted.win.dispatch(open, 'owner'); mounted.win.flush(); noAt(mounted.win, `mount, ${label}, ${value}`) }
+    }
+  }
+  // a real id is the key, and the key is the id only
+  const good = runner(ON, { text: mountText, libText, user: { id: 'u1', email: 'a@example.invalid' } }); good.mount(); good.win.dispatch(open, 'owner'); good.win.flush()
+  assert.deepEqual([...good.win.data.keys()].filter(key => key.startsWith(ONCE_PREFIX)), [`${ONCE_PREFIX}:u1`], 'a session with an id and an email: the key holds the id only'); for (const key of good.win.data.keys()) assert.ok(!key.includes('@'), key)
+  // the sources never read an email: the lib and the mount (code, comments out)
+  const code = text => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\s\/\/ .*$/gm, '')
+  assert.doesNotMatch(code(mountText), /\bemail\b/i, 'the mount never reads or falls back to an email'); assert.doesNotMatch(code(libText), /\bemail\b/i, 'the lib never reads an email')
+  assert.match(code(mountText), /useStudioUxFindingsE\(user\?\.id \?\? ""\)/, 'the mount hands the hook the session user\'s id only')
+}
+await check('UX-08 review ruling (4): the intro-once key is the user ID only, never an email: a value with an "@" is no id (nothing is reconciled or written), through the lib, the Builder\'s hook (an email, then the id) and the account mount (email only, an id that is an email); no storage key and no write ever holds an "@"; the sources never read an email', () => proveNoAt())
 
 // ===== B. the mount and the hook =================================================================================================================
 console.log('B. the mount and the hook')
@@ -237,8 +294,15 @@ function proveHook(mountText = MOUNT_SRC, libMode = 'real') {
   const profile = runner(ON, { text: mountText, user: { id: 'u1' }, path: '/settings/profile' }); profile.mount(); assert.deepEqual(profile.replaced, ['/studio/details'], '/settings/profile goes to Your details'); assert.equal(profile.win.attrs.get('data-studio-ux-findings-e'), 'true', 'and the mount set the attribute')
   assert.equal(profile.win.data.has('deckster-studio-ux-e-intro-once:u1'), false, 'the mount handed the session user to the hook: u1\'s first intro is still to come'); profile.mount(); assert.deepEqual(profile.replaced, ['/studio/details'], 're-rendering on the same route does not redirect again')
   for (const route of ['/dashboard', '/settings/account', '/studio/details', '/builder']) { const other = runner(ON, { text: mountText, user: { email: 'a@example.invalid' }, path: route }); other.mount(); assert.deepEqual(other.replaced, [], route) }
-  const byEmail = runner(ON, { text: mountText, user: { email: 'a@example.invalid' } }); byEmail.mount(); assert.equal(byEmail.win.data.has('deckster-studio-workspace-intros-v2'), false); byEmail.win.dispatch('deckster:workspace-intro-open', 'o'); byEmail.win.flush(); assert.equal(byEmail.win.data.get('deckster-studio-ux-e-intro-once:a@example.invalid'), '1', 'the Builder\'s own id rule (id, else email) is the key')
+  const byEmail = runner(ON, { text: mountText, user: { email: 'a@example.invalid' } }); byEmail.mount(); assert.equal(byEmail.win.data.has('deckster-studio-workspace-intros-v2'), false); byEmail.win.dispatch('deckster:workspace-intro-open', 'o'); byEmail.win.flush(); assert.deepEqual([...byEmail.win.data.keys()], [], 'a session with an email and no id: the intro-once key is never written (review ruling 4), nothing is stored at all')
+  const builderMail = runner(ON, { text: mountText }); builderMail.hook('a@example.invalid'); builderMail.win.dispatch('deckster:workspace-intro-open', 'o'); builderMail.win.flush(); assert.deepEqual(builderMail.win.writes, [], 'the Builder hands the hook `id ?? email ?? \'\'`: an email is no id, so nothing is written'); builderMail.hook('u1'); assert.equal(builderMail.win.data.get(ONCE), '1', 'the id arrives later: the intro that opened before it is this id\'s'); assert.deepEqual([...builderMail.win.data.keys()].filter(key => key.includes('@')), [])
 }
+/** Review ruling (3): the first-paint flash is DOCUMENTED, not fixed: one comment in the mount names it (the attribute is set after hydration, so on a hard load the UX-26 H1 paints and then goes and the UX-19 header lays out again). */
+function proveFlashNote(mountText = MOUNT_SRC) {
+  assert.equal(count(mountText, 'First paint:'), 1, 'one comment names the first-paint flash'); assert.match(mountText, /First paint: the attribute is set in a layout effect, AFTER hydration[\s\S]*UX-26 H1[\s\S]*UX-19 header[\s\S]*PK decides at the flip/, 'it names the layout effect, the UX-26 H1, the UX-19 header and who decides')
+  assert.ok(mountText.includes('const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect'), 'and the attribute is still set in the layout effect (documented, not fixed)')
+}
+await check('UX review ruling (3): the first-paint flash is documented in the mount (one comment), and not fixed', () => proveFlashNote())
 await check('B: the mount is null with the flag off (and with every near-miss value) and draws nothing with it on; flag off the hook sets no attribute, adds no listener, writes no storage and redirects nowhere; flag on it sets the attribute (logo / nav only with their flags), records the intro as played just after the intro\'s own write, and redirects /settings/profile only', () => proveHook())
 const FE1 = UX_FINDINGS_E_FE1_OK
 const diffLines = text => text.split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
@@ -249,8 +313,9 @@ const applyEntries = (text, entries) => { const lines = text.split('\n'); for (c
 function proveFe1Lines(rel, text, entries, strip, at = '') {
   const a = m => (at ? `${at}: ${m}` : m), base = baseText(rel), lines = text.split('\n')
   for (const { after, line } of entries) {
-    assert.equal(count(`\n${text}`, `\n${line}\n`), 1, a(`${rel}: the line is there exactly once, as a whole line`)); assert.equal(count(`\n${base}`, `\n${after}\n`), 1, a(`${rel}: dev has the anchor line exactly once`))
-    assert.ok(UX_FINDINGS_E_MARKER_RE.test(line) && !base.split('\n').includes(line), a('the line is marked and dev does not have it')); assert.equal(lines[lines.indexOf(line) - 1] === after || entries.some(e => e.line === lines[lines.indexOf(line) - 1]), true, a(`${rel}: right after its anchor (or after the line this change put there)`))
+    assert.equal(count(`\n${text}`, `\n${line}\n`), 1, a(`${rel}: the line is there exactly once, as a whole line`))
+    const ownAnchor = entries.some(e => e.line === after); if (!ownAnchor) assert.equal(count(`\n${base}`, `\n${after}\n`), 1, a(`${rel}: dev has the anchor line exactly once`))
+    assert.ok(UX_FINDINGS_E_MARKER_RE.test(line) && !base.split('\n').includes(line), a('the line is marked and dev does not have it')); assert.equal(lines[lines.indexOf(line) - 1], after, a(`${rel}: right after its anchor (a dev line, or the line of this change's own it follows)`))
   }
   assert.equal(lines.filter(line => UX_FINDINGS_E_MARKER_RE.test(line)).length, entries.length, a(`${rel}: ${entries.length} marked lines and no other`))
   const diff = lineDiff(base, text); assert.deepEqual(diff.filter(line => line.startsWith('-')), [], a('nothing of dev\'s is removed or rewritten')); assert.deepEqual(diff, entries.map(({ line }) => `+${line}`), a('exactly the lines are added, in order'))
@@ -259,8 +324,9 @@ function proveFe1Lines(rel, text, entries, strip, at = '') {
 function proveFe1(readNow = rel => laterStrips(rel, read(rel)), at = '') {
   for (const [rel, entries] of Object.entries(FE1)) proveFe1Lines(rel, readNow(rel), entries, stripUxFindingsE, at)
   const layout = FE1[LAYOUT], builder = FE1[BUILDER]
-  assert.equal(layout.length, 2, 'two lines in the account layout: the import and the mount'); assert.equal(builder.length, 2, 'two lines in the Builder: the import and the hook call'); assert.deepEqual(Object.keys(FE1).sort(), [LAYOUT, BUILDER].sort(), 'only those two files of FRONTEND-1\'s')
-  assert.match(layout[0].line, /^import \{ StudioUxFindingsEMount \} from "@\/components\/studio-ux-findings-e\/studio-ux-findings-e-mount" \/\/ UX-FINDINGS-E/); assert.equal(layout[1].line.replace(/\{\/\*.*\*\/\}$/, ''), '      <StudioUxFindingsEMount />'); assert.match(layout[1].line, /\{\/\* UX-FINDINGS-E: [^*]*\*\/\}$/)
+  assert.equal(layout.length, 3, 'three lines in the account layout: the flag import, the mount import and the GATED mount line (review ruling 7)'); assert.equal(builder.length, 2, 'two lines in the Builder: the import and the hook call'); assert.deepEqual(Object.keys(FE1).sort(), [LAYOUT, BUILDER].sort(), 'only those two files of FRONTEND-1\'s')
+  assert.match(layout[0].line, /^import \{ STUDIO_UX_FINDINGS_E_ENABLED \} from "@\/lib\/studio-ux-findings-e" \/\/ UX-FINDINGS-E/); assert.match(layout[1].line, /^import \{ StudioUxFindingsEMount \} from "@\/components\/studio-ux-findings-e\/studio-ux-findings-e-mount" \/\/ UX-FINDINGS-E/); assert.equal(layout[1].after, layout[0].line, 'the mount import goes right after the flag import, the order of its neighbours (the flag, then the mount)')
+  assert.equal(layout[2].line.replace(/\{\/\*.*\*\/\}$/, ''), '      {STUDIO_UX_FINDINGS_E_ENABLED && <StudioUxFindingsEMount />}'); assert.match(layout[2].line, /\{\/\* UX-FINDINGS-E: [^*]*\*\/\}$/)
   assert.match(builder[0].line, /^import \{ useStudioUxFindingsE \} from '@\/components\/studio-ux-findings-e\/studio-ux-findings-e-mount' \/\/ UX-FINDINGS-E/); assert.match(builder[1].line, /^ {2}useStudioUxFindingsE\(authScopeUserId\) \/\/ UX-FINDINGS-E/)
 }
 await check('FRONTEND-1\'s four OK\'d lines (22:20Z): once each, as whole lines, right after their anchor in dev\'s file, pure insertions, all marked; stripped, the file is dev\'s byte for byte; no other byte of their two files changes', () => proveFe1())
@@ -297,24 +363,35 @@ function proveFe1Proofs(readNow = rel => laterStrips(rel, read(rel)), at = '', t
 }
 await check('FRONTEND-1\'s two OK\'d after-merge proof edits (test-studio-ux-honesty: one changed line; test-studio-voice-call: two inserted lines after the strip import and two changed ones): each OK\'d line once, as a whole line, at its anchor, carrying the registry-read mark; nothing else of dev\'s changes; put back both proofs are dev\'s', () => proveFe1Proofs())
 
-/** The account layout rendered with every import but the mount stubbed: the markup with the lines is the markup without them, flag off and on. */
-function renderLayout(text, env) {
+/** The account layout rendered with every import but the mount and this change's flag stubbed: the markup with the lines is the markup without them, flag off and on. `probe.mounted` counts how often the layout drew the mount (a function component that was rendered, even one that returns null). */
+function renderLayout(text, env, probe = {}) {
+  probe.mounted = 0
   const stub = name => function Stub() { return h('i', { 'data-stub': name }) }
   const generic = new Proxy({}, { get: (_, name) => (name === '__esModule' ? true : /_ENABLED$/.test(String(name)) ? false : stub(String(name))) })
   const overrides = { 'react': React, 'next/navigation': { usePathname: () => '/dashboard', useRouter: () => ({ replace() {} }) }, 'next-auth/react': { useSession: () => ({ data: null }) } }
   const mod = (() => {
     const module = { exports: {} }
-    const req = spec => { if (spec === 'react/jsx-runtime') return jsxRuntime; if (spec === 'react') return React; if (spec.endsWith('.css')) return {}; if (spec === '@/components/studio-ux-findings-e/studio-ux-findings-e-mount') return load(MOUNT, { env, overrides }); return generic }
+    const req = spec => { if (spec === 'react/jsx-runtime') return jsxRuntime; if (spec === 'react') return React; if (spec.endsWith('.css')) return {}; if (spec === '@/lib/studio-ux-findings-e') return load(LIB, { env }); if (spec === '@/components/studio-ux-findings-e/studio-ux-findings-e-mount') { const real = load(MOUNT, { env, overrides }); return { ...real, StudioUxFindingsEMount: function Counted() { probe.mounted++; return real.StudioUxFindingsEMount() } } } return generic }
     vm.runInNewContext(compile(LAYOUT, text), { module, exports: module.exports, require: req, process: { env: { ...env } } }, { filename: LAYOUT }); return module.exports
   })()
   return renderToStaticMarkup(h(mod.default, null, h('main', null, 'page')))
 }
-await check('the account layout renders the same markup with and without FRONTEND-1\'s lines (flag off, flag on, shell off): the mount returns null; sha256 shown', () => {
+/** Review ruling (7): the mount is GATED like its neighbours, `{FLAG && <Mount/>}`, with the flag imported from this change's lib. Shape, then behaviour: the layout draws the mount only when the flag is on (never when it is off, so nothing of it is in the tree). */
+function proveLayoutGate(text) {
+  const lines = text.split('\n'), mountLines = lines.filter(line => line.includes('<StudioUxFindingsEMount />'))
+  assert.equal(mountLines.length, 1, 'one line draws the mount'); assert.match(mountLines[0], /^ {6}\{STUDIO_UX_FINDINGS_E_ENABLED && <StudioUxFindingsEMount \/>\}\{\/\* UX-FINDINGS-E: [^*]*\*\/\}$/, 'the mount is gated on this change\'s flag, in its neighbours\' shape {FLAG && <Mount />}{/* … */}')
+  const at = lines.indexOf(mountLines[0]); assert.match(lines[at - 1], /^ {6}\{STUDIO_PASS3_POLISH_ENABLED && <StudioPass3PolishGMount \/>\}/, 'right below its neighbour'); assert.match(lines[at + 1] ?? '', /^ {6}(\{STUDIO_\w+_ENABLED && <\w+ \/>\}|<\/div>)/, 'and above the next one (or the frame\'s end)')
+  assert.equal(lines.filter(line => /^import \{ STUDIO_UX_FINDINGS_E_ENABLED \} from "@\/lib\/studio-ux-findings-e"/.test(line)).length, 1, 'the flag comes from this change\'s lib, imported once')
+  for (const env of [{}, { [SHELL]: 'true' }, { [UX_FINDINGS_E_FLAG]: 'true' }, { [UX_FINDINGS_E_FLAG]: '1', [SHELL]: 'true' }, { [UX_FINDINGS_E_FLAG]: 'TRUE', [SHELL]: 'true' }]) { const probe = {}; renderLayout(text, env, probe); assert.equal(probe.mounted, 0, `flag off ${JSON.stringify(env)}: the layout does not draw the mount at all`) }
+  const on = {}; renderLayout(text, ON, on); assert.equal(on.mounted, 1, 'flag on: the mount is drawn, once')
+}
+await check('the account layout renders the same markup with and without FRONTEND-1\'s lines (flag off, flag on, shell off): the mount is drawn only behind its flag, `{FLAG && <Mount />}` like its neighbours, and draws nothing; sha256 shown', () => {
   const base = baseText(LAYOUT), now = laterStrips(LAYOUT, read(LAYOUT)), rows = []
   assert.notEqual(now, base, 'the lines are in the text rendered')
   for (const env of [{}, { [SHELL]: 'true' }, { [UX_FINDINGS_E_FLAG]: 'true' }, { [UX_FINDINGS_E_FLAG]: 'true', [SHELL]: 'true' }, { [UX_FINDINGS_E_FLAG]: '1', [SHELL]: 'true' }]) {
     const withLines = renderLayout(now, env), without = renderLayout(base, env); assert.equal(withLines, without, `${JSON.stringify(env)}: the layout's markup is the same with and without the lines`); rows.push(sha(withLines))
   }
+  proveLayoutGate(now)
   console.log(`     account layout markup sha256/16 (with the lines = without): ${rows.join(' ')}`)
 })
 const BUILDER_TEXT = laterStrips(BUILDER, read(BUILDER))
@@ -377,10 +454,20 @@ function proveCss(cssText = CSS_SRC) {
   }
   return rules
 }
+/** Review ruling (6): UX-12 hides nothing. The three "what appears where" lines stay in the page and no rule in the sheet selects them (or any other helper line); the only things the sheet takes out of sight are the five page H1s (sr-only, kept for assistive technology) and the skeleton's old icon. */
+const UX12_KEPT = [['components/studio-personal/studio-p2-details.tsx', 'Contact details only appear when included in the footer.'], ['components/studio-personal/studio-p2-details.tsx', 'The presentation title and page numbers come from each deck.'], ['components/studio-personal/account-identity-preview.tsx', 'Saved names and uploaded photos appear here after a confirmed account-session refresh.']]
+const UX12_CLASSES = ['sp-p2-hint', 'sp-profile-confirmation', 'sp-later-note', 'sp-inline-note', 'sp-comparison-note', 'sp-ip-scope-note', 'sl-helper']
+function proveUx12(cssText = CSS_SRC) {
+  for (const [rel, line] of UX12_KEPT) assert.ok(read(rel).includes(line), `${rel} still says "${line.slice(0, 40)}…": the line stays visible`)
+  const rules = parseCss(cssText)
+  for (const rule of rules) for (const selector of rule.selectors) for (const name of UX12_CLASSES) assert.ok(!selector.includes(name), `UX-12 hides nothing: no rule selects .${name} (${selector.slice(0, 100)})`)
+  for (const rule of rules) { const hides = rule.decls.some(([k, v]) => (k === 'display' && v === 'none') || (k === 'visibility' && v === 'hidden') || (k === 'opacity' && v === '0') || (k === 'font-size' && v === '0')), srOnly = rule.decls.some(([k]) => k === 'clip'); if (hides) assert.ok(rule.selectors.every(selector => selector.endsWith('[data-studio-skel-brand="true"] > svg')), `a rule that hides something is only the skeleton's old icon: ${rule.selectors[0].slice(0, 100)}`); if (srOnly) assert.ok(rule.selectors.every(selector => selector.endsWith(' h1')), `the sr-only rule names only page H1s: ${rule.selectors[0].slice(0, 100)}`) }
+}
 await check('the stylesheet is parsed: every selector of every rule (also inside @media) is scoped under html[data-studio-ux-findings-e="true"]; no !important; no colour value, colour property, shadow or filter (the one logo background and its box-shadow: none excepted); one media query', () => {
   const rules = proveCss()
   const has = fragment => rules.some(rule => rule.selectors.some(s => s.includes(fragment)))
-  assert.ok(has('[data-studio-skel-brand="true"]') && has('[data-studio-chat-header]') && has('.sl-context') && has('.sp-profile-confirmation') && has('.sl-heading h1') && has('[data-studio-deck-heading="true"] h1'), 'UX-27, UX-19, UX-22, UX-12 and UX-26 each have their rule')
+  assert.ok(has('[data-studio-skel-brand="true"]') && has('[data-studio-chat-header]') && has('.sl-context') && has('.sl-heading h1') && has('[data-studio-deck-heading="true"] h1'), 'UX-27, UX-19, UX-22 and UX-26 each have their rule (UX-12 has none: it hides nothing)')
+  proveUx12(CSS_SRC)
   const sr = rules.find(rule => rule.selectors.some(s => s.includes('main[data-studio-personal="details"] .sp-heading h1'))); assert.deepEqual(sr.decls.map(([k, v]) => `${k}: ${v}`), ['position: absolute', 'width: 1px', 'height: 1px', 'padding: 0', 'margin: -1px', 'overflow: hidden', 'clip: rect(0, 0, 0, 0)', 'white-space: nowrap', 'border-width: 0'].map(d => d), 'UX-26 is the repo\'s sr-only pattern (kept for assistive technology, not drawn), not display:none')
   assert.ok(fs.existsSync(path.join(root, 'public/logo-icon-sm.png')), 'the logo file the skeleton rule names exists'); assert.equal(read('lib/studio-new-logo.ts').includes("STUDIO_NEW_LOGO_SRC = '/logo-icon-sm.png'"), true, 'and it is the rail\'s own file')
 })
@@ -642,7 +729,7 @@ await scopeCheck('LINEAR STACK: an unregistered file in the later commit still f
 // ===== H. mutants (each one edit of the real sources, fed to the same checks) ====================================================================
 if (!process.env.CHECK_ONLY) console.log('mutants')
 const withoutLine = (text, line) => { const lines = text.split('\n'), at = lines.indexOf(line); if (at < 0) throw new SwapError('the line is there'); lines.splice(at, 1); return lines }
-const DRAFT_LAYOUT = FE1[LAYOUT], DRAFT_BUILDER = FE1[BUILDER]
+const DRAFT_LAYOUT = FE1[LAYOUT], DRAFT_BUILDER = FE1[BUILDER], LAYOUT_MOUNT = DRAFT_LAYOUT[2], LAYOUT_FLAG_IMPORT = DRAFT_LAYOUT[0], LAYOUT_MOUNT_IMPORT = DRAFT_LAYOUT[1]
 const layoutNow = applyEntries(baseText(LAYOUT), DRAFT_LAYOUT), builderNow = applyEntries(baseText(BUILDER), DRAFT_BUILDER)
 const fe1Mutant = (rel, entries, text) => { if (text === applyEntries(baseText(rel), entries)) throw new SwapError('the edit did not change the file'); proveFe1Lines(rel, text, entries, stripUxFindingsE, 'mutant') }
 await mutant('A: the flag reads "1" as on', () => proveFlag(swap(LIB_SRC, "process.env.NEXT_PUBLIC_STUDIO_UX_FINDINGS_E === 'true'", "(process.env.NEXT_PUBLIC_STUDIO_UX_FINDINGS_E === 'true' || process.env.NEXT_PUBLIC_STUDIO_UX_FINDINGS_E === '1')")))
@@ -651,9 +738,10 @@ await mutant('B: the mount draws something with the flag on (a wrapper)', () => 
 await mutant('B: the mount draws its active part with the flag off', () => proveHook(swap(MOUNT_SRC, 'return STUDIO_UX_FINDINGS_E_ENABLED ? <StudioUxFindingsEActive /> : null', 'return <StudioUxFindingsEActive />')))
 await mutant('B: the hook sets the attribute with the flag off (its guard dropped)', () => proveHook(swap(MOUNT_SRC, '    if (!STUDIO_UX_FINDINGS_E_ENABLED) return\n    const root = document.documentElement', '    const root = document.documentElement')))
 await mutant('B: the hook adds its listener with the flag off', () => proveHook(swap(MOUNT_SRC, '    if (!STUDIO_UX_FINDINGS_E_ENABLED) return\n    // A browser that already', '    // The intro sends')))
-await mutant('B: the hook empties the store with the flag off', () => proveHook(swap(MOUNT_SRC, '    if (!STUDIO_UX_FINDINGS_E_ENABLED || !userId) return\n    studioUxFindingsEIntroReconcile', '    if (!userId) return\n    studioUxFindingsEIntroReconcile')))
+await mutant('B: the hook empties the store with the flag off', () => proveHook(swap(MOUNT_SRC, '    if (!STUDIO_UX_FINDINGS_E_ENABLED || !studioUxFindingsEIsUserId(userId)) return\n    studioUxFindingsEIntroReconcile', '    if (!studioUxFindingsEIsUserId(userId)) return\n    studioUxFindingsEIntroReconcile')))
 await mutant('B: the unmount leaves the attribute', () => proveHook(swap(MOUNT_SRC, '    return () => names.forEach(name => root.removeAttribute(name))\n', '')))
 await mutant('B: the intro is recorded inside the event (before the intro\'s own write, which would then overwrite it)', () => proveHook(swap(MOUNT_SRC, 'window.setTimeout(() => studioUxFindingsEIntroPlayed(window as unknown as StudioUxFindingsEIntroHost, user.current), 0)', 'studioUxFindingsEIntroPlayed(window as unknown as StudioUxFindingsEIntroHost, user.current)')))
+await mutant('B: the first-paint note is missing from the mount', () => proveFlashNote(MOUNT_SRC.replace('First paint:', 'Paint:')))
 await mutant('B: the logo attribute is set without the logo flag', () => proveHook(swap(MOUNT_SRC, '...(STUDIO_UX_FINDINGS_E_NEW_LOGO ? [STUDIO_UX_FINDINGS_E_LOGO_ATTR] : [])', '...[STUDIO_UX_FINDINGS_E_LOGO_ATTR]')))
 await mutant('B: /settings/profile is not redirected', () => proveHook(swap(MOUNT_SRC, '    if (target) router.replace(target)', '    if (target) void target')))
 await mutant('B: every settings route is redirected (the profile target is read too loosely)', () => { const l = swap(LIB_SRC, "if (pathname === STUDIO_UX_FINDINGS_E_PROFILE_FROM || pathname === `${STUDIO_UX_FINDINGS_E_PROFILE_FROM}/`)", "if (typeof pathname === 'string' && pathname.startsWith('/settings'))"); assert.equal(lib(ON, l).studioUxFindingsEProfileTarget('/settings/account'), null) })
@@ -665,22 +753,45 @@ await mutant('A: any mark is read too narrowly (only the "decks" mark counts)', 
 await mutant('A: a browser with no mark is settled too (an intro could never play)', () => { const l = lib(ON, swap(LIB_SRC, "  if (!studioUxFindingsEIntroHasMark(host)) return false\n  markEveryScreenSeen(host)", "  markEveryScreenSeen(host)")); const fresh = makeWindow(); l.studioUxFindingsEIntroSettle(fresh); assert.deepEqual(fresh.writes, [], 'a browser with no mark: nothing written, so the first intro plays') })
 await mutant('B: the mount does not settle a returning browser before the id is known (the session race shows an extra intro)', () => proveHook(swap(MOUNT_SRC, "    studioUxFindingsEIntroSettle(window as unknown as StudioUxFindingsEIntroHost)\n", '')))
 await mutant('A: the intro mark is not written with the user id in its key', () => { const l = lib(ON, swap(LIB_SRC, '`deckster-studio-ux-e-intro-once:${userId}`', "'deckster-studio-ux-e-intro-once'")); assert.notEqual(l.studioUxFindingsEIntroKey('u1'), l.studioUxFindingsEIntroKey('u2'), 'the user id is in the key') })
-await mutant('B: FRONTEND-1\'s layout mount line moved off its anchor (to the top of the file)', () => fe1Mutant(LAYOUT, DRAFT_LAYOUT, (() => { const lines = withoutLine(layoutNow, DRAFT_LAYOUT[1].line); lines.splice(0, 0, DRAFT_LAYOUT[1].line); return lines.join('\n') })()))
+const AT_TEST = " && !value.includes('@')", MOUNT_ID = 'useStudioUxFindingsE(user?.id ?? "")', MOUNT_MAIL = 'useStudioUxFindingsE(user?.id ?? user?.email ?? "")'
+await mutant('A: the store is REPLACED, not unioned (markEveryScreenSeen writes the seven screens over whatever the store held; a mark FRONTEND-1 adds later is lost)', () => proveUnion(swap(LIB_SRC, 'if (missing.length > 0) host.localStorage?.setItem(STUDIO_UX_FINDINGS_E_INTRO_STORE, JSON.stringify([...stored, ...missing]))', 'host.localStorage?.setItem(STUDIO_UX_FINDINGS_E_INTRO_STORE, JSON.stringify([...STUDIO_UX_FINDINGS_E_INTRO_SCREENS]))')))
+await mutant('A: the store is rewritten on every call (no skip when the union adds nothing)', () => proveUnion(swap(LIB_SRC, 'if (missing.length > 0) host', 'host')))
+await mutant('A: the union keeps only the screens it knows (an unknown mark in the store is dropped)', () => proveUnion(swap(LIB_SRC, 'JSON.stringify([...stored, ...missing])', 'JSON.stringify([...stored.filter(value => STUDIO_UX_FINDINGS_E_INTRO_SCREENS.includes(value as never)), ...missing])')))
+await mutant('A: the in-memory twin is replaced, not unioned (an unknown mark in the twin is cleared)', () => proveUnion(swap(LIB_SRC, 'if (memory) STUDIO_UX_FINDINGS_E_INTRO_SCREENS.forEach(screen => memory.add(screen))', 'if (memory) { memory.clear(); STUDIO_UX_FINDINGS_E_INTRO_SCREENS.forEach(screen => memory.add(screen)) }')))
+await mutant('A: an email is an id (the "@" test is dropped from studioUxFindingsEIsUserId): the key falls back to the email', () => proveNoAt(swap(LIB_SRC, AT_TEST, '')))
+await mutant('A: Played skips only an empty id (an email writes its key)', () => proveNoAt(swap(LIB_SRC, '  if (!studioUxFindingsEIsUserId(userId)) return\n  try { host.localStorage?.setItem(studioUxFindingsEIntroKey(userId)', '  if (!userId) return\n  try { host.localStorage?.setItem(studioUxFindingsEIntroKey(userId)')))
+await mutant('A: Reconcile treats an email as an id', () => proveNoAt(swap(LIB_SRC, "  if (!studioUxFindingsEIsUserId(userId)) return 'first'", "  if (!userId) return 'first'")))
+await mutant('B: the mount falls back to the email again (user?.id ?? user?.email ?? ""; the lib\'s guard stays, so only the source check sees it)', () => proveNoAt(LIB_SRC, swap(MOUNT_SRC, MOUNT_ID, MOUNT_MAIL)))
+await mutant('B: the mount falls back to the email AND the lib\'s guard is gone (the key holds an @)', () => proveNoAt(swap(LIB_SRC, AT_TEST, ''), swap(MOUNT_SRC, MOUNT_ID, MOUNT_MAIL)))
+await mutant('B: the hook records an intro that opened for an email as the user\'s (the open event is not told apart from an id)', () => proveNoAt(LIB_SRC, swap(MOUNT_SRC, 'if (studioUxFindingsEIsUserId(user.current)) window.setTimeout', 'if (user.current) window.setTimeout')))
+await mutant('B: FRONTEND-1\'s layout mount line moved off its anchor (to the top of the file)', () => fe1Mutant(LAYOUT, DRAFT_LAYOUT, (() => { const lines = withoutLine(layoutNow, LAYOUT_MOUNT.line); lines.splice(0, 0, LAYOUT_MOUNT.line); return lines.join('\n') })()))
 await mutant('B: FRONTEND-1\'s Builder hook line moved off its anchor (below the first early return)', () => fe1Mutant(BUILDER, DRAFT_BUILDER, (() => { const lines = withoutLine(builderNow, DRAFT_BUILDER[1].line); lines.splice(lines.indexOf('  if (isLoading) return <BuilderLoadingState />') + 1, 0, DRAFT_BUILDER[1].line); return lines.join('\n') })()))
 await mutant('B: a Builder hook line below an early return fails the position check', () => proveBuilderHook((() => { const lines = withoutLine(BUILDER_TEXT, DRAFT_BUILDER[1].line); lines.splice(lines.indexOf('  if (isLoading) return <BuilderLoadingState />') + 1, 0, DRAFT_BUILDER[1].line); return lines.join('\n') })()))
-await mutant('B: an extra unmarked line in the layout', () => fe1Mutant(LAYOUT, DRAFT_LAYOUT, swap(layoutNow, DRAFT_LAYOUT[1].line, `${DRAFT_LAYOUT[1].line}\n      <div />`)))
+await mutant('B: an extra unmarked line in the layout', () => fe1Mutant(LAYOUT, DRAFT_LAYOUT, swap(layoutNow, LAYOUT_MOUNT.line, `${LAYOUT_MOUNT.line}\n      <div />`)))
 await mutant('B: an extra unmarked line in the Builder (a constant above the hook)', () => fe1Mutant(BUILDER, DRAFT_BUILDER, swap(builderNow, DRAFT_BUILDER[1].line, `  const sneaky = 1\n${DRAFT_BUILDER[1].line}`)))
-await mutant('B: the layout line is not marked', () => fe1Mutant(LAYOUT, DRAFT_LAYOUT, swap(layoutNow, DRAFT_LAYOUT[1].line, DRAFT_LAYOUT[1].line.replace('UX-FINDINGS-E', 'UX-FINDINGS'))))
+await mutant('B: the layout line is not marked', () => fe1Mutant(LAYOUT, DRAFT_LAYOUT, swap(layoutNow, LAYOUT_MOUNT.line, LAYOUT_MOUNT.line.replace('UX-FINDINGS-E', 'UX-FINDINGS'))))
 await mutant('B: a base line of the layout is rewritten', () => fe1Mutant(LAYOUT, DRAFT_LAYOUT, swap(layoutNow, '<div data-studio-v4-shell-workspace="true">{children}</div>', '<div data-studio-v4-shell-workspace="true"><main>{children}</main></div>')))
-await mutant('B: the layout draws a visible element for the mount (a wrapper div with the flag off)', () => { const bad = swap(layoutNow, '<StudioUxFindingsEMount />', '<div><StudioUxFindingsEMount /></div>'); assert.equal(renderLayout(bad, {}), renderLayout(baseText(LAYOUT), {}), 'markup is the same') })
+await mutant('B: the layout draws a visible element for the mount (a wrapper div, flag on)', () => { const bad = swap(layoutNow, '<StudioUxFindingsEMount />', '<div><StudioUxFindingsEMount /></div>'); assert.equal(renderLayout(bad, ON), renderLayout(baseText(LAYOUT), ON), 'markup is the same') })
+await mutant('B: the mount line is UNGATED (<StudioUxFindingsEMount /> drawn with the flag off, as the OK\'d line was)', () => proveLayoutGate(swap(layoutNow, '{STUDIO_UX_FINDINGS_E_ENABLED && <StudioUxFindingsEMount />}', '<StudioUxFindingsEMount />')))
+await mutant('B: the mount line is gated on a neighbour\'s flag (STUDIO_PASS3_POLISH_ENABLED)', () => proveLayoutGate(swap(layoutNow, '{STUDIO_UX_FINDINGS_E_ENABLED && <StudioUxFindingsEMount />}', '{STUDIO_PASS3_POLISH_ENABLED && <StudioUxFindingsEMount />}')))
+await mutant('B: the mount line is gated on this change\'s flag, but the flag import is missing', () => proveLayoutGate(withoutLine(layoutNow, LAYOUT_FLAG_IMPORT.line).join('\n')))
+await mutant('B: the ungated line, fed to the exact-lines check (the OK\'d table is the gated line byte for byte)', () => fe1Mutant(LAYOUT, DRAFT_LAYOUT, swap(layoutNow, '{STUDIO_UX_FINDINGS_E_ENABLED && <StudioUxFindingsEMount />}', '<StudioUxFindingsEMount />')))
+await mutant('B: a second marked line in the layout (an extra import) fails the exact-lines check', () => fe1Mutant(LAYOUT, DRAFT_LAYOUT, swap(layoutNow, LAYOUT_MOUNT_IMPORT.line, `${LAYOUT_MOUNT_IMPORT.line}\nimport { sneaky } from "@/lib/sneaky" // UX-FINDINGS-E`)))
+await mutant('B: the mount import moved above the flag import (not the order of its neighbours)', () => { const lines = withoutLine(layoutNow, LAYOUT_MOUNT_IMPORT.line); lines.splice(lines.indexOf(LAYOUT_FLAG_IMPORT.line), 0, LAYOUT_MOUNT_IMPORT.line); fe1Mutant(LAYOUT, DRAFT_LAYOUT, lines.join('\n')) })
 await mutant('C: a CSS rule outside the attribute', () => proveCss(`${CSS_SRC}\n.sp-heading h1 { display: none; }\n`))
-await mutant('C: one selector of a list outside the attribute', () => proveCss(swap(CSS_SRC, '  display: none;\n}', '  display: none;\n}\n[data-studio-skel-brand="true"], html[data-studio-ux-findings-e="true"] .x { margin: 0; }')))
+await mutant('C: one selector of a list outside the attribute', () => proveCss(swap(CSS_SRC, 'margin-left: 7px;\n}', 'margin-left: 7px;\n}\n[data-studio-skel-brand="true"], html[data-studio-ux-findings-e="true"] .x { margin: 0; }')))
 await mutant('C: a rule inside @media outside the attribute', () => proveCss(swap(CSS_SRC, '@media (max-width: 820px) {\n  html[data-studio-ux-findings-e="true"] .studio-library', '@media (max-width: 820px) {\n  .studio-library')))
 await mutant('C: a colour is set', () => proveCss(swap(CSS_SRC, 'margin-left: 9px; overflow: hidden;', 'margin-left: 9px; color: #6a4fc0; overflow: hidden;')))
 await mutant('C: a colour in a custom shorthand', () => proveCss(swap(CSS_SRC, 'box-shadow: none; }', 'box-shadow: 0 1px 2px rgb(0 0 0 / 10%); }')))
 await mutant('C: !important', () => proveCss(swap(CSS_SRC, 'margin-left: 9px; overflow: hidden;', 'margin-left: 9px !important; overflow: hidden;')))
 await mutant('C: the H1 is display:none instead of sr-only', () => { const css = swap(CSS_SRC, '  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0;', '  display: none;'); const sr = parseCss(css).find(rule => rule.selectors.some(s => s.includes('main[data-studio-personal="details"] .sp-heading h1'))); assert.deepEqual(sr.decls.map(([k]) => k), ['position', 'width'], 'sr-only') })
-await mutant('C: a dead rule (a hook renamed in the sources)', () => proveLive(CSS_SRC, SELECTOR_SOURCES.map(rel => (rel === LIB ? LIB_SRC : read(rel))).map(text => text.replaceAll('sp-profile-confirmation', 'sp-profile-confirm'))))
+await mutant('C: a dead rule (a hook renamed in the sources)', () => proveLive(CSS_SRC, SELECTOR_SOURCES.map(rel => (rel === LIB ? LIB_SRC : read(rel))).map(text => text.replaceAll('sl-context', 'sl-ctx'))))
+const UX12_SCOPE = 'html[data-studio-ux-findings-e="true"] [data-studio-v4-shell-workspace="true"] main[data-studio-personal="details"]'
+await mutant('C: UX-12 hides the two "what appears where" hints again (.sp-p2-hint: "Contact details only appear…", "The presentation title and page numbers…")', () => proveUx12(`${CSS_SRC}\n${UX12_SCOPE} .sp-p2-hint { display: none; }\n`))
+await mutant('C: UX-12 hides the "Saved names and uploaded photos appear here…" paragraph again (.sp-profile-confirmation > p)', () => proveUx12(`${CSS_SRC}\n${UX12_SCOPE} .sp-profile-confirmation > p { display: none; }\n`))
+await mutant('C: UX-12 hides the optional-later-additions note again (.sp-later-note)', () => proveUx12(`${CSS_SRC}\n${UX12_SCOPE} .sp-later-note { display: none; }\n`))
+await mutant('C: a what-appears-where line made invisible another way (visibility: hidden on a hint)', () => proveUx12(`${CSS_SRC}\n${UX12_SCOPE} .sp-p2-hint { visibility: hidden; }\n`))
+await mutant('C: some other line of Your details is hidden (display: none on a rule that is not the skeleton\'s icon)', () => proveUx12(`${CSS_SRC}\n${UX12_SCOPE} .sp-heading p { display: none; }\n`))
 await mutant('D: a strip that leaves a line (the registry strip line stays)', () => proveStrip((rel, text) => (rel === REGISTRY ? text.split('\n').filter(line => line !== UX_FINDINGS_E_REGISTRY_ENV_LINE).join('\n') : stripUxFindingsE(rel, text))))
 await mutant('D: a strip that leaves the env block', () => proveStrip((rel, text) => (rel === ENV_FILE ? text : stripUxFindingsE(rel, text))))
 await mutant('D: a strip that does not put a taught proof back', () => proveStrip((rel, text) => (UX_FINDINGS_E_PIN_FILES.includes(rel) ? text : stripUxFindingsE(rel, text))))

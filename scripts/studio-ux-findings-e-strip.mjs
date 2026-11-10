@@ -2,8 +2,9 @@
 // (the exact string "true", with the Studio shell, build-time, default off), defined in lib/studio-ux-findings-e.ts. With the flag off every page renders as it does at dev eeb78d4f.
 // The change is a client mount that sets data-studio-ux-findings-e="true" on <html> and a stylesheet with every rule scoped to it (the shape of FRONTEND-1's page consistency, 12dadbc1), plus two behaviours in the mount itself:
 // UX-08 the workspace intro plays once on a browser, and none plays on a browser that already holds any intro mark (FRONTEND-1's own seen-store reused and never emptied; the intro's file is not touched), UX-11 /settings/profile goes to /studio/details.
-// FRONTEND-1 owns every existing page, component, lib and hook this could touch, so only FOUR lines go into their files (UX_FINDINGS_E_FE1_OK): the mount (two lines) in app/(app)/layout.tsx and the same hook (two lines) in the Builder
-// (the Builder sits outside that layout, and its loading skeleton, its Director header and the intro need the attribute). FRONTEND-1 OK'd those exact lines (to-FRONTEND-2.md line 528, 22:20Z, 7 Nov), anchors checked against dev eeb78d4f.
+// FRONTEND-1 owns every existing page, component, lib and hook this could touch, so only a few lines go into their files (UX_FINDINGS_E_FE1_OK): the mount in app/(app)/layout.tsx and the same hook (two lines) in the Builder
+// (the Builder sits outside that layout, and its loading skeleton, its Director header and the intro need the attribute). FRONTEND-1 OK'd the four lines (to-FRONTEND-2.md line 528, 22:20Z, 7 Nov), anchors checked against dev eeb78d4f.
+// FRONTEND-1's review ruling (to-FRONTEND-2.md, 9 Nov 04:55Z, "#603, your code, my rulings" (7)) gates the mount like its neighbours, {FLAG && <Mount/>}: the layout holds three lines of ours (the flag import, the mount import and the gated mount line), the Builder two.
 // Every line this change adds to an EXISTING app file carries the marker UX-FINDINGS-E (a WHOLE token). Strip them and the file is dev's, byte for byte (stripUxFindingsE(rel, text)).
 // The older proofs this change teaches (tests only, every line carries the registry-read mark): the two that read the first-parent commits of BASE..HEAD for their own commits' subjects get one more inserted line each, for "UX findings E:".
 // FRONTEND-1 also OK'd two after-merge edits of THEIR proofs (test-studio-ux-honesty, test-studio-voice-call: UX_FINDINGS_E_FE1_PROOF_OK), carried here with the mark and put back by the strip.
@@ -19,17 +20,21 @@ export const UX_FINDINGS_E_SUBJECT = 'UX findings E:'
 /** The mark every taught line in an older proof carries. */
 export const UX_FINDINGS_E_PIN_MARK = '// LATER-CHANGES: registry read (UX-FINDINGS-E)'
 
-// ---- the four lines for FRONTEND-1's files, OK'd by them (22:20Z) ---------------------------------------------------------------------------------------------
+// ---- the lines for FRONTEND-1's files: the four OK'd by them (22:20Z), the mount line gated and its flag import as they ruled (9 Nov 04:55Z) ---------------------------------------------------------------------------------------------
 /** Where each line goes: the file, the line it goes right after (the whole line, as dev has it), and the new line, byte for byte. Placed away from the end of the account layout's list, where FRONTEND-1's page consistency (12dadbc1) adds its own. */
 export const UX_FINDINGS_E_FE1_OK = {
   'app/(app)/layout.tsx': [
     {
       after: 'import { StudioPass3PolishGMount } from "@/components/studio-pass3-polish/studio-pass3-polish-g-mount" // PASS3-POLISH-G (NEXT_PUBLIC_STUDIO_PASS3_POLISH, default off): on iPhone and iPad the viewport meta gets maximum-scale=1, so a focused text control does not zoom the page',
+      line: 'import { STUDIO_UX_FINDINGS_E_ENABLED } from "@/lib/studio-ux-findings-e" // UX-FINDINGS-E (NEXT_PUBLIC_STUDIO_UX_FINDINGS_E, default off): the flag the mount below is drawn on, like its neighbours',
+    },
+    {
+      after: 'import { STUDIO_UX_FINDINGS_E_ENABLED } from "@/lib/studio-ux-findings-e" // UX-FINDINGS-E (NEXT_PUBLIC_STUDIO_UX_FINDINGS_E, default off): the flag the mount below is drawn on, like its neighbours',
       line: 'import { StudioUxFindingsEMount } from "@/components/studio-ux-findings-e/studio-ux-findings-e-mount" // UX-FINDINGS-E (NEXT_PUBLIC_STUDIO_UX_FINDINGS_E, default off): the attribute the findings stylesheet is scoped to, the intro once, /settings/profile to Your details',
     },
     {
       after: '      {STUDIO_PASS3_POLISH_ENABLED && <StudioPass3PolishGMount />}{/* PASS3-POLISH-G */}',
-      line: '      <StudioUxFindingsEMount />{/* UX-FINDINGS-E: draws nothing; with the flag off it returns null */}',
+      line: '      {STUDIO_UX_FINDINGS_E_ENABLED && <StudioUxFindingsEMount />}{/* UX-FINDINGS-E: draws nothing; with the flag off it is not drawn at all */}',
     },
   ],
   'app/builder/page.tsx': [
@@ -45,10 +50,10 @@ export const UX_FINDINGS_E_FE1_OK = {
 }
 // ---- the lines this change adds to files of its own or shared infrastructure ------------------------------------------------------------------------------------
 /** The .env.example block (one blank line, then the block), appended at the true end of the file. */
-export const UX_FINDINGS_E_ENV_BLOCK = `# STUDIO UX FINDINGS E (FRONTEND-2, B64; seven small fixes from FRONTEND-1's 4 Nov UX pass). On only for the string "true" (and only with NEXT_PUBLIC_STUDIO_V4_SHELL); default off, and then nothing changes.
+export const UX_FINDINGS_E_ENV_BLOCK = `# STUDIO UX FINDINGS E (FRONTEND-2, B64; small fixes from FRONTEND-1's 4 Nov UX pass; UX-12 hides nothing). On only for the string "true" (and only with NEXT_PUBLIC_STUDIO_V4_SHELL); default off, and then nothing changes.
 # Build-time value: change it on Vercel and redeploy. On: the workspace intro plays once on a browser, then never again, and none plays on a browser that already holds an intro mark (Replay intro still works); /settings/profile goes to "Your details";
-# the pages' H1 that repeats the top bar's title is kept for screen readers and not drawn; plain helper lines on Your details are hidden; the Director header's status sits inline after its name; Themes' context line
-# keeps its icon on the line on a phone; the Builder's loading skeleton shows the rail's new logo (with NEXT_PUBLIC_STUDIO_NEW_LOGO). Words and layout only: routes, handlers and requests are unchanged.
+# the pages' H1 that repeats the top bar's title is kept for screen readers and not drawn; the Director header's status sits inline after its name; Themes' context line keeps its icon on the line on a phone;
+# the Builder's loading skeleton shows the rail's new logo (with NEXT_PUBLIC_STUDIO_NEW_LOGO). Words and layout only: routes, handlers and requests are unchanged.
 NEXT_PUBLIC_STUDIO_UX_FINDINGS_E="false"
 `
 const ENV_HAS = `\n${UX_FINDINGS_E_ENV_BLOCK}`
