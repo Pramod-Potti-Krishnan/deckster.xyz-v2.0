@@ -1,0 +1,50 @@
+/* UX findings E (NEXT_PUBLIC_STUDIO_UX_FINDINGS_E, default off; FRONTEND-1's 4 Nov UX pass: UX-19, UX-22, UX-26, UX-27; UX-12 hides nothing). Every rule is scoped to <html data-studio-ux-findings-e="true">, set only with the flag on. No colour is set or changed, nothing is deleted from the page, and no rule needs !important. */
+
+/* UX-26: the page's H1 repeats the top bar's own title. It stays in the page for assistive technology and the heading outline (the repo's sr-only pattern) and is not drawn. Only pages whose H1 is the top bar's title:
+   Your details, Intelligence, Templates, Themes & brand, and the Decks page when the top bar reads "Your decks" too (the nav attribute: NEXT_PUBLIC_STUDIO_PLAIN_NAV_LABELS). */
+html[data-studio-ux-findings-e="true"] [data-studio-v4-shell-workspace="true"] main[data-studio-personal="details"] .sp-heading h1,
+html[data-studio-ux-findings-e="true"] [data-studio-v4-shell-workspace="true"] main[data-studio-personal="intelligence"] .sp-heading h1,
+html[data-studio-ux-findings-e="true"] [data-studio-v4-shell-workspace="true"] main[data-studio-library="templates"] > .sl-heading h1,
+html[data-studio-ux-findings-e="true"] [data-studio-v4-shell-workspace="true"] main[data-studio-library="themes"] > .sl-heading h1,
+html[data-studio-ux-findings-e="true"][data-studio-ux-findings-e-nav="true"] [data-studio-v4-shell-workspace="true"] main[data-studio-decks="true"] [data-studio-deck-heading="true"] h1 {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0;
+}
+
+/* UX-12 (helper text): nothing is hidden. Every helper line of Your details that was a candidate says what appears where ("Contact details only appear when included in the footer", "The presentation title and page numbers come from each deck",
+   "Saved names and uploaded photos appear here after a confirmed account-session refresh"), or discloses a limit, so each stays visible (FRONTEND-1's ruling, 9 Nov). No pure instruction line is left in this change's scope, so there is no rule here. */
+
+/* UX-19: the Director header's status is one row with the name, the dot inline after it, on the name's baseline (it was a second row under the name). Only the chat header (NEXT_PUBLIC_STUDIO_CHAT_HEADER) has the
+   second row; the phone shell keeps its own header. The star tile and the actions stay centred in the row (a negative block margin keeps them from making the row taller than the words). */
+html[data-studio-ux-findings-e="true"] [data-studio-v4-shell="true"]:not(:has(> [data-studio-phone-tabbar="true"])) [data-studio-chat-header] {
+  display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; grid-template-rows: auto; align-content: center; align-items: baseline; column-gap: 0;
+}
+html[data-studio-ux-findings-e="true"] [data-studio-v4-shell="true"]:not(:has(> [data-studio-phone-tabbar="true"])) [data-studio-chat-header] > [aria-hidden="true"] {
+  grid-column: 1; grid-row: 1; align-self: center; margin-block: -4px; margin-right: 9px;
+}
+html[data-studio-ux-findings-e="true"] [data-studio-v4-shell="true"]:not(:has(> [data-studio-phone-tabbar="true"])) [data-studio-chat-header] > strong {
+  grid-column: 2; grid-row: 1; align-self: baseline;
+}
+html[data-studio-ux-findings-e="true"] [data-studio-v4-shell="true"]:not(:has(> [data-studio-phone-tabbar="true"])) [data-studio-chat-header] > [role="status"] {
+  grid-column: 3; grid-row: 1; align-self: baseline; display: block; margin-left: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+html[data-studio-ux-findings-e="true"] [data-studio-v4-shell="true"]:not(:has(> [data-studio-phone-tabbar="true"])) [data-studio-chat-header] > [role="status"]::before {
+  display: inline-block; vertical-align: middle; margin-right: 5px;
+}
+html[data-studio-ux-findings-e="true"] [data-studio-v4-shell="true"]:not(:has(> [data-studio-phone-tabbar="true"])) [data-studio-chat-header] > :not([aria-hidden="true"]):not(strong):not([role="status"]) {
+  grid-column: 4; grid-row: 1; align-self: center; margin-block: -4px; margin-left: 7px;
+}
+html[data-studio-ux-findings-e="true"] [data-studio-v4-shell="true"]:not(:has(> [data-studio-phone-tabbar="true"])) [data-studio-chat-header] > strong:first-child {
+  grid-column: 1;
+}
+html[data-studio-ux-findings-e="true"] [data-studio-v4-shell="true"]:not(:has(> [data-studio-phone-tabbar="true"])) [data-studio-chat-header] > strong:first-child + [role="status"] {
+  grid-column: 2; margin-left: 9px;
+}
+
+/* UX-22: on Themes the context line's icon stays on the line with its words. The base rule wraps the line at 820 px and the words (as wide as their text) went below a lone icon; the words now take what is left. */
+@media (max-width: 820px) {
+  html[data-studio-ux-findings-e="true"] .studio-library[data-studio-library="themes"] .sl-context > span:not(:last-child) { flex: 1 1 0; min-width: 0; }
+}
+
+/* UX-27: the Builder's loading skeleton draws the rail's new logo tile (the same file, the same 32 px box) in place of the old Layers icon, when the rail does (NEXT_PUBLIC_STUDIO_NEW_LOGO: the logo attribute). */
+html[data-studio-ux-findings-e="true"][data-studio-ux-findings-e-logo="true"] [data-studio-skel-brand="true"] { background: url("/logo-icon-sm.png") center / contain no-repeat; box-shadow: none; }
+html[data-studio-ux-findings-e="true"][data-studio-ux-findings-e-logo="true"] [data-studio-skel-brand="true"] > svg { display: none; }

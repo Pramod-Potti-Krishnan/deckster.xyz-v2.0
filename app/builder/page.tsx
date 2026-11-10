@@ -8491,6 +8491,7 @@ import { STUDIO_STRAWMAN_CHAT_ENABLED } from '@/lib/studio-strawman-chat' // STR
 import { useStudioStrawmanChat } from '@/hooks/use-studio-strawman-chat' // STRAWMAN-CHAT
 import { StudioStrawmanChatLine } from '@/components/builder/chat/studio-strawman-chat' // STRAWMAN-CHAT
 import { useStudioStageOpen } from '@/lib/studio-stage-open-gate' // STRAWMAN-CHAT: FRONTEND-2's gate, read on the one stage-open line
+import { useStudioUxFindingsE } from '@/components/studio-ux-findings-e/studio-ux-findings-e-mount' // UX-FINDINGS-E (NEXT_PUBLIC_STUDIO_UX_FINDINGS_E, default off): the attribute the findings stylesheet is scoped to, the intro once
 
 function BuilderLoadingState({ message = 'Loading builder...' }: { message?: string }) {
   // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the route loader is the builder shell, not a blank page with a spinner.
@@ -8510,6 +8511,7 @@ function BuilderAuthBoundary() {
   const { user, isLoading, isAuthenticated } = useAuth()
   const router = useRouter()
   const authScopeUserId = user?.id ?? user?.email ?? ''
+  useStudioUxFindingsE(authScopeUserId) // UX-FINDINGS-E: flag off, every effect returns before it reads the document, the window or storage
   const mountedAccountRef = useRef('')
   const accountChanged = Boolean(
     !isLoading
