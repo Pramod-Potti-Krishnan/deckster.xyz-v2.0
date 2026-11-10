@@ -86,6 +86,12 @@ export const RESTACK_UX_PC_EDITS = {
    ""
   ]
  ],
+ "scripts/test-studio-template-workspace.mjs": [
+  [
+   "      get: (target, k) => k === Symbol.unscopables ? undefined : k in target ? target[k] : /^[A-Z][A-Z0-9_]*$/.test(String(k)) ? undefined : String(k), // LATER-CHANGES: registry read (RESTACK-UX-PC): a duplicate key, the later one wins; a SCREAMING_CASE flag constant that this harness does not resolve reads as undefined (OFF), never as its own name (a truthy string)\n",
+   ""
+  ]
+ ],
  "scripts/test-studio-voice-call.mjs": [
   [
    "const laterRegistry = await import('./studio-later-changes.mjs') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n",
