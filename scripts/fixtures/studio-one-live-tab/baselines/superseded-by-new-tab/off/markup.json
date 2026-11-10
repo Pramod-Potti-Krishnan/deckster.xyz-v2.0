@@ -1,0 +1,44 @@
+{
+  "01-connected-one-turn-sent": {
+    "chat": "1f2be6bc7264a7096451d234a9e153fab3efc5551b0e3a4f719f9fce9ddf7965",
+    "composer": "523a7a8cc53cce070edca6411bb935729bf222282c36ce02bfe6e7d63d1e69f9",
+    "header": "f300b84d63410cdc2e8eca6372408049af5aedbaca9c860ffe488ef2d8a3626d",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "02-evicted-by-another-tab": {
+    "chat": "1f2be6bc7264a7096451d234a9e153fab3efc5551b0e3a4f719f9fce9ddf7965",
+    "composer": "7800d66279c37cdff6d90a6e501959b222638e28f8c58de8d81acdc6e915f41b",
+    "header": "abd195a1e9802f70d3e5498a24ace633d184d7cf0350d51d181b5a34856d536e",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "03-a-minute-later": {
+    "chat": "1f2be6bc7264a7096451d234a9e153fab3efc5551b0e3a4f719f9fce9ddf7965",
+    "composer": "40fc7b03b51537a29021fa22989e0e626c8b4c380e78c475fe437bac331df8a3",
+    "header": "3ee9fc0db3eb1e86b0efc51bb9b3e79dd954eb70b105e14d7ab568136a27f232",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "04-send-in-the-paused-tab": {
+    "chat": "1f2be6bc7264a7096451d234a9e153fab3efc5551b0e3a4f719f9fce9ddf7965",
+    "composer": "6f7393d9b29a5aa84fe307285bac325d2ec9a000093082c5526ce22f1e83533f",
+    "header": "3ee9fc0db3eb1e86b0efc51bb9b3e79dd954eb70b105e14d7ab568136a27f232",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "05-offline-and-online-while-paused": {
+    "chat": "1f2be6bc7264a7096451d234a9e153fab3efc5551b0e3a4f719f9fce9ddf7965",
+    "composer": "6f7393d9b29a5aa84fe307285bac325d2ec9a000093082c5526ce22f1e83533f",
+    "header": "3ee9fc0db3eb1e86b0efc51bb9b3e79dd954eb70b105e14d7ab568136a27f232",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "06-two-more-minutes": {
+    "chat": "1f2be6bc7264a7096451d234a9e153fab3efc5551b0e3a4f719f9fce9ddf7965",
+    "composer": "6f7393d9b29a5aa84fe307285bac325d2ec9a000093082c5526ce22f1e83533f",
+    "header": "3ee9fc0db3eb1e86b0efc51bb9b3e79dd954eb70b105e14d7ab568136a27f232",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "07-final": {
+    "chat": "1f2be6bc7264a7096451d234a9e153fab3efc5551b0e3a4f719f9fce9ddf7965",
+    "composer": "6f7393d9b29a5aa84fe307285bac325d2ec9a000093082c5526ce22f1e83533f",
+    "header": "3ee9fc0db3eb1e86b0efc51bb9b3e79dd954eb70b105e14d7ab568136a27f232",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

@@ -1,0 +1,118 @@
+{
+  "calls": [
+    {
+      "args": [{"mode":"auto"},"synthetic-uuid-0001","deck-themed-cl",true],
+      "at": 1500,
+      "name": "hook.sendThemeSelection",
+      "step": 2
+    },
+    {"args":[{"type":"sync_response"}],"at":3000,"name":"page.onMessage","step":5},
+    {
+      "args": [{"request_id":"restore:sess-themed-cl:req-cl-1","status":"restored","type":"theme_sync"}],
+      "at": 3000,
+      "name": "page.onMessage",
+      "step": 5
+    },
+    {"args":[{"type":"chat_message"}],"at":3000,"name":"page.onMessage","step":5},
+    {"args":[{"type":"chat_message"}],"at":3000,"name":"page.onMessage","step":5},
+    {
+      "args": [{"request_id":"synthetic-uuid-0001","status":"syncing","type":"theme_sync"}],
+      "at": 3500,
+      "name": "page.onMessage",
+      "step": 6
+    },
+    {
+      "args": [{"request_id":"synthetic-uuid-0001","status":"applied","type":"theme_sync"}],
+      "at": 3500,
+      "name": "page.onMessage",
+      "step": 6
+    },
+    {"args":[{"type":"sync_response"}],"at":9500,"name":"page.onMessage","step":14},
+    {
+      "args": [{"request_id":"restore:sess-themed-cl:req-cl-1","status":"restored","type":"theme_sync"}],
+      "at": 9500,
+      "name": "page.onMessage",
+      "step": 14
+    }
+  ],
+  "checkpoints": [
+    {
+      "activeBuildThemeProfile": null,
+      "buildThemeSelection": {"mode":"auto"},
+      "connection": {"connected":true,"generation":1,"sockets":1},
+      "deck": {"effectivePresentationId":"deck-themed-cl","presentationId":"deck-themed-cl"},
+      "label": "socket open, nothing received",
+      "messages": ["db-director-1 | chat_message"],
+      "setThemeSent": [{"at":1500,"socket":0,"theme":{"mode":"auto"}}],
+      "themeSelectionChangedLocally": false,
+      "themeSync": {
+        "error": null,
+        "presentationId": "deck-themed-cl",
+        "requestId": "synthetic-uuid-0001",
+        "status": "syncing",
+        "themeFingerprint": "{\"mode\":\"auto\"}"
+      },
+      "toasts": 0,
+      "virtualMs": 2000
+    },
+    {
+      "activeBuildThemeProfile": null,
+      "buildThemeSelection": {"mode":"auto"},
+      "connection": {"connected":true,"generation":1,"sockets":1},
+      "deck": {"effectivePresentationId":"deck-themed-cl","presentationId":"deck-themed-cl"},
+      "label": "connect 1 restored",
+      "messages": ["db-director-1 | chat_message","msg_hist_0b681a89edc6 | chat_message","msg_hist_b6bf31b5a056 | chat_message"],
+      "setThemeSent": [{"at":1500,"socket":0,"theme":{"mode":"auto"}}],
+      "themeSelectionChangedLocally": false,
+      "themeSync": {
+        "error": null,
+        "presentationId": "deck-themed-cl",
+        "requestId": "synthetic-uuid-0001",
+        "status": "applied",
+        "themeFingerprint": "{\"mode\":\"auto\"}"
+      },
+      "toasts": 0,
+      "virtualMs": 4000
+    },
+    {
+      "activeBuildThemeProfile": null,
+      "buildThemeSelection": {"mode":"auto"},
+      "connection": {"connected":false,"generation":1,"sockets":2},
+      "deck": {"effectivePresentationId":"deck-themed-cl","presentationId":"deck-themed-cl"},
+      "label": "reconnecting",
+      "messages": ["db-director-1 | chat_message","msg_hist_0b681a89edc6 | chat_message","msg_hist_b6bf31b5a056 | chat_message"],
+      "setThemeSent": [{"at":1500,"socket":0,"theme":{"mode":"auto"}}],
+      "themeSelectionChangedLocally": false,
+      "themeSync": {
+        "error": null,
+        "presentationId": "deck-themed-cl",
+        "requestId": "synthetic-uuid-0001",
+        "status": "applied",
+        "themeFingerprint": "{\"mode\":\"auto\"}"
+      },
+      "toasts": 0,
+      "virtualMs": 8000
+    },
+    {
+      "activeBuildThemeProfile": null,
+      "buildThemeSelection": {"mode":"auto"},
+      "connection": {"connected":true,"generation":2,"sockets":2},
+      "deck": {"effectivePresentationId":"deck-themed-cl","presentationId":"deck-themed-cl"},
+      "label": "connect 2 restored, 25 s later",
+      "messages": ["db-director-1 | chat_message","msg_hist_0b681a89edc6 | chat_message","msg_hist_b6bf31b5a056 | chat_message"],
+      "setThemeSent": [{"at":1500,"socket":0,"theme":{"mode":"auto"}}],
+      "themeSelectionChangedLocally": false,
+      "themeSync": {
+        "error": null,
+        "presentationId": "deck-themed-cl",
+        "requestId": "synthetic-uuid-0001",
+        "status": "applied",
+        "themeFingerprint": "{\"mode\":\"auto\"}"
+      },
+      "toasts": 0,
+      "virtualMs": 35500
+    }
+  ],
+  "diagnostics": {"blockedNetwork":[],"console":[],"uncaught":[]},
+  "notes": ["step 15: themeAck skipped, no unanswered set_theme"]
+}

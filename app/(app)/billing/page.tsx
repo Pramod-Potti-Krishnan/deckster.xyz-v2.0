@@ -13,6 +13,11 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CreditCard, Calendar, Crown, Sparkles, Shield, Check, X, AlertCircle, Download, Wallet, Plus, Loader2 } from "lucide-react"
 import { useWallet } from "@/hooks/use-wallet"
 import { features } from "@/lib/config"
+import { PRICING_TIERS, TOPUP_PACKS } from "@/lib/marketing/homepage-v2-pricing" // BILLING-F4F6
+import { studioBillingPriceLine, studioNextPlan, studioPlanForTier, studioPlanLines, type StudioBillingQuota } from "@/lib/studio-billing"
+import { StudioBillingCapacity } from "@/components/billing/studio-billing-capacity"
+import "@/components/billing/studio-billing.css"
+import "@/components/settings/studio-p2-account.css"
 
 interface Invoice {
   id: string
@@ -27,6 +32,13 @@ interface Usage {
   storageBytes: number
 }
 
+// PASS2 ACC-04/12/13/14 (NEXT_PUBLIC_STUDIO_P2_ACCOUNT, default off, Studio shell only): the plan words come from the shared plan list (PRICING_TIERS, the list Landing
+// reads with the flag on), the usage card shows the real daily / weekly meters instead of the "Planned" row, and the plan buttons are ink. Off: the page as before.
+const STUDIO_P2_ACCOUNT = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true" && process.env.NEXT_PUBLIC_STUDIO_P2_ACCOUNT === "true"
+
+// NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
+const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === "true"
+
 function formatBytes(bytes: number): string {
   if (!bytes) return "0 B"
   const units = ["B", "KB", "MB", "GB", "TB"]
@@ -37,13 +49,14 @@ function formatBytes(bytes: number): string {
 
 export default function BillingPage() {
   return (
-    <Suspense fallback={<div className="py-12 text-center text-sm text-muted-foreground">Loading…</div>}>
+    <Suspense fallback={<div className="py-12 text-center text-sm text-muted-foreground" data-studio-billing-loading={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true" ? "true" : undefined}>Loading…</div>}>
       <BillingPageContent />
     </Suspense>
   )
 }
 
 function BillingPageContent() {
+  const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true"
   const { user, isLoading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -51,6 +64,7 @@ function BillingPageContent() {
 
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [usage, setUsage] = useState<Usage | null>(null)
+  const [quota, setQuota] = useState<StudioBillingQuota | null | undefined>(undefined) // ACC-12: undefined while the read is in flight, null when it failed
   const wallet = useWallet()
   const [topUpLoading, setTopUpLoading] = useState<string | null>(null)
 
@@ -63,6 +77,23 @@ function BillingPageContent() {
         if (!cancelled && d) setUsage(d)
       })
       .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // ACC-12: the same quota read the account menu makes (read-only).
+  useEffect(() => {
+    if (!STUDIO_P2_ACCOUNT) return
+    let cancelled = false
+    fetch("/api/usage/quota")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled) setQuota(d)
+      })
+      .catch(() => {
+        if (!cancelled) setQuota(null)
+      })
     return () => {
       cancelled = true
     }
@@ -85,7 +116,7 @@ function BillingPageContent() {
 
   if (isLoading || isLoadingSubscription) {
     return (
-      <div className="py-12 text-center text-sm text-muted-foreground">Loading…</div>
+      <div className="py-12 text-center text-sm text-muted-foreground" data-studio-billing-loading={studioShell ? "true" : undefined}>Loading…</div>
     )
   }
 
@@ -97,6 +128,11 @@ function BillingPageContent() {
   const handleUpgrade = () => {
     router.push("/pricing")
   }
+
+  // ACC-13/14: the plan for the account's tier from the shared list (null: free, or a tier no plan carries) and the plan after it.
+  // UX-06 (honesty, no flag): the plan words always come from the shared plan list (PRICING_TIERS, pricing v2), so Billing never states a plan fact that list does not.
+  const plan = studioPlanForTier(PRICING_TIERS, user.tier)
+  const nextPlan = studioNextPlan(PRICING_TIERS, plan)
 
   const handleTopUp = async (packId: string) => {
     setTopUpLoading(packId)
@@ -118,23 +154,24 @@ function BillingPageContent() {
   }
 
   return (
-    <main className="container mx-auto max-w-4xl px-4 py-8">
-      <div className="mb-8">
+    <main className="container mx-auto max-w-4xl px-4 py-8" data-studio-billing={studioShell ? "true" : undefined} data-studio-p2-account={STUDIO_P2_ACCOUNT ? "true" : undefined}>
+      <div className="mb-8" data-studio-billing-heading={studioShell ? "true" : undefined}>
         <h1 className="text-3xl font-bold mb-2">Billing & Subscription</h1>
         <p className="text-muted-foreground">Manage your subscription and billing information</p>
       </div>
 
-      <div className="grid gap-6">
+      <div className="grid gap-6" data-studio-billing-grid={studioShell ? "true" : undefined}>
         {/* Current Plan Card */}
-        <Card>
-          <CardHeader>
+        <Card data-studio-billing-card={studioShell ? "plan" : undefined}>
+          <CardHeader data-studio-billing-header={studioShell ? "true" : undefined}>
             <CardTitle>Current Plan</CardTitle>
             <CardDescription>Your subscription details</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between rounded-lg bg-slate-50 p-4 dark:bg-slate-900">
+          <CardContent className="space-y-4" data-studio-billing-body={studioShell ? "true" : undefined}>
+            <div className="flex items-center justify-between rounded-lg bg-slate-50 p-4 dark:bg-slate-900" data-studio-billing-plan-summary={studioShell ? "true" : undefined}>
               <div className="flex items-center space-x-4">
                 <div
+                  data-studio-billing-plan-icon={studioShell ? "true" : undefined}
                   className={`rounded-lg p-3 ${
                     user.tier === "premium"
                       ? "bg-purple-100 dark:bg-purple-900/30"
@@ -153,24 +190,16 @@ function BillingPageContent() {
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold">
-                    {user.tier === "premium"
+                    {plan
+                      ? `${plan.name} Plan`
+                      : user.tier === "premium"
                       ? "Max Plan"
                       : user.tier && user.tier !== "free"
                         ? `${user.tier.charAt(0).toUpperCase() + user.tier.slice(1)} Plan`
                         : "Free Plan"}
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    {subscription
-                      ? subscription.billingCycle === "yearly"
-                        ? "$290/year"
-                        : "$29/month"
-                      : user.tier === "premium"
-                        ? "$100/month"
-                        : user.tier === "pro"
-                          ? "$50/month"
-                          : user.tier === "starter"
-                            ? "$20/month"
-                            : "No charge"}
+                    {studioBillingPriceLine(PRICING_TIERS, user.tier, subscription?.billingCycle)}
                   </p>
                 </div>
               </div>
@@ -178,6 +207,7 @@ function BillingPageContent() {
                 {isPro && subscription ? (
                   <>
                     <Badge
+                      data-studio-billing-plan-status={studioShell ? subscription.status : undefined}
                       variant="outline"
                       className={
                         subscription.status === "active"
@@ -206,41 +236,30 @@ function BillingPageContent() {
             {/* Plan Features */}
             <div className="space-y-2">
               <h4 className="text-sm font-medium">Included in your plan:</h4>
-              <div className="grid gap-2">
-                {user.tier === "premium" ? (
-                  <>
-                    <Feature included text="Unlimited presentations" />
-                    <Feature included text="All 4 AI agents" />
-                    <Feature included text="Custom branding" />
-                    <Feature included text="Knowledge Graph" />
-                    <Feature included text="Priority generation queue" />
-                    <Feature included text="Advanced analytics" />
-                  </>
-                ) : user.tier === "pro" ? (
-                  <>
-                    <Feature included text="Unlimited presentations" />
-                    <Feature included text="All 4 AI agents" />
-                    <Feature included text="Custom branding" />
-                    <Feature included text="Advanced analytics" />
-                    <Feature text="Knowledge Graph (upgrade to Max)" />
-                  </>
+              <div className="grid gap-2" data-studio-billing-features={studioShell ? "true" : undefined}>
+                {plan ? (
+                  studioPlanLines(plan).map((line) =>
+                    line.lead ? (
+                      <p key={line.text} data-studio-billing-feature-lead="true" className="text-sm text-muted-foreground">{line.text}</p>
+                    ) : (
+                      <Feature key={line.text} included text={line.text} />
+                    ),
+                  )
                 ) : (
-                  <>
-                    <Feature included text="3 presentations" />
-                    <Feature included text="2 AI agents" />
-                    <Feature text="Custom branding (upgrade to Pro)" />
-                    <Feature text="Advanced features (upgrade to Pro)" />
-                  </>
+                  <p data-studio-billing-free-plan="true" className="text-sm text-muted-foreground">
+                    No paid plan yet. The plans and what each includes are on the{" "}
+                    <a href="/pricing" className="underline underline-offset-2">pricing page</a>.
+                  </p>
                 )}
               </div>
             </div>
 
             {isPro && subscription && (
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-2 pt-2" data-studio-billing-plan-actions={studioShell ? "true" : undefined}>
                 <ManageSubscriptionButton />
-                {user.tier === "pro" && (
+                {user.tier === "pro" && nextPlan && (
                   <Button variant="outline" onClick={handleUpgrade}>
-                    Upgrade to Enterprise
+                    {`Upgrade to ${nextPlan.name}`}
                   </Button>
                 )}
               </div>
@@ -250,15 +269,15 @@ function BillingPageContent() {
 
         {/* Credit Balance Card */}
         {features.couponAuthEnabled && (
-          <Card>
-            <CardHeader>
+          <Card data-studio-billing-card={studioShell ? "wallet" : undefined}>
+            <CardHeader data-studio-billing-header={studioShell ? "true" : undefined}>
               <CardTitle className="flex items-center gap-2">
                 <Wallet className="h-5 w-5" />
                 Credit Balance
               </CardTitle>
               <CardDescription>Your available credits for AI generation</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4" data-studio-billing-body={studioShell ? "true" : undefined}>
               {searchParams?.get("topup") === "success" && (
                 <Alert className="border-green-200 bg-green-50 dark:border-green-900/50 dark:bg-green-950/30">
                   <Check className="h-4 w-4 text-green-600" />
@@ -268,7 +287,7 @@ function BillingPageContent() {
                 </Alert>
               )}
 
-              <div className="flex items-center justify-between rounded-lg bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-950/30 p-4">
+              <div className="flex items-center justify-between rounded-lg bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-950/30 p-4" data-studio-billing-balance={studioShell ? "true" : undefined}>
                 <div>
                   <p className="text-sm text-muted-foreground">Available Balance</p>
                   <p className="text-3xl font-bold">
@@ -279,13 +298,8 @@ function BillingPageContent() {
 
               <div>
                 <h4 className="text-sm font-medium mb-2">Add Credits</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {[
-                    { id: "pack_10", label: "$10" },
-                    { id: "pack_25", label: "$25" },
-                    { id: "pack_50", label: "$50" },
-                    { id: "pack_100", label: "$100" },
-                  ].map((pack) => (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2" data-studio-billing-packs={studioShell ? "true" : undefined}>
+                  {TOPUP_PACKS.map((pack) => ( // BILLING-F4F6
                     <Button
                       key={pack.id}
                       variant="outline"
@@ -309,7 +323,7 @@ function BillingPageContent() {
               {!wallet.isLoading && wallet.transactions.length > 0 && (
                 <div>
                   <h4 className="text-sm font-medium mb-2">Recent Transactions</h4>
-                  <div className="space-y-2">
+                  <div className="space-y-2" data-studio-billing-transactions={studioShell ? "true" : undefined}>
                     {wallet.transactions.slice(0, 5).map((txn) => (
                       <div
                         key={txn.id}
@@ -343,13 +357,13 @@ function BillingPageContent() {
 
         {/* Payment Method Card */}
         {user.tier !== "free" && (
-          <Card>
-            <CardHeader>
+          <Card data-studio-billing-card={studioShell ? "payment" : undefined}>
+            <CardHeader data-studio-billing-header={studioShell ? "true" : undefined}>
               <CardTitle>Payment Method</CardTitle>
               <CardDescription>Manage your payment information</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between rounded-lg border p-4">
+            <CardContent data-studio-billing-body={studioShell ? "true" : undefined}>
+              <div className="flex items-center justify-between rounded-lg border p-4" data-studio-billing-payment-row={studioShell ? "true" : undefined}>
                 <div className="flex items-center gap-3">
                   <CreditCard className="h-5 w-5 text-muted-foreground" />
                   <div>
@@ -367,14 +381,14 @@ function BillingPageContent() {
 
         {/* Invoice History */}
         {user.tier !== "free" && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Invoice History</CardTitle>
+          <Card data-studio-billing-card={studioShell ? "invoices" : undefined}>
+            <CardHeader data-studio-billing-header={studioShell ? "true" : undefined}>
+              <CardTitle id={studioShell ? "billing-invoice-heading" : undefined}>Invoice History</CardTitle>
               <CardDescription>Download your past invoices</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent data-studio-billing-body={studioShell ? "true" : undefined}>
               {invoices.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 py-8 text-center">
+                <div className="flex flex-col items-center gap-2 py-8 text-center" data-studio-billing-invoice-empty={studioShell ? "true" : undefined}>
                   <Calendar className="h-8 w-8 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">
                     No invoices yet. Your invoices will appear here after your first
@@ -385,11 +399,13 @@ function BillingPageContent() {
                   </p>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-2" data-studio-billing-invoices={studioShell ? "true" : undefined} role={studioShell ? "list" : undefined} aria-labelledby={studioShell ? "billing-invoice-heading" : undefined}>
                   {invoices.map((invoice) => (
                     <div
                       key={invoice.id}
                       className="flex items-center justify-between rounded-lg p-3 hover:bg-slate-50 dark:hover:bg-slate-900"
+                      data-studio-billing-invoice={studioShell ? "true" : undefined}
+                      role={studioShell ? "listitem" : undefined}
                     >
                       <div className="flex items-center gap-3">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -407,7 +423,7 @@ function BillingPageContent() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs text-green-700">
+                        <Badge variant="outline" className="text-xs text-green-700" data-studio-billing-invoice-status={studioShell ? "true" : undefined}>
                           {invoice.status}
                         </Badge>
                         {invoice.downloadUrl && (
@@ -432,13 +448,13 @@ function BillingPageContent() {
         )}
 
         {/* Usage Statistics */}
-        <Card>
-          <CardHeader>
+        <Card data-studio-billing-card={studioShell ? "usage" : undefined}>
+          <CardHeader data-studio-billing-header={studioShell ? "true" : undefined}>
             <CardTitle>Usage</CardTitle>
             <CardDescription>Your usage this billing period</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+          <CardContent data-studio-billing-body={studioShell ? "true" : undefined}>
+            <div className="space-y-4" data-studio-billing-usage={studioShell ? "true" : undefined}>
               <div>
                 <div className="mb-1 flex justify-between text-sm">
                   <span>Presentations</span>
@@ -458,12 +474,16 @@ function BillingPageContent() {
                 </p>
               </div>
 
-              <div className="flex justify-between text-sm">
-                <span>AI Agent Interactions</span>
-                <Badge variant="outline" className="text-muted-foreground text-xs">
-                  Planned
-                </Badge>
-              </div>
+              {STUDIO_P2_ACCOUNT ? (
+                <StudioBillingCapacity quota={quota} />
+              ) : LAUNCH_WORDING ? null : (
+                <div className="flex justify-between text-sm">
+                  <span>AI Agent Interactions</span>
+                  <Badge variant="outline" className="text-muted-foreground text-xs">
+                    Planned
+                  </Badge>
+                </div>
+              )}
 
               <div className="flex justify-between text-sm">
                 <span>Storage Used</span>
@@ -477,7 +497,7 @@ function BillingPageContent() {
 
         {/* Upgrade CTA for Free Users */}
         {user.tier === "free" && (
-          <Alert className="border-purple-200 bg-purple-50 dark:border-purple-900/50 dark:bg-purple-950/30">
+          <Alert className="border-purple-200 bg-purple-50 dark:border-purple-900/50 dark:bg-purple-950/30" data-studio-billing-upgrade={studioShell ? "true" : undefined}>
             <AlertCircle className="h-4 w-4 text-purple-600" />
             <AlertDescription className="flex items-center justify-between">
               <div>
@@ -485,7 +505,7 @@ function BillingPageContent() {
                   Unlock all features
                 </p>
                 <p className="mt-1 text-sm text-purple-700 dark:text-purple-400">
-                  Upgrade to Pro for unlimited presentations and advanced features
+                  Compare the plans and what each includes on the pricing page
                 </p>
               </div>
               <Button className="ml-4" onClick={handleUpgrade}>

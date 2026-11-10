@@ -1,0 +1,103 @@
+{
+  "deckster_session_v2_synthetic-user-01_synthetic-session-error-retry": {
+    "activeVersion": "final",
+    "blankPresentationId": null,
+    "blankPresentationUrl": null,
+    "currentStatus": null,
+    "deckContext": null,
+    "finalPresentationId": null,
+    "finalPresentationUrl": null,
+    "isBlankPresentation": false,
+    "lastUpdated": 1791201611000,
+    "messages": [
+      {
+        "clientTimestamp": 1791201601500,
+        "message_id": "msg-greeting",
+        "payload": {"format":"markdown","list_items":null,"sub_title":null,"text":"Hello! What would you like to build today?"},
+        "role": "assistant",
+        "session_id": "synthetic-session-error-retry",
+        "timestamp": "2026-10-05T12:00:01Z",
+        "type": "chat_message"
+      },
+      {
+        "clientTimestamp": 1791201602500,
+        "message_id": "msg-think-1",
+        "payload": {
+          "ephemeral": true,
+          "format": "text",
+          "list_items": null,
+          "sub_title": null,
+          "text": "Analyzing presentation strategy..."
+        },
+        "role": "assistant",
+        "session_id": "synthetic-session-error-retry",
+        "timestamp": "2026-10-05T12:00:02Z",
+        "type": "chat_message"
+      },
+      {
+        "clientTimestamp": 1791201610000,
+        "message_id": "msg-think-2",
+        "payload": {
+          "ephemeral": true,
+          "format": "text",
+          "list_items": null,
+          "sub_title": null,
+          "text": "Analyzing presentation strategy..."
+        },
+        "role": "assistant",
+        "session_id": "synthetic-session-error-retry",
+        "timestamp": "2026-10-05T12:00:09Z",
+        "type": "chat_message"
+      },
+      {
+        "clientTimestamp": 1791201610500,
+        "message_id": "msg-plan",
+        "payload": {"format":"markdown","list_items":null,"sub_title":null,"text":"Here is the plan."},
+        "role": "assistant",
+        "session_id": "synthetic-session-error-retry",
+        "timestamp": "2026-10-05T12:00:10Z",
+        "type": "chat_message"
+      },
+      {
+        "clientTimestamp": 1791201611000,
+        "message_id": "msg_plan_confirm_synthetic-session-error-retry",
+        "payload": {
+          "actions": [
+            {"label":"Yes, let's build it!","primary":true,"requires_input":false,"value":"accept_plan"},
+            {"label":"I'd like to make changes","primary":false,"requires_input":false,"value":"reject_plan"}
+          ],
+          "prompt_text": "Does this structure work for you?"
+        },
+        "role": "assistant",
+        "session_id": "synthetic-session-error-retry",
+        "timestamp": "2026-10-05T12:00:11Z",
+        "type": "action_request"
+      }
+    ],
+    "ownerUserId": "synthetic-user-01",
+    "presentationId": null,
+    "presentationUrl": null,
+    "slideContextByIndex": null,
+    "slideCount": null,
+    "slideStructure": null,
+    "strawmanPresentationId": null,
+    "strawmanPreviewUrl": null,
+    "tokenUsage": null,
+    "tokenUsageMessageId": null,
+    "userMessages": [
+      {
+        "attachments": [],
+        "id": "synthetic-uuid-0001",
+        "text": "Build a deck about ocean currents",
+        "timestamp": 1791201602000
+      },
+      {
+        "attachments": [],
+        "id": "synthetic-uuid-0002",
+        "text": "Build a deck about ocean currents",
+        "timestamp": 1791201608000
+      }
+    ],
+    "version": 2
+  }
+}

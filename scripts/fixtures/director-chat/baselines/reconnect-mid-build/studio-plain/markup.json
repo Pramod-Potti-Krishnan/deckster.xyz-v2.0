@@ -1,0 +1,47 @@
+{
+  "01-mid-build": {
+    "chat": "43d2a093968fc7edade7036202b224942bb92574a4b7f2b001dd00c1da3c9343",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "02-socket-dropped": {
+    "chat": "43d2a093968fc7edade7036202b224942bb92574a4b7f2b001dd00c1da3c9343",
+    "header": "6ba45185bd4bd90b41aebd401b6bcdf2b65d89fc69739a66d8c9d6af40221f67",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "03-reconnecting": {
+    "chat": "43d2a093968fc7edade7036202b224942bb92574a4b7f2b001dd00c1da3c9343",
+    "header": "d67a4ef41c11266db0040c30c2e0e6c3e7a4673608ebdb99c41861f6d5e7e763",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "04-resynced": {
+    "chat": "11237832adcc2bb9f97ade3f578e5d6141c287d1398227c704659ac7a02dcbdf",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "05-outline-after-reconnect": {
+    "chat": "0d9b6177b561865a9e7dfa033b5bf68b1598458e0bc07e6945533b2e27a9ba9f",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "06-browser-offline": {
+    "chat": "0d9b6177b561865a9e7dfa033b5bf68b1598458e0bc07e6945533b2e27a9ba9f",
+    "header": "6ba45185bd4bd90b41aebd401b6bcdf2b65d89fc69739a66d8c9d6af40221f67",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "07-back-online": {
+    "chat": "0d9b6177b561865a9e7dfa033b5bf68b1598458e0bc07e6945533b2e27a9ba9f",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "08-approval-sent-on-the-new-socket": {
+    "chat": "cf125e9f3860bcdf3f84de184b7ab2c6f4664933f1763e50c5ee5814102ab8c7",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "09-final": {
+    "chat": "cf125e9f3860bcdf3f84de184b7ab2c6f4664933f1763e50c5ee5814102ab8c7",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

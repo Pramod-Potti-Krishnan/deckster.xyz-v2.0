@@ -1,0 +1,208 @@
+{
+ "name": "use-here-takeover",
+ "description": "A paused tab's Use here is the hook's explicit connect(): exactly one new socket with the ordinary handshake, a late close of the old socket is ignored, the draft kept in the paused tab is sent on the new socket, and an eviction by the other tab pauses this one again without any reconnect.",
+ "env": {
+  "NEXT_PUBLIC_STUDIO_CHAT_HEADER": "true"
+ },
+ "recordServerCloses": true,
+ "composer": true,
+ "stableHandlers": true,
+ "session": {
+  "id": "synthetic-session-one-live-tab-b",
+  "userId": "synthetic-user-01"
+ },
+ "steps": [
+  {
+   "op": "ensureConnected"
+  },
+  {
+   "op": "open"
+  },
+  {
+   "op": "frame",
+   "frame": {
+    "message_id": "msg-init-blank",
+    "session_id": "synthetic-session-one-live-tab-b",
+    "timestamp": "2026-10-13T12:00:01Z",
+    "type": "presentation_init",
+    "role": "assistant",
+    "payload": {
+     "is_blank": true,
+     "preview_url": "https://layout.synthetic.invalid/p/synthetic-blank-olt",
+     "preview_presentation_id": "synthetic-blank-olt"
+    }
+   }
+  },
+  {
+   "op": "frame",
+   "frame": {
+    "message_id": "msg-greeting",
+    "session_id": "synthetic-session-one-live-tab-b",
+    "timestamp": "2026-10-13T12:00:02Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Hello! What would you like to build today?",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown"
+    }
+   }
+  },
+  {
+   "op": "compose",
+   "text": "Build a short deck about ocean currents"
+  },
+  {
+   "op": "submit",
+   "comment": "the first turn goes out on the live socket"
+  },
+  {
+   "op": "expect",
+   "outbound": 1
+  },
+  {
+   "op": "frame",
+   "frame": {
+    "message_id": "msg-reply",
+    "session_id": "synthetic-session-one-live-tab-b",
+    "timestamp": "2026-10-13T12:00:03Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "On it. Give me a moment to plan.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown"
+    }
+   }
+  },
+  {
+   "op": "checkpoint",
+   "label": "connected, one turn sent"
+  },
+  {
+   "op": "close",
+   "code": 4000,
+   "reason": "New connection opened",
+   "comment": "another tab took the session"
+  },
+  {
+   "op": "checkpoint",
+   "label": "evicted by another tab"
+  },
+  {
+   "op": "compose",
+   "text": "A draft typed in the paused tab"
+  },
+  {
+   "op": "submit",
+   "comment": "Send shows the notice; the draft stays in the box"
+  },
+  {
+   "op": "expect",
+   "outbound": 1,
+   "sockets": 1
+  },
+  {
+   "op": "checkpoint",
+   "label": "send blocked, draft kept"
+  },
+  {
+   "op": "sendAndWait",
+   "text": "A direct hook send while paused",
+   "storeName": null,
+   "fileCount": 0,
+   "comment": "sendMessageWhenConnected on a paused tab gives up at once (it would otherwise wait out its 12 s reconnect window and then start a connection that evicts the live tab)"
+  },
+  {
+   "op": "expect",
+   "outbound": 1,
+   "sockets": 1
+  },
+  {
+   "op": "useHere",
+   "comment": "the notice's Use here button: the existing connect(), once"
+  },
+  {
+   "op": "expect",
+   "sockets": 2
+  },
+  {
+   "op": "checkpoint",
+   "label": "Use here: connecting"
+  },
+  {
+   "op": "open",
+   "socket": 1
+  },
+  {
+   "op": "frame",
+   "frame": {
+    "message_id": "msg-sync-1",
+    "session_id": "synthetic-session-one-live-tab-b",
+    "timestamp": "2026-10-13T12:00:04Z",
+    "type": "sync_response",
+    "role": "assistant",
+    "payload": {
+     "action": "skip_history",
+     "message_count": 4,
+     "current_state": "TOPIC_SET",
+     "has_strawman": false,
+     "presentation_url": "https://layout.synthetic.invalid/p/synthetic-blank-olt",
+     "presentation_id": "synthetic-blank-olt"
+    }
+   }
+  },
+  {
+   "op": "checkpoint",
+   "label": "took the session back"
+  },
+  {
+   "op": "close",
+   "socket": 0,
+   "code": 4000,
+   "reason": "New connection opened",
+   "comment": "a late close from the OLD socket must not pause the new one"
+  },
+  {
+   "op": "expect",
+   "sockets": 2
+  },
+  {
+   "op": "checkpoint",
+   "label": "late close of the old socket ignored"
+  },
+  {
+   "op": "submit",
+   "comment": "the draft from the paused tab is sent now, on the new socket"
+  },
+  {
+   "op": "expect",
+   "outbound": 2
+  },
+  {
+   "op": "checkpoint",
+   "label": "sent from the winning tab"
+  },
+  {
+   "op": "close",
+   "socket": 1,
+   "code": 4000,
+   "reason": "New connection opened",
+   "comment": "the other tab did Use here in turn: this one is paused again"
+  },
+  {
+   "op": "advance",
+   "ms": 120000
+  },
+  {
+   "op": "expect",
+   "sockets": 2
+  },
+  {
+   "op": "checkpoint",
+   "label": "paused again, still one eviction each"
+  }
+ ]
+}

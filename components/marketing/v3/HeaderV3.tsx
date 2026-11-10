@@ -1,0 +1,45 @@
+"use client"
+
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { useSession } from "next-auth/react"
+import { trackCta } from "@/lib/analytics"
+import { V3_CONTENT } from "@/lib/marketing/v3-content"
+import { STUDIO_P2_HEADER_ATTR, studioP2LandingOn } from "@/lib/studio-p2-landing"
+import { HeaderMenuP2 } from "./HeaderMenuP2"
+
+// PASS2 LAND-06 (flag NEXT_PUBLIC_STUDIO_P2_LANDING, default off): the phone menu beside the header's buttons. Off, the header is exactly as before.
+const STUDIO_P2_LANDING = studioP2LandingOn(process.env.NEXT_PUBLIC_STUDIO_P2_LANDING)
+
+export function HeaderV3() {
+  const { data: session, status } = useSession()
+  const pathname = usePathname()
+  const { nav, header } = V3_CONTENT
+  return (
+    <header className="hdr" data-v3-header {...(STUDIO_P2_LANDING ? { [STUDIO_P2_HEADER_ATTR]: "true" } : {})}>
+      <div className="hdr__in">
+        <Link className="hdr__logo" href="/" aria-label={header.home}>
+          <svg className="lg" aria-hidden="true"><use href="#logo" /></svg>
+          <span className="wm">{header.wordmark}</span>
+        </Link>
+        <nav aria-label="Main navigation">
+          {nav.map((item) => <Link key={item.label} href={item.href} className={pathname === item.href.split("#")[0] ? "is-here" : undefined}>{item.label}</Link>)}
+        </nav>
+        <div className="hdr__cta">
+          {status === "loading" ? (
+            <>
+              <span className="btn btn--ghost" style={{ visibility: "hidden" }} aria-hidden="true">{header.signIn}</span>
+              <span className="btn btn--primary" style={{ visibility: "hidden" }} aria-hidden="true">{header.build}</span>
+            </>
+          ) : (
+            <>
+              {!session && <Link className="btn btn--ghost" href="/auth/signin" onClick={() => trackCta("v3_header_sign_in")}>{header.signIn}</Link>}
+              <Link className="btn btn--primary" href={session ? "/builder" : "/pricing"} onClick={() => trackCta("v3_header_build")}>{header.build}</Link>
+            </>
+          )}
+          {STUDIO_P2_LANDING && <HeaderMenuP2 />}
+        </div>
+      </div>
+    </header>
+  )
+}

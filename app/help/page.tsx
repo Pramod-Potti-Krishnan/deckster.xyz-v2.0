@@ -1,5 +1,6 @@
 "use client"
 
+import { StudioHelpFrame, StudioSupportDraft, supportEmailDraftHref, supportEmailDraftText } from "@/components/help/studio-help"
 import { useState } from "react"
 import { useAuth } from "@/hooks/use-auth"
 import { useRouter } from "next/navigation"
@@ -35,6 +36,11 @@ import { Metadata } from "next"
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
 
+const STUDIO_HELP = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true"
+
+// NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
+const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === "true"
+
 interface FAQItem {
   question: string
   answer: string
@@ -52,19 +58,19 @@ export default function HelpPage() {
   // Contact form state
   const [subject, setSubject] = useState("")
   const [message, setMessage] = useState("")
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [showSuccess, setShowSuccess] = useState(false)
+  const [supportNotice, setSupportNotice] = useState("")
+  const [helpTab, setHelpTab] = useState("faq")
 
   const faqItems: FAQItem[] = [
     {
       category: "Getting Started",
       question: "How do I create my first presentation?",
-      answer: "Click the 'New Presentation' button from your dashboard or builder page. Then, simply describe what you want to create in the chat interface, and our AI agents will generate slides for you."
+      answer: "Click \"New deck\" (on some pages it reads \"+ Presentation\") from the Decks page or the builder. Then, simply describe what you want to create in the chat interface, and our AI agents will generate slides for you."
     },
     {
       category: "Getting Started",
       question: "What are AI agents and how do they work?",
-      answer: "Deckster runs as eight specialists: the Director orchestrates, while the Researcher, Analyst, Content Generator, Visualizer, Theme Builder, Slide Composer, and Element Generator each own one part of the deck. They work together to build your presentation."
+      answer: "You talk to the Director in plain English. It plans the deck and hands each part (research, writing, charts and visuals, theme, layout) to a specialist agent, and they work together to build your presentation."
     },
     {
       category: "Features",
@@ -79,12 +85,12 @@ export default function HelpPage() {
     {
       category: "Billing",
       question: "How do plans and credits work?",
-      answer: "Every plan includes a monthly pool of credits the agents draw on as they build. Starter is $20/user/mo; Pro and Max add more capability and credits. Top up anytime in a busy month."
+      answer: "Every plan includes a monthly pool of credits the agents draw on as they build. See the pricing page for the current plans and prices. Top up anytime in a busy month."
     },
     {
       category: "Billing",
       question: "How do I upgrade my subscription?",
-      answer: "Go to your Profile > Billing & Subscription, or see the pricing page. Choose Starter ($20), Pro ($50), or Max ($100) per user / month."
+      answer: "Go to your Profile > Billing & Subscription, or see the pricing page for the current plans and prices."
     },
     {
       category: "Troubleshooting",
@@ -104,7 +110,7 @@ export default function HelpPage() {
     {
       category: "Getting Started",
       question: "Can I use templates instead of starting from scratch?",
-      answer: "Absolutely! Visit the Templates page to browse professional starting points, then let the agents shape one into your deck."
+      answer: LAUNCH_WORDING ? "Yes. Upload a PowerPoint to turn it into a template, or save a finished deck as a template, then reuse it from the Templates page." : "Absolutely! Visit the Templates page to browse professional starting points, then let the agents shape one into your deck."
     },
     {
       category: "Features",
@@ -114,7 +120,7 @@ export default function HelpPage() {
     {
       category: "Features",
       question: "Can I share a presentation with someone?",
-      answer: "Yes — export to PowerPoint or PDF and send the file to anyone. (Live multi-user editing isn't available yet.)"
+      answer: LAUNCH_WORDING ? "Yes. Publish a link from the builder (Publish), or export to PowerPoint or PDF and send the file. Live multi-user editing is not available." : "Yes — export to PowerPoint or PDF and send the file to anyone. (Live multi-user editing isn't available yet.)"
     },
     {
       category: "AI Agents",
@@ -169,7 +175,7 @@ export default function HelpPage() {
     {
       category: "Troubleshooting",
       question: "My export is taking too long. Is this normal?",
-      answer: "Export times vary by presentation size. Most exports complete within 30-60 seconds. Large presentations (50+ slides) may take longer. You'll receive a notification when it's ready."
+      answer: LAUNCH_WORDING ? "Export times vary by presentation size. Most exports complete within 30-60 seconds. Large presentations (50+ slides) may take longer." : "Export times vary by presentation size. Most exports complete within 30-60 seconds. Large presentations (50+ slides) may take longer. You'll receive a notification when it's ready."
     },
     {
       category: "Troubleshooting",
@@ -187,22 +193,12 @@ export default function HelpPage() {
 
   const categories = ["all", ...Array.from(new Set(faqItems.map(item => item.category)))]
 
-  const handleSubmitSupport = async (e: React.FormEvent) => {
+  const handleSubmitSupport = (e: React.FormEvent) => {
     e.preventDefault()
-    setIsSubmitting(true)
-
-    // TODO: Implement actual support ticket submission
-    await new Promise(resolve => setTimeout(resolve, 1500))
-
-    setIsSubmitting(false)
-    setShowSuccess(true)
-    setSubject("")
-    setMessage("")
-
-    setTimeout(() => setShowSuccess(false), 5000)
+    setSupportNotice("Your email draft is ready to review. Use Open email draft below, or copy it manually. This page has not sent a message; your text is still here.")
   }
 
-  if (isLoading) {
+  if (isLoading && !STUDIO_HELP) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
@@ -213,25 +209,29 @@ export default function HelpPage() {
     )
   }
 
-  return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <Header />
+  const content = (
+    <div data-studio-help-content={STUDIO_HELP ? "true" : undefined} className="min-h-screen bg-background flex flex-col">
+      {!STUDIO_HELP && <Header />}
 
       {/* Main Content */}
-      <PageHeader
+      {STUDIO_HELP ? <div data-studio-help-part="hero"><span>We&apos;re here to help</span><h1>Stuck? Let&apos;s get you unblocked</h1><p>Answers, quick-start steps, and a direct line to support — so you can get back to building your deck.</p></div> : <PageHeader
         title="Stuck? Let's get you unblocked"
         subtitle="Answers, quick-start steps, and a direct line to support — so you can get back to building your deck."
         badge={{
           text: "We're here to help",
           icon: <Shield className="h-3 w-3" />
         }}
-      />
+      />}
 
       {/* Main Content */}
-      <Section className="flex-1 py-8">
+      <Section data-studio-help-part={STUDIO_HELP ? "body" : undefined} className="flex-1 py-8">
 
         {/* Quick Links */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        {STUDIO_HELP ? <div data-studio-help-part="quick-links">{[
+          { value: "faq", label: "Find an answer", detail: "Search questions by topic", Icon: FileQuestion },
+          { value: "guides", label: "Getting started", detail: "Read the existing quick-start guide", Icon: BookOpen },
+          { value: "contact", label: "Contact support", detail: "Prepare an email draft", Icon: Mail },
+        ].map(({value,label,detail,Icon}) => <button key={value} type="button" onClick={() => setHelpTab(value)}><Icon size={18} aria-hidden="true" /><span><strong>{label}</strong><small>{detail}</small></span></button>)}</div> : <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           {[
             { icon: BookOpen, title: "Documentation", desc: "Browse our comprehensive guides", color: "text-purple-600" },
             { icon: Video, title: "Video Tutorials", desc: "Watch step-by-step tutorials", color: "text-blue-600" },
@@ -256,9 +256,9 @@ export default function HelpPage() {
               </Card>
             </motion.div>
           ))}
-        </div>
+        </div>}
 
-        <Tabs defaultValue="faq" className="space-y-6">
+        <Tabs value={STUDIO_HELP ? helpTab : undefined} onValueChange={STUDIO_HELP ? setHelpTab : undefined} defaultValue="faq" className="space-y-6">
           <TabsList>
             <TabsTrigger value="faq">FAQ</TabsTrigger>
             <TabsTrigger value="guides">Getting Started</TabsTrigger>
@@ -267,27 +267,29 @@ export default function HelpPage() {
 
           {/* FAQ Tab */}
           <TabsContent value="faq" className="space-y-6">
-            <Card>
+            <Card data-studio-help-card={STUDIO_HELP ? "true" : undefined}>
               <CardHeader>
                 <CardTitle>Frequently Asked Questions</CardTitle>
                 <CardDescription>Find answers to common questions</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Search and Filter */}
-                <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                <div data-studio-help-part={STUDIO_HELP ? "filters" : undefined} className="flex flex-col sm:flex-row gap-4 mb-6">
                   <div className="flex-1 relative">
                     <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
+                      aria-label={STUDIO_HELP ? "Search FAQ" : undefined}
                       placeholder="Search FAQ..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="pl-9"
                     />
                   </div>
-                  <div className="flex gap-2">
+                  <div data-studio-help-part={STUDIO_HELP ? "categories" : undefined} className="flex gap-2">
                     {categories.map(category => (
                       <Button
                         key={category}
+                        aria-pressed={STUDIO_HELP ? selectedCategory === category : undefined}
                         variant={selectedCategory === category ? "default" : "outline"}
                         size="sm"
                         onClick={() => setSelectedCategory(category)}
@@ -299,19 +301,22 @@ export default function HelpPage() {
                   </div>
                 </div>
 
+                {STUDIO_HELP && <div data-studio-help-part="results"><span role="status">{filteredFAQ.length} of {faqItems.length} questions</span>{(searchQuery || selectedCategory !== "all") && <button type="button" onClick={() => { setSearchQuery(""); setSelectedCategory("all") }}>Clear filters</button>}</div>}
+
                 {/* FAQ Items */}
                 <div className="space-y-4">
                   {filteredFAQ.map((item, index) => (
-                    <div key={index} className="border rounded-lg p-4 hover:bg-slate-50 transition-colors">
+                    <div key={index} data-studio-help-part={STUDIO_HELP ? "faq-item" : undefined} className="border rounded-lg p-4 hover:bg-slate-50 transition-colors">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
+                          {STUDIO_HELP && <span data-studio-help-part="faq-category">{item.category}</span>}
                           <div className="flex items-center gap-2 mb-2">
                             <FileQuestion className="h-4 w-4 text-purple-600" />
                             <h3 className="font-medium">{item.question}</h3>
                           </div>
                           <p className="text-sm text-muted-foreground">{item.answer}</p>
                         </div>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground mt-1" />
+                        {!STUDIO_HELP && <ChevronRight className="h-4 w-4 text-muted-foreground mt-1" />}
                       </div>
                     </div>
                   ))}
@@ -329,7 +334,7 @@ export default function HelpPage() {
           {/* Getting Started Tab */}
           <TabsContent value="guides" className="space-y-6">
             <div className="grid gap-6">
-              <Card>
+              <Card data-studio-help-card={STUDIO_HELP ? "true" : undefined}>
                 <CardHeader>
                   <div className="flex items-center gap-2">
                     <Sparkles className="h-5 w-5 text-purple-600" />
@@ -353,8 +358,8 @@ export default function HelpPage() {
                         2
                       </div>
                       <div>
-                        <h4 className="font-medium">Create a New Presentation</h4>
-                        <p className="text-sm text-muted-foreground">Click "New Presentation" from your dashboard</p>
+                        <h4 className="font-medium">Start a new deck</h4>
+                        <p className="text-sm text-muted-foreground">Click "New deck" (or "+ Presentation") from the Decks page</p>
                       </div>
                     </div>
                     <div className="flex gap-3">
@@ -386,7 +391,7 @@ export default function HelpPage() {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card data-studio-help-card={STUDIO_HELP ? "true" : undefined}>
                 <CardHeader>
                   <div className="flex items-center gap-2">
                     <Users className="h-5 w-5 text-blue-600" />
@@ -432,7 +437,7 @@ export default function HelpPage() {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card data-studio-help-card={STUDIO_HELP ? "true" : undefined}>
                 <CardHeader>
                   <div className="flex items-center gap-2">
                     <Zap className="h-5 w-5 text-yellow-600" />
@@ -456,7 +461,7 @@ export default function HelpPage() {
                     </li>
                     <li className="flex items-start gap-2">
                       <ChevronRight className="h-4 w-4 text-muted-foreground mt-0.5" />
-                      <span>Collaborate with team members by sharing presentations</span>
+                      <span>{LAUNCH_WORDING ? "Share a published link with your team" : "Collaborate with team members by sharing presentations"}</span>
                     </li>
                   </ul>
                 </CardContent>
@@ -466,21 +471,21 @@ export default function HelpPage() {
 
           {/* Contact Support Tab */}
           <TabsContent value="contact" className="space-y-6">
-            <Card>
+            <Card data-studio-help-card={STUDIO_HELP ? "true" : undefined}>
               <CardHeader>
                 <CardTitle>Contact Support</CardTitle>
                 <CardDescription>Get help from our support team</CardDescription>
               </CardHeader>
               <CardContent>
-                {showSuccess && (
-                  <Alert className="mb-6 border-green-200 bg-green-50">
-                    <AlertDescription className="text-green-800">
-                      Your message has been sent! We'll get back to you as soon as we can.
+                {!STUDIO_HELP && supportNotice && (
+                  <Alert className="mb-6">
+                    <AlertDescription>
+                      {supportNotice}
                     </AlertDescription>
                   </Alert>
                 )}
 
-                <form onSubmit={handleSubmitSupport} className="space-y-4">
+                {STUDIO_HELP ? <StudioSupportDraft subject={subject} message={message} onSubjectChange={setSubject} onMessageChange={setMessage} /> : <form onSubmit={handleSubmitSupport} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
                     <Input
@@ -516,14 +521,16 @@ export default function HelpPage() {
                   </div>
 
                   <div className="flex items-center gap-4">
-                    <Button type="submit" disabled={isSubmitting}>
-                      {isSubmitting ? "Sending..." : "Send Message"}
+                    <Button type="submit">
+                      Prepare email draft
                     </Button>
+                    {supportNotice && <a href={supportEmailDraftHref(subject, message)} className="text-sm underline">Open email draft</a>}
                     <p className="text-sm text-muted-foreground">
-                      We&apos;ll reply by email as soon as we can.
+                      Review and send from your email app. Your draft stays here.
                     </p>
                   </div>
-                </form>
+                  {supportNotice && <details className="space-y-2 rounded-lg border p-3"><summary className="cursor-pointer text-sm">Copy manually</summary><Textarea aria-label="Support draft to copy manually" value={supportEmailDraftText(subject, message)} readOnly rows={6} onFocus={event => event.currentTarget.select()} /></details>}
+                </form>}
 
                 <div className="mt-8 pt-8 border-t">
                   <h3 className="font-medium mb-4">Other Ways to Get Help</h3>
@@ -532,16 +539,16 @@ export default function HelpPage() {
                       <Mail className="h-4 w-4" />
                       support@deckster.xyz
                     </a>
-                    <a href="#" className="flex items-center gap-2 text-sm hover:text-purple-600">
+                    {!STUDIO_HELP && !LAUNCH_WORDING && <a href="#" className="flex items-center gap-2 text-sm hover:text-purple-600">
                       <MessageSquare className="h-4 w-4" />
                       Join our Discord community
                       <ExternalLink className="h-3 w-3" />
-                    </a>
-                    <a href="#" className="flex items-center gap-2 text-sm hover:text-purple-600">
+                    </a>}
+                    {!STUDIO_HELP && !LAUNCH_WORDING && <a href="#" className="flex items-center gap-2 text-sm hover:text-purple-600">
                       <BookOpen className="h-4 w-4" />
                       Browse documentation
                       <ExternalLink className="h-3 w-3" />
-                    </a>
+                    </a>}
                   </div>
                 </div>
               </CardContent>
@@ -550,7 +557,8 @@ export default function HelpPage() {
         </Tabs>
       </Section>
 
-      <Footer />
+      {!STUDIO_HELP && <Footer />}
     </div>
   )
+  return STUDIO_HELP ? <StudioHelpFrame signedIn={Boolean(user)} accountLoading={isLoading}>{content}</StudioHelpFrame> : content
 }

@@ -1,8 +1,8 @@
+import { ServiceUrlConfigError } from '@/lib/service-url'
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
-
-const KG_BASE = process.env.KNOWLEDGE_SERVICE_URL || 'https://researcher-v1.up.railway.app'
+import { getKgBaseUrl, kgHeaders } from '@/lib/kg-proxy'
 
 export async function DELETE() {
   const session = await getServerSession(authOptions)
@@ -11,19 +11,22 @@ export async function DELETE() {
   }
 
   try {
-    const resp = await fetch(`${KG_BASE}/api/v1/kg/${session.user.id}`, {
+    const kgBaseUrl = getKgBaseUrl()
+    const resp = await fetch(`${kgBaseUrl}/api/v1/kg/${session.user.id}`, {
       method: 'DELETE',
+      headers: kgHeaders(),
     })
 
     if (resp.status === 404) {
-      // KG endpoints not deployed yet — return synthetic result
-      return NextResponse.json({
-        user_id: session.user.id,
-        settings_deleted: true,
-        nodes_deleted: 0,
-        edges_deleted: 0,
-        evidence_deleted: 0,
-      })
+      // KG router not mounted — never claim a deletion happened when the
+      // backend could not perform one.
+      return NextResponse.json(
+        {
+          error: 'Knowledge Graph is not activated on the backend yet',
+          service_unavailable: true,
+        },
+        { status: 503 }
+      )
     }
 
     if (!resp.ok) {
@@ -37,9 +40,13 @@ export async function DELETE() {
 
     return NextResponse.json(await resp.json())
   } catch (e) {
+    if (e instanceof ServiceUrlConfigError) return NextResponse.json({ error: e.message, code: e.code, service_unavailable: true }, { status: 503 })
     console.error('[KG Proxy] Purge network error:', e)
     return NextResponse.json(
-      { error: 'Knowledge graph service is temporarily unavailable' },
+      {
+        error: 'Knowledge graph service is temporarily unavailable',
+        service_unavailable: true,
+      },
       { status: 503 }
     )
   }

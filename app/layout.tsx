@@ -4,14 +4,17 @@ import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 import { SessionProvider } from '@/components/providers/session-provider'
 import { ThemeProvider } from '@/components/theme-provider'
+import { StudioViewerThemeProvider } from '@/components/studio-viewer-theme-provider'
+import { STUDIO_P2_PUBLISH_ENABLED } from '@/lib/studio-p2-publish'
 import { Toaster } from '@/components/ui/toaster'
 
 const inter = Inter({ subsets: ['latin'] })
+const connectedLocal = process.env.STUDIO_V4_CONNECTED_LOCAL === 'true'
 
 export const metadata: Metadata = {
   title: {
-    default: 'Deckster | AI-Powered Presentation Generator',
-    template: '%s | Deckster'
+    default: `${connectedLocal ? 'LOCAL UAT — ' : ''}Deckster | AI-Powered Presentation Generator`,
+    template: `${connectedLocal ? 'LOCAL UAT — ' : ''}%s | Deckster`
   },
   description: 'Create stunning presentations in minutes with Deckster. Our multi-agent AI system writes, designs, and visualizes your slides automatically.',
   keywords: ['presentation builder', 'AI presentations', 'slide deck creator', 'Deckster', 'presentation software'],
@@ -66,6 +69,9 @@ export const viewport = {
   initialScale: 1,
 }
 
+// NEXT_PUBLIC_STUDIO_P2_PUBLISH (VIEW-04): the published viewer follows the visitor's system theme when nothing is stored. Off: the provider is as before.
+const AppThemeProvider = STUDIO_P2_PUBLISH_ENABLED ? StudioViewerThemeProvider : ThemeProvider
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -78,7 +84,7 @@ export default function RootLayout({
       </head>
       <body className={inter.className} suppressHydrationWarning>
         <SessionProvider>
-          <ThemeProvider
+          <AppThemeProvider
             attribute="class"
             defaultTheme="light"
             enableSystem
@@ -86,7 +92,7 @@ export default function RootLayout({
           >
             {children}
             <Toaster />
-          </ThemeProvider>
+          </AppThemeProvider>
         </SessionProvider>
         <Analytics />
       </body>

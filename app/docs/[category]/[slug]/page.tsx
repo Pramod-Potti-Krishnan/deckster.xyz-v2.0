@@ -13,8 +13,16 @@ import Link from 'next/link';
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { StudioDocArticle } from '@/components/studio-docs/studio-p2-docs';
+
+// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): the article in the Studio shell's tokens. Anything else: the page below, untouched.
+const STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';
 
 export default function DocPage() {
+  return STUDIO_P2_DOCS ? <StudioDocArticle /> : <LegacyDocPage />;
+}
+
+function LegacyDocPage() {
   const params = useParams();
   const category = params.category as string;
   const slug = params.slug as string;

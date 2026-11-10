@@ -1,0 +1,55 @@
+/* STUDIO PHONE SHELL, PR 1: the bottom tab bar (flag NEXT_PUBLIC_STUDIO_PHONE_SHELL, default off; PK's phone review, 25 Oct, decision A).
+   The bar ([data-studio-phone-tabbar], a direct child of the shell root) and the More sheet ([data-studio-phone-more]) exist only with the flag on, and every rule below needs one of them, so with the flag
+   off none of it matches anything. One rule is outside the phone query: the bar itself is hidden at every other width (tablets and desktops keep the rail as it is). At 640 px and narrower, on a root that
+   holds the bar: the rail's destinations and account menu step aside (they are in the bar and in More), its brand tile stays at the top left of the top bar, the page gets the bar's height (and the
+   safe area) of bottom padding, and while the Director prompt has focus the bar and that padding go so the keyboard and the composer get the room. */
+[data-studio-phone-tabbar="true"] { display: none; }
+
+@media (max-width: 640px) {
+  [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) { --ss-rail-width: 0px; position: relative; padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)); }
+  [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"][data-composer-focus="true"]) { padding-bottom: 0; }
+
+  /* the rail: out of the flow, only its brand tile left, at the top left of the 48 px top bar (the NEW_LOGO mark with that flag on, else today's tile: it is the same link) */
+  [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) > [data-studio-v4-rail] { position: absolute; top: 0; left: 0; z-index: 46; flex: none; width: 52px; height: 48px; padding: 0; gap: 0; justify-content: center; background: transparent; }
+  [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) > [data-studio-v4-rail] > :is(nav, .studio-rail-profile) { display: none; }
+  [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) > [data-studio-v4-rail] > .studio-rail-brand::after { display: none; }
+  [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) > [data-studio-v4-shell-column] > [data-studio-v4-shell-header] > div { padding-left: 52px; }
+  [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) > [data-studio-v4-shell-column] > [data-studio-v4-shell-workspace] { margin-left: 10px; }
+
+  /* the bar */
+  [data-studio-v4-shell="true"] > [data-studio-phone-tabbar="true"] {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; display: flex; align-items: stretch; justify-content: space-around; gap: 2px;
+    height: calc(56px + env(safe-area-inset-bottom, 0px)); padding: 4px 6px env(safe-area-inset-bottom, 0px);
+    border-top: 1px solid var(--ss-line); background: var(--ss-panel); color: var(--ss-muted);
+  }
+  [data-studio-v4-shell="true"] > [data-studio-phone-tabbar="true"][data-composer-focus="true"] { display: none; }
+  [data-studio-v4-shell="true"] > [data-studio-phone-tabbar="true"] > :is(a, button) {
+    flex: 1 1 0; min-width: 44px; min-height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    padding: 0 2px; border: 0; border-radius: 10px; background: transparent; color: var(--ss-muted); font-size: 11px; font-weight: 500; line-height: 13px; text-decoration: none; white-space: nowrap;
+  }
+  [data-studio-v4-shell="true"] > [data-studio-phone-tabbar="true"] > :is(a, button) > svg { width: 20px; height: 20px; flex-shrink: 0; stroke-width: 1.8; }
+  [data-studio-v4-shell="true"] > [data-studio-phone-tabbar="true"] > :is(a, button) > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  [data-studio-v4-shell="true"] > [data-studio-phone-tabbar="true"] > [aria-current="page"] { color: var(--ss-accent); background: var(--ss-accent-soft); font-weight: 600; }
+  [data-studio-v4-shell="true"] > [data-studio-phone-tabbar="true"] > :is(a, button):focus-visible { outline: 2px solid var(--ss-accent); outline-offset: -2px; }
+
+  /* the More sheet (portalled to the body; its own marker carries the Studio tokens) */
+  [data-studio-phone-more-overlay="true"] { position: fixed; inset: 0; z-index: 50; background: rgb(15 23 42 / 40%); }
+  [data-studio-v4-shell="true"][data-studio-phone-more="true"] {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 51; max-height: 80dvh; overflow-y: auto;
+    padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px)); border: 1px solid var(--ss-line); border-bottom: 0; border-radius: 16px 16px 0 0;
+    background: var(--ss-panel); color: var(--ss-text); box-shadow: 0 -8px 24px rgb(15 23 42 / 18%);
+  }
+  [data-studio-v4-shell="true"][data-studio-phone-more="true"]:focus-visible { outline: none; }
+  [data-studio-phone-more="true"] [data-studio-phone-more-title="true"] { margin: 0 4px 8px; font-size: 13px; font-weight: 600; line-height: 18px; color: var(--ss-muted); }
+  [data-studio-phone-more="true"] > ul { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+  [data-studio-phone-more="true"] > ul > li > a { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; color: var(--ss-text); font-size: 14px; font-weight: 500; text-decoration: none; }
+  [data-studio-phone-more="true"] > ul > li > a > svg { width: 18px; height: 18px; flex-shrink: 0; stroke-width: 1.8; color: var(--ss-muted); }
+  [data-studio-phone-more="true"] > ul > li > a[aria-current="page"] { color: var(--ss-accent); background: var(--ss-accent-soft); }
+  [data-studio-phone-more="true"] > ul > li > a[aria-current="page"] > svg { color: var(--ss-accent); }
+  [data-studio-phone-more="true"] > ul > li > a:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: -2px; }
+  /* the account menu's own trigger (its avatar) is stretched over the whole row, so a tap on "Account" opens the menu too */
+  [data-studio-phone-more="true"] > ul > li[data-studio-phone-more-account="true"] { position: relative; display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 8px; border-top: 1px solid var(--ss-line); margin-top: 6px; padding-top: 6px; color: var(--ss-text); font-size: 14px; font-weight: 500; }
+  [data-studio-phone-more="true"] > ul > li[data-studio-phone-more-account="true"] > button { position: static; width: 32px; height: 32px; flex-shrink: 0; }
+  [data-studio-phone-more="true"] > ul > li[data-studio-phone-more-account="true"] > button > span { width: 32px; height: 32px; }
+  [data-studio-phone-more="true"] > ul > li[data-studio-phone-more-account="true"] > button::after { content: ""; position: absolute; inset: 0; border-radius: 10px; }
+}

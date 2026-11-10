@@ -5,6 +5,7 @@ import { getServerTier } from "@/lib/quota/server-tier"
 import { debitWallet, recordPlanUsage, InsufficientFundsError } from "@/lib/wallet"
 import { tokensToUsdCents } from "@/lib/pricing/tokens"
 import { getQuotaStatus, fitsWithinCaps, type Tier } from "@/lib/quota/quota"
+import { flatDebitEnabled, preBuildCapCheck } from "@/lib/billing/wallet-debit-source" // BILLING-F4F6
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,6 +15,8 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = session.user.id
+    // BILLING-F4F6: WALLET_DEBIT_SOURCE=router: the server meter is the only debit source; the browser-reported amount is ignored and nothing is recorded.
+    if (!flatDebitEnabled()) return NextResponse.json({ costCents: 0, deducted: false, source: "router", capped: false, ignoredClientAmount: true }) // BILLING-F4F6
     // Security: tier comes from the database, never from the (client-influenced) session.
     const tier = await getServerTier(session.user.id)
 
@@ -72,6 +75,7 @@ export async function POST(request: NextRequest) {
         deducted = true
       } catch (error) {
         if (error instanceof InsufficientFundsError) {
+          if (preBuildCapCheck()) console.warn(`[api/wallet/debit] over cap, debit recorded as capped (WALLET_DEBIT_SOURCE=flat_strict) user=${userId} costCents=${costCents}`) // BILLING-F4F6: B3, the post-turn debit always lands
           // Director already completed this turn — never lose the accounting.
           // Record it against the plan and flag `capped` so the UI blocks the
           // NEXT send until the period resets or the user tops up.

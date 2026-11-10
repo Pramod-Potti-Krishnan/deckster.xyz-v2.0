@@ -1,0 +1,353 @@
+[
+  {
+    "checkout": "/private/tmp/element3-j3-shape-fe-native-base-20261008",
+    "label": "baseline",
+    "files": [
+      {
+        "path": "docs/studio-v4/canvas-recovery-20261004/evidence/thumb-recovery-results.json",
+        "bytes": 4076,
+        "sha256": "243caf29b5d7e03243a41b69c58c2f9ee7f62c8c92bde4658a788d0aefe7ed1d"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/director-notice/evidence/actual-reactdom-receipt.json",
+        "bytes": 37688,
+        "sha256": "6e76f935e8a93e7b8d6490d58b5278c61df6d3358fb2079dc40485b8eaf08190"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/hooks/use-generation-panel.ts",
+        "bytes": 13241,
+        "sha256": "b90ceaefa3c1e6648c284389e32095801bd4961b6697e5c345ba4d706555c258"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/hooks/use-textlabs-generation.ts",
+        "bytes": 96060,
+        "sha256": "bff32637ae9518208da6f802eb21443cb826b5c66f757c711f79d379da25dd0b"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/blank-element-recovery.ts",
+        "bytes": 1290,
+        "sha256": "f5c7431f22ad0ad58219680cedbd56065678034295069ab1aa371cec368601a2"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/blank-element-replacement.ts",
+        "bytes": 999,
+        "sha256": "f933e9c661a08b85022677ef5a55968d09dfc642521d48f442e22fcb59f9c9e9"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/chart-data-contract.ts",
+        "bytes": 30292,
+        "sha256": "e0b761f145c5d71161b3c9cb4337874063d8cda97be15dbd845d95fa4c6c02ab"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/diagram-catalog.ts",
+        "bytes": 19294,
+        "sha256": "3fbe8b8232d357db6241ea5eb13766bca58896f73032ece0bd09e1c5fa8875d9"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/diagram-renderer-state.ts",
+        "bytes": 5264,
+        "sha256": "229da4fdbeb03f5b3f3776e7dad8ccba9b94c04a1418f3200e8f25a3312dc4b8"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/element-generation-context.ts",
+        "bytes": 3661,
+        "sha256": "fad0bf7478705df923e00cd6af90775f713c069a91ab3f91a71e1adb756d3af2"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/element-generation-retry.ts",
+        "bytes": 16769,
+        "sha256": "3d1af6279543dbcf6563510089fe1f8d39dfa3869a68c4475342cca29e581ba9"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/element-generation-timeout.ts",
+        "bytes": 1908,
+        "sha256": "14d594e1249d0c859430a457df10d53a8717887aff72304a892819f06db3e8f9"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/element-geometry.ts",
+        "bytes": 12449,
+        "sha256": "ab3426ebd929f49ef4804e743282b8f91ff0f3ff7dfcadd9921bcc33c2c9f4d7"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/element-prompt-limit.ts",
+        "bytes": 877,
+        "sha256": "cb386ceaf628ae2ead2004feeedc6fb19c789f21b15b7b556b7d4e6a0ad5cfbf"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/element-provenance.ts",
+        "bytes": 1401,
+        "sha256": "bb10e78df3164f7fd9fd066f76c815281c2662d1edc9b4546a3d2a2c5f0cebc9"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/element-research-policy.ts",
+        "bytes": 4085,
+        "sha256": "2f165faa28c551aa51f969251176927de8a1a8b2f5ae2cbb69c22f344d9b16d7"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/element-semantic-type.ts",
+        "bytes": 1214,
+        "sha256": "957a8ea84c7c2222c6a8a806790854434ee4e9aeb1513fc0a9687cfc704df8cd"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/element-theme-variants.ts",
+        "bytes": 2439,
+        "sha256": "94fbfd5987adc99c873ab5b5045b935e25d337747ec5bdf1c9cf7e5fbb2479d2"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/grid-splitter.ts",
+        "bytes": 3466,
+        "sha256": "f52be9845072c8b2c58141a76a9beb247e1d78dc9db0ba182e53ab4f617a211b"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/image-refinement.ts",
+        "bytes": 1998,
+        "sha256": "e68e781527da71e15c742c2050bd221ec53c3ca44834dc574fd3074298fe46ff"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/layout-command-result.ts",
+        "bytes": 3793,
+        "sha256": "08d5c7d16f1950a451e782d4015d8a8724edbe10907a7f582bff458d4a0bfbdb"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/mdc-element-directive.ts",
+        "bytes": 2191,
+        "sha256": "7c6034cbf50333b539a22616952539e0194f5b6ba805ee04e55357e37969b0b4"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/metrics-card-refine-draft.ts",
+        "bytes": 4672,
+        "sha256": "6f566b05c4252905074f074bf1b7e4cc01205b90b983e857a927a7aadf3ecec5"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/metrics-layout.ts",
+        "bytes": 2966,
+        "sha256": "62cc24d35a96add9796f88e2d99e598c52898985ba840f8f0440585abfe2c32a"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/refine-generation-config.ts",
+        "bytes": 929,
+        "sha256": "2e4a1116e6246ad864009c16c7ab9f2e5139b8889c67a1e5e61010cbac2b7b5f"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/service-url.ts",
+        "bytes": 3771,
+        "sha256": "f4dafa63ed85979926051bb561f885fc89cdd586752e2b0dc58fc679dc3c700e"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/textbox-request-fidelity.ts",
+        "bytes": 14142,
+        "sha256": "c66f2aa23e67aa4e299f5b7c7187475a1fdc0b6ead5d10c98a031069707a3192"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/textlabs-client.ts",
+        "bytes": 50893,
+        "sha256": "85b13a044472116b44f6b1f6f773aaf01b6c23400a8f0a08fb6f53a6fda95864"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/textlabs-theme-metadata.ts",
+        "bytes": 1816,
+        "sha256": "131ad735f482d178af5fe4cdd6c8e637ca8ff37e086a5892e71fb7e307d6b7f9"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/theme-sync.ts",
+        "bytes": 12380,
+        "sha256": "322f49bd5dcba2dc34299ca7134f7862b646fc615802b9da41a9eda6601a16f3"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/types/textlabs.ts",
+        "bytes": 35501,
+        "sha256": "418ff7cd59a18177ee58ec4b1be8278a731adce6ef9dd0df22a51faa267cac27"
+      },
+      {
+        "path": "docs/studio-v4/twenty-four-hour-parity-20261005/fe0/builder1/public-viewer-review/evidence/public-viewer-checks.json",
+        "bytes": 6398,
+        "sha256": "005444d3a52cc4a1cc9c17503e36a9d8a3ca09365b58cb5ceff63025021dd8fc"
+      }
+    ],
+    "file_bytes": 397923,
+    "attribution": {
+      "canvas-recovery-20261004": "scripts/test-stage-f-thumbnail-recovery.mjs:153-155",
+      "eight-hour-parity-20261005": "scripts/test-studio-director-notice.mjs:82-86; scripts/test-metrics-card-refine-integration.mjs:11,31,167",
+      "fe0": "scripts/test-fe0-public-viewer.mjs:11,96-97"
+    },
+    "classification": "Owned suite-created synthetic receipts and source snapshots; absent from initial checkout; no user/deck data. Paths and source write sites match sole paired runner. Preserved here as hash inventory, and exact generated trees retained in own proof folder before removal."
+  },
+  {
+    "checkout": "/Users/pk1980/Software/Deckster/.worktrees/element3-j3-shape-typed-fe-20261008",
+    "label": "candidate",
+    "files": [
+      {
+        "path": "docs/studio-v4/canvas-recovery-20261004/evidence/thumb-recovery-results.json",
+        "bytes": 4076,
+        "sha256": "243caf29b5d7e03243a41b69c58c2f9ee7f62c8c92bde4658a788d0aefe7ed1d"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/director-notice/evidence/actual-reactdom-receipt.json",
+        "bytes": 37688,
+        "sha256": "9e52c82ab6977d259a90cff0603271fa709574688be1aeb5175404a20bf3d749"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/hooks/use-generation-panel.ts",
+        "bytes": 13241,
+        "sha256": "b90ceaefa3c1e6648c284389e32095801bd4961b6697e5c345ba4d706555c258"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/hooks/use-textlabs-generation.ts",
+        "bytes": 96251,
+        "sha256": "1ebf76c44e12e10df709787cb7b55111080ee1e913438bec95741e122fc98a7a"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/blank-element-recovery.ts",
+        "bytes": 1290,
+        "sha256": "f5c7431f22ad0ad58219680cedbd56065678034295069ab1aa371cec368601a2"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/blank-element-replacement.ts",
+        "bytes": 999,
+        "sha256": "f933e9c661a08b85022677ef5a55968d09dfc642521d48f442e22fcb59f9c9e9"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/chart-data-contract.ts",
+        "bytes": 30292,
+        "sha256": "e0b761f145c5d71161b3c9cb4337874063d8cda97be15dbd845d95fa4c6c02ab"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/diagram-catalog.ts",
+        "bytes": 19294,
+        "sha256": "3fbe8b8232d357db6241ea5eb13766bca58896f73032ece0bd09e1c5fa8875d9"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/diagram-renderer-state.ts",
+        "bytes": 5264,
+        "sha256": "229da4fdbeb03f5b3f3776e7dad8ccba9b94c04a1418f3200e8f25a3312dc4b8"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/element-generation-context.ts",
+        "bytes": 3661,
+        "sha256": "fad0bf7478705df923e00cd6af90775f713c069a91ab3f91a71e1adb756d3af2"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/element-generation-retry.ts",
+        "bytes": 16769,
+        "sha256": "3d1af6279543dbcf6563510089fe1f8d39dfa3869a68c4475342cca29e581ba9"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/element-generation-timeout.ts",
+        "bytes": 1908,
+        "sha256": "14d594e1249d0c859430a457df10d53a8717887aff72304a892819f06db3e8f9"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/element-geometry.ts",
+        "bytes": 12449,
+        "sha256": "ab3426ebd929f49ef4804e743282b8f91ff0f3ff7dfcadd9921bcc33c2c9f4d7"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/element-prompt-limit.ts",
+        "bytes": 877,
+        "sha256": "cb386ceaf628ae2ead2004feeedc6fb19c789f21b15b7b556b7d4e6a0ad5cfbf"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/element-provenance.ts",
+        "bytes": 1401,
+        "sha256": "bb10e78df3164f7fd9fd066f76c815281c2662d1edc9b4546a3d2a2c5f0cebc9"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/element-research-policy.ts",
+        "bytes": 4085,
+        "sha256": "2f165faa28c551aa51f969251176927de8a1a8b2f5ae2cbb69c22f344d9b16d7"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/element-semantic-type.ts",
+        "bytes": 1214,
+        "sha256": "957a8ea84c7c2222c6a8a806790854434ee4e9aeb1513fc0a9687cfc704df8cd"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/element-theme-variants.ts",
+        "bytes": 2439,
+        "sha256": "94fbfd5987adc99c873ab5b5045b935e25d337747ec5bdf1c9cf7e5fbb2479d2"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/grid-splitter.ts",
+        "bytes": 3466,
+        "sha256": "f52be9845072c8b2c58141a76a9beb247e1d78dc9db0ba182e53ab4f617a211b"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/image-refinement.ts",
+        "bytes": 1998,
+        "sha256": "e68e781527da71e15c742c2050bd221ec53c3ca44834dc574fd3074298fe46ff"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/layout-command-result.ts",
+        "bytes": 3793,
+        "sha256": "08d5c7d16f1950a451e782d4015d8a8724edbe10907a7f582bff458d4a0bfbdb"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/mdc-element-directive.ts",
+        "bytes": 2191,
+        "sha256": "7c6034cbf50333b539a22616952539e0194f5b6ba805ee04e55357e37969b0b4"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/metrics-card-refine-draft.ts",
+        "bytes": 4672,
+        "sha256": "6f566b05c4252905074f074bf1b7e4cc01205b90b983e857a927a7aadf3ecec5"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/metrics-layout.ts",
+        "bytes": 2966,
+        "sha256": "62cc24d35a96add9796f88e2d99e598c52898985ba840f8f0440585abfe2c32a"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/refine-generation-config.ts",
+        "bytes": 929,
+        "sha256": "2e4a1116e6246ad864009c16c7ab9f2e5139b8889c67a1e5e61010cbac2b7b5f"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/service-url.ts",
+        "bytes": 3771,
+        "sha256": "f4dafa63ed85979926051bb561f885fc89cdd586752e2b0dc58fc679dc3c700e"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/shape-generation-failure.ts",
+        "bytes": 888,
+        "sha256": "2baef7cda78778fd12d2e85335e92583be24cd621de02b13dbd824328d6977f1"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/textbox-request-fidelity.ts",
+        "bytes": 14142,
+        "sha256": "c66f2aa23e67aa4e299f5b7c7187475a1fdc0b6ead5d10c98a031069707a3192"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/textlabs-client.ts",
+        "bytes": 50893,
+        "sha256": "85b13a044472116b44f6b1f6f773aaf01b6c23400a8f0a08fb6f53a6fda95864"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/textlabs-theme-metadata.ts",
+        "bytes": 1816,
+        "sha256": "131ad735f482d178af5fe4cdd6c8e637ca8ff37e086a5892e71fb7e307d6b7f9"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/lib/theme-sync.ts",
+        "bytes": 12380,
+        "sha256": "322f49bd5dcba2dc34299ca7134f7862b646fc615802b9da41a9eda6601a16f3"
+      },
+      {
+        "path": "docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/evidence/integrated/sources/types/textlabs.ts",
+        "bytes": 35501,
+        "sha256": "418ff7cd59a18177ee58ec4b1be8278a731adce6ef9dd0df22a51faa267cac27"
+      },
+      {
+        "path": "docs/studio-v4/twenty-four-hour-parity-20261005/fe0/builder1/public-viewer-review/evidence/public-viewer-checks.json",
+        "bytes": 6398,
+        "sha256": "005444d3a52cc4a1cc9c17503e36a9d8a3ca09365b58cb5ceff63025021dd8fc"
+      }
+    ],
+    "file_bytes": 399002,
+    "attribution": {
+      "canvas-recovery-20261004": "scripts/test-stage-f-thumbnail-recovery.mjs:153-155",
+      "eight-hour-parity-20261005": "scripts/test-studio-director-notice.mjs:82-86; scripts/test-metrics-card-refine-integration.mjs:11,31,167",
+      "fe0": "scripts/test-fe0-public-viewer.mjs:11,96-97"
+    },
+    "classification": "Owned suite-created synthetic receipts and source snapshots; absent from initial checkout; no user/deck data. Paths and source write sites match sole paired runner. Preserved here as hash inventory, and exact generated trees retained in own proof folder before removal."
+  }
+]

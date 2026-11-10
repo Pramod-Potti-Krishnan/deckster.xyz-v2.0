@@ -1,0 +1,75 @@
+{
+ "body": {
+  "checkpoint": {
+   "deck_import": {
+    "composer": {
+     "as_is_only": true,
+     "deployed_git_sha": "c1b0712553",
+     "health_read": true,
+     "template_progress": true
+    },
+    "error": {
+     "code": "UPLOAD_FILE_TOO_LARGE",
+     "message": "This file is too large to import. Files up to 100 MB can be imported.",
+     "retryable": false
+    },
+    "phase": "failed",
+    "template_id": null,
+    "title": "Q3 Board Review",
+    "version": "director-deck-import-v1",
+    "waiting": null
+   },
+   "refusal": {
+    "code": "UPLOAD_FILE_TOO_LARGE",
+    "element_ids": [],
+    "roles": [],
+    "site": null,
+    "stage": "prepare"
+   }
+  },
+  "completed_at": null,
+  "created_at": null,
+  "deck_import": {
+   "error": {
+    "code": "UPLOAD_FILE_TOO_LARGE",
+    "message": "This file is too large to import. Files up to 100 MB can be imported.",
+    "retryable": false
+   },
+   "notes": null,
+   "phase": "failed",
+   "progress": null,
+   "result": null,
+   "stage": "failed",
+   "title": "Q3 Board Review",
+   "version": "director-deck-import-v1",
+   "waiting": null,
+   "what_changed": {
+    "headline": null,
+    "items": []
+   }
+  },
+  "errors": [
+   "This file is too large to import. Files up to 100 MB can be imported."
+  ],
+  "job_id": "stage-import-a3ff89eb-3504-4c98-9c2a-b434e60cd773",
+  "per_slide_fidelity": [],
+  "presentation_id": null,
+  "session_id": "fresh-session",
+  "slide_count": null,
+  "status": "failed",
+  "template_id": null,
+  "updated_at": null,
+  "upload_ref": {
+   "file_name": "Q3 Board Review.pptx",
+   "kind": "pptx",
+   "purpose": "deck_import",
+   "researcher_session_id": "fresh-session",
+   "session_id": "fresh-session",
+   "storage_path": "fresh-session/1_Q3 Board Review.pptx"
+  },
+  "user_id": "owner",
+  "viewer_url": null
+ },
+ "description": "Over Composer's size limits (UPLOAD_FILE_TOO_LARGE)",
+ "status": 200
+}

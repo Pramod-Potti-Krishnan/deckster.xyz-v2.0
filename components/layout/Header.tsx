@@ -11,9 +11,11 @@ import { trackCta } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
 
 const NAV_ITEMS = [
-  { name: 'Meet the Team', href: '/agents' },
-  { name: 'Learn to Use', href: '/learn' },
-  { name: 'Start Your Journey', href: '/pricing' },
+  { name: 'Build', href: '/#zoom' },
+  { name: 'Bring', href: '/bring' },
+  { name: 'Present', href: '/present' },
+  { name: 'Experts', href: '/experts' },
+  { name: 'Pricing', href: '/pricing' },
 ] as const;
 
 export function Header() {

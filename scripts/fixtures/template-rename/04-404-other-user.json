@@ -1,0 +1,21 @@
+{
+  "case": "404-other-user",
+  "what": "The id exists but belongs to another user: the same 404 as a missing one.",
+  "request": {
+    "method": "PATCH",
+    "path": "/api/users/user-a/templates/t-theirs",
+    "json_body": {
+      "name": "Fresh name"
+    },
+    "entitlement_header": "(none)"
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json_body": {
+      "detail": "template not found"
+    }
+  }
+}

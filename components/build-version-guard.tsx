@@ -9,15 +9,12 @@ import {
   DIAGRAM_CATALOG_VERSION,
   isCompatibleDiagramCatalog,
 } from '@/lib/diagram-catalog'
+import { getElementorServiceUrl } from '@/lib/elementor-client'
 
 type VersionIssue = {
   title: string
   detail: string
 }
-
-const ELEMENTOR_URL =
-  process.env.NEXT_PUBLIC_ELEMENTOR_URL
-  || 'https://web-production-3b42.up.railway.app'
 
 export function BuildFingerprintBadge() {
   return (
@@ -65,8 +62,11 @@ export function BuildVersionGuard() {
         }
       }
 
+      // Optional backend configuration must not suppress the local build check
+      // or turn an unavailable catalog probe into a global update blocker.
+      const elementorUrl = getElementorServiceUrl().replace(/\/+$/, '')
       const catalogResponse = await fetch(
-        `${ELEMENTOR_URL}/api/diagram/catalog?guard=${now}`,
+        `${elementorUrl}/api/diagram/catalog?guard=${now}`,
         {
           cache: 'no-store',
           headers: { Accept: 'application/json' },

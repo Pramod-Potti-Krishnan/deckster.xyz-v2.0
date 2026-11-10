@@ -1,0 +1,102 @@
+{
+  "cases": 33,
+  "results": [
+    "cache records explicit user/session/presentation identity and copies received URLs",
+    "cache key refuses absent identity/new route and separates ambiguous IDs",
+    "restore refuses different account",
+    "restore refuses different chat",
+    "restore refuses missing cache owner",
+    "restore refuses missing cache session",
+    "restore refuses old schema",
+    "restore refuses expired",
+    "restore refuses future timestamp",
+    "restore refuses NaN clock",
+    "restore refuses invalid timestamp",
+    "restore refuses array payload",
+    "restore refuses null payload",
+    "exact TTL boundary remains valid",
+    "empty/incomplete writes cannot create previews",
+    "malformed entries and dead object URLs omitted; supplied inline image kept",
+    "cache bounded to 32 presentations and 500 URLs; live input untouched",
+    "oversized snapshot refused on both write and restore",
+    "live precedence retains presentation isolation and missing restored entries",
+    "refine replaces one index; compose inserts and moves later indices; repeat is idempotent",
+    "confirmed refine without new URL clears stale target image only",
+    "actual ee532fab4b84a6883f8a5b50675ccab692b62240/false missing URLs render zero images",
+    "actual ee532fab4b84a6883f8a5b50675ccab692b62240/false admitted live URL renders exact native img attrs",
+    "actual ee532fab4b84a6883f8a5b50675ccab692b62240/false same-owned local cache restores only received preview",
+    "actual caf39422c0c6d397a2e4185e52e8531bf6ea3f46/false missing URLs render zero images",
+    "actual caf39422c0c6d397a2e4185e52e8531bf6ea3f46/false admitted live URL renders exact native img attrs",
+    "actual caf39422c0c6d397a2e4185e52e8531bf6ea3f46/false same-owned local cache restores only received preview",
+    "actual caf39422c0c6d397a2e4185e52e8531bf6ea3f46/true missing URLs render zero images",
+    "actual caf39422c0c6d397a2e4185e52e8531bf6ea3f46/true admitted live URL renders exact native img attrs",
+    "actual caf39422c0c6d397a2e4185e52e8531bf6ea3f46/true same-owned local cache restores only received preview",
+    "actual working/true missing URLs render zero images",
+    "actual working/true admitted live URL renders exact native img attrs",
+    "actual working/true same-owned local cache restores only received preview"
+  ],
+  "renderReceipts": [
+    {
+      "ref": "ee532fab4b84a6883f8a5b50675ccab692b62240",
+      "studio": false,
+      "before": {
+        "images": 0,
+        "outlineRows": 7
+      },
+      "after": {
+        "images": 1,
+        "outlineRows": 7,
+        "src": "https://cdn.invalid/received-live.png"
+      },
+      "level": "actual strip offline synthetic render; no image HTTP or connected proof"
+    },
+    {
+      "ref": "caf39422c0c6d397a2e4185e52e8531bf6ea3f46",
+      "studio": false,
+      "before": {
+        "images": 0,
+        "outlineRows": 7
+      },
+      "after": {
+        "images": 1,
+        "outlineRows": 7,
+        "src": "https://cdn.invalid/received-live.png"
+      },
+      "level": "actual strip offline synthetic render; no image HTTP or connected proof"
+    },
+    {
+      "ref": "caf39422c0c6d397a2e4185e52e8531bf6ea3f46",
+      "studio": true,
+      "before": {
+        "images": 0,
+        "outlineRows": 7
+      },
+      "after": {
+        "images": 1,
+        "outlineRows": 7,
+        "src": "https://cdn.invalid/received-live.png"
+      },
+      "level": "actual strip offline synthetic render; no image HTTP or connected proof"
+    },
+    {
+      "ref": "working",
+      "studio": true,
+      "before": {
+        "images": 0,
+        "outlineRows": 7
+      },
+      "after": {
+        "images": 1,
+        "outlineRows": 7,
+        "src": "https://cdn.invalid/received-live.png"
+      },
+      "level": "actual strip offline synthetic render; no image HTTP or connected proof"
+    }
+  ],
+  "limitations": [
+    "No existing lost URLs recreated",
+    "No backend or browser service calls",
+    "No real image fetch proof",
+    "Lead owns cache lifecycle/page/CRUD integration tests"
+  ]
+}

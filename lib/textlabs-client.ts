@@ -29,7 +29,13 @@ import { parseThemeVariantSource, responseStyleOwner } from '@/lib/element-prove
 import { isNonResearchVisualElement } from '@/lib/element-research-policy'
 
 // Same service as Elementor - reuse the URL
-const TEXT_LABS_BASE_URL = process.env.NEXT_PUBLIC_ELEMENTOR_URL || 'https://web-production-3b42.up.railway.app'
+import { inspectServiceUrl, requireServiceUrl } from '@/lib/service-url'
+
+const textLabsCandidates = () => [{ name: 'NEXT_PUBLIC_ELEMENTOR_URL', value: process.env.NEXT_PUBLIC_ELEMENTOR_URL }]
+export const getTextLabsServiceUrl = () => requireServiceUrl('Text Labs service', textLabsCandidates())
+const textLabsUrlConfig = inspectServiceUrl('Text Labs service', textLabsCandidates())
+const TEXT_LABS_BASE_URL = textLabsUrlConfig.url ?? ''
+export const TEXT_LABS_URL_CONFIG_ERROR = textLabsUrlConfig.error
 const snapGridLine = (value: number) => Number((Math.round(value * 5) / 5).toFixed(1))
 
 let elementIdSequence = 0
@@ -125,7 +131,7 @@ export async function createSession(
   presentationId?: string | null,
   signal?: AbortSignal,
 ): Promise<TextLabsSessionResponse> {
-  const response = await fetch(`${TEXT_LABS_BASE_URL}/api/canvas/session`, {
+  const response = await fetch(`${getTextLabsServiceUrl()}/api/canvas/session`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(presentationId ? { presentation_id: presentationId } : {}),
@@ -145,7 +151,7 @@ export async function createSession(
 
 export async function healthCheck(): Promise<boolean> {
   try {
-    const response = await fetch(`${TEXT_LABS_BASE_URL}/health`)
+    const response = await fetch(`${getTextLabsServiceUrl()}/health`)
     return response.ok
   } catch {
     return false
@@ -487,9 +493,13 @@ export async function sendMessage(
     payload[snakeKey] = value
   }
 
+  // Configuration failures happen before dispatch, never as ambiguous network retries.
+  const textLabsBaseUrl = getTextLabsServiceUrl()
+  // NEXT_PUBLIC_STUDIO_TL_SIGNED_REQUESTS (default off): the paid route carries Studio's short-lived identity token. Loaded only when on.
+  const signed = process.env.NEXT_PUBLIC_STUDIO_TL_SIGNED_REQUESTS === 'true' ? await import('@/lib/text-labs-signed-fetch') : null
   let response: Response
   try {
-    response = await fetch(`${TEXT_LABS_BASE_URL}/api/chat/message`, {
+    response = await (signed ? signed.textLabsSignedFetch : fetch)(`${textLabsBaseUrl}/api/chat/message`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -524,6 +534,19 @@ export async function sendMessage(
 
   if (!response.ok) {
     const errorData = await readErrorResponse(response, signal)
+    // NEXT_PUBLIC_STUDIO_TL_SIGNED_REQUESTS: a gate refusal left after the one resend is final (the gate refuses before the handler runs).
+    const gateMessage = signed ? signed.textLabsGateMessage(signed.textLabsGateCode(errorData)) : null
+    if (signed && gateMessage) {
+      throw new TextLabsRequestError(gateMessage, {
+        kind: 'http',
+        status: response.status,
+        errorCode: signed.textLabsGateCode(errorData),
+        requestId: options.generationAttemptId ?? null,
+        retryable: false,
+        ambiguousCompletion: false,
+        retryStrategy: 'do_not_retry',
+      })
+    }
     const retryable = (
       [408, 425, 429, 502, 503, 504].includes(response.status)
       || responseBoolean(errorData, 'retryable', 'retryable')
@@ -676,7 +699,9 @@ export async function generateInfographic(
     formData.append('infographic_config', JSON.stringify(config))
   }
 
-  const response = await fetch(`${TEXT_LABS_BASE_URL}/api/infographic/generate`, {
+  // NEXT_PUBLIC_STUDIO_TL_SIGNED_REQUESTS (default off): the paid route carries Studio's short-lived identity token. Loaded only when on.
+  const signed = process.env.NEXT_PUBLIC_STUDIO_TL_SIGNED_REQUESTS === 'true' ? await import('@/lib/text-labs-signed-fetch') : null
+  const response = await (signed ? signed.textLabsSignedFetch : fetch)(`${getTextLabsServiceUrl()}/api/infographic/generate`, {
     method: 'POST',
     body: formData,
     signal,
@@ -684,7 +709,8 @@ export async function generateInfographic(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
-    throw new Error(formatBackendError(errorData, `Infographic upload failed: ${response.status}`))
+    const gateMessage = signed ? signed.textLabsGateMessage(signed.textLabsGateCode(errorData)) : null // NEXT_PUBLIC_STUDIO_TL_SIGNED_REQUESTS
+    throw new Error(gateMessage ?? formatBackendError(errorData, `Infographic upload failed: ${response.status}`))
   }
 
   return response.json()
@@ -766,7 +792,9 @@ export function buildApiPayload(
     textOnlyMode: isDiagramSubtype(formData.componentType)
       ? false
       : !advancedModified,
-    count,
+    // An Auto count (never chosen by the user) is left to Text Labs, which falls
+    // back to the count stated in the prompt. Refinement always replaces one element.
+    count: formData.countAuto === true && !formData.refine ? undefined : count,
     layout,
     zIndex: z_index,
   }
@@ -1028,6 +1056,8 @@ export function buildInsertionParams(
     generation_config?: Record<string, unknown> | import('@/types/textlabs').DiagramGenerationConfig | null
     generationConfig?: Record<string, unknown> | import('@/types/textlabs').DiagramGenerationConfig | null
     metadata?: Record<string, unknown> | null
+    /** R14: the text element that carries this picture's stage names (flag NEXT_PUBLIC_INFOGRAPHIC_CAPTION_ROW_ENABLED). */
+    captionElementId?: string | null
   },
   positionConfig?: TextLabsPositionConfig,
   paddingConfig?: TextLabsPaddingConfig,
@@ -1171,6 +1201,7 @@ export function buildInsertionParams(
   if (resolvedTableProfile) baseParams.resolvedTableProfile = resolvedTableProfile
   if (citationsUsed) baseParams.citationsUsed = citationsUsed
   if (generationConfig) baseParams.generationConfig = generationConfig
+  if (element.captionElementId) baseParams.captionElementId = element.captionElementId
   if (structuredPlan) baseParams.structuredPlan = structuredPlan
   if (diagramGenerationConfig) {
     const resolvedDiagramType = diagramGenerationConfig.resolved_type

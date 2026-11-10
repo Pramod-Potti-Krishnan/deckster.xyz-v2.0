@@ -1,17 +1,50 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { announceQuotaRefusal, isStudioQuotaScreensOn, walletPrecheckAllows } from '@/lib/studio-billing-usage' // BILLING-F5-USAGE
+import { useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from './use-auth';
+import { composerThemeFromSync, composerThemeSyncBlocked, readComposerAdoption, type ComposerAdoption } from '@/lib/composer-theme-policy';
 import { useSessionCache, CachedSessionState } from './use-session-cache';
-import { debugLog } from '@/lib/debug-log';
+import { debugLog } from '@/lib/debug-log'
+import { CHAT_DIRECTIVES, CHAT_MENTIONS } from '@/lib/mdc-flags'
+import { parseSlideMentions } from '@/lib/mdc-mentions';
+// NEXT_PUBLIC_CHAT_ELEMENT_REFINE (default off): refine an element from chat; the cap, the reference and element_refine_directive.
+import { CHAT_ELEMENT_REFINE_ENABLED, ELEMENT_REFINE_DIRECTIVE_TYPE, addChatElementRefineFields, elementRefineDirectiveId } from '@/lib/chat-element-refine-wire';
+import { CHAT_ELEMENT_EDIT_ENABLED, addChatElementEditCaps, elementEditResultFrame, routeElementEditFrame, routeNotesUpdatedFrame } from '@/lib/chat-element-edit-wire'; // CHAT-ELEMENT-EDIT (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off): edit an element from chat and refresh the notes; the caps, the element_edit frame and deck_mutation notes_updated
 import type { BuildThemeSelection } from '@/lib/theme-builder';
 import type { TemplateOverrides } from '@/lib/template-mode';
+// NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (each default off): change the theme / export from chat; the caps and the two directives.
+import { CHAT_THEME_EXPORT_CAPS, chatThemeExportDirectiveKind, themeExportDirectiveId } from '@/lib/chat-theme-export-wire';
+import { CHAT_PARITY_CAPS, CHAT_PARITY_NOTES_FIELDS_EVENT, STUDIO_CHAT_PARITY_ANY_ENABLED, addChatParityCaps, chatParityBus, chatParityNotesFields, chatParityRequestId, chatParityResultFrame, isChatParityRequestFrame } from '@/lib/studio-chat-parity'; // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_*, each default off): the group caps and Director's studio_action request
+// NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4c, default off): Director's job_update frames and sync_response.payload.jobs go to the page's ledger.
+import { STUDIO_JOB_LEDGER_ENABLED, JOB_UPDATE_TYPE, jobLedgerRow, jobLedgerRows } from '@/lib/studio-job-ledger';
+import { STUDIO_BULK_EDIT_UNDO_ENABLED, STUDIO_CHAT_UNDO_ENABLED, BULK_EDIT_UNDO_CLIENT_CAPS, addBulkEditUndoCaps, normaliseDeckRestored } from '@/lib/studio-bulk-edit-wire'; // BULK-EDIT-UNDO (flags NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO, default off)
+import { bulkEditUndoContext, routeStudioBulkEditUndoFrame } from '@/lib/studio-bulk-edit-store'; // BULK-EDIT-UNDO
+import { STUDIO_CHAT_COMMANDS_ENABLED, addChatCommandsFields, chatCommandsSent } from '@/lib/studio-chat-commands-wire'; // CHAT-COMMANDS (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, default off): the picked @ references, the / command hint and the mentions2 / commands1 caps
+import { STUDIO_TEMPLATE_MATCH_ENABLED, isTemplateMatchMessage } from '@/lib/studio-template-match'; // STUDIO-TEMPLATE-MATCH (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH, default off): the matched template's capability, the two sends and Director's template_match frame
+import { addTemplateMatchCap, templateMatchBaseCaps } from '@/lib/studio-template-match-wire'; // STUDIO-TEMPLATE-MATCH
+import { templateMatchFrameReceived, templateMatchSocketOpened } from '@/hooks/use-studio-template-match'; // STUDIO-TEMPLATE-MATCH
+import { STUDIO_FLOW_AMEND_ENABLED, STUDIO_FLOW_FOCUS_ENABLED, flowBus, isFlowFocusFrameType, isFlowSettledPhase, takeFlowInstructions } from '@/lib/studio-flow-control'; // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_FOCUS / _FLOW_AMEND, default off)
+import { STUDIO_CHAT_CAPS_META_ENABLED, chatCapsSyncReceived } from '@/lib/studio-chat-caps'; // CHAT-CAPS-META (NEXT_PUBLIC_STUDIO_CHAT_CAPS_META, default off): Director's sync_response chat_capabilities, read into a read-only snapshot
+import { STUDIO_VOICE_CALL_UI_ENABLED, addVoiceCallFields, isVoiceCallFrameType, voiceCallBus } from '@/lib/studio-voice-call-ui'; // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL, default off)
 import type { ManualDeckContext } from '@/lib/manual-deck-workflow';
+import type { DeckFooterConfig, DeckIdentity } from '@/lib/deck-identity';
 import {
   buildSlideComposeProgressStatus,
+  markSlideStateFrameProcessed,
   normalizeSlideComposeSocketFrame,
 } from '@/lib/slide-compose-async';
 import { applyFinalSyncRecovery } from '@/lib/director-sync-recovery';
+import { mergeDirectorChatHistory } from '@/lib/director-chat-history';
+import { projectVerifiedOutlineReplay } from '@/lib/director-history-presentation';
+import { STUDIO_VOICE_INTERACTIVE_ENABLED } from '@/lib/studio-voice-interactive';
+import {
+  createStudioVoiceTranscriptProvenance, admitStudioVoiceTranscriptFrame,
+  completeStudioVoiceTranscriptRestore, type StudioVoiceTranscriptProvenance,
+  type StudioVoiceTranscriptMessage,
+} from '@/lib/studio-voice-transcript-provenance';
 import { guardDirectorLayoutUrlMessage } from '@/lib/director-layout-url-ingress';
 import { LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client';
+import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url';
+import type { UserChatMessage } from '@/lib/user-message-attachments';
 import { evaluateLayoutViewerUrl, sanitizeRestoredLayoutViewerUrls } from '@/lib/layout-viewer-url-policy';
 import {
   DIRECTOR_HEARTBEAT_INTERVAL_MS,
@@ -21,6 +54,19 @@ import {
   resolveDirectorReconnectPlan,
   shouldReconnectDirectorOnOnline,
 } from '@/lib/director-reconnect-policy';
+import { STUDIO_ONE_LIVE_TAB_ENABLED, isDirectorSupersededClose } from '@/lib/studio-one-live-tab';
+import {
+  buildControlEndpointFromWsUrl,
+  createBuildControlRequestId,
+  isCurrentBuildControlTransportSnapshot,
+  scrubBuildControlCapabilityMessages,
+} from '@/lib/build-control-helpers';
+import type {
+  BuildPhaseMessage as BuildPhaseSocketMessage,
+  BuildEventMessage as BuildEventSocketMessage,
+  SlideBuiltMessage as SlideBuiltSocketMessage,
+  BuildControlData,
+} from '@/types/build-narration';
 
 // Director v3.4 Message Types (Corrected - uses 'payload' not 'data')
 
@@ -28,9 +74,16 @@ export interface BaseMessage {
   message_id: string;
   session_id: string;
   timestamp: string;
-  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_progress' | 'slide_ready' | 'slide_failed' | 'theme_sync';
+  type: 'chat_message' | 'action_request' | 'slide_update' | 'presentation_init' | 'presentation_url' | 'status_update' | 'sync_response' | 'slide_context' | 'token_usage' | 'slide_progress' | 'slide_built' | 'slide_ready' | 'slide_failed' | 'theme_sync' | 'session_directive' | 'element_directive' | 'deck_mutation' | 'build_phase' | 'build_event' | 'build_control_capability' | 'template_ingest_update' | 'template_ingest_ready' | 'template_ingest_failed';
   payload: any;
 }
+
+// Frames that answer a user turn (vs. passive state ticks) — these unlock
+// the input's turn gate.
+const REPLY_FRAME_TYPES = new Set<string>([
+  'chat_message', 'action_request', 'presentation_init', 'presentation_url',
+  'sync_response', 'session_directive', 'element_directive',
+]);
 
 const KNOWN_DIRECTOR_MESSAGE_TYPES = new Set<BaseMessage['type']>([
   'chat_message',
@@ -43,9 +96,25 @@ const KNOWN_DIRECTOR_MESSAGE_TYPES = new Set<BaseMessage['type']>([
   'slide_context',
   'token_usage',
   'slide_progress',
+  // Port review F-1: absent from this allowlist on uat, so uat's own Stage-F
+  // slide_built case (and D1's shared frame) was unreachable from a real
+  // socket — every frame dropped at ingress. Deliberate flag-off fix: it
+  // activates uat's already-shipped dispatch case and thumbnail path.
+  'slide_built',
   'slide_ready',
   'slide_failed',
   'theme_sync',
+  // MDC (K3/K5): directive frames — handled out-of-band, never rendered in chat.
+  'session_directive',
+  'element_directive',
+  'deck_mutation',
+  // Build Narration: typed frames — rendered on the canvas, never in chat.
+  'build_phase',
+  'build_event',
+  'build_control_capability',
+  'template_ingest_update',
+  'template_ingest_ready',
+  'template_ingest_failed',
 ]);
 
 function isKnownDirectorMessageType(type: unknown): type is BaseMessage['type'] {
@@ -60,6 +129,7 @@ export interface SyncResponse {
   type: 'sync_response';
   role: 'assistant';
   payload: {
+    composer_adoption?: ComposerAdoption;
     action: 'skip_history' | 'send_history' | 'send_delta';
     message_count: number;
     current_state: string;
@@ -201,6 +271,12 @@ export interface SlideContextItem {
   narrative_role?: string;
   key_message?: string;
   content_type?: string;
+  subtype?: string | null;
+  research_status?: string | null;
+  research_ready?: boolean | null;
+  research_issues?: string[];
+  citation_count?: number | null;
+  source_types?: string[];
   subtypes?: {
     chart_subtype?: string | null;
     infographic_subtype?: string | null;
@@ -225,6 +301,10 @@ export interface SlideContext {
       deck_outline?: Array<{ slide_index: number; slide_title: string }>;
       deck_tables?: unknown[];
       theme_session_id?: string;
+      // Contract §2 (Director → frontend): additive, lets the post-build
+      // settings panel seed from the package instead of from nothing.
+      deck_identity?: DeckIdentity;
+      footer?: DeckFooterConfig;
     };
     slides: SlideContextItem[];
   };
@@ -280,6 +360,22 @@ export interface SlideComposeReady {
     replaced_slide_id?: string | null;
     presentation_id: string;
     presentation_url?: string | null;
+    thumbnail_url?: string | null;
+  };
+}
+
+export interface SlideBuilt {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
+  type: 'slide_built';
+  payload: {
+    presentation_id: string;
+    slide_index: number;
+    slide_count?: number | null;
+    thumbnail_url?: string | null;
+    qa_verdict?: string | null;
+    qa_skipped_reason?: string | null;
   };
 }
 
@@ -322,10 +418,175 @@ export interface ThemeSyncMessage {
     presentation_id?: string | null;
     theme_session_id?: string | null;
     error?: string | null;
+  } | {
+    // THEME-RESET-ON-RECONNECT-P1 (Director DIRECTOR_THEME_RESTORE_ON_CONNECT_ENABLED): the session's stored theme, sent
+    // once per connect before the history replay and the greeting. `theme` is always present (null: nothing stored). Types
+    // only: the reducer still just logs theme_sync; the page adopts it (NEXT_PUBLIC_STUDIO_THEME_RESTORE).
+    request_id: string;
+    status: 'restored';
+    presentation_id?: string | null;
+    theme: Record<string, unknown> | null;
+    applied: boolean;
+    desired_status?: 'syncing' | 'applied' | 'failed' | null;
   };
 }
 
-export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse | SlideContext | TokenUsage | SlideComposeProgress | SlideComposeReady | SlideComposeFailed | ThemeSyncMessage;
+export interface BuildControlCapability {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
+  type: 'build_control_capability';
+  payload: {
+    control_token: string;
+  };
+}
+
+// D1: `SlideBuilt` (above) is the one slide_built message type — narration's
+// reducer taps its dispatch rather than adding a parallel case.
+// Template Ingest (C-5/C-7): reference to the raw upload Researcher retained
+// for Director's ingest orchestrator.
+export interface IngestUploadRef {
+  storage_path: string;
+  file_name: string;
+  kind: string; // 'pptx' | 'ppt' | 'pdf'
+}
+
+// Template Ingest per-slide fidelity entry from the ready frame.
+export interface TemplateIngestSlideFidelity {
+  slide_index: number;
+  png_url?: string | null;
+  fidelity?: number | null;
+  reusability?: number | null;
+  warnings?: string[];
+  // R4-10: Slide Builder baked original artwork/text into a raster for this
+  // slide (squash/escalation). Locked slides are same-subject reuse only —
+  // the review card surfaces a lock badge + note. Optional/additive.
+  raster_locked?: boolean;
+}
+
+export interface TemplateIngestUpdate {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
+  type: 'template_ingest_update';
+  payload: {
+    session_id?: string;
+    job_id?: string;
+    state?: string;
+    text?: string;
+    // M-4: Director may emit `message` / `total_slides` instead of
+    // `text` / `slide_count`; accept both (additive).
+    message?: string;
+    progress?: number;
+    slide_index?: number;
+    slide_count?: number;
+    total_slides?: number;
+  };
+}
+
+// Template Ingest (C-5): sessionStorage key prefix for the active ingest job,
+// keyed by session id. Persisted while a job is in flight so the builder can
+// resume polling after a reload/reconnect; cleared on ready/failed.
+export const INGEST_JOB_KEY_PREFIX = 'deckster_ingest_job_';
+export const INGEST_INTENT_KEY_PREFIX = 'deckster_ingest_intent_';
+
+export interface TemplateIngestReady {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
+  type: 'template_ingest_ready';
+  payload: {
+    composer_adoption?: ComposerAdoption;
+    session_id?: string;
+    job_id?: string;
+    template_id: string;
+    presentation_id: string;
+    viewer_url: string;
+    slide_count?: number;
+    per_slide_fidelity?: TemplateIngestSlideFidelity[];
+  };
+}
+
+export interface TemplateIngestFailed {
+  message_id: string;
+  session_id: string;
+  timestamp: string;
+  type: 'template_ingest_failed';
+  payload: {
+    session_id?: string;
+    job_id?: string;
+    stage?: string | null;
+    error?: string | null;
+    errors?: string[];
+  };
+}
+
+export type DirectorMessage = ChatMessage | ActionRequest | SlideUpdate | PresentationInit | PresentationURL | StatusUpdate | SyncResponse | SlideContext | TokenUsage | SlideComposeProgress | SlideBuilt | SlideComposeReady | SlideComposeFailed | ThemeSyncMessage | BuildPhaseSocketMessage | BuildEventSocketMessage | BuildControlCapability | TemplateIngestUpdate | TemplateIngestReady | TemplateIngestFailed | import('@/types/mdc').DeckMutationMessage;
+
+/** Ephemeral socket ownership; callers must recheck after every native await. */
+export interface DirectorTransportOwner {
+  sessionId: string;
+  userId: string;
+  transportGeneration: number;
+  isCurrent: () => boolean;
+}
+
+export interface DirectorDeckMutationOwner extends DirectorTransportOwner {
+  presentationId: string;
+  activeVersion: 'blank' | 'strawman' | 'final';
+}
+
+/** Only supported transport metadata is retained, never the raw auth frame. */
+export interface DirectorTransportNotice {
+  type: 'auth_refreshed' | 'auth_refresh_failed' | 'auth_expired' | 'error';
+  sessionId: string;
+  code?: string;
+  message: string;
+  detail?: string;
+  expiresAt?: number;
+  discardedMessageType?: string;
+  requiresResend: boolean;
+}
+
+export interface DirectorHandoffRequestIdentity {
+  sessionId: string;
+  userId: string;
+  idempotencyKey: string;
+}
+
+export interface DirectorHandoffRequestStatus {
+  sessionId: string;
+  idempotencyKey: string;
+  status: 'processing' | 'already_processing' | 'already_completed' | 'failed';
+  error?: string;
+}
+
+export interface DirectorHandoffRequestOwner extends DirectorTransportOwner {
+  idempotencyKey: string;
+  requestGeneration: number;
+}
+
+interface TrackedHandoffRequest extends DirectorHandoffRequestIdentity {
+  requestGeneration: number;
+  lifecycleGeneration: number;
+  awaitingTurnSequence: number | null;
+}
+
+export class DirectorTransportError extends Error {
+  readonly code?: string;
+  readonly detail?: string;
+  readonly discardedMessageType?: string;
+  readonly frameType: DirectorTransportNotice['type'];
+
+  constructor(notice: DirectorTransportNotice) {
+    super(notice.message);
+    this.name = 'DirectorTransportError';
+    this.code = notice.code;
+    this.detail = notice.detail;
+    this.discardedMessageType = notice.discardedMessageType;
+    this.frameType = notice.type;
+  }
+}
 
 export function normalizeDirectorMessageFrame(raw: DirectorMessage | (BaseMessage & Record<string, any>)): DirectorMessage {
   return normalizeSlideComposeSocketFrame(raw as any) as unknown as DirectorMessage;
@@ -351,9 +612,15 @@ export interface UserMessage {
     element_overrides?: TemplateOverrides;
     action_value?: string;
     action_label?: string;
+    template_ingest?: boolean;
+    ingest_upload_ref?: IngestUploadRef;
     // Customized-slide workflow. Director latches this source before the
     // generated strawman/final presentation replaces the live blank deck.
     manual_deck?: ManualDeckContext;
+    // Deck identity (contract G3): who is presenting. Additive and optional —
+    // Director latches it from the first message that carries it. Only present
+    // when NEXT_PUBLIC_DECK_IDENTITY_ENABLED is on and something is known.
+    deck_identity?: DeckIdentity;
     // One-shot key seeded by POST /api/sessions/{id}/handoff. Director uses it
     // to suppress navigation/reconnect retries of the pending build request.
     handoff_idempotency_key?: string;
@@ -361,6 +628,8 @@ export interface UserMessage {
 }
 
 export interface SendUserMessageOptions {
+  /** Compact transcript echo for composed answers (Director stores it). */
+  displayText?: string;
   deepResearch?: boolean;
   webSearch?: boolean;
   extendedGeneration?: boolean;
@@ -374,14 +643,29 @@ export interface SendUserMessageOptions {
   elementOverrides?: TemplateOverrides;
   actionValue?: string;
   actionLabel?: string;
+  templateIngest?: boolean;
+  ingestUploadRef?: IngestUploadRef;
   manualDeck?: ManualDeckContext;
+  /** Contract G3 — omitted entirely when the flag is off or nothing is known. */
+  deckIdentity?: DeckIdentity;
   handoffIdempotencyKey?: string;
 }
 
-export interface ControlMessage {
-  type: 'cancel_template_reuse';
-  data?: Record<string, never>;
-}
+export type ControlMessage =
+  | {
+      type: 'cancel_template_reuse';
+      data?: Record<string, never>;
+    }
+  // Template Ingest (C-5): cancel an in-flight ingest job.
+  | {
+      type: 'template_ingest_cancel';
+      data: { job_id: string };
+    }
+  // NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4c): run a failed / timed-out Director job again (a frame-route row's retry.job_id; the user's click only).
+  | {
+      type: 'job_retry';
+      data: { job_id: string };
+    };
 
 export interface SetThemeMessage {
   type: 'set_theme';
@@ -394,6 +678,8 @@ export interface SetThemeMessage {
 
 // Hook state
 export interface UseDecksterWebSocketV2State {
+  composerAdoption: ComposerAdoption | null;
+  composerThemeResolved: boolean;
   connected: boolean;
   connecting: boolean;
   connectionState: 'disconnected' | 'connecting' | 'connected' | 'error';
@@ -402,7 +688,11 @@ export interface UseDecksterWebSocketV2State {
   sessionId: string;
   userId: string;
   error: Error | null;
+  transportNotice: DirectorTransportNotice | null;
+  handoffRequestStatus: DirectorHandoffRequestStatus | null;
   messages: DirectorMessage[];
+  /** Private volatile admission evidence, excluded from every persistence field. */
+  studioVoiceTranscriptReceipt: StudioVoiceTranscriptProvenance | null;
   // UPDATED: Split presentation URLs to support blank/strawman/final toggle (Builder V2)
   presentationUrl: string | null; // Currently displayed URL (computed from blank/strawman/final)
   strawmanPreviewUrl: string | null; // Strawman preview URL
@@ -415,10 +705,22 @@ export interface UseDecksterWebSocketV2State {
   blankPresentationUrl: string | null; // Blank presentation URL on connect
   blankPresentationId: string | null; // Blank presentation ID
   isBlankPresentation: boolean; // True if currently showing blank presentation
+  /** Ephemeral positive ingress proof; never persisted or recovered from cache. */
+  studioAutomaticBlankSelection?: {
+    token: object;
+    userId: string;
+    sessionId: string;
+    presentationId: string | null;
+    presentationUrl: string;
+  } | null;
   activeVersion: 'blank' | 'strawman' | 'final'; // Which version is currently being viewed
   // Durable Director workflow state. This is authoritative for deciding whether
   // the next build starts from a manually edited blank presentation.
   directorWorkflowState: string | null;
+  // Monotonic: a strawman never un-exists. Authoritative signal (from the
+  // Director's sync_response) that research settings are now frozen for this
+  // deck — from the strawman onward those toggles have already been spent.
+  hasStrawman: boolean;
   slideCount: number | null;
   currentStatus: StatusUpdate['payload'] | null;
   slideStructure: SlideUpdate['payload'] | null;
@@ -435,6 +737,9 @@ export interface UseDecksterWebSocketV2State {
   // Director token-usage ledger, emitted once per completed turn.
   tokenUsage: TokenUsagePayload | null;
   tokenUsageMessageId: string | null;
+  templateIngestResult: TemplateIngestReady['payload'] | null;
+  templateIngestError: string | null;
+  templateIngestJobId: string | null;
 }
 
 // Hook options
@@ -446,10 +751,46 @@ export interface UseDecksterWebSocketV2Options {
   existingSessionId?: string; // Resume existing session instead of creating new one
   onError?: (error: Error) => void;
   onMessage?: (message: DirectorMessage) => void;
+  /** The actual current renderer classifier; generic delivery is not admission. */
+  getStudioVoiceAssistantAdmission?: (message: DirectorMessage) => boolean;
+  // Completion metadata only. The page owns native dirty/edit/save/structure
+  // fences and reconciliation; receiving this callback never reloads the deck.
+  onDeckMutation?: (message: import('@/types/mdc').DeckMutationMessage, owner: DirectorDeckMutationOwner) => void;
+  onTransportNotice?: (notice: DirectorTransportNotice, owner: DirectorTransportOwner) => void;
+  // Known pending identity only; this never sends/retries the durable request.
+  expectedHandoffRequest?: DirectorHandoffRequestIdentity | null;
+  onHandoffRequestStatus?: (status: DirectorHandoffRequestStatus, owner: DirectorHandoffRequestOwner) => void;
   onPresentationReady?: (url: string) => void;
   onSlideComposeProgress?: (message: SlideComposeProgress) => void;
+  onSlideBuilt?: (message: SlideBuilt, owner?: DirectorTransportOwner) => void;
+  // MDC P4 (K3): Director instructs a capable client to start a new session.
+  onSessionDirective?: (payload: import('@/types/mdc').SessionDirectivePayload) => void;
+  // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT: run Director's theme_directive / export_directive. Unused with both flags off.
+  onThemeExportDirective?: (message: import('@/lib/chat-theme-export-wire').ThemeExportDirectiveMessage, owner: import('@/lib/chat-theme-export-wire').ThemeExportDirectiveOwner) => void;
+  // MDC P8 (K5): run an element generation through the FE panel pipeline.
+  onElementDirective?: (payload: import('@/types/mdc').ElementDirectivePayload) => void;
+  // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: run Director's element_refine_directive (refine one element from chat), and the selected
+  // element a send names (null when none). Both unused with the flag off.
+  onElementRefineDirective?: (message: import('@/lib/chat-element-refine-wire').ElementRefineDirectiveMessage, owner: import('@/lib/chat-element-refine-wire').ElementRefineDirectiveOwner) => void;
+  getChatElementReference?: () => import('@/lib/chat-element-refine-wire').ChatElementReference | null;
+  // CHAT-ELEMENT-EDIT: run Director's element_edit (one edit of one element), and the Notes panel refresh of deck_mutation notes_updated. Both unused with the flag off.
+  onElementEditDirective?: (message: import('@/lib/chat-element-edit-wire').ElementEditDirectiveMessage, owner: import('@/lib/chat-element-edit-wire').ElementEditDirectiveOwner) => void; // CHAT-ELEMENT-EDIT
+  onNotesUpdated?: (update: import('@/lib/chat-element-edit-wire').NotesUpdated, owner: { sessionId: string | null; isCurrent: () => boolean }) => void; // CHAT-ELEMENT-EDIT
+  // NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4c): Director's job rows for this socket's session (a job_update frame's row; sync_response's
+  // jobs list, possibly []). Never rendered in chat. Unused with the flag off.
+  onJobUpdate?: (row: import('@/lib/studio-job-ledger').JobLedgerRow, owner: import('@/lib/studio-job-ledger').JobLedgerOwner) => void;
+  onJobsSync?: (rows: import('@/lib/studio-job-ledger').JobLedgerRow[], owner: import('@/lib/studio-job-ledger').JobLedgerOwner) => void;
   onSlideComposeReady?: (message: SlideComposeReady) => void;
   onSlideComposeFailed?: (message: SlideComposeFailed) => void;
+  onTemplateIngestReady?: (message: TemplateIngestReady) => void;
+  onTemplateIngestFailed?: (message: TemplateIngestFailed) => void;
+  // Build Narration typed frames (Director BUILD_EVENTS_ENABLED). Payloads
+  // only — the frames never enter messages[]/state. slide_built reuses uat's
+  // onSlideBuilt (above) — one frame, one dispatch (D1).
+  onBuildPhase?: (payload: BuildPhaseSocketMessage['payload'], ownerSessionId?: string) => void;
+  onBuildEvent?: (payload: BuildEventSocketMessage['payload']) => void;
+  // sync_response.build_state (mid-flight/paused build re-hydration).
+  onBuildStateSync?: (buildState: unknown) => void;
   onSessionStateChange?: (state: {
     presentationUrl?: string;
     presentationId?: string;
@@ -461,9 +802,23 @@ export interface UseDecksterWebSocketV2Options {
   }) => void;
 }
 
-// NEXT_PUBLIC_WS_URL lets local UAT point the builder at a locally-run Director
-// (e.g. ws://localhost:8000/ws); falls back to the deployed Director otherwise.
-const DEFAULT_WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'wss://directorv33-production.up.railway.app/ws';
+// Resolve only at the transport/action boundary; absence never chooses a host.
+const getDirectorWsUrl = () => requireServiceUrl('Director', [
+  { name: 'NEXT_PUBLIC_WS_URL', value: process.env.NEXT_PUBLIC_WS_URL },
+], { protocols: ['ws:', 'wss:'], urlType: 'endpoint' });
+const BUILD_CONTROL_HTTP_TIMEOUT_MS = 4000;
+const COMPOSER_LIBRARY_ENABLED = process.env.NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED === 'true';
+// PASS2-J3 P0: Director answers a NEW session with its blank deck (presentation_init) and never a sync_response, so the
+// composer theme policy above stayed unresolved and every set_theme / Add Element was refused for the whole session.
+// On (exact "true", default off): the session's first blank deck frame on a socket with no sync_response resolves the
+// policy as "no adoption". A Composer adoption (use result, cached marker or sync) is never unlocked.
+const STUDIO_NEW_SESSION_THEME_POLICY_ENABLED = COMPOSER_LIBRARY_ENABLED
+  && process.env.NEXT_PUBLIC_STUDIO_NEW_SESSION_THEME_POLICY === 'true';
+
+// How long a send will wait for a closed socket to come back before it gives
+// up and tells the user. Long enough to cover ordinary reconnect churn,
+// short enough that a genuinely dead connection is reported promptly.
+const SEND_RECONNECT_TIMEOUT_MS = 12000;
 
 export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = {}) {
   const { user } = useAuth();
@@ -471,6 +826,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   // Generate stable session and user IDs
   const sessionIdRef = useRef<string>('');
   const userIdRef = useRef<string>('');
+  const processedStateFrameKeysRef = useRef<Set<string>>(new Set());
 
   // CRITICAL FIX: Initialize session ID with priority order:
   // 1. Use existing session ID from database/URL (if provided)
@@ -524,8 +880,37 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   }, [user?.id, user?.email]);
 
   // Initialize browser cache for this session
+  const voiceTranscriptAuthorityRef = useRef({
+    active: true, userId: user?.id ?? user?.email ?? null,
+    sessionId: options.existingSessionId || sessionIdRef.current,
+  });
+  const voiceRequestedUserId = user?.id ?? user?.email ?? null;
+  const voiceRequestedSessionId = options.existingSessionId || sessionIdRef.current;
+  if (voiceTranscriptAuthorityRef.current.userId !== voiceRequestedUserId
+    || voiceTranscriptAuthorityRef.current.sessionId !== voiceRequestedSessionId) {
+    voiceTranscriptAuthorityRef.current = {
+      active: voiceTranscriptAuthorityRef.current.active,
+      userId: voiceRequestedUserId, sessionId: voiceRequestedSessionId,
+    };
+  }
+  const cacheVoiceMessages = (cached: CachedSessionState | null | undefined): StudioVoiceTranscriptMessage[] => [
+    ...scrubBuildControlCapabilityMessages(cached?.messages),
+    ...(cached?.userMessages || []).map(message => ({ message_id: message.id })),
+  ];
+  const createVoiceTranscript = (cachedMessages: readonly StudioVoiceTranscriptMessage[], priorVisibleMessages: readonly StudioVoiceTranscriptMessage[], ephemeralIds: string[]) => {
+    if (!STUDIO_VOICE_INTERACTIVE_ENABLED) return null;
+    const authority = voiceTranscriptAuthorityRef.current;
+    return createStudioVoiceTranscriptProvenance({
+      owner: authority, userId: authority.userId, sessionId: authority.sessionId,
+      cachedMessages, priorVisibleMessages, ephemeralIds,
+      isCurrentOwner: () => voiceTranscriptAuthorityRef.current === authority && authority.active
+        && authority.userId === userIdRef.current && authority.sessionId === sessionIdRef.current,
+    });
+  };
   const sessionCache = useSessionCache({
     sessionId: sessionIdRef.current,
+    // Owner-scoped cache: never let one account read another's cached deck.
+    userId: userIdRef.current,
     enabled: true,
     ttl: 24 * 60 * 60 * 1000, // 24 hours
   });
@@ -579,6 +964,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           : cached.finalPresentationId;
 
       return {
+        composerAdoption: COMPOSER_LIBRARY_ENABLED ? readComposerAdoption(cached.composerAdoption, cached.finalPresentationId) : null,
+        composerThemeResolved: false,
         connected: false,
         connecting: false,
         connectionState: 'disconnected',
@@ -587,7 +974,15 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         sessionId: sessionIdRef.current,
         userId: userIdRef.current,
         error: null,
-        messages: cached.messages || [],
+        transportNotice: null,
+        handoffRequestStatus: null,
+        messages: scrubBuildControlCapabilityMessages(cached.messages).map(message => {
+          const clean = { ...message } as DirectorMessage & { clientOutlineReplayOf?: string; clientTerminalOutlineRevisionOf?: string };
+          delete clean.clientOutlineReplayOf;
+          delete clean.clientTerminalOutlineRevisionOf;
+          return clean;
+        }),
+        studioVoiceTranscriptReceipt: createVoiceTranscript(cacheVoiceMessages(cached), [], (cached as any).ephemeralMessageIds || []),
         presentationUrl: cachedDisplayUrl || cached.presentationUrl || null,
         strawmanPreviewUrl: cached.strawmanPreviewUrl || null,
         finalPresentationUrl: cached.finalPresentationUrl || null,
@@ -601,6 +996,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         isBlankPresentation: cached.isBlankPresentation || false,
         activeVersion: cachedActiveVersion,
         directorWorkflowState: null,
+        hasStrawman: false,
         slideCount: cached.slideCount || null,
         currentStatus: cached.currentStatus || null,
         slideStructure: cached.slideStructure || null,
@@ -610,11 +1006,16 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         ephemeralFadeToken: 0,
         tokenUsage: (cached as any).tokenUsage || null,
         tokenUsageMessageId: (cached as any).tokenUsageMessageId || null,
+        templateIngestResult: (cached as any).templateIngestResult || null,
+        templateIngestError: null,
+        templateIngestJobId: null,
       };
     }
 
     // No cache or invalid cache - return default state
     return {
+      composerAdoption: null,
+      composerThemeResolved: false,
       connected: false,
       connecting: false,
       connectionState: 'disconnected',
@@ -623,7 +1024,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       sessionId: sessionIdRef.current,
       userId: userIdRef.current,
       error: null,
+      transportNotice: null,
+      handoffRequestStatus: null,
       messages: [],
+      studioVoiceTranscriptReceipt: createVoiceTranscript([], [], []),
       presentationUrl: null,
       strawmanPreviewUrl: null,
       finalPresentationUrl: null,
@@ -637,6 +1041,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       isBlankPresentation: false,
       activeVersion: 'final', // Default to final when available, fallback to strawman/blank
       directorWorkflowState: null,
+        hasStrawman: false,
       slideCount: null,
       currentStatus: null,
       slideStructure: null,
@@ -646,10 +1051,51 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       ephemeralFadeToken: 0,
       tokenUsage: null,
       tokenUsageMessageId: null,
+      templateIngestResult: null,
+      templateIngestError: null,
+      templateIngestJobId: null,
     };
   };
 
   const [state, setState] = useState<UseDecksterWebSocketV2State>(() => getInitialState());
+  const voiceTranscriptReceiptRef = useRef(state.studioVoiceTranscriptReceipt);
+  voiceTranscriptReceiptRef.current = state.studioVoiceTranscriptReceipt;
+  const retireVoiceTranscript = useCallback(() => {
+    if (!STUDIO_VOICE_INTERACTIVE_ENABLED) return;
+    voiceTranscriptReceiptRef.current?.retire();
+    voiceTranscriptAuthorityRef.current = { ...voiceTranscriptAuthorityRef.current };
+  }, []);
+  useLayoutEffect(() => {
+    if (!STUDIO_VOICE_INTERACTIVE_ENABLED) return;
+    voiceTranscriptAuthorityRef.current = { ...voiceTranscriptAuthorityRef.current, active: true };
+    setState(prev => ({ ...prev, studioVoiceTranscriptReceipt: createVoiceTranscript(
+      cacheVoiceMessages(sessionCache.isCacheValid() ? sessionCache.getCachedState() : null),
+      [...prev.messages, ...Array.from(prev.studioVoiceTranscriptReceipt?.restored || [], message_id => ({ message_id }))],
+      [...prev.ephemeralMessageIds, ...Array.from(prev.studioVoiceTranscriptReceipt?.ephemeral || [])],
+    ) }));
+    return () => {
+      retireVoiceTranscript();
+      voiceTranscriptAuthorityRef.current = { ...voiceTranscriptAuthorityRef.current, active: false };
+    };
+  }, [retireVoiceTranscript]);
+  const transportCallbacksRef = useRef(options);
+  transportCallbacksRef.current = options;
+  const deckMutationKey = JSON.stringify([state.deckOwnerSessionId, state.presentationId, state.presentationUrl, state.activeVersion]);
+  const deckMutationOwnerRef = useRef({ key: deckMutationKey, deckOwnerSessionId: state.deckOwnerSessionId, presentationId: state.presentationId, activeVersion: state.activeVersion });
+  if (deckMutationOwnerRef.current.key !== deckMutationKey) {
+    deckMutationOwnerRef.current = { key: deckMutationKey, deckOwnerSessionId: state.deckOwnerSessionId, presentationId: state.presentationId, activeVersion: state.activeVersion };
+  }
+  const processedDeckMutationIdsRef = useRef(new Set<string>());
+  const transportNoticeRef = useRef<DirectorTransportNotice | null>(state.transportNotice);
+  const retireDeckMutationOwner = useCallback(() => {
+    // Retire retained callbacks before React paints a version/restore/clear.
+    deckMutationOwnerRef.current = { key: '', deckOwnerSessionId: null, presentationId: null, activeVersion: deckMutationOwnerRef.current.activeVersion };
+  }, []);
+
+  // Synchronous transport guard: a cached deck can render before the new
+  // socket's authoritative sync arrives. Never let onopen race theme apply.
+  const composerThemeRef = useRef({ sessionId: sessionIdRef.current, composerAdoption: state.composerAdoption, composerThemeResolved: state.composerThemeResolved });
+  composerThemeRef.current = { sessionId: sessionIdRef.current, composerAdoption: state.composerAdoption, composerThemeResolved: state.composerThemeResolved };
 
   // Wrapper for setState that also writes to cache
   const setStateWithCache = useCallback((
@@ -657,6 +1103,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   ) => {
     setState(prev => {
       const newState = updateFn(prev);
+      if (newState === prev) return prev;
+      voiceTranscriptReceiptRef.current = newState.studioVoiceTranscriptReceipt;
 
       // CRITICAL FIX: Get existing cached messages to preserve them
       // This prevents cache corruption when React state updates are pending (async)
@@ -664,12 +1112,15 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       // arriving before React applies restoreMessages update would overwrite
       // the 140+ DB-loaded messages with just the few WS messages.
       const existingCached = sessionCache.getCachedState();
-      const existingMessages = existingCached?.messages || [];
+      const existingMessages = scrubBuildControlCapabilityMessages(existingCached?.messages);
       const existingUserMessages = existingCached?.userMessages || [];
 
       // Merge: existing cached messages + new state messages
       // This ensures we never lose messages due to React's async state batching
-      const allMessages = [...existingMessages, ...newState.messages];
+      const allMessages = scrubBuildControlCapabilityMessages([
+        ...existingMessages,
+        ...newState.messages,
+      ]);
 
       // Deduplicate by message_id (Map keeps last occurrence for duplicate keys)
       const uniqueMessages = Array.from(
@@ -679,6 +1130,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       // Write to sessionStorage cache (synchronous, instant)
       // Preserve existing userMessages - they're managed by page.tsx via updateCacheUserMessages
       sessionCache.setCachedState({
+        ...(COMPOSER_LIBRARY_ENABLED ? { composerAdoption: newState.composerAdoption } : {}),
         messages: uniqueMessages,
         presentationUrl: newState.presentationUrl,
         strawmanPreviewUrl: newState.strawmanPreviewUrl,
@@ -706,8 +1158,115 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   }, [sessionCache]);
 
   const wsRef = useRef<WebSocket | null>(null);
+  const socketSessionRef = useRef<string | null>(null);
+  // The token request is asynchronous, before a socket exists to detach.
+  // Retire its continuation when another attempt or lifecycle takes ownership.
+  const connectionAttemptGenerationRef = useRef(0);
+  // A user turn belongs to one account/session lifecycle, including while
+  // reconnecting. Track render-current intent without rebinding sessionIdRef
+  // before the existing session-adoption effect owns the socket transition.
+  const turnSubmissionLifecycleRef = useRef({
+    active: true,
+    generation: 0,
+    sessionId: options.existingSessionId || sessionIdRef.current,
+    userId: user?.id ?? user?.email ?? null,
+  });
+  const requestedTurnSessionId = options.existingSessionId || sessionIdRef.current;
+  const requestedTurnUserId = user?.id ?? user?.email ?? null;
+  if (
+    turnSubmissionLifecycleRef.current.sessionId !== requestedTurnSessionId ||
+    turnSubmissionLifecycleRef.current.userId !== requestedTurnUserId
+  ) {
+    turnSubmissionLifecycleRef.current.generation += 1;
+    turnSubmissionLifecycleRef.current.sessionId = requestedTurnSessionId;
+    turnSubmissionLifecycleRef.current.userId = requestedTurnUserId;
+  }
+
+  useLayoutEffect(() => {
+    turnSubmissionLifecycleRef.current.active = true;
+    return () => {
+      turnSubmissionLifecycleRef.current.active = false;
+      turnSubmissionLifecycleRef.current.generation += 1;
+    };
+  }, []);
+  const handoffRequestRef = useRef<TrackedHandoffRequest | null>(null);
+  const handoffRequestGenerationRef = useRef(0);
+  const sentTurnSequenceRef = useRef(0);
+  const expected = options.expectedHandoffRequest;
+  const expectedHandoffSignature = JSON.stringify([
+    expected?.sessionId, expected?.userId, expected?.idempotencyKey,
+    requestedTurnSessionId, requestedTurnUserId, turnSubmissionLifecycleRef.current.generation,
+  ]);
+  const expectedHandoffSignatureRef = useRef<string | null>(null);
+  if (expectedHandoffSignatureRef.current !== expectedHandoffSignature) {
+    expectedHandoffSignatureRef.current = expectedHandoffSignature;
+    handoffRequestRef.current = expected
+      && expected.sessionId === requestedTurnSessionId
+      && expected.userId === requestedTurnUserId
+      && typeof expected.idempotencyKey === 'string' && Boolean(expected.idempotencyKey.trim())
+      ? { ...expected, idempotencyKey: expected.idempotencyKey.trim(), requestGeneration: ++handoffRequestGenerationRef.current, lifecycleGeneration: turnSubmissionLifecycleRef.current.generation, awaitingTurnSequence: null }
+      : null;
+  }
+  useLayoutEffect(() => {
+    // Mount cleanup/setup can retire the initial lifecycle before passive
+    // connect runs. Renew only the explicitly supplied owned pending identity.
+    const lifecycle = turnSubmissionLifecycleRef.current;
+    if (expected && expected.sessionId === lifecycle.sessionId && expected.userId === lifecycle.userId
+      && typeof expected.idempotencyKey === 'string' && expected.idempotencyKey.trim()
+      && handoffRequestRef.current?.lifecycleGeneration !== lifecycle.generation) {
+      handoffRequestRef.current = { ...expected, idempotencyKey: expected.idempotencyKey.trim(), requestGeneration: ++handoffRequestGenerationRef.current, lifecycleGeneration: lifecycle.generation, awaitingTurnSequence: null };
+    }
+    setState(prev => prev.handoffRequestStatus ? { ...prev, handoffRequestStatus: null } : prev);
+  }, [expectedHandoffSignature, turnSubmissionLifecycleRef.current.generation]);
+
+  const retireHandoffRequest = useCallback(() => {
+    handoffRequestRef.current = null;
+    setState(prev => prev.handoffRequestStatus ? { ...prev, handoffRequestStatus: null } : prev);
+  }, []);
+  const trackHandoffRequest = useCallback((identity: DirectorHandoffRequestIdentity): boolean => {
+    const lifecycle = turnSubmissionLifecycleRef.current;
+    if (!lifecycle.active || !identity || identity.sessionId !== lifecycle.sessionId
+      || identity.userId !== lifecycle.userId || identity.sessionId !== sessionIdRef.current
+      || identity.userId !== userIdRef.current || typeof identity.idempotencyKey !== 'string'
+      || !identity.idempotencyKey.trim()) return false;
+    handoffRequestRef.current = { ...identity, idempotencyKey: identity.idempotencyKey.trim(), requestGeneration: ++handoffRequestGenerationRef.current, lifecycleGeneration: lifecycle.generation, awaitingTurnSequence: null };
+    setState(prev => prev.handoffRequestStatus ? { ...prev, handoffRequestStatus: null } : prev);
+    return true;
+  }, []);
+
+  // Ephemeral per-connection capability. It is intentionally never copied to
+  // React state or sessionStorage, and is cleared before every reconnect.
+  const buildControlTokenRef = useRef<string | null>(null);
+  // Round-5 fix (R4-6): monotonically increasing socket-generation counter,
+  // incremented on every successful `onopen`. Consumers (the builder's
+  // one-shot ingest handoff + mount poller) depend on it so a NEW connection
+  // for the SAME session can re-arm sent-but-unacknowledged work — the
+  // per-mount sent guard alone made a lost first send unrecoverable.
+  const [connectionGeneration, setConnectionGeneration] = useState(0);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const reconnectStabilityTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  // MDC P6: latest slideStructure for @mention parsing inside sendMessage
+  // (stable [] deps) — effect-synced; a same-tick slide_update race only
+  // affects mention resolution, never message delivery.
+  // Turn gate (UAT 2026-08-31): one in-flight user turn at a time. Set on
+  // send, cleared by the first reply-bearing frame, a 60s safety timeout, or
+  // the user's explicit unlock (Esc) — a slow decision must not let a second
+  // turn queue behind it and produce two competing answers.
+  const [awaitingDirectorReply, setAwaitingDirectorReply] = useState(false);
+  const awaitReplyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearAwaitReply = useCallback(() => {
+    if (awaitReplyTimerRef.current) { clearTimeout(awaitReplyTimerRef.current); awaitReplyTimerRef.current = null; }
+    setAwaitingDirectorReply(false);
+  }, []);
+  const beginAwaitReply = useCallback(() => {
+    setAwaitingDirectorReply(true);
+    if (awaitReplyTimerRef.current) clearTimeout(awaitReplyTimerRef.current);
+    awaitReplyTimerRef.current = setTimeout(() => {
+      awaitReplyTimerRef.current = null;
+      setAwaitingDirectorReply(false);
+    }, 60_000);
+  }, []);
+  const slideStructureRef = useRef<SlideUpdate['payload'] | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const pendingReconnectAttemptRef = useRef<number | null>(null);
   const pendingSessionReconnectRef = useRef<string | null>(null);
@@ -718,11 +1277,17 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   const connectionDesiredRef = useRef(options.autoConnect !== false);
   const reconnectPausedForOfflineRef = useRef(false);
   const reconnectStatusRef = useRef<DirectorReconnectStatus>('idle');
+  const configurationErrorRef = useRef<ServiceUrlConfigError | null>(null);
   const browserOnlineRef = useRef(
     typeof navigator === 'undefined' || navigator.onLine !== false,
   );
   const reconnectOnErrorRef = useRef(options.reconnectOnError === true);
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  // KG v2 (WS auth): timer that re-mints the Director identity token before it
+  // lapses. Without this the socket dies mid-deck-build (token TTL is 15m and
+  // ws_auth caps any token at 20m), and the frame that arrives at expiry is
+  // discarded server-side — which silently swallowed the strawman approval.
+  const authRefreshTimerRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const pongDeadlineTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const awaitingPongRef = useRef(false);
   const lastCloseDiagnosticAtRef = useRef(0);
@@ -751,6 +1316,68 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       };
     });
   }, []);
+
+  const clearAuthRefreshTimer = useCallback(() => {
+    if (authRefreshTimerRef.current) {
+      clearTimeout(authRefreshTimerRef.current);
+      authRefreshTimerRef.current = undefined;
+    }
+  }, []);
+
+  /**
+   * Re-mint the Director token and hand it to the open socket via an in-band
+   * `auth_refresh` frame, then re-arm. Fired at ~60% of the token lifetime so
+   * there is ample slack before the server-side expiry check trips.
+   */
+  const scheduleAuthRefresh = useCallback((expiresInSeconds: number) => {
+    clearAuthRefreshTimer();
+    if (!expiresInSeconds || expiresInSeconds <= 0 || configurationErrorRef.current) return;
+    const socket = wsRef.current;
+    const attemptGeneration = connectionAttemptGenerationRef.current;
+    const refreshSessionId = sessionIdRef.current;
+    const refreshUserId = userIdRef.current;
+    const lifecycleGeneration = turnSubmissionLifecycleRef.current.generation;
+    const isCurrentRefresh = () => Boolean(socket && wsRef.current === socket &&
+      socket.readyState === WebSocket.OPEN && !configurationErrorRef.current &&
+      connectionAttemptGenerationRef.current === attemptGeneration &&
+      sessionIdRef.current === refreshSessionId && userIdRef.current === refreshUserId &&
+      turnSubmissionLifecycleRef.current.active &&
+      turnSubmissionLifecycleRef.current.generation === lifecycleGeneration &&
+      connectionDesiredRef.current && !manualDisconnectRef.current);
+    if (!isCurrentRefresh()) return;
+    const delayMs = Math.max(30_000, Math.floor(expiresInSeconds * 0.6) * 1000);
+    authRefreshTimerRef.current = setTimeout(async () => {
+      if (!isCurrentRefresh()) return;
+      try {
+        const resp = await fetch(
+          `/api/director/ws-token?session_id=${encodeURIComponent(refreshSessionId)}`,
+          { cache: 'no-store' },
+        );
+        if (!isCurrentRefresh()) return;
+        if (!resp.ok) throw new Error(`ws-token HTTP ${resp.status}`);
+        const body = await resp.json();
+        if (!isCurrentRefresh()) return;
+        if (body?.auth_enabled === false) return; // tokenless deployment
+        if (!body?.auth_token) throw new Error('ws-token returned no token');
+        socket!.send(JSON.stringify({
+          type: 'auth_refresh',
+          payload: { token: body.auth_token },
+        }));
+        // Browser send is not the server's auth_refreshed acknowledgement.
+        debugLog('🔐 Director WS auth refresh sent; awaiting acknowledgement');
+        scheduleAuthRefresh(
+          typeof body.expires_in === 'number' ? body.expires_in : expiresInSeconds,
+        );
+      } catch (refreshError) {
+        if (!isCurrentRefresh()) return;
+        // Retry once quickly; if the socket dies the reconnect path re-mints.
+        console.warn('[WS AUTH] Token refresh failed, retrying shortly:', refreshError);
+        authRefreshTimerRef.current = setTimeout(
+          () => { if (isCurrentRefresh()) scheduleAuthRefresh(expiresInSeconds); }, 30_000,
+        );
+      }
+    }, delayMs);
+  }, [clearAuthRefreshTimer]);
 
   const clearReconnectTimer = useCallback((preservePendingAttempt = false) => {
     if (reconnectTimeoutRef.current) {
@@ -835,7 +1462,43 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }, DIRECTOR_HEARTBEAT_INTERVAL_MS);
   }, [stopHeartbeat]);
 
+  const reportConfigurationError = useCallback((error: ServiceUrlConfigError) => {
+    const previous = configurationErrorRef.current;
+    const stableError = previous?.code === error.code && previous.message === error.message
+      ? previous : error;
+    configurationErrorRef.current = stableError;
+    // Retire any pending token continuation and loaded socket before cleanup.
+    // A separate action refusal cannot let an older transport publish later.
+    connectionAttemptGenerationRef.current += 1;
+    const retiredSocket = wsRef.current;
+    wsRef.current = null;
+    socketSessionRef.current = null;
+    buildControlTokenRef.current = null;
+    clearAuthRefreshTimer();
+    stopHeartbeat();
+    if (retiredSocket) {
+      try { retiredSocket.close(4001, 'Service configuration unavailable'); } catch { /* Already retired. */ }
+    }
+    clearReconnectTimer();
+    clearReconnectStabilityTimer();
+    reconnectPausedForOfflineRef.current = false;
+    isConnectingRef.current = false;
+    // Reuse the existing durable manual-retry gate without consuming attempts.
+    // Keeping this transport-owned also prevents the session effect retrying on
+    // each render when its inline options recreate ensureConnected.
+    setReconnectStatus('exhausted', reconnectAttemptsRef.current);
+    setState(prev => prev.error === stableError && !prev.connecting &&
+      !prev.connected && prev.connectionState === 'error' ? prev : {
+      ...prev, error: stableError, connected: false, connecting: false, connectionState: 'error',
+    });
+    if (stableError !== previous) options.onError?.(stableError);
+  }, [clearAuthRefreshTimer, clearReconnectTimer, clearReconnectStabilityTimer, stopHeartbeat, setReconnectStatus, options]);
+
   const scheduleReconnect = useCallback((trigger: string) => {
+    if (configurationErrorRef.current) {
+      setReconnectStatus('exhausted', reconnectAttemptsRef.current);
+      return;
+    }
     if (reconnectTimeoutRef.current) {
       debugLog('⏳ Director reconnect is already scheduled; ignoring duplicate close', { trigger });
       return;
@@ -942,10 +1605,38 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       return false;
     }
 
+    let configuredWsUrl: string;
+    try {
+      configuredWsUrl = getDirectorWsUrl();
+    } catch (error) {
+      if (!(error instanceof ServiceUrlConfigError)) throw error;
+      reportConfigurationError(error);
+      // The hook accepted ownership of this terminal configuration refusal.
+      return true;
+    }
+    configurationErrorRef.current = null;
+
     isConnectingRef.current = true;
+    const attemptGeneration = ++connectionAttemptGenerationRef.current;
+    const turnLifecycleGeneration = turnSubmissionLifecycleRef.current.generation;
+    const socketSessionId = sessionIdRef.current;
+    const socketUserId = userIdRef.current;
+    const isCurrentAttempt = () => (
+      connectionAttemptGenerationRef.current === attemptGeneration &&
+      sessionIdRef.current === socketSessionId &&
+      userIdRef.current === socketUserId &&
+      turnSubmissionLifecycleRef.current.active &&
+      turnSubmissionLifecycleRef.current.generation === turnLifecycleGeneration &&
+      turnSubmissionLifecycleRef.current.sessionId === socketSessionId &&
+      turnSubmissionLifecycleRef.current.userId === socketUserId &&
+      connectionDesiredRef.current &&
+      !manualDisconnectRef.current
+    );
+    if (COMPOSER_LIBRARY_ENABLED) composerThemeRef.current = { ...composerThemeRef.current, composerThemeResolved: false };
 
     setState(prev => ({
       ...prev,
+      ...(COMPOSER_LIBRARY_ENABLED ? { composerThemeResolved: false } : {}),
       connecting: true,
       connectionState: 'connecting',
       error: null,
@@ -968,7 +1659,16 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
       // Include message_count so Director can validate cache completeness
       // If count doesn't match Supabase, Director should send full history regardless of skip_history
-      const wsUrl = `${DEFAULT_WS_URL}?session_id=${sessionIdRef.current}&user_id=${userIdRef.current}&skip_history=${skipHistory}&message_count=${totalMessageCount}`;
+      // Explicit capability opt-in prevents a newly deployed Director from
+      // sending a secret frame to older frontend bundles that would treat it
+      // as ordinary chat/cache data during a rolling deploy.
+      const handshakeUrl = new URL(configuredWsUrl);
+      handshakeUrl.searchParams.set('session_id', socketSessionId);
+      handshakeUrl.searchParams.set('user_id', socketUserId);
+      handshakeUrl.searchParams.set('skip_history', skipHistory);
+      handshakeUrl.searchParams.set('message_count', String(totalMessageCount));
+      handshakeUrl.searchParams.set('build_control_capability', '1');
+      const wsUrl = handshakeUrl.toString();
 
       // DEBUG: Comprehensive logging of connection parameters
       debugLog('🔌 [WEBSOCKET] Initiating connection to Director', {
@@ -984,643 +1684,1408 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       });
       debugLog(`🔌 Connecting to Director v3.4: ${wsUrl}`);
 
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
+      // Build Narration: a fresh socket always renegotiates its control
+      // capability; never reuse a prior connection's token.
+      buildControlTokenRef.current = null;
+      // KG v2 (WS auth): mint a short-lived, session-bound identity token and
+      // offer it as a WebSocket subprotocol. Director requires this when
+      // KG_ENABLED=true; when DIRECTOR_WS_AUTH_SECRET is unset the route
+      // answers auth_enabled=false and we open a plain socket exactly as
+      // before, so this is safe to deploy ahead of the Director change.
       const started = true;
-      const isCurrentSocket = () => wsRef.current === ws;
+      void (async () => {
+        let protocols: string[] | undefined;
+        let expiresInSeconds: number | null = null;
 
-      ws.onopen = () => {
-        if (!isCurrentSocket()) {
-          debugLog('⏭️ Ignoring open from stale WebSocket');
+        // Mint a short-lived, session-bound identity token and offer it as a
+        // WebSocket subprotocol.
+        //
+        // FAIL-CLOSED, deliberately: we only open a *tokenless* socket when the
+        // route explicitly answers auth_enabled=false (i.e. the deployment has
+        // no DIRECTOR_WS_AUTH_SECRET, so tokenless is the correct mode). Any
+        // other outcome — 401/403/410/503 or a network throw — used to fall
+        // through to a tokenless socket, which Director closes with 1013 the
+        // moment KG_ENABLED=true. That turned a recoverable token blip into a
+        // total, silent outage. Now we surface it and let the caller retry.
+        const tokenOutcome = await (async (): Promise<
+          { ok: true } | { ok: false; reason: string }
+        > => {
           try {
-            ws.close();
-          } catch {
-            // Ignore cleanup errors from a superseded socket.
+            const tokenResponse = await fetch(
+              `/api/director/ws-token?session_id=${encodeURIComponent(socketSessionId)}`,
+              { cache: 'no-store' },
+            );
+            if (!tokenResponse.ok) {
+              return { ok: false, reason: `ws-token HTTP ${tokenResponse.status}` };
+            }
+            const tokenBody = await tokenResponse.json();
+            if (tokenBody?.auth_enabled === false) {
+              return { ok: true }; // legitimate tokenless deployment
+            }
+            if (tokenBody?.auth_token) {
+              // Never logged: the auth-bearing protocol carries the secret.
+              protocols = ['deckster.v1', `deckster-auth.${tokenBody.auth_token}`];
+              expiresInSeconds =
+                typeof tokenBody.expires_in === 'number' ? tokenBody.expires_in : null;
+              return { ok: true };
+            }
+            return { ok: false, reason: 'ws-token returned no token' };
+          } catch (tokenError) {
+            return { ok: false, reason: `ws-token unreachable: ${String(tokenError)}` };
           }
-          return;
-        }
+        })();
 
-        debugLog('✅ Connected to Director v3.4');
-        clearReconnectTimer();
-        reconnectPausedForOfflineRef.current = false;
-        setReconnectStatus('idle', reconnectAttemptsRef.current);
-        clearReconnectStabilityTimer();
-        if (reconnectAttemptsRef.current > 0) {
-          reconnectStabilityTimeoutRef.current = setTimeout(() => {
-            reconnectStabilityTimeoutRef.current = undefined;
-            if (wsRef.current !== ws || ws.readyState !== WebSocket.OPEN) return;
-            reconnectAttemptsRef.current = 0;
-            setReconnectStatus('idle', 0);
-            debugLog('✅ Director connection remained stable; retry budget reset');
-          }, DIRECTOR_RECONNECT_STABILITY_MS);
-        }
-        isConnectingRef.current = false;
-        hasConnectedRef.current = true;
+        // A late success or failure belongs to the retired attempt. It cannot
+        // replace the current socket, publish an error, or schedule a retry.
+        if (!isCurrentAttempt()) return;
 
-        // Start heartbeat to keep connection alive
-        startHeartbeat(ws);
-
-        setState(prev => ({
-          ...prev,
-          connected: true,
-          connecting: false,
-          connectionState: 'connected',
-          error: null,
-        }));
-      };
-
-      ws.onmessage = (event) => {
-        if (!isCurrentSocket()) {
-          debugLog('⏭️ Ignoring message from stale WebSocket');
-          return;
-        }
-
-        try {
-          // Any inbound frame proves that the transport is alive. Raw pong is
-          // still handled separately because it has no JSON envelope.
-          acknowledgeHeartbeat(ws);
-
-          // Handle raw "pong" response from heartbeat ping
-          if (event.data === 'pong') {
-            debugLog('💓 Pong received');
-            return;
-          }
-
-          const parsedMessage = normalizeDirectorMessageFrame(JSON.parse(event.data)) as DirectorMessage & { type?: unknown };
-          if (!isKnownDirectorMessageType(parsedMessage.type)) {
-            return;
-          }
-
-          const guardedMessage = guardDirectorLayoutUrlMessage(
-            parsedMessage as DirectorMessage & { payload: Record<string, any> },
-            LAYOUT_VIEWER_URL_POLICY,
+        if (!tokenOutcome.ok) {
+          console.error('[WS AUTH] Could not obtain Director token:', tokenOutcome.reason);
+          isConnectingRef.current = false;
+          const err = new Error(
+            'Could not establish a secure connection to Deckster. Retrying…',
           );
-          const message = guardedMessage.message as DirectorMessage;
-          const blockedIngress = guardedMessage.ingress?.status === 'blocked'
-            ? guardedMessage.ingress
-            : null;
+          setState(prev => ({
+            ...prev,
+            error: err,
+            connecting: false,
+            connectionState: 'error',
+          }));
+          if (options.onError) options.onError(err);
+          scheduleReconnect('ws_token_failed');
+          return;
+        }
 
-          if (blockedIngress) {
-            console.error('[LayoutViewerPolicy] Blocked Director viewer URL', {
-              source: 'director_message',
-              messageType: message.type,
-              field: blockedIngress.field,
-              origin: blockedIngress.origin,
-              reason: blockedIngress.reason,
-            });
+        let ws: WebSocket;
+        try {
+          ws = protocols ? new WebSocket(wsUrl, protocols) : new WebSocket(wsUrl);
+        } catch (error) {
+          // The socket is now built inside an async prelude, so the outer
+          // try/catch can no longer see constructor failures. Mirror its
+          // recovery here or the connection state would wedge on isConnecting.
+          console.error('Failed to create WebSocket connection:', error);
+          isConnectingRef.current = false;
+          const err = error instanceof Error ? error : new Error('Failed to connect');
+          setState(prev => ({
+            ...prev,
+            error: err,
+            connecting: false,
+            connectionState: 'error',
+          }));
+          if (options.onError) {
+            options.onError(err);
+          }
+          scheduleReconnect('constructor_error');
+          return;
+        }
+        wsRef.current = ws;
+        const isCurrentSocket = () => wsRef.current === ws && isCurrentAttempt();
+        // New-session theme policy: an existing session's socket gets sync_response before any deck frame.
+        let socketSyncResponseSeen = false;
+
+        ws.onopen = () => {
+          if (!isCurrentSocket()) {
+            debugLog('⏭️ Ignoring open from stale WebSocket');
+            try {
+              ws.close();
+            } catch {
+              // Ignore cleanup errors from a superseded socket.
+            }
+            return;
           }
 
-          // Add client-side timestamp for message ordering
-          const messageWithTimestamp = {
-            ...message,
-            clientTimestamp: Date.now()
-          } as DirectorMessage & { clientTimestamp: number };
+          if (expiresInSeconds) scheduleAuthRefresh(expiresInSeconds);
+          debugLog('✅ Connected to Director v3.4');
+          socketSessionRef.current = socketSessionId;
+          setConnectionGeneration(g => g + 1);
+          clearReconnectTimer();
+          reconnectPausedForOfflineRef.current = false;
+          setReconnectStatus('idle', reconnectAttemptsRef.current);
+          clearReconnectStabilityTimer();
+          if (reconnectAttemptsRef.current > 0) {
+            reconnectStabilityTimeoutRef.current = setTimeout(() => {
+              reconnectStabilityTimeoutRef.current = undefined;
+              if (wsRef.current !== ws || ws.readyState !== WebSocket.OPEN) return;
+              reconnectAttemptsRef.current = 0;
+              setReconnectStatus('idle', 0);
+              debugLog('✅ Director connection remained stable; retry budget reset');
+            }, DIRECTOR_RECONNECT_STABILITY_MS);
+          }
+          isConnectingRef.current = false;
+          hasConnectedRef.current = true;
 
-          debugLog('📨 Received message:', message.type, message);
+          // Start heartbeat to keep connection alive
+          startHeartbeat(ws);
+          if (STUDIO_TEMPLATE_MATCH_ENABLED) templateMatchSocketOpened({ sessionId: socketSessionId, userId: userIdRef.current || null, socket: { send: message => { if (wsRef.current !== ws || ws.readyState !== WebSocket.OPEN) return false; try { ws.send(JSON.stringify(message)); return true } catch { return false } }, caps: templateMatchBaseCaps } }); // STUDIO-TEMPLATE-MATCH: the user's auto-apply preference goes out on every connect, here, before any user_message can be sent on this socket. Off: nothing.
 
-          setStateWithCache(prev => {
-            // Prevent duplicate messages by checking message_id
-            const isDuplicate = prev.messages.some(m => m.message_id === message.message_id);
+          setState(prev => ({
+            ...prev,
+            connected: true,
+            connecting: false,
+            connectionState: 'connected',
+            error: null,
+          }));
+        };
 
-            // Don't add state-management frames to chat; they drive deck/view state only.
-            const shouldAddToMessages =
-              message.type !== 'status_update' &&
-              message.type !== 'sync_response' &&
-              message.type !== 'presentation_init' &&
-              message.type !== 'slide_context' &&
-              message.type !== 'token_usage' &&
-              message.type !== 'slide_progress' &&
-              message.type !== 'slide_ready' &&
-              message.type !== 'slide_failed' &&
-              message.type !== 'theme_sync' &&
-              !isDuplicate;
+        ws.onmessage = (event) => {
+          if (!isCurrentSocket()) {
+            debugLog('⏭️ Ignoring message from stale WebSocket');
+            return;
+          }
 
-            const newState = {
-              ...prev,
-              messages: shouldAddToMessages ? [...prev.messages, messageWithTimestamp] : prev.messages,
-            };
+          try {
+            // Any inbound frame proves that the transport is alive. Raw pong is
+            // still handled separately because it has no JSON envelope.
+            acknowledgeHeartbeat(ws);
+
+            // Handle raw "pong" response from heartbeat ping
+            if (event.data === 'pong') {
+              debugLog('💓 Pong received');
+              return;
+            }
+
+            const rawMessage = JSON.parse(event.data);
+            if (!rawMessage || typeof rawMessage !== 'object') return;
+
+            // The durable handoff acknowledgement has session/key identity,
+            // but intentionally no normal message ID or timestamp envelope.
+            if (rawMessage.type === 'handoff_request_status') {
+              const payload = rawMessage.payload;
+              const request = handoffRequestRef.current;
+              const lifecycle = turnSubmissionLifecycleRef.current;
+              if (!request || !payload || typeof payload !== 'object' || Array.isArray(payload)
+                || rawMessage.session_id !== socketSessionId
+                || (payload.session_id !== undefined && payload.session_id !== socketSessionId)
+                || request.sessionId !== socketSessionId || request.userId !== socketUserId
+                || request.lifecycleGeneration !== lifecycle.generation
+                || typeof payload.idempotency_key !== 'string' || payload.idempotency_key !== request.idempotencyKey
+                || !['processing', 'already_processing', 'already_completed', 'failed'].includes(payload.status)
+                || (payload.error !== undefined && typeof payload.error !== 'string')) return;
+              const status: DirectorHandoffRequestStatus = {
+                sessionId: socketSessionId, idempotencyKey: request.idempotencyKey,
+                status: payload.status,
+                ...(typeof payload.error === 'string' ? { error: payload.error } : {}),
+              };
+              const owner: DirectorHandoffRequestOwner = {
+                sessionId: socketSessionId, userId: socketUserId, idempotencyKey: request.idempotencyKey,
+                requestGeneration: request.requestGeneration, transportGeneration: attemptGeneration,
+                isCurrent: () => isCurrentSocket() && handoffRequestRef.current === request
+                  && turnSubmissionLifecycleRef.current.generation === request.lifecycleGeneration,
+              };
+              if (request.awaitingTurnSequence !== null && request.awaitingTurnSequence === sentTurnSequenceRef.current) clearAwaitReply();
+              setState(prev => ({ ...prev, handoffRequestStatus: status }));
+              transportCallbacksRef.current.onHandoffRequestStatus?.(status, owner);
+              // Receipt is not native completion/persistence, and does not replay
+              // the request or add server metadata to the durable transcript.
+              return;
+            }
+
+            // These server frames intentionally omit the regular message/session
+            // envelope. Their owner is this exact socket, not a mutable route.
+            if (['auth_refreshed', 'auth_refresh_failed', 'auth_expired', 'error'].includes(rawMessage.type)) {
+              const payload = rawMessage.payload;
+              if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return;
+              if ((rawMessage.session_id !== undefined && rawMessage.session_id !== socketSessionId)
+                || (payload.session_id !== undefined && payload.session_id !== socketSessionId)) return;
+              const transportOwner: DirectorTransportOwner = { sessionId: socketSessionId, userId: socketUserId, transportGeneration: attemptGeneration, isCurrent: isCurrentSocket };
+              const acknowledged = rawMessage.type === 'auth_refreshed';
+              if (acknowledged && (!Number.isInteger(payload.expires_at) || payload.expires_at <= 0)) return;
+              if (!acknowledged && (typeof payload.code !== 'string' || !payload.code || typeof payload.message !== 'string' || !payload.message)) return;
+              let notice: DirectorTransportNotice = {
+                type: rawMessage.type,
+                sessionId: socketSessionId,
+                message: acknowledged ? 'Secure connection refreshed.' : payload.message,
+                requiresResend: rawMessage.type === 'auth_expired',
+                ...(acknowledged ? { expiresAt: payload.expires_at } : { code: payload.code }),
+                ...(rawMessage.type === 'error' && typeof payload.detail === 'string' ? { detail: payload.detail } : {}),
+                ...(rawMessage.type === 'auth_expired' && typeof payload.discarded_message_type === 'string' ? { discardedMessageType: payload.discarded_message_type } : {}),
+              };
+              if (rawMessage.type === 'error') announceQuotaRefusal(payload.code); // BILLING-F5-USAGE: Director D1 QUOTA_EXCEEDED / PLAN_REQUIRED -> the Builder's refusal screen (off: no-op)
+              const previousNotice = transportNoticeRef.current;
+              if (previousNotice?.requiresResend && previousNotice.sessionId === socketSessionId) {
+                // A later transport error is new information, not proof that the
+                // discarded action was sent. Keep its recovery requirement while
+                // retaining the latest server message/code/detail.
+                notice = { ...notice, requiresResend: true,
+                  discardedMessageType: notice.discardedMessageType ?? previousNotice.discardedMessageType,
+                  ...(acknowledged ? { message: 'Secure connection refreshed. Please resend your last action.' } : {}),
+                };
+              }
+              transportNoticeRef.current = notice;
+              if (rawMessage.type === 'auth_expired' || rawMessage.type === 'error') clearAwaitReply();
+              const transportError = acknowledged ? null : new DirectorTransportError(notice);
+              setState(prev => ({
+                ...prev,
+                transportNotice: notice,
+                ...(transportError ? { error: transportError } : acknowledged && prev.error instanceof DirectorTransportError && prev.error.frameType === 'auth_refresh_failed' ? { error: null } : {}),
+                ...(rawMessage.type === 'auth_expired' || rawMessage.type === 'error' ? { currentStatus: null } : {}),
+              }));
+              if (transportError) transportCallbacksRef.current.onError?.(transportError);
+              if (isCurrentSocket()) transportCallbacksRef.current.onTransportNotice?.(notice, transportOwner);
+              // Neither raw auth metadata nor structured errors enter durable chat,
+              // generic consumers, cache or a mutation replay path.
+              return;
+            }
+
+            const parsedMessage = normalizeDirectorMessageFrame(rawMessage) as DirectorMessage & { type?: unknown };
+            // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT: Director's theme_directive / export_directive (each only with its own flag on)
+            // unlocks the turn and goes to the page's runner, here, ahead of the allowlist, so it never reaches the reducer, the transcript or
+            // the cache. Flags off: chatThemeExportDirectiveKind is null, and the frame is an unknown type, dropped below as before.
+            if (chatThemeExportDirectiveKind(parsedMessage.type)) {
+              clearAwaitReply();
+              if (themeExportDirectiveId(parsedMessage)) {
+                transportCallbacksRef.current.onThemeExportDirective?.(
+                  parsedMessage as unknown as import('@/lib/chat-theme-export-wire').ThemeExportDirectiveMessage,
+                  { sessionId: socketSessionId, isCurrent: isCurrentSocket },
+                );
+              }
+              return;
+            }
+            // Client replay provenance is assigned only after owned terminal
+            // state validates the wire frame; never accept a supplied marker.
+            delete (parsedMessage as DirectorMessage & { clientOutlineReplayOf?: string; clientTerminalOutlineRevisionOf?: string }).clientOutlineReplayOf;
+            delete (parsedMessage as DirectorMessage & { clientTerminalOutlineRevisionOf?: string }).clientTerminalOutlineRevisionOf;
+            // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: Director's element_refine_directive unlocks the turn and goes to the page's runner, here,
+            // ahead of the allowlist, so it never reaches the reducer, the transcript or the cache. Flag off: unknown, dropped below as before.
+            if (CHAT_ELEMENT_REFINE_ENABLED && (parsedMessage.type as unknown) === ELEMENT_REFINE_DIRECTIVE_TYPE) {
+              clearAwaitReply();
+              if (elementRefineDirectiveId(parsedMessage)) {
+                transportCallbacksRef.current.onElementRefineDirective?.(
+                  parsedMessage as unknown as import('@/lib/chat-element-refine-wire').ElementRefineDirectiveMessage,
+                  { sessionId: socketSessionId, isCurrent: isCurrentSocket },
+                );
+              }
+              return;
+            }
+            // CHAT-ELEMENT-EDIT (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off): Director's element_edit unlocks the turn and goes to the page's runner, here, ahead of the allowlist, so it
+            // CHAT-ELEMENT-EDIT: never reaches the reducer, the transcript or the cache (lib/chat-element-edit-wire.ts). Flag off: unknown, dropped below as before.
+            if (CHAT_ELEMENT_EDIT_ENABLED && routeElementEditFrame(parsedMessage, { sessionId: socketSessionId, isCurrent: isCurrentSocket, unlockTurn: clearAwaitReply, onDirective: transportCallbacksRef.current.onElementEditDirective })) return; // CHAT-ELEMENT-EDIT
+            if (STUDIO_TEMPLATE_MATCH_ENABLED && isTemplateMatchMessage(parsedMessage)) { if (parsedMessage.session_id === socketSessionId) templateMatchFrameReceived(parsedMessage, socketSessionId); return } // STUDIO-TEMPLATE-MATCH: Director's template_match is a state tick (it does not unlock the turn): it goes to the store, here, ahead of the allowlist, never to the reducer, the transcript or the cache. Off: unknown, dropped below as before.
+            // CHAT-PARITY (any NEXT_PUBLIC_STUDIO_CHAT_PARITY_* flag on): Director's studio_action unlocks the turn and goes to the page's runner, here, ahead of the allowlist,
+            // CHAT-PARITY: so it never reaches the reducer, the transcript or the cache; a frame with no request id is dropped unanswered. Every flag off: unknown, dropped below as before.
+            if (STUDIO_CHAT_PARITY_ANY_ENABLED && isChatParityRequestFrame(parsedMessage)) { // CHAT-PARITY
+              clearAwaitReply(); // CHAT-PARITY
+              if (chatParityRequestId(parsedMessage)) chatParityBus.request?.(parsedMessage as unknown as import('@/lib/studio-chat-parity').ChatParityRequestFrame, { sessionId: socketSessionId, isCurrent: isCurrentSocket }); // CHAT-PARITY
+              return; // CHAT-PARITY
+            } // CHAT-PARITY
+            // NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4c): Director's job_update (a state tick: it does not unlock the turn) goes to the page's ledger,
+            // here, ahead of the allowlist, so it never reaches the reducer, the transcript or the cache; sync_response's jobs go there too,
+            // and that frame then carries on as before. Only this socket's session. Flag off: job_update is unknown, dropped below as before.
+            if (STUDIO_JOB_LEDGER_ENABLED && (parsedMessage.type as unknown) === JOB_UPDATE_TYPE) {
+              const row = parsedMessage.session_id === socketSessionId ? jobLedgerRow(parsedMessage.payload) : null;
+              if (row) transportCallbacksRef.current.onJobUpdate?.(row, { sessionId: socketSessionId, isCurrent: isCurrentSocket });
+              return;
+            }
+            if (STUDIO_JOB_LEDGER_ENABLED && parsedMessage.type === 'sync_response' && parsedMessage.session_id === socketSessionId) {
+              const rows = jobLedgerRows((parsedMessage.payload as { jobs?: unknown } | null | undefined)?.jobs);
+              if (rows) transportCallbacksRef.current.onJobsSync?.(rows, { sessionId: socketSessionId, isCurrent: isCurrentSocket });
+            }
+            // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_FOCUS, default off): the stage follows the slide Director built or changed. The frames that name a slide (isFlowFocusFrameType) are shown to the page's flow hook here
+            // FLOW-CONTROL: (flowBus.focus), for this socket's session only, ahead of every other handling: deck_mutation (a restored deck too: its raw deck_restored, which the checks below drop unless chat undo is on),
+            // FLOW-CONTROL: change_recorded (which the bulk-edit route below consumes), slide_built, slide_ready and slide_update. It drops a message_id it has seen. Nothing else changes: the frame carries on exactly as before.
+            if (STUDIO_FLOW_FOCUS_ENABLED && isFlowFocusFrameType(parsedMessage.type) && parsedMessage.session_id === socketSessionId && isCurrentSocket()) flowBus.focus?.(parsedMessage); // FLOW-CONTROL
+            // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_AMEND, default off): every build_phase is shown to the flow hook first (steer_pending, applied_to, settled). `settled` is a phase the narration does not know (it would read
+            // FLOW-CONTROL: as "running"), so that frame goes no further. Every other build_phase carries on exactly as before.
+            if (STUDIO_FLOW_AMEND_ENABLED && parsedMessage.type === 'build_phase') { if (parsedMessage.session_id === socketSessionId && isCurrentSocket()) flowBus.phase?.(parsedMessage.payload); if (isFlowSettledPhase(parsedMessage.payload)) return; } // FLOW-CONTROL
+            // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL, default off): the call is shown the frames that say what Director is doing (status_update, build_phase, build_event, slide_progress, chat_message, slide_built, slide_failed, action_request), for this socket's session only. The frame carries on exactly as before.
+            if (STUDIO_VOICE_CALL_UI_ENABLED && isVoiceCallFrameType(parsedMessage.type) && parsedMessage.session_id === socketSessionId && isCurrentSocket()) voiceCallBus.frame?.(parsedMessage); // VOICE-CALL
+            // BULK-EDIT-UNDO (NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO, default off): Director's chat lines (the Undo chip's anchor), the bulk-edit confirm (its chip titles) and its receipts and summary,
+            // BULK-EDIT-UNDO: change_recorded and undo_result go to this tab's store (lib/studio-bulk-edit-store.ts), here, ahead of the allowlist. The frames it takes (receipts, summary, change_recorded, undo_result) stop
+            // BULK-EDIT-UNDO: here: they never reach the reducer, the transcript or the cache, and they do not unlock the turn. Director sends them only to a client that advertised bulk_edit1 / undo1 (the caps below, flag on only),
+            // BULK-EDIT-UNDO: so a frame is its own capability, with or without a sync_response. Every other frame carries on as before. Flags off: nothing is routed.
+            if (STUDIO_BULK_EDIT_UNDO_ENABLED && routeStudioBulkEditUndoFrame(parsedMessage, bulkEditUndoContext(socketSessionId, deckMutationOwnerRef.current, slideStructureRef.current, isCurrentSocket())) === 'consumed') return; // BULK-EDIT-UNDO
+            if (STUDIO_CHAT_UNDO_ENABLED) normaliseDeckRestored(parsedMessage); // BULK-EDIT-UNDO: an undo's deck_mutation {mutation:"deck_restored"} is read as a whole-viewer refresh (slide_replaced, restored:true) before the checks below; flag off: untouched, ignored as before
+            if (!isKnownDirectorMessageType(parsedMessage.type)) {
+              return;
+            }
+
+            // CHAT-ELEMENT-EDIT: deck_mutation of kind notes_updated (Director wrote a slide's notes) goes to the page, which refreshes the Notes panel; every other mutation carries on below, untouched. Flag off: not looked at.
+            if (CHAT_ELEMENT_EDIT_ENABLED && typeof window !== 'undefined' && parsedMessage.session_id === socketSessionId && deckMutationOwnerRef.current.presentationId === (parsedMessage.payload as { presentation_id?: unknown } | undefined)?.presentation_id && chatParityNotesFields(parsedMessage.payload).length > 0) window.dispatchEvent(new CustomEvent(CHAT_PARITY_NOTES_FIELDS_EVENT, { detail: { presentationId: (parsedMessage.payload as { presentation_id: string }).presentation_id, slideIndex: (parsedMessage.payload as { slide_index: number }).slide_index, fields: chatParityNotesFields(parsedMessage.payload) } })); // CHAT-PARITY (rows 106 / 108): the script / references fields this notes_updated names, raised before #522's route (whose reload follows); the Notes panel lets those drafts go
+            if (CHAT_ELEMENT_EDIT_ENABLED && routeNotesUpdatedFrame(parsedMessage, { sessionId: socketSessionId, isCurrent: isCurrentSocket, displayed: deckMutationOwnerRef.current, onNotesUpdated: transportCallbacksRef.current.onNotesUpdated })) return; // CHAT-ELEMENT-EDIT
+            if (parsedMessage.type === 'deck_mutation') {
+              const message = parsedMessage as import('@/types/mdc').DeckMutationMessage;
+              const payload = message.payload;
+              const displayedOwner = deckMutationOwnerRef.current;
+              if (!payload || typeof payload !== 'object'
+                || message.session_id !== socketSessionId
+                || typeof message.message_id !== 'string' || !message.message_id
+                || !['slide_added', 'slide_deleted', 'slide_replaced', 'slide_reordered'].includes(payload.mutation)
+                || !Number.isInteger(payload.slide_index) || payload.slide_index < 0
+                || (payload.new_slide_index != null && (!Number.isInteger(payload.new_slide_index) || payload.new_slide_index < 0))
+                || typeof payload.refresh_token !== 'string' || !payload.refresh_token
+                || typeof payload.presentation_id !== 'string' || !payload.presentation_id
+                || displayedOwner.deckOwnerSessionId !== socketSessionId
+                || displayedOwner.presentationId !== payload.presentation_id) return;
+              if (payload.presentation_url != null) {
+                if (typeof payload.presentation_url !== 'string'
+                  || evaluateLayoutViewerUrl(payload.presentation_url, LAYOUT_VIEWER_URL_POLICY).status !== 'allowed') return;
+                const path = new URL(payload.presentation_url).pathname;
+                if (path !== `/p/${encodeURIComponent(payload.presentation_id)}` && path !== `/p/${payload.presentation_id}`) return;
+              }
+              clearAwaitReply();
+              const callback = transportCallbacksRef.current.onDeckMutation;
+              if (!callback) return;
+              const frameKey = JSON.stringify([socketSessionId, payload.presentation_id, message.message_id]);
+              if (processedDeckMutationIdsRef.current.has(frameKey)) return;
+              processedDeckMutationIdsRef.current.add(frameKey);
+              if (processedDeckMutationIdsRef.current.size > 1000) {
+                const oldest = processedDeckMutationIdsRef.current.values().next().value;
+                if (oldest) processedDeckMutationIdsRef.current.delete(oldest);
+              }
+              const owner: DirectorDeckMutationOwner = {
+                sessionId: socketSessionId, userId: socketUserId,
+                presentationId: payload.presentation_id, activeVersion: displayedOwner.activeVersion,
+                transportGeneration: attemptGeneration,
+                isCurrent: () => isCurrentSocket() && deckMutationOwnerRef.current === displayedOwner,
+              };
+              callback(message, owner);
+              return;
+            }
+
+            // Turn gate: any reply-bearing frame unlocks the input.
+            if (REPLY_FRAME_TYPES.has(parsedMessage.type as string)) {
+              clearAwaitReply();
+            }
+
+            const guardedMessage = guardDirectorLayoutUrlMessage(
+              parsedMessage as DirectorMessage & { payload: Record<string, any> },
+              LAYOUT_VIEWER_URL_POLICY,
+            );
+            const message = guardedMessage.message as DirectorMessage;
+            const blockedIngress = guardedMessage.ingress?.status === 'blocked'
+              ? guardedMessage.ingress
+              : null;
 
             if (blockedIngress) {
-              // Keep an already-approved displayed deck, but never let a rejected
-              // frame become a version target, API id, callback, or persisted URL.
-              newState.currentStatus = null;
+              console.error('[LayoutViewerPolicy] Blocked Director viewer URL', {
+                source: 'director_message',
+                messageType: message.type,
+                field: blockedIngress.field,
+                origin: blockedIngress.origin,
+                reason: blockedIngress.reason,
+              });
             }
 
-            // Track ephemeral chat_messages (Director thinking-stream) so MessageList
-            // can fade them out once the real slide_update lands.
-            if (message.type === 'chat_message' && (message.payload as any).ephemeral === true) {
-              newState.ephemeralMessageIds = prev.ephemeralMessageIds.includes(message.message_id)
-                ? prev.ephemeralMessageIds
-                : [...prev.ephemeralMessageIds, message.message_id];
-              debugLog('💭 Ephemeral progress message:', (message.payload as any).text);
+            if (!markSlideStateFrameProcessed(
+              processedStateFrameKeysRef.current,
+              message,
+            )) {
+              debugLog('Ignoring duplicate state frame:', message.type, message.message_id);
+              return;
             }
 
-            // Handle specific message types
-            switch (message.type) {
-              case 'status_update':
-                debugLog('📊 Status update:', message.payload.text, message.payload.progress ? `${message.payload.progress}%` : '');
-                newState.currentStatus = message.payload;
-                // Auto-clear status when complete
-                if (message.payload.status === 'complete' || message.payload.status === 'idle') {
-                  debugLog('✅ Status complete/idle - will clear shortly');
-                  setTimeout(() => {
-                    setState(s => ({ ...s, currentStatus: null }));
-                  }, 2000);
-                }
-                break;
+            // Build Narration round 3: the control capability is transport
+            // state, never chat data — capture the token, keep the secret out
+            // of logs, and let shouldAddToMessages exclude it below.
+            if (message.type === 'build_control_capability') {
+              const token = (message as BuildControlCapability).payload?.control_token;
+              buildControlTokenRef.current =
+                typeof token === 'string' && token.length > 0 ? token : null;
+            }
 
-              case 'chat_message':
-                // Non-ephemeral assistant messages are terminal responses for the
-                // current turn (for example, the plan proposal after
-                // "Analyzing presentation strategy..."). Clear the working pulse so
-                // it cannot remain pinned below the actual response/action card.
-                if ((message.payload as any).ephemeral !== true) {
-                  newState.currentStatus = null;
-                }
-                break;
+            // Add client-side timestamp for message ordering
+            const messageWithTimestamp = {
+              ...message,
+              clientTimestamp: Date.now()
+            } as DirectorMessage & { clientTimestamp: number };
 
-              case 'action_request':
-                // Action cards mean Director is waiting on the user, not still
-                // thinking. Without this, a prior status_update can leave the chat
-                // stuck visually on the old "Analyzing..." pulse.
-                newState.currentStatus = null;
-                break;
+            if (message.type === 'build_control_capability') {
+              debugLog('📨 Received build_control_capability', { token_present: Boolean((message as BuildControlCapability).payload?.control_token) });
+            } else {
+              debugLog('📨 Received message:', message.type, message);
+            }
 
-              case 'sync_response':
-                // Sync protocol response - Director confirms whether to skip history
-                newState.directorWorkflowState = message.payload.current_state || null;
-                debugLog('🔄 Sync response received:', {
-                  action: message.payload.action,
-                  message_count: message.payload.message_count,
-                  current_state: message.payload.current_state,
-                  has_strawman: message.payload.has_strawman,
-                  presentation_url: message.payload.presentation_url,
-                  presentation_id: message.payload.presentation_id
-                });
-                // Resilience: a deck can finish while the socket is down (WS churn during
-                // a long reuse/build). Promote sync_response URLs to final only when
-                // Director says the durable session state is content-generated/complete;
-                // blank/strawman reconnect URLs must remain previews.
-                {
-                  const recovery = applyFinalSyncRecovery(
-                    newState,
-                    message.payload,
-                    sessionIdRef.current,
+            // Round-4 fix (R3-2): resolve an ingest frame's ORIGIN session up
+            // front — payload/base session_id when Director sent one, else the
+            // immutable session this socket was opened under (closure const
+            // `socketSessionId`). EVERY ingest UI side effect below (reducer
+            // state, presentation-url adoption, page callbacks) is gated on the
+            // origin session matching the currently DISPLAYED session
+            // (`sessionIdRef.current` at dispatch time — the builder rebinds it
+            // on SPA session switches, e.g. B→C via the history sidebar).
+            // Mismatched frames must only update the origin session's persisted
+            // job record in sessionStorage; they must never mutate the visible
+            // session's state or clear another session's keys.
+            let ingestFrameSessionId: string | null = null;
+            if (
+              message.type === 'template_ingest_update' ||
+              message.type === 'template_ingest_ready' ||
+              message.type === 'template_ingest_failed'
+            ) {
+              ingestFrameSessionId = message.payload.session_id || message.session_id || socketSessionId;
+            }
+            const ingestFrameIsForDisplayedSession =
+              ingestFrameSessionId === null || ingestFrameSessionId === sessionIdRef.current;
+            if (ingestFrameSessionId !== null && !ingestFrameIsForDisplayedSession) {
+              debugLog('⏭️ Ingest frame belongs to a non-displayed session — UI side effects suppressed', {
+                type: message.type,
+                frameSession: ingestFrameSessionId,
+                displayedSession: sessionIdRef.current,
+              });
+            }
+
+            // New-session theme policy, captured at dispatch in frame order: a blank deck frame that arrives before any
+            // sync_response on this socket is Director's new-session branch (no adoption can exist on its blank deck).
+            const newSessionBlankFrame = STUDIO_NEW_SESSION_THEME_POLICY_ENABLED && !socketSyncResponseSeen && !blockedIngress
+              && (message.type === 'presentation_init' || (message.type === 'slide_update' && Boolean(message.payload?.is_blank)));
+            if (STUDIO_NEW_SESSION_THEME_POLICY_ENABLED && message.type === 'sync_response') socketSyncResponseSeen = true;
+            const resolveNewSessionThemePolicy = (prev: UseDecksterWebSocketV2State, newState: UseDecksterWebSocketV2State) => {
+              if (!newSessionBlankFrame || prev.composerThemeResolved || prev.composerAdoption ||
+                  socketSessionId !== sessionIdRef.current ||
+                  (message.session_id && message.session_id !== sessionIdRef.current)) return;
+              newState.composerThemeResolved = true;
+              composerThemeRef.current = { sessionId: sessionIdRef.current, composerAdoption: null, composerThemeResolved: true };
+            };
+
+            setStateWithCache(prev => {
+              // React can apply this publication after the dispatching socket
+              // has retired. Recheck its captured lifetime before any writes.
+              if (!isCurrentSocket()) return prev;
+
+              // Prevent duplicate messages by checking message_id
+              const isDuplicate = prev.messages.some(m => m.message_id === message.message_id);
+
+              // Don't add state-management frames to chat; they drive deck/view state only.
+              const shouldAddToMessages =
+                message.type !== 'status_update' &&
+                message.type !== 'sync_response' &&
+                message.type !== 'presentation_init' &&
+                message.type !== 'slide_context' &&
+                message.type !== 'token_usage' &&
+                message.type !== 'slide_progress' &&
+                message.type !== 'slide_built' &&
+                message.type !== 'slide_ready' &&
+                message.type !== 'slide_failed' &&
+                message.type !== 'template_ingest_update' &&
+                message.type !== 'template_ingest_ready' &&
+                message.type !== 'template_ingest_failed' &&
+                message.type !== 'theme_sync' &&
+                (message.type as string) !== 'session_directive' &&
+              (message.type as string) !== 'element_directive' &&
+                message.type !== 'build_phase' &&
+                message.type !== 'build_event' &&
+                message.type !== 'build_control_capability' &&
+                !isDuplicate;
+
+              // Reconnect-replay repair (PK 2026-09-03): Director replays
+              // pending decision gates with a DETERMINISTIC message_id
+              // (msg_plan_confirm_<session>). The duplicate guard silently
+              // dropped the replay, so a card lost to a mid-session restore
+              // could never come back. Upsert action_request frames by id
+              // instead: the replay is authoritative for its own card.
+              const upsertActionRequest =
+                message.type === 'action_request' && isDuplicate;
+
+              const transcriptMessage = projectVerifiedOutlineReplay(messageWithTimestamp, prev.messages, {
+                isTerminal: !blockedIngress && prev.activeVersion === 'final'
+                  && !!prev.finalPresentationId && !!prev.finalPresentationUrl,
+                socketSessionId,
+                displayedSessionId: sessionIdRef.current,
+                deckOwnerSessionId: prev.deckOwnerSessionId ?? null,
+                finalPresentationId: prev.finalPresentationId,
+                finalPresentationUrl: prev.finalPresentationUrl,
+              });
+              const newState = {
+                ...prev,
+                messages: shouldAddToMessages
+                  ? [...prev.messages, transcriptMessage]
+                  : upsertActionRequest
+                    ? prev.messages.map(m =>
+                        m.message_id === message.message_id ? transcriptMessage : m,
+                      )
+                    : prev.messages,
+              };
+              if (STUDIO_VOICE_INTERACTIVE_ENABLED && isCurrentSocket()
+                && socketSessionId === voiceTranscriptAuthorityRef.current.sessionId
+                && socketUserId === voiceTranscriptAuthorityRef.current.userId) {
+                const previousReceipt = prev.studioVoiceTranscriptReceipt;
+                const receipt = previousReceipt?.owner === voiceTranscriptAuthorityRef.current
+                  ? previousReceipt : createVoiceTranscript(
+                    cacheVoiceMessages(sessionCache.getCachedState()),
+                    prev.messages, prev.ephemeralMessageIds,
                   );
-                  if (recovery.didRecover) {
-                    const recoveredUrlDecision = evaluateLayoutViewerUrl(
-                      recovery.state.finalPresentationUrl,
-                      LAYOUT_VIEWER_URL_POLICY,
-                    );
-                    if (recoveredUrlDecision.status !== 'allowed') {
-                      console.error('[LayoutViewerPolicy] Blocked sync recovery output', {
-                        source: 'sync_recovery',
-                        field: 'state.finalPresentationUrl',
-                        origin: recoveredUrlDecision.origin,
-                        reason: recoveredUrlDecision.status === 'blocked'
-                          ? recoveredUrlDecision.reason
-                          : 'missing_url',
-                      });
-                      break;
-                    }
-
-                    Object.assign(newState, recovery.state);
-                    debugLog('🔁 Restored finished presentation from sync_response (reconnect repaint)');
-
-                    if (recovery.didChangeDisplayedDeck && options.onPresentationReady && newState.finalPresentationUrl) {
-                      options.onPresentationReady(newState.finalPresentationUrl);
-                    }
-
-                    if (recovery.didChangeDisplayedDeck && options.onSessionStateChange && newState.finalPresentationUrl) {
-                      options.onSessionStateChange({
-                        presentationUrl: newState.finalPresentationUrl,
-                        presentationId: newState.finalPresentationId ?? undefined,
-                        slideCount: newState.slideCount ?? undefined,
-                        currentStage: 6,
-                        activeVersion: 'final',
-                      });
-                    }
-                  }
-                }
-                break;
-
-              case 'presentation_url':
-                debugLog('🎯 Final presentation URL received:', message.payload.url);
-
-                if (guardedMessage.ingress?.status !== 'allowed') {
-                  newState.currentStatus = null;
-                  break;
-                }
-                newState.directorWorkflowState = 'CONTENT_GENERATED';
-
-                // Extended-generation builds (Phase 4a) emit one ephemeral
-                // "Building slide N/M…" progress bubble per slide, then close the
-                // turn with presentation_url — NOT a strawman slide_update. Mirror
-                // the slide_update fade trigger here so those bubbles fade out
-                // instead of lingering. Guarded on length so it's a no-op in the
-                // standard path, where the strawman slide_update already drained
-                // the tracked ids.
-                if (prev.ephemeralMessageIds.length > 0) {
-                  newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
-                }
-
-                newState.finalPresentationUrl = message.payload.url;
-                newState.finalPresentationId = message.payload.presentation_id;
-                newState.deckOwnerSessionId = sessionIdRef.current;
-                newState.isBlankPresentation = false;
-
-                // Automatically switch to final version when it arrives
-                newState.activeVersion = 'final';
-                newState.presentationUrl = message.payload.url;
-                newState.presentationId = message.payload.presentation_id;
-                newState.slideCount = message.payload.slide_count;
-
-                // Clear loading state - final presentation is complete
-                debugLog('✅ Final presentation received - clearing loading state, switching to final version');
-                newState.currentStatus = null;
-
-                // Trigger callbacks
-                if (options.onPresentationReady) {
-                  options.onPresentationReady(message.payload.url);
-                }
-
-                // Notify session state change for persistence
-                if (options.onSessionStateChange) {
-                  debugLog('🔔 Calling onSessionStateChange for FINAL presentation:', {
-                    url: message.payload.url,
-                    id: message.payload.presentation_id,
-                    slideCount: message.payload.slide_count,
-                    callbackDefined: typeof options.onSessionStateChange
-                  });
-                  try {
-                    options.onSessionStateChange({
-                      presentationUrl: message.payload.url,
-                      presentationId: message.payload.presentation_id,
-                      slideCount: message.payload.slide_count,
-                      currentStage: 6, // Stage 6 - final presentation
-                    });
-                    debugLog('✅ onSessionStateChange completed (final)');
-                  } catch (error) {
-                    console.error('❌ onSessionStateChange threw error (final):', error);
-                  }
-                } else {
-                  console.warn('⚠️ onSessionStateChange NOT defined for final presentation!');
-                }
-                break;
-
-              case 'presentation_init': {
-                // Director sends presentation_init (instead of slide_update) for blank presentations
-                // This avoids rendering a "1 slides · 0 min" card in chat
-                debugLog('🆕 presentation_init received:', JSON.stringify(message.payload, null, 2));
-                newState.directorWorkflowState = 'BLANK_PRESENTATION';
-
-                const initUrl = message.payload.presentation_url ||
-                                message.payload.preview_url ||
-                                message.payload.url ||
-                                message.payload.metadata?.preview_url ||
-                                message.payload.metadata?.presentation_url;
-                const initId = message.payload.presentation_id ||
-                               message.payload.preview_presentation_id ||
-                               message.payload.metadata?.preview_presentation_id ||
-                               message.payload.metadata?.presentation_id;
-
-                debugLog('🆕 Blank presentation received (presentation_init):', { initUrl, initId });
-
-                if (initUrl) {
-                  newState.blankPresentationUrl = initUrl;
-                  newState.blankPresentationId = initId || null;
-                  newState.isBlankPresentation = true;
-
-                  // Guard: a blank canvas must NOT clobber a real deck we already have
-                  // (one restored from the session record on reload, a finished build, or
-                  // a strawman). Otherwise reconnect → blank overwrites the deck → blank RHS.
-                  // Only switch the active view + persist when there's no real deck yet.
-                  const heldDeck = !!(prev.finalPresentationUrl || prev.strawmanPreviewUrl || prev.presentationUrl);
-                  const hasRealDeck = heldDeck && prev.deckOwnerSessionId === sessionIdRef.current;
-                  if (hasRealDeck) {
-                    debugLog('⚠️ presentation_init: keeping existing deck, not switching to blank');
-                  } else {
-                    newState.activeVersion = 'blank';
-                    newState.presentationUrl = initUrl;
-                    newState.presentationId = initId || null;
-                    newState.strawmanPreviewUrl = null;
-                    newState.strawmanPresentationId = null;
-                    newState.finalPresentationUrl = null;
-                    newState.finalPresentationId = null;
-                    newState.deckOwnerSessionId = sessionIdRef.current;
-                    newState.slideStructure = null;
-                    newState.slideCount = null;
-
-                    debugLog('✅ Blank presentation ready - all editing tools now active');
-
-                    if (options.onPresentationReady) {
-                      options.onPresentationReady(initUrl);
-                    }
-
-                    if (options.onSessionStateChange) {
-                      options.onSessionStateChange({
-                        presentationUrl: initUrl,
-                        presentationId: initId || undefined,
-                        slideCount: 1,
-                        currentStage: 0,
-                      });
-                    }
-                  }
-                }
-                break;
+                if (receipt) newState.studioVoiceTranscriptReceipt = admitStudioVoiceTranscriptFrame(receipt, {
+                  frame: message, admittedMessage: transcriptMessage,
+                  beforeMessages: prev.messages, afterMessages: newState.messages,
+                  ownershipAdmitted: isCurrentSocket(), reducerAppended: shouldAddToMessages,
+                  assistantAdmitted: message.type === 'chat_message'
+                    && transportCallbacksRef.current.getStudioVoiceAssistantAdmission?.(transcriptMessage) === true,
+                  ephemeralIds: prev.ephemeralMessageIds,
+                });
               }
 
-              case 'slide_update':
-                debugLog('📊 Slide update received, full payload:', JSON.stringify(message.payload, null, 2));
-                newState.slideStructure = message.payload;
+              if (blockedIngress) {
+                // Keep an already-approved displayed deck, but never let a rejected
+                // frame become a version target, API id, callback, or persisted URL.
+                newState.currentStatus = null;
+              }
 
-                if (
-                  message.payload.operation === 'full_update' &&
-                  !message.payload.is_blank &&
-                  prev.ephemeralMessageIds.length > 0
-                ) {
-                  newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
-                }
+              // Track ephemeral chat_messages (Director thinking-stream) so MessageList
+              // can fade them out once the real slide_update lands.
+              if (message.type === 'chat_message' && (message.payload as any).ephemeral === true) {
+                newState.ephemeralMessageIds = prev.ephemeralMessageIds.includes(message.message_id)
+                  ? prev.ephemeralMessageIds
+                  : [...prev.ephemeralMessageIds, message.message_id];
+                debugLog('💭 Ephemeral progress message:', (message.payload as any).text);
+              }
 
-                // Legacy: Handle blank presentation sent as slide_update with is_blank flag
-                // (kept for backward compatibility, but Director now sends presentation_init instead)
-                if (message.payload.is_blank) {
-                  newState.directorWorkflowState = 'BLANK_PRESENTATION';
-                  const blankUrl = message.payload.preview_url ||
-                                   message.payload.metadata?.preview_url;
-                  const blankId = message.payload.metadata?.preview_presentation_id ||
-                                  message.payload.preview_presentation_id;
+              // Handle specific message types
+              switch (message.type) {
+                case 'status_update':
+                  debugLog('📊 Status update:', message.payload.text, message.payload.progress ? `${message.payload.progress}%` : '');
+                  newState.currentStatus = message.payload;
+                  // Auto-clear status when complete
+                  if (message.payload.status === 'complete' || message.payload.status === 'idle') {
+                    debugLog('✅ Status complete/idle - will clear shortly');
+                    setTimeout(() => {
+                      setState(s => ({ ...s, currentStatus: null }));
+                    }, 2000);
+                  }
+                  break;
 
-                  debugLog('🆕 Blank presentation received (legacy slide_update):', { blankUrl, blankId });
+                case 'chat_message':
+                  // Non-ephemeral assistant messages are terminal responses for the
+                  // current turn (for example, the plan proposal after
+                  // "Analyzing presentation strategy..."). Clear the working pulse so
+                  // it cannot remain pinned below the actual response/action card.
+                  if ((message.payload as any).ephemeral !== true) {
+                    newState.currentStatus = null;
+                  }
+                  break;
 
-                  if (blankUrl) {
-                    // Set blank presentation state
-                    newState.blankPresentationUrl = blankUrl;
-                    newState.blankPresentationId = blankId || null;
-                    newState.isBlankPresentation = true;
+                case 'action_request':
+                  // Action cards mean Director is waiting on the user, not still
+                  // thinking. Without this, a prior status_update can leave the chat
+                  // stuck visually on the old "Analyzing..." pulse.
+                  newState.currentStatus = null;
+                  break;
 
-                    // Set as current presentation (blank is the starting point)
-                    newState.activeVersion = 'blank';
-                    newState.presentationUrl = blankUrl;
-                    newState.presentationId = blankId || null;
-                    newState.strawmanPreviewUrl = null;
-                    newState.strawmanPresentationId = null;
-                    newState.finalPresentationUrl = null;
-                    newState.finalPresentationId = null;
-                    newState.deckOwnerSessionId = sessionIdRef.current;
-                    newState.slideStructure = null;
-                    newState.slideCount = null;
+                case 'sync_response':
+                  if (STUDIO_CHAT_CAPS_META_ENABLED) chatCapsSyncReceived(message.payload, { frameSessionId: message.session_id, socketSessionId, currentSessionId: sessionIdRef.current, isCurrent: isCurrentSocket }); // CHAT-CAPS-META: this socket's current-session sync replaces the read-only snapshot (lib/studio-chat-caps.ts: legacy true or C-D1 {confirm, client_directive}); nothing is sent and no state changes. Off: not read
+                  if (COMPOSER_LIBRARY_ENABLED && socketSessionId === sessionIdRef.current &&
+                      (!message.session_id || message.session_id === sessionIdRef.current)) {
+                    const themeState = composerThemeFromSync(message.payload.composer_adoption, message.payload.presentation_id, Boolean(blockedIngress));
+                    Object.assign(newState, themeState);
+                    composerThemeRef.current = { sessionId: sessionIdRef.current, ...themeState };
+                  }
+                  // Sync protocol response - Director confirms whether to skip history
+                  newState.directorWorkflowState = message.payload.current_state || null;
+                  // Latch, never clear: this is what freezes the research toggles.
+                  if (message.payload.has_strawman) {
+                    newState.hasStrawman = true;
+                  }
+                  debugLog('🔄 Sync response received:', {
+                    action: message.payload.action,
+                    message_count: message.payload.message_count,
+                    current_state: message.payload.current_state,
+                    has_strawman: message.payload.has_strawman,
+                    presentation_url: message.payload.presentation_url,
+                    presentation_id: message.payload.presentation_id
+                  });
+                  // Resilience: a deck can finish while the socket is down (WS churn during
+                  // a long reuse/build). Promote sync_response URLs to final only when
+                  // Director says the durable session state is content-generated/complete;
+                  // blank/strawman reconnect URLs must remain previews.
+                  {
+                    const recovery = applyFinalSyncRecovery(
+                      newState,
+                      message.payload,
+                      sessionIdRef.current,
+                    );
+                    if (recovery.didRecover) {
+                      const recoveredUrlDecision = evaluateLayoutViewerUrl(
+                        recovery.state.finalPresentationUrl,
+                        LAYOUT_VIEWER_URL_POLICY,
+                      );
+                      if (recoveredUrlDecision.status !== 'allowed') {
+                        console.error('[LayoutViewerPolicy] Blocked sync recovery output', {
+                          source: 'sync_recovery',
+                          field: 'state.finalPresentationUrl',
+                          origin: recoveredUrlDecision.origin,
+                          reason: recoveredUrlDecision.status === 'blocked'
+                            ? recoveredUrlDecision.reason
+                            : 'missing_url',
+                        });
+                        break;
+                      }
 
-                    debugLog('✅ Blank presentation ready - all editing tools now active');
+                      Object.assign(newState, recovery.state);
+                      debugLog('🔁 Restored finished presentation from sync_response (reconnect repaint)');
 
-                    // Trigger callback for blank presentation ready
-                    if (options.onPresentationReady) {
-                      options.onPresentationReady(blankUrl);
-                    }
+                      if (recovery.didChangeDisplayedDeck && options.onPresentationReady && newState.finalPresentationUrl) {
+                        options.onPresentationReady(newState.finalPresentationUrl);
+                      }
 
-                    // Notify session state change for persistence (Stage 0 - blank)
-                    if (options.onSessionStateChange) {
-                      options.onSessionStateChange({
-                        presentationUrl: blankUrl,
-                        presentationId: blankId || undefined,
-                        slideCount: 1, // Blank has 1 title slide
-                        currentStage: 0, // Stage 0 - blank presentation
-                      });
+                      if (recovery.didChangeDisplayedDeck && options.onSessionStateChange && newState.finalPresentationUrl) {
+                        options.onSessionStateChange({
+                          presentationUrl: newState.finalPresentationUrl,
+                          presentationId: newState.finalPresentationId ?? undefined,
+                          slideCount: newState.slideCount ?? undefined,
+                          currentStage: 6,
+                          activeVersion: 'final',
+                        });
+                      }
                     }
                   }
-                  break; // Exit early - don't process as strawman
-                }
+                  break;
 
-                // EXISTING: Handle regular slide_update (strawman preview)
-                newState.directorWorkflowState = 'REFINE_STRAWMAN';
-                // Extract preview URL if present (strawman preview)
-                // Check multiple possible locations
-                const previewUrl = message.payload.preview_url ||
-                                   message.payload.metadata?.preview_url ||
-                                   (message.payload as any).strawman?.preview_url ||
-                                   (message.payload as any).url;  // Sometimes sent as just 'url'
+                case 'presentation_url':
+                  debugLog('🎯 Final presentation URL received:', message.payload.url);
 
-                // Extract presentation ID for strawman downloads (Stage 4)
-                // Director v3.4 sends this in metadata object (per PREVIEW_PRESENTATION_ID_FIX.md)
-                const previewPresentationId = message.payload.metadata?.preview_presentation_id ||
-                                              message.payload.preview_presentation_id ||
-                                              (message.payload as any).strawman?.preview_presentation_id ||
-                                              (message.payload as any).presentation_id;
+                  if (guardedMessage.ingress?.status !== 'allowed') {
+                    newState.currentStatus = null;
+                    break;
+                  }
+                  newState.directorWorkflowState = 'CONTENT_GENERATED';
+                  newState.hasStrawman = true;
 
-                if (previewUrl) {
-                  debugLog('✅ Found strawman preview URL:', previewUrl);
-                  debugLog('🖼️ Setting strawmanPreviewUrl and displaying preview IMMEDIATELY');
-                  newState.strawmanPreviewUrl = previewUrl;
-                  newState.strawmanPresentationId = previewPresentationId || null;
+                  // Extended-generation builds (Phase 4a) emit one ephemeral
+                  // "Building slide N/M…" progress bubble per slide, then close the
+                  // turn with presentation_url — NOT a strawman slide_update. Mirror
+                  // the slide_update fade trigger here so those bubbles fade out
+                  // instead of lingering. Guarded on length so it's a no-op in the
+                  // standard path, where the strawman slide_update already drained
+                  // the tracked ids.
+                  if (prev.ephemeralMessageIds.length > 0) {
+                    newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
+                  }
+
+                  newState.finalPresentationUrl = message.payload.url;
+                  newState.finalPresentationId = message.payload.presentation_id;
                   newState.deckOwnerSessionId = sessionIdRef.current;
                   newState.isBlankPresentation = false;
 
-                  // Set activeVersion to strawman and update presentationUrl to display it
-                  newState.activeVersion = 'strawman';
-                  newState.presentationUrl = previewUrl;
-                  newState.presentationId = previewPresentationId || null;
+                  // Automatically switch to final version when it arrives
+                  newState.activeVersion = 'final';
+                  newState.presentationUrl = message.payload.url;
+                  newState.presentationId = message.payload.presentation_id;
+                  newState.slideCount = message.payload.slide_count;
 
-                  // Clear loading state - strawman generation is complete
-                  debugLog('✅ Strawman received - clearing loading state');
+                  // Clear loading state - final presentation is complete
+                  debugLog('✅ Final presentation received - clearing loading state, switching to final version');
                   newState.currentStatus = null;
 
-                  // Set presentation ID if found (enables download buttons)
-                  if (previewPresentationId) {
-                    debugLog('✅ Found strawman presentation_id:', previewPresentationId);
-                  } else {
-                    debugLog('⚠️ No preview_presentation_id found - download buttons will be disabled');
-                  }
-
-                  // Trigger callback for preview
+                  // Trigger callbacks
                   if (options.onPresentationReady) {
-                    options.onPresentationReady(previewUrl);
+                    options.onPresentationReady(message.payload.url);
                   }
 
                   // Notify session state change for persistence
                   if (options.onSessionStateChange) {
-                    debugLog('🔔 Calling onSessionStateChange for STRAWMAN:', {
-                      url: previewUrl,
-                      id: previewPresentationId,
-                      slideCount: message.payload.slides?.length,
+                    debugLog('🔔 Calling onSessionStateChange for FINAL presentation:', {
+                      url: message.payload.url,
+                      id: message.payload.presentation_id,
+                      slideCount: message.payload.slide_count,
                       callbackDefined: typeof options.onSessionStateChange
                     });
                     try {
                       options.onSessionStateChange({
-                        presentationUrl: previewUrl,
-                        presentationId: previewPresentationId || undefined,
-                        slideCount: message.payload.slides?.length || undefined,
-                        currentStage: 4, // Stage 4 - strawman preview
+                        presentationUrl: message.payload.url,
+                        presentationId: message.payload.presentation_id,
+                        slideCount: message.payload.slide_count,
+                        currentStage: 6, // Stage 6 - final presentation
                       });
-                      debugLog('✅ onSessionStateChange completed (strawman)');
+                      debugLog('✅ onSessionStateChange completed (final)');
                     } catch (error) {
-                      console.error('❌ onSessionStateChange threw error (strawman):', error);
+                      console.error('❌ onSessionStateChange threw error (final):', error);
                     }
                   } else {
-                    console.warn('⚠️ onSessionStateChange NOT defined for strawman!');
+                    console.warn('⚠️ onSessionStateChange NOT defined for final presentation!');
                   }
-                } else {
-                  debugLog('⚠️ No preview URL found in slide_update message');
-                  debugLog('Checked locations: payload.preview_url, metadata.preview_url, strawman.preview_url, payload.url');
-                }
-                break;
+                  break;
 
-              case 'slide_context': {
-                const ctx = message.payload;
-                const byIndex: Record<number, SlideContextItem> = {};
-                for (const s of ctx.slides ?? []) {
-                  if (typeof s.slide_index === 'number') byIndex[s.slide_index] = s;
+                case 'presentation_init': {
+                  // Director sends presentation_init (instead of slide_update) for blank presentations
+                  // This avoids rendering a "1 slides · 0 min" card in chat
+                  debugLog('🆕 presentation_init received:', JSON.stringify(message.payload, null, 2));
+
+                  const initUrl = message.payload.presentation_url ||
+                                  message.payload.preview_url ||
+                                  message.payload.url ||
+                                  message.payload.metadata?.preview_url ||
+                                  message.payload.metadata?.presentation_url;
+                  const initId = message.payload.presentation_id ||
+                                 message.payload.preview_presentation_id ||
+                                 message.payload.metadata?.preview_presentation_id ||
+                                 message.payload.metadata?.presentation_id;
+
+                  debugLog('🆕 Blank presentation received (presentation_init):', { initUrl, initId });
+
+                  if (initUrl) {
+                    newState.blankPresentationUrl = initUrl;
+                    newState.blankPresentationId = initId || null;
+
+                    // Guard: a blank canvas must NOT clobber a real deck we already have
+                    // (one restored from the session record on reload, a finished build, or
+                    // a strawman). Otherwise reconnect → blank overwrites the deck → blank RHS.
+                    // Only switch the active view + persist when there's no real deck yet.
+                    const heldDeck = !!(prev.finalPresentationUrl || prev.strawmanPreviewUrl || prev.presentationUrl);
+                    const hasRealDeck = heldDeck && prev.deckOwnerSessionId === sessionIdRef.current;
+                    if (hasRealDeck) {
+                      debugLog('⚠️ presentation_init: keeping existing deck, not switching to blank');
+                    } else {
+                      newState.directorWorkflowState = 'BLANK_PRESENTATION';
+                      newState.isBlankPresentation = true;
+                      newState.activeVersion = 'blank';
+                      newState.presentationUrl = initUrl;
+                      newState.presentationId = initId || null;
+                      newState.studioAutomaticBlankSelection = {
+                        token: {}, userId: socketUserId, sessionId: socketSessionId,
+                        presentationId: initId || null, presentationUrl: initUrl,
+                      };
+                      newState.strawmanPreviewUrl = null;
+                      newState.strawmanPresentationId = null;
+                      newState.finalPresentationUrl = null;
+                      newState.finalPresentationId = null;
+                      newState.deckOwnerSessionId = sessionIdRef.current;
+                      newState.slideStructure = null;
+                      newState.slideCount = null;
+                      resolveNewSessionThemePolicy(prev, newState);
+
+                      debugLog('✅ Blank presentation ready - all editing tools now active');
+
+                      if (options.onPresentationReady) {
+                        options.onPresentationReady(initUrl);
+                      }
+
+                      if (options.onSessionStateChange) {
+                        options.onSessionStateChange({
+                          presentationUrl: initUrl,
+                          presentationId: initId || undefined,
+                          slideCount: 1,
+                          currentStage: 0,
+                        });
+                      }
+                    }
+                  }
+                  break;
                 }
-                newState.slideContextByIndex = byIndex;
-                newState.deckContext = ctx.deck ?? null;
-                debugLog('📚 slide_context received:', {
-                  slides: ctx.slides?.length,
-                  deckArc: ctx.deck?.deck_arc?.slice(0, 60),
-                });
-                break;
+
+                case 'slide_update':
+                  debugLog('📊 Slide update received, full payload:', JSON.stringify(message.payload, null, 2));
+                  // Composer reconnect replays the completed native deck's slide
+                  // metadata through the older strawman frame. Its immutable
+                  // adopted target stays final regardless of ready/sync ordering.
+                  if (COMPOSER_LIBRARY_ENABLED && prev.composerAdoption &&
+                      prev.deckOwnerSessionId === sessionIdRef.current &&
+                      prev.finalPresentationId === prev.composerAdoption.presentation_id) {
+                    const replayId = message.payload.metadata?.preview_presentation_id ||
+                      message.payload.preview_presentation_id ||
+                      (message.payload as any).strawman?.preview_presentation_id ||
+                      (message.payload as any).presentation_id;
+                    const replayUrl = message.payload.preview_url || message.payload.metadata?.preview_url ||
+                      (message.payload as any).strawman?.preview_url || (message.payload as any).url;
+                    if (blockedIngress || message.payload.is_blank || replayUrl !== prev.finalPresentationUrl ||
+                        socketSessionId !== sessionIdRef.current ||
+                        (message.session_id && message.session_id !== sessionIdRef.current) ||
+                        replayId !== prev.composerAdoption.presentation_id) break;
+                    newState.slideStructure = message.payload;
+                    newState.slideCount = message.payload.slides?.length || prev.slideCount;
+                    // Only Director sync supplies workflow state; this metadata
+                    // replay must not invent a ready/complete acknowledgement.
+                    newState.directorWorkflowState = prev.directorWorkflowState;
+                    newState.activeVersion = 'final';
+                    newState.isBlankPresentation = false;
+                    newState.presentationUrl = prev.finalPresentationUrl;
+                    newState.presentationId = prev.finalPresentationId;
+                    newState.currentStatus = null;
+                    try {
+                      options.onSessionStateChange?.({
+                        presentationUrl: prev.finalPresentationUrl || undefined,
+                        presentationId: prev.finalPresentationId || undefined,
+                        slideCount: newState.slideCount ?? undefined,
+                        slideStructure: message.payload,
+                        currentStage: 6,
+                        activeVersion: 'final',
+                      });
+                    } catch (error) {
+                      console.error('Could not persist Composer slide metadata:', error);
+                    }
+                    break;
+                  }
+                  if (
+                    message.payload.operation === 'full_update' &&
+                    !message.payload.is_blank &&
+                    prev.ephemeralMessageIds.length > 0
+                  ) {
+                    newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
+                  }
+
+                  // Legacy: Handle blank presentation sent as slide_update with is_blank flag
+                  // (kept for backward compatibility, but Director now sends presentation_init instead)
+                  if (message.payload.is_blank) {
+                    const blankUrl = message.payload.preview_url ||
+                                     message.payload.metadata?.preview_url;
+                    const blankId = message.payload.metadata?.preview_presentation_id ||
+                                    message.payload.preview_presentation_id;
+
+                    debugLog('🆕 Blank presentation received (legacy slide_update):', { blankUrl, blankId });
+
+                    if (blankUrl) {
+                      // Set blank presentation state
+                      newState.blankPresentationUrl = blankUrl;
+                      newState.blankPresentationId = blankId || null;
+
+                      // Retain the blank version without replacing current owned
+                      // work or unlocking build settings on a reconnect replay.
+                      const heldDeck = !!(prev.finalPresentationUrl || prev.strawmanPreviewUrl || prev.presentationUrl);
+                      const hasRealDeck = heldDeck && prev.deckOwnerSessionId === sessionIdRef.current;
+                      if (hasRealDeck) {
+                        newState.slideStructure = prev.slideStructure;
+                        break;
+                      }
+                      newState.directorWorkflowState = 'BLANK_PRESENTATION';
+                      newState.isBlankPresentation = true;
+
+                      // Set as current presentation (blank is the starting point)
+                      newState.activeVersion = 'blank';
+                      newState.presentationUrl = blankUrl;
+                      newState.presentationId = blankId || null;
+                      newState.studioAutomaticBlankSelection = {
+                        token: {}, userId: socketUserId, sessionId: socketSessionId,
+                        presentationId: blankId || null, presentationUrl: blankUrl,
+                      };
+                      newState.strawmanPreviewUrl = null;
+                      newState.strawmanPresentationId = null;
+                      newState.finalPresentationUrl = null;
+                      newState.finalPresentationId = null;
+                      newState.deckOwnerSessionId = sessionIdRef.current;
+                      newState.slideStructure = null;
+                      newState.slideCount = null;
+                      resolveNewSessionThemePolicy(prev, newState);
+
+                      debugLog('✅ Blank presentation ready - all editing tools now active');
+
+                      // Trigger callback for blank presentation ready
+                      if (options.onPresentationReady) {
+                        options.onPresentationReady(blankUrl);
+                      }
+
+                      // Notify session state change for persistence (Stage 0 - blank)
+                      if (options.onSessionStateChange) {
+                        options.onSessionStateChange({
+                          presentationUrl: blankUrl,
+                          presentationId: blankId || undefined,
+                          slideCount: 1, // Blank has 1 title slide
+                          currentStage: 0, // Stage 0 - blank presentation
+                        });
+                      }
+                    }
+                    break; // Exit early - don't process as strawman
+                  }
+
+                  newState.slideStructure = message.payload;
+
+                  if (transcriptMessage.clientOutlineReplayOf || transcriptMessage.clientTerminalOutlineRevisionOf) {
+                    // Completed Director reconnects retarget the saved outline
+                    // to the final viewer. Verified state or narrative revisions remain historical;
+                    // it must not switch the live final deck back to strawman.
+                    newState.directorWorkflowState = prev.directorWorkflowState;
+                    newState.currentStatus = null;
+                    break;
+                  }
+
+                  // EXISTING: Handle regular slide_update (strawman preview)
+                  newState.directorWorkflowState = 'REFINE_STRAWMAN';
+                  // Extract preview URL if present (strawman preview)
+                  // Check multiple possible locations
+                  const previewUrl = message.payload.preview_url ||
+                                     message.payload.metadata?.preview_url ||
+                                     (message.payload as any).strawman?.preview_url ||
+                                     (message.payload as any).url;  // Sometimes sent as just 'url'
+
+                  // Extract presentation ID for strawman downloads (Stage 4)
+                  // Director v3.4 sends this in metadata object (per PREVIEW_PRESENTATION_ID_FIX.md)
+                  const previewPresentationId = message.payload.metadata?.preview_presentation_id ||
+                                                message.payload.preview_presentation_id ||
+                                                (message.payload as any).strawman?.preview_presentation_id ||
+                                                (message.payload as any).presentation_id;
+
+                  if (previewUrl) {
+                    debugLog('✅ Found strawman preview URL:', previewUrl);
+                    debugLog('🖼️ Setting strawmanPreviewUrl and displaying preview IMMEDIATELY');
+                    newState.strawmanPreviewUrl = previewUrl;
+                    newState.strawmanPresentationId = previewPresentationId || null;
+                    newState.deckOwnerSessionId = sessionIdRef.current;
+                    newState.isBlankPresentation = false;
+
+                    // Set activeVersion to strawman and update presentationUrl to display it
+                    newState.activeVersion = 'strawman';
+                    newState.presentationUrl = previewUrl;
+                    newState.presentationId = previewPresentationId || null;
+
+                    // Clear loading state - strawman generation is complete
+                    debugLog('✅ Strawman received - clearing loading state');
+                    newState.currentStatus = null;
+
+                    // Set presentation ID if found (enables download buttons)
+                    if (previewPresentationId) {
+                      debugLog('✅ Found strawman presentation_id:', previewPresentationId);
+                    } else {
+                      debugLog('⚠️ No preview_presentation_id found - download buttons will be disabled');
+                    }
+
+                    // Trigger callback for preview
+                    if (options.onPresentationReady) {
+                      options.onPresentationReady(previewUrl);
+                    }
+
+                    // Notify session state change for persistence
+                    if (options.onSessionStateChange) {
+                      debugLog('🔔 Calling onSessionStateChange for STRAWMAN:', {
+                        url: previewUrl,
+                        id: previewPresentationId,
+                        slideCount: message.payload.slides?.length,
+                        callbackDefined: typeof options.onSessionStateChange
+                      });
+                      try {
+                        options.onSessionStateChange({
+                          presentationUrl: previewUrl,
+                          presentationId: previewPresentationId || undefined,
+                          slideCount: message.payload.slides?.length || undefined,
+                          currentStage: 4, // Stage 4 - strawman preview
+                        });
+                        debugLog('✅ onSessionStateChange completed (strawman)');
+                      } catch (error) {
+                        console.error('❌ onSessionStateChange threw error (strawman):', error);
+                      }
+                    } else {
+                      console.warn('⚠️ onSessionStateChange NOT defined for strawman!');
+                    }
+                  } else {
+                    debugLog('⚠️ No preview URL found in slide_update message');
+                    debugLog('Checked locations: payload.preview_url, metadata.preview_url, strawman.preview_url, payload.url');
+                  }
+                  break;
+
+                case 'slide_context': {
+                  const ctx = message.payload;
+                  const byIndex: Record<number, SlideContextItem> = {};
+                  for (const s of ctx.slides ?? []) {
+                    if (typeof s.slide_index === 'number') byIndex[s.slide_index] = s;
+                  }
+                  newState.slideContextByIndex = byIndex;
+                  newState.deckContext = ctx.deck ?? null;
+                  debugLog('📚 slide_context received:', {
+                    slides: ctx.slides?.length,
+                    deckArc: ctx.deck?.deck_arc?.slice(0, 60),
+                  });
+                  break;
+                }
+
+                case 'token_usage':
+                  newState.tokenUsage = message.payload;
+                  newState.tokenUsageMessageId = message.message_id;
+                  debugLog('🧮 token_usage received:', {
+                    action: message.payload.action_type,
+                    turnTotal: message.payload.turn?.total_tokens,
+                    sessionTotal: message.payload.session?.total_tokens,
+                    coverage: message.payload.coverage,
+                  });
+                  break;
+
+                case 'theme_sync':
+                  debugLog('🎨 Theme sync response:', message.payload);
+                  break;
+
+                case 'slide_ready':
+                  debugLog('✅ slide_ready received:', {
+                    job_id: message.payload.job_id,
+                    slide_index: message.payload.slide_index,
+                    presentation_id: message.payload.presentation_id,
+                    thumbnail_url: message.payload.thumbnail_url,
+                  });
+                  newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
+                  newState.currentStatus = null;
+                  break;
+
+                case 'slide_built':
+                  debugLog('slide_built received:', {
+                    slide_index: message.payload.slide_index,
+                    presentation_id: message.payload.presentation_id,
+                    has_thumbnail: !!message.payload.thumbnail_url,
+                    qa_verdict: message.payload.qa_verdict,
+                    qa_skipped_reason: message.payload.qa_skipped_reason,
+                  });
+                  newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
+                  newState.currentStatus = null;
+                  break;
+
+                case 'slide_progress':
+                  debugLog('🧵 slide_progress received:', {
+                    job_id: message.payload.job_id,
+                    stage: message.payload.stage,
+                    text: message.payload.text,
+                  });
+                  newState.currentStatus = buildSlideComposeProgressStatus(message.payload);
+                  break;
+
+                case 'slide_failed':
+                  debugLog('❌ slide_failed received:', {
+                    job_id: message.payload.job_id,
+                    stage: message.payload.stage,
+                    errors: message.payload.errors,
+                  });
+                  newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
+                  newState.currentStatus = null;
+                  break;
+
+                case 'template_ingest_update': {
+                  // Template Ingest progress pulse: reuse the existing status
+                  // affordance (working pulse under the chat) — Director also
+                  // sends ephemeral chat narration separately.
+                  debugLog('🧩 template_ingest_update:', message.payload);
+                  // Round-4 fix (R3-2): a late frame from another session's job
+                  // (e.g. origin B while the sidebar switched the page to C)
+                  // must not touch the displayed session's UI state.
+                  if (!ingestFrameIsForDisplayedSession) break;
+                  // M-4: Director may emit `message`/`total_slides` instead of
+                  // `text`/`slide_count` — accept both spellings.
+                  const ingestText = message.payload.text || message.payload.message;
+                  const ingestSlideCount = message.payload.slide_count ?? message.payload.total_slides;
+                  newState.currentStatus = {
+                    status: 'generating',
+                    text: ingestText
+                      || (typeof message.payload.slide_index === 'number' && ingestSlideCount
+                        ? `Rebuilding slide ${message.payload.slide_index + 1}/${ingestSlideCount}…`
+                        : 'Converting your presentation…'),
+                    ...(typeof message.payload.progress === 'number' ? { progress: message.payload.progress } : {}),
+                  } as StatusUpdate['payload'];
+                  if (message.payload.job_id) {
+                    newState.templateIngestJobId = message.payload.job_id;
+                  }
+                  break;
+                }
+
+                case 'template_ingest_ready': {
+                  // Mirror presentation_url handling: the rebuilt deck becomes the
+                  // session's final presentation.
+                  debugLog('🧩 template_ingest_ready:', {
+                    template_id: message.payload.template_id,
+                    presentation_id: message.payload.presentation_id,
+                    viewer_url: message.payload.viewer_url,
+                    slides: message.payload.per_slide_fidelity?.length ?? 0,
+                  });
+
+                  // Round-4 fix (R3-2): NEVER adopt another session's rebuilt
+                  // deck as the displayed session's presentation. A late ready
+                  // frame from origin session B while C is displayed is handled
+                  // outside the reducer (origin job record only).
+                  if (!ingestFrameIsForDisplayedSession) break;
+
+                  if (prev.ephemeralMessageIds.length > 0) {
+                    newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
+                  }
+
+                  newState.templateIngestResult = message.payload;
+                  newState.templateIngestError = null;
+                  newState.templateIngestJobId = null;
+
+                  if (message.payload.viewer_url) {
+                    newState.finalPresentationUrl = message.payload.viewer_url;
+                    newState.finalPresentationId = message.payload.presentation_id;
+                    newState.deckOwnerSessionId = sessionIdRef.current;
+                    newState.isBlankPresentation = false;
+                    newState.activeVersion = 'final';
+                    newState.presentationUrl = message.payload.viewer_url;
+                    newState.presentationId = message.payload.presentation_id;
+                    if (typeof message.payload.slide_count === 'number') {
+                      newState.slideCount = message.payload.slide_count;
+                    } else if (message.payload.per_slide_fidelity?.length) {
+                      newState.slideCount = message.payload.per_slide_fidelity.length;
+                    }
+
+                    if (options.onPresentationReady) {
+                      options.onPresentationReady(message.payload.viewer_url);
+                    }
+                    if (options.onSessionStateChange) {
+                      try {
+                        options.onSessionStateChange({
+                          presentationUrl: message.payload.viewer_url,
+                          presentationId: message.payload.presentation_id,
+                          slideCount: newState.slideCount ?? undefined,
+                          currentStage: 6,
+                        });
+                      } catch (error) {
+                        console.error('❌ onSessionStateChange threw error (template_ingest_ready):', error);
+                      }
+                    }
+                  }
+
+                  newState.currentStatus = null;
+                  break;
+                }
+
+                case 'template_ingest_failed':
+                  debugLog('🧩 template_ingest_failed:', message.payload);
+                  // Round-4 fix (R3-2): same session gate as update/ready.
+                  if (!ingestFrameIsForDisplayedSession) break;
+                  newState.templateIngestError = message.payload.error
+                    || message.payload.errors?.join('; ')
+                    || 'Template ingest failed';
+                  newState.templateIngestJobId = null;
+                  newState.currentStatus = null;
+                  break;
+
+                // Build Narration frames: no hook-state mutation — surfaced via
+                // the post-setState callbacks (slide_built taps the case above).
+                case 'build_phase':
+                  debugLog('🎬 build_phase received:', {
+                    build_id: (message.payload as any).build_id,
+                    phase: (message.payload as any).phase,
+                  });
+                  break;
+
+                case 'build_event':
+                  debugLog('🧠 build_event received:', {
+                    seq: (message.payload as any).seq,
+                    scope: (message.payload as any).scope,
+                    stage: (message.payload as any).stage,
+                  });
+                  break;
+
+                case 'build_control_capability':
+                  debugLog('🔐 build-control capability received');
+                  break;
+
+                default:
+                  break;
               }
 
-              case 'token_usage':
-                newState.tokenUsage = message.payload;
-                newState.tokenUsageMessageId = message.message_id;
-                debugLog('🧮 token_usage received:', {
-                  action: message.payload.action_type,
-                  turnTotal: message.payload.turn?.total_tokens,
-                  sessionTotal: message.payload.session?.total_tokens,
-                  coverage: message.payload.coverage,
-                });
-                break;
+              return newState;
+            });
 
-              case 'theme_sync':
-                debugLog('🎨 Theme sync response:', message.payload);
-                break;
-
-              case 'slide_ready':
-                debugLog('✅ slide_ready received:', {
-                  job_id: message.payload.job_id,
-                  slide_index: message.payload.slide_index,
-                  presentation_id: message.payload.presentation_id,
-                });
-                newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
-                newState.currentStatus = null;
-                break;
-
-              case 'slide_progress':
-                debugLog('🧵 slide_progress received:', {
-                  job_id: message.payload.job_id,
-                  stage: message.payload.stage,
-                  text: message.payload.text,
-                });
-                newState.currentStatus = buildSlideComposeProgressStatus(message.payload);
-                break;
-
-              case 'slide_failed':
-                debugLog('❌ slide_failed received:', {
-                  job_id: message.payload.job_id,
-                  stage: message.payload.stage,
-                  errors: message.payload.errors,
-                });
-                newState.ephemeralFadeToken = prev.ephemeralFadeToken + 1;
-                newState.currentStatus = null;
-                break;
-
-              default:
-                break;
+            if ((message.type as string) === 'session_directive') {
+              // MDC P4 (K3): never rendered in chat; only capable clients receive
+              // it (K6), but double-gate on the flag for safety.
+              if (CHAT_DIRECTIVES) {
+                const payload = (message as unknown as { payload: import('@/types/mdc').SessionDirectivePayload }).payload;
+                debugLog('🧭 session_directive received:', payload);
+                options.onSessionDirective?.(payload);
+              }
+              return;
             }
 
-            return newState;
-          });
+            if ((message.type as string) === 'element_directive') {
+              if (CHAT_DIRECTIVES) {
+                const payload = (message as unknown as { payload: import('@/types/mdc').ElementDirectivePayload }).payload;
+                debugLog('🧩 element_directive received:', payload);
+                options.onElementDirective?.(payload);
+              }
+              return;
+            }
 
-          if (message.type === 'slide_progress') {
-            options.onSlideComposeProgress?.(message);
-          } else if (message.type === 'slide_ready' && !blockedIngress) {
-            options.onSlideComposeReady?.(message);
-          } else if (message.type === 'slide_failed') {
-            options.onSlideComposeFailed?.(message);
+            if (message.type === 'slide_built') {
+              // Local continuation identity only; preserve the raw frame and
+              // existing consumers. This is not a new wire field or filter.
+              options.onSlideBuilt?.(message, {
+                sessionId: socketSessionId, userId: socketUserId,
+                transportGeneration: attemptGeneration, isCurrent: isCurrentSocket,
+              });
+            } else if (message.type === 'slide_progress') {
+              options.onSlideComposeProgress?.(message);
+            } else if (message.type === 'slide_ready' && !blockedIngress) {
+              options.onSlideComposeReady?.(message);
+            } else if (message.type === 'slide_failed') {
+              options.onSlideComposeFailed?.(message);
+            } else if (message.type === 'template_ingest_ready' && !blockedIngress && ingestFrameIsForDisplayedSession) {
+              options.onTemplateIngestReady?.(message);
+            } else if (message.type === 'template_ingest_failed' && ingestFrameIsForDisplayedSession) {
+              options.onTemplateIngestFailed?.(message);
+            } else if (message.type === 'build_phase') {
+              options.onBuildPhase?.((message as any).payload, message.session_id);
+            } else if (message.type === 'build_event') {
+              options.onBuildEvent?.((message as any).payload);
+            } else if (message.type === 'sync_response' && (message.payload as any)?.build_state) {
+              options.onBuildStateSync?.((message.payload as any).build_state);
+            }
+
+            // Template Ingest (C-5): persist the in-flight job so the builder can
+            // resume polling after a reload/reconnect; clear on terminal frames.
+            if (
+              process.env.NEXT_PUBLIC_TEMPLATE_INGEST_ENABLED === 'true' &&
+              typeof window !== 'undefined'
+            ) {
+              try {
+                // Round-3 fix (review N1/F8): key these side effects off the
+                // FRAME's session (`ingestFrameSessionId`, resolved above) —
+                // never off mutable `sessionIdRef.current`. A late frame
+                // arriving on session A's socket can therefore never write or
+                // delete session B's keys.
+                if (message.type === 'template_ingest_update') {
+                  if (message.payload.job_id && ingestFrameSessionId) {
+                    sessionStorage.setItem(`${INGEST_JOB_KEY_PREFIX}${ingestFrameSessionId}`, JSON.stringify({
+                      job_id: message.payload.job_id,
+                      status: message.payload.state || 'processing',
+                    }));
+                  }
+                  // Round-4 fix (durable ack): ANY update frame — Director now
+                  // emits a synchronous `state:"accepted"` pulse — proves
+                  // Director received the origin session's ingest message, so
+                  // the one-shot upload intent is consumed HERE (not on
+                  // `sendMessage` success, which only proves browser queuing).
+                  // Until this runs, the builder keeps the key and re-sends on
+                  // remount; Director's idempotent duplicate-job guard makes
+                  // re-sends safe.
+                  if (ingestFrameSessionId) {
+                    sessionStorage.removeItem(`${INGEST_INTENT_KEY_PREFIX}${ingestFrameSessionId}`);
+                  }
+                } else if (
+                  (message.type === 'template_ingest_ready' ||
+                    message.type === 'template_ingest_failed') &&
+                  ingestFrameSessionId
+                ) {
+                  const ingestJobKey = `${INGEST_JOB_KEY_PREFIX}${ingestFrameSessionId}`;
+                  // Terminal frame for the origin session: its one-shot upload
+                  // intent is definitively consumed (durable ack).
+                  sessionStorage.removeItem(`${INGEST_INTENT_KEY_PREFIX}${ingestFrameSessionId}`);
+                  // When both the frame and the stored job row carry a job_id,
+                  // require them to match before touching the record — a
+                  // terminal frame for job X must not clear/overwrite the
+                  // record of a different job Y.
+                  let storedJob: { job_id?: string; status?: string } | null = null;
+                  let storedUnparsable = false;
+                  try {
+                    storedJob = JSON.parse(sessionStorage.getItem(ingestJobKey) || 'null');
+                  } catch {
+                    // Unparsable stored value — treat as stale.
+                    storedUnparsable = true;
+                  }
+                  const jobMatches = !(
+                    message.payload.job_id &&
+                    storedJob?.job_id &&
+                    storedJob.job_id !== message.payload.job_id
+                  );
+                  if (jobMatches) {
+                    if (ingestFrameIsForDisplayedSession) {
+                      // Displayed session: the UI just rendered the result —
+                      // the persisted job record is done.
+                      sessionStorage.removeItem(ingestJobKey);
+                    } else {
+                      // Round-4 fix (R3-2): the ORIGIN session is not the one
+                      // on screen. Do NOT render, and do NOT clear its keys —
+                      // persist the terminal status instead so returning to
+                      // the origin session triggers the existing mount poller,
+                      // which fetches and renders the result via the
+                      // /api/ingest-jobs REST route.
+                      const recordJobId = message.payload.job_id || storedJob?.job_id;
+                      if (recordJobId) {
+                        sessionStorage.setItem(ingestJobKey, JSON.stringify({
+                          job_id: recordJobId,
+                          status: message.type === 'template_ingest_ready' ? 'complete' : 'failed',
+                        }));
+                      } else if (storedUnparsable) {
+                        // Garbage record with no recoverable job id — clear it.
+                        sessionStorage.removeItem(ingestJobKey);
+                      }
+                    }
+                  }
+                }
+              } catch {
+                // sessionStorage unavailable — reconnect polling degrades gracefully
+              }
+            }
+
+            // Trigger message callback
+            // The capability is security material owned only by this transport;
+            // never fan it out through generic message consumers.
+            if (options.onMessage && message.type !== 'build_control_capability') {
+              options.onMessage(message);
+            }
+          } catch (error) {
+            console.error('Failed to parse message:', error);
+          }
+        };
+
+        ws.onerror = (error) => {
+          if (!isCurrentSocket()) {
+            debugLog('⏭️ Ignoring error from stale WebSocket');
+            return;
           }
 
-          // Trigger message callback
-          if (options.onMessage) {
-            options.onMessage(message);
+          console.error('❌ WebSocket error:', error);
+          isConnectingRef.current = false;
+
+          const err = new Error('WebSocket connection error');
+          setState(prev => ({
+            ...prev,
+            error: err,
+            connectionState: 'error',
+          }));
+
+          if (options.onError) {
+            options.onError(err);
           }
-        } catch (error) {
-          console.error('Failed to parse message:', error);
-        }
-      };
+        };
 
-      ws.onerror = (error) => {
-        if (!isCurrentSocket()) {
-          debugLog('⏭️ Ignoring error from stale WebSocket');
-          return;
-        }
+        ws.onclose = (event) => {
+          if (!isCurrentSocket()) {
+            debugLog('⏭️ Ignoring close from stale WebSocket', {
+              code: event.code,
+              reason: event.reason || '(no reason provided)',
+              wasClean: event.wasClean,
+              current_session_id: sessionIdRef.current,
+            });
+            return;
+          }
 
-        console.error('❌ WebSocket error:', error);
-        isConnectingRef.current = false;
+          const now = Date.now();
+          const suppressedSinceLastLog = suppressedCloseDiagnosticsRef.current;
 
-        const err = new Error('WebSocket connection error');
-        setState(prev => ({
-          ...prev,
-          error: err,
-          connectionState: 'error',
-        }));
+          if (now - lastCloseDiagnosticAtRef.current > 5000) {
+            console.warn('🔌 WebSocket connection closed', {
+              code: event.code,
+              reason: event.reason || '(no reason provided)',
+              wasClean: event.wasClean,
+              session_id: sessionIdRef.current,
+              ready_state: ws.readyState,
+              suppressed_close_logs: suppressedSinceLastLog,
+            });
+            lastCloseDiagnosticAtRef.current = now;
+            suppressedCloseDiagnosticsRef.current = 0;
+          } else {
+            suppressedCloseDiagnosticsRef.current += 1;
+            debugLog('🔌 WebSocket connection closed', {
+              code: event.code,
+              reason: event.reason || '(no reason provided)',
+              wasClean: event.wasClean,
+              session_id: sessionIdRef.current,
+            });
+          }
 
-        if (options.onError) {
-          options.onError(err);
-        }
-      };
+          isConnectingRef.current = false;
 
-      ws.onclose = (event) => {
-        if (!isCurrentSocket()) {
-          debugLog('⏭️ Ignoring close from stale WebSocket', {
-            code: event.code,
-            reason: event.reason || '(no reason provided)',
-            wasClean: event.wasClean,
-            current_session_id: sessionIdRef.current,
-          });
-          return;
-        }
+          // Stop heartbeat
+          stopHeartbeat();
+          clearReconnectStabilityTimer();
 
-        const now = Date.now();
-        const suppressedSinceLastLog = suppressedCloseDiagnosticsRef.current;
+          setState(prev => ({
+            ...prev,
+            connected: false,
+            connecting: false,
+            connectionState: 'disconnected',
+            // Clear status when disconnected - prevents stale "working on strawman" messages
+            currentStatus: null,
+          }));
 
-        if (now - lastCloseDiagnosticAtRef.current > 5000) {
-          console.warn('🔌 WebSocket connection closed', {
-            code: event.code,
-            reason: event.reason || '(no reason provided)',
-            wasClean: event.wasClean,
-            session_id: sessionIdRef.current,
-            ready_state: ws.readyState,
-            suppressed_close_logs: suppressedSinceLastLog,
-          });
-          lastCloseDiagnosticAtRef.current = now;
-          suppressedCloseDiagnosticsRef.current = 0;
-        } else {
-          suppressedCloseDiagnosticsRef.current += 1;
-          debugLog('🔌 WebSocket connection closed', {
-            code: event.code,
-            reason: event.reason || '(no reason provided)',
-            wasClean: event.wasClean,
-            session_id: sessionIdRef.current,
-          });
-        }
-
-        isConnectingRef.current = false;
-
-        // Stop heartbeat
-        stopHeartbeat();
-        clearReconnectStabilityTimer();
-
-        setState(prev => ({
-          ...prev,
-          connected: false,
-          connecting: false,
-          connectionState: 'disconnected',
-          // Clear status when disconnected - prevents stale "working on strawman" messages
-          currentStatus: null,
-        }));
-
-        wsRef.current = null;
-        scheduleReconnect(`close:${event.code}`);
-      };
+          socketSessionRef.current = null;
+          wsRef.current = null;
+          buildControlTokenRef.current = null;
+          clearAuthRefreshTimer();
+          // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB (default off): Director keeps one live socket per session and closed this one
+          // (4000 "New connection opened") because the session was opened in another tab. Reconnecting would only evict that
+          // tab in turn, so this tab stops here: no timer, no ping, no frame. The user takes the session back with connect().
+          // Studio's own 4000 closes (heartbeat) carry other reasons and keep their backoff, as does every other close.
+          if (STUDIO_ONE_LIVE_TAB_ENABLED && isDirectorSupersededClose(event)) {
+            debugLog('📑 Director closed this socket: the session is open in another tab; not reconnecting');
+            clearReconnectTimer();
+            reconnectPausedForOfflineRef.current = false;
+            setReconnectStatus('superseded', reconnectAttemptsRef.current);
+            return;
+          }
+          scheduleReconnect(`close:${event.code}`);
+        };
+      })();
       return started;
     } catch (error) {
       console.error('Failed to create WebSocket connection:', error);
@@ -1643,6 +3108,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }
   }, [
     options,
+    reportConfigurationError,
     acknowledgeHeartbeat,
     clearReconnectStabilityTimer,
     clearReconnectTimer,
@@ -1719,12 +3185,16 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         !reconnectOnErrorRef.current ||
         manualDisconnectRef.current ||
         !connectionDesiredRef.current ||
-        reconnectStatusRef.current === 'exhausted'
+        reconnectStatusRef.current === 'exhausted' ||
+        // A tab Director handed over to another tab has nothing to resume when the network returns.
+        reconnectStatusRef.current === 'superseded'
       ) {
         return;
       }
 
       reconnectPausedForOfflineRef.current = true;
+      connectionAttemptGenerationRef.current += 1;
+      isConnectingRef.current = false;
       clearReconnectTimer(true);
       clearReconnectStabilityTimer();
       stopHeartbeat();
@@ -1811,6 +3281,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   useEffect(() => {
     const nextSessionId = options.existingSessionId;
     if (!nextSessionId || nextSessionId === sessionIdRef.current) return;
+    retireVoiceTranscript();
 
     const previousSessionId = sessionIdRef.current;
     const previousSocket = wsRef.current;
@@ -1826,6 +3297,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     });
 
     sessionIdRef.current = nextSessionId;
+    transportNoticeRef.current = null;
+    connectionAttemptGenerationRef.current += 1;
     reconnectAttemptsRef.current = 0;
     clearReconnectTimer();
     clearReconnectStabilityTimer();
@@ -1845,6 +3318,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     setState(prev => ({
       ...prev,
       sessionId: nextSessionId,
+      transportNotice: null,
+      handoffRequestStatus: null,
+      ...(COMPOSER_LIBRARY_ENABLED ? { composerAdoption: null, composerThemeResolved: false } : {}),
       connected: false,
       connecting: shouldReconnect,
       connectionState: shouldReconnect ? 'connecting' : 'disconnected',
@@ -1854,6 +3330,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     pendingSessionReconnectRef.current = shouldReconnect ? nextSessionId : null;
   }, [
     options.existingSessionId,
+    retireVoiceTranscript,
     clearReconnectStabilityTimer,
     clearReconnectTimer,
     setReconnectStatus,
@@ -1878,6 +3355,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
   // Disconnect from WebSocket
   const disconnect = useCallback(() => {
+    retireVoiceTranscript();
+    turnSubmissionLifecycleRef.current.generation += 1;
+    connectionAttemptGenerationRef.current += 1;
     debugLog('🔌 Disconnecting WebSocket');
 
     manualDisconnectRef.current = true;
@@ -1895,6 +3375,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     if (socket) {
       socket.close();
     }
+    buildControlTokenRef.current = null;
 
     isConnectingRef.current = false;
     hasConnectedRef.current = false;
@@ -1909,6 +3390,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       connectionState: 'disconnected',
     }));
   }, [
+    retireVoiceTranscript,
     clearReconnectStabilityTimer,
     clearReconnectTimer,
     setReconnectStatus,
@@ -1916,20 +3398,22 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   ]);
 
   // Send message to server (v4.14: includes feature flags and session-sticky file state)
+  useEffect(() => {
+    slideStructureRef.current = state.slideStructure;
+  }, [state.slideStructure]);
+
   const sendMessage = useCallback((
     text: string,
     storeName?: string,
     fileCount?: number,
     options?: SendUserMessageOptions,
   ): boolean => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      console.error('❌ Cannot send message: WebSocket not connected');
-      return false;
-    }
 
-    try {
+    const buildUserMessage = (): UserMessage => {
       // Session-sticky store_name: prefer options.storeName (from session state) over positional param
       const effectiveStoreName = options?.storeName !== undefined ? options.storeName : (storeName || null);
+      const deepResearch = options?.deepResearch ?? false;
+      const webSearch = (options?.webSearch ?? false) || deepResearch;
 
       const message: UserMessage = {
         type: 'user_message',
@@ -1937,47 +3421,208 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           text,
           store_name: effectiveStoreName,
           ...(effectiveStoreName && { file_count: fileCount || 0 }),
-          deep_research: options?.deepResearch ?? false,
-          web_search: options?.webSearch ?? false,
+          deep_research: deepResearch,
+          web_search: webSearch,
           extended_generation: options?.extendedGeneration ?? true,
           file_upload: options?.fileUpload ?? !!effectiveStoreName,
-          ...(options?.useKnowledgeGraph && { use_knowledge_graph: true }),
+          use_knowledge_graph: options?.useKnowledgeGraph ?? false,
           ...(options?.theme && { theme: options.theme }),
           ...(options?.templateMode && { template_mode: true }),
           ...(options?.templateId && { template_id: options.templateId }),
           ...(options?.elementOverrides && { element_overrides: options.elementOverrides }),
           ...(options?.actionValue && { action_value: options.actionValue }),
           ...(options?.actionLabel && { action_label: options.actionLabel }),
+          ...(options?.templateIngest && { template_ingest: true }),
+          ...(options?.ingestUploadRef && { ingest_upload_ref: options.ingestUploadRef }),
           ...(options?.manualDeck && { manual_deck: options.manualDeck }),
+          ...(options?.deckIdentity && { deck_identity: options.deckIdentity }),
           ...(options?.handoffIdempotencyKey && {
             handoff_idempotency_key: options.handoffIdempotencyKey,
           }),
+          // MDC K6 (P4): advertise client capabilities on every message so the
+          // Director only sends the new frame types to capable clients.
+          ...(CHAT_DIRECTIVES && { client_caps: ['mdc1'] }),
+          // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT: theme1 / export1 after mdc1. Both off: the list is empty and nothing is added.
+          ...(CHAT_THEME_EXPORT_CAPS.length > 0 && { client_caps: [...(CHAT_DIRECTIVES ? ['mdc1'] : []), ...CHAT_THEME_EXPORT_CAPS] }),
+          // MDC K1 (P6): typed slide references parsed from @[Slide N: …]
+          // mention tokens (v1: slides only, §12-Q5).
+          ...(options?.displayText ? { display_text: options.displayText } : {}),
+          ...(CHAT_MENTIONS && (() => {
+            const slides = (slideStructureRef.current?.slides || []).map((sl: any, i: number) => ({
+              index: i, title: sl?.title || '', slide_id: sl?.slide_id ?? null,
+            }));
+            const refs = parseSlideMentions(text, slides);
+            return refs.length > 0 ? { references: refs } : {};
+          })()),
         },
       };
+      // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: element_refine1 in client_caps, and the selected element as one reference. Off: nothing.
+      if (CHAT_ELEMENT_REFINE_ENABLED) addChatElementRefineFields(message.data as unknown as Record<string, unknown>, transportCallbacksRef.current.getChatElementReference?.() ?? null);
+      if (CHAT_ELEMENT_EDIT_ENABLED) addChatElementEditCaps(message.data as unknown as Record<string, unknown>); // CHAT-ELEMENT-EDIT: element_edit1 / notes1 in client_caps, after the other caps. Off: nothing.
+      if (BULK_EDIT_UNDO_CLIENT_CAPS.length > 0) addBulkEditUndoCaps(message.data as unknown as Record<string, unknown>); // BULK-EDIT-UNDO: bulk_edit1 / undo1 in client_caps, each with its own flag. Off: nothing.
+      if (STUDIO_CHAT_COMMANDS_ENABLED) addChatCommandsFields(message.data as unknown as Record<string, unknown>, text); // CHAT-COMMANDS: mentions2 / commands1 in client_caps, the picked file / template / theme references whose token is still in the text, and the command hint. Off: nothing.
+      if (CHAT_PARITY_CAPS.length > 0) addChatParityCaps(message.data as unknown as Record<string, unknown>); // CHAT-PARITY: themes1 / identity1 / templates1, after #522's element_edit1 / notes1, the bulk-edit caps and #532's mentions2 / commands1: the last caps line in client_caps, each with its own flag. Off: nothing.
+      if (typeof STUDIO_VOICE_CALL_UI_ENABLED !== 'undefined' && STUDIO_VOICE_CALL_UI_ENABLED) addVoiceCallFields(message.data as unknown as Record<string, unknown>, text); // VOICE-CALL: only the one armed voice turn (its exact words) gets data.mode "voice" and the cap voice1, after every other cap. Off, or any other message: nothing. (The typeof lets the older proofs that run buildUserMessage in a bare sandbox read this line without naming the flag there.)
+      return message;
+    };
+
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      console.error('❌ Cannot send message: WebSocket not connected');
+      return false;
+    }
+
+    try {
+      const message = buildUserMessage();
+      if (STUDIO_TEMPLATE_MATCH_ENABLED) addTemplateMatchCap(message.data as unknown as Record<string, unknown>); // STUDIO-TEMPLATE-MATCH: template_match1, LAST in client_caps (after every other cap, on the built message). Off: nothing.
+      const effectiveStoreName = message.data.store_name;
 
       debugLog(
         '📤 Sending message:',
         text,
         effectiveStoreName ? `with File Search Store: ${effectiveStoreName} (${fileCount || 0} files)` : '',
-        `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}, use_knowledge_graph=${message.data.use_knowledge_graph ?? false}, theme=${message.data.theme?.mode ?? 'none'}, template_overrides=${message.data.element_overrides ? Object.keys(message.data.element_overrides).length : 0}, action=${message.data.action_value ?? 'none'}, manual_deck=${message.data.manual_deck?.policy ?? 'none'}, handoff=${message.data.handoff_idempotency_key ? 'yes' : 'no'}]`
+        `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}, use_knowledge_graph=${message.data.use_knowledge_graph ?? false}, theme=${message.data.theme?.mode ?? 'none'}, template_overrides=${message.data.element_overrides ? Object.keys(message.data.element_overrides).length : 0}, action=${message.data.action_value ?? 'none'}, manual_deck=${message.data.manual_deck?.policy ?? 'none'}, identity=${message.data.deck_identity ? 'yes' : 'no'}, handoff=${message.data.handoff_idempotency_key ? 'yes' : 'no'}]`
       );
       wsRef.current.send(JSON.stringify(message));
+      if (STUDIO_VOICE_CALL_UI_ENABLED && (message.data as unknown as Record<string, unknown>).mode === 'voice') voiceCallBus.sent?.(text); // VOICE-CALL: Director has the voice turn
+      if (STUDIO_CHAT_COMMANDS_ENABLED) chatCommandsSent(text); // CHAT-COMMANDS: the picks and the command this message used are spent. Off: nothing.
+      const turnSequence = ++sentTurnSequenceRef.current;
+      const key = message.data.handoff_idempotency_key;
+      const lifecycle = turnSubmissionLifecycleRef.current;
+      if (typeof key === 'string' && key.trim() && lifecycle.active
+        && lifecycle.sessionId === sessionIdRef.current && lifecycle.userId === userIdRef.current
+        && socketSessionRef.current === sessionIdRef.current) {
+        handoffRequestRef.current = {
+          sessionId: sessionIdRef.current, userId: userIdRef.current, idempotencyKey: key.trim(),
+          requestGeneration: ++handoffRequestGenerationRef.current,
+          lifecycleGeneration: lifecycle.generation, awaitingTurnSequence: turnSequence,
+        };
+        setState(prev => prev.handoffRequestStatus ? { ...prev, handoffRequestStatus: null } : prev);
+      }
+      // Only an explicit successfully admitted user action clears a discard
+      // notice. Reconnect/refresh never resends the action automatically.
+      if (transportNoticeRef.current?.requiresResend && transportNoticeRef.current.sessionId === sessionIdRef.current) {
+        transportNoticeRef.current = null;
+        setState(prev => ({ ...prev, transportNotice: null }));
+      }
+      beginAwaitReply();
 
       return true;
     } catch (error) {
       console.error('Failed to send message:', error);
       return false;
     }
-  }, []);
+  }, [beginAwaitReply]);
 
-  const sendControlMessage = useCallback((type: ControlMessage['type']): boolean => {
+  /**
+   * Send that survives a closed socket.
+   *
+   * `sendMessage` returns false when the socket is not OPEN — and callers used
+   * to have already rendered the user's bubble and queued it for persistence by
+   * then, so the message looked sent, was stored as sent, and reached nobody.
+   * The socket closes routinely here (duplicate-connection churn, token
+   * refresh, laptop sleep), which made "I typed and nothing happened" a normal
+   * outcome and looked like the Director ignoring typed input.
+   *
+   * So: ask the transport to reconnect, wait for OPEN, then send. Resolves
+   * false when the socket cannot be restored or the originating session/account
+   * lifecycle changes. Callers must never commit a false result to the UI.
+   */
+  const sendMessageWhenConnected = useCallback(async (
+    text: string,
+    storeName?: string,
+    fileCount?: number,
+    options?: SendUserMessageOptions,
+    timeoutMs: number = SEND_RECONNECT_TIMEOUT_MS,
+    isCurrentRequest?: () => boolean,
+  ): Promise<boolean> => {
+    if (isStudioQuotaScreensOn() && !(await walletPrecheckAllows())) return false; // BILLING-F5-USAGE: F4 pre-build check (404 = allowed)
+    const origin = { ...turnSubmissionLifecycleRef.current };
+    const isCurrentTurn = () => (
+      turnSubmissionLifecycleRef.current.active &&
+      turnSubmissionLifecycleRef.current.generation === origin.generation &&
+      turnSubmissionLifecycleRef.current.sessionId === origin.sessionId &&
+      turnSubmissionLifecycleRef.current.userId === origin.userId &&
+      sessionIdRef.current === origin.sessionId &&
+      userIdRef.current === origin.userId &&
+      // Callers may observe navigation intent before native session adoption.
+      // This local predicate is never forwarded into the Director wire options.
+      (isCurrentRequest?.() ?? true)
+    );
+    if (!origin.active || !origin.userId || !isCurrentTurn()) return false;
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      if (socketSessionRef.current !== origin.sessionId) return false;
+      return sendMessage(text, storeName, fileCount, options);
+    }
+
+    // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: a tab Director handed over to another tab does not reconnect to send (that would evict the
+    // live tab); fail at once instead of waiting out the reconnect window. The page tells the user and offers "Use here".
+    if (STUDIO_ONE_LIVE_TAB_ENABLED && reconnectStatusRef.current === 'superseded') return false;
+
+    debugLog('🔌 Send requested on a closed socket — reconnecting first');
+    ensureConnected();
+
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 150));
+      if (!isCurrentTurn()) return false;
+      const readySocket = wsRef.current;
+      if (readySocket?.readyState === WebSocket.OPEN && socketSessionRef.current === origin.sessionId) {
+        // Give this session's post-accept sync a beat to land. A replacement
+        // socket or lifecycle cannot inherit the original turn after the wait.
+        await new Promise(resolve => setTimeout(resolve, 250));
+        if (!isCurrentTurn() || wsRef.current !== readySocket ||
+          readySocket.readyState !== WebSocket.OPEN || socketSessionRef.current !== origin.sessionId) return false;
+        return sendMessage(text, storeName, fileCount, options);
+      }
+    }
+
+    console.error('❌ Send failed: socket could not be reopened within', timeoutMs, 'ms');
+    return false;
+  }, [sendMessage, ensureConnected]);
+
+  // MDC P8 (K5): report a directive outcome back to the Director.
+  const sendElementDirectiveResult = useCallback((data: import('@/types/mdc').ElementDirectiveResult['data']): boolean => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      console.error('❌ Cannot send element_directive_result: WebSocket not connected');
+      return false;
+    }
+    try {
+      wsRef.current.send(JSON.stringify({ type: 'element_directive_result', data }));
+      return true;
+    } catch (error) {
+      console.error('Failed to send element_directive_result:', error);
+      return false;
+    }
+  }, []);
+  // CHAT-ELEMENT-EDIT: report an element_edit outcome (ok:true means saved) on the socket that delivered it. Unused with the flag off.
+  const sendElementEditResult = useCallback((data: import('@/lib/chat-element-edit-wire').ElementEditResultData): boolean => { // CHAT-ELEMENT-EDIT
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) { // CHAT-ELEMENT-EDIT
+      console.error('❌ Cannot send element_edit_result: WebSocket not connected'); // CHAT-ELEMENT-EDIT
+      return false; // CHAT-ELEMENT-EDIT
+    } // CHAT-ELEMENT-EDIT
+    try { // CHAT-ELEMENT-EDIT
+      wsRef.current.send(JSON.stringify(elementEditResultFrame(data))); // CHAT-ELEMENT-EDIT
+      return true; // CHAT-ELEMENT-EDIT
+    } catch (error) { // CHAT-ELEMENT-EDIT
+      console.error('Failed to send element_edit_result:', error); // CHAT-ELEMENT-EDIT
+      return false; // CHAT-ELEMENT-EDIT
+    } // CHAT-ELEMENT-EDIT
+  }, []); // CHAT-ELEMENT-EDIT
+  // CHAT-PARITY: report a studio_action outcome back to the Director (lib/studio-chat-parity.ts chatParityResult); the frame is built there so the names live in one place.
+  const sendChatParityResult = useCallback((data: import('@/lib/studio-chat-parity').ChatParityResultData): boolean => { // CHAT-PARITY
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return false; // CHAT-PARITY
+    try { wsRef.current.send(JSON.stringify(chatParityResultFrame(data))); return true; } catch { return false; } // CHAT-PARITY
+  }, []); // CHAT-PARITY
+  chatParityBus.send = sendChatParityResult // CHAT-PARITY: the page's runner answers through the bus (lib/studio-chat-parity.ts)
+
+  const sendControlMessage = useCallback((type: ControlMessage['type'], data?: { job_id: string }): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error('❌ Cannot send control message: WebSocket not connected');
       return false;
     }
 
     try {
-      const message: ControlMessage = { type };
+      const message = (data ? { type, data } : { type }) as ControlMessage;
       debugLog('📤 Sending control message:', type);
       wsRef.current.send(JSON.stringify(message));
       return true;
@@ -1992,6 +3637,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     requestId: string,
     presentationId: string,
   ): boolean => {
+    if (COMPOSER_LIBRARY_ENABLED && (composerThemeRef.current.sessionId !== sessionIdRef.current ||
+        composerThemeSyncBlocked(true, composerThemeRef.current, presentationId))) return false;
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.error('❌ Cannot sync theme: WebSocket not connected');
       return false;
@@ -2011,8 +3658,232 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }
   }, []);
 
+  // Build Narration Phase 5: pause/resume/stop a running deck build.
+  // Requires Director BUILD_CONTROL_ENABLED; the ack is the resulting
+  // build_phase frame (paused/building/stopped).
+  const sendBuildControl = useCallback((action: BuildControlData['action'], buildId?: string): string | null => {
+    const instructions = takeFlowInstructions(); // FLOW-CONTROL: what the flow hook left for this one request (a resume with the user's changes), taken once
+    const requestId = createBuildControlRequestId(
+      typeof globalThis.crypto?.randomUUID === 'function'
+        ? globalThis.crypto.randomUUID.bind(globalThis.crypto)
+        : null,
+    );
+    // One immutable transport attempt owns one socket capability. A reconnect
+    // rotates that capability, so its asynchronous HTTP failure must never
+    // fall back through the replacement socket/session with stale authority.
+    const requestSessionId = sessionIdRef.current;
+    const requestUserId = userIdRef.current;
+    const requestControlToken = buildControlTokenRef.current;
+    const requestSocket = wsRef.current;
+    const transportSnapshot = {
+      sessionId: requestSessionId,
+      userId: requestUserId,
+      controlToken: requestControlToken,
+      socket: requestSocket,
+    };
+    const data = {
+      session_id: requestSessionId,
+      user_id: requestUserId,
+      action,
+      ...(buildId ? { build_id: buildId } : {}),
+      ...(instructions ? { instructions } : {}), // FLOW-CONTROL
+      request_id: requestId,
+      ...(requestControlToken ? { control_token: requestControlToken } : {}),
+    };
+    if (!data.session_id || !data.user_id) return null;
+    const sendWsFallback = (): boolean => {
+      if (!requestSocket || !isCurrentBuildControlTransportSnapshot(transportSnapshot, {
+        sessionId: sessionIdRef.current,
+        userId: userIdRef.current,
+        controlToken: buildControlTokenRef.current,
+        socket: wsRef.current,
+      })) {
+        debugLog('build_control fallback suppressed after connection identity changed', {
+          request_id: requestId,
+        });
+        return false;
+      }
+      if (requestSocket.readyState !== WebSocket.OPEN) {
+        console.error('❌ Cannot send build_control: original WebSocket not connected');
+        return false;
+      }
+      try {
+        const message = {
+          type: 'build_control' as const,
+          data: {
+            action,
+            ...(buildId ? { build_id: buildId } : {}),
+            ...(instructions ? { instructions } : {}), // FLOW-CONTROL
+            request_id: requestId,
+            session_id: requestSessionId,
+            user_id: requestUserId,
+            ...(requestControlToken ? { control_token: requestControlToken } : {}),
+          },
+        };
+        debugLog('📤 Sending build_control via WebSocket fallback:', {
+          action,
+          build_id: buildId,
+          request_id: requestId,
+          has_control_token: Boolean(requestControlToken),
+        });
+        requestSocket.send(JSON.stringify(message));
+        return true;
+      } catch (error) {
+        console.error('Failed to send build_control over WebSocket:', error);
+        return false;
+      }
+    }
+    let configuredWsUrl: string;
+    try {
+      configuredWsUrl = getDirectorWsUrl();
+    } catch (error) {
+      if (!(error instanceof ServiceUrlConfigError)) throw error;
+      reportConfigurationError(error);
+      return null;
+    }
+    const endpoint = buildControlEndpointFromWsUrl(configuredWsUrl)
+    if (endpoint && typeof fetch === 'function') {
+      debugLog('📤 Sending build_control via HTTP:', {
+        session_id: data.session_id,
+        user_id: data.user_id,
+        action,
+        build_id: buildId,
+        request_id: requestId,
+        has_control_token: Boolean(requestControlToken),
+      });
+      const controller = typeof AbortController === 'function' ? new AbortController() : null
+      let fallbackAttempted = false
+      const sendWsFallbackOnce = () => {
+        if (fallbackAttempted) return false
+        fallbackAttempted = true
+        return sendWsFallback()
+      }
+      const timeoutId = setTimeout(() => {
+        debugLog('build_control HTTP timed out; falling back to WebSocket', { request_id: requestId })
+        controller?.abort()
+        sendWsFallbackOnce()
+      }, BUILD_CONTROL_HTTP_TIMEOUT_MS)
+      try {
+        fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          ...(controller ? { signal: controller.signal } : {}),
+        })
+          .then((response) => {
+            if (!response.ok) throw new Error(`HTTP ${response.status}`)
+            clearTimeout(timeoutId)
+          })
+          .catch((error) => {
+            clearTimeout(timeoutId)
+            debugLog('build_control HTTP failed; falling back to WebSocket', error)
+            sendWsFallbackOnce()
+          })
+      } catch (error) {
+        clearTimeout(timeoutId)
+        debugLog('build_control HTTP threw; falling back to WebSocket', error)
+        sendWsFallbackOnce()
+      }
+      return requestId
+    }
+    try {
+      return sendWsFallback() ? requestId : null
+    } catch (error) {
+      console.error('Failed to send build_control:', error);
+      return null;
+    }
+  }, [reportConfigurationError]);
+
+  // Template Ingest (C-5): apply a completed ingest job fetched via the REST
+  // reconnect-polling path exactly as if the template_ingest_ready WS frame had
+  // arrived (same state setters as the reducer case above).
+  // Round-5 fix (R4-5): the caller MUST pass the origin session the poll was
+  // started for. A late REST response for session B resolving after the user
+  // switched the SPA to session C would otherwise adopt B's deck into C via
+  // mutable `sessionIdRef.current`. If the expected (origin) session is not
+  // the displayed session AT CALL TIME, this is a logged no-op returning
+  // false — belt and braces beneath the poller's own post-await guards.
+  const applyTemplateIngestReady = useCallback((
+    payload: TemplateIngestReady['payload'],
+    expectedSessionId: string,
+  ): boolean => {
+    if (expectedSessionId !== sessionIdRef.current) {
+      console.warn('[TemplateIngest] applyTemplateIngestReady refused: origin session is not the displayed session', {
+        expectedSessionId,
+        displayedSessionId: sessionIdRef.current,
+      });
+      return false;
+    }
+    const admission = guardDirectorLayoutUrlMessage(
+      { type: 'template_ingest_ready', payload }, LAYOUT_VIEWER_URL_POLICY,
+    );
+    if (admission.ingress?.status !== 'allowed') return false;
+    const composerAdoption = COMPOSER_LIBRARY_ENABLED
+      ? readComposerAdoption(payload.composer_adoption, payload.presentation_id) : null;
+    if (composerAdoption) composerThemeRef.current = { sessionId: expectedSessionId, composerAdoption, composerThemeResolved: true };
+    debugLog('🧩 applyTemplateIngestReady (poll path):', {
+      template_id: payload.template_id,
+      presentation_id: payload.presentation_id,
+      viewer_url: payload.viewer_url,
+    });
+
+    setStateWithCache(prev => {
+      const newState = { ...prev };
+      if (composerAdoption) Object.assign(newState, { composerAdoption, composerThemeResolved: true });
+      newState.templateIngestResult = payload;
+      newState.templateIngestError = null;
+      newState.templateIngestJobId = null;
+
+      if (payload.viewer_url) {
+        newState.finalPresentationUrl = payload.viewer_url;
+        newState.finalPresentationId = payload.presentation_id;
+        newState.deckOwnerSessionId = sessionIdRef.current;
+        newState.isBlankPresentation = false;
+        newState.activeVersion = 'final';
+        newState.presentationUrl = payload.viewer_url;
+        newState.presentationId = payload.presentation_id;
+        if (typeof payload.slide_count === 'number') {
+          newState.slideCount = payload.slide_count;
+        } else if (payload.per_slide_fidelity?.length) {
+          newState.slideCount = payload.per_slide_fidelity.length;
+        }
+
+        if (options.onPresentationReady) {
+          options.onPresentationReady(payload.viewer_url);
+        }
+        if (options.onSessionStateChange) {
+          try {
+            options.onSessionStateChange({
+              presentationUrl: payload.viewer_url,
+              presentationId: payload.presentation_id,
+              slideCount: newState.slideCount ?? undefined,
+              currentStage: 6,
+            });
+          } catch (error) {
+            console.error('❌ onSessionStateChange threw error (applyTemplateIngestReady):', error);
+          }
+        }
+      }
+
+      newState.currentStatus = null;
+      return newState;
+    });
+
+    if (typeof window !== 'undefined') {
+      try {
+        // Equal to expectedSessionId — the guard above already proved it.
+        sessionStorage.removeItem(`${INGEST_JOB_KEY_PREFIX}${sessionIdRef.current}`);
+      } catch {
+        // ignore storage errors
+      }
+    }
+    return true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setStateWithCache]);
+
   // Switch between blank, strawman and final versions (Builder V2)
   const switchVersion = useCallback((version: 'blank' | 'strawman' | 'final') => {
+    retireDeckMutationOwner();
     setStateWithCache(prev => {
       const newActiveVersion = version;
       let newPresentationUrl = null;
@@ -2042,7 +3913,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         deckOwnerSessionId: newPresentationUrl ? (prev.deckOwnerSessionId || sessionIdRef.current) : prev.deckOwnerSessionId
       };
     });
-  }, [setStateWithCache]);
+  }, [retireDeckMutationOwner, setStateWithCache]);
 
   // Drain tracked ephemeral message IDs after MessageList finishes the fade-out animation.
   const clearEphemeralIds = useCallback(() => {
@@ -2051,13 +3922,20 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
   // Clear messages
   const clearMessages = useCallback(() => {
+    retireVoiceTranscript();
+    retireDeckMutationOwner();
+    retireHandoffRequest();
     // Also clear the cache
     sessionCache.clearCache();
 
     setStateWithCache(prev => ({
       ...prev,
+      composerAdoption: null,
+      composerThemeResolved: false,
       messages: [],
+      studioVoiceTranscriptReceipt: createVoiceTranscript([], [], []),
       presentationUrl: null,
+      studioAutomaticBlankSelection: null,
       strawmanPreviewUrl: null,
       finalPresentationUrl: null,
       deckOwnerSessionId: null,
@@ -2070,6 +3948,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       isBlankPresentation: false,
       activeVersion: 'final',
       directorWorkflowState: null,
+        hasStrawman: false,
       slideCount: null,
       currentStatus: null,
       slideStructure: null,
@@ -2079,11 +3958,16 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       ephemeralFadeToken: 0,
       tokenUsage: null,
       tokenUsageMessageId: null,
+      templateIngestResult: null,
+      templateIngestError: null,
+      templateIngestJobId: null,
     }));
-  }, [sessionCache, setStateWithCache]);
+  }, [retireDeckMutationOwner, retireHandoffRequest, sessionCache, setStateWithCache, retireVoiceTranscript]);
 
   // Restore messages from database (for session loading)
   const restoreMessages = useCallback((historicalMessages: DirectorMessage[], restoredSessionState?: {
+    /** Explicit owner of loaded metadata; independent of socket adoption. */
+    deckOwnerSessionId?: string | null;
     presentationUrl?: string | null;
     presentationId?: string | null;
     strawmanPreviewUrl?: string | null;
@@ -2098,7 +3982,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     slideStructure?: any;
     currentStage?: number | null;
     activeVersion?: 'blank' | 'strawman' | 'final' | null;
-  }) => {
+  }, studioTranscriptRestoredIds: readonly string[] = []) => {
+    retireVoiceTranscript();
+    retireDeckMutationOwner();
+    retireHandoffRequest();
     const { state: sessionState, blocked: blockedViewerUrls } = sanitizeRestoredLayoutViewerUrls(
       restoredSessionState || {},
       LAYOUT_VIEWER_URL_POLICY,
@@ -2114,8 +4001,11 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     }
 
     const safeHistoricalMessages = historicalMessages.map(message => {
+      const cleanMessage = { ...message } as DirectorMessage & { clientOutlineReplayOf?: string; clientTerminalOutlineRevisionOf?: string };
+      delete cleanMessage.clientOutlineReplayOf;
+      delete cleanMessage.clientTerminalOutlineRevisionOf;
       const guarded = guardDirectorLayoutUrlMessage(
-        message as DirectorMessage & { payload: Record<string, any> },
+        cleanMessage as DirectorMessage & { payload: Record<string, any> },
         LAYOUT_VIEWER_URL_POLICY,
       );
       if (guarded.ingress?.status === 'blocked') {
@@ -2194,35 +4084,102 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       sessionState.blankPresentationUrl ||
       sessionState.strawmanPreviewUrl ||
       sessionState.finalPresentationUrl
-    ) ? sessionIdRef.current : null;
+    ) ? (sessionState.deckOwnerSessionId === undefined
+      ? sessionIdRef.current
+      : sessionState.deckOwnerSessionId) : null;
 
-    setStateWithCache(prev => ({
-      ...prev,
-      messages: safeHistoricalMessages,
-      // CRITICAL FIX: Use computed display URL based on activeVersion
-      // This ensures the correct presentation version is shown
-      presentationUrl: displayUrl,
-      presentationId: displayId,
-      strawmanPreviewUrl: sessionState.strawmanPreviewUrl || null,
-      strawmanPresentationId: sessionState.strawmanPresentationId || null,
-      finalPresentationUrl: sessionState.finalPresentationUrl || null,
-      finalPresentationId: sessionState.finalPresentationId || null,
-      deckOwnerSessionId: restoredDeckOwnerSessionId,
-      // NEW: Blank presentation state (Builder V2)
-      blankPresentationUrl: sessionState.blankPresentationUrl || null,
-      blankPresentationId: sessionState.blankPresentationId || null,
-      isBlankPresentation: sessionState.isBlankPresentation || false,
-      activeVersion: activeVersion,
-      slideCount: sessionState.slideCount || null,
-      slideStructure: sessionState.slideStructure || null,
-      currentStage: sessionState.currentStage || null,
-      currentStatus: null, // Always clear status on session restore
-      ephemeralMessageIds: [],
-      ephemeralFadeToken: 0,
-      tokenUsage: (sessionState as any).tokenUsage || null,
-      tokenUsageMessageId: (sessionState as any).tokenUsageMessageId || null,
-    }));
-  }, [setStateWithCache]);
+    // A DB snapshot can finish after a response was received or before a
+    // debounced save completes. Preserve that same-session transcript in memory,
+    // not only in the cache writer's separate merge. Never reuse another
+    // session's cached messages during an asynchronous session adoption.
+    const historySessionId = sessionState.deckOwnerSessionId
+      || safeHistoricalMessages[0]?.session_id
+      || sessionIdRef.current;
+    const cachedHistory = historySessionId === sessionIdRef.current && sessionCache.isCacheValid()
+      ? sessionCache.getCachedState()
+      : null;
+    const cachedUserIds = new Set(cachedHistory?.userMessages?.map(message => message.id) || []);
+    const cachedBotMessages = (cachedHistory?.messages || []).filter(message => !cachedUserIds.has(message.message_id));
+
+    setStateWithCache(prev => {
+      // An incomplete DB snapshot must not erase a final deck already owned
+      // by this selected session. Explicit version/new-build/final claims win.
+      const retainFinal = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+        && sessionState.deckOwnerSessionId === historySessionId
+        && prev.deckOwnerSessionId === historySessionId
+        && prev.activeVersion === 'final'
+        && !!prev.finalPresentationId && !!prev.finalPresentationUrl
+        && prev.presentationId === prev.finalPresentationId
+        && prev.presentationUrl === prev.finalPresentationUrl
+        && Number.isInteger(prev.slideCount) && (prev.slideCount ?? 0) > 0
+        && evaluateLayoutViewerUrl(prev.finalPresentationUrl, LAYOUT_VIEWER_URL_POLICY).status === 'allowed'
+        && !restoredSessionState?.finalPresentationId && !restoredSessionState?.finalPresentationUrl
+        && sessionState.activeVersion !== 'blank' && sessionState.activeVersion !== 'strawman'
+        && (sessionState.currentStage == null || sessionState.currentStage === 6);
+      const restoredFinalId = retainFinal ? prev.finalPresentationId : sessionState.finalPresentationId || null;
+      const restoredFinalUrl = retainFinal ? prev.finalPresentationUrl : sessionState.finalPresentationUrl || null;
+      const restoredVersion = retainFinal ? 'final' : activeVersion;
+      const restoredOwner = retainFinal ? prev.deckOwnerSessionId : restoredDeckOwnerSessionId;
+      const retainBlank = retainFinal && !restoredSessionState?.blankPresentationId && !restoredSessionState?.blankPresentationUrl
+        && !!prev.blankPresentationId && !!prev.blankPresentationUrl
+        && evaluateLayoutViewerUrl(prev.blankPresentationUrl, LAYOUT_VIEWER_URL_POLICY).status === 'allowed';
+      const retainStrawman = retainFinal && !restoredSessionState?.strawmanPresentationId && !restoredSessionState?.strawmanPreviewUrl
+        && !!prev.strawmanPresentationId && !!prev.strawmanPreviewUrl
+        && evaluateLayoutViewerUrl(prev.strawmanPreviewUrl, LAYOUT_VIEWER_URL_POLICY).status === 'allowed';
+      const restoredMessages = mergeDirectorChatHistory(historySessionId, safeHistoricalMessages, cachedBotMessages, prev.messages)
+        .reduce<DirectorMessage[]>((accepted, message) => {
+          accepted.push(projectVerifiedOutlineReplay(message, accepted, {
+            isTerminal: restoredVersion === 'final' && !!restoredFinalId && !!restoredFinalUrl,
+            socketSessionId: sessionIdRef.current,
+            displayedSessionId: historySessionId,
+            deckOwnerSessionId: restoredOwner ?? null,
+            finalPresentationId: restoredFinalId,
+            finalPresentationUrl: restoredFinalUrl,
+          }));
+          return accepted;
+        }, []);
+      const privateRestoreIds = studioTranscriptRestoredIds.map(message_id => ({ message_id }));
+      const unknownReceipt = createVoiceTranscript(cacheVoiceMessages(cachedHistory), prev.messages, prev.ephemeralMessageIds);
+      const restoredReceipt = unknownReceipt ? completeStudioVoiceTranscriptRestore(unknownReceipt, {
+        ownershipAdmitted: historySessionId === voiceTranscriptAuthorityRef.current.sessionId,
+        historicalMessages: [...safeHistoricalMessages, ...privateRestoreIds], cachedMessages: cacheVoiceMessages(cachedHistory),
+        priorVisibleMessages: prev.messages, acceptedMessages: restoredMessages,
+        ephemeralIds: prev.ephemeralMessageIds,
+      }) : null;
+      return {
+        ...prev,
+        messages: restoredMessages,
+        studioVoiceTranscriptReceipt: restoredReceipt,
+        studioAutomaticBlankSelection: null,
+        // CRITICAL FIX: Use computed display URL based on activeVersion
+        // This ensures the correct presentation version is shown
+        presentationUrl: retainFinal ? restoredFinalUrl : displayUrl,
+        presentationId: retainFinal ? restoredFinalId : displayId,
+        strawmanPreviewUrl: retainStrawman ? prev.strawmanPreviewUrl : sessionState.strawmanPreviewUrl || null,
+        strawmanPresentationId: retainStrawman ? prev.strawmanPresentationId : sessionState.strawmanPresentationId || null,
+        finalPresentationUrl: restoredFinalUrl,
+        finalPresentationId: restoredFinalId,
+        deckOwnerSessionId: restoredOwner,
+        // NEW: Blank presentation state (Builder V2)
+        blankPresentationUrl: retainBlank ? prev.blankPresentationUrl : sessionState.blankPresentationUrl || null,
+        blankPresentationId: retainBlank ? prev.blankPresentationId : sessionState.blankPresentationId || null,
+        isBlankPresentation: process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+          ? restoredVersion === 'blank' : sessionState.isBlankPresentation || false,
+        activeVersion: restoredVersion,
+        slideCount: retainFinal ? prev.slideCount : sessionState.slideCount || null,
+        slideStructure: retainFinal ? prev.slideStructure : sessionState.slideStructure || null,
+        ...(retainFinal ? {} : { currentStage: sessionState.currentStage || null }),
+        currentStatus: null, // Always clear status on session restore
+        ephemeralMessageIds: [],
+        ephemeralFadeToken: 0,
+        tokenUsage: (sessionState as any).tokenUsage || null,
+        tokenUsageMessageId: (sessionState as any).tokenUsageMessageId || null,
+        templateIngestResult: (sessionState as any).templateIngestResult || null,
+        templateIngestError: null,
+        templateIngestJobId: null,
+      };
+    });
+  }, [retireDeckMutationOwner, retireHandoffRequest, sessionCache, setStateWithCache, retireVoiceTranscript]);
 
   // Auto-connect on mount (only once)
   useEffect(() => {
@@ -2255,7 +4212,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   // Update user messages in session cache (called from page.tsx when user messages are loaded/updated)
   // This is critical for the sync protocol to work correctly - skip_history needs to know about user messages
   const updateCacheUserMessages = useCallback((
-    userMessages: Array<{ id: string; text: string; timestamp: number }>
+    userMessages: UserChatMessage[]
   ) => {
     debugLog('💾 Updating cache with user messages:', userMessages.length);
 
@@ -2276,15 +4233,28 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     ensureConnected,
     disconnect,
     sendMessage,
+    sendMessageWhenConnected,
+    sendElementDirectiveResult,
+    sendElementEditResult, // CHAT-ELEMENT-EDIT
     sendControlMessage,
+    applyTemplateIngestReady,
     sendThemeSelection,
+    sendBuildControl,
     clearMessages,
     clearEphemeralIds,
     restoreMessages,
     switchVersion,
     updateCacheUserMessages,
 
+    awaitingDirectorReply,
+    stopAwaitingReply: clearAwaitReply,
+    trackHandoffRequest,
+
     // Utility
     isReady: state.connected,
+    socketSessionId: socketSessionRef.current,
+    // Round-5 fix (R4-6): bumps on every socket `onopen`. Effects that must
+    // re-arm per-connection (ingest resend, job-record polling) depend on it.
+    connectionGeneration,
   };
 }

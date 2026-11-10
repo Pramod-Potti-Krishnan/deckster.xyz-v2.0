@@ -16,7 +16,7 @@ import {
   type TextSlotKind,
   TEXT_LABS_ELEMENT_DEFAULTS,
 } from '@/types/textlabs'
-import { type ElementContext, type MandatoryConfig } from '../types'
+import { type ElementContext, type GenerationPanelDraft, type MandatoryConfig } from '../types'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { PositionPresets } from '../shared/position-presets'
 import { ZIndexInput } from '../shared/z-index-input'
@@ -25,6 +25,13 @@ import { PaddingControl } from '../shared/padding-control'
 import { ToggleRow } from '../shared/toggle-row'
 import { useDeckThemePalette } from '@/hooks/use-deck-theme-palette'
 import { effectiveTextGeometry } from '@/lib/textbox-geometry-mode'
+import {
+  TEXTBOX_REQUEST_FIDELITY_ENABLED,
+  textBoxConfigForRequest,
+  textBoxManualGeometryForRequest,
+  typedTextBoxCardLimit,
+  typedTextBoxCardNoun,
+} from '@/lib/textbox-request-fidelity'
 import {
   isTextBoxCountViable,
   isTextBoxLayoutViable,
@@ -39,6 +46,10 @@ import {
   slotMetadataForRequest,
   slotSelectionValue,
 } from '@/lib/text-slot-catalog'
+
+import './studio-content-fields.css'
+
+const STUDIO_CONTENT_FIELDS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
 
 const DEFAULTS = TEXT_LABS_ELEMENT_DEFAULTS.TEXT_BOX
 
@@ -100,6 +111,28 @@ interface ExistingTextTarget {
   generationConfig?: Record<string, unknown> | null
 }
 
+export interface TextBoxControlsDraft {
+  targetValue: string
+  roleContext: string | null
+  structure: 'auto' | TextBoxStructure
+  count: number
+  countAuto?: boolean
+  layoutChoice: TextBoxLayoutChoice
+  gridCols: number
+  multiBoxColorMode: NonNullable<TextBoxFormData['multiBoxColorMode']>
+  textboxOverrides: Partial<TextBoxConfig>
+  geometryMode: 'AUTO' | 'MANUAL'
+  manualGeometryOverrides: TextManualGeometryOverrides
+  zIndex: number
+  positionModified: boolean
+  paddingModified: boolean
+  paddingConfig: TextLabsPaddingConfig
+  positionConfig: TextLabsPositionConfig
+  geometryEdited: boolean
+  geometryContext: ElementContext | null
+  sections: Record<'instances' | 'boxDesign' | 'heading' | 'content' | 'positioning' | 'padding', boolean>
+}
+
 interface TextBoxFormProps {
   onSubmit: (formData: TextLabsFormData) => void
   registerSubmit: (fn: () => void) => void
@@ -114,6 +147,9 @@ interface TextBoxFormProps {
   slotCatalogLoading: boolean
   slotCatalogError?: string | null
   existingTextTarget?: ExistingTextTarget | null
+  initialDraft?: GenerationPanelDraft | null
+  onDraftChange?: (draft: Partial<GenerationPanelDraft>) => void
+  targetElementId?: string | null
 }
 
 function roleLabel(role?: TextSemanticRole | null): string {
@@ -153,6 +189,11 @@ function readSavedTextBoxGenerationConfig(value: unknown) {
     prompt: typeof source.prompt === 'string' ? source.prompt : undefined,
     structure: stringValue(source.structure, STRUCTURE_VALUES, 'auto'),
     count: Math.max(1, Math.min(6, Math.round(numberValue(source.count, 1)))),
+    // Configs saved before the fidelity flag carry only a numeric count; a single
+    // box was the old default rather than a recorded choice.
+    countAuto: TEXTBOX_REQUEST_FIDELITY_ENABLED
+      ? booleanValue(source.countAuto, numberValue(source.count, 1) <= 1)
+      : false,
     layoutChoice: stringValue(source.layoutChoice, LAYOUT_CHOICE_VALUES, 'auto'),
     gridCols: Math.max(1, Math.min(6, Math.round(numberValue(source.gridCols, 2)))),
     multiBoxColorMode: stringValue(source.multiBoxColorMode, MULTI_BOX_COLOR_VALUES, 'SAME'),
@@ -199,7 +240,7 @@ function OptionalNumberInput({
 }
 
 export function TextBoxForm({
-  onSubmit,
+  onSubmit: onSubmitDirect,
   registerSubmit,
   presentationId,
   elementContext,
@@ -211,51 +252,72 @@ export function TextBoxForm({
   slotCatalogLoading,
   slotCatalogError,
   existingTextTarget,
+  initialDraft,
+  onDraftChange,
+  targetElementId,
 }: TextBoxFormProps) {
-  const [targetValue, setTargetValue] = useState(BODY_TEXT_AUTO_SLOT)
-  const [structure, setStructure] = useState<'auto' | TextBoxStructure>('auto')
-  const [count, setCount] = useState(1)
-  const [layoutChoice, setLayoutChoice] = useState<TextBoxLayoutChoice>('auto')
-  const [gridCols, setGridCols] = useState(2)
-  const [multiBoxColorMode, setMultiBoxColorMode] = useState<NonNullable<TextBoxFormData['multiBoxColorMode']>>('SAME')
-  const [textboxOverrides, setTextboxOverrides] = useState<Partial<TextBoxConfig>>({})
-  const [geometryMode, setGeometryMode] = useState<'AUTO' | 'MANUAL'>('AUTO')
-  const [manualGeometryOverrides, setManualGeometryOverrides] = useState<TextManualGeometryOverrides>({})
-  const [zIndex, setZIndex] = useState(DEFAULTS.zIndex)
-  const [positionModified, setPositionModified] = useState(false)
-  const [paddingModified, setPaddingModified] = useState(false)
-  const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>({
+  const activeTargetId = targetElementId ?? existingTextTarget?.elementId ?? null
+  const [initialControls] = useState(() => STUDIO_CONTENT_FIELDS ? initialDraft?.textBoxControls : undefined)
+  const [initialSaved] = useState(() => STUDIO_CONTENT_FIELDS ? readSavedTextBoxGenerationConfig(existingTextTarget?.generationConfig) : null)
+
+  const [targetValue, setTargetValue] = useState(initialControls?.targetValue ?? BODY_TEXT_AUTO_SLOT)
+  const [structure, setStructure] = useState<'auto' | TextBoxStructure>(initialControls?.structure ?? initialSaved?.structure ?? 'auto')
+  const [count, setCount] = useState(initialControls?.count ?? initialSaved?.count ?? 1)
+  const [countAuto, setCountAuto] = useState(initialControls?.countAuto ?? initialSaved?.countAuto ?? TEXTBOX_REQUEST_FIDELITY_ENABLED)
+  const [layoutChoice, setLayoutChoice] = useState<TextBoxLayoutChoice>(initialControls?.layoutChoice ?? initialSaved?.layoutChoice ?? 'auto')
+  const [gridCols, setGridCols] = useState(initialControls?.gridCols ?? initialSaved?.gridCols ?? 2)
+  const [multiBoxColorMode, setMultiBoxColorMode] = useState<NonNullable<TextBoxFormData['multiBoxColorMode']>>(initialControls?.multiBoxColorMode ?? initialSaved?.multiBoxColorMode ?? 'SAME')
+  const [textboxOverrides, setTextboxOverrides] = useState<Partial<TextBoxConfig>>(initialControls?.textboxOverrides ?? initialSaved?.textboxOverrides ?? {})
+  const [geometryMode, setGeometryMode] = useState<'AUTO' | 'MANUAL'>(initialControls?.geometryMode ?? initialSaved?.geometryMode ?? 'AUTO')
+  const [manualGeometryOverrides, setManualGeometryOverrides] = useState<TextManualGeometryOverrides>(initialControls?.manualGeometryOverrides ?? initialSaved?.manualGeometryOverrides ?? {})
+  const [zIndex, setZIndex] = useState(initialControls?.zIndex ?? initialSaved?.zIndex ?? DEFAULTS.zIndex)
+  const [positionModified, setPositionModified] = useState(initialControls?.positionModified ?? initialSaved?.positionModified ?? false)
+  const [paddingModified, setPaddingModified] = useState(initialControls?.paddingModified ?? initialSaved?.paddingModified ?? false)
+  const [paddingConfig, setPaddingConfig] = useState<TextLabsPaddingConfig>(initialControls?.paddingConfig ?? initialSaved?.paddingConfig ?? {
     top: 0,
     right: 0,
     bottom: 0,
     left: 0,
   })
-  const [showInstances, setShowInstances] = useState(false)
-  const [showBoxDesign, setShowBoxDesign] = useState(false)
-  const [showHeading, setShowHeading] = useState(false)
-  const [showContent, setShowContent] = useState(false)
-  const [showPositioning, setShowPositioning] = useState(false)
-  const [showPadding, setShowPadding] = useState(false)
-  const [positionConfig, setPositionConfig] = useState<TextLabsPositionConfig>({
+  const [showInstances, setShowInstances] = useState(initialControls?.sections.instances ?? false)
+  const [showBoxDesign, setShowBoxDesign] = useState(initialControls?.sections.boxDesign ?? false)
+  const [showHeading, setShowHeading] = useState(initialControls?.sections.heading ?? false)
+  const [showContent, setShowContent] = useState(initialControls?.sections.content ?? false)
+  const [showPositioning, setShowPositioning] = useState(initialControls?.sections.positioning ?? false)
+  const [showPadding, setShowPadding] = useState(initialControls?.sections.padding ?? false)
+  const [positionConfig, setPositionConfig] = useState<TextLabsPositionConfig>(initialControls?.positionConfig ?? (STUDIO_CONTENT_FIELDS && elementContext
+    && (!activeTargetId || !elementContext.elementId || activeTargetId === elementContext.elementId) ? {
+    start_col: elementContext.startCol, start_row: elementContext.startRow,
+    position_width: elementContext.width, position_height: elementContext.height, auto_position: false,
+  } : {
     start_col: 2,
     start_row: 4,
     position_width: DEFAULTS.width,
     position_height: DEFAULTS.height,
     auto_position: false,
-  })
+  }))
+  const [geometryEdited, setGeometryEdited] = useState(initialControls?.geometryEdited ?? false)
+  const geometryContextRef = useRef<ElementContext | null>(initialControls?.geometryContext ?? null)
+  const roleContextRef = useRef<string | null>(initialControls?.roleContext ?? null)
   const previousTargetIdentity = useRef<string | null>(null)
   const { tokens: themeTokens, loading: themeLoading, error: themeError } = useDeckThemePalette(presentationId)
 
-  const targetIdentity = elementContext?.elementId
-    ?? existingTextTarget?.elementId
-    ?? (existingTextTarget?.slotName ? `slot:${existingTextTarget.slotName}` : null)
+  const targetIdentity = STUDIO_CONTENT_FIELDS
+    ? activeTargetId ?? elementContext?.elementId ?? (existingTextTarget?.slotName ? `slot:${existingTextTarget.slotName}` : null)
+    : elementContext?.elementId ?? existingTextTarget?.elementId ?? (existingTextTarget?.slotName ? `slot:${existingTextTarget.slotName}` : null)
   const targetResetKey = `${targetIdentity ?? 'new'}:${existingTextTarget?.generationConfig ? 'saved' : 'auto'}`
 
   useEffect(() => {
     if (previousTargetIdentity.current !== targetResetKey) {
+      if (STUDIO_CONTENT_FIELDS && initialControls && previousTargetIdentity.current === null) {
+        previousTargetIdentity.current = targetResetKey
+        return
+      }
+      if (STUDIO_CONTENT_FIELDS) setGeometryEdited(false)
       const saved = readSavedTextBoxGenerationConfig(existingTextTarget?.generationConfig)
       setStructure(saved?.structure ?? 'auto')
       setCount(saved?.count ?? 1)
+      setCountAuto(saved?.countAuto ?? TEXTBOX_REQUEST_FIDELITY_ENABLED)
       setLayoutChoice(saved?.layoutChoice ?? 'auto')
       setGridCols(saved?.gridCols ?? 2)
       setMultiBoxColorMode(saved?.multiBoxColorMode ?? 'SAME')
@@ -274,10 +336,20 @@ export function TextBoxForm({
       setShowPadding(false)
     }
     previousTargetIdentity.current = targetResetKey
-  }, [existingTextTarget?.generationConfig, targetResetKey])
+  }, [initialControls, existingTextTarget?.generationConfig, targetResetKey])
 
   useEffect(() => {
     if (!elementContext) return
+    if (STUDIO_CONTENT_FIELDS) {
+      if (activeTargetId && elementContext.elementId && activeTargetId !== elementContext.elementId) return
+      const previous = geometryContextRef.current
+      const sameOwner = !previous?.elementId || !elementContext.elementId || previous.elementId === elementContext.elementId
+      const sameBounds = previous?.startCol === elementContext.startCol && previous?.startRow === elementContext.startRow
+        && previous?.width === elementContext.width && previous?.height === elementContext.height
+      geometryContextRef.current = { ...elementContext }
+      if (geometryEdited && sameOwner && sameBounds) return
+      setGeometryEdited(false)
+    }
     setPositionConfig(previous => ({
       ...previous,
       start_col: elementContext.startCol,
@@ -285,7 +357,24 @@ export function TextBoxForm({
       position_width: elementContext.width,
       position_height: elementContext.height,
     }))
-  }, [elementContext])
+  }, [elementContext, STUDIO_CONTENT_FIELDS ? activeTargetId : null])
+
+  const updatePositionConfig = useCallback((next: TextLabsPositionConfig) => {
+    if (STUDIO_CONTENT_FIELDS) {
+      setGeometryEdited(!next.auto_position)
+      if (next.auto_position && elementContext
+        && (!activeTargetId || !elementContext.elementId || activeTargetId === elementContext.elementId)) {
+        geometryContextRef.current = { ...elementContext }
+        setPositionConfig({
+          ...next,
+          start_col: elementContext.startCol, start_row: elementContext.startRow,
+          position_width: elementContext.width, position_height: elementContext.height,
+        })
+        return
+      }
+    }
+    setPositionConfig(next)
+  }, [activeTargetId, elementContext])
 
   const area = useMemo(() => ({
     start_col: positionConfig.start_col,
@@ -344,9 +433,23 @@ export function TextBoxForm({
     }
   }, [existingTextTarget?.accessoryType, existingTextTarget?.semanticRole, existingTextTarget?.slotKind, existingTextTarget?.slotName, slotCatalog])
 
+  const roleContext = JSON.stringify([activeTargetId, existingTextTarget?.semanticRole ?? null,
+    existingTextTarget?.slotName ?? null, existingTextTarget?.slotKind ?? null, existingTextTarget?.accessoryType ?? null])
   useEffect(() => {
-    setTargetValue(selectionForExistingTarget(effectiveCatalog, existingTextTarget))
+    if (STUDIO_CONTENT_FIELDS) {
+      if (slotCatalogLoading || (activeTargetId && existingTextTarget?.elementId && activeTargetId !== existingTextTarget.elementId)) return
+      const sameTarget = roleContextRef.current === roleContext
+      roleContextRef.current = roleContext
+      setTargetValue(previous => sameTarget && (previous === BODY_TEXT_AUTO_SLOT
+        || effectiveCatalog.slots.some(slot => slotSelectionValue(slot) === previous))
+        ? previous
+        : selectionForExistingTarget(effectiveCatalog, existingTextTarget, true))
+      return
+    }
+    setTargetValue(selectionForExistingTarget(effectiveCatalog, existingTextTarget, STUDIO_CONTENT_FIELDS))
   }, [
+    STUDIO_CONTENT_FIELDS ? roleContext : null,
+    STUDIO_CONTENT_FIELDS ? slotCatalogLoading : null,
     effectiveCatalog,
     existingTextTarget?.accessoryType,
     existingTextTarget?.semanticRole,
@@ -363,6 +466,15 @@ export function TextBoxForm({
   const isSystemManaged = Boolean(selectedSlot?.system_managed || slotKind === 'system')
   const isAccessory = slotKind === 'accessory'
   const isStructuralText = !isBodyText && !isSystemManaged && !isAccessory
+
+  // Fidelity (flag): a typed family is ONE element of N cards and holds a limited number of them.
+  const typedCardLimit = TEXTBOX_REQUEST_FIDELITY_ENABLED && isBodyText ? typedTextBoxCardLimit(structure) : null
+  useEffect(() => {
+    if (typedCardLimit !== null && count > typedCardLimit) {
+      setCount(typedCardLimit)
+      setLayoutChoice('auto')
+    }
+  }, [count, typedCardLimit])
 
   const updateTextboxOverride = useCallback(<K extends keyof TextBoxConfig>(field: K, value: TextBoxConfig[K] | undefined) => {
     setTextboxOverrides(previous => {
@@ -487,6 +599,50 @@ export function TextBoxForm({
     zIndex,
   ])
 
+  useEffect(() => {
+    if (!STUDIO_CONTENT_FIELDS) return
+    onDraftChange?.({
+      prompt, showAdvanced,
+      textBoxControls: {
+        targetValue, roleContext: roleContextRef.current, structure, count,
+        ...(TEXTBOX_REQUEST_FIDELITY_ENABLED ? { countAuto } : {}), layoutChoice, gridCols,
+        multiBoxColorMode, textboxOverrides, geometryMode, manualGeometryOverrides, zIndex,
+        positionModified, paddingModified, paddingConfig, positionConfig, geometryEdited,
+        geometryContext: geometryContextRef.current,
+        sections: { instances: showInstances, boxDesign: showBoxDesign, heading: showHeading,
+          content: showContent, positioning: showPositioning, padding: showPadding },
+      },
+    })
+  }, [onDraftChange, prompt, showAdvanced, targetValue, roleContext, elementContext, structure, count, countAuto,
+    layoutChoice, gridCols, multiBoxColorMode, textboxOverrides, geometryMode, manualGeometryOverrides,
+    zIndex, positionModified, paddingModified, paddingConfig, positionConfig, geometryEdited,
+    showInstances, showBoxDesign, showHeading, showContent, showPositioning, showPadding])
+
+  // Request fidelity (flag): the submit boundary sends only what the selected role
+  // exposes and no count the user never chose. handleSubmit itself is untouched.
+  // In a Sequential element the per-box item count is the number of steps (request fidelity flag).
+  const stepsLabelled = TEXTBOX_REQUEST_FIDELITY_ENABLED && structure === 'SEQUENTIAL'
+
+  const onSubmit = useCallback((formData: TextLabsFormData) => {
+    if (!TEXTBOX_REQUEST_FIDELITY_ENABLED || formData.componentType !== 'TEXT_BOX') {
+      onSubmitDirect(formData)
+      return
+    }
+    const geometry = effectiveTextGeometry(geometryMode, textBoxManualGeometryForRequest(manualGeometryOverrides, { isBodyText }))
+    onSubmitDirect({
+      ...formData,
+      ...(isBodyText && countAuto ? { countAuto: true } : {}),
+      ...(isBodyText && typedCardLimit !== null && formData.count > 1 ? { cardsInOneElement: true } : {}),
+      // Text Labs reads multi_box_color_mode only for separate COMPOSE boxes, never for one typed element.
+      ...(isBodyText && typedCardLimit !== null ? { multiBoxColorMode: undefined } : {}),
+      layout: isBodyText ? formData.layout : 'horizontal',
+      geometryMode: geometry.geometryMode,
+      manualGeometryOverrides: geometry.manualGeometryOverrides,
+      textboxConfig: textBoxConfigForRequest(textboxOverrides, { isBodyText, structure }),
+      generationConfig: { ...formData.generationConfig, countAuto },
+    })
+  }, [countAuto, geometryMode, isBodyText, manualGeometryOverrides, onSubmitDirect, structure, textboxOverrides, typedCardLimit])
+
   const handleSubmit = useCallback(() => {
     const bodyCount = isBodyText ? count : 1
     const slotMetadata = slotMetadataForRequest(selectedSlot)
@@ -566,6 +722,36 @@ export function TextBoxForm({
 
   useEffect(() => registerSubmit(handleSubmit), [handleSubmit, registerSubmit])
 
+  // One piece of state, one or two controls: Advanced > Instances always, plus a
+  // quick control beside Body structure when the request-fidelity flag is on.
+  const renderCountSelect = (ariaLabel: string) => (
+    <select
+      aria-label={ariaLabel}
+      value={TEXTBOX_REQUEST_FIDELITY_ENABLED && countAuto ? 'auto' : count}
+      onChange={event => {
+        if (TEXTBOX_REQUEST_FIDELITY_ENABLED) {
+          const auto = event.target.value === 'auto'
+          setCountAuto(auto)
+          setCount(auto ? 1 : Number(event.target.value))
+        } else {
+          setCount(Number(event.target.value))
+        }
+        setLayoutChoice('auto')
+      }}
+      className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+    >
+      {TEXTBOX_REQUEST_FIDELITY_ENABLED && <option value="auto">Auto</option>}
+      {Array.from({ length: 6 }, (_, index) => index + 1).map(value => {
+        const overLimit = typedCardLimit !== null && value > typedCardLimit
+        return (
+          <option key={value} value={value} disabled={!feasibleCounts.includes(value) || overLimit}>
+            {value}{overLimit ? ` — max ${typedCardLimit}` : !feasibleCounts.includes(value) ? ' — resize needed' : ''}
+          </option>
+        )
+      })}
+    </select>
+  )
+
   const showTitleValue = textboxOverrides.show_title === undefined
     ? 'auto'
     : textboxOverrides.show_title ? 'show' : 'hide'
@@ -573,8 +759,8 @@ export function TextBoxForm({
   const cornersValue = textboxOverrides.corners ?? 'auto'
 
   return (
-    <div className="space-y-3">
-      <section className="space-y-2 rounded-lg border border-slate-200 bg-white p-2.5 dark:border-slate-700 dark:bg-slate-900">
+    <div data-studio-content-form={STUDIO_CONTENT_FIELDS ? 'text-box' : undefined} className="space-y-3">
+      <section data-studio-content-part={STUDIO_CONTENT_FIELDS ? 'slot-context' : undefined} className="space-y-2 rounded-lg border border-slate-200 bg-white p-2.5 dark:border-slate-700 dark:bg-slate-900">
         <div className="flex items-center justify-between gap-2">
           <label htmlFor="textbox-role" className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">
             Semantic role
@@ -594,8 +780,8 @@ export function TextBoxForm({
         >
           {roleOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
-        {slotCatalogLoading && <p className="text-[10px] text-slate-500">Loading roles from the active template…</p>}
-        {slotCatalogError && <p className="text-[10px] text-amber-600 dark:text-amber-400">{slotCatalogError}</p>}
+        {slotCatalogLoading && <p data-studio-content-notice={STUDIO_CONTENT_FIELDS ? 'loading' : undefined} role={STUDIO_CONTENT_FIELDS ? 'status' : undefined} className="text-[10px] text-slate-500">Loading roles from the active template…</p>}
+        {slotCatalogError && <p data-studio-content-notice={STUDIO_CONTENT_FIELDS ? 'error' : undefined} role={STUDIO_CONTENT_FIELDS ? 'alert' : undefined} className="text-[10px] text-amber-600 dark:text-amber-400">{slotCatalogError}</p>}
         {selectedSlot && (
           <p className="text-[10px] leading-4 text-slate-500 dark:text-slate-400">
             Uses template slot <span className="font-mono">{selectedSlot.slot_name}</span>.
@@ -609,6 +795,7 @@ export function TextBoxForm({
         <section className="space-y-2 rounded-lg border border-slate-200 p-2.5 dark:border-slate-700">
           <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Body structure</label>
           <select
+            aria-label={STUDIO_CONTENT_FIELDS ? 'Body structure' : undefined}
             value={structure}
             onChange={event => setStructure(event.target.value as 'auto' | TextBoxStructure)}
             className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
@@ -616,6 +803,21 @@ export function TextBoxForm({
             <option value="auto">Auto</option>
             {STRUCTURE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
+          {TEXTBOX_REQUEST_FIDELITY_ENABLED && (
+            <label className="block space-y-1">
+              <span className="text-[10px] text-slate-500">{typedCardLimit !== null ? 'Cards' : 'Boxes'}</span>
+              {renderCountSelect('Text box count')}
+              <span className="block text-[9px] leading-4 text-slate-400">
+                {typedCardLimit !== null
+                  ? countAuto
+                    ? `Auto follows your prompt (for example "five steps"; one card if it names none). Pick a number to force that many cards, up to ${typedCardLimit}.`
+                    : `One ${STRUCTURE_OPTIONS.find(option => option.value === structure)?.label ?? 'typed'} element with ${count} ${count === 1 ? 'card' : typedTextBoxCardNoun(structure)}. Arrangement and colours are under Advanced.`
+                  : countAuto
+                    ? 'Auto follows your prompt (one box if it names none). Pick a number to force that many boxes or cards.'
+                    : `Exactly ${count} ${count === 1 ? 'box' : 'boxes'}. Arrangement and colours are under Advanced.`}
+              </span>
+            </label>
+          )}
           {structure === 'simple' && (
             <div className="grid grid-cols-2 gap-2">
               <label className="space-y-1">
@@ -809,21 +1011,7 @@ export function TextBoxForm({
                 <div className="grid grid-cols-2 gap-2">
                   <label className="space-y-1">
                     <span className="text-[10px] text-slate-500">Count</span>
-                    <select
-                      aria-label="Text box count"
-                      value={count}
-                      onChange={event => {
-                        setCount(Number(event.target.value))
-                        setLayoutChoice('auto')
-                      }}
-                      className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
-                    >
-                      {Array.from({ length: 6 }, (_, index) => index + 1).map(value => (
-                        <option key={value} value={value} disabled={!feasibleCounts.includes(value)}>
-                          {value}{!feasibleCounts.includes(value) ? ' — resize needed' : ''}
-                        </option>
-                      ))}
-                    </select>
+                    {renderCountSelect(TEXTBOX_REQUEST_FIDELITY_ENABLED ? 'Advanced text box count' : 'Text box count')}
                   </label>
                   <label className="space-y-1">
                     <span className="text-[10px] text-slate-500">Arrangement</span>
@@ -884,7 +1072,7 @@ export function TextBoxForm({
                   </div>
                 )}
 
-                {count > 1 && (
+                {count > 1 && typedCardLimit === null && (
                   <label className="space-y-1">
                     <span className="text-[10px] text-slate-500">Multi-box color style</span>
                     <select
@@ -903,6 +1091,7 @@ export function TextBoxForm({
                 <p className="text-[9px] leading-4 text-slate-400">
                   Feasible choices use the live {area.position_width}×{area.position_height} container. Auto resolves to {resolvedLayout.layout}
                   {resolvedLayout.layout === 'grid' ? ` (${resolvedLayout.gridColumns}×${resolvedLayout.gridRows})` : ''}.
+                  {TEXTBOX_REQUEST_FIDELITY_ENABLED && countAuto && ' Count follows your prompt; pick a number to force that many boxes.'}
                 </p>
               </div>
             </CollapsibleSection>
@@ -955,6 +1144,7 @@ export function TextBoxForm({
                         type="button"
                         key={`box-${token.id}`}
                         title={`${token.label}: ${token.color}`}
+                        data-studio-content-color={STUDIO_CONTENT_FIELDS ? 'preset' : undefined}
                         aria-label={`Use ${token.label} for box color`}
                         aria-pressed={textboxOverrides.color_variant === token.color}
                         onClick={() => {
@@ -972,6 +1162,7 @@ export function TextBoxForm({
                         type="button"
                         key={`box-${option.value}`}
                         title={option.label}
+                        data-studio-content-color={STUDIO_CONTENT_FIELDS ? 'preset' : undefined}
                         aria-label={`Use ${option.label} for box color`}
                         aria-pressed={textboxOverrides.color_variant === option.value}
                         onClick={() => {
@@ -987,6 +1178,7 @@ export function TextBoxForm({
                     <button
                       type="button"
                       title="Transparent"
+                      data-studio-content-color={STUDIO_CONTENT_FIELDS ? 'transparent' : undefined}
                       aria-label="Use transparent box color"
                       aria-pressed={backgroundValue === 'transparent'}
                       onClick={() => {
@@ -997,7 +1189,7 @@ export function TextBoxForm({
                         backgroundValue === 'transparent' ? 'border-primary ring-2 ring-primary/20' : 'border-white ring-1 ring-slate-300'
                       }`}
                     />
-                    <label className="relative h-7 w-7 cursor-pointer rounded-full border border-slate-300 bg-[conic-gradient(red,yellow,lime,aqua,blue,magenta,red)]" title="Custom color">
+                    <label data-studio-content-part={STUDIO_CONTENT_FIELDS ? 'custom-color' : undefined} className="relative h-7 w-7 cursor-pointer rounded-full border border-slate-300 bg-[conic-gradient(red,yellow,lime,aqua,blue,magenta,red)]" title="Custom color">
                       <span className="sr-only">Custom box color</span>
                       <input
                         type="color"
@@ -1165,9 +1357,9 @@ export function TextBoxForm({
             <CollapsibleSection title="Content" isOpen={showContent} onToggle={() => setShowContent(value => !value)}>
               <div className="space-y-2.5">
                 <label className="space-y-1">
-                  <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">Items / Box</span>
+                  <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">{stepsLabelled ? 'Steps' : 'Items / Box'}</span>
                   <select
-                    aria-label="Items per box"
+                    aria-label={stepsLabelled ? 'Steps' : 'Items per box'}
                     value={geometryMode === 'MANUAL' && manualGeometryOverrides.items_per_box
                       ? String(manualGeometryOverrides.items_per_box)
                       : 'auto'}
@@ -1287,7 +1479,7 @@ export function TextBoxForm({
           {isBodyText && (
             <CollapsibleSection title="Positioning" isOpen={showPositioning} onToggle={() => setShowPositioning(value => !value)}>
               <div className="space-y-2">
-                <PositionPresets positionConfig={positionConfig} onChange={setPositionConfig} elementType="TEXT_BOX" onAdvancedModified={() => setPositionModified(true)} />
+                <PositionPresets positionConfig={positionConfig} onChange={updatePositionConfig} elementType="TEXT_BOX" onAdvancedModified={() => setPositionModified(true)} />
                 <ZIndexInput value={zIndex} onChange={setZIndex} onAdvancedModified={() => setPositionModified(true)} />
               </div>
             </CollapsibleSection>

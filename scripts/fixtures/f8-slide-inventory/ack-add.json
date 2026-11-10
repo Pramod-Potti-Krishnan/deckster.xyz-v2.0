@@ -1,0 +1,16 @@
+{
+ "request": "POST /api/presentations/{id}/slides",
+ "response": {
+  "success": true,
+  "message": "Slide added at position 4",
+  "slide_index": 3,
+  "slide_id": "slide_f9561e229c9a",
+  "slide_count": 4,
+  "slide_ids": [
+   "slide_8ea0a04600cf",
+   "slide_51f6389579d6",
+   "slide_d960ba5dbd63",
+   "slide_f9561e229c9a"
+  ]
+ }
+}

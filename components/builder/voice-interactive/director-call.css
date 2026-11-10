@@ -1,0 +1,189 @@
+/* Director voice / interactive call. Scoped to the Studio shell and this feature's data attributes. */
+[data-studio-director-header="true"] [data-director-call-entry="true"] { display: inline-flex; gap: 4px; flex-shrink: 0; }
+[data-studio-director-header="true"] [data-director-call-entry="true"] > button { width: 24px; height: 24px; display: grid; place-items: center; padding: 0; border: 1px solid var(--ss-line); border-radius: 7px; background: var(--ss-surface); color: var(--ss-teal); cursor: pointer; }
+[data-studio-director-header="true"] [data-director-call-entry="true"] > button:hover:not(:disabled) { background: var(--ss-active); }
+[data-studio-director-header="true"] [data-director-call-entry="true"] > button:disabled { opacity: .45; cursor: not-allowed; }
+[data-studio-director-header="true"] [data-director-call-entry="true"] > button:focus-visible,
+[data-director-call] button:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 1px; }
+[data-studio-director-header="true"] [data-director-call-pill="true"] { flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 999px; background: var(--ss-active); color: var(--ss-teal); font-size: 10px; line-height: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+[data-studio-director-header="true"] [data-director-call-pill="true"] > span[aria-hidden="true"] { width: 6px; height: 6px; border-radius: 50%; background: var(--ss-teal); }
+
+[data-director-call]:focus { outline: none; }
+[data-director-call]:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: -2px; }
+[data-director-call] { flex: 0 0 auto; display: flex; flex-direction: column; min-width: 0; border-bottom: 1px solid var(--ss-line); background: var(--ss-panel); color: var(--ss-text); }
+[data-director-call] [data-director-call-controls="true"] { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-bottom: 1px solid var(--ss-line); }
+[data-director-call] [data-director-call-controls="true"] > button { width: 30px; height: 30px; flex-shrink: 0; display: grid; place-items: center; padding: 0; border: 1px solid var(--ss-line); border-radius: 50%; background: var(--ss-panel); color: var(--ss-text); cursor: pointer; }
+[data-director-call] [data-director-call-controls="true"] > button[aria-pressed="true"] { background: var(--ss-active); color: var(--ss-teal); border-color: var(--ss-teal); }
+[data-director-call] [data-director-call-controls="true"] > button:disabled { opacity: .5; cursor: not-allowed; }
+[data-director-call] [data-director-call-controls="true"] > p { flex: 1; min-width: 0; margin: 0; color: var(--ss-muted); font-size: 11px; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+[data-director-call] button[data-director-call-end="true"] { width: 40px; height: 30px; border-radius: 999px; border: 0; background: #b3392f; color: #fff; }
+[data-director-call] button[data-director-call-end="true"]:hover { background: #962d25; }
+
+[data-director-call-status="true"] { min-width: 0; display: flex; flex-direction: column; }
+[data-director-call-status="true"] > strong { font-size: 13px; line-height: 18px; font-weight: 600; color: var(--ss-text); }
+[data-director-call-status="true"] > span { font-size: 11px; line-height: 15px; color: var(--ss-muted); }
+
+[data-director-call="voice"] [data-director-call-strip="true"] { display: flex; align-items: center; gap: 10px; padding: 8px 12px 4px; }
+[data-director-call="voice"] [data-director-call-portrait="true"] { width: 52px; height: 52px; flex-shrink: 0; border-radius: 50%; overflow: hidden; background: var(--ss-surface); border: 1px solid var(--ss-line); }
+[data-director-call="voice"] [data-director-call-strip="true"] > [role="status"] { flex: 1; min-width: 0; }
+[data-director-call] button[data-director-call-interrupt="true"],
+[data-director-call] [data-director-call-talk="true"] > button { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border: 1px solid var(--ss-line); border-radius: 999px; background: var(--ss-accent-soft); color: var(--ss-accent); font-size: 12px; font-weight: 600; cursor: pointer; }
+[data-director-call="voice"] [data-director-call-note="true"] { margin: 0; padding: 0 12px 8px 74px; color: var(--ss-muted); font-size: 10px; line-height: 14px; }
+
+[data-director-call="interactive"] [data-director-call-stage="true"] { position: relative; height: clamp(170px, 34vh, 380px); display: flex; justify-content: center; align-items: flex-end; overflow: hidden; background: linear-gradient(180deg, var(--ss-surface), var(--ss-panel)); }
+[data-director-call="interactive"] [data-director-call-stage="true"] > .director-character { width: 100%; height: 100%; }
+[data-director-call="interactive"] [data-director-call-self="true"] { position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 9px; border-radius: 9px; background: var(--ss-action); color: var(--ss-on-action); font-size: 9px; line-height: 12px; }
+[data-director-call="interactive"] [data-director-call-stage-status="true"] { position: absolute; left: 10px; bottom: 8px; max-width: calc(100% - 20px); padding: 5px 10px; border-radius: 10px; background: color-mix(in srgb, var(--ss-panel) 88%, transparent); border: 1px solid var(--ss-line); }
+[data-director-call="interactive"] [data-director-call-captions="true"] { padding: 6px 12px 2px; display: grid; gap: 2px; }
+[data-director-call="interactive"] [data-director-call-captions="true"] > p { margin: 0; display: flex; gap: 8px; min-width: 0; font-size: 11px; line-height: 16px; color: var(--ss-text); }
+[data-director-call="interactive"] [data-director-call-captions="true"] > p > span { flex: 0 0 52px; color: var(--ss-teal); font-weight: 600; font-size: 10px; }
+[data-director-call="interactive"] [data-director-call-captions="true"] > p > :last-child,
+[data-director-call="interactive"] [data-director-call-captions="true"] > p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-director-call="interactive"] [data-director-call-captions="true"] em { color: var(--ss-muted); }
+[data-director-call="interactive"] [data-director-call-talk="true"] { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 12px 8px; }
+[data-director-call="interactive"] [data-director-call-talk="true"] > p { flex: 1 1 160px; margin: 0; color: var(--ss-muted); font-size: 10px; line-height: 14px; }
+
+[data-director-call] [data-director-call-ask="true"] { display: flex; align-items: center; gap: 8px; margin: 0 12px 8px; padding: 7px 10px; border: 1px solid var(--ss-accent); border-radius: 10px; background: var(--ss-accent-soft); color: var(--ss-accent); }
+[data-director-call="interactive"] [data-director-call-ask="true"] { margin-top: 8px; }
+[data-director-call] [data-director-call-ask="true"] > svg { flex-shrink: 0; }
+[data-director-call] [data-director-call-ask="true"] > p { flex: 1; min-width: 0; margin: 0; color: var(--ss-text); font-size: 11px; line-height: 15px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+[data-director-call] [data-director-call-ask="true"] > p > strong { display: block; color: var(--ss-accent); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; }
+[data-director-call] [data-director-call-ask="true"] > button { flex-shrink: 0; height: 26px; padding: 0 10px; border: 0; border-radius: 999px; background: var(--ss-action); color: var(--ss-on-action); font-size: 11px; font-weight: 600; cursor: pointer; }
+
+@media (max-height: 640px) {
+  [data-director-call="interactive"] [data-director-call-stage="true"] { height: 150px; }
+  [data-director-call="voice"] [data-director-call-note="true"] { display: none; }
+}
+@media (max-width: 480px) {
+  [data-director-call] [data-director-call-controls="true"] { padding-inline: 8px; }
+  [data-director-call="voice"] [data-director-call-note="true"] { padding-left: 12px; }
+}
+
+/* The chat column, rather than the full window, sets the interactive balance.
+   Keep the accepted full stage in roomy columns and every voice-strip rule. */
+[data-director-call="interactive"] { container-type: inline-size; container-name: director-call; }
+
+@container director-call (max-width: 480px) {
+  [data-director-call="interactive"] [data-director-call-controls="true"] { padding: 5px 10px; }
+  [data-director-call="interactive"] [data-director-call-stage="true"] {
+    height: clamp(112px, 16vh, 144px);
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: clamp(84px, 30%, 132px) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 4px 10px;
+    padding: 6px 10px;
+    align-items: center;
+  }
+  [data-director-call="interactive"] [data-director-call-stage="true"] > .director-character {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    align-self: stretch;
+  }
+  [data-director-call="interactive"] [data-director-call-stage-status="true"] {
+    position: static;
+    grid-column: 2;
+    grid-row: 1;
+    max-width: none;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+  [data-director-call="interactive"] [data-director-call-self="true"] {
+    position: static;
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: start;
+    flex-direction: row;
+    gap: 4px;
+    padding: 2px 6px;
+    border-radius: 6px;
+  }
+  [data-director-call="interactive"] [data-director-call-ask="true"] { margin: 4px 10px 6px; }
+  [data-director-call="interactive"] [data-director-call-captions="true"] { padding: 4px 10px 2px; }
+  [data-director-call="interactive"] [data-director-call-talk="true"] {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 6px 8px;
+    padding: 4px 10px 6px;
+  }
+  [data-director-call="interactive"] [data-director-call-talk="true"] > p { grid-column: 2; }
+  [data-director-call="interactive"] [data-director-call-talk="true"] > button + button ~ p { grid-column: 1 / -1; }
+}
+
+/* Keep all optional controls wrapping when the column is too narrow for a pair. */
+@container director-call (max-width: 320px) {
+  [data-director-call="interactive"] [data-director-call-talk="true"] { display: flex; }
+}
+
+
+/* A wide chat column can still have little height. Use the same unobscured
+   portrait/status balance there while preserving the ample-height full stage. */
+@media (max-height: 780px) {
+  @container director-call (min-width: 481px) {
+  [data-director-call="interactive"] [data-director-call-controls="true"] { padding: 5px 10px; }
+  [data-director-call="interactive"] [data-director-call-stage="true"] {
+    height: clamp(112px, 16vh, 144px);
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: clamp(84px, 30%, 132px) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 4px 10px;
+    padding: 6px 10px;
+    align-items: center;
+  }
+  [data-director-call="interactive"] [data-director-call-stage="true"] > .director-character {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    align-self: stretch;
+  }
+  [data-director-call="interactive"] [data-director-call-stage-status="true"] {
+    position: static;
+    grid-column: 2;
+    grid-row: 1;
+    max-width: none;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+  [data-director-call="interactive"] [data-director-call-self="true"] {
+    position: static;
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: start;
+    flex-direction: row;
+    gap: 4px;
+    padding: 2px 6px;
+    border-radius: 6px;
+  }
+  [data-director-call="interactive"] [data-director-call-ask="true"] { margin: 4px 10px 6px; }
+  [data-director-call="interactive"] [data-director-call-captions="true"] { padding: 4px 10px 2px; }
+  [data-director-call="interactive"] [data-director-call-talk="true"] {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 6px 8px;
+    padding: 4px 10px 6px;
+  }
+  [data-director-call="interactive"] [data-director-call-talk="true"] > p { grid-column: 2; }
+  [data-director-call="interactive"] [data-director-call-talk="true"] > button + button ~ p { grid-column: 1 / -1; }
+
+  }
+}
+
+/* Short windows reserve room for the real question and its choices. Keep the
+   SVG, full-size status, camera label and every control; only spacing/reflow changes. */
+@media (max-height: 640px) {
+  [data-director-call="interactive"] [data-director-call-controls="true"] { padding-block: 3px; }
+  [data-director-call="interactive"] [data-director-call-stage="true"] { height: 72px; padding-block: 2px; row-gap: 2px; }
+  [data-director-call="interactive"] [data-director-call-ask="true"] { margin-block: 2px; padding: 4px 8px; }
+  [data-director-call="interactive"] [data-director-call-captions="true"] { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 10px; padding-block: 2px 0; }
+  [data-director-call="interactive"] [data-director-call-talk="true"] { padding-block: 2px 3px; }
+}
+
+/* Native keyboard focus must reveal the real question's outer 4px ring.
+   The accepted call panel immediately precedes the existing Radix transcript;
+   these scroll offsets preserve its box, content and scroll ownership. */
+[data-director-call="interactive"] + div [data-radix-scroll-area-viewport] { scroll-padding-block: 6px; }
+[data-director-call="interactive"] + div [data-radix-scroll-area-viewport] [data-studio-director-ask] :is(button,input,textarea) { scroll-margin-block: 6px; }

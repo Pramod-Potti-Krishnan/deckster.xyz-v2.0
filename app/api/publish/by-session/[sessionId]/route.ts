@@ -1,9 +1,11 @@
+import { ServiceUrlConfigError } from '@/lib/service-url'
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { getPresentationMeta } from '@/lib/publish/layout';
 import { serializePublishedDeck } from '@/lib/publish/serialize';
+import { linkOriginOf } from '@/lib/studio-p2-publish';
 
 /**
  * GET /api/publish/by-session/[sessionId]
@@ -70,7 +72,7 @@ export async function GET(
     // the multi-MB deck GET entirely rather than pay for an answer that is only
     // read in the live branch of the dialog.
     if (req.nextUrl.searchParams.get('checkStale') !== '1' || deck.revokedAt) {
-      return NextResponse.json({ deck: serializePublishedDeck(deck) });
+      return NextResponse.json({ deck: serializePublishedDeck(deck, linkOriginOf(req)) });
     }
 
     // Staleness: compare the LIVE source deck's current updated_at against the
@@ -100,13 +102,14 @@ export async function GET(
           : 'current';
 
     return NextResponse.json({
-      deck: serializePublishedDeck(deck),
+      deck: serializePublishedDeck(deck, linkOriginOf(req)),
       staleness,
       isStale: staleness === 'stale',
       currentSlideCount: slideCount,
     });
 
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     console.error('Error fetching publish record:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

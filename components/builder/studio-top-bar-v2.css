@@ -1,0 +1,61 @@
+/* PASS2-PK-FOUR #1 (NEXT_PUBLIC_STUDIO_TOP_BAR_V2): the builder top bar of the accepted mockup (design/studio-v4-mockup, measured
+   at 1440x900). Every rule needs [data-studio-top-bar-v2="true"], which the header carries only with the flag on, so with the flag
+   off none of these rules can match. Colours are the shell's own tokens (within a few units of the mockup's), except the two the
+   mockup hard-codes (the divider and the saved status). */
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] > div { padding: 0 20px 0 14px; gap: 12px; }
+
+/* Left: sidebar toggle | Workspace / deck name, saved status. */
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] .studio-shell-heading { flex: 1 1 auto; gap: 9px; }
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] .studio-shell-heading > button { width: 27px; height: 27px; padding: 0; border-radius: 6px; color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] .studio-shell-heading > button:hover { background: var(--ss-panel); color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] .studio-shell-heading > button svg { width: 18px; height: 18px; stroke-width: 2; }
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] .studio-shell-heading > [data-studio-top-bar-divider] { flex: 0 0 1px; width: 1px; height: 16px; margin: 0 7px; background: #cfdad5; }
+.dark [data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] .studio-shell-heading > [data-studio-top-bar-divider] { background: #344642; }
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] .studio-shell-heading > [data-studio-top-bar-crumb] { flex-shrink: 0; font-size: 11px; line-height: 14px; color: var(--ss-muted); white-space: nowrap; text-decoration: none; }
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] .studio-shell-heading > [data-studio-top-bar-crumb]:hover { color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] .studio-shell-heading > [data-studio-top-bar-crumb]:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; border-radius: 3px; }
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] .studio-shell-heading > span[data-studio-top-bar-crumb-separator] { flex-shrink: 0; font-size: 13px; font-weight: 400; line-height: 16px; color: var(--ss-muted); overflow: visible; }
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] .studio-shell-heading > span[data-studio-top-bar-deck] { flex: 0 1 175px; min-width: 50px; font-size: 11px; font-weight: 600; line-height: 14px; color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] .studio-shell-heading > span[data-studio-top-bar-saved] { display: flex; flex-shrink: 0; align-items: center; gap: 4px; margin-left: 3px; font-size: 10px; font-weight: 400; line-height: 12px; color: #8990a2; overflow: visible; }
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] .studio-shell-heading > span[data-studio-top-bar-saved] svg { flex-shrink: 0; width: 12px; height: 12px; stroke-width: 2; }
+
+/* Right: + New deck, Export, Publish (Export and Publish are the existing delivery controls, portaled in here). */
+/* The actions keep their size (the deck name gives way first), so Publish is never clipped at the window's edge. */
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] .studio-shell-header-actions { gap: 10px; flex-shrink: 0; }
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] .studio-shell-new { height: 28px; padding: 0 10px; gap: 7px; border-radius: 7px; font-size: 11px; font-weight: 500; line-height: normal; }
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] .studio-shell-new svg { width: 15px; height: 15px; stroke-width: 2; }
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] [data-studio-v4-delivery] { padding: 0; }
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] [data-studio-v4-delivery] > div { gap: 10px; }
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] [data-studio-v4-delivery] :is([data-studio-download-control="true"] > button, button[data-studio-publish-trigger="true"]) { height: 28px; padding: 0 10px; gap: 7px; border: 1px solid var(--ss-line); border-radius: 7px; }
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] [data-studio-v4-delivery] :is([data-studio-download-control="true"] > button, button[data-studio-publish-trigger="true"]) span { font-size: 11px; font-weight: 500; }
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] [data-studio-v4-delivery] :is([data-studio-download-control="true"] > button, button[data-studio-publish-trigger="true"]) svg { stroke-width: 2; }
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] [data-studio-v4-delivery] [data-studio-download-control="true"] > button { background: var(--ss-panel); color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] [data-studio-v4-delivery] [data-studio-download-control="true"] > button:not(:disabled):hover { background: var(--ss-active); color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] [data-studio-v4-delivery] [data-studio-download-control="true"] > button > svg[data-studio-export-chevron] { width: 12px; height: 12px; }
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] [data-studio-v4-delivery] button[data-studio-publish-trigger="true"] { border-color: var(--ss-action); }
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] [data-studio-v4-delivery] button[data-studio-publish-trigger="true"] svg { width: 14px; height: 14px; }
+/* The existing transient save control keeps its look; only its height follows the 28 px row. */
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] [data-studio-toolbar-save="true"][data-save-state] { height: 28px; }
+/* The chevron belongs to the top bar's Export button; the fullscreen toolbar keeps its icon-over-label button without it. */
+[data-studio-download-control="true"] [data-studio-export-chevron] { display: none; }
+[data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] [data-studio-download-control="true"] [data-studio-export-chevron] { display: block; }
+
+/* Narrower windows, as the mockup: the breadcrumb root and the saved status go first, then the labels of + New deck and Export. */
+@media (max-width: 1250px) {
+  [data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] .studio-shell-heading > :is(a[data-studio-top-bar-crumb], span[data-studio-top-bar-crumb-separator], span[data-studio-top-bar-saved]) { display: none; }
+}
+@media (max-width: 1000px) {
+  [data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] .studio-shell-new { width: 33px; padding: 0; gap: 0; }
+  [data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] .studio-shell-new span { display: none; }
+}
+@media (max-width: 780px) {
+  [data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] > div { padding: 0 8px; gap: 4px; }
+  [data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] .studio-shell-heading { gap: 2px; }
+  [data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] .studio-shell-heading > [data-studio-top-bar-divider] { display: none; }
+  [data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] .studio-shell-header-actions,
+  [data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] [data-studio-v4-delivery] > div { gap: 4px; }
+  [data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] [data-studio-v4-delivery] [data-studio-download-control="true"] > button { padding: 0 7px; gap: 0; }
+  [data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] [data-studio-v4-delivery] [data-studio-download-control="true"] > button span,
+  [data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] [data-studio-download-control="true"] [data-studio-export-chevron] { display: none; }
+  [data-studio-v4-shell="true"] [data-studio-top-bar-v2="true"] [data-studio-v4-delivery] button[data-studio-publish-trigger="true"] { padding: 0 7px; }
+}

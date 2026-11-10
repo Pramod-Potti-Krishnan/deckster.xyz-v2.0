@@ -1,0 +1,37 @@
+/* Existing forms and exact handlers, scoped independently for portal rendering. */
+[data-studio-v4-dialog] {
+  --se-panel:#fff; --se-surface:#f4f7f5; --se-ink:#294039; --se-muted:#657c72;
+  --se-line:#d8e3dc; --se-violet:#7155ac; --se-violet-soft:#f1edf8; --se-teal:#286f68;
+  color:var(--se-ink); background:var(--se-panel); border-color:var(--se-line); border-radius:14px;
+  box-shadow:0 18px 60px #142c2428;
+}
+.dark [data-studio-v4-dialog] { --se-panel:#1d2b2a; --se-surface:#243431; --se-ink:#e0ebe5; --se-muted:#a5b9ae; --se-line:#3b5147; --se-violet:#c3abea; --se-violet-soft:#352d44; --se-teal:#91d2c0; color:var(--se-ink); background:var(--se-panel); }
+[data-studio-v4-dialog="master"], [data-studio-v4-dialog="theme"] { left:auto; right:18px; top:60px; bottom:18px; width:min(400px,calc(100vw - 32px)); border:1px solid var(--se-line); }
+[data-studio-v4-dialog] > div:first-child { background:var(--se-surface); border-color:var(--se-line); padding:16px; border-radius:14px 14px 0 0; }
+[data-studio-v4-dialog] :is(h2,h3) { color:var(--se-ink); font-size:14px; line-height:1.5; }
+[data-studio-v4-dialog] label { color:var(--se-muted); font-size:12px; line-height:1.5; }
+[data-studio-v4-dialog] :is(input:not([type=color]):not([type=checkbox]):not([type=radio]):not([type=file]),textarea,select) { font-size:13px; min-height:34px; background:var(--se-surface); color:var(--se-ink); border-color:var(--se-line); border-radius:7px; }
+[data-studio-v4-dialog] :is(button,input,select,textarea):focus-visible { outline:2px solid var(--se-violet); outline-offset:2px; box-shadow:none; }
+[data-studio-v4-dialog] :is(.text-gray-900,.text-gray-800,.text-gray-700,.text-slate-900,.text-slate-800,.text-slate-700) { color:var(--se-ink); }
+[data-studio-v4-dialog] :is(.text-gray-400,.text-gray-500,.text-gray-600,.text-slate-400,.text-slate-500,.text-slate-600) { color:var(--se-muted); }
+[data-studio-v4-dialog] :is(.bg-gray-50,.bg-gray-100,.bg-slate-50,.bg-slate-100) { background:var(--se-surface); }
+[data-studio-v4-dialog] :is(.border-gray-200,.border-slate-200,.border-gray-100) { border-color:var(--se-line); }
+[data-studio-v4-dialog] :is(.bg-purple-50,.bg-violet-50,.bg-blue-50) { background:var(--se-violet-soft); }
+[data-studio-v4-dialog] :is(.text-purple-600,.text-purple-700,.text-violet-600,.text-blue-600,.text-blue-700) { color:var(--se-violet); }
+[data-studio-v4-dialog] :is(.bg-purple-600,.bg-violet-600,.bg-blue-600) { background:#7155ac; color:#fff; }
+[data-studio-v4-dialog] :is(.bg-purple-600,.bg-violet-600,.bg-blue-600):hover:not(:disabled) { background:#604494; }
+[data-studio-v4-dialog] .overflow-y-auto { min-height:0; scrollbar-width:thin; overscroll-behavior:contain; padding:16px; }
+[data-studio-v4-dialog] button { border-radius:7px; }
+[data-studio-v4-dialog] button:disabled { cursor:not-allowed; }
+[data-studio-v4-dialog="template-save"], [data-studio-v4-dialog="template-import"] { max-height:calc(100dvh - 32px); overflow-y:auto; width:calc(100vw - 32px); max-width:560px; }
+@media(max-height:650px) { [data-studio-v4-dialog="master"], [data-studio-v4-dialog="theme"] { top:54px; bottom:12px; } }
+
+/* The canvas container owns positioning; keep the editor below its toolbar. */
+[data-studio-v4-viewer] :is([data-studio-v4-dialog="master"],[data-studio-v4-dialog="theme"]) { position:absolute; top:12px; bottom:12px; z-index:150; }
+.dark [data-studio-v4-dialog] :is(.bg-gray-50,.bg-gray-100,.bg-slate-50,.bg-slate-100,.dark\:bg-slate-800,.dark\:bg-slate-900) { background:var(--se-surface); }
+.dark [data-studio-v4-dialog] > div:first-child { background:var(--se-surface); }
+
+/* Native first-deck review keeps its title and close above the scroll body. */
+[data-studio-v4-dialog="workflow"] { display:flex; flex-direction:column; max-height:calc(100dvh - 32px); overflow:hidden; padding:18px; gap:14px; }
+[data-studio-v4-dialog="workflow"] > div:first-child { flex-shrink:0; padding:10px 24px 10px 12px; border-radius:8px; text-align:left; }
+[data-studio-workflow-body="true"] { min-height:0; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; padding:2px; }

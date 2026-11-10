@@ -6,7 +6,6 @@ import { PrismaClient } from '@prisma/client'
 console.log('[Prisma] Initializing Prisma Client...')
 console.log('[Prisma] Environment:', process.env.NODE_ENV)
 console.log('[Prisma] DATABASE_URL configured:', !!process.env.DATABASE_URL)
-console.log('[Prisma] DATABASE_URL prefix:', process.env.DATABASE_URL?.substring(0, 30) + '...')
 console.log('[Prisma] DIRECT_URL configured:', !!process.env.DIRECT_URL)
 
 const globalForPrisma = globalThis as unknown as {
@@ -17,12 +16,15 @@ const createPrismaClient = () => {
   console.log('[Prisma] Creating new PrismaClient instance')
   return new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-    // Connection pool settings for serverless (Supabase Transaction Pooler)
-    datasources: {
-      db: {
-        url: process.env.DATABASE_URL,
+    // Keep the configured serverless URL; during build, let the generated
+    // client defer its required environment lookup until a database operation.
+    ...(process.env.DATABASE_URL ? {
+      datasources: {
+        db: {
+          url: process.env.DATABASE_URL,
+        },
       },
-    },
+    } : {}),
   })
 }
 

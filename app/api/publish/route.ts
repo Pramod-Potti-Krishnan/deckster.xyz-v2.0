@@ -1,4 +1,7 @@
+import { getLayoutServiceBaseUrl } from '@/lib/publish/service-urls'
+import { ServiceUrlConfigError } from '@/lib/service-url'
 import { NextRequest, NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { getServerSession } from 'next-auth';
 import type { PublishedDeck } from '@prisma/client';
 import { authOptions } from '@/lib/auth-options';
@@ -15,6 +18,8 @@ import {
   snapshotPresentation,
 } from '@/lib/publish/layout';
 import { isPublishVisibility, serializePublishedDeck } from '@/lib/publish/serialize';
+import { linkOriginOf } from '@/lib/studio-p2-publish';
+import { refreshQaCorpus } from '@/lib/publish/qa-corpus';
 
 /**
  * POST /api/publish
@@ -122,6 +127,10 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Mandatory snapshot work requires explicit configuration before any
+    // advisory read, service dispatch or publish-state persistence.
+    getLayoutServiceBaseUrl();
 
     // Staleness baseline, part 1: read the SOURCE deck's updated_at BEFORE the
     // snapshot is taken. Reading it only afterwards opens a false-NEGATIVE
@@ -308,9 +317,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 
-    return NextResponse.json({ deck: serializePublishedDeck(record), snapshotDeleted });
+    // Rebuild the Q&A corpus AFTER the response. Embedding a deck takes tens of
+    // seconds; awaiting it would make every publish that slow, and a corpus
+    // failure would surface as a failed publish for something the owner may not
+    // even have enabled. `after()` runs it once the response is sent, which also
+    // means it survives on Vercel — a bare floating promise would not.
+    //
+    // A republish invalidates the old corpus: it was frozen from the previous
+    // snapshot, so leaving it would answer questions about slides that are no
+    // longer published.
+    if (record.qaEnabled) {
+      after(() => refreshQaCorpus(record.id));
+    }
+
+    return NextResponse.json({ deck: serializePublishedDeck(record, linkOriginOf(req)), snapshotDeleted });
 
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     console.error('Error publishing deck:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

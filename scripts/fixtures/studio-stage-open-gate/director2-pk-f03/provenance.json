@@ -1,0 +1,15 @@
+{
+  "what": "DIRECTOR-2's offline recording of one new Studio session for PK UAT F-01/F-03 (real Director code at uat 749df53e, scripted model, stubbed outside world, $0). Byte copies, unchanged.",
+  "source_path": "~/Deckster/.worktrees/frontend2-ws/streams/director2/pk-f03-new-session/",
+  "workspace_commit": "b88aca96ac42ea4aacf25fe80ddfd85117d82df4",
+  "workspace_commit_subject": "DIRECTOR-2: PK F-01/F-03 new-session frames (offline, $0)",
+  "director_base_sha": "749df53ef323be231777d5ee90e8ab28c3e9301a",
+  "recorded_by": "DIRECTOR-2, record.py (sha256 be209413be115df0ed830dbc7d93af293c53239fd7882226e898b87d8d4fdbb2); the source README.md (sha256 7b1c0e096ffa5864fd76a9048142f996f8f70698a56d16b0894aa3cfc4652e7d) says what is real and what is stubbed",
+  "copied_by": "B52 for FRONTEND-2, 30 Oct 2026",
+  "files": {
+    "scenario-A.json": "39c94b7c4f4ed4bc80e0a1c529212338a7d915460f6ff5f5a65ec0077abffcb7",
+    "scenario-A-label-approve-and-build.json": "3fba931c101356fb3e7fabb25c0eab11a538ddf93566c524b17cf38f1a2732cd",
+    "scenario-B1.json": "a72ae0af3fbc67f5f04d6d6282f727671bc564cf1d5f10e0f15db50dcdb0c47f",
+    "scenario-B2.json": "f5fee21b6c27cd8f5442f82ae9ce494aef7e98fd791262a24b859f1749a4565f"
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "case": "17-SAVE_FAILED",
+  "user_message": {
+    "text": "Make this bold",
+    "client_caps": [
+      "mdc1",
+      "element_edit1",
+      "notes1",
+      "undo1"
+    ],
+    "references": [
+      {
+        "kind": "element",
+        "element_id": "textbox_a1",
+        "element_type": "TEXT_BOX",
+        "slide_index": 2,
+        "slide_id": "L2",
+        "label": "Text \u00b7 slide 3"
+      }
+    ]
+  },
+  "decision": {
+    "action_type": "edit_element",
+    "reasoning": "scripted",
+    "confidence": 0.95,
+    "requires_approval": false,
+    "target_slide_indices": [
+      2
+    ],
+    "edit_op": "style",
+    "edit_bold": true
+  },
+  "frames_in": [
+    {
+      "type": "element_edit_result",
+      "payload": {
+        "directive_id": "ele_60d0ff9343b9",
+        "ok": false,
+        "error_code": "SAVE_FAILED"
+      }
+    }
+  ],
+  "frames_out": [
+    [
+      {
+        "message_id": "msg_eedit_15f2aaf7",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:22:00.672659Z",
+        "type": "element_edit",
+        "role": "assistant",
+        "payload": {
+          "directive_id": "ele_60d0ff9343b9",
+          "session_id": "s_e2e",
+          "presentation_id": "pres-e2e",
+          "slide_id": "L2",
+          "slide_index": 2,
+          "element_id": "textbox_a1",
+          "op": "style",
+          "style": {
+            "bold": true
+          }
+        }
+      },
+      {
+        "message_id": "msg_9db9d054",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:22:00.674433Z",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Restyling the text box on slide 3: bold.",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      }
+    ],
+    [
+      {
+        "message_id": "msg_931397d5",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:22:00.679799Z",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "I couldn't save the change to the text box on slide 3, so it may not stay: the canvas showed it but the deck wasn't saved. Please check slide 3 and ask me again if it's not as you wanted.",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      }
+    ]
+  ],
+  "chat_lines": [
+    "Restyling the text box on slide 3: bold.",
+    "I couldn't save the change to the text box on slide 3, so it may not stay: the canvas showed it but the deck wasn't saved. Please check slide 3 and ask me again if it's not as you wanted."
+  ],
+  "layout_calls": [
+    "GET /api/presentations/pres-e2e",
+    "PUT /api/presentations/pres-e2e",
+    "GET /api/presentations/pres-e2e/versions"
+  ]
+}

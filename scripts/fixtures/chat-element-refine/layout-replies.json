@@ -1,0 +1,396 @@
+{
+  "recorded_by": "scripts/test-studio-chat-element-refine.mjs --record-layout (the real Layout viewer code run in a node vm; scripts/studio-chat-element-refine-layout.mjs)",
+  "layout_commit": "8b19344c4d364271e4eeedba759278da5b2270f4",
+  "layout_mr": "pramodpotti/layout-builder-v7.5!245 (LAYOUT_REQUEST_ELEMENT_REFINE_ENABLED)",
+  "served_by": "scripts/fixtures/chat-element-refine/serve-layout-viewer.py (server.py /p/<id> in process, flag unset and \"true\", FRONTEND_ALLOWED_ORIGINS=https://studio.synthetic.test)",
+  "scripts": [
+    "src/utils/grid-converter.js",
+    "src/utils/auto-save.js",
+    "src/utils/element-manager.js",
+    "src/utils/request-element-refine.js"
+  ],
+  "studio_origin": "https://studio.synthetic.test",
+  "replies": {
+    "on": [
+      {
+        "params": {
+          "elementId": "el_chart_7f3a"
+        },
+        "reply": {
+          "success": true,
+          "action": "requestElementRefine",
+          "requestId": "probe-0",
+          "elementId": "el_chart_7f3a",
+          "data": {
+            "type": "refineElementRequested",
+            "elementId": "el_chart_7f3a",
+            "elementType": "chart",
+            "componentType": "CHART",
+            "themeVariantId": "solid",
+            "themeBindings": {
+              "fill": "primary"
+            },
+            "styleOwner": null,
+            "themeVariantSource": null,
+            "metricsColorVariant": null,
+            "research_provenance": null,
+            "semanticRole": null,
+            "slotName": "main",
+            "slotKind": null,
+            "accessoryType": null,
+            "generation_config": {
+              "prompt": "Revenue by region",
+              "chart_type": "line"
+            },
+            "generationConfig": {
+              "prompt": "Revenue by region",
+              "chart_type": "line"
+            },
+            "citations_used": [],
+            "diagram_type": null,
+            "diagram_subtype": null,
+            "theme": null,
+            "z_index": 100,
+            "slideIndex": 2,
+            "gridPosition": {
+              "gridRow": "1.8/4.4",
+              "gridColumn": "1.2/4"
+            },
+            "isBlank": false,
+            "properties": {
+              "position": {
+                "x": 10,
+                "y": 20
+              },
+              "size": {
+                "width": 320,
+                "height": 180
+              },
+              "rotation": 0,
+              "locked": false,
+              "zIndex": 100,
+              "chart_type": "bar_vertical",
+              "chart_data": null,
+              "data_used": null,
+              "chart_config": {
+                "type": null,
+                "data": null,
+                "options": null
+              },
+              "chart_title": null,
+              "axis_labels": {
+                "x": null,
+                "y": null
+              },
+              "x_axis_label": null,
+              "y_axis_label": null,
+              "source_provenance": null,
+              "requested_data_source_mode": null,
+              "source_citation": null,
+              "citations_used": [],
+              "chartType": "bar_vertical",
+              "chartData": null,
+              "chartConfig": {
+                "type": null,
+                "data": null,
+                "options": null
+              },
+              "chartTitle": null,
+              "axisLabels": {
+                "x": null,
+                "y": null
+              },
+              "isPlaceholder": false,
+              "hasCanvas": false
+            },
+            "content": {
+              "html": "<canvas></canvas>"
+            }
+          }
+        }
+      },
+      {
+        "params": {
+          "elementId": "el_title_0"
+        },
+        "reply": {
+          "success": true,
+          "action": "requestElementRefine",
+          "requestId": "probe-1",
+          "elementId": "el_title_0",
+          "data": {
+            "type": "refineElementRequested",
+            "elementId": "el_title_0",
+            "elementType": "textbox",
+            "componentType": "TEXT_BOX",
+            "themeVariantId": null,
+            "themeBindings": {},
+            "styleOwner": null,
+            "themeVariantSource": null,
+            "metricsColorVariant": null,
+            "research_provenance": null,
+            "semanticRole": null,
+            "slotName": null,
+            "slotKind": null,
+            "accessoryType": null,
+            "generation_config": null,
+            "generationConfig": null,
+            "citations_used": [],
+            "diagram_type": null,
+            "diagram_subtype": null,
+            "theme": null,
+            "z_index": 100,
+            "slideIndex": 0,
+            "gridPosition": {
+              "gridRow": "1.6/2.8",
+              "gridColumn": "1.4/3.2"
+            },
+            "isBlank": false,
+            "formatting": {
+              "fontFamily": "Inter",
+              "fontSize": 24,
+              "fontWeight": "400",
+              "fontStyle": "normal",
+              "textDecoration": "none",
+              "textTransform": "none",
+              "color": "rgb(0, 0, 0)",
+              "backgroundColor": "transparent",
+              "textAlign": "left",
+              "verticalAlign": "top",
+              "lineHeight": "1.5",
+              "paddingShorthand": "0px",
+              "padding": {
+                "top": 0,
+                "right": 0,
+                "bottom": 0,
+                "left": 0
+              },
+              "borderShorthand": null,
+              "border": {
+                "width": 0,
+                "color": "transparent",
+                "style": "solid"
+              },
+              "borderRadius": {
+                "topLeft": 0,
+                "topRight": 0,
+                "bottomRight": 0,
+                "bottomLeft": 0
+              },
+              "themeBindings": {},
+              "themeVariantId": null,
+              "cssClasses": []
+            },
+            "content": {
+              "success": true,
+              "elementId": "el_title_0",
+              "content": "<p>Overview</p>",
+              "plainText": "Overview"
+            }
+          }
+        }
+      },
+      {
+        "params": {
+          "elementId": "no-such-element"
+        },
+        "reply": {
+          "success": false,
+          "action": "requestElementRefine",
+          "requestId": "probe-2",
+          "error": "element_not_found",
+          "elementId": "no-such-element"
+        }
+      },
+      {
+        "params": {},
+        "reply": {
+          "success": false,
+          "action": "requestElementRefine",
+          "requestId": "probe-3",
+          "error": "elementId parameter required"
+        }
+      }
+    ],
+    "on:sources": {
+      "src/utils/request-element-refine.js": "edcb1c819b15f9bf7e0c6ebe2dc64bcf9a3a88c23b0d414e3ea1628edfadbe77",
+      "src/utils/grid-converter.js": "2c3c68f5ccc6520556bfff07bff62e1f9ad3f0b59d97fb5560edc86ce3d6054d",
+      "src/utils/auto-save.js": "d96aebbd54b35cfc7282a36feb83130453fc7b137f6d8d40943338bf7372bd12",
+      "src/utils/element-manager.js": "30a987769ff1b0f75bac39a4d8119ac69d0f98ed8a251b5b4555e1864f2f4856"
+    },
+    "on:served_sha256": "70dccc23882d3b4ca6cb6a6c2ad9dfe8e06ba9889d89826ca4ef80005a3dbf41",
+    "on-element-removed": [
+      {
+        "params": {
+          "elementId": "el_chart_7f3a"
+        },
+        "reply": {
+          "success": false,
+          "action": "requestElementRefine",
+          "requestId": "probe-0",
+          "error": "element_not_found",
+          "elementId": "el_chart_7f3a"
+        }
+      },
+      {
+        "params": {
+          "elementId": "el_title_0"
+        },
+        "reply": {
+          "success": true,
+          "action": "requestElementRefine",
+          "requestId": "probe-1",
+          "elementId": "el_title_0",
+          "data": {
+            "type": "refineElementRequested",
+            "elementId": "el_title_0",
+            "elementType": "textbox",
+            "componentType": "TEXT_BOX",
+            "themeVariantId": null,
+            "themeBindings": {},
+            "styleOwner": null,
+            "themeVariantSource": null,
+            "metricsColorVariant": null,
+            "research_provenance": null,
+            "semanticRole": null,
+            "slotName": null,
+            "slotKind": null,
+            "accessoryType": null,
+            "generation_config": null,
+            "generationConfig": null,
+            "citations_used": [],
+            "diagram_type": null,
+            "diagram_subtype": null,
+            "theme": null,
+            "z_index": 100,
+            "slideIndex": 0,
+            "gridPosition": {
+              "gridRow": "1.6/2.8",
+              "gridColumn": "1.4/3.2"
+            },
+            "isBlank": false,
+            "formatting": {
+              "fontFamily": "Inter",
+              "fontSize": 24,
+              "fontWeight": "400",
+              "fontStyle": "normal",
+              "textDecoration": "none",
+              "textTransform": "none",
+              "color": "rgb(0, 0, 0)",
+              "backgroundColor": "transparent",
+              "textAlign": "left",
+              "verticalAlign": "top",
+              "lineHeight": "1.5",
+              "paddingShorthand": "0px",
+              "padding": {
+                "top": 0,
+                "right": 0,
+                "bottom": 0,
+                "left": 0
+              },
+              "borderShorthand": null,
+              "border": {
+                "width": 0,
+                "color": "transparent",
+                "style": "solid"
+              },
+              "borderRadius": {
+                "topLeft": 0,
+                "topRight": 0,
+                "bottomRight": 0,
+                "bottomLeft": 0
+              },
+              "themeBindings": {},
+              "themeVariantId": null,
+              "cssClasses": []
+            },
+            "content": {
+              "success": true,
+              "elementId": "el_title_0",
+              "content": "<p>Overview</p>",
+              "plainText": "Overview"
+            }
+          }
+        }
+      },
+      {
+        "params": {
+          "elementId": "no-such-element"
+        },
+        "reply": {
+          "success": false,
+          "action": "requestElementRefine",
+          "requestId": "probe-2",
+          "error": "element_not_found",
+          "elementId": "no-such-element"
+        }
+      },
+      {
+        "params": {},
+        "reply": {
+          "success": false,
+          "action": "requestElementRefine",
+          "requestId": "probe-3",
+          "error": "elementId parameter required"
+        }
+      }
+    ],
+    "on-element-removed:sources": {
+      "src/utils/request-element-refine.js": "edcb1c819b15f9bf7e0c6ebe2dc64bcf9a3a88c23b0d414e3ea1628edfadbe77",
+      "src/utils/grid-converter.js": "2c3c68f5ccc6520556bfff07bff62e1f9ad3f0b59d97fb5560edc86ce3d6054d",
+      "src/utils/auto-save.js": "d96aebbd54b35cfc7282a36feb83130453fc7b137f6d8d40943338bf7372bd12",
+      "src/utils/element-manager.js": "30a987769ff1b0f75bac39a4d8119ac69d0f98ed8a251b5b4555e1864f2f4856"
+    },
+    "on-element-removed:served_sha256": "70dccc23882d3b4ca6cb6a6c2ad9dfe8e06ba9889d89826ca4ef80005a3dbf41",
+    "off": [
+      {
+        "params": {
+          "elementId": "el_chart_7f3a"
+        },
+        "reply": {
+          "success": false,
+          "action": "requestElementRefine",
+          "requestId": "probe-0",
+          "error": "Unknown action: requestElementRefine"
+        }
+      },
+      {
+        "params": {
+          "elementId": "el_title_0"
+        },
+        "reply": {
+          "success": false,
+          "action": "requestElementRefine",
+          "requestId": "probe-1",
+          "error": "Unknown action: requestElementRefine"
+        }
+      },
+      {
+        "params": {
+          "elementId": "no-such-element"
+        },
+        "reply": {
+          "success": false,
+          "action": "requestElementRefine",
+          "requestId": "probe-2",
+          "error": "Unknown action: requestElementRefine"
+        }
+      },
+      {
+        "params": {},
+        "reply": {
+          "success": false,
+          "action": "requestElementRefine",
+          "requestId": "probe-3",
+          "error": "Unknown action: requestElementRefine"
+        }
+      }
+    ],
+    "off:sources": {
+      "src/utils/grid-converter.js": "2c3c68f5ccc6520556bfff07bff62e1f9ad3f0b59d97fb5560edc86ce3d6054d",
+      "src/utils/auto-save.js": "d96aebbd54b35cfc7282a36feb83130453fc7b137f6d8d40943338bf7372bd12",
+      "src/utils/element-manager.js": "30a987769ff1b0f75bac39a4d8119ac69d0f98ed8a251b5b4555e1864f2f4856"
+    },
+    "off:served_sha256": "4e24d5f119857f745d6ad06e70ebb46599d55f20988108b85c134b50b2fdc85f"
+  }
+}

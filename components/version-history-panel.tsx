@@ -7,6 +7,7 @@ import {
   getLayoutViewerOrigin,
   isTrustedLayoutViewerMessage,
 } from '@/lib/layout-viewer-messaging'
+import { STUDIO_SLIDE_OPS_VIA_VIEWER_ENABLED, RESTORE_FLUSH_ACK_TIMEOUT_MS, RESTORE_FLUSH_SAVE_TIMEOUT_MS, createSaveStatusTracker, flushViewerBeforeRestore, requestViewerAck } from '@/lib/studio-slide-ops-via-viewer' // SLIDE-OPS-VIA-VIEWER
 
 interface Version {
   version_id: string
@@ -34,6 +35,7 @@ export function VersionHistoryPanel({
   const [loading, setLoading] = useState(false)
   const [restoring, setRestoring] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [saveTracker] = useState(() => (STUDIO_SLIDE_OPS_VIA_VIEWER_ENABLED ? createSaveStatusTracker() : null)) // SLIDE-OPS-VIA-VIEWER: the last save status the viewer reported
 
   // Fetch versions when panel opens
   const fetchVersions = useCallback(() => {
@@ -62,6 +64,7 @@ export function VersionHistoryPanel({
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (!isTrustedLayoutViewerMessage(event, iframeRef.current, viewerOrigin)) return
+      saveTracker?.record(event.data) // SLIDE-OPS-VIA-VIEWER
 
       const { command, success, error: errorMsg } = event.data
 
@@ -107,6 +110,30 @@ export function VersionHistoryPanel({
     setError(null)
 
     const iframe = iframeRef.current
+    if (saveTracker) { // SLIDE-OPS-VIA-VIEWER: nothing pending may be left to the reload that follows the restore (see lib/studio-slide-ops-via-viewer.ts)
+      const channel = { // SLIDE-OPS-VIA-VIEWER
+        post: (message: { action: string; params: Record<string, unknown>; requestId: string }) => iframe.contentWindow?.postMessage(message, getLayoutViewerOrigin(iframe, viewerOrigin)), // SLIDE-OPS-VIA-VIEWER
+        listen: (handler: (data: unknown) => void) => { // SLIDE-OPS-VIA-VIEWER
+          const onMessage = (event: MessageEvent) => { if (isTrustedLayoutViewerMessage(event, iframe, viewerOrigin)) handler(event.data) } // SLIDE-OPS-VIA-VIEWER
+          window.addEventListener('message', onMessage) // SLIDE-OPS-VIA-VIEWER
+          return () => window.removeEventListener('message', onMessage) // SLIDE-OPS-VIA-VIEWER
+        }, // SLIDE-OPS-VIA-VIEWER
+        newRequestId: () => `restore-flush-${Date.now()}-${Math.random().toString(36).slice(2)}`, // SLIDE-OPS-VIA-VIEWER
+      } // SLIDE-OPS-VIA-VIEWER
+      void flushViewerBeforeRestore({ // SLIDE-OPS-VIA-VIEWER
+        tracker: saveTracker, // SLIDE-OPS-VIA-VIEWER
+        forceSave: () => requestViewerAck(channel, 'forceSave', {}, RESTORE_FLUSH_ACK_TIMEOUT_MS), // SLIDE-OPS-VIA-VIEWER
+        saveTimeoutMs: RESTORE_FLUSH_SAVE_TIMEOUT_MS, // SLIDE-OPS-VIA-VIEWER
+      }).then(flush => { // SLIDE-OPS-VIA-VIEWER
+        if (!flush.ok) { // SLIDE-OPS-VIA-VIEWER
+          setRestoring(null) // SLIDE-OPS-VIA-VIEWER
+          setError(flush.message) // SLIDE-OPS-VIA-VIEWER
+          return // SLIDE-OPS-VIA-VIEWER
+        } // SLIDE-OPS-VIA-VIEWER
+        iframe.contentWindow?.postMessage({ command: 'restoreVersion', params: { versionId, createBackup: true, reload: true } }, getLayoutViewerOrigin(iframe, viewerOrigin)) // SLIDE-OPS-VIA-VIEWER
+      }) // SLIDE-OPS-VIA-VIEWER
+      return // SLIDE-OPS-VIA-VIEWER
+    } // SLIDE-OPS-VIA-VIEWER
     iframe.contentWindow?.postMessage({
       command: 'restoreVersion',
       params: {

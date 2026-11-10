@@ -6,6 +6,7 @@ import {
   Copy,
   ExternalLink,
   Globe,
+  Globe2,
   KeyRound,
   Loader2,
   RefreshCw,
@@ -30,9 +31,33 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { PublishQaSettings } from '@/components/publish-qa-settings'
+import { PublishSessionControls } from '@/components/publish-session-controls'
+import {
+  PublishWizard,
+  type WizardChoices,
+  type WizardStepResult,
+} from '@/components/publish-wizard'
+import { NarrationVoicePicker } from '@/components/narration-voice-picker'
+import { StudioPublishViewerSummary } from '@/components/studio-publish-viewer-summary'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import type { SerializedPublishedDeck } from '@/lib/publish/serialize'
+import type { StudioPublishPreviewSource } from '@/lib/studio-publish-preview'
+import { STUDIO_TOP_BAR_V2_ENABLED } from '@/lib/studio-top-bar-v2'
+import { PublishManageDock, PublishPasscodeCounter, PublishPasscodeInput, PublishQuestionsBadge, publishedLink, useP2ManageFacts } from '@/components/publish-p2'
+import { audienceCopy, dialogSubtitle, narrationFact, passcodeShortBy, questionsFact, recordingVerdict, STUDIO_P2_PUBLISH_ENABLED as STUDIO_P2_PUBLISH } from '@/lib/studio-p2-publish'
+import './studio-publish.css'
+
+const STUDIO_PUBLISH = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+// PASS2-PK-FOUR #1 (NEXT_PUBLIC_STUDIO_TOP_BAR_V2, default off): the Publish trigger carries the mockup's globe icon. Off: as before.
+const STUDIO_TOP_BAR_GLOBE = STUDIO_PUBLISH && STUDIO_TOP_BAR_V2_ENABLED
+
+/** Keep classic's DOM intact; v4 scrolls settings inside fixed dialog chrome. */
+function PublishDialogBody({ children }: { children: React.ReactNode }) {
+  return STUDIO_PUBLISH ? <div className="studio-publish-body">{children}</div> : <>{children}</>
+}
 
 type PublishVisibility = 'public' | 'unlisted' | 'restricted'
 
@@ -83,6 +108,8 @@ export interface PublishControlsProps {
   slideCount: number | null
   /** True once a final deck exists (the API 409s without one) */
   hasFinalDeck: boolean
+  /** Existing owned Final thumbnail metadata; Studio-only visual preview. */
+  deckPreview?: StudioPublishPreviewSource | null
   className?: string
 }
 
@@ -96,8 +123,10 @@ export function PublishControls({
   deckTitle,
   slideCount,
   hasFinalDeck,
+  deckPreview,
   className = '',
 }: PublishControlsProps) {
+  const publishTriggerRef = React.useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
   const [publishedSlideCount, setPublishedSlideCount] = useState<number | null>(null)
   const enabled = Boolean(sessionId) && hasFinalDeck
@@ -138,6 +167,9 @@ export function PublishControls({
   return (
     <div className={`flex items-center ${className}`}>
       <button
+        ref={publishTriggerRef}
+        data-studio-publish-trigger={STUDIO_PUBLISH ? 'true' : undefined}
+        data-studio-publish-session={STUDIO_PUBLISH ? sessionId : undefined}
         onClick={() => setOpen(true)}
         disabled={!enabled}
         className="relative flex h-12 min-w-[72px] flex-col items-center justify-center gap-0.5 rounded-md px-3 py-1 text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-700 dark:disabled:hover:text-slate-200"
@@ -154,7 +186,7 @@ export function PublishControls({
               : 'Publish this deck to a shareable link'
         }
       >
-        <Globe className="h-5 w-5" />
+        {STUDIO_TOP_BAR_GLOBE ? <Globe2 className="h-5 w-5" /> : <Globe className="h-5 w-5" />}
         {slideCountDrifted && (
           <span
             aria-hidden
@@ -171,9 +203,11 @@ export function PublishControls({
           key={sessionId}
           open={open}
           onOpenChange={setOpen}
+          returnFocusRef={STUDIO_PUBLISH ? publishTriggerRef : undefined}
           sessionId={sessionId}
           deckTitle={deckTitle}
           slideCount={slideCount}
+          deckPreview={STUDIO_PUBLISH ? deckPreview : undefined}
         />
       )}
     </div>
@@ -181,19 +215,23 @@ export function PublishControls({
 }
 
 interface PublishDialogProps {
+  returnFocusRef?: React.RefObject<HTMLButtonElement | null>
   open: boolean
   onOpenChange: (open: boolean) => void
   sessionId: string
   deckTitle: string | null
   slideCount: number | null
+  deckPreview?: StudioPublishPreviewSource | null
 }
 
 export function PublishDialog({
+  returnFocusRef,
   open,
   onOpenChange,
   sessionId,
   deckTitle,
   slideCount,
+  deckPreview,
 }: PublishDialogProps) {
   const { toast } = useToast()
   const { copied, copy } = useCopyToClipboard()
@@ -224,6 +262,9 @@ export function PublishDialog({
   const isLive = Boolean(record && !record.revokedAt)
   const isStale = staleness === 'stale'
   const busy = isPublishing || savingField !== null || isRotating || isUnpublishing
+  // NEXT_PUBLIC_STUDIO_P2_PUBLISH (PUB-11): question counts and narration state of the live copy. Flag off: no request, nothing returned.
+  const p2Facts = useP2ManageFacts(record, open)
+
 
   /**
    * Mirror the form onto the record — and, for a DEFINITIVE "not published",
@@ -460,7 +501,9 @@ export function PublishDialog({
         setPasscode('')
         toast({
           title: 'Discarded the unsaved passcode',
-          description: `${VISIBILITY_LABELS[next].label} viewers don't need one. Nothing was saved — switch back to Restricted to set one.`,
+          description: STUDIO_P2_PUBLISH
+            ? `${audienceCopy(next)?.title ?? VISIBILITY_LABELS[next].label} needs no passcode. Nothing was saved — choose “Only people with a passcode” again to set one.`
+            : `${VISIBILITY_LABELS[next].label} viewers don't need one. Nothing was saved — switch back to Restricted to set one.`,
         })
       }
 
@@ -483,50 +526,233 @@ export function PublishDialog({
     void patchSettings('passcode', body, () => {})
   }, [passcode, pendingRestricted, visibility, patchSettings])
 
-  const handlePublish = useCallback(async (republish: boolean) => {
-    setIsPublishing(true)
-    try {
-      const body: Record<string, unknown> = { sessionId }
-      if (!republish) {
-        // First publish (or re-publish after unpublish): send the whole form
-        body.visibility = visibility
-        body.allowPdf = allowPdf
-        body.allowPptx = allowPptx
-        if (passcode) body.passcode = passcode
+  // Progress through the post-publish work. Null while the wizard is collecting
+  // choices; an array once publishing has begun.
+  const [wizardProgress, setWizardProgress] = useState<WizardStepResult[] | null>(null)
+  // Republish runs the SAME wizard, pre-filled. A republished deck has changed,
+  // so its scripts and its audio may no longer match it — offering the same
+  // "write / record" steps is the only place that staleness gets resolved.
+  const [republishing, setRepublishing] = useState(false)
+
+  // Keep only an already active, non-media settings island during a Viewer
+  // visit. Unvisited tools stay lazy; Voice retains its original audio cleanup.
+  const managementOwnerRef = React.useRef({ sessionId, recordSessionId: record?.sessionId, recordId: record?.id, slug: record?.slug, snapshotId: record?.snapshotPresentationId, revokedAt: record?.revokedAt, open, isLoading, republishing, wizardActive: wizardProgress !== null })
+  if (managementOwnerRef.current.sessionId !== sessionId || managementOwnerRef.current.recordId !== record?.id
+    || managementOwnerRef.current.recordSessionId !== record?.sessionId || managementOwnerRef.current.snapshotId !== record?.snapshotPresentationId
+    || managementOwnerRef.current.slug !== record?.slug || managementOwnerRef.current.revokedAt !== record?.revokedAt
+    || managementOwnerRef.current.open !== open || managementOwnerRef.current.isLoading !== isLoading
+    || managementOwnerRef.current.republishing !== republishing || managementOwnerRef.current.wizardActive !== (wizardProgress !== null)) {
+    managementOwnerRef.current = { sessionId, recordSessionId: record?.sessionId, recordId: record?.id, slug: record?.slug, snapshotId: record?.snapshotPresentationId, revokedAt: record?.revokedAt, open, isLoading, republishing, wizardActive: wizardProgress !== null }
+  }
+  const managementOwner = managementOwnerRef.current
+  const managementEligibilityRef = React.useRef({
+    owner: managementOwner,
+    qa: { available: record?.qaEnabled === true, occurrence: {} },
+    voice: { available: record?.narrationEnabled === true, occurrence: {} },
+  })
+  if (managementEligibilityRef.current.owner !== managementOwner) {
+    managementEligibilityRef.current = {
+      owner: managementOwner,
+      qa: { available: record?.qaEnabled === true, occurrence: {} },
+      voice: { available: record?.narrationEnabled === true, occurrence: {} },
+    }
+  } else {
+    if (managementEligibilityRef.current.qa.available !== (record?.qaEnabled === true)) {
+      managementEligibilityRef.current.qa = { available: record?.qaEnabled === true, occurrence: {} }
+    }
+    if (managementEligibilityRef.current.voice.available !== (record?.narrationEnabled === true)) {
+      managementEligibilityRef.current.voice = { available: record?.narrationEnabled === true, occurrence: {} }
+    }
+  }
+  const qaOccurrence = managementEligibilityRef.current.qa.occurrence
+  const voiceOccurrence = managementEligibilityRef.current.voice.occurrence
+  const isManagementToolCurrent = useCallback((tool: string, occurrence: object | null) => {
+    if (tool === 'qa' || tool === 'voice') {
+      const eligibility = managementEligibilityRef.current[tool]
+      return eligibility.available && eligibility.occurrence === occurrence
+    }
+    return true
+  }, [])
+  const [managementTabState, setManagementTabState] = useState<{
+    owner: typeof managementOwner; active: string; lastSettings: string; toolOccurrence: object | null
+  } | null>(null)
+  const managementTab = managementTabState?.owner === managementOwner
+    && isManagementToolCurrent(managementTabState.lastSettings, managementTabState.toolOccurrence) ? managementTabState
+    : { owner: managementOwner, active: 'sharing', lastSettings: 'sharing', toolOccurrence: null }
+  const handleManagementTabChange = useCallback((value: string) => {
+    const targetOccurrence = value === 'qa' ? qaOccurrence : value === 'voice' ? voiceOccurrence : null
+    if (!STUDIO_PUBLISH || !open || managementOwnerRef.current !== managementOwner
+      || !['sharing', 'qa', 'voice', 'viewer'].includes(value)
+      || !isManagementToolCurrent(managementTab.lastSettings, managementTab.toolOccurrence)
+      || !isManagementToolCurrent(value, targetOccurrence)) return
+    setManagementTabState(previous => {
+      if (managementOwnerRef.current !== managementOwner
+        || !isManagementToolCurrent(managementTab.lastSettings, managementTab.toolOccurrence)
+        || !isManagementToolCurrent(value, targetOccurrence)) return previous
+      const current = previous?.owner === managementOwner
+        && isManagementToolCurrent(previous.lastSettings, previous.toolOccurrence) ? previous : managementTab
+      return {
+        owner: managementOwner, active: value,
+        lastSettings: value === 'viewer' ? current.lastSettings : value,
+        toolOccurrence: value === 'viewer' ? current.toolOccurrence : targetOccurrence,
       }
-      const response = await fetch('/api/publish', {
+    })
+  }, [managementOwner, open, managementTab, qaOccurrence, voiceOccurrence, isManagementToolCurrent])
+  const retainedSettingsTab = STUDIO_PUBLISH && managementTab.active === 'viewer' ? managementTab.lastSettings : null
+
+
+  /**
+   * Publish, then do everything the choices implied.
+   *
+   * The order is forced rather than chosen: freezing the corpus, drafting a
+   * script and recording audio all need a published deck to hang off. So the
+   * publish happens first and the rest is reported step by step — which is also
+   * the only moment when watching progress is genuinely useful.
+   *
+   * A step that fails does NOT abort the rest. A deck that published but could
+   * not record is still published, and telling someone their deck failed
+   * because the audio did would be false.
+   */
+  const runWizard = useCallback(async (choices: WizardChoices) => {
+    const steps: WizardStepResult[] = [
+      { label: 'Publishing the deck', status: 'running' },
+      { label: 'Applying your settings', status: 'pending' },
+      {
+        label: 'Writing the script',
+        status: choices.narrationEnabled && choices.writeScript ? 'pending' : 'skipped',
+      },
+      {
+        label: 'Recording the narration',
+        status: choices.narrationEnabled && choices.recordNarration ? 'pending' : 'skipped',
+      },
+    ]
+    const update = (i: number, patch: Partial<WizardStepResult>) => {
+      steps[i] = { ...steps[i], ...patch }
+      setWizardProgress([...steps])
+    }
+    setWizardProgress([...steps])
+    setIsPublishing(true)
+
+    try {
+      const publishResponse = await fetch('/api/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          sessionId,
+          visibility: choices.visibility,
+          allowPdf: choices.allowPdf,
+          allowPptx: choices.allowPptx,
+          ...(choices.passcode ? { passcode: choices.passcode } : {}),
+        }),
       })
-      const data = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to publish')
+      const published = await publishResponse.json().catch(() => ({}))
+      if (!publishResponse.ok || !published?.deck) {
+        update(0, { status: 'failed', detail: published?.error || 'Could not publish' })
+        if (STUDIO_PUBLISH) {
+          steps.forEach((item, i) => {
+            if (item.status === 'pending') update(i, { status: 'skipped', detail: 'Publication did not complete' })
+          })
+        }
+        return
       }
-      if (!data?.deck) throw new Error('The server did not return the published deck')
-      setRecord(data.deck)
-      syncFormFromRecord(data.deck)
-      // The snapshot was just re-taken from the live deck, so the baseline the
-      // server stored is current by construction — unless it couldn't read one,
-      // which the echoed record tells us (null sourceUpdatedAt → unverifiable).
-      setStaleness(stalenessAfterResnapshot(data.deck))
-      setCurrentSlideCount(data.deck?.slideCount ?? null)
+      const deck = published.deck as SerializedPublishedDeck
+      setRecord(deck)
+      syncFormFromRecord(deck)
+      setStaleness(stalenessAfterResnapshot(deck))
+      setCurrentSlideCount(deck?.slideCount ?? null)
+      update(0, { status: 'done' })
+
+      // The feature switches live on the published record, so they can only be
+      // applied once it exists.
+      update(1, { status: 'running' })
+      const settings = await fetch(`/api/publish/${deck.slug}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          qaEnabled: choices.qaEnabled,
+          qaAutoAnswer: choices.qaAutoAnswer,
+          narrationEnabled: choices.narrationEnabled,
+          narrationBudgetMinutes: choices.narrationBudgetMinutes,
+          qaReserveMinutes: choices.qaReserveMinutes,
+        }),
+      })
+      const settled = await settings.json().catch(() => ({}))
+      if (settings.ok && settled?.deck) setRecord(settled.deck)
+      update(1, settings.ok ? { status: 'done' } : { status: 'failed', detail: settled?.error })
+
+      if (steps[2].status === 'pending') {
+        update(2, { status: 'running' })
+        const script = await fetch('/api/narration/script', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug: deck.slug }),
+        })
+        const scripted = await script.json().catch(() => ({}))
+        update(
+          2,
+          script.ok
+            ? {
+                status: 'done',
+                detail: `${scripted.written ?? 0} of ${scripted.total ?? 0} slides written`,
+              }
+            : { status: 'failed', detail: scripted?.error }
+        )
+      }
+
+      if (STUDIO_P2_PUBLISH && steps[3].status === 'pending') {
+        // NEXT_PUBLIC_STUDIO_P2_PUBLISH: recording starts only if the price, checked against the script just written, is not above what was ticked.
+        // The estimate mode generates nothing and charges nothing.
+        const priced = await fetch('/api/narration/render', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug: deck.slug, estimate: true }),
+        }).then((response) => response.json().catch(() => null)).catch(() => null)
+        const verdict = recordingVerdict(choices.recordConsentCents, priced)
+        if (!verdict.proceed) update(3, { status: 'skipped', detail: verdict.detail })
+      }
+
+      if (steps[3].status === 'pending') {
+        update(3, { status: 'running' })
+        const render = await fetch('/api/narration/render', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug: deck.slug }),
+        })
+        const rendered = await render.json().catch(() => ({}))
+        update(
+          3,
+          render.ok
+            ? {
+                status: 'done',
+                detail: `${rendered.rendered ?? 0} segments · ${rendered.spentCents ?? 0}¢`,
+              }
+            : { status: 'failed', detail: rendered?.error }
+        )
+      }
+
+      const setupFailed = STUDIO_PUBLISH && steps.some((item) => item.status === 'failed')
       toast({
-        title: republish ? 'Deck republished' : 'Deck published',
-        description: republish
-          ? 'The shared link now shows the latest version of your deck.'
-          : 'Your deck is live. Share the link with your audience.',
+        title: setupFailed ? 'Deck published · setup needs attention' : 'Your deck is live',
+        description: setupFailed ? 'Review the setup results before sharing.' : 'Share the link with your audience.',
       })
     } catch (error) {
+      if (STUDIO_PUBLISH) {
+        const detail = error instanceof Error ? error.message : 'Unknown error'
+        steps.forEach((item, i) => {
+          if (item.status === 'running') update(i, { status: 'failed', detail })
+          else if (item.status === 'pending') update(i, { status: 'skipped', detail: 'Setup stopped after a request failed' })
+        })
+      }
       toast({
-        title: republish ? 'Republish failed' : 'Publish failed',
+        title: STUDIO_PUBLISH && steps[0].status === 'done' ? 'Deck published · setup interrupted' : 'Publish failed',
         description: error instanceof Error ? error.message : 'Unknown error',
         variant: 'destructive',
       })
     } finally {
       setIsPublishing(false)
     }
-  }, [sessionId, visibility, allowPdf, allowPptx, passcode, syncFormFromRecord, toast])
+  }, [sessionId, syncFormFromRecord, toast])
+
 
   /**
    * Republish re-snapshots the SLIDES only — it deliberately sends no settings.
@@ -547,8 +773,9 @@ export function PublishDialog({
       })
       return
     }
-    void handlePublish(true)
-  }, [blocksRepublish, pendingRestricted, handlePublish, toast])
+    setWizardProgress(null)
+    setRepublishing(true)
+  }, [blocksRepublish, pendingRestricted, toast])
 
   const handleRotate = useCallback(async () => {
     if (!record) return
@@ -616,7 +843,7 @@ export function PublishDialog({
 
   const handleCopy = useCallback(async () => {
     if (!record) return
-    const ok = await copy(record.publicUrl)
+    const ok = await copy(publishedLink(record))
     if (!ok) {
       toast({
         title: 'Copy failed',
@@ -651,81 +878,38 @@ export function PublishDialog({
         onValueChange={(value) => handleVisibilityChange(value as PublishVisibility)}
         disabled={busy}
       >
-        <SelectTrigger id="publish-visibility">
+        <SelectTrigger id="publish-visibility" aria-describedby="publish-visibility-hint">
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent data-studio-v4-shell={STUDIO_PUBLISH} data-studio-publish-popup={STUDIO_PUBLISH}>
           {(Object.keys(VISIBILITY_LABELS) as PublishVisibility[]).map((value) => (
             <SelectItem key={value} value={value}>
-              {VISIBILITY_LABELS[value].label}
+              {STUDIO_P2_PUBLISH ? audienceCopy(value)?.title : VISIBILITY_LABELS[value].label}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
-      <p className="text-xs text-muted-foreground">{VISIBILITY_LABELS[visibility].hint}</p>
+      <p id="publish-visibility-hint" className="text-xs text-muted-foreground">{(STUDIO_P2_PUBLISH ? audienceCopy(visibility)?.hint : VISIBILITY_LABELS[visibility]?.hint) ?? 'The saved access setting is not confirmed.'}</p>
     </div>
   )
 
   // Pre-publish form: nothing is persisted until the Publish button, so the
   // controls stay plain (no auto-save, no per-field buttons).
-  const settingsForm = (
-    <div className="space-y-4">
-      {visibilitySelect}
-
-      {visibility === 'restricted' && (
-        <div className="space-y-1.5">
-          <Label htmlFor="publish-passcode">Passcode</Label>
-          <Input
-            id="publish-passcode"
-            type="text"
-            value={passcode}
-            onChange={(e) => setPasscode(e.target.value)}
-            placeholder="Choose a passcode for viewers"
-            disabled={busy}
-            autoComplete="off"
-          />
-        </div>
-      )}
-
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="publish-allow-pdf" className="font-normal">
-            Allow PDF download
-          </Label>
-          <Switch
-            id="publish-allow-pdf"
-            checked={allowPdf}
-            onCheckedChange={setAllowPdf}
-            disabled={busy}
-          />
-        </div>
-        <div className="flex items-center justify-between">
-          <Label htmlFor="publish-allow-pptx" className="font-normal">
-            Allow PPTX download
-          </Label>
-          <Switch
-            id="publish-allow-pptx"
-            checked={allowPptx}
-            onCheckedChange={setAllowPptx}
-            disabled={busy}
-          />
-        </div>
-      </div>
-    </div>
-  )
-
-  // Live form: every control writes through on change, so there is no
-  // "Save settings" button to forget to press (and nothing to silently discard).
   const liveSettingsForm = (
-    <div className="space-y-4">
+    <div className="space-y-4 studio-publish-access">
       {visibilitySelect}
 
       {visibility === 'restricted' && (
         <div className="space-y-1.5">
           <Label htmlFor="publish-passcode">Passcode</Label>
           <div className="flex items-center gap-2">
+            {STUDIO_P2_PUBLISH ? (
+              <PublishPasscodeInput fieldId="publish-passcode" describedBy="publish-passcode-help" text={passcode} onText={setPasscode} locked={busy}
+                placeholder={record?.hasPasscode ? 'Unchanged — type to replace' : 'Choose a passcode for viewers'} />
+            ) : (
             <Input
               id="publish-passcode"
+              aria-describedby={STUDIO_PUBLISH ? 'publish-passcode-help' : undefined}
               type="text"
               value={passcode}
               onChange={(e) => setPasscode(e.target.value)}
@@ -735,12 +919,13 @@ export function PublishDialog({
               disabled={busy}
               autoComplete="off"
             />
+            )}
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={handlePasscodeSubmit}
-              disabled={busy || !passcode}
+              disabled={busy || !passcode || (STUDIO_P2_PUBLISH && passcodeShortBy(passcode) > 0)}
               className="flex-shrink-0"
             >
               {savingField === 'passcode' ? (
@@ -749,14 +934,20 @@ export function PublishDialog({
               Update passcode
             </Button>
           </div>
-          {pendingRestricted && (
+          {STUDIO_P2_PUBLISH && <PublishPasscodeCounter text={passcode} />}
+          {STUDIO_PUBLISH && <p id="publish-passcode-help" className="text-xs text-muted-foreground">Use at least six characters. Apply the passcode with Update passcode.</p>}
+          {pendingRestricted && (STUDIO_P2_PUBLISH ? (
+            <p className="text-xs text-amber-700 dark:text-amber-400">
+              The passcode lock starts once you set a passcode. Until then the deck stays {audienceCopy(record!.visibility)?.stays ?? record!.visibility}.
+            </p>
+          ) : (
             <p className="text-xs text-amber-700 dark:text-amber-400">
               Restricted takes effect once you set a passcode — the deck is still{' '}
               {VISIBILITY_LABELS[record!.visibility as PublishVisibility]?.label.toLowerCase() ??
                 record!.visibility}
               .
             </p>
-          )}
+          ))}
           {!pendingRestricted && pendingPasscode && (
             <p className="text-xs text-amber-700 dark:text-amber-400">
               Unsaved passcode — press “Update passcode” to apply it.
@@ -790,7 +981,98 @@ export function PublishDialog({
         </div>
       </div>
       <p className="text-xs text-muted-foreground">Sharing settings save as you change them.</p>
+
     </div>
+  )
+
+  /**
+   * Sharing and Q&A as tabs rather than one stacked column.
+   *
+   * Stacked, the Q&A block pushed the dialog past the viewport and its controls
+   * became unreachable — the settings existed but could not be operated. Tabs
+   * bound the height instead of merely deferring the problem, and the split is
+   * honest: these are two different decisions (who may see this / may it answer
+   * questions) with separate routes behind them.
+   *
+   * Only rendered once a record exists — before publishing there is no Q&A to
+   * configure, so the pre-publish form stays a single plain column.
+   */
+  const liveSettingsTabs = record ? (
+    <Tabs defaultValue="sharing" className="w-full studio-publish-management"
+      {...(STUDIO_PUBLISH ? { value: managementTab.active, onValueChange: handleManagementTabChange } : {})}>
+      <TabsList className="grid w-full grid-cols-3" aria-label="Published deck settings">
+        <TabsTrigger value="sharing">Sharing</TabsTrigger>
+        {/* Disabled rather than hidden when the master switch is off: a tab that
+            vanishes reads as a missing feature, while a dimmed one reads as a
+            feature you have not switched on — which is the truth, and it points
+            at the switch that turns it on. */}
+        <TabsTrigger value="qa" aria-describedby={STUDIO_PUBLISH && !record.qaEnabled ? 'publish-feature-help' : undefined} disabled={!record.qaEnabled} title={!record.qaEnabled ? 'Turn on questions in Sharing to configure them' : undefined}>
+          Questions
+          {STUDIO_P2_PUBLISH && <PublishQuestionsBadge counts={p2Facts.questions} />}
+          {STUDIO_PUBLISH && !record.qaEnabled && <span className="studio-publish-off">Off</span>}
+          {record.qaEnabled && (
+            <span
+              aria-label="on"
+              className="ml-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500"
+            />
+          )}
+        </TabsTrigger>
+        <TabsTrigger value="voice" aria-describedby={STUDIO_PUBLISH && !record.narrationEnabled ? 'publish-feature-help' : undefined} disabled={!record.narrationEnabled} title={!record.narrationEnabled ? 'Turn on narration in Sharing to choose a voice' : undefined}>
+          Voice
+          {STUDIO_PUBLISH && !record.narrationEnabled && <span className="studio-publish-off">Off</span>}
+          {record.narrationEnabled && (
+            <span
+              aria-label="on"
+              className="ml-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500"
+            />
+          )}
+        </TabsTrigger>
+        {STUDIO_PUBLISH && <TabsTrigger value="viewer" data-studio-publish-viewer-tab="true">Viewer page</TabsTrigger>}
+      </TabsList>
+      {STUDIO_PUBLISH && (!record.qaEnabled || !record.narrationEnabled) && (
+        <p id="publish-feature-help" className="studio-publish-tab-hint">Turn on {!record.qaEnabled && !record.narrationEnabled ? 'questions or narration' : !record.qaEnabled ? 'questions' : 'narration'} in Sharing to open its settings.</p>
+      )}
+      <TabsContent value="sharing" className="mt-4 space-y-5 studio-publish-sharing"
+        {...(STUDIO_PUBLISH ? {
+          forceMount: retainedSettingsTab === 'sharing' ? true : undefined,
+          hidden: retainedSettingsTab === 'sharing' ? true : undefined,
+          inert: retainedSettingsTab === 'sharing' ? true : undefined,
+          'aria-hidden': retainedSettingsTab === 'sharing' ? true : undefined,
+          'data-studio-viewer-retained': retainedSettingsTab === 'sharing' ? 'true' : undefined,
+        } : {})}>
+        {liveSettingsForm}
+        {/* The master switches sit UNDER sharing, not in a tab of their own:
+            they are the decisions this dialog exists to make, and burying them
+            one level down would leave the main tab describing only who can see
+            the deck while what it DOES lived elsewhere. */}
+        <div className="border-t border-gray-200 pt-4 dark:border-slate-700">
+          <PublishSessionControls record={record} onRecordChange={setRecord} disabled={busy} />
+        </div>
+      </TabsContent>
+      <TabsContent value="qa" className="mt-4"
+        {...(STUDIO_PUBLISH ? {
+          forceMount: retainedSettingsTab === 'qa' && record.qaEnabled === true ? true : undefined,
+          hidden: retainedSettingsTab === 'qa' ? true : undefined,
+          inert: retainedSettingsTab === 'qa' ? true : undefined,
+          'aria-hidden': retainedSettingsTab === 'qa' ? true : undefined,
+          'data-studio-viewer-retained': retainedSettingsTab === 'qa' ? 'true' : undefined,
+        } : {})}>
+        <PublishQaSettings record={record} onRecordChange={setRecord} disabled={busy} />
+      </TabsContent>
+      <TabsContent value="voice" className="mt-4 studio-publish-voice">
+        <NarrationVoicePicker
+          sessionId={sessionId}
+          slideCount={slideCount ?? null}
+          slug={record.slug}
+          hasBudget={Boolean(record.narrationBudgetMinutes)}
+        />
+      </TabsContent>
+      {STUDIO_PUBLISH && <TabsContent value="viewer" className="mt-4">
+        <StudioPublishViewerSummary record={record} sessionId={sessionId} isLoading={isLoading} loadError={loadError} staleness={staleness} {...(STUDIO_P2_PUBLISH ? { deckPreview } : {})} />
+      </TabsContent>}
+    </Tabs>
+  ) : (
+    liveSettingsForm
   )
 
   /**
@@ -821,67 +1103,134 @@ export function PublishDialog({
     </div>
   )
 
+  // Keep the source-backed four-state verdict ahead of long settings in v4.
+  // A failed record read already owns the message and withholds Republish.
+  const freshnessNotice = !loadError && (
+    <>
+      {STUDIO_PUBLISH && staleness === 'current' && (
+        <p className="studio-publish-current"><Check size={13} />Published slides match the source at the last check.</p>
+      )}
+      {staleness === 'checking' && (
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Checking whether the published copy is up to date&hellip;
+        </p>
+      )}
+
+      {staleness === 'stale' && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-200">
+          <p className="font-medium">
+            This deck has changed since you published it — republish to update the link.
+          </p>
+          {slideDelta && <p className="mt-0.5 opacity-90">{slideDelta}</p>}
+        </div>
+      )}
+
+      {staleness === 'unknown' && (
+        <p className="text-xs text-muted-foreground">
+          Can&rsquo;t verify whether the published copy is up to date — republish if in
+          doubt.
+          {slideDelta ? ` ${slideDelta}.` : ''}
+        </p>
+      )}
+    </>
+  )
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent data-studio-v4-shell={STUDIO_PUBLISH} data-studio-publish={STUDIO_PUBLISH}
+        portalContainer={STUDIO_PUBLISH && open && typeof document !== 'undefined' ? document.fullscreenElement : undefined}
+        onCloseAutoFocus={STUDIO_PUBLISH ? event => {
+          const trigger = returnFocusRef?.current
+          if (!trigger?.isConnected || trigger.disabled || trigger.getAttribute('data-studio-publish-session') !== sessionId) return
+          event.preventDefault()
+          trigger.focus({ preventScroll: true })
+        } : undefined}
+        className="sm:max-w-2xl max-h-[85dvh] overflow-y-auto">
+        <DialogHeader className="studio-publish-dialog-header">
           <DialogTitle className="flex items-center gap-2">
-            <Share2 className="h-4 w-4" />
-            {isLive ? 'Deck published' : 'Publish deck'}
+            {!STUDIO_PUBLISH && <Share2 className="h-4 w-4" />}
+            {STUDIO_PUBLISH ? isLive ? 'Deck published' : 'Publish this deck' : isLive ? 'Deck published' : 'Publish deck'}
           </DialogTitle>
           <DialogDescription>
-            {isLive
-              ? 'Anyone with access can view a frozen copy of this deck.'
+            {STUDIO_P2_PUBLISH ? dialogSubtitle({ live: isLive, title: deckTitle, slideCount: isLive ? record!.slideCount : slideCount }) : isLive
+              ? STUDIO_PUBLISH && deckTitle ? `“${deckTitle}” · Anyone with access can view its frozen published copy.` : 'Anyone with access can view a frozen copy of this deck.'
               : `Share a view-only copy of ${deckTitle ? `“${deckTitle}”` : 'this deck'}${
                   slideCount ? ` (${slideCount} slides)` : ''
                 } at a Deckster link.`}
           </DialogDescription>
         </DialogHeader>
 
+        <PublishDialogBody>
         {isLoading ? (
-          <div className="flex items-center justify-center py-10">
+          <div className="flex items-center justify-center py-10 studio-publish-loading" role={STUDIO_PUBLISH ? 'status' : undefined} aria-busy={STUDIO_PUBLISH ? true : undefined}>
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            {STUDIO_PUBLISH && <span><strong>Loading publish settings…</strong><small>Reading this deck's shared link and saved settings.</small></span>}
           </div>
         ) : loadError && !isLive ? (
           // Nothing loaded and nothing held: show the failure, not a form whose
           // defaults would be submitted as if they were this deck's settings.
           loadErrorNotice
+        ) : STUDIO_PUBLISH && !loadError && (wizardProgress || !isLive || republishing) ? (
+          <PublishWizard
+            sessionId={sessionId}
+            deckPreview={deckPreview}
+            slideCount={currentSlideCount ?? slideCount ?? null}
+            record={isLive ? record : null}
+            busy={busy}
+            progress={wizardProgress}
+            onPublish={runWizard}
+            onProgressClose={() => {
+              setWizardProgress(null)
+              if (wizardProgress?.[0]?.status === 'done') setRepublishing(false)
+            }}
+            onCancel={() => {
+              if (isLive) setRepublishing(false)
+              else onOpenChange(false)
+              setWizardProgress(null)
+            }}
+          />
         ) : !isLive ? (
           <>
-            {settingsForm}
-            <DialogFooter>
-              <Button
-                onClick={() => handlePublish(false)}
-                disabled={busy || needsPasscode}
-                title={needsPasscode ? 'Set a passcode for restricted visibility' : undefined}
-                className="w-full sm:w-auto"
-              >
-                {isPublishing ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Publishing…
-                  </>
-                ) : (
-                  'Publish'
-                )}
-              </Button>
-            </DialogFooter>
+            <PublishWizard
+              sessionId={sessionId}
+              slideCount={currentSlideCount ?? slideCount ?? null}
+              record={null}
+              busy={busy}
+              progress={wizardProgress}
+              onPublish={runWizard}
+              onCancel={() => onOpenChange(false)}
+            />
           </>
+        ) : republishing && record && (!STUDIO_PUBLISH || !loadError) ? (
+          <PublishWizard
+            sessionId={sessionId}
+            slideCount={currentSlideCount ?? slideCount ?? null}
+            record={record}
+            busy={busy}
+            progress={wizardProgress}
+            onPublish={runWizard}
+            onCancel={() => {
+              setRepublishing(false)
+              setWizardProgress(null)
+            }}
+          />
         ) : (
-          <div className="space-y-5">
+          <div className="space-y-5 studio-publish-live">
             {loadError && loadErrorNotice}
 
             {/* The link */}
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 studio-publish-link">
               <Label>Public link</Label>
-              <div className="flex items-center gap-2">
-                <Input readOnly value={record!.publicUrl} className="font-mono text-xs" />
+              <div className="flex items-center gap-2 studio-publish-link-actions">
+                <Input readOnly value={publishedLink(record!)} aria-label="Published deck link" className="font-mono text-xs" />
                 <Button
                   type="button"
                   variant="outline"
                   size="icon"
                   onClick={handleCopy}
                   title="Copy link"
+                  aria-label={copied ? 'Link copied' : 'Copy link'}
                   className="flex-shrink-0"
                 >
                   {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
@@ -892,9 +1241,10 @@ export function PublishDialog({
                   size="icon"
                   asChild
                   title="Open link"
+                  aria-label="Open published link"
                   className="flex-shrink-0"
                 >
-                  <a href={record!.publicUrl} target="_blank" rel="noopener noreferrer">
+                  <a href={publishedLink(record!)} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="h-4 w-4" />
                   </a>
                 </Button>
@@ -966,49 +1316,29 @@ export function PublishDialog({
               </p>
             </div>
 
-            {liveSettingsForm}
-
-            {/* Four states, four different things to say. 'current' says nothing
-                (the quiet default). 'stale' is the amber call to action.
-                'unknown' — no stored baseline, or the check didn't come back —
-                gets a NEUTRAL hint: silence there would read as "all good" and
-                leave a possibly-stale link sitting unrepublished, while amber
-                would nag on evidence we don't have. 'checking' says so out loud
-                for the same reason: an empty space during a slow or hung check
-                is indistinguishable from "up to date", which is the exact
-                misreading this tri-state exists to prevent.
-                All of it is suppressed while loadError is up: that notice
-                already explains the situation, and pointing at Republish would
-                point at a button we have deliberately withheld. */}
-            {!loadError && (
-              <>
-                {staleness === 'checking' && (
-                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    Checking whether the published copy is up to date&hellip;
-                  </p>
-                )}
-
-                {staleness === 'stale' && (
-                  <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-200">
-                    <p className="font-medium">
-                      This deck has changed since you published it — republish to update the link.
-                    </p>
-                    {slideDelta && <p className="mt-0.5 opacity-90">{slideDelta}</p>}
-                  </div>
-                )}
-
-                {staleness === 'unknown' && (
-                  <p className="text-xs text-muted-foreground">
-                    Can&rsquo;t verify whether the published copy is up to date — republish if in
-                    doubt.
-                    {slideDelta ? ` ${slideDelta}.` : ''}
-                  </p>
-                )}
-              </>
+            {STUDIO_PUBLISH && (
+              <div className="studio-publish-features" aria-label="Published capabilities">
+                <span>{record!.slideCount} slides · frozen copy</span>
+                <span><Globe size={13} />{STUDIO_P2_PUBLISH ? audienceCopy(record!.visibility)?.title ?? record!.visibility : VISIBILITY_LABELS[record!.visibility as PublishVisibility]?.label ?? record!.visibility}</span>
+                <span>Downloads: {[record!.allowPdf && 'PDF', record!.allowPptx && 'PowerPoint'].filter(Boolean).join(', ') || 'off'}</span>
+                {STUDIO_P2_PUBLISH ? <span>{questionsFact(record!.qaEnabled, p2Facts.questions)}</span> : <span>Questions: {record!.qaEnabled ? 'on' : 'off'}</span>}
+                {STUDIO_P2_PUBLISH ? <span>{narrationFact(record!.narrationEnabled, p2Facts.narration)}</span> : <span>Narration: {record!.narrationEnabled ? 'on' : 'off'}</span>}
+              </div>
             )}
+            {STUDIO_PUBLISH && freshnessNotice}
+            {liveSettingsTabs}
 
-            <DialogFooter className="sm:justify-between">
+            {!STUDIO_PUBLISH && freshnessNotice}
+
+            {STUDIO_PUBLISH && confirmUnpublish && (
+              <div className="studio-publish-unpublish-notice" role="alert">
+                <span><strong>Unpublish this deck?</strong><small>The share link stops working. You can publish it again later.</small></span>
+                <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => setConfirmUnpublish(false)}>Keep published</Button>
+              </div>
+            )}
+            <PublishManageDock onDone={() => onOpenChange(false)}>
+            <DialogFooter className="sm:justify-between studio-publish-management-actions">
+              {STUDIO_PUBLISH && !confirmUnpublish && <div className="studio-publish-manage-copy"><strong>Manage the published copy</strong><small>Republish updates this link with your latest slides and settings.</small></div>}
               {confirmUnpublish ? (
                 <Button
                   type="button"
@@ -1064,8 +1394,10 @@ export function PublishDialog({
                 </Button>
               )}
             </DialogFooter>
+            </PublishManageDock>
           </div>
         )}
+        </PublishDialogBody>
       </DialogContent>
     </Dialog>
   )

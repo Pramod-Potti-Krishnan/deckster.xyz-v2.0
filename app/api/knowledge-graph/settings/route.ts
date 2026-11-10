@@ -1,8 +1,8 @@
+import { ServiceUrlConfigError } from '@/lib/service-url'
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
-
-const KG_BASE = process.env.KNOWLEDGE_SERVICE_URL || 'https://researcher-v1.up.railway.app'
+import { getKgBaseUrl, kgHeaders } from '@/lib/kg-proxy'
 
 const unavailableCapability = {
   source: 'knowledge_graph',
@@ -32,7 +32,10 @@ export async function GET() {
   }
 
   try {
-    const capabilityResponse = await fetch(`${KG_BASE}/api/v1/kg/capabilities`, {
+    const kgBaseUrl = getKgBaseUrl()
+    // The capabilities probe is deliberately un-keyed: the Researcher mounts
+    // it outside the api-key-gated KG router as a non-secret readiness surface.
+    const capabilityResponse = await fetch(`${kgBaseUrl}/api/v1/kg/capabilities`, {
       headers: { 'Accept': 'application/json' },
       cache: 'no-store',
     })
@@ -53,8 +56,11 @@ export async function GET() {
       return NextResponse.json(defaultSettings(session.user.id, capability))
     }
 
-    const resp = await fetch(`${KG_BASE}/api/v1/kg/settings/${session.user.id}`, {
-      headers: { 'Accept': 'application/json' },
+    // KG v2 P0: the KG router itself IS api-key gated — send X-API-Key when
+    // KNOWLEDGE_API_KEY is configured, or this returns 401 once the shared
+    // secret is set in an environment.
+    const resp = await fetch(`${kgBaseUrl}/api/v1/kg/settings/${session.user.id}`, {
+      headers: kgHeaders({ Accept: 'application/json' }),
       cache: 'no-store',
     })
 
@@ -77,6 +83,7 @@ export async function GET() {
 
     return NextResponse.json({ ...(await resp.json()), capability })
   } catch (e) {
+    if (e instanceof ServiceUrlConfigError) return NextResponse.json({ error: e.message, code: e.code, service_unavailable: true }, { status: 503 })
     console.error('[KG Proxy] Settings fetch error:', e)
     return NextResponse.json({
       error: 'Knowledge Graph service is temporarily unavailable',

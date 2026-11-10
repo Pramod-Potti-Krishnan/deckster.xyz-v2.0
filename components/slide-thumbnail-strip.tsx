@@ -2,6 +2,9 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { cn } from '@/lib/utils'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Portal as TooltipPortal } from '@radix-ui/react-tooltip'
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -12,16 +15,95 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
-import { Copy, Trash2, Layout, ChevronUp, ChevronDown, Check, Loader2, AlertTriangle, RotateCcw, Wand2 } from 'lucide-react'
+import { Copy, Trash2, Layout, ChevronUp, ChevronDown, Check, Loader2, AlertTriangle, RotateCcw, Wand2, MoreHorizontal } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { getSlideMenuActions, slideMenuHasAnyAction } from '@/lib/slide-thumbnail-menu'
 import { SLIDE_LAYOUTS, SlideLayoutId } from './slide-layout-picker'
 import { buildSlideComposeVisualOrder } from '@/lib/slide-compose-async'
+import { slideTitleLabel } from '@/lib/studio-slide-title-label'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
+import { STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED, railLivePreviewCandidate } from '@/lib/rail-live-preview'
+import { RailLivePreview } from './rail-live-preview'
+import { StudioThumbnailLagCue } from './studio-thumbnail-lag-cue' // NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD (default off): the "May lag" cue on a card that shows its slide's last good preview
+import { STUDIO_SLIDE_RAIL_V2, slideRailV2Number } from '@/lib/studio-slide-rail-v2'
+import { STUDIO_RAIL_LAYOUT_LABELS, railLayoutName } from '@/lib/studio-rail-layout-label'
+import { STUDIO_RAIL_ADD_SLIDE } from '@/lib/studio-rail-add-slide'
+import type { RailBuildPlaceholder } from '@/lib/studio-rail-build-count' // RAIL-SLIDES-1-MIDBUILD
+import { RailBuildPlaceholderCard } from './studio-rail-build-placeholder' // RAIL-SLIDES-1-MIDBUILD
+import { RailAddSlideButton, type RailAddSlideProps } from './studio-rail-add-slide'
+import './studio-thumbnails.css'
+import { STUDIO_TEMPLATE_MATCH_ENABLED } from '@/lib/studio-template-match' // STUDIO-TEMPLATE-MATCH
+import { StudioTemplateMatchChip } from '@/components/builder/studio-template-match-chip' // STUDIO-TEMPLATE-MATCH
+
+const STUDIO_THUMBNAILS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+/** PASS2 rail v2 (flag NEXT_PUBLIC_STUDIO_SLIDE_RAIL_V2, default off): Studio shell only; its look is all in studio-thumbnails.css. */
+const RAIL_V2 = STUDIO_SLIDE_RAIL_V2 && STUDIO_THUMBNAILS
+
+
+function ThumbnailActionHint({ label, children }: { label: string; children: React.ReactElement }) {
+  if (!STUDIO_THUMBNAILS) return children
+  return (
+    <TooltipProvider delayDuration={80} skipDelayDuration={0}>
+      <Tooltip>
+        <TooltipTrigger asChild>{children}</TooltipTrigger>
+        <TooltipPortal>
+          <TooltipContent side="left" sideOffset={6} data-studio-v4-shell="true" data-studio-thumbnail-hint="true">
+            {label}
+          </TooltipContent>
+        </TooltipPortal>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
+/** Inspect only the existing native diagnostic; actions stay on their original controls. */
+function ThumbnailFailureDetails({ slideNumber, kind, reason }: { slideNumber: number; kind: 'compose' | 'refine'; reason: string }) {
+  if (!STUDIO_THUMBNAILS) return null
+  const label = kind === 'refine' ? 'Refine failed' : 'Failure details'
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <button type="button" className="studio-thumbnail-refine-error" data-studio-thumbnail-failure-trigger="true"
+          aria-label={`Inspect failed ${kind === 'refine' ? 'refinement' : 'build'} for slide ${slideNumber}`}
+          title={reason} onClick={event => event.stopPropagation()}>
+          <AlertTriangle size={10} aria-hidden /><span>{label}</span>
+        </button>
+      </DialogTrigger>
+      <DialogContent data-studio-v4-shell="true" data-studio-thumbnail-failure="true" onKeyDown={event => event.stopPropagation()}>
+        <DialogHeader>
+          <DialogTitle>Slide {slideNumber} {kind === 'refine' ? 'refinement' : 'build'} failed</DialogTitle>
+          <DialogDescription>The reported details are below.</DialogDescription>
+        </DialogHeader>
+        <div data-studio-thumbnail-failure-text="true" role="region" tabIndex={0} aria-label={`Slide ${slideNumber} failure details`}>{reason}</div>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 export interface SlideThumbnail {
   slideNumber: number
   slideId?: string | null
+  slideIndex?: number
+  actualSlideIndex?: number
   title?: string
   content?: string
+  /** PASS2B G20 (NEXT_PUBLIC_STUDIO_RAIL_LAYOUT_LABELS): the slide's layout from Layout's inventory; an untitled slide is named by it. */
+  layout?: string | null
+  thumbnailUrl?: string
+  /** F8/S-03 (rail identity flag only): `pending` = a preview is expected, shown as a spinner instead of "No preview". */
+  thumbnailStatus?: 'fresh' | 'stale' | 'pending' | 'none'
+  thumbnailLag?: 'content' | 'theme' // NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD: set only when `thumbnailUrl` is the slide's last good preview and not a fresh one; the card adds a "may lag" cue (content: edits since the capture, theme: a new deck theme)
+  /** RAIL-SLIDES-1-MIDBUILD: set only on the inert rows the viewer adds while a build fills the deck (NEXT_PUBLIC_STUDIO_RAIL_BUILD_COUNT). */
+  buildPlaceholder?: RailBuildPlaceholder // RAIL-SLIDES-1-MIDBUILD
 }
 
 export interface SlideComposeThumbnailJob {
@@ -33,9 +115,13 @@ export interface SlideComposeThumbnailJob {
   status: 'building' | 'error'
   title?: string
   lastProgressText?: string
+  thumbnailUrl?: string
   errors?: string[]
   onRetry?: (jobId: string) => void
   onSelect?: (jobId: string) => void
+  /** J2-SILENT-FAIL (flag NEXT_PUBLIC_STUDIO_COMPOSE_JOB_FAILSAFE_ENABLED): plain words under an error card, and Dismiss. Absent = today's card. */
+  failureCaption?: string
+  onDismiss?: (jobId: string) => void
 }
 
 export interface SlideThumbnailStripProps {
@@ -57,6 +143,20 @@ export interface SlideThumbnailStripProps {
   totalSlides?: number
   composeJobs?: SlideComposeThumbnailJob[]
   onRefineSlide?: (target: SlideRefineTarget) => void
+  /** F8/S-03: rows come from Layout's slide inventory, so React keys them by slide_id (a moved
+   *  slide keeps its node and image) instead of by position. Default false = today's keys. */
+  keyBySlideId?: boolean
+  /** F9-A (flag NEXT_PUBLIC_STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED): the deck's approved Layout viewer URL. A card whose inventory
+   *  status is `none` (no preview will ever come), or `pending` / `stale` for 15 s with no thumbnail URL, shows a live view-only mini-preview
+   *  of its slide instead of "No preview". Ignored when the flag is off. */
+  livePreviewViewerUrl?: string | null
+  /** PASS2B G21 (flag NEXT_PUBLIC_STUDIO_RAIL_ADD_SLIDE, Studio shell, vertical rail only): the footer's "+ Add slide" button, given by the viewer
+   *  (it owns the Add Slide panel's handler and the toolbar's gating). Ignored when the flag is off. */
+  addSlide?: RailAddSlideProps
+  /** RAIL-SLIDES-1-MIDBUILD (NEXT_PUBLIC_STUDIO_RAIL_BUILD_COUNT): inert rows after the real ones while a build fills the deck, one per planned slide the frame lacks. Absent = today's strip. */
+  buildPlaceholders?: RailBuildPlaceholder[] // RAIL-SLIDES-1-MIDBUILD
+  /** RAIL-SLIDES-1-MIDBUILD: the heading's number only. The delete / select-all / reorder guards keep reading the real total. */
+  headingTotal?: number // RAIL-SLIDES-1-MIDBUILD
 }
 
 /**
@@ -89,6 +189,11 @@ export function SlideThumbnailStrip({
   totalSlides,
   composeJobs = [],
   onRefineSlide,
+  keyBySlideId = false,
+  livePreviewViewerUrl = null,
+  addSlide,
+  buildPlaceholders, // RAIL-SLIDES-1-MIDBUILD
+  headingTotal, // RAIL-SLIDES-1-MIDBUILD
 }: SlideThumbnailStripProps) {
   const [draggedSlide, setDraggedSlide] = useState<number | null>(null)
   const [dropTarget, setDropTarget] = useState<number | null>(null)
@@ -174,7 +279,7 @@ export function SlideThumbnailStrip({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [currentSlide, onDeleteSlide, onDeleteSlides, selectedSlides, slidesTotal, isProcessing, onSelectionChange])
 
-  if (slides.length === 0 && composeJobs.length === 0) {
+  if (slides.length === 0 && composeJobs.length === 0 && !buildPlaceholders?.length) { // RAIL-SLIDES-1-MIDBUILD
     return null
   }
 
@@ -183,6 +288,8 @@ export function SlideThumbnailStrip({
 
   const composeInsertJobs = composeJobs.filter(job => job.kind !== 'refine')
   const orderedItems = buildSlideComposeVisualOrder(slides, composeInsertJobs)
+  const placeholderBase = orderedItems.length // RAIL-SLIDES-1-MIDBUILD: the inert rows follow the real ones in the same list, so the rendered tree keeps its shape
+  if (buildPlaceholders?.length) orderedItems.push(...buildPlaceholders.map((placeholder, offset) => ({ kind: 'slide' as const, slide: { slideNumber: placeholder.slideNumber, buildPlaceholder: placeholder }, layoutIndex: slides.length + offset, visualIndex: placeholderBase + offset, visualNumber: placeholderBase + offset + 1 }))) // RAIL-SLIDES-1-MIDBUILD
 
   const isRefineTargetBusy = (slide: SlideThumbnail, slideIndex: number) => {
     return composeJobs.some(job => {
@@ -208,11 +315,15 @@ export function SlideThumbnailStrip({
     return (
       <div
         key={`compose-${job.jobId}`}
+        data-studio-compose-job={STUDIO_THUMBNAILS}
+        data-compose-status={job.status}
         className="relative group"
         title={isError ? (errorText || 'Slide Composer failed') : 'Slide Composer is building this slide'}
       >
         <button
           type="button"
+          data-studio-compose-card={STUDIO_THUMBNAILS}
+          aria-label={STUDIO_THUMBNAILS ? isError ? job.onRetry ? `Retry building slide ${visualNumber}` : `Building slide ${visualNumber} failed` : `Slide ${visualNumber}: ${title}` : undefined}
           onClick={() => {
             if (isError) job.onRetry?.(job.jobId)
             else job.onSelect?.(job.jobId)
@@ -226,11 +337,11 @@ export function SlideThumbnailStrip({
           )}
           disabled={isError ? !job.onRetry : !job.onSelect}
         >
-          <div className={cn(
+          <div data-studio-compose-preview={STUDIO_THUMBNAILS} className={cn(
             "relative w-full aspect-[16/9] flex flex-col items-center justify-center gap-1.5 p-2",
             isError ? "bg-red-50" : "bg-purple-50"
           )}>
-            <div className={cn(
+            <div data-studio-compose-number={STUDIO_THUMBNAILS} className={cn(
               "absolute top-1.5 left-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded px-1 text-[9px] font-semibold leading-none",
               isError ? "bg-red-100 text-red-700" : "bg-purple-100 text-purple-700"
             )}>
@@ -245,13 +356,26 @@ export function SlideThumbnailStrip({
               <Loader2 className="h-5 w-5 animate-spin" />
             )}
           </div>
-          <div className={cn(
+          <div data-studio-compose-caption={STUDIO_THUMBNAILS} className={cn(
             "px-2 py-1.5 text-[10px] leading-tight text-left line-clamp-2 w-full",
             isError ? "bg-white text-red-700" : "bg-white text-purple-800"
           )}>
-            {isError ? 'Retry compose' : title}
+            {isError ? job.failureCaption ?? (STUDIO_THUMBNAILS && !job.onRetry ? 'Compose failed' : 'Retry compose') : title}
           </div>
         </button>
+        {STUDIO_THUMBNAILS && isError && <ThumbnailFailureDetails slideNumber={visualNumber} kind="compose" reason={errorText || 'Slide Composer failed'} />}
+        {isError && job.onDismiss && (
+          <div data-compose-failsafe-actions="true" className="mt-1 flex w-28 items-center justify-between gap-1 text-[10px] font-medium">
+            {job.onRetry && (
+              <button type="button" data-compose-failsafe-action="retry" aria-label={`Retry slide ${visualNumber}`}
+                onClick={() => job.onRetry?.(job.jobId)}
+                className="rounded px-1.5 py-0.5 text-red-700 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-purple-500">Retry</button>
+            )}
+            <button type="button" data-compose-failsafe-action="dismiss" aria-label={`Dismiss failed slide ${visualNumber}`}
+              onClick={() => job.onDismiss?.(job.jobId)}
+              className="rounded px-1.5 py-0.5 text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500">Dismiss</button>
+          </div>
+        )}
       </div>
     )
   }
@@ -342,82 +466,183 @@ export function SlideThumbnailStrip({
   }
 
   const renderThumbnail = (slide: SlideThumbnail, visualNumber: number) => {
+    if (slide.buildPlaceholder) return <RailBuildPlaceholderCard key={`build-placeholder-${slide.slideNumber}`} placeholder={slide.buildPlaceholder} studio={STUDIO_THUMBNAILS} railV2={RAIL_V2} /> // RAIL-SLIDES-1-MIDBUILD
     const realSlideNumber = slide.slideNumber
     const slideIndex = realSlideNumber - 1  // 0-based index
+    const itemKey = keyBySlideId && slide.slideId ? `slide-${slide.slideId}` : realSlideNumber
     const isActive = visualNumber === currentSlide
     const isSelected = selectedSlides.includes(slideIndex)
     const isDragging = draggedSlide === realSlideNumber
     const isDropTarget = dropTarget === realSlideNumber
     const isItemProcessing = isProcessing === realSlideNumber
-    const canDelete = onDeleteSlide && slidesTotal > 1 && !isItemProcessing
     const refineJob = findRefineJob(slide, slideIndex)
     const isRefining = refineJob?.status === 'building'
     const canRefine = Boolean(onRefineSlide)
     const isRefineDisabled = isItemProcessing || isRefineTargetBusy(slide, slideIndex)
-    const displayTitle = !slide.title || /^Slide \d+$/i.test(slide.title)
+    const baseTitle = !slide.title || /^Slide \d+$/i.test(slide.title)
       ? `Slide ${visualNumber}`
-      : slide.title
+      : slideTitleLabel(slide.title)
+    // PASS2B G20 (flag NEXT_PUBLIC_STUDIO_RAIL_LAYOUT_LABELS, Studio shell only): an untitled slide reads as its layout's friendly name.
+    // The refine target below keeps baseTitle, as before.
+    const layoutTitle = STUDIO_RAIL_LAYOUT_LABELS && STUDIO_THUMBNAILS && (!slide.title || /^Slide \d+$/i.test(slide.title)) ? railLayoutName(slide.layout) : null
+    const displayTitle = layoutTitle ?? baseTitle
     const titleText = isRefining ? (refineJob.lastProgressText || 'Refining slide') : displayTitle
+    const thumbnailUrl = slide.thumbnailUrl?.trim()
+
+    // Canvas v2 P4: one action model feeds BOTH the right-click menu and the
+    // ⋯ dropdown, so the two can never drift. The hover delete button is gone.
+    const menuModel = getSlideMenuActions({
+      realSlideNumber,
+      slidesTotal,
+      isItemProcessing,
+      selectedCount: selectedSlides.length,
+      can: {
+        duplicate: Boolean(onDuplicateSlide),
+        changeLayout: Boolean(onChangeLayout),
+        reorder: Boolean(onReorderSlides),
+        deleteOne: Boolean(onDeleteSlide) && slidesTotal > 1,
+        deleteMulti: Boolean(onDeleteSlides),
+      },
+    })
+    const renderMenuItems = (C: {
+      Item: React.ComponentType<any>
+      Separator: React.ComponentType<any>
+      Sub: React.ComponentType<any>
+      SubTrigger: React.ComponentType<any>
+      SubContent: React.ComponentType<any>
+    }) => (
+      <>
+        {menuModel.duplicate && (
+          <C.Item onSelect={() => handleDuplicate(realSlideNumber)} disabled={menuModel.duplicate.disabled}>
+            <Copy className="mr-2 h-4 w-4" />
+            Duplicate Slide
+          </C.Item>
+        )}
+        {menuModel.changeLayout && (
+          <C.Sub>
+            <C.SubTrigger>
+              <Layout className="mr-2 h-4 w-4" />
+              Change Layout
+            </C.SubTrigger>
+            <C.SubContent className="w-48" data-studio-v4-shell={STUDIO_THUMBNAILS} data-studio-thumbnail-menu={STUDIO_THUMBNAILS}>
+              {SLIDE_LAYOUTS.map((layout) => (
+                <C.Item
+                  key={layout.id}
+                  onSelect={() => handleChangeLayout(realSlideNumber, layout.id)}
+                  disabled={menuModel.changeLayout!.disabled}
+                >
+                  {layout.icon}
+                  <span className="ml-2">{layout.name}</span>
+                </C.Item>
+              ))}
+            </C.SubContent>
+          </C.Sub>
+        )}
+        {(menuModel.moveUp || menuModel.moveDown) && <C.Separator />}
+        {menuModel.moveUp && (
+          <C.Item onSelect={() => handleMoveUp(realSlideNumber)} disabled={menuModel.moveUp.disabled}>
+            <ChevronUp className="mr-2 h-4 w-4" />
+            Move Up
+          </C.Item>
+        )}
+        {menuModel.moveDown && (
+          <C.Item onSelect={() => handleMoveDown(realSlideNumber)} disabled={menuModel.moveDown.disabled}>
+            <ChevronDown className="mr-2 h-4 w-4" />
+            Move Down
+          </C.Item>
+        )}
+        {menuModel.delete && (
+          <>
+            <C.Separator />
+            <C.Item
+              onSelect={() =>
+                menuModel.delete!.multi
+                  ? onDeleteSlides!(selectedSlides)
+                  : onDeleteSlide!(realSlideNumber - 1)
+              }
+              disabled={menuModel.delete.disabled}
+              data-thumbnail-action="delete"
+              className="text-red-600 focus:text-red-600 focus:bg-red-50"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              {menuModel.delete.label}
+            </C.Item>
+          </>
+        )}
+      </>
+    )
+    const showDotsMenu = slideMenuHasAnyAction(menuModel)
+
+    const refineControl = canRefine ? (
+      <ThumbnailActionHint label={isItemProcessing ? 'A slide action is in progress' : isRefineDisabled ? 'Refinement already queued for this slide' : `Refine slide ${visualNumber}`}>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            if (isRefineDisabled) return
+            onRefineSlide?.({
+              slide_id: slide.slideId ?? null,
+              slide_index: slideIndex,
+              title: baseTitle,
+            })
+          }}
+          disabled={isRefineDisabled}
+          data-studio-thumbnail-refine={STUDIO_THUMBNAILS}
+          className={cn(
+            "absolute bottom-8 right-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-md border shadow-sm",
+            "opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus:opacity-100",
+            isActive && "opacity-100",
+            isSelected && "opacity-100",
+            isRefineDisabled
+              ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+              : "border-indigo-200 bg-white text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50",
+          )}
+          title={STUDIO_THUMBNAILS ? undefined : isRefineDisabled ? 'Refinement already queued for this slide' : 'Refine slide'}
+          aria-label={STUDIO_THUMBNAILS ? `Refine slide ${visualNumber}` : 'Refine slide'}
+        >
+          <Wand2 className="h-3.5 w-3.5" />
+        </button>
+      </ThumbnailActionHint>
+    ) : null
 
     const thumbnailContent = (
       <div
-        className="relative group"
+        data-studio-thumbnail-card={STUDIO_THUMBNAILS}
+        data-active={isActive}
+        data-selected={isSelected}
+        data-dragging={isDragging}
+        data-drop-target={isDropTarget}
+        data-processing={isItemProcessing}
+        data-refine-status={refineJob?.status}
+        className={cn(
+          "relative group flex-shrink-0 w-28 rounded-md border-2 transition-all duration-200 overflow-hidden",
+          "hover:border-blue-400 hover:shadow-md",
+          isActive
+            ? "border-blue-600 shadow-lg ring-2 ring-blue-500"
+            : isSelected
+            ? "border-blue-400 shadow-md"
+            : "border-slate-300 dark:border-slate-700",
+          isDragging && "opacity-50 scale-95",
+          isDropTarget && "border-green-500",
+          isItemProcessing && "opacity-70"
+        )}
         title="Click to navigate • Ctrl+Click to multi-select • Shift+Click for range • Right-click for options"
       >
         {/* Selection checkmark indicator */}
         {isSelected && (
-          <div className="absolute -top-1 -left-1 z-10 w-5 h-5 rounded-full bg-blue-600 text-white
+          <div data-studio-thumbnail-check={STUDIO_THUMBNAILS} className="absolute -top-1 -left-1 z-10 w-5 h-5 rounded-full bg-blue-600 text-white
                          flex items-center justify-center shadow-sm">
             <Check className="h-3 w-3" />
           </div>
         )}
 
-        {/* Delete button - appears on hover */}
-        {canDelete && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onDeleteSlide(realSlideNumber - 1)
-            }}
-            className="absolute -top-1 -right-1 z-10 w-5 h-5 rounded-full bg-red-500 text-white
-                       flex items-center justify-center opacity-0 group-hover:opacity-100
-                       transition-opacity duration-150 hover:bg-red-600 shadow-sm"
-            title="Delete slide"
-          >
-            <Trash2 className="h-3 w-3" />
-          </button>
-        )}
-
-        {canRefine && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              if (isRefineDisabled) return
-              onRefineSlide?.({
-                slide_id: slide.slideId ?? null,
-                slide_index: slideIndex,
-                title: displayTitle,
-              })
-            }}
-            disabled={isRefineDisabled}
-            className={cn(
-              "absolute bottom-8 right-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-md border shadow-sm",
-              "opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus:opacity-100",
-              isActive && "opacity-100",
-              isSelected && "opacity-100",
-              isRefineDisabled
-                ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
-                : "border-indigo-200 bg-white text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50",
-            )}
-            title={isRefineDisabled ? 'Refinement already queued for this slide' : 'Refine slide'}
-            aria-label="Refine slide"
-          >
-            <Wand2 className="h-3.5 w-3.5" />
-          </button>
-        )}
+        {!STUDIO_THUMBNAILS && refineControl}
 
         <button
+          data-studio-thumbnail-navigation={STUDIO_THUMBNAILS}
+          aria-label={STUDIO_THUMBNAILS ? `Go to slide ${visualNumber}: ${displayTitle}` : undefined}
+          aria-current={STUDIO_THUMBNAILS && isActive ? 'true' : undefined}
+          aria-pressed={STUDIO_THUMBNAILS ? isSelected : undefined}
           onClick={(e) => handleSlideSelect(slideIndex, visualNumber, e)}
           draggable={enableDragDrop && onReorderSlides && !isItemProcessing}
           onDragStart={(e) => handleDragStart(e, realSlideNumber)}
@@ -426,178 +651,179 @@ export function SlideThumbnailStrip({
           onDrop={(e) => handleDrop(e, realSlideNumber)}
           onDragEnd={handleDragEnd}
           className={cn(
-            "relative flex-shrink-0 w-28 rounded-md border-2 transition-all duration-200 overflow-hidden group",
-            "hover:border-blue-400 hover:shadow-md",
+            "relative block w-full",
             "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
-            isActive
-              ? "border-blue-600 shadow-lg ring-2 ring-blue-500"
-              : isSelected
-              ? "border-blue-400 shadow-md"
-              : "border-slate-300 dark:border-slate-700",
-            isDragging && "opacity-50 scale-95",
-            isDropTarget && "border-green-500",
-            isItemProcessing && "opacity-70 pointer-events-none",
+            isItemProcessing && "pointer-events-none",
             enableDragDrop && onReorderSlides && "cursor-grab active:cursor-grabbing"
           )}
           disabled={isItemProcessing}
         >
-          {/* Mini-slide preview — 16:9 schematic showing a slide silhouette.
-              Not a real render (that needs Layout Service support); this is
-              the strongest interim visual cue that beats text-only thumbs. */}
-          <div className={cn(
-            "relative w-full aspect-[16/9] flex flex-col justify-end p-2 gap-1",
-            isActive
-              ? "bg-gradient-to-br from-blue-50 to-blue-100 dark:from-slate-700 dark:to-slate-800"
+          <div data-studio-thumbnail-preview={STUDIO_THUMBNAILS} data-has-preview={Boolean(thumbnailUrl)} className={cn(
+            "relative w-full aspect-[16/9] overflow-hidden",
+            thumbnailUrl
+              ? "bg-slate-950"
+              : isActive
+              ? "flex flex-col justify-end p-2 gap-1 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-slate-700 dark:to-slate-800"
               : isSelected
-              ? "bg-blue-50 dark:bg-slate-800"
-              : "bg-slate-100 dark:bg-slate-800"
+              ? "flex flex-col justify-end p-2 gap-1 bg-blue-50 dark:bg-slate-800"
+              : "flex flex-col justify-end p-2 gap-1 bg-slate-100 dark:bg-slate-800"
           )}>
-            {/* Schematic title bar */}
-            <div className={cn(
-              "h-1 w-3/4 rounded-sm",
-              isActive ? "bg-blue-400 dark:bg-blue-500" : "bg-slate-300 dark:bg-slate-600"
-            )} />
-            {/* Schematic body lines */}
-            <div className={cn(
-              "h-0.5 w-2/3 rounded-sm",
-              isActive ? "bg-blue-300/70 dark:bg-blue-600/60" : "bg-slate-300/70 dark:bg-slate-600/60"
-            )} />
-            <div className={cn(
-              "h-0.5 w-1/2 rounded-sm",
-              isActive ? "bg-blue-300/70 dark:bg-blue-600/60" : "bg-slate-300/70 dark:bg-slate-600/60"
-            )} />
+            {thumbnailUrl ? (
+              <img
+                src={thumbnailUrl}
+                alt={`${displayTitle} thumbnail`}
+                className="absolute inset-0 h-full w-full object-cover"
+                loading="lazy"
+                decoding="async"
+              />
+            ) : (
+              <>
+                {STUDIO_THUMBNAILS && slide.thumbnailStatus === 'pending' ? (
+                  <span className="studio-thumbnail-placeholder-label" data-studio-thumbnail-pending="true" role="status" aria-label="Preview loading">
+                    <Loader2 className="inline h-2.5 w-2.5 animate-spin" aria-hidden /> Preview loading
+                  </span>
+                ) : STUDIO_THUMBNAILS && <span className="studio-thumbnail-placeholder-label">No preview</span>}
+                <div className={cn(
+                  "h-1 w-3/4 rounded-sm",
+                  isActive ? "bg-blue-400 dark:bg-blue-500" : "bg-slate-300 dark:bg-slate-600"
+                )} />
+                <div className={cn(
+                  "h-0.5 w-2/3 rounded-sm",
+                  isActive ? "bg-blue-300/70 dark:bg-blue-600/60" : "bg-slate-300/70 dark:bg-slate-600/60"
+                )} />
+                <div className={cn(
+                  "h-0.5 w-1/2 rounded-sm",
+                  isActive ? "bg-blue-300/70 dark:bg-blue-600/60" : "bg-slate-300/70 dark:bg-slate-600/60"
+                )} />
+              </>
+            )}
 
             {isRefining && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-indigo-950/10 text-indigo-700 backdrop-blur-[1px]">
+              <div data-studio-thumbnail-refining={STUDIO_THUMBNAILS} className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-indigo-950/10 text-indigo-700 backdrop-blur-[1px]">
                 <Loader2 className="h-4 w-4 animate-spin" />
               </div>
             )}
-
-            {/* Slide number badge in corner */}
-            <div className={cn(
-              "absolute top-1.5 left-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded px-1 text-[9px] font-semibold leading-none",
-              isActive
-                ? "bg-blue-600 text-white"
-                : "bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
-            )}>
-              {visualNumber}
-            </div>
-          </div>
-
-          {/* Title strip below the mini-preview */}
-          <div className={cn(
-            "px-2 py-1.5 text-[10px] leading-tight text-left line-clamp-2 w-full",
-            isActive
-              ? "text-blue-900 font-medium bg-blue-50 dark:bg-slate-900 dark:text-blue-200"
-              : isSelected
-              ? "text-blue-800 bg-blue-50 dark:bg-slate-900 dark:text-blue-300"
-              : "text-slate-700 bg-white dark:bg-slate-900 dark:text-slate-300"
-          )}>
-            {titleText}
+            {STUDIO_TEMPLATE_MATCH_ENABLED && <StudioTemplateMatchChip slideNumber={visualNumber} />}{/* STUDIO-TEMPLATE-MATCH (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH, default off): the source chip inside the thumbnail, bottom-left; off, never drawn */}
+            {/* Canvas v2 P4: no number badge over the image — the preview keeps
+                the slide's exact 16:9; the number lives in the row below. */}
           </div>
         </button>
+
+        {/* Title row below the preview: [number] [title…] [⋯] */}
+        <div data-studio-thumbnail-caption={STUDIO_THUMBNAILS} className={cn(
+          "flex w-full items-start gap-1 px-1.5 py-1.5",
+          isActive
+            ? "bg-blue-50 dark:bg-slate-900"
+            : isSelected
+            ? "bg-blue-50 dark:bg-slate-900"
+            : "bg-white dark:bg-slate-900"
+        )}>
+          <button
+            onClick={(e) => handleSlideSelect(slideIndex, visualNumber, e)}
+            disabled={isItemProcessing}
+            className="flex min-w-0 flex-1 items-start gap-1 text-left focus:outline-none"
+            tabIndex={-1}
+          >
+            <span className={cn(
+              "flex-none text-[9px] font-semibold leading-[1.6] tabular-nums",
+              isActive
+                ? "text-blue-700 dark:text-blue-300"
+                : "text-slate-500 dark:text-slate-400"
+            )}>
+              {RAIL_V2 ? slideRailV2Number(visualNumber) : visualNumber}
+            </span>
+            <span title={RAIL_V2 ? titleText : undefined} className={cn(
+              "min-w-0 text-[10px] leading-tight line-clamp-2",
+              isActive
+                ? "text-blue-900 font-medium dark:text-blue-200"
+                : isSelected
+                ? "text-blue-800 dark:text-blue-300"
+                : "text-slate-700 dark:text-slate-300"
+            )}>
+              {titleText}
+            </span>
+          </button>
+          {STUDIO_THUMBNAILS && refineControl}
+          {showDotsMenu && (
+            <DropdownMenu>
+              <ThumbnailActionHint label={`Options for slide ${visualNumber}`}>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    onClick={(e) => e.stopPropagation()}
+                    className={cn(
+                      "flex h-4 w-4 flex-none items-center justify-center rounded text-slate-500 transition-opacity duration-150",
+                      "hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200",
+                      "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100",
+                      (isActive || isSelected) && "opacity-100"
+                    )}
+                    data-studio-thumbnail-options={STUDIO_THUMBNAILS}
+                    title={STUDIO_THUMBNAILS ? undefined : 'Slide options'}
+                    aria-label={`Options for slide ${visualNumber}`}
+                  >
+                    <MoreHorizontal className="h-3 w-3" />
+                  </button>
+                </DropdownMenuTrigger>
+              </ThumbnailActionHint>
+              <DropdownMenuContent align="end" className="w-48" data-studio-v4-shell={STUDIO_THUMBNAILS} data-studio-thumbnail-menu={STUDIO_THUMBNAILS}>
+                {renderMenuItems({
+                  Item: DropdownMenuItem,
+                  Separator: DropdownMenuSeparator,
+                  Sub: DropdownMenuSub,
+                  SubTrigger: DropdownMenuSubTrigger,
+                  SubContent: DropdownMenuSubContent,
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+        {STUDIO_THUMBNAILS && refineJob?.status === 'error' && (
+          <ThumbnailFailureDetails slideNumber={visualNumber} kind="refine" reason={refineJob.errors?.filter(Boolean).join('; ') || 'Refinement failed'} />
+        )}
+        {STUDIO_THUMBNAILS && slide.thumbnailLag && thumbnailUrl && !isRefining && <StudioThumbnailLagCue reason={slide.thumbnailLag} />}{/* NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD (default off): "May lag" over a preview that is the slide's last good one; a sibling of the button, over the preview's corner, no pointer events */}
+        {/* F9-A: live mini-preview for a card that will never get a thumbnail. The last child of the card, so no existing
+            sibling changes position; a sibling of the button, not inside it (an iframe is not valid button content). It
+            lies over the preview area and takes no pointer events, so the card's click, drag and keyboard behaviour stay
+            the button's. A refining card keeps its own spinner. */}
+        {STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED && STUDIO_THUMBNAILS && livePreviewViewerUrl && !isRefining
+          && railLivePreviewCandidate({ thumbnailStatus: slide.thumbnailStatus, thumbnailUrl }) && (
+          <RailLivePreview viewerUrl={livePreviewViewerUrl} slideIndex={slideIndex} status={slide.thumbnailStatus === 'none' ? 'none' : 'pending'} />
+        )}
       </div>
     )
 
     // Wrap with context menu if CRUD actions are available
     if (hasCrudActions) {
       return (
-        <ContextMenu key={realSlideNumber}>
+        <ContextMenu key={itemKey}>
           <ContextMenuTrigger asChild>
             {thumbnailContent}
           </ContextMenuTrigger>
-          <ContextMenuContent className="w-48">
-            {/* Duplicate */}
-            {onDuplicateSlide && (
-              <ContextMenuItem
-                onSelect={() => handleDuplicate(realSlideNumber)}
-                disabled={isItemProcessing}
-              >
-                <Copy className="mr-2 h-4 w-4" />
-                Duplicate Slide
-              </ContextMenuItem>
-            )}
-
-            {/* Change Layout Submenu */}
-            {onChangeLayout && (
-              <ContextMenuSub>
-                <ContextMenuSubTrigger>
-                  <Layout className="mr-2 h-4 w-4" />
-                  Change Layout
-                </ContextMenuSubTrigger>
-                <ContextMenuSubContent className="w-48">
-                  {SLIDE_LAYOUTS.map((layout) => (
-                    <ContextMenuItem
-                      key={layout.id}
-                      onSelect={() => handleChangeLayout(realSlideNumber, layout.id)}
-                      disabled={isItemProcessing}
-                    >
-                      {layout.icon}
-                      <span className="ml-2">{layout.name}</span>
-                    </ContextMenuItem>
-                  ))}
-                </ContextMenuSubContent>
-              </ContextMenuSub>
-            )}
-
-            {/* Move Up/Down */}
-            {onReorderSlides && (
-              <>
-                <ContextMenuSeparator />
-                <ContextMenuItem
-                  onSelect={() => handleMoveUp(realSlideNumber)}
-                  disabled={isItemProcessing || realSlideNumber <= 1}
-                >
-                  <ChevronUp className="mr-2 h-4 w-4" />
-                  Move Up
-                </ContextMenuItem>
-                <ContextMenuItem
-                  onSelect={() => handleMoveDown(realSlideNumber)}
-                  disabled={isItemProcessing || realSlideNumber >= slidesTotal}
-                >
-                  <ChevronDown className="mr-2 h-4 w-4" />
-                  Move Down
-                </ContextMenuItem>
-              </>
-            )}
-
-            {/* Delete - Always last, with separator */}
-            {/* If multiple slides selected, delete all; otherwise delete just this slide */}
-            {(onDeleteSlide || onDeleteSlides) && (
-              <>
-                <ContextMenuSeparator />
-                {selectedSlides.length > 1 && onDeleteSlides ? (
-                  <ContextMenuItem
-                    onSelect={() => onDeleteSlides(selectedSlides)}
-                    disabled={isItemProcessing || selectedSlides.length >= slidesTotal}
-                    className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete {selectedSlides.length} Slides
-                  </ContextMenuItem>
-                ) : onDeleteSlide && (
-                  <ContextMenuItem
-                    onSelect={() => onDeleteSlide(realSlideNumber - 1)}
-                    disabled={isItemProcessing || slidesTotal <= 1}
-                    className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete Slide
-                  </ContextMenuItem>
-                )}
-              </>
-            )}
+          <ContextMenuContent className="w-48" data-studio-v4-shell={STUDIO_THUMBNAILS} data-studio-thumbnail-menu={STUDIO_THUMBNAILS}>
+            {/* Canvas v2 P4: identical action model as the ⋯ dropdown. */}
+            {renderMenuItems({
+              Item: ContextMenuItem,
+              Separator: ContextMenuSeparator,
+              Sub: ContextMenuSub,
+              SubTrigger: ContextMenuSubTrigger,
+              SubContent: ContextMenuSubContent,
+            })}
           </ContextMenuContent>
         </ContextMenu>
       )
     }
 
-    return <React.Fragment key={realSlideNumber}>{thumbnailContent}</React.Fragment>
+    return <React.Fragment key={itemKey}>{thumbnailContent}</React.Fragment>
   }
 
   return (
     <div
       ref={containerRef}
+      data-studio-v4-shell={STUDIO_THUMBNAILS}
+      data-studio-thumbnail-strip={STUDIO_THUMBNAILS}
+      data-studio-rail-v2={RAIL_V2 ? 'true' : undefined}
+      data-orientation={orientation}
+      role={STUDIO_THUMBNAILS ? 'region' : undefined}
+      aria-label={STUDIO_THUMBNAILS ? 'Slide thumbnails' : undefined}
       tabIndex={0}
       className={cn(
         isVertical
@@ -607,7 +833,8 @@ export function SlideThumbnailStrip({
         className
       )}
     >
-      <div className={cn(
+      {STUDIO_THUMBNAILS && <div className="studio-thumbnail-heading"><strong>Slides</strong><span title={`${headingTotal ?? slidesTotal} slides${selectedSlides.length ? ` · ${selectedSlides.length} selected` : ''}`}>{selectedSlides.length > 1 ? `${selectedSlides.length} selected` : headingTotal ?? slidesTotal}</span></div>}
+      <div data-studio-thumbnail-list={STUDIO_THUMBNAILS} className={cn(
         isVertical
           ? "flex flex-col items-center gap-2 overflow-y-auto h-full pt-2 pb-12 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200"
           : "flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200"
@@ -618,6 +845,7 @@ export function SlideThumbnailStrip({
             : renderThumbnail(item.slide, item.visualNumber)
         )}
       </div>
+      {STUDIO_RAIL_ADD_SLIDE && STUDIO_THUMBNAILS && isVertical && addSlide ? <RailAddSlideButton {...addSlide} /> : null}
     </div>
   )
 }

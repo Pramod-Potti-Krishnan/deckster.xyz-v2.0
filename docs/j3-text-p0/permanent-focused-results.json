@@ -1,0 +1,31 @@
+{
+  "proof_kind": "offline actual permanent candidate with synthetic transport/viewer; not connected acceptance",
+  "candidate_root": "/Users/pk1980/Software/Deckster/.worktrees/element3-j3-text-p0-studio-20261008",
+  "candidate_commit": "368afae108f95b35f7feae37b80eb0d73402d171",
+  "baseline_ref": "18e0446073d62b042a9470fd4524994d3dd82e8e",
+  "source_hashes": {
+    "app/builder/page.tsx": "dbe412721a1bf1045642b51df9f068df163824fd737d7de52e2db94d9be15c6c",
+    "hooks/use-textlabs-generation.ts": "1814ae0d187f78b3b9b992f44c57643eb14c0f0023e8fdc2b8f96671c45849a1",
+    "lib/theme-sync.ts": "322f49bd5dcba2dc34299ca7134f7862b646fc615802b9da41a9eda6601a16f3",
+    "lib/element-generation-timeout.ts": "14d594e1249d0c859430a457df10d53a8717887aff72304a892819f06db3e8f9",
+    "scripts/test-textbox-planned-recovery.mjs": "2a484c49b2fe9c0023cfe4fd68fb50ec005ddd07c0905a970c267096daff7675"
+  },
+  "runtime_scenarios": 34,
+  "studio_shell_and_existing_request_fidelity_enabled": true,
+  "strict_off_literals": [
+    "unset",
+    "false",
+    "1",
+    "TRUE"
+  ],
+  "virtual_success_aggregate_ms": [
+    5000,
+    45000,
+    142363
+  ],
+  "request_abort_error_input_markup_off_identity": true,
+  "shared_controller_and_singleflight": true,
+  "placeholder_recovery_and_owner_retirement": true,
+  "exact_ack_retry_and_race_guards": true,
+  "passed": true
+}

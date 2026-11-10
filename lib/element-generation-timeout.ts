@@ -7,6 +7,9 @@ import type {
 export const FAST_ELEMENT_GENERATION_TIMEOUT_MS = 30_000
 export const PLANNED_ELEMENT_GENERATION_TIMEOUT_MS = 150_000
 export const INFOGRAPHIC_GENERATION_TIMEOUT_MS = 300_000
+// Aggregate browser budget, including session acquisition and typed planning;
+// downstream clients retain their own shorter per-call timeout.
+export const TEXTBOX_PLANNED_GENERATION_TIMEOUT_MS = 180_000
 
 const DIAGRAM_SUBTYPES = new Set<TextLabsDiagramRequestType>([
   'CODE_DISPLAY',
@@ -41,6 +44,11 @@ export function resolveElementGenerationTimeoutMs(
 ): number {
   if (componentType === 'INFOGRAPHIC') return INFOGRAPHIC_GENERATION_TIMEOUT_MS
   if (isDiagramGenerationType(componentType)) return PLANNED_ELEMENT_GENERATION_TIMEOUT_MS
+  if (
+    process.env.NEXT_PUBLIC_TEXTBOX_PLANNED_TIMEOUT_ENABLED === 'true'
+    && componentType === 'TEXT_BOX'
+    && researchMode === 'off'
+  ) return TEXTBOX_PLANNED_GENERATION_TIMEOUT_MS
   return researchMode === 'off'
     ? FAST_ELEMENT_GENERATION_TIMEOUT_MS
     : PLANNED_ELEMENT_GENERATION_TIMEOUT_MS

@@ -1,11 +1,15 @@
 'use client'
 
+import './studio-generation-context.css'
+import './studio-theme-source-status.css'
 import { useEffect, useMemo, useState } from 'react'
 import { Palette } from 'lucide-react'
 import { features } from '@/lib/config'
 import { useDeckThemePalette } from '@/hooks/use-deck-theme-palette'
 import { useThemeProfiles, type SavedThemeProfile } from '@/hooks/use-theme-profiles'
 import type { ThemePalette, ThemeSourceSelection } from '@/types/textlabs'
+
+const STUDIO_GENERATION_CONTEXT = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
 
 function isHex(value: unknown): value is string {
   return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value)
@@ -70,8 +74,8 @@ export function ThemeSourceSelector({
   value: ThemeSourceSelection
   onChange: (selection: ThemeSourceSelection) => void
 }) {
-  const { palette } = useDeckThemePalette(presentationId)
-  const { listThemes } = useThemeProfiles()
+  const { palette, loading: deckThemeLoading, error: deckThemeError } = useDeckThemePalette(presentationId)
+  const { listThemes, loading: savedThemesLoading, error: savedThemesError } = useThemeProfiles()
   const [profiles, setProfiles] = useState<SavedThemeProfile[]>([])
   const [selectedProfileId, setSelectedProfileId] = useState('')
   const anotherThemeEnabled = features.enableElementAnotherTheme
@@ -106,7 +110,7 @@ export function ThemeSourceSelector({
   }
 
   return (
-    <div className="space-y-1.5">
+    <div data-studio-generation-context={STUDIO_GENERATION_CONTEXT ? 'theme' : undefined} className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
         <label className="flex items-center gap-1.5 text-[11px] font-medium text-gray-600 dark:text-slate-300">
           <Palette className="h-3.5 w-3.5" />
@@ -118,6 +122,8 @@ export function ThemeSourceSelector({
         <button
           type="button"
           disabled={!deckAvailable}
+          data-studio-generation-control={STUDIO_GENERATION_CONTEXT ? 'theme-mode' : undefined}
+          aria-pressed={STUDIO_GENERATION_CONTEXT ? value.mode === 'deck' : undefined}
           onClick={() => chooseMode('deck')}
           className={`rounded-md border px-2 py-1 text-xs transition-colors ${
             value.mode === 'deck'
@@ -129,6 +135,8 @@ export function ThemeSourceSelector({
         </button>
         <button
           type="button"
+          data-studio-generation-control={STUDIO_GENERATION_CONTEXT ? 'theme-mode' : undefined}
+          aria-pressed={STUDIO_GENERATION_CONTEXT ? value.mode === 'none' : undefined}
           onClick={() => chooseMode('none')}
           className={`rounded-md border px-2 py-1 text-xs transition-colors ${
             value.mode === 'none'
@@ -139,8 +147,35 @@ export function ThemeSourceSelector({
           No theme
         </button>
       </div>
+      {STUDIO_GENERATION_CONTEXT && (
+        <>
+          {deckAvailable && deckThemeLoading && (
+            <p data-studio-theme-source-status="deck-loading" role="status">Loading deck theme preview…</p>
+          )}
+          {deckAvailable && deckThemeError && (
+            <details data-studio-theme-source-status="deck-error">
+              <summary>Deck theme preview unavailable</summary>
+              <div data-studio-theme-source-error="deck" role="region" aria-label="Deck theme preview error" tabIndex={0}>
+                <p>{deckThemeError}</p>
+              </div>
+            </details>
+          )}
+          {anotherThemeEnabled && savedThemesLoading && (
+            <p data-studio-theme-source-status="saved-loading" role="status">Loading saved themes…</p>
+          )}
+          {anotherThemeEnabled && savedThemesError && (
+            <details data-studio-theme-source-status="saved-error">
+              <summary>Saved themes unavailable</summary>
+              <div data-studio-theme-source-error="saved" role="region" aria-label="Saved themes error" tabIndex={0}>
+                <p>{savedThemesError.message}</p>
+              </div>
+            </details>
+          )}
+        </>
+      )}
       {anotherThemeEnabled && mappedProfiles.length > 0 && (
         <select
+          aria-label={STUDIO_GENERATION_CONTEXT ? 'Element saved theme' : undefined}
           value={selectedProfileId}
           onChange={(event) => {
             const selected = mappedProfiles.find(item => item.profile.id === event.target.value)

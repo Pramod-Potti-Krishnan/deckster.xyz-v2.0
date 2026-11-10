@@ -1,10 +1,12 @@
+import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
+import { kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
+import { composeEntitlementHeaders } from '@/lib/studio-compose-entitlement'
+import { COMPOSE_BODY_KEYS, isApiHardeningEnabled, pickAllowedKeys, requireApprovedUser, requireSessionOwner } from '@/lib/api-hardening'
 
 export const maxDuration = 300
-
-const DEFAULT_DIRECTOR_URL = 'http://localhost:8000'
 
 type SessionUserWithId = {
   id?: string | null
@@ -12,15 +14,17 @@ type SessionUserWithId = {
 }
 
 function directorBaseUrl(): string {
-  return (
-    process.env.SLIDE_COMPOSER_DIRECTOR_URL ||
-    process.env.DIRECTOR_API_URL ||
-    process.env.NEXT_PUBLIC_DIRECTOR_API_URL ||
-    DEFAULT_DIRECTOR_URL
-  ).replace(/\/+$/, '')
+  return requireServiceUrl('Slide Composer Director', [
+    { name: 'SLIDE_COMPOSER_DIRECTOR_URL', value: process.env.SLIDE_COMPOSER_DIRECTOR_URL },
+    { name: 'DIRECTOR_API_URL', value: process.env.DIRECTOR_API_URL },
+    { name: 'NEXT_PUBLIC_DIRECTOR_API_URL', value: process.env.NEXT_PUBLIC_DIRECTOR_API_URL },
+  ], { stripTrailingSlash: true })
 }
 
 export async function POST(req: NextRequest) {
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): approved users only, read from the DB. Off, this returns null and nothing changes.
+  const notApproved = await requireApprovedUser()
+  if (notApproved) return notApproved
   if (process.env.NEXT_PUBLIC_SLIDE_COMPOSER_ENABLED !== 'true') {
     return NextResponse.json(
       { error: 'Slide Composer is disabled' },
@@ -42,17 +46,49 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const payload = {
-    ...body,
-    user_id: userId,
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): the session (and presentation) must be the caller's own. Off, null.
+  const notOwner = await requireSessionOwner(sessionUser?.id, body.session_id, body.presentation_id)
+  if (notOwner) return notOwner
+
+  const research = body.research
+  const useKnowledgeGraph = Boolean(
+    research &&
+    typeof research === 'object' &&
+    !Array.isArray(research) &&
+    (research as Record<string, unknown>).use_knowledge_graph === true
+  )
+
+  let effectiveUserId = userId
+  // STUDIO_COMPOSE_ENTITLEMENT_ENABLED (default off, stacked on #475): the id the signed header may carry. Only the session's own id (never the e-mail fallback above) or the KG gate's id.
+  let canonicalUserId: string | null = sessionUser?.id || null
+  let directorHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
   }
+  if (useKnowledgeGraph) {
+    // Re-read billing live rather than trusting the long-lived NextAuth JWT.
+    // The returned user id is authoritative for this request, preventing a
+    // downgraded account or a forged JSON user_id from using Director as a KG
+    // service-secret proxy.
+    const gate = await requireKgEntitled()
+    if (gate.error) return gate.error
+    effectiveUserId = gate.userId
+    canonicalUserId = gate.userId
+    directorHeaders = kgHeaders(directorHeaders)
+  }
+
+  const payload = {
+    // Hardening on: only the keys the Studio sends are forwarded (no caller-chosen extras such as user_id overrides).
+    ...(isApiHardeningEnabled() ? pickAllowedKeys(body, COMPOSE_BODY_KEYS) : body),
+    user_id: effectiveUserId,
+  }
+
+  // STUDIO_COMPOSE_ENTITLEMENT_ENABLED (stacked on #475): the signed X-Deckster-Entitlement Director !535 needs to bind this compose to its user. {} unless the flag is on, the id is canonical and valid.
+  const entitlement = composeEntitlementHeaders(payload.user_id, canonicalUserId)
 
   try {
     const response = await fetch(`${directorBaseUrl()}/api/v1/slides/compose-one`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { ...directorHeaders, ...entitlement },
       body: JSON.stringify(payload),
       cache: 'no-store',
     })
@@ -69,6 +105,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(data, { status: response.status })
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code, status: 'error', stage: 'proxy', errors: [error.message] }, { status: 503 })
     return NextResponse.json(
       {
         status: 'error',

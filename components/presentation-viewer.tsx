@@ -1,6 +1,17 @@
 "use client"
 
-import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
+import './studio-presentation.css'
+import { StudioWaitingState } from '@/components/builder/studio-waiting-state'
+import { EditModeGuide } from './edit-mode-guide'
+import { StudioToolbarSaveFeedback } from './studio-toolbar-save-feedback'
+import { StudioIntroReplay } from '@/components/studio-intro-replay'
+import './studio-authoring-menus.css'
+import { StudioElementGalleryMenu } from './studio-element-gallery'
+import type { StudioWorkflowRequest } from "@/lib/studio-workflow"
+import { parseStudioNativeSlideOrder, matchStudioNativeAddSlideOrder } from '@/lib/studio-native-slide-order'
+import { planStudioSlideThumbnailMutation, remapStudioSlideThumbnailRows, canAdmitStudioSlideThumbnailMetadata, type StudioSlideThumbnailMutationPlan, type StudioSlideThumbnailCapture } from '@/lib/studio-slide-thumbnail-mutations'
+import { shouldHandleStudioCanvasShortcut } from "@/lib/studio-canvas-shortcuts"
+import { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import {
   ChevronLeft,
@@ -32,22 +43,47 @@ import {
   Moon,
   Tag,
   Pentagon,
+  Upload,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { features } from '@/lib/config'
 import { debugLog } from '@/lib/debug-log'
-import { LAYOUT_SERVICE_URL, LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client'
+import { getLayoutServiceUrl, LAYOUT_URL_CONFIG_ERROR, LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client'
 import {
   getLayoutViewerOrigin,
   isTrustedLayoutViewerMessage,
 } from '@/lib/layout-viewer-messaging'
 import { evaluateLayoutViewerUrl } from '@/lib/layout-viewer-url-policy'
+import { STUDIO_RAIL_FOCUS_HIDDEN_STYLE } from '@/lib/studio-panel-focus'
+import { clampPresentSlideIndex, isPresentViewOnlyEnabled, presentFrameStartIndex, presentNavigationCommand } from '@/lib/present-view-only'
+import { PresentViewOnlyFrame } from './present-view-only-frame'
+import {
+  buildSnapshotNavigationUrl,
+  completedBuildSnapshotKey,
+  nativeSnapshotSlideCount,
+  type CompletedBuildSnapshot,
+} from '@/lib/build-viewer-snapshot'
 import {
   isMatchingSlideComposeCommandResponse,
   restoreSlideViewerSelection,
   resolveSlideComposeViewerState,
   resolveSlideViewerNavigationInfo,
 } from '@/lib/slide-compose-async'
+import { applyStageFThumbnailUrls, ownedRestoredThumbnailUrl } from '@/lib/stage-f-thumbnails'
+import { railBuildHeadingTotal, railBuildPlaceholders, type RailBuildPlan } from '@/lib/studio-rail-build-count' // RAIL-SLIDES-1-MIDBUILD
+import { slideTitleLabel } from '@/lib/studio-slide-title-label'
+import { useSlideRailIdentity } from '@/hooks/use-slide-rail-identity'
+import { STUDIO_RAIL_SLIDE_IDENTITY_ENABLED } from '@/lib/slide-rail-identity'
+import { STUDIO_DECK_MUTATION_REFRESH_ENABLED, onSlideRailRefreshRequest } from '@/lib/studio-deck-mutation-refresh'
+import { STUDIO_SLIDE_DELETE_CANVAS_REFRESH_ENABLED, studioSlideDeleteRefresh } from '@/lib/studio-slide-delete-refresh' // PASS2D B4
+import { StudioSlideDeleteRefreshVeil } from '@/components/builder/studio-slide-delete-refresh-veil' // PASS2D B4
+import { STUDIO_SLIDE_OPS_VIA_VIEWER_ENABLED, SLIDE_OP_VIEWER_TIMEOUT_MS, isSlideOpViewerAction, slideTotalAfterAck } from '@/lib/studio-slide-ops-via-viewer' // SLIDE-OPS-VIA-VIEWER
+import { STUDIO_INSERT_PERSIST_ENABLED, shouldEnsureEditModeForPersistence, ensureViewerTracksEdits } from '@/lib/studio-insert-persist' // INSERT-PERSIST
+import { STUDIO_DECK_CHANGED_NOTICE_ENABLED, reportDeckChange, reportLayoutCommandAck, reportOwnDeckEdit, reportViewerDeckState } from '@/lib/studio-deck-changed-notice'
+import { isDeckSaveRefused, reportDeckSaveRefused } from '@/lib/studio-deck-save-refused' // DECK-SAVE-REFUSED-NOTICE
+import { STUDIO_SLIDE_RAIL_V2, SLIDE_RAIL_V2_DEFAULT_WIDTH } from '@/lib/studio-slide-rail-v2'
+import { STUDIO_TOP_BAR_V2_ENABLED, publishStudioDeckSaveState } from '@/lib/studio-top-bar-v2'
+import { STUDIO_THEME_BLANK_NOTE_ENABLED, themeBlankNote } from '@/lib/studio-theme-blank-note'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -68,11 +104,21 @@ import Link from 'next/link'
 import { SlideThumbnailStrip, SlideThumbnail, type SlideComposeThumbnailJob } from './slide-thumbnail-strip'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
 import { SlideNotesPanel } from './slide-notes-panel'
+import { CHAT_ELEMENT_EDIT_ENABLED } from '@/lib/chat-element-edit-wire' // CHAT-ELEMENT-EDIT (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off): the viewer's save acks and edit mode, for an element edit from chat
+import { publishViewerSaveEvent, registerChatEditViewer } from '@/lib/chat-element-edit-save' // CHAT-ELEMENT-EDIT
+import { CHAT_STALE_VIEWER_GUARD_ENABLED } from '@/lib/chat-stale-viewer-guard' // CHAT-STALE-VIEWER-GUARD CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_STALE_VIEWER_GUARD, default off): a chat add or edit after a chat deck change; Reload deck ends a remembered save error
 import { SaveStatus } from './save-status-indicator'
 import { SlideLayoutPicker, SlideLayoutType } from './slide-layout-picker'
+import { ADD_SLIDE_V2_ENABLED, type AddSlideV2Settings } from '@/lib/studio-add-slide-v2'
 import { DeleteSlideDialog } from './delete-slide-dialog'
 import { TemplateSaveDialog } from './template-save-dialog'
+import { TemplateIngestDialog } from './template-ingest-dialog'
+import { StudioTemplatePicker } from './studio-template-workspace/entry'
+import { StudioDisabledReason } from './studio-disabled-reason'
+import { STUDIO_DISABLED_REASONS_ENABLED, studioToolbarDisabledReason, studioElementCardsDisabledReason, type StudioToolbarControl } from '@/lib/studio-disabled-reasons'
+import { STUDIO_RAIL_ADD_SLIDE, railAddSlideState } from '@/lib/studio-rail-add-slide'
 import { useToast } from '@/hooks/use-toast'
+import { STUDIO_PASS3_POLISH_B_ENABLED, STUDIO_POLISH_COPY } from '@/lib/studio-pass3-polish-b' // PASS3-POLISH-B (NEXT_PUBLIC_STUDIO_PASS3_POLISH, default off): audit #7, the Studio toast instead of the browser's alert
 // TextFormatPopover is now replaced by simple text box insertion button
 // Keeping FormatTextParams for backward compatibility if needed
 import { FormatTextParams } from './text-format-popover'
@@ -80,10 +126,14 @@ import { generateTableHTML } from './table-insert-popover'
 import { InsertChartParams, generateChartConfig } from './chart-picker-popover'
 import { ElementType, ElementProperties, BaseElementProperties, ChartType } from '@/types/elements'
 import { VersionHistoryPanel } from './version-history-panel'
+import { VersionHistoryPanelV2 } from './version-history-panel-v2' // VERSION-HISTORY-V2
+import { STUDIO_VERSION_HISTORY_V2_ENABLED, versionHistoryBridge } from '@/lib/studio-version-history-v2' // VERSION-HISTORY-V2
+import { warmStudioFirstPaintConnections, studioSlideInfoPollWiring, isUsableFirstPollAnswer } from '@/lib/studio-first-paint' // STUDIO-FIRST-PAINT
 import { PresentationSettingsPanel } from './presentation-settings-panel'
 import { ThemePanel } from './theme-panel'
 import { TemplateModeOverlay } from './builder/template-mode-overlay'
 import { TemplatePickerContent } from './builder/template-picker'
+import type { ComposerLibraryRequest } from '@/lib/studio-composer-popups'
 import type { TemplateBlueprint, TemplateSelection, TemplateSnapshot } from '@/hooks/use-templates'
 import { getTemplateSaveGate } from '@/lib/template-save-gate'
 import {
@@ -93,13 +143,15 @@ import {
   isLayoutViewerEvent,
 } from '@/lib/element-command-router'
 import {
-  ELEMENTOR_BASE_URL,
+  getElementorServiceUrl,
   getElementorEndpoint,
   ElementorContext,
   ElementorPosition
 } from '@/lib/elementor-client'
 import { SlideBuildingLoader } from './slide-building-loader'
 import type { BuildThemeSelection } from '@/lib/theme-builder'
+import { createStudioFormatSelectionHandle, type StudioFormatSelectionHandle } from '@/lib/studio-format-native'
+import { studioArrangeRaisesOnSelect, studioArrangeSelectionInput, studioArrangeOwnsSaveStatus } from '@/lib/studio-arrange' // STUDIO-ARRANGE (NEXT_PUBLIC_STUDIO_ARRANGE, default off): no raise on select; Arrange reads the selection's properties
 import { IDLE_THEME_SYNC, type ThemeSyncState } from '@/lib/theme-sync'
 import {
   isDiagramRendererStateEvent,
@@ -111,6 +163,12 @@ import {
   layoutMutationStateIsAmbiguous,
   sendLayoutMutationWithReconciliation,
 } from '@/lib/layout-command-result'
+import {
+  STUDIO_SLIDE_COUNT_SYNC_ENABLED,
+  syncedFooterTotal,
+  visualTotalAfterCommit,
+} from '@/lib/studio-slide-count-sync'
+import { STUDIO_DECK_SYNC_TRUTH_ENABLED, syncTruthSettledTotals } from '@/lib/studio-deck-sync-truth' // DECK-SYNC-TRUTH (NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH, default off): after a poll the totals are the viewer's own count, not a floor restored too high
 
 const DEFAULT_BUILD_THEME_SELECTION: BuildThemeSelection = { mode: 'auto' }
 
@@ -223,14 +281,30 @@ export function resolveRefineElementGenerationConfig(
   return null
 }
 
+export type StudioThumbnailMutationCapture = (presentationId: string, owner: { readonly presentationId: string | null }) =>
+  ((currentOwner: { readonly presentationId: string | null }, plan: StudioSlideThumbnailMutationPlan) => void) & {
+    fence?: (currentOwner: { readonly presentationId: string | null }) => boolean
+  }
+
 interface PresentationViewerProps {
+  onStudioFormatRequested?: (selection: StudioFormatSelectionHandle) => void
+  studioFormatBusy?: boolean
+  studioWorkflowRequest?: StudioWorkflowRequest | null
   presentationUrl: string
   presentationId: string | null
   slideCount: number | null
+  completedBuildSnapshot?: CompletedBuildSnapshot | null
+  /** RAIL-SLIDES-1-MIDBUILD (NEXT_PUBLIC_STUDIO_RAIL_BUILD_COUNT): the running build's plan, set only while this viewer shows its filling deck; the rail never counts below it. Absent = the rail reads the frame's own count. */
+  railBuildPlan?: RailBuildPlan | null // RAIL-SLIDES-1-MIDBUILD
   slideStructure?: any // SlideUpdate payload from WebSocket
   showControls?: boolean
   downloadControls?: React.ReactNode
   onSlideChange?: (slideNumber: number) => void
+  studioPartialArtifact?: boolean
+  onStudioPartialNativeReadback?: (readback: StudioPartialNativeReadback) => void
+  onThumbnailInvalidated?: (presentationId: string) => void
+  onThumbnailMutationCapture?: StudioThumbnailMutationCapture
+  studioOwnerUserId?: string | null
   onEditModeChange?: (isEditing: boolean) => void
   className?: string
   // Version switching support (Builder V2: now includes 'blank' version)
@@ -267,6 +341,19 @@ interface PresentationViewerProps {
   // Generation overlay: keeps viewer mounted but overlays loader
   isGenerating?: boolean
   generatingMode?: 'default' | 'strawman'
+  // Build Narration v2: narration-agnostic chrome slots anchored to the slide.
+  // ribbon renders above the slide container, footer below it (both plain flex
+  // children — the container's ResizeObserver absorbs their height), frame and
+  // placeholder render INSIDE the sized 16:9 box (frame around/over the
+  // iframe, placeholder covering it). All slots skipped in fullscreen; the
+  // whole prop null/undefined ⇒ byte-identical output to today.
+  studioIntroReplay?: React.ReactNode
+  stageChrome?: {
+    ribbon?: React.ReactNode
+    footer?: React.ReactNode
+    frame?: React.ReactNode
+    placeholder?: React.ReactNode
+  } | null
   // Template Builder: the WS session id (source for "Save as Template") + gate
   sessionId?: string | null
   deckOwnerSessionId?: string | null
@@ -278,8 +365,25 @@ interface PresentationViewerProps {
   templateModeOn?: boolean
   onTemplateModeChange?: (enabled: boolean) => void
   templateModeAvailable?: boolean
+  /** Toolbar template picker fix-forward (NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE; the page passes both only with that flag and a composer library). */
+  onComposerTemplateAction?: (request: ComposerLibraryRequest) => void
+  onOpenComposerLibrary?: () => void
   composeJobs?: SlideComposeThumbnailJob[]
   onRefineSlide?: (target: SlideRefineTarget) => void
+  onGenerateSlide?: () => void
+  // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the user changed the deck's slides by hand (Add / Duplicate / Delete / Reorder). The page
+  // passes it only with the flag on and uses it to save the session row on the first such action. Never called by Director.
+  onUserDeckEdit?: () => void
+  // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: set (a hint sentence) only while this tab is paused because the session is live in another tab.
+  // Add Slide, Add Element, Theme and Template are then disabled with this hint; viewing and moving between slides stay available.
+  studioTabPausedHint?: string
+  // J2 v2 (flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED): the page's chat/session settings for the Add Slide pop-up.
+  addSlideV2Settings?: AddSlideV2Settings<BuildThemeSelection>
+  // PASS2 #3 (flag NEXT_PUBLIC_STUDIO_PANEL_FOCUS): the page hides the slide rail while Add Slide / Add Element is open;
+  // the rail's own toggle then calls onStudioRailReveal instead of changing the user's show/hide choice.
+  studioRailCollapsed?: boolean
+  onStudioRailReveal?: () => void
+  thumbnailUrlsBySlide?: Record<number, string>
   templateSnapshot?: TemplateSnapshot | null
   templateSnapshotLoading?: boolean
   templateCurrentSlideIndex?: number
@@ -293,8 +397,46 @@ interface PresentationViewerProps {
     updateSectionContent: (slideIndex: number, sectionId: string, content: string) => Promise<boolean>
     sendTextBoxCommand: (action: string, params: Record<string, any>) => Promise<any>
     sendElementCommand: (action: string, params: Record<string, any>) => Promise<any>
+    // MDC P8: index-based navigation for chat-invoked element placement.
+    goToSlide: (slideIndex: number) => Promise<void>
+    getStudioIntroductionSafety?: () => StudioIntroductionSafety
+    captureStudioElementGeneration?: () => StudioElementGenerationLease | null
+    getStudioSaveStatus?: () => SaveStatus // CHAT-STALE-VIEWER-GUARD CHAT-PARITY: the last save status the viewer posted (flag on only)
   } | null) => void
+  onStudioIntroductionSafetyChange?: (safety: StudioIntroductionSafety | null) => void
   onComposeApiReady?: (apis: SlideComposeViewerApi | null) => void
+}
+
+/** Local observed safety only; this getter performs no iframe command or save. */
+export interface StudioIntroductionSafety {
+  presentationId: string | null
+  presentationUrl: string | null
+  ready: boolean
+  dirty: boolean
+  busy: boolean
+  error: boolean
+}
+
+/** Local operation lifetime; it adds no native command or service request. */
+export interface StudioElementGenerationLease {
+  isCurrent: () => boolean
+  sendElementCommand: (action: string, params: Record<string, any>) => Promise<any>
+}
+
+export interface StudioComposeSelectionContext {
+  readonly frameEpoch: object
+  readonly continuationKey: object
+  readonly loadRevision: number
+  readonly interactionRevision: number
+  readonly structureRevision: number
+  readonly presentationUrl: string
+  isCurrent: () => boolean
+  readNativeOrder: () => Promise<unknown>
+  restoreIdentity: (input: {
+    slideId: string
+    expectedNativeCount: number | null
+    isCurrent: () => boolean
+  }) => Promise<{ slideId: string; visualIndex: number; nativeCount: number; verified: true }>
 }
 
 export interface SlideComposeViewerApi {
@@ -314,7 +456,8 @@ export interface SlideComposeViewerApi {
   composePlaceholderFail: (jobId: string) => Promise<any>
   composeGetState: () => Promise<any>
   composeGoToPlaceholder: (jobId: string) => Promise<any>
-  composeGoToVisualIndex: (visualIndex: number) => Promise<any>
+  composeGoToVisualIndex: (visualIndex: number, options?: { isCurrent?: () => boolean }) => Promise<any>
+  composeCaptureSelectionContext?: () => StudioComposeSelectionContext | null
   refineOverlayMark: (jobId: string, slideId: string) => Promise<any>
   refineSlideReconcile: (
     jobId: string,
@@ -331,7 +474,7 @@ interface SlideInfo {
 }
 
 // Viewer origin for postMessage communication
-const VIEWER_ORIGIN = new URL(LAYOUT_SERVICE_URL).origin
+const VIEWER_ORIGIN = LAYOUT_VIEWER_URL_POLICY.configuredOrigin
 
 /**
  * Send command to iframe via postMessage (cross-origin safe)
@@ -339,6 +482,7 @@ const VIEWER_ORIGIN = new URL(LAYOUT_SERVICE_URL).origin
 type SendCommandOptions = {
   timeoutMs?: number
   expectedJobId?: string | null
+  requireRequestId?: boolean
 }
 
 function createViewerRequestId(): string {
@@ -365,6 +509,16 @@ function sendCommand(
     : params
 
   return new Promise((resolve, reject) => {
+    try {
+      getLayoutServiceUrl()
+    } catch (error) {
+      reject(error)
+      return
+    }
+    if (!VIEWER_ORIGIN) {
+      reject(new Error("Layout service has no configured viewer origin"))
+      return
+    }
     if (!iframe) {
       if (requiresStrictResponse) {
         scTrace('viewer.command.error', { action, requestId, params, error: 'Iframe not ready' })
@@ -394,7 +548,9 @@ function sendCommand(
             requestId,
             expectedJobId: options.expectedJobId,
           })
-        : event.data?.action === action && (!event.data?.requestId || event.data.requestId === requestId)
+        : event.data?.action === action && (options.requireRequestId
+          ? event.data.requestId === requestId
+          : !event.data?.requestId || event.data.requestId === requestId)
 
       if (matches) {
         if (requiresStrictResponse) {
@@ -409,6 +565,7 @@ function sendCommand(
           settle(() => {
             resolve(event.data)
           })
+          reportLayoutCommandAck(action) // NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE: other tabs hear about deck-changing acks (no-op with the flag off)
         } else {
           settle(() => {
             reject(new Error(event.data.error || 'Command failed'))
@@ -451,6 +608,7 @@ function postCommand(
   action: string,
   params?: Record<string, any>,
 ) {
+  if (!VIEWER_ORIGIN || LAYOUT_URL_CONFIG_ERROR) return
   iframe?.contentWindow?.postMessage(
     { action, params, requestId: createViewerRequestId() },
     getLayoutViewerOrigin(iframe, VIEWER_ORIGIN),
@@ -488,6 +646,18 @@ function waitForViewerSettle(delayMs: number): Promise<void> {
   return new Promise(resolve => window.setTimeout(resolve, delayMs))
 }
 
+export interface StudioPartialNativeReadback {
+  readonly presentationId: string
+  readonly presentationUrl: string
+  readonly nativeCount: number
+  readonly currentVisualIndex: number
+  /** Navigation counts carry no native IDs/order. Only real_order uses the
+   * existing strict compose parser; neither kind supplies storage authority. */
+  readonly kind: 'navigation' | 'real_order'
+  readonly isFrameCurrent: () => boolean
+  readonly isCurrent: () => boolean
+}
+
 export function PresentationViewer({
   presentationUrl,
   presentationId,
@@ -496,6 +666,13 @@ export function PresentationViewer({
   showControls = true,
   downloadControls,
   onSlideChange,
+  studioPartialArtifact = false,
+  onStudioPartialNativeReadback,
+  onThumbnailInvalidated,
+  onThumbnailMutationCapture,
+  studioOwnerUserId,
+  onStudioFormatRequested,
+  studioFormatBusy = false,
   onEditModeChange,
   className = '',
   strawmanPreviewUrl,
@@ -509,6 +686,7 @@ export function PresentationViewer({
   onElementDeselected,
   onElementDeleted,
   onApiReady,
+  onStudioIntroductionSafetyChange,
   onComposeApiReady,
   onOpenGenerationPanel,
   onRefineElementRequested,
@@ -522,6 +700,10 @@ export function PresentationViewer({
   connecting,
   isGenerating,
   generatingMode,
+  studioIntroReplay,
+  stageChrome = null,
+  completedBuildSnapshot = null,
+  railBuildPlan = null, // RAIL-SLIDES-1-MIDBUILD
   sessionId,
   deckOwnerSessionId,
   templateSavePresentationId,
@@ -532,8 +714,17 @@ export function PresentationViewer({
   templateModeOn = false,
   onTemplateModeChange,
   templateModeAvailable = false,
+  onComposerTemplateAction,
+  onOpenComposerLibrary,
   composeJobs = [],
   onRefineSlide,
+  onGenerateSlide,
+  onUserDeckEdit,
+  studioTabPausedHint,
+  addSlideV2Settings,
+  studioRailCollapsed = false,
+  onStudioRailReveal,
+  thumbnailUrlsBySlide = {},
   templateSnapshot = null,
   templateSnapshotLoading = false,
   templateCurrentSlideIndex,
@@ -541,7 +732,9 @@ export function PresentationViewer({
   blueprintEditorV2Enabled = false,
   onTemplateElementSelect,
   onTemplateBlueprintChange,
+  studioWorkflowRequest = null,
 }: PresentationViewerProps) {
+  warmStudioFirstPaintConnections(VIEWER_ORIGIN) // STUDIO-FIRST-PAINT (NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED, default off): React hoists the preconnects for Layout and its CDNs into <head>; nothing with the flag off
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const slideContainerRef = useRef<HTMLDivElement>(null)
@@ -553,13 +746,85 @@ export function PresentationViewer({
   const [normalSlideSize, setNormalSlideSize] = useState<{ width: number; height: number } | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [showTemplateSave, setShowTemplateSave] = useState(false) // Template Builder: Save dialog
+  const [showTemplateIngest, setShowTemplateIngest] = useState(false) // Template Ingest: Upload dialog (C-7)
+  // Template Ingest (C-7): flag-gated 4th Template-menu item.
+  const templateIngestEnabled = process.env.NEXT_PUBLIC_TEMPLATE_INGEST_ENABLED === 'true'
   const [toolbarTemplateMenuOpen, setToolbarTemplateMenuOpen] = useState(false)
   const [toolbarTemplatePickerOpen, setToolbarTemplatePickerOpen] = useState(false)
   const [currentSlide, setCurrentSlide] = useState(1) // Start at 1 (slides are 1-indexed)
   const [totalSlides, setTotalSlides] = useState(slideCount || 0)
   const [visualTotalSlides, setVisualTotalSlides] = useState(slideCount || 0)
+  // J2-F4 (flag NEXT_PUBLIC_STUDIO_SLIDE_COUNT_SYNC_ENABLED): the CRUD acks read the counters as they
+  // are at commit time so they can move both from one number. Unused with the flag off.
+  const slideTotalsRef = useRef({ total: 0, visual: 0 })
+  slideTotalsRef.current = { total: totalSlides, visual: visualTotalSlides }
   const [isFullscreen, setIsFullscreen] = useState(false)
+  // A4: while Present is on, a separate `?viewOnly=true` frame covers the editing frame so audiences
+  // never see authoring placeholders. Flag NEXT_PUBLIC_PRESENT_VIEW_ONLY_ENABLED, default off = unchanged.
+  const presentViewOnlyEnabled = isPresentViewOnlyEnabled()
+  const [presentFrameFailed, setPresentFrameFailed] = useState(false)
+  const presentFrameRef = useRef<HTMLIFrameElement | null>(null) // the view-only frame, once initialised
+  const presentSlideIndexRef = useRef<number | null>(null) // last slide it reported, 0-based
+  const presentViewOnlyActiveRef = useRef(false)
+  const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+  const deckSyncBuildingRef = useRef(false) // DECK-SYNC-TRUTH (NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH): a build is in progress; the poll's interval reads it fresh, as the poll effect does not list isGenerating
+  deckSyncBuildingRef.current = !studioShell || Boolean(isGenerating) || Boolean(studioPartialArtifact) // DECK-SYNC-TRUTH: outside the Studio shell, and while a build runs (isGenerating, or the partial artifact that also carries the rail's mid-build plan), the grow-only floor stays
+  // PASS2 #5 (flag NEXT_PUBLIC_STUDIO_TOOLBAR_CLEANUP, exact "true", default off, Studio shell only): the toolbar loses its
+  // dead "Templates — coming soon" control, and Present moves from the slide footer to the end of the authoring strip, as in
+  // the mockup. Off: the toolbar and footer are exactly as before.
+  const studioToolbarCleanup = studioShell && process.env.NEXT_PUBLIC_STUDIO_TOOLBAR_CLEANUP === 'true'
+  const authoringStripRef = useRef<HTMLDivElement>(null)
+  const [studioAuthoringPortalTarget, setStudioAuthoringPortalTarget] = useState<HTMLDivElement | null>(null)
+  const [studioPresentPortalTarget, setStudioPresentPortalTarget] = useState<HTMLDivElement | null>(null)
+  // PASS2 rail v2 (flag NEXT_PUBLIC_STUDIO_SLIDE_RAIL_V2): the rail opens at the mockup's 140 px; a remembered width still wins.
+  const [thumbnailWidth, setThumbnailWidth] = useState(STUDIO_SLIDE_RAIL_V2 ? SLIDE_RAIL_V2_DEFAULT_WIDTH : 120)
+  const thumbnailResizeRef = useRef<{ startX: number; width: number } | null>(null)
+  const thumbnailPreferenceKey = 'deckster_studio_v4_thumbnail_width'
+  const clampThumbnailWidth = (width: number) => Math.max(96, Math.min(180, Math.round(width)))
+  const rememberThumbnailWidth = (width: number) => {
+    const bounded = clampThumbnailWidth(width)
+    setThumbnailWidth(bounded)
+    try { localStorage.setItem(thumbnailPreferenceKey, String(bounded)) } catch { /* Optional preference. */ }
+  }
+  useEffect(() => {
+    if (!studioShell) return
+    try {
+      const saved = localStorage.getItem(thumbnailPreferenceKey)
+      if (saved !== null && Number.isFinite(Number(saved))) setThumbnailWidth(clampThumbnailWidth(Number(saved)))
+    } catch { /* Storage restrictions do not block the canvas. */ }
+  }, [studioShell])
+  useEffect(() => {
+    if (!studioShell || isFullscreen || !showControls) return
+    const container = authoringStripRef.current
+    if (!container) return
+    const revealAuthoringFocus = (event: FocusEvent) => {
+      const control = event.target
+      if (!(control instanceof HTMLElement) || !container.contains(control)) return
+      const bounds = container.getBoundingClientRect()
+      const focused = control.getBoundingClientRect()
+      const style = getComputedStyle(control)
+      const outline = style.outlineStyle === 'none' ? 0 : Math.max(
+        0, (parseFloat(style.outlineWidth) || 0) + (parseFloat(style.outlineOffset) || 0),
+      )
+      const left = bounds.left + container.clientLeft
+      const right = left + container.clientWidth
+      const delta = focused.left - outline < left
+        ? focused.left - outline - left
+        : Math.max(0, focused.right + outline - right)
+      if (delta) container.scrollLeft += delta
+    }
+    // Reveal just this strip; leave keyboard focus and the page position intact.
+    container.addEventListener('focusin', revealAuthoringFocus)
+    return () => container.removeEventListener('focusin', revealAuthoringFocus)
+  }, [studioShell, isFullscreen, showControls, studioAuthoringPortalTarget])
   const [showThumbnails, setShowThumbnails] = useState(true) // Show by default
+  const thumbnailVisibilityInitializedRef = useRef(false)
+  useEffect(() => {
+    if (thumbnailVisibilityInitializedRef.current) return
+    thumbnailVisibilityInitializedRef.current = true
+    // Initialize once after hydration; native toggles and later resizing own the choice.
+    if (studioShell && window.innerWidth <= 666) setShowThumbnails(false)
+  }, [studioShell])
   const [showToolbar, setShowToolbar] = useState(true) // For auto-hide in fullscreen
   const [iframeReady, setIframeReady] = useState(false)
   const [loadedApprovedNavigationUrl, setLoadedApprovedNavigationUrl] = useState<string | null>(null)
@@ -568,7 +833,21 @@ export function PresentationViewer({
   const diagramStateTimersRef = useRef<Map<string, number>>(new Map())
   const pendingDiagramStatesRef = useRef<Map<string, DiagramRendererStateUpdate>>(new Map())
   const onSlideChangeRef = useRef(onSlideChange)
+  const onEditModeChangeRef = useRef(onEditModeChange) // INSERT-PERSIST: read at call time so the element-command callback keeps its identity
+  onEditModeChangeRef.current = onEditModeChange // INSERT-PERSIST
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
+  // Native saves can race React renders. Only a trusted saved/no-pending event
+  // clears a dirty history; forceSave/getPendingChanges fallbacks do not prove it.
+  const nativeSnapshotDirtyRef = useRef(false)
+  const [nativeSnapshotSafetyRevision, setNativeSnapshotSafetyRevision] = useState(0)
+  const [buildSnapshotRevision, setBuildSnapshotRevision] = useState(0)
+  const completedSnapshotRef = useRef<string | null>(null)
+  const snapshotProbeRef = useRef<object | null>(null)
+  const snapshotSelectionRef = useRef<{ source: string; index: number; restoring?: boolean } | null>(null)
+  const [nativeReadySource, setNativeReadySource] = useState<string | null>(null)
+  const snapshotCurrentSlideRef = useRef(currentSlide)
+  snapshotCurrentSlideRef.current = currentSlide
+  const nativeSnapshotStructureEditedRef = useRef(false)
   // Delete dialog state
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [slidesToDelete, setSlidesToDelete] = useState<number[] | null>(null)
@@ -577,20 +856,69 @@ export function PresentationViewer({
   const [selectedSlideIndices, setSelectedSlideIndices] = useState<number[]>([])
   // Track when CRUD operations have modified slides (invalidates stale slideStructure)
   const [slidesModifiedByCrud, setSlidesModifiedByCrud] = useState(false)
+  // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: every manual slide mutation (add, duplicate, delete, reorder) raises the flag above, so
+  // its false -> true edge is the one place that sees them all. No prop (flag off) = no call.
+  const onUserDeckEditRef = useRef(onUserDeckEdit)
+  useEffect(() => { onUserDeckEditRef.current = onUserDeckEdit }, [onUserDeckEdit])
+  useEffect(() => { if (slidesModifiedByCrud) onUserDeckEditRef.current?.() }, [slidesModifiedByCrud])
   const [isSlideMutationPending, setIsSlideMutationPending] = useState(false)
   const slideMutationPendingRef = useRef(false)
+  // Publication survives release of the busy lease, so queued React updates
+  // remain owned until a newer structural intent or frame/deck retires them.
+  const studioNativeMutationPublicationRef = useRef<object | null>(null)
+  // A native reload retires publication, but its latest logical operation may
+  // still need an honest check-result notice. New intent/deck/mount wins.
+  const studioNativeMutationIntentRef = useRef<object | null>(null)
+  const studioDeleteDialogRef = useRef<{
+    indices: number[]; open: boolean; submitted: boolean; isCurrent: () => boolean
+  } | null>(null)
+  const viewerInteractionIntentRef = useRef(0)
+  // Manual navigation can retire automatic selection without retiring owned
+  // structural counts/metadata. Poll movement is not a manual-intent receipt.
+  const studioSlideNavigationRevisionRef = useRef(0)
+  const studioManualSlideNavigationRef = useRef<{
+    revision: number; iframe: HTMLIFrameElement; isCurrent: () => boolean
+    selectedId: Promise<string | null>
+  } | null>(null)
+  const studioComposeLoadRevisionRef = useRef(0)
+  const studioComposeLoadedFrameRef = useRef<{
+    iframe: HTMLIFrameElement; source: string; nativeWindow: Window | null; revision: number
+  } | null>(null)
+  const studioComposeContinuationRef = useRef<{ key: string; deckOwner: object; token: object } | null>(null)
+  const studioSaveRequestRef = useRef<object | null>(null)
+  const slideMutationMountRef = useRef({ active: true, generation: 0 })
+  const thumbnailNativeRevisionRef = useRef(0)
+  const thumbnailMetadataRef = useRef({ structure: slideStructure, revision: 0 })
+  if (thumbnailMetadataRef.current.structure !== slideStructure) {
+    thumbnailMetadataRef.current = { structure: slideStructure, revision: thumbnailMetadataRef.current.revision + 1 }
+  }
+  const [studioCanonicalThumbnails, setStudioCanonicalThumbnails] = useState<{
+    owner: object; nativeRevision: number; metadataRevision: number; rows: SlideThumbnail[]
+  } | null>(null)
+  const slideMutationRequestRef = useRef<{
+    owner: object
+    mountGeneration: number
+    iframe: HTMLIFrameElement
+    isCurrent?: () => boolean
+    reportUnconfirmed?: () => void
+    operation?: 'add'
+  } | null>(null)
   const toolbarDropdownPortalContainer = isFullscreen ? containerRef.current ?? undefined : undefined
   // Text box selection state
   const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null)
   // Version history panel state
   const [showVersionHistory, setShowVersionHistory] = useState(false)
   const [showPresentationSettings, setShowPresentationSettings] = useState(false)
+  useEffect(() => { if (process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY !== 'true') return; let bus: typeof import('@/lib/studio-chat-parity').chatParityBus | null = null; void import('@/lib/studio-chat-parity').then(mod => { bus = mod.chatParityBus; bus.openMaster = () => setShowPresentationSettings(true) }); return () => { if (bus) bus.openMaster = null } }, []) // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY, read inline): a chat footer / logo request opens the Master panel, the Show menu's own "Master…"; the bus is loaded inside the gated effect so the viewer's proofs see no new import
   const [showThemePanel, setShowThemePanel] = useState(false)
+  const handledWorkflowRef = useRef<string | null>(null)
+
+
   const viewerUrlDecision = useMemo(
     () => evaluateLayoutViewerUrl(presentationUrl, LAYOUT_VIEWER_URL_POLICY),
     [presentationUrl],
   )
-  const approvedPresentationUrl = viewerUrlDecision.status === 'allowed'
+  const approvedPresentationUrl = !LAYOUT_URL_CONFIG_ERROR && viewerUrlDecision.status === 'allowed'
     ? viewerUrlDecision.url
     : null
   const templateSaveGate = getTemplateSaveGate({
@@ -605,20 +933,421 @@ export function PresentationViewer({
     isBlankPresentation,
     templateModeOn,
   })
-  const canSaveTemplate = templateSaveGate.canSave
-  const resolvedTemplateSavePresentationId = templateSaveGate.sourcePresentationId
+  const canSaveTemplate = !studioPartialArtifact && templateSaveGate.canSave
+  // PASS2D A3 (NEXT_PUBLIC_STUDIO_THEME_BLANK_NOTE, default off): what the Theme dialog says on the blank canvas. Null with the flag off, and then the dialog gets no new prop.
+  const themeBlankCopy = themeBlankNote(STUDIO_THEME_BLANK_NOTE_ENABLED, isBlankPresentation)
+  const resolvedTemplateSavePresentationId = studioPartialArtifact ? null : templateSaveGate.sourcePresentationId
   // View mode toggles (grid, borders, edit) - only shown in non-fullscreen
   const [isGridActive, setIsGridActive] = useState(false)
   const [isBordersActive, setIsBordersActive] = useState(false)
   const approvedIframeNavigationUrl = useMemo(() => {
-    if (!approvedPresentationUrl) return null
-    return new URL(approvedPresentationUrl).toString()
-  }, [approvedPresentationUrl])
-  const viewerIsReady = Boolean(
+    return buildSnapshotNavigationUrl(approvedPresentationUrl, studioShell ? buildSnapshotRevision : 0)
+  }, [approvedPresentationUrl, studioShell, buildSnapshotRevision])
+  // VERSION-HISTORY-V2 (NEXT_PUBLIC_STUDIO_VERSION_HISTORY_V2, default off): the profile menu's "Version history" opens the panel of the deck on screen. The opener exists only while a deck is loaded.
+  const [versionHistoryV2Open, setVersionHistoryV2Open] = useState(false) // VERSION-HISTORY-V2
+  useEffect(() => { // VERSION-HISTORY-V2
+    if (!STUDIO_VERSION_HISTORY_V2_ENABLED || !VIEWER_ORIGIN || LAYOUT_URL_CONFIG_ERROR) return // VERSION-HISTORY-V2
+    if (!approvedIframeNavigationUrl) { setVersionHistoryV2Open(false); return } // VERSION-HISTORY-V2: no deck on screen, nothing to open
+    return versionHistoryBridge.register(() => setVersionHistoryV2Open(true)) // VERSION-HISTORY-V2
+  }, [approvedIframeNavigationUrl]) // VERSION-HISTORY-V2
+  const presentViewOnlyActive = presentViewOnlyEnabled && isFullscreen && !presentFrameFailed && !!approvedIframeNavigationUrl
+  presentViewOnlyActiveRef.current = presentViewOnlyActive
+  // A4: the deck size the Present slide index stays inside (the visual count includes in-deck placeholders).
+  const presentSlideTotal = Math.max(visualTotalSlides || 0, totalSlides || 0)
+  const slideMutationOwnerRef = useRef({
+    userId: studioOwnerUserId ?? null,
+    presentationId: presentationId ?? null,
+    source: approvedIframeNavigationUrl,
+    sessionId: sessionId ?? null,
+    deckOwnerSessionId: deckOwnerSessionId ?? null,
+    activeVersion,
+    generation: 0,
+  })
+  if (studioShell && (
+    slideMutationOwnerRef.current.userId !== (studioOwnerUserId ?? null)
+    ||
+    slideMutationOwnerRef.current.presentationId !== (presentationId ?? null)
+    || slideMutationOwnerRef.current.source !== approvedIframeNavigationUrl
+    || slideMutationOwnerRef.current.sessionId !== (sessionId ?? null)
+    || slideMutationOwnerRef.current.deckOwnerSessionId !== (deckOwnerSessionId ?? null)
+    || slideMutationOwnerRef.current.activeVersion !== activeVersion
+  )) {
+    slideMutationOwnerRef.current = {
+      userId: studioOwnerUserId ?? null,
+      presentationId: presentationId ?? null,
+      source: approvedIframeNavigationUrl,
+      sessionId: sessionId ?? null,
+      deckOwnerSessionId: deckOwnerSessionId ?? null,
+      activeVersion,
+      generation: slideMutationOwnerRef.current.generation + 1,
+    }
+    // A different viewer may admit its own slide mutation while the original
+    // receipt continues settling. Its eventual finally cannot release this gate.
+    slideMutationRequestRef.current = null
+    slideMutationPendingRef.current = false
+    studioNativeMutationPublicationRef.current = null
+    studioNativeMutationIntentRef.current = null
+    studioDeleteDialogRef.current = null
+    studioManualSlideNavigationRef.current = null
+    studioSaveRequestRef.current = null
+  }
+  const renderSlideMutationOwner = slideMutationOwnerRef.current
+  const studioComposeDeckOwnerKey = JSON.stringify([studioOwnerUserId, presentationId, sessionId,
+    deckOwnerSessionId, activeVersion])
+  const studioComposeDeckOwnerRef = useRef({ key: studioComposeDeckOwnerKey, token: {} })
+  if (studioComposeDeckOwnerRef.current.key !== studioComposeDeckOwnerKey) {
+    studioComposeDeckOwnerRef.current = { key: studioComposeDeckOwnerKey, token: {} }
+  }
+  const [studioFormatSelection, setStudioFormatSelection] = useState<StudioFormatSelectionHandle | null>(null)
+  const studioFormatSelectionRef = useRef<StudioFormatSelectionHandle | null>(null)
+  const studioArrangeSelectionRef = useRef<unknown>(null) // STUDIO-ARRANGE: the selection event's properties, for the selection handle created next
+  const studioFormatModeRef = useRef({ enabled: templateModeOn, revision: 0 })
+  if (studioFormatModeRef.current.enabled !== templateModeOn) {
+    studioFormatModeRef.current = { enabled: templateModeOn, revision: studioFormatModeRef.current.revision + 1 }
+    // Retire at render admission, before effects; leaving Template Mode does
+    // not revive a captured ordinary-slide selection.
+    studioFormatSelectionRef.current = null
+  }
+  const studioFormatSlideRef = useRef({ index: currentSlide, revision: 0 })
+  if (studioFormatSlideRef.current.index !== currentSlide) {
+    studioFormatSlideRef.current = { index: currentSlide, revision: studioFormatSlideRef.current.revision + 1 }
+  }
+  const studioFormatBusyRef = useRef(studioFormatBusy)
+  studioFormatBusyRef.current = studioFormatBusy
+  const onThumbnailInvalidatedRef = useRef(onThumbnailInvalidated)
+  onThumbnailInvalidatedRef.current = onThumbnailInvalidated
+  // F8/S-03 rail identity: the post-ack closures below re-read Layout's slide inventory through this.
+  const slideRailRefreshRef = useRef<() => void>(() => {})
+  const captureThumbnailInvalidation = useCallback((retireMapping = true) => {
+    const owner = renderSlideMutationOwner
+    const iframe = iframeRef.current
+    const mountGeneration = slideMutationMountRef.current.generation
+    // Every structural intent (duplicate/delete/reorder/layout as well as Add)
+    // retires the injected snapshot-count proof before its native command.
+    if (studioShell && owner.presentationId && iframe
+      && slideMutationMountRef.current.active
+      && slideMutationMountRef.current.generation === mountGeneration
+      && slideMutationOwnerRef.current === owner) {
+      viewerInteractionIntentRef.current += 1
+      nativeSnapshotStructureEditedRef.current = true
+      if (retireMapping) {
+        thumbnailNativeRevisionRef.current += 1
+        setStudioCanonicalThumbnails(null)
+      }
+    }
+    return () => {
+      if (!studioShell || !owner.presentationId || !iframe ||
+        !slideMutationMountRef.current.active ||
+        slideMutationMountRef.current.generation !== mountGeneration ||
+        slideMutationOwnerRef.current !== owner || iframeRef.current !== iframe) return
+      onThumbnailInvalidatedRef.current?.(owner.presentationId)
+      slideRailRefreshRef.current()
+    }
+  }, [studioShell, renderSlideMutationOwner])
+  const captureStudioNativeSlideFrame = useCallback(() => {
+    const owner = renderSlideMutationOwner
+    const iframe = iframeRef.current
+    if (!iframe) return null
+    if (!studioShell) return { iframe, isCurrent: () => true, isLogicalCurrent: () => true }
+    const mount = slideMutationMountRef.current.generation
+    const source = iframe.src
+    const nativeWindow = iframe.contentWindow
+    const loaded = studioComposeLoadedFrameRef.current
+    const deck = studioComposeDeckOwnerRef.current.token
+    let retired = false
+    const isLogicalCurrent = () => slideMutationMountRef.current.active
+      && slideMutationMountRef.current.generation === mount
+      && studioComposeDeckOwnerRef.current.token === deck
+      && slideMutationOwnerRef.current.source === source
+    const isCurrent = () => {
+      if (retired) return false
+      const current = isLogicalCurrent() && slideMutationOwnerRef.current === owner
+        && iframeRef.current === iframe && iframe.src === source && iframe.contentWindow === nativeWindow
+        && Boolean(nativeWindow && loaded && loaded.iframe === iframe && loaded.source === source
+          && loaded.nativeWindow === nativeWindow && loaded.revision === studioComposeLoadRevisionRef.current)
+        && studioComposeLoadedFrameRef.current === loaded && source === owner.source
+      if (!current) retired = true
+      return current
+    }
+    return isCurrent() ? { iframe, isCurrent, isLogicalCurrent } : null
+  }, [studioShell, renderSlideMutationOwner])
+  const beginStudioManualSlideNavigation = useCallback((targetIndex: number) => {
+    if (!studioShell) return null
+    const revision = ++studioSlideNavigationRevisionRef.current
+    studioManualSlideNavigationRef.current = null
+    // Only a pending Add can self-navigate without a frame reload. Capture a
+    // real selected ID for that recovery; no ordinary navigation read is added.
+    if (slideMutationRequestRef.current?.operation !== 'add') return null
+    const frame = captureStudioNativeSlideFrame()
+    if (!frame) return null
+    let settle: (id: string | null) => void = () => {}
+    const selectedId = new Promise<string | null>(resolve => { settle = resolve })
+    const record = { revision, iframe: frame.iframe, selectedId,
+      isCurrent: () => studioManualSlideNavigationRef.current === record
+        && studioSlideNavigationRevisionRef.current === revision && frame.isCurrent() }
+    studioManualSlideNavigationRef.current = record
+    let started = false
+    return {
+      capture: async () => {
+        if (started) return
+        started = true
+        let id: string | null = null
+        try {
+          if (record.isCurrent()) {
+            const order = parseStudioNativeSlideOrder(await sendCommand(frame.iframe, 'composeGetState', {}, {
+              timeoutMs: READ_LAYOUT_COMMAND_TIMEOUT_MS,
+            }))
+            if (record.isCurrent() && order?.currentVisualIndex === targetIndex) id = order.slideIds[targetIndex] ?? null
+          }
+        } catch { /* Optional identity proof never guesses or repeats Add. */ }
+        settle(id)
+      },
+      cancel: () => { started = true; settle(null) },
+    }
+  }, [studioShell, captureStudioNativeSlideFrame])
+  const beginStudioNativeSlideMutation = useCallback((operation = 'slide change') => {
+    const frame = captureStudioNativeSlideFrame()
+    if (!frame) return null
+    if (!studioShell) return {
+      ...frame, release: () => {}, reportUnconfirmed: (_operation: string) => {},
+      commit: <T,>(setter: React.Dispatch<React.SetStateAction<T>>, value: T) => setter(value),
+      commitSelection: <T,>(setter: React.Dispatch<React.SetStateAction<T>>, value: T) => setter(value),
+    }
+    const owner = renderSlideMutationOwner
+    const mount = slideMutationMountRef.current.generation
+    const navigationRevision = studioSlideNavigationRevisionRef.current
+    const pending = slideMutationRequestRef.current
+    if (pending && (pending.owner !== owner || pending.mountGeneration !== mount
+      || pending.iframe !== frame.iframe || pending.isCurrent?.() === false)) {
+      slideMutationRequestRef.current = null
+      slideMutationPendingRef.current = false
+    }
+    if (slideMutationPendingRef.current) return null
+    const request = { owner, mountGeneration: mount, iframe: frame.iframe,
+      isCurrent: () => false, reportUnconfirmed: () => {} }
+    studioNativeMutationPublicationRef.current = request
+    studioNativeMutationIntentRef.current = request
+    const isLogicalCurrent = () => studioNativeMutationPublicationRef.current === request && frame.isLogicalCurrent()
+    const isCurrent = () => isLogicalCurrent() && frame.isCurrent()
+    request.isCurrent = isCurrent
+    slideMutationRequestRef.current = request
+    slideMutationPendingRef.current = true
+    setIsSlideMutationPending(previous => isLogicalCurrent() ? true : previous)
+    let reported = false
+    const reportUnconfirmed = (label = operation) => {
+      if (reported || studioNativeMutationIntentRef.current !== request || !frame.isLogicalCurrent()
+        || iframeRef.current?.src !== owner.source) return
+      reported = true
+      toast({ title: 'Check slide result',
+        description: `The ${label} result could not be confirmed. Check the slide list before trying again.`,
+        variant: 'destructive' })
+    }
+    request.reportUnconfirmed = () => reportUnconfirmed()
+    return {
+      iframe: frame.iframe, isCurrent, isLogicalCurrent,
+      commit: <T,>(setter: React.Dispatch<React.SetStateAction<T>>, value: T) => {
+        if (isCurrent()) setter(previous => isCurrent() ? value : previous)
+      },
+      commitSelection: <T,>(setter: React.Dispatch<React.SetStateAction<T>>, value: T) => {
+        const selected = () => isCurrent() && studioSlideNavigationRevisionRef.current === navigationRevision
+        if (selected()) setter(previous => selected() ? value : previous)
+      },
+      reportUnconfirmed,
+      release: () => {
+        if (slideMutationRequestRef.current !== request) return
+        slideMutationRequestRef.current = null
+        slideMutationPendingRef.current = false
+        // Releasing this request's busy UI does not publish native slide data.
+        setIsSlideMutationPending(previous => isLogicalCurrent() ? false : previous)
+      },
+    }
+  }, [captureStudioNativeSlideFrame, studioShell, renderSlideMutationOwner, toast])
+  const beginStudioViewerInteraction = useCallback(() => {
+    const owner = renderSlideMutationOwner
+    const mountGeneration = slideMutationMountRef.current.generation
+    const iframe = iframeRef.current
+    const source = iframe?.src
+    const nativeWindow = iframe?.contentWindow
+    const intent = ++viewerInteractionIntentRef.current
+    const isSourceCurrent = () => Boolean(
+      iframe
+      && slideMutationMountRef.current.active
+      && slideMutationMountRef.current.generation === mountGeneration
+      && slideMutationOwnerRef.current === owner
+      && iframeRef.current === iframe
+      && iframe.src === source && iframe.contentWindow === nativeWindow
+    )
+    const isCurrent = () => isSourceCurrent() && viewerInteractionIntentRef.current === intent
+    return { iframe, isCurrent, isSourceCurrent }
+  }, [renderSlideMutationOwner])
+  useEffect(() => {
+    slideMutationMountRef.current.active = true
+    return () => {
+      slideMutationMountRef.current.active = false
+      slideMutationMountRef.current.generation += 1
+      if (studioShell) {
+        slideMutationRequestRef.current = null
+        slideMutationPendingRef.current = false
+        studioNativeMutationPublicationRef.current = null
+        studioNativeMutationIntentRef.current = null
+        studioDeleteDialogRef.current = null
+        studioManualSlideNavigationRef.current = null
+      }
+    }
+  }, [studioShell])
+  useEffect(() => {
+    if (studioShell) setIsSlideMutationPending(slideMutationPendingRef.current)
+    if (studioShell && !studioSaveRequestRef.current) setIsSaving(false)
+    if (studioShell && !studioDeleteDialogRef.current) {
+      setIsDeleting(false)
+      setShowDeleteDialog(false)
+      setSlidesToDelete(null)
+    }
+  }, [studioShell, renderSlideMutationOwner])
+  const viewerHasLoaded = Boolean(
     iframeReady &&
     approvedIframeNavigationUrl &&
     loadedApprovedNavigationUrl === approvedIframeNavigationUrl
   )
+  const viewerIsReady = viewerHasLoaded && (!studioShell
+    || snapshotSelectionRef.current?.source !== approvedIframeNavigationUrl
+    || nativeReadySource === approvedIframeNavigationUrl)
+  // PASS2-PK-FOUR #1 (NEXT_PUBLIC_STUDIO_TOP_BAR_V2, default off): the top bar's "Saved" status reads the save state this viewer
+  // already keeps (Layout autosave messages, force save). Reported only for a settled deck on stage; null otherwise and on unmount.
+  // Off: nothing is reported.
+  useEffect(() => {
+    if (!STUDIO_TOP_BAR_V2_ENABLED || !studioShell) return
+    publishStudioDeckSaveState(viewerIsReady && !isGenerating && !studioPartialArtifact ? (isSaving ? 'saving' : saveStatus) : null)
+  }, [studioShell, viewerIsReady, isGenerating, studioPartialArtifact, isSaving, saveStatus])
+  useEffect(() => {
+    if (!STUDIO_TOP_BAR_V2_ENABLED || !studioShell) return
+    return () => publishStudioDeckSaveState(null)
+  }, [studioShell])
+  const snapshotSafetyRef = useRef({ isEditMode, isSaving, saveStatus, composeJobs: composeJobs.length })
+  snapshotSafetyRef.current = { isEditMode, isSaving, saveStatus, composeJobs: composeJobs.length }
+  const introSafetyRef = useRef({ presentationId, presentationUrl, viewerIsReady, isEditMode, isSaving, saveStatus,
+    composing: composeJobs.some(job => job.status === 'building'), composeError: composeJobs.some(job => job.status === 'error') })
+  introSafetyRef.current = { presentationId, presentationUrl, viewerIsReady, isEditMode, isSaving, saveStatus,
+    composing: composeJobs.some(job => job.status === 'building'), composeError: composeJobs.some(job => job.status === 'error') }
+  const getStudioIntroductionSafety = useCallback((): StudioIntroductionSafety => {
+    const safety = introSafetyRef.current
+    return { presentationId: safety.presentationId, presentationUrl: safety.presentationUrl,
+      ready: safety.viewerIsReady,
+      dirty: nativeSnapshotDirtyRef.current || safety.isEditMode || safety.saveStatus !== 'saved',
+      busy: safety.isSaving || slideMutationPendingRef.current || !!slideMutationRequestRef.current
+        || safety.composing || diagramStateTimersRef.current.size > 0 || pendingDiagramStatesRef.current.size > 0,
+      error: safety.saveStatus === 'error' || safety.composeError }
+  }, [])
+  const getStudioSaveStatus = useCallback((): SaveStatus => introSafetyRef.current.saveStatus, []) // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
+  const captureStudioFormatSelection = useCallback((elementId: string, eventKind: 'textBoxSelected' | 'elementSelected', elementType?: ElementType) => {
+    const mode = studioFormatModeRef.current
+    if (!studioShell || mode.enabled) return
+    const iframe = iframeRef.current
+    const owner = slideMutationOwnerRef.current
+    const mount = slideMutationMountRef.current.generation
+    const slide = studioFormatSlideRef.current
+    const intent = viewerInteractionIntentRef.current
+    const source = iframe?.src
+    const nativeWindow = iframe?.contentWindow
+    if (!iframe || !nativeWindow || !owner.presentationId || !owner.userId
+      || !owner.sessionId || owner.sessionId === 'new' || owner.deckOwnerSessionId !== owner.sessionId) return
+    const epoch = {}
+    let selection: StudioFormatSelectionHandle | null = null
+    const isCurrent = () => Boolean(selection && studioFormatSelectionRef.current === selection
+      && studioFormatModeRef.current === mode && !studioFormatModeRef.current.enabled
+      && slideMutationMountRef.current.active && slideMutationMountRef.current.generation === mount
+      && slideMutationOwnerRef.current === owner && iframeRef.current === iframe
+      && iframe.src === source && iframe.contentWindow === nativeWindow
+      && studioFormatSlideRef.current === slide && viewerInteractionIntentRef.current === intent
+      && introSafetyRef.current.viewerIsReady && !getStudioIntroductionSafety().busy
+      && !getStudioIntroductionSafety().error && !studioFormatBusyRef.current)
+    selection = createStudioFormatSelectionHandle({ iframe, elementId, presentationId: owner.presentationId,
+      ...studioArrangeSelectionInput(eventKind, studioArrangeSelectionRef.current), // STUDIO-ARRANGE: elementSelected's properties while the flag is on; {} otherwise
+      sessionId: owner.sessionId, slideIndex: slide.index - 1, eventKind, elementType, owner: epoch, isCurrent })
+    studioFormatSelectionRef.current = selection
+    setStudioFormatSelection(selection)
+  }, [studioShell, getStudioIntroductionSafety])
+  useEffect(() => {
+    if (studioShell) onStudioIntroductionSafetyChange?.(getStudioIntroductionSafety())
+  }, [studioShell, onStudioIntroductionSafetyChange, getStudioIntroductionSafety, presentationId, presentationUrl,
+    viewerIsReady, isEditMode, isSaving, saveStatus, nativeSnapshotSafetyRevision, isSlideMutationPending,
+    introSafetyRef.current.composing, introSafetyRef.current.composeError])
+  const introSafetyCallbackRef = useRef(onStudioIntroductionSafetyChange)
+  introSafetyCallbackRef.current = onStudioIntroductionSafetyChange
+  useEffect(() => () => { introSafetyCallbackRef.current?.(null) }, [])
+  const snapshotBaseOwnerKey = JSON.stringify([
+    approvedPresentationUrl, presentationId, sessionId, deckOwnerSessionId,
+  ])
+  useEffect(() => {
+    completedSnapshotRef.current = null
+    snapshotProbeRef.current = null
+    snapshotSelectionRef.current = null
+    nativeSnapshotDirtyRef.current = false
+    nativeSnapshotStructureEditedRef.current = false
+    setNativeReadySource(null)
+  }, [snapshotBaseOwnerKey])
+  useEffect(() => {
+    if (isEditMode) nativeSnapshotDirtyRef.current = true
+  }, [isEditMode])
+  const completedBuildKey = completedBuildSnapshotKey(completedBuildSnapshot)
+  useEffect(() => {
+    if (!studioShell || !viewerIsReady || !completedBuildKey || !completedBuildSnapshot
+      || completedSnapshotRef.current === completedBuildKey || templateModeOn
+      || activeVersion !== 'final' || !sessionId || deckOwnerSessionId !== sessionId
+      || completedBuildSnapshot.presentationId !== presentationId) return
+    const owner = renderSlideMutationOwner
+    const iframe = iframeRef.current
+    const intent = viewerInteractionIntentRef.current
+    const probe = {}
+    const isCurrentAndSafe = () => {
+      const safety = snapshotSafetyRef.current
+      return iframe && iframeRef.current === iframe && slideMutationOwnerRef.current === owner
+        && slideMutationMountRef.current.active && snapshotProbeRef.current === probe
+        && viewerInteractionIntentRef.current === intent
+        && !safety.isEditMode && !safety.isSaving && safety.saveStatus === 'saved'
+        && !safety.composeJobs && !slideMutationPendingRef.current
+        && !nativeSnapshotDirtyRef.current && !nativeSnapshotStructureEditedRef.current
+        && !pendingDiagramStatesRef.current.size
+    }
+    snapshotProbeRef.current = probe
+    if (!isCurrentAndSafe()) return
+    void (async () => {
+      try {
+        const count = nativeSnapshotSlideCount(await sendCommand(iframe, 'getSlideCount'))
+        if (!isCurrentAndSafe() || count === null) return
+        const mode = await sendCommand(iframe, 'isEditModeActive')
+        if (!isCurrentAndSafe() || mode.success !== true || mode.isEditing !== false) return
+        // Injected count is valid for this unmodified build frame. Native CRUD
+        // would make it stale and is fenced above. Equal/newer frames stay put.
+        completedSnapshotRef.current = completedBuildKey
+        if (count >= completedBuildSnapshot.slideCount) return
+        const nextRevision = buildSnapshotRevision + 1
+        const source = buildSnapshotNavigationUrl(approvedPresentationUrl, nextRevision)
+        if (!source) return
+        snapshotSelectionRef.current = { source, index: Math.max(0, snapshotCurrentSlideRef.current - 1) }
+        setBuildSnapshotRevision(nextRevision)
+      } catch {
+        // An uncertain receipt never authorizes a reload. A later native-ready
+        // or explicit safe-state transition can retry this pending build event.
+      }
+    })()
+    return () => { if (snapshotProbeRef.current === probe) snapshotProbeRef.current = null }
+  }, [studioShell, viewerIsReady, completedBuildKey, completedBuildSnapshot?.presentationId,
+    templateModeOn, activeVersion, sessionId, deckOwnerSessionId, presentationId,
+    renderSlideMutationOwner, buildSnapshotRevision, approvedPresentationUrl,
+    isEditMode, isSaving, saveStatus, isSlideMutationPending, composeJobs.length,
+    nativeSnapshotSafetyRevision, nativeReadySource])
+  useEffect(() => {
+    if (!studioShell || !viewerIsReady || !studioWorkflowRequest || handledWorkflowRef.current === studioWorkflowRequest.key) return
+    handledWorkflowRef.current = studioWorkflowRequest.key
+    if (studioWorkflowRequest.action === 'master') setShowPresentationSettings(true)
+    if (studioWorkflowRequest.action === 'theme' && !templateModeOn) setShowThemePanel(true)
+    if (studioWorkflowRequest.action === 'templates' && templateBuilderEnabled) {
+      setToolbarTemplateMenuOpen(true)
+      setToolbarTemplatePickerOpen(!templateSelectionLocked)
+    }
+  }, [studioShell, viewerIsReady, studioWorkflowRequest, templateBuilderEnabled, templateSelectionLocked, templateModeOn])
+
   // Theme — read from next-themes (canonical theme source, shared with
   // the profile-menu's "Dark Mode" toggle). Used inside the Mode dropdown.
   const { resolvedTheme, setTheme } = useTheme()
@@ -626,6 +1355,19 @@ export function PresentationViewer({
   useEffect(() => {
     onSlideChangeRef.current = onSlideChange
   }, [onSlideChange])
+  const partialNativeReadbackRef = useRef(onStudioPartialNativeReadback)
+  useEffect(() => { partialNativeReadbackRef.current = onStudioPartialNativeReadback }, [onStudioPartialNativeReadback])
+  const partialLogicalTargetKey = JSON.stringify([studioOwnerUserId, sessionId, deckOwnerSessionId, presentationId])
+  const partialLogicalTargetRef = useRef(partialLogicalTargetKey)
+  useLayoutEffect(() => {
+    const changed = partialLogicalTargetRef.current !== partialLogicalTargetKey
+    partialLogicalTargetRef.current = partialLogicalTargetKey
+    if (!studioShell || !studioPartialArtifact || !changed) return
+    // A's retained counters cannot serve as a minimum for newly admitted B.
+    // The existing poll supplies B's real count; progress never supplies it.
+    setTotalSlides(0); setVisualTotalSlides(0); setCurrentSlide(1)
+    lastSlideInfoRef.current = null
+  }, [studioShell, studioPartialArtifact, partialLogicalTargetKey])
 
   // Sync totalSlides with slideCount prop changes
   const slideCountPresentationUrlRef = useRef(presentationUrl)
@@ -652,8 +1394,8 @@ export function PresentationViewer({
   }, [slideStructure])
 
   // Reset readiness for every exact iframe navigation, including notes and
-  // fullscreen query-string rewrites.
-  useEffect(() => {
+  // fullscreen query-string rewrites, before that frame can report its load.
+  useLayoutEffect(() => {
     debugLog('🔄 Presentation iframe navigation changed, resetting readiness')
     setIframeReady(false)
     setLoadedApprovedNavigationUrl(null)
@@ -676,22 +1418,104 @@ export function PresentationViewer({
 
   // Handle iframe load event
   const handleIframeLoad = useCallback((event: React.SyntheticEvent<HTMLIFrameElement>) => {
+    if (studioShell && event.currentTarget !== iframeRef.current) return
     const loadedUrl = event.currentTarget.src
     if (!approvedIframeNavigationUrl || loadedUrl !== approvedIframeNavigationUrl) {
+      if (studioShell) {
+        studioComposeLoadedFrameRef.current = null
+        studioNativeMutationPublicationRef.current = null
+        slideMutationRequestRef.current = null
+        slideMutationPendingRef.current = false
+        studioDeleteDialogRef.current = null
+        studioManualSlideNavigationRef.current = null
+        setIsSlideMutationPending(false)
+        setIsDeleting(false)
+        setShowDeleteDialog(false)
+        setSlidesToDelete(null)
+      }
       setIframeReady(false)
       setLoadedApprovedNavigationUrl(null)
       return
     }
     debugLog('✅ Iframe loaded and ready')
+    if (studioShell) {
+      // Even an identical URL is a fresh native frame lifetime.
+      const retiredNativeRequest = slideMutationRequestRef.current
+      studioComposeLoadRevisionRef.current += 1
+      if (STUDIO_SLIDE_DELETE_CANVAS_REFRESH_ENABLED) studioSlideDeleteRefresh.frameLoaded() // PASS2D B4: the new document is the canvas
+      studioComposeLoadedFrameRef.current = { iframe: event.currentTarget, source: loadedUrl,
+        nativeWindow: event.currentTarget.contentWindow, revision: studioComposeLoadRevisionRef.current }
+      slideMutationOwnerRef.current = { ...slideMutationOwnerRef.current,
+        generation: slideMutationOwnerRef.current.generation + 1 }
+      slideMutationRequestRef.current = null
+      slideMutationPendingRef.current = false
+      studioNativeMutationPublicationRef.current = null
+      studioDeleteDialogRef.current = null
+      studioManualSlideNavigationRef.current = null
+      studioSaveRequestRef.current = null
+      setIsSaving(false)
+      if (CHAT_STALE_VIEWER_GUARD_ENABLED) setSaveStatus('saved') // CHAT-STALE-VIEWER-GUARD CHAT-PARITY: a new frame is a new document with nothing pending; the last status posted by the document it replaced (an 'error' after a lost save) must not outlive it, else every later chat add says "not ready" until the whole page is reloaded
+      setIsSlideMutationPending(false)
+      setIsDeleting(false)
+      setShowDeleteDialog(false)
+      setSlidesToDelete(null)
+      setNativeSnapshotSafetyRevision(value => value + 1)
+      // Layout's existing CRUD handlers reload before ACK. Warn promptly,
+      // once, without claiming success or borrowing this new frame's data.
+      retiredNativeRequest?.reportUnconfirmed?.()
+    }
     setLoadedApprovedNavigationUrl(loadedUrl)
     setIframeReady(true)
     setPollingFailureCount(0) // Reset failure count on load
     lastSlideInfoRef.current = null
-  }, [approvedIframeNavigationUrl])
+  }, [approvedIframeNavigationUrl, studioShell])
+
+  // F8/S-03 (flag NEXT_PUBLIC_STUDIO_RAIL_SLIDE_IDENTITY_ENABLED, default off): when Layout serves
+  // its slide inventory, the rail is keyed by slide_id and reads previews from it. `rows` stays null
+  // (today's path below, untouched) whenever the flag is off or the endpoint is absent.
+  const railIdentityStructure = useMemo(
+    () => !slidesModifiedByCrud && Array.isArray(slideStructure?.slides) ? slideStructure.slides as unknown[] : null,
+    [slideStructure, slidesModifiedByCrud],
+  )
+  // A content signature, not the object: the prop defaults to a fresh `{}` on every render.
+  const railThumbnailFrames = useMemo(() => STUDIO_RAIL_SLIDE_IDENTITY_ENABLED ? JSON.stringify(thumbnailUrlsBySlide) : '', [thumbnailUrlsBySlide])
+  const { rows: railIdentityRows, refresh: refreshSlideRail } = useSlideRailIdentity({
+    enabled: STUDIO_RAIL_SLIDE_IDENTITY_ENABLED && studioShell && Boolean(approvedPresentationUrl),
+    presentationId,
+    ownerUserId: studioOwnerUserId,
+    structureSlides: railIdentityStructure,
+    refreshSignals: [totalSlides, railThumbnailFrames],
+  })
+  slideRailRefreshRef.current = refreshSlideRail
+  // S-03 (flag NEXT_PUBLIC_STUDIO_DECK_MUTATION_REFRESH_ENABLED): a Director deck_mutation for this deck re-reads the inventory at once.
+  useEffect(() => {
+    if (!STUDIO_DECK_MUTATION_REFRESH_ENABLED || !presentationId) return
+    return onSlideRailRefreshRequest(id => { if (id === presentationId) slideRailRefreshRef.current() })
+  }, [presentationId])
+  // NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE: "Reload deck" asks for the same re-read. Its own effect, so the S-03 one above is untouched
+  // (with S-03 on that one already listens; this one stays out of the way).
+  useEffect(() => {
+    if (STUDIO_DECK_MUTATION_REFRESH_ENABLED || !STUDIO_DECK_CHANGED_NOTICE_ENABLED || !presentationId) return
+    return onSlideRailRefreshRequest(id => { if (id === presentationId) slideRailRefreshRef.current() })
+  }, [presentationId])
+  // NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE: hand the page what only the viewer knows (the slide count on screen, unsaved edits).
+  useEffect(() => {
+    if (!STUDIO_DECK_CHANGED_NOTICE_ENABLED) return
+    reportViewerDeckState({ presentationId: presentationId ?? null, slideCount: iframeReady && totalSlides > 0 ? totalSlides : null, unsaved: saveStatus !== 'saved' })
+  }, [presentationId, iframeReady, totalSlides, saveStatus])
+  useEffect(() => () => { reportViewerDeckState(null) }, [])
 
   // Extract slide thumbnails from slideStructure
   // Use totalSlides when: CRUD ops occurred, OR slideStructure is stale/missing
   const slideThumbnails = useMemo<SlideThumbnail[]>(() => {
+    if (railIdentityRows) return railIdentityRows
+    if (studioShell && studioCanonicalThumbnails
+      && studioCanonicalThumbnails.owner === renderSlideMutationOwner
+      && studioCanonicalThumbnails.nativeRevision === thumbnailNativeRevisionRef.current
+      && studioCanonicalThumbnails.metadataRevision === thumbnailMetadataRef.current.revision
+      && studioCanonicalThumbnails.rows.length === totalSlides) {
+      return applyStageFThumbnailUrls(studioCanonicalThumbnails.rows, thumbnailUrlsBySlide)
+    }
     // Detect if slideStructure count doesn't match totalSlides (stale data)
     const structureCountMismatch = slideStructure?.slides &&
       totalSlides > 0 &&
@@ -700,32 +1524,58 @@ export function PresentationViewer({
     // Use totalSlides when: CRUD modified, count mismatch, or no structure
     if (slidesModifiedByCrud || structureCountMismatch || !slideStructure || !slideStructure.slides) {
       if (totalSlides > 0) {
-        return Array.from({ length: totalSlides }, (_, i) => ({
+        const fallbackSlides: SlideThumbnail[] = Array.from({ length: totalSlides }, (_, i) => ({
           slideNumber: i + 1,
-          title: `Slide ${i + 1}`
+          title: `Slide ${i + 1}`,
         }))
+        return applyStageFThumbnailUrls(fallbackSlides, thumbnailUrlsBySlide)
       }
       return []
     }
 
     // slideStructure is fresh and matches totalSlides - use rich data
-    return slideStructure.slides.map((slide: any, index: number) => ({
-      slideNumber: index + 1,
-      slideId: slide.slide_id || slide.id || null,
-      title: slide.title || slide.slide_type || `Slide ${index + 1}`,
-      content: slide.narrative || slide.key_points?.join(', ')
-    }))
-  }, [slideStructure, totalSlides, slidesModifiedByCrud])
+    const structureSlides: SlideThumbnail[] = slideStructure.slides.map((slide: any, index: number) => {
+      const slideIndex = Number(slide.slide_index)
+      const actualSlideIndex = Number(slide.actual_slide_index ?? slide.real_slide_index)
+      return {
+        slideNumber: index + 1,
+        slideId: slide.slide_id || slide.id || null,
+        slideIndex: Number.isInteger(slideIndex) && slideIndex >= 0 ? slideIndex : index,
+        actualSlideIndex: Number.isInteger(actualSlideIndex) && actualSlideIndex >= 0 ? actualSlideIndex : undefined,
+        title: slideTitleLabel(slide.title || slide.slide_type || `Slide ${index + 1}`),
+        content: slide.narrative || slide.key_points?.join(', '),
+        // Retain a supplied image on restored Studio metadata; live StageF
+        // images below still take precedence. This does not generate an image.
+        thumbnailUrl: studioShell ? ownedRestoredThumbnailUrl(slide, presentationId) : undefined,
+      }
+    })
+    return applyStageFThumbnailUrls(structureSlides, thumbnailUrlsBySlide)
+  }, [railIdentityRows, slideStructure, totalSlides, slidesModifiedByCrud, thumbnailUrlsBySlide, studioShell, presentationId, studioCanonicalThumbnails, renderSlideMutationOwner])
 
+  // RAIL-SLIDES-1-MIDBUILD: while a build fills the deck the rail keeps the plan's count (inert rows after the frame's real ones); null with the flag off or no running build.
+  const railBuildRows = useMemo(() => railBuildPlan ? railBuildPlaceholders({ rows: slideThumbnails.length, plan: railBuildPlan, thumbnailUrlsBySlide }) : null, [railBuildPlan, slideThumbnails.length, thumbnailUrlsBySlide]) // RAIL-SLIDES-1-MIDBUILD
   // Define handlers FIRST (before effects that use them)
   const handleNextSlide = useCallback(async () => {
     debugLog('🔘 Next button clicked!')
+    const navigation = beginStudioManualSlideNavigation(currentSlide)
+    const interaction = studioShell ? beginStudioViewerInteraction() : null
+    if (studioShell && snapshotSelectionRef.current) {
+      navigation?.cancel()
+      const next = Math.min(Math.max(1, totalSlides || currentSlide), snapshotCurrentSlideRef.current + 1)
+      snapshotSelectionRef.current.index = next - 1
+      setCurrentSlide(next)
+      onSlideChangeRef.current?.(next)
+      return
+    }
     if (!iframeRef.current) {
+      navigation?.cancel()
       debugLog('❌ Iframe not ready')
       return
     }
     try {
-      await sendCommand(iframeRef.current, 'nextSlide')
+      await sendCommand(interaction?.iframe ?? iframeRef.current, 'nextSlide')
+      if (interaction && !interaction.isCurrent()) { navigation?.cancel(); return }
+      void navigation?.capture()
       // Immediately update local state (polling will confirm/sync)
       const navigationTotal = Math.max(visualTotalSlides || 0, totalSlides || 0, currentSlide)
       if (currentSlide < (navigationTotal || 999)) {
@@ -735,21 +1585,35 @@ export function PresentationViewer({
         debugLog(`➡️ Next slide (${currentSlide} → ${newSlide})`)
       }
     } catch (error) {
+      navigation?.cancel()
       console.error('Error navigating to next slide:', error)
     }
-  }, [currentSlide, totalSlides, visualTotalSlides, onSlideChange])
+  }, [currentSlide, totalSlides, visualTotalSlides, onSlideChange, studioShell, beginStudioViewerInteraction, beginStudioManualSlideNavigation])
 
   const handlePrevSlide = useCallback(async () => {
     debugLog('🔘 Prev button clicked!')
+    const navigation = beginStudioManualSlideNavigation(Math.max(0, currentSlide - 2))
+    const interaction = studioShell ? beginStudioViewerInteraction() : null
+    if (studioShell && snapshotSelectionRef.current) {
+      navigation?.cancel()
+      const previous = Math.max(1, snapshotCurrentSlideRef.current - 1)
+      snapshotSelectionRef.current.index = previous - 1
+      setCurrentSlide(previous)
+      onSlideChangeRef.current?.(previous)
+      return
+    }
     debugLog(`   Current slide: ${currentSlide}, Total: ${totalSlides}`)
     debugLog(`   Button should be disabled: ${currentSlide <= 1}`)
     if (!iframeRef.current) {
+      navigation?.cancel()
       debugLog('❌ Iframe not ready')
       return
     }
     try {
       debugLog('📤 Sending prevSlide command...')
-      await sendCommand(iframeRef.current, 'prevSlide')
+      await sendCommand(interaction?.iframe ?? iframeRef.current, 'prevSlide')
+      if (interaction && !interaction.isCurrent()) { navigation?.cancel(); return }
+      void navigation?.capture()
       // Immediately update local state (polling will confirm/sync)
       if (currentSlide > 1) {
         const newSlide = currentSlide - 1
@@ -758,14 +1622,33 @@ export function PresentationViewer({
         debugLog(`⬅️ Previous slide (${currentSlide} → ${newSlide})`)
       }
     } catch (error) {
+      navigation?.cancel()
       console.error('❌ Error navigating to previous slide:', error)
     }
-  }, [currentSlide, totalSlides, onSlideChange])
+  }, [currentSlide, totalSlides, onSlideChange, studioShell, beginStudioViewerInteraction, beginStudioManualSlideNavigation])
 
+  // PASS2 #3: shown = the user's choice, unless the page has the rail collapsed for a creation panel. A collapsed rail stays
+  // mounted (scroll position, selection and live frames intact) but out of the layout and invisible, so it comes back as it was.
+  const railFocusHidden = studioRailCollapsed && showThumbnails
+  const railShown = showThumbnails && !railFocusHidden
   const handleToggleOverview = useCallback(() => {
     debugLog('🔘 Grid button clicked - toggling thumbnail strip!')
+    if (railFocusHidden) { onStudioRailReveal?.(); return }
     setShowThumbnails(prev => !prev)
-  }, [])
+  }, [railFocusHidden, onStudioRailReveal])
+  // PASS2B G21 (NEXT_PUBLIC_STUDIO_RAIL_ADD_SLIDE, default off, Studio shell only): the rail footer's "+ Add slide". It opens the Add Slide panel through the
+  // toolbar's own handler (onPanelOpenChange, here with `true`) and sends no Layout command itself; its gating mirrors the toolbar's Add Slide
+  // (lib/studio-rail-add-slide.ts). Undefined, and then not passed to the strip, with the flag off.
+  const railAddSlideGate = railAddSlideState({
+    panelAvailable: STUDIO_RAIL_ADD_SLIDE && studioShell && ADD_SLIDE_V2_ENABLED && Boolean(studioAuthoringPortalTarget),
+    viewerIsReady,
+    templateModeOn,
+    slideMutationPending: isSlideMutationPending,
+    tabPausedHint: studioTabPausedHint,
+    building: Boolean(isGenerating),
+    disabledReasons: STUDIO_DISABLED_REASONS_ENABLED,
+  })
+  const railAddSlide = railAddSlideGate && addSlideV2Settings ? { ...railAddSlideGate, onOpen: () => addSlideV2Settings.onPanelOpenChange(true) } : undefined
 
   // Toggle grid overlay via postMessage (fire-and-forget to avoid timeout on hide)
   const handleToggleGrid = useCallback(() => {
@@ -793,9 +1676,26 @@ export function PresentationViewer({
   }, [isBordersActive])
 
   // Toggle edit mode via postMessage (button version)
-  const handleToggleEditModeButton = useCallback(async () => {
+  const handleToggleEditModeButton = useCallback(async (requestedMode?: boolean) => {
     if (!iframeRef.current) return
     try {
+      if (studioShell) {
+        const interaction = beginStudioViewerInteraction()
+        if (!interaction.isCurrent()) return
+        const targetIframe = interaction.iframe
+        const current = await sendCommand(targetIframe, 'isEditModeActive')
+        if (!interaction.isCurrent()) return
+        const desired = requestedMode ?? !current.isEditing
+        if (desired !== current.isEditing) {
+          await sendCommand(targetIframe, desired ? 'enterEditMode' : 'exitEditMode')
+          if (!interaction.isCurrent()) return
+        }
+        const observed = await sendCommand(targetIframe, 'isEditModeActive')
+        if (!interaction.isCurrent()) return
+        setIsEditMode(Boolean(observed.isEditing))
+        onEditModeChange?.(Boolean(observed.isEditing))
+        return
+      }
       if (isEditMode) {
         await sendCommand(iframeRef.current, 'exitEditMode')
       } else {
@@ -807,32 +1707,49 @@ export function PresentationViewer({
     } catch (error) {
       console.error('Error toggling edit mode:', error)
     }
-  }, [isEditMode, onEditModeChange])
+  }, [studioShell, isEditMode, onEditModeChange, beginStudioViewerInteraction])
 
+  // MDC P8 fix: onSlideChange arrives as an inline arrow from the page, so a
+  // useCallback keyed on it churns every parent render — and this handler sits
+  // in the onApiReady effect's deps, which turned that churn into an
+  // onApiReady -> setState -> re-render loop (React #185). Route through the
+  // existing effect-synced onSlideChangeRef instead; identity stays stable.
   const handleGoToSlide = useCallback(async (slideIndex: number) => {
     debugLog(`🎯 Navigating to slide ${slideIndex + 1}`)
+    const navigation = beginStudioManualSlideNavigation(slideIndex)
+    const interaction = studioShell ? beginStudioViewerInteraction() : null
     const nextSlide = slideIndex + 1
     setCurrentSlide(nextSlide)
-    onSlideChange?.(nextSlide)
+    onSlideChangeRef.current?.(nextSlide)
+    if (snapshotSelectionRef.current) {
+      navigation?.cancel()
+      snapshotSelectionRef.current.index = Math.max(0, slideIndex)
+      return
+    }
 
     if (!iframeRef.current) {
+      navigation?.cancel()
       debugLog('❌ Iframe not ready')
       return
     }
 
     try {
-      await sendCommand(iframeRef.current, 'goToSlide', { index: slideIndex }, { timeoutMs: 1500 })
+      await sendCommand(interaction?.iframe ?? iframeRef.current, 'goToSlide', { index: slideIndex }, { timeoutMs: 1500 })
+      if (interaction && !interaction.isCurrent()) { navigation?.cancel(); return }
+      void navigation?.capture()
       debugLog(`✅ Navigated to slide ${slideIndex + 1}`)
     } catch (error) {
+      if (interaction && !interaction.isCurrent()) { navigation?.cancel(); return }
       console.warn('goToSlide response timed out; keeping optimistic slide state and sending fallback navigation.', error)
-      postCommand(iframeRef.current, 'goToSlide', { index: slideIndex })
+      postCommand(interaction?.iframe ?? iframeRef.current, 'goToSlide', { index: slideIndex })
+      void navigation?.capture()
     }
-  }, [onSlideChange])
+  }, [studioShell, beginStudioViewerInteraction, beginStudioManualSlideNavigation])
 
   // Poll for slide info updates via postMessage (with exponential backoff)
   useEffect(() => {
     // Don't poll if iframe isn't ready
-    if (!viewerIsReady) {
+    if (!viewerHasLoaded) {
       debugLog('⏸️ Polling paused - iframe not ready yet')
       return
     }
@@ -848,16 +1765,81 @@ export function PresentationViewer({
     const baseInterval = 3000
     const backoffInterval = Math.min(baseInterval * Math.pow(2, pollingFailureCount), 10000)
 
+    const firstPaintPoll = studioSlideInfoPollWiring(iframeRef.current, approvedIframeNavigationUrl) // STUDIO-FIRST-PAINT (NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED, default off): the poll's timer and its head-start marker
+    const setInterval = firstPaintPoll.setInterval // STUDIO-FIRST-PAINT: flag off = the global setInterval itself (the same function); on = one head-start tick now (one retry 500 ms later), then the interval ticks; a const of this effect only
     const interval = setInterval(async () => {
-      if (!iframeRef.current || !viewerIsReady) return
+      const firstTick = firstPaintPoll.firstTick() // STUDIO-FIRST-PAINT: true only in the head-start tick and its one retry; read before the first await
+      if (!iframeRef.current || !viewerHasLoaded) return
+      const polledFrame = iframeRef.current
+      const polledOwner = renderSlideMutationOwner
+      const polledNavigationRevision = studioSlideNavigationRevisionRef.current
+      const partialFrame = studioShell && studioPartialArtifact ? captureStudioNativeSlideFrame() : null
+      // This receipt's read origin stays excluded after Add releases its busy
+      // lease; it may already contain Add's self-selected native index.
+      const polledDuringManualAdd = slideMutationRequestRef.current?.operation === 'add'
+        && studioManualSlideNavigationRef.current?.revision === polledNavigationRevision
+      const selectionIsCurrent = () => !studioShell || (
+        !polledDuringManualAdd && studioSlideNavigationRevisionRef.current === polledNavigationRevision
+        && !(slideMutationRequestRef.current?.operation === 'add'
+          && studioManualSlideNavigationRef.current?.revision === polledNavigationRevision)
+      )
 
       try {
         const hasComposeJobs = composeJobs.length > 0
         const result = hasComposeJobs
-          ? await sendCommand(iframeRef.current, 'composeGetState')
-          : await sendCommand(iframeRef.current, 'getCurrentSlideInfo')
+          ? await sendCommand(polledFrame, 'composeGetState')
+          : await sendCommand(polledFrame, 'getCurrentSlideInfo')
+        if (iframeRef.current !== polledFrame || slideMutationOwnerRef.current !== polledOwner) return
+        if (firstTick && !isUsableFirstPollAnswer(result)) return false // STUDIO-FIRST-PAINT: a hollow answer from a viewer that has not drawn its slides yet is dropped (the interval ticks carry on); false = one retry
+        if (partialFrame?.isCurrent() && selectionIsCurrent() && presentationId) {
+          // Read only the existing native response. Do not use retained totals,
+          // typed build counts or a fallback floor as native count authority.
+          const order = hasComposeJobs ? parseStudioNativeSlideOrder(result) : null
+          const navigation = hasComposeJobs || result.success !== true ? null : resolveSlideViewerNavigationInfo(result)
+          const nativeCount = order?.nativeCount ?? navigation?.totalSlides
+          const nativeIndex = order?.currentVisualIndex ?? navigation?.currentVisualIndex
+          if (nativeCount !== undefined && nativeIndex !== undefined && partialFrame.isCurrent()) {
+            let retiredReadback = false
+            const readbackIsCurrent = () => {
+              if (!partialFrame.isCurrent() || !selectionIsCurrent()) retiredReadback = true
+              return !retiredReadback
+            }
+            partialNativeReadbackRef.current?.({ presentationId, presentationUrl,
+              nativeCount, currentVisualIndex: nativeIndex,
+              kind: order ? 'real_order' : 'navigation', isFrameCurrent: partialFrame.isCurrent,
+              isCurrent: readbackIsCurrent })
+          }
+        }
         if (result.success && (result.data || hasComposeJobs)) {
           const data = result.data ?? result
+          const pendingSelection = snapshotSelectionRef.current
+          if (pendingSelection && pendingSelection.source === approvedIframeNavigationUrl
+            && iframeRef.current && resolveSlideViewerNavigationInfo(result)) {
+            if (pendingSelection.restoring) return
+            pendingSelection.restoring = true
+            try {
+              const frame = iframeRef.current
+              const info = resolveSlideViewerNavigationInfo(result)!
+              const requestedIndex = pendingSelection.index
+              const target = Math.min(requestedIndex, info.totalSlides - 1)
+              await sendCommand(frame, 'goToSlide', { index: target })
+              if (iframeRef.current !== frame || slideMutationOwnerRef.current !== polledOwner) return
+              const observed = resolveSlideViewerNavigationInfo(await sendCommand(frame, 'getCurrentSlideInfo'))
+              if (iframeRef.current !== frame || slideMutationOwnerRef.current !== polledOwner
+                || snapshotSelectionRef.current !== pendingSelection || pendingSelection.index !== requestedIndex
+                || observed?.currentVisualIndex !== target) return
+              snapshotSelectionRef.current = null
+              if (isGridActive) postCommand(frame, 'showGridOverlay')
+              if (isBordersActive) postCommand(frame, 'showBorderHighlight')
+              setCurrentSlide(target + 1)
+              onSlideChangeRef.current?.(target + 1)
+              setNativeReadySource(approvedIframeNavigationUrl)
+              return
+            } finally {
+              pendingSelection.restoring = false
+            }
+          }
+          if (studioShell && resolveSlideViewerNavigationInfo(result)) setNativeReadySource(approvedIframeNavigationUrl)
           const verifiedMinimumTotal = Math.max(0, totalSlides || 0, slideCount || 0)
           const {
             currentVisualIndex,
@@ -875,50 +1857,78 @@ export function PresentationViewer({
 
           if (slideInfoChanged) {
             debugLog(`📊 Slide info: ${slideNum} / ${visualTotal} visual (${total} real)`)
-            lastSlideInfoRef.current = { slide: slideNum, total, visualTotal }
-            setCurrentSlide(prev => prev === slideNum ? prev : slideNum)
+            // An older poll, or Add's own native self-navigation while a later
+            // explicit choice is being restored, cannot supersede that choice.
+            if (selectionIsCurrent()) {
+              lastSlideInfoRef.current = { slide: slideNum, total, visualTotal }
+              setCurrentSlide(prev => selectionIsCurrent() && prev !== slideNum ? slideNum : prev)
+            }
             setTotalSlides(prev => prev === total ? prev : total)
             setVisualTotalSlides(prev => prev === visualTotal ? prev : visualTotal)
-            onSlideChangeRef.current?.(slideNum)
+            if (selectionIsCurrent()) onSlideChangeRef.current?.(slideNum)
           }
+          const deckSyncSettled = STUDIO_DECK_SYNC_TRUTH_ENABLED ? syncTruthSettledTotals({ data, resolvedVisualTotal, building: deckSyncBuildingRef.current || hasComposeJobs }) : null // DECK-SYNC-TRUTH: after the base's floored totals above, a settled deck takes the viewer's own count (every tick, so a restored count comes down at the first poll)
+          if (deckSyncSettled) { setTotalSlides(prev => prev === deckSyncSettled.total ? prev : deckSyncSettled.total); setVisualTotalSlides(prev => prev === deckSyncSettled.visualTotal ? prev : deckSyncSettled.visualTotal) } // DECK-SYNC-TRUTH
 
           // Reset failure count on success
           setPollingFailureCount(prev => prev === 0 ? prev : 0)
         }
       } catch (error) {
         // Increment failure count and apply backoff
+        if (firstTick) { debugLog('⏸️ First poll got no usable answer; not counted'); return false } // STUDIO-FIRST-PAINT: the head-start tick never counts a failure or starts a backoff; false = one retry
         setPollingFailureCount(prev => prev + 1)
         debugLog(`⏸️ Polling failed (attempt ${pollingFailureCount + 1}/${MAX_FAILURES})`)
       }
     }, backoffInterval)
 
     return () => clearInterval(interval)
-  }, [composeJobs.length, pollingFailureCount, slideCount, totalSlides, viewerIsReady])
+  }, [composeJobs.length, pollingFailureCount, slideCount, totalSlides, viewerHasLoaded,
+    approvedIframeNavigationUrl, renderSlideMutationOwner, isGridActive, isBordersActive,
+    studioPartialArtifact, captureStudioNativeSlideFrame, presentationId, presentationUrl])
 
   // Force save handler (for Ctrl+S and retry on error)
   // IMPORTANT: Must be declared BEFORE the keyboard shortcuts useEffect that references it
   const handleForceSave = useCallback(async () => {
     if (!iframeRef.current) return
-
+    const interaction = studioShell ? beginStudioViewerInteraction() : null
+    const request = {}
+    if (studioShell) studioSaveRequestRef.current = request
+    const isCurrent = () => !studioShell || (studioSaveRequestRef.current === request && !!interaction?.isSourceCurrent())
     setSaveStatus('saving')
     try {
-      await sendCommand(iframeRef.current, 'forceSave')
+      await sendCommand(interaction?.iframe ?? iframeRef.current, 'forceSave')
+      if (!isCurrent()) return
       setSaveStatus('saved')
       debugLog('💾 Force save completed')
     } catch (error) {
+      if (!isCurrent()) return
       console.error('Error forcing save:', error)
       setSaveStatus('error')
+    } finally {
+      if (studioSaveRequestRef.current === request) studioSaveRequestRef.current = null
     }
-  }, [])
+  }, [studioShell, beginStudioViewerInteraction])
 
   // Keyboard shortcuts (handlers are now defined above)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!iframeRef.current) return
       if (isGenerating) return
+      if (studioShell && !shouldHandleStudioCanvasShortcut(e)) return
 
       // Only handle if not in an input/textarea
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return
+      }
+
+      // A4: the view-only Present frame owns the keyboard. Arrow keys are forwarded to it;
+      // nothing reaches the editing frame underneath (no E / G / B / Ctrl+S while presenting).
+      if (presentViewOnlyActiveRef.current) {
+        const command = presentNavigationCommand(e.key)
+        if (command) {
+          e.preventDefault()
+          postCommand(presentFrameRef.current, command)
+        }
         return
       }
 
@@ -966,12 +1976,18 @@ export function PresentationViewer({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleNextSlide, handlePrevSlide, handleToggleOverview, isEditMode, handleForceSave, handleToggleGrid, handleToggleBorders, handleToggleEditModeButton, isGenerating])
+  }, [handleNextSlide, handlePrevSlide, handleToggleOverview, isEditMode, handleForceSave, handleToggleGrid, handleToggleBorders, handleToggleEditModeButton, isGenerating, studioShell])
 
   // Lazy edit mode: automatically enter edit mode when needed
-  const ensureEditMode = useCallback(async (): Promise<boolean> => {
-    // Already in edit mode? Return immediately
-    if (isEditMode) return true
+  const ensureEditMode = useCallback(async (
+    expectedIframe?: HTMLIFrameElement,
+    isCurrent?: () => boolean,
+  ): Promise<boolean> => {
+    const interaction = studioShell && !isCurrent ? beginStudioViewerInteraction() : null
+    const isAccepted = () => (!interaction || interaction.isCurrent()) && (!isCurrent || isCurrent())
+    if (!isAccepted()) return false
+    // Studio must also observe native E/Escape exits made inside the iframe.
+    if (!studioShell && isEditMode) return true
 
     if (!iframeRef.current) {
       debugLog('❌ Iframe not ready for edit mode')
@@ -979,7 +1995,17 @@ export function PresentationViewer({
     }
 
     try {
-      const result = await sendCommand(iframeRef.current, 'toggleEditMode')
+      const targetIframe = expectedIframe ?? interaction?.iframe ?? iframeRef.current
+      // Native E can enter editing before the parent has received a selection.
+      // Adopt that state instead of toggling the already-active renderer off.
+      const nativeState = studioShell
+        ? await sendCommand(targetIframe, 'isEditModeActive')
+        : null
+      if (!isAccepted()) return false
+      const result = nativeState?.isEditing
+        ? nativeState
+        : await sendCommand(targetIframe, studioShell ? 'enterEditMode' : 'toggleEditMode')
+      if (!isAccepted()) return false
       if (result.isEditing) {
         setIsEditMode(true)
         onEditModeChange?.(true)
@@ -991,26 +2017,33 @@ export function PresentationViewer({
       console.error('Error entering edit mode:', error)
       return false
     }
-  }, [isEditMode, onEditModeChange])
+  }, [studioShell, isEditMode, onEditModeChange, beginStudioViewerInteraction])
 
   const handleSaveChanges = useCallback(async () => {
     if (!iframeRef.current) return
-
+    const interaction = studioShell ? beginStudioViewerInteraction() : null
+    const request = {}
+    if (studioShell) studioSaveRequestRef.current = request
+    const isCurrent = () => !studioShell || (studioSaveRequestRef.current === request && !!interaction?.isSourceCurrent())
     setIsSaving(true)
     try {
-      await sendCommand(iframeRef.current, 'saveAllChanges')
+      await sendCommand(interaction?.iframe ?? iframeRef.current, 'saveAllChanges')
+      if (!isCurrent()) return
       debugLog('💾 Changes saved successfully')
 
       // Exit edit mode after saving
       setIsEditMode(false)
       onEditModeChange?.(false)
     } catch (error) {
+      if (!isCurrent()) return
       console.error('Error saving changes:', error)
+      if (STUDIO_PASS3_POLISH_B_ENABLED) { toast({ ...STUDIO_POLISH_COPY.saveFailed, variant: 'destructive' }); return } // PASS3-POLISH-B (default off): the Studio toast says it; the finally below runs as it does after the alert
       alert('Failed to save changes. Please try again.')
     } finally {
-      setIsSaving(false)
+      if (isCurrent()) setIsSaving(false)
+      if (studioSaveRequestRef.current === request) studioSaveRequestRef.current = null
     }
-  }, [onEditModeChange])
+  }, [onEditModeChange, studioShell, beginStudioViewerInteraction])
 
   const handleCancelEdits = useCallback(async () => {
     if (!iframeRef.current) return
@@ -1019,23 +2052,42 @@ export function PresentationViewer({
     if (!confirm('Are you sure you want to discard all changes?')) {
       return
     }
-
+    const interaction = studioShell ? beginStudioViewerInteraction() : null
     try {
-      await sendCommand(iframeRef.current, 'cancelEdits')
+      await sendCommand(interaction?.iframe ?? iframeRef.current, 'cancelEdits')
+      if (interaction && !interaction.isCurrent()) return
       setIsEditMode(false)
       onEditModeChange?.(false)
       debugLog('🚫 Edits canceled')
     } catch (error) {
       console.error('Error canceling edits:', error)
     }
-  }, [onEditModeChange])
+  }, [onEditModeChange, studioShell, beginStudioViewerInteraction])
 
   // Add slide handler
-  const handleAddSlide = useCallback(async (layoutId: SlideLayoutType) => {
+  const handleAddSlide = useCallback(async (layoutId: SlideLayoutType, options?: { position?: number; backgroundColor?: string }) => {
+    const expectedOwner = renderSlideMutationOwner
+    const expectedMountGeneration = slideMutationMountRef.current.generation
+    const capturedFrame = studioShell ? captureStudioNativeSlideFrame() : null
+    if (studioShell && (
+      !slideMutationMountRef.current.active
+      || slideMutationOwnerRef.current !== expectedOwner
+      || !capturedFrame
+    )) return
+    const pendingRequest = slideMutationRequestRef.current
+    if (studioShell && pendingRequest && (
+      pendingRequest.owner !== expectedOwner
+      || pendingRequest.mountGeneration !== expectedMountGeneration
+      || pendingRequest.iframe !== iframeRef.current
+      || pendingRequest.isCurrent?.() === false
+    )) {
+      slideMutationRequestRef.current = null
+      slideMutationPendingRef.current = false
+    }
     // State updates are asynchronous; the ref closes the same-tick duplicate
     // click window before SlideLayoutPicker can repaint its disabled state.
     if (slideMutationPendingRef.current) return
-    const iframe = iframeRef.current
+    const iframe = capturedFrame?.iframe ?? iframeRef.current
     if (!iframe) {
       toast({
         title: 'Error',
@@ -1045,30 +2097,151 @@ export function PresentationViewer({
       return
     }
 
-    slideMutationPendingRef.current = true
-    setIsSlideMutationPending(true)
+    const navigationRevision = studioSlideNavigationRevisionRef.current
+    let addDispatched = false
     let committedSlideNumber: number | null = null
+    let reportedRetirement = false
+    const request = { owner: expectedOwner, mountGeneration: expectedMountGeneration, iframe,
+      operation: 'add' as const, isCurrent: () => false, reportUnconfirmed: () => {} }
+    const isCurrentSlideMutation = () => !studioShell || (
+      studioNativeMutationPublicationRef.current === request && capturedFrame?.isCurrent() === true
+    )
+    const isCurrentSlideSelection = () => isCurrentSlideMutation()
+      && (!studioShell || studioSlideNavigationRevisionRef.current === navigationRevision)
+    const commit = <T,>(setter: React.Dispatch<React.SetStateAction<T>>, value: T) => {
+      if (!studioShell) { setter(value); return }
+      if (isCurrentSlideMutation()) setter(previous => isCurrentSlideMutation() ? value : previous)
+    }
+    const commitSelection = <T,>(setter: React.Dispatch<React.SetStateAction<T>>, value: T) => {
+      if (!studioShell) { setter(value); return }
+      if (isCurrentSlideSelection()) setter(previous => isCurrentSlideSelection() ? value : previous)
+    }
+    const reportRetiredAdd = () => {
+      if (!studioShell || !addDispatched || reportedRetirement
+        || studioNativeMutationIntentRef.current !== request || !capturedFrame?.isLogicalCurrent()
+        || iframeRef.current?.src !== expectedOwner.source) return
+      reportedRetirement = true
+      toast({ title: 'Check slide result',
+        description: 'The slide result could not be confirmed. Check the slide list before trying again; do not add it again merely to recover the acknowledgement.',
+        variant: 'destructive' })
+    }
+    request.isCurrent = isCurrentSlideMutation
+    request.reportUnconfirmed = reportRetiredAdd
+    if (studioShell) {
+      studioNativeMutationPublicationRef.current = request
+      studioNativeMutationIntentRef.current = request
+      studioManualSlideNavigationRef.current = null
+      slideMutationRequestRef.current = request
+    }
+    slideMutationPendingRef.current = true
+    if (studioShell) nativeSnapshotStructureEditedRef.current = true
+    commit<boolean>(setIsSlideMutationPending, true)
+    const capturedNativeRevision = thumbnailNativeRevisionRef.current
+    const capturedMetadataRevision = thumbnailMetadataRef.current.revision
+    const invalidateThumbnails = studioShell ? captureThumbnailInvalidation(false) : () => {}
+    let commitThumbnailMutation: ReturnType<StudioThumbnailMutationCapture> | undefined
+    const isCurrentThumbnailProof = () => isCurrentSlideMutation()
+      && capturedNativeRevision === thumbnailNativeRevisionRef.current
+      && capturedMetadataRevision === thumbnailMetadataRef.current.revision
+    // These reads are optional evidence for unchanged metadata. A refused read
+    // never blocks Add, retries its mutation, or substitutes an invented ID.
+    const readNativeOrder = async () => {
+      try {
+        if (!isCurrentSlideMutation()) { reportRetiredAdd(); return null }
+        const receipt = await sendCommand(iframe, 'composeGetState', {}, {
+          timeoutMs: READ_LAYOUT_COMMAND_TIMEOUT_MS,
+        })
+        return isCurrentSlideMutation() ? parseStudioNativeSlideOrder(receipt) : null
+      } catch { return null }
+    }
+    const restoreManualSlideSelection = async (expectedTotal: number) => {
+      const manual = studioManualSlideNavigationRef.current
+      const active = () => isCurrentSlideMutation() && !!manual
+        && manual.iframe === iframe && manual.isCurrent()
+      if (!active() || !manual) return false
+      const selectedId = await manual.selectedId
+      if (!selectedId || !active()) return false
+      const before = await readNativeOrder()
+      if (!active() || !before || before.nativeCount !== expectedTotal) return false
+      const index = before.slideIds.indexOf(selectedId)
+      if (index < 0) return false
+      try {
+        if (before.currentVisualIndex !== index) {
+          // Existing navigation only: the ID was observed at the user's own
+          // selection, and this exact current order proves its new index.
+          if (!active()) return false
+          await sendCommand(iframe, 'goToSlide', { index })
+          if (!active()) return false
+        }
+        const after = await readNativeOrder()
+        if (!active() || !after || after.nativeCount !== expectedTotal
+          || after.slideIds[index] !== selectedId || after.currentVisualIndex !== index) return false
+        setCurrentSlide(previous => active() ? index + 1 : previous)
+        setSelectedSlideIndices(previous => active() ? [index] : previous)
+        if (!active()) return false
+        onSlideChangeRef.current?.(index + 1)
+        return active()
+      } catch { return false }
+    }
+    const proofOwner = {
+      userId: expectedOwner.userId ?? '', sessionId: expectedOwner.sessionId ?? '',
+      presentationId: expectedOwner.presentationId ?? '', source: expectedOwner.source ?? '',
+      activeVersion: expectedOwner.activeVersion, epoch: expectedOwner.generation,
+    }
+    let beforeOrder: ReturnType<typeof parseStudioNativeSlideOrder> = null
+    let provenRows: SlideThumbnail[] | null = null
+    let thumbnailCapture: StudioSlideThumbnailCapture | null = null
+    let thumbnailCacheRetired = false
     try {
+      commitThumbnailMutation = studioShell && expectedOwner.presentationId
+        ? onThumbnailMutationCapture?.(expectedOwner.presentationId, expectedOwner) : undefined
+      if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
+      if (studioShell && commitThumbnailMutation && expectedOwner.deckOwnerSessionId === expectedOwner.sessionId) {
+        beforeOrder = await readNativeOrder()
+        if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
+        if (beforeOrder && isCurrentThumbnailProof()) {
+          const rows = studioCanonicalThumbnails?.owner === expectedOwner
+            && studioCanonicalThumbnails.nativeRevision === capturedNativeRevision
+            && studioCanonicalThumbnails.metadataRevision === capturedMetadataRevision
+            ? studioCanonicalThumbnails.rows
+            : !slidesModifiedByCrud && Array.isArray(slideStructure?.slides)
+              ? slideStructure.slides.map((slide: any, index: number) => ({
+                  slideNumber: index + 1, slideIndex: index,
+                  actualSlideIndex: index, slideId: slide.slide_id || slide.id || null,
+                  title: slideTitleLabel(slide.title || slide.slide_type || `Slide ${index + 1}`),
+                  content: slide.narrative || slide.key_points?.join(', '),
+                  thumbnailUrl: ownedRestoredThumbnailUrl(slide, presentationId),
+                })) : []
+          const capture = { owner: proofOwner, nativeCount: beforeOrder.nativeCount,
+            nativeRevision: capturedNativeRevision, metadataRevision: capturedMetadataRevision }
+          if (canAdmitStudioSlideThumbnailMetadata({ captured: capture, current: capture,
+            rows, nativeSlideIds: beforeOrder.slideIds })) {
+            provenRows = rows
+            thumbnailCapture = capture
+          }
+        }
+      }
       const mutationId = createLayoutMutationId('add-slide')
       const result = await sendLayoutMutationWithReconciliation(
-        (action, params) => sendCommand(
-          iframe,
-          action,
-          params,
-          {
+        (action, params) => {
+          if (!isCurrentSlideMutation()) throw new Error('Native Add frame retired')
+          if (action === 'addSlide') addDispatched = true
+          return sendCommand(iframe, action, params, {
             timeoutMs: action === 'getElementMutationReceipt'
               ? READ_LAYOUT_COMMAND_TIMEOUT_MS
               : MUTATING_LAYOUT_COMMAND_TIMEOUT_MS,
-          },
-        ),
+          })
+        },
         'addSlide',
         {
           layout: layoutId,
-          position: currentSlide, // Insert after current slide (0-based in iframe)
+          position: options?.position ?? currentSlide, // Insert after current slide (0-based in iframe); J2 v2 Blank passes the real position
+          ...(options?.backgroundColor ? { background_color: options.backgroundColor } : {}), // J2 v2 Blank: the deck theme's background
         },
         mutationId,
         { attempts: 12, delayMs: 250 },
       )
+      if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
 
       if (result.success) {
         // Backend sends slide_index and slide_count directly (not nested in data)
@@ -1090,32 +2263,103 @@ export function PresentationViewer({
         const newSlideNumber = newSlideIndex + 1
         committedSlideNumber = newSlideNumber
 
-        setTotalSlides(newTotal)
-        setCurrentSlide(newSlideNumber) // Update local state (1-based)
+        if (studioShell && capturedNativeRevision === thumbnailNativeRevisionRef.current) {
+          // Do not display old-index images while the post-ACK identity read waits.
+          setStudioCanonicalThumbnails(previous => isCurrentSlideMutation()
+            && thumbnailNativeRevisionRef.current === capturedNativeRevision ? null : previous)
+          if (commitThumbnailMutation?.fence?.(expectedOwner) !== true) invalidateThumbnails()
+          thumbnailCacheRetired = true
+        }
+        if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
+        commit(setTotalSlides, newTotal)
+        slideRailRefreshRef.current() // F8/S-03: re-read the slide inventory after the Add ack
+        if (STUDIO_SLIDE_COUNT_SYNC_ENABLED) {
+          commit(setVisualTotalSlides, visualTotalAfterCommit({
+            totalBefore: slideTotalsRef.current.total, visualBefore: slideTotalsRef.current.visual, totalAfter: newTotal,
+          }))
+        }
+        commitSelection(setCurrentSlide, newSlideNumber) // Update local state (1-based)
+        if (studioShell) commitSelection<number[]>(setSelectedSlideIndices, [newSlideIndex])
         // The parent owns the slide index used by Add Element. Publish the
         // authoritative addSlide result before awaiting navigation/edit-mode
         // commands so an immediate Add Blank → Chart cannot target the prior
         // slide while the 3-second viewer poll is still stale.
-        onSlideChangeRef.current?.(newSlideNumber)
-        setSlidesModifiedByCrud(true) // Invalidate stale slideStructure
+        if (isCurrentSlideSelection()) onSlideChangeRef.current?.(newSlideNumber)
+        if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
+        commit<boolean>(setSlidesModifiedByCrud, true) // Invalidate stale slideStructure
+        if (studioShell) {
+          let preserved = false
+          if (beforeOrder && provenRows && thumbnailCapture && commitThumbnailMutation && isCurrentThumbnailProof()) {
+            const afterOrder = await readNativeOrder()
+            if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
+            if (afterOrder && isCurrentThumbnailProof()) {
+              const plan = planStudioSlideThumbnailMutation({ captured: thumbnailCapture,
+                current: thumbnailCapture, mutation: { kind: 'add' },
+                acknowledgement: result, verifiedNativeCount: afterOrder.nativeCount })
+              const mappedIds = plan.oldIndexByNewIndex.map(oldIndex => oldIndex === null ? null : beforeOrder!.slideIds[oldIndex])
+              const order = plan.mode === 'mapped' ? matchStudioNativeAddSlideOrder(mappedIds, afterOrder) : null
+              if (order && plan.nativeCount === newTotal) {
+                const rows = remapStudioSlideThumbnailRows(provenRows, plan).map((row, index) => ({
+                  ...row, slideId: order.slideIds[index],
+                })) as SlideThumbnail[]
+                thumbnailNativeRevisionRef.current += 1
+                const nativeRevision = thumbnailNativeRevisionRef.current
+                setStudioCanonicalThumbnails(previous => isCurrentSlideMutation()
+                  && thumbnailNativeRevisionRef.current === nativeRevision
+                  && thumbnailMetadataRef.current.revision === capturedMetadataRevision
+                  ? { owner: expectedOwner, nativeRevision, metadataRevision: capturedMetadataRevision, rows }
+                  : previous)
+                if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
+                commitThumbnailMutation(expectedOwner, plan)
+                preserved = true
+              }
+            }
+          }
+          // New Director metadata does not prove the post-Add physical order.
+          // Retire old-index previews even when rich metadata proof changed;
+          // a newer native revision or a different owner still wins.
+          if (!preserved && isCurrentSlideMutation()
+            && capturedNativeRevision === thumbnailNativeRevisionRef.current) {
+            thumbnailNativeRevisionRef.current += 1
+            const retiredNativeRevision = thumbnailNativeRevisionRef.current
+            setStudioCanonicalThumbnails(previous => isCurrentSlideMutation()
+              && thumbnailNativeRevisionRef.current === retiredNativeRevision ? null : previous)
+            if (!thumbnailCacheRetired) invalidateThumbnails()
+          }
+        }
 
-        // Navigate iframe to the new slide (PowerPoint/Keynote behavior)
-        await sendCommand(iframe, 'goToSlide', { index: newSlideIndex })
-
-        // Activate element borders for editing (like pressing 'B')
-        await sendCommand(iframe, 'toggleBorderHighlight')
-
-        // Auto-enter edit mode after adding a slide
-        await ensureEditMode()
+        let manualSelectionConfirmed = true
+        if (isCurrentSlideSelection()) {
+          // Navigate iframe to the new slide (PowerPoint/Keynote behavior).
+          await sendCommand(iframe, 'goToSlide', { index: newSlideIndex })
+          if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
+          if (isCurrentSlideSelection()) {
+            // Only the still-current automatic selection owns these editing
+            // follow-ups; a later manual slide is not this Add's edit target.
+            await sendCommand(iframe, 'toggleBorderHighlight')
+            if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
+            if (isCurrentSlideSelection()) {
+              if (studioShell) await ensureEditMode(iframe, isCurrentSlideSelection)
+              else await ensureEditMode()
+            }
+          }
+        }
+        if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
+        if (studioShell && !isCurrentSlideSelection()) {
+          manualSelectionConfirmed = await restoreManualSlideSelection(newTotal)
+          if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
+        }
 
         toast({
-          title: 'Slide Added',
-          description: `New slide inserted at position ${newSlideIndex + 1}`
+          title: manualSelectionConfirmed ? 'Slide Added' : 'Slide added; selection not confirmed',
+          description: manualSelectionConfirmed ? `New slide inserted at position ${newSlideIndex + 1}`
+            : `Slide ${newSlideNumber} was added. Select your slide again; do not add it again.`,
         })
 
         debugLog(`➕ Added ${layoutId} slide at position ${newSlideIndex + 1}`)
       }
     } catch (error) {
+      if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
       console.error('Error adding slide:', error)
       toast({
         title: committedSlideNumber
@@ -1131,29 +2375,45 @@ export function PresentationViewer({
         variant: 'destructive'
       })
     } finally {
-      slideMutationPendingRef.current = false
-      setIsSlideMutationPending(false)
+      if (!studioShell || slideMutationRequestRef.current === request) {
+        if (studioShell) slideMutationRequestRef.current = null
+        slideMutationPendingRef.current = false
+        if (!studioShell) setIsSlideMutationPending(false)
+        else setIsSlideMutationPending(previous => studioNativeMutationPublicationRef.current === request
+          && capturedFrame?.isLogicalCurrent() === true ? false : previous)
+      }
     }
-  }, [currentSlide, totalSlides, toast, ensureEditMode])
+  }, [currentSlide, totalSlides, toast, ensureEditMode, studioShell, renderSlideMutationOwner, captureThumbnailInvalidation,
+    onThumbnailMutationCapture, studioCanonicalThumbnails, slideStructure, slidesModifiedByCrud, presentationId, captureStudioNativeSlideFrame])
 
   // Duplicate slide handler
   const handleDuplicateSlide = useCallback(async (slideIndex: number) => {
-    if (!iframeRef.current) return
+    const mutation = beginStudioNativeSlideMutation('duplicate')
+    if (!mutation) return
+    const invalidateThumbnails = captureThumbnailInvalidation()
 
     try {
-      const result = await sendCommand(iframeRef.current, 'duplicateSlide', {
+      const result = await sendCommand(mutation.iframe, 'duplicateSlide', {
         index: slideIndex,      // snake_case to match backend
         insert_after: true
-      })
+      }, studioShell ? { requireRequestId: true } : 5000)
+      if (!mutation.isCurrent()) { mutation.reportUnconfirmed('duplicate'); return }
 
       if (result.success) {
         // Backend sends new_slide_index directly (not nested in data)
         const newSlideIndex = result.new_slide_index ?? result.data?.newSlideIndex ?? slideIndex + 1
         const newTotal = result.slide_count ?? result.data?.slideCount ?? totalSlides + 1
 
-        setTotalSlides(newTotal)
-        setCurrentSlide(newSlideIndex + 1)
-        setSlidesModifiedByCrud(true) // Invalidate stale slideStructure
+        mutation.commit(setTotalSlides, newTotal)
+        if (STUDIO_SLIDE_COUNT_SYNC_ENABLED) {
+          mutation.commit(setVisualTotalSlides, visualTotalAfterCommit({
+            totalBefore: slideTotalsRef.current.total, visualBefore: slideTotalsRef.current.visual, totalAfter: newTotal,
+          }))
+        }
+        mutation.commitSelection(setCurrentSlide, newSlideIndex + 1)
+        mutation.commit<boolean>(setSlidesModifiedByCrud, true) // Invalidate stale slideStructure
+        invalidateThumbnails()
+        if (!mutation.isCurrent()) { mutation.reportUnconfirmed('duplicate'); return }
 
         toast({
           title: 'Slide Duplicated',
@@ -1163,20 +2423,33 @@ export function PresentationViewer({
         debugLog(`📋 Duplicated slide ${slideIndex + 1} → ${newSlideIndex + 1}`)
       }
     } catch (error) {
+      if (!mutation.isCurrent()) { mutation.reportUnconfirmed('duplicate'); return }
+      if (studioShell && error instanceof Error && /command timeout/i.test(error.message)) {
+        mutation.reportUnconfirmed('duplicate'); return
+      }
       console.error('Error duplicating slide:', error)
       toast({
         title: 'Error',
         description: 'Failed to duplicate slide. Please try again.',
         variant: 'destructive'
       })
-    }
-  }, [totalSlides, toast])
+    } finally { mutation.release() }
+  }, [totalSlides, toast, captureThumbnailInvalidation, studioShell, beginStudioNativeSlideMutation])
 
   // Open delete dialog for single slide
   const handleOpenDeleteDialog = useCallback((slideIndex: number) => {
-    setSlidesToDelete([slideIndex])
+    const indices = [slideIndex]
+    if (studioShell) {
+      if (slideMutationPendingRef.current) return
+      const frame = captureStudioNativeSlideFrame()
+      if (!frame) return
+      const intent = viewerInteractionIntentRef.current
+      studioDeleteDialogRef.current = { indices, open: true, submitted: false,
+        isCurrent: () => frame.isCurrent() && viewerInteractionIntentRef.current === intent }
+    }
+    setSlidesToDelete(indices)
     setShowDeleteDialog(true)
-  }, [])
+  }, [studioShell, captureStudioNativeSlideFrame])
 
   // Open delete dialog for multiple slides (bulk delete)
   const handleOpenBulkDeleteDialog = useCallback((slideIndices: number[]) => {
@@ -1190,22 +2463,53 @@ export function PresentationViewer({
       })
       return
     }
+    if (studioShell) {
+      if (slideMutationPendingRef.current) return
+      const frame = captureStudioNativeSlideFrame()
+      if (!frame) return
+      const intent = viewerInteractionIntentRef.current
+      studioDeleteDialogRef.current = { indices: slideIndices, open: true, submitted: false,
+        isCurrent: () => frame.isCurrent() && viewerInteractionIntentRef.current === intent }
+    }
     setSlidesToDelete(slideIndices)
     setShowDeleteDialog(true)
-  }, [totalSlides, toast])
+  }, [totalSlides, toast, studioShell, captureStudioNativeSlideFrame])
+
+  const renderStudioDeleteDialog = studioDeleteDialogRef.current
+  const handleDeleteDialogOpenChange = useCallback((open: boolean) => {
+    if (!studioShell) { setShowDeleteDialog(open); return }
+    const dialog = renderStudioDeleteDialog
+    if (!dialog || studioDeleteDialogRef.current !== dialog) return
+    dialog.open = open
+    setShowDeleteDialog(previous => studioDeleteDialogRef.current === dialog ? open : previous)
+    // Radix closes its Action after onConfirm. That visibility event must not
+    // retire an already dispatched mutation or erase its recovery target.
+    if (!open && !dialog.submitted) {
+      setSlidesToDelete(previous => studioDeleteDialogRef.current === dialog ? null : previous)
+    }
+  }, [studioShell, renderStudioDeleteDialog])
 
   // Confirm delete slide(s) - uses bulk deleteSlides endpoint
   const handleConfirmDelete = useCallback(async () => {
     if (!slidesToDelete || slidesToDelete.length === 0 || !iframeRef.current) return
+    const dialog = studioDeleteDialogRef.current
+    if (studioShell && (!dialog || !dialog.open || dialog.submitted
+      || dialog.indices !== slidesToDelete || !dialog.isCurrent())) return
+    const mutation = beginStudioNativeSlideMutation('delete')
+    if (!mutation) return
+    if (studioShell && dialog) dialog.submitted = true
+    const invalidateThumbnails = captureThumbnailInvalidation()
 
-    setIsDeleting(true)
+    mutation.commit<boolean>(setIsDeleting, true)
     try {
       debugLog('🗑️ Attempting bulk delete with indices:', slidesToDelete)
+      const deleteLoadRevision = studioComposeLoadRevisionRef.current // PASS2D B4: the frame lifetime when the command goes out
 
       // Use bulk delete endpoint - pass all indices at once
-      const result = await sendCommand(iframeRef.current, 'deleteSlides', {
+      const result = await sendCommand(mutation.iframe, 'deleteSlides', {
         indices: slidesToDelete  // 0-based indices
-      })
+      }, studioShell ? { requireRequestId: true } : 5000)
+      if (!mutation.isCurrent()) { mutation.reportUnconfirmed('delete'); return }
 
       debugLog('🗑️ Bulk delete response:', result)
 
@@ -1218,29 +2522,38 @@ export function PresentationViewer({
           || JSON.stringify(result)
         throw new Error(errorMsg)
       }
+      if (STUDIO_SLIDE_DELETE_CANVAS_REFRESH_ENABLED && studioShell) studioSlideDeleteRefresh.acknowledged({ revisionAtSend: deleteLoadRevision, revisionNow: studioComposeLoadRevisionRef.current }) // PASS2D B4: cover the stale canvas until the reloaded frame loads
 
       // Update local state based on response
       const deletedCount = result.deleted_count || slidesToDelete.length
       const remainingCount = result.remaining_slide_count || (totalSlides - deletedCount)
 
-      setTotalSlides(remainingCount)
-      setSlidesModifiedByCrud(true) // Invalidate stale slideStructure
-      setSelectedSlideIndices([]) // Clear selection after delete
+      mutation.commit(setTotalSlides, remainingCount)
+      if (STUDIO_SLIDE_COUNT_SYNC_ENABLED) {
+        mutation.commit(setVisualTotalSlides, visualTotalAfterCommit({
+          totalBefore: slideTotalsRef.current.total, visualBefore: slideTotalsRef.current.visual, totalAfter: remainingCount,
+        }))
+      }
+      mutation.commit<boolean>(setSlidesModifiedByCrud, true) // Invalidate stale slideStructure
+      invalidateThumbnails()
+      mutation.commitSelection<number[]>(setSelectedSlideIndices, []) // Clear the mutation's selection after delete
 
       // Adjust current slide if needed
       if (currentSlide > remainingCount) {
-        setCurrentSlide(remainingCount)
+        mutation.commitSelection(setCurrentSlide, remainingCount)
       } else {
         // Find how many deleted slides were before current
         const deletedBefore = slidesToDelete.filter(i => i < currentSlide - 1).length
         if (deletedBefore > 0) {
-          setCurrentSlide(currentSlide - deletedBefore)
+          mutation.commitSelection(setCurrentSlide, currentSlide - deletedBefore)
         }
       }
 
       const message = deletedCount === 1
         ? `Slide ${slidesToDelete[0] + 1} has been removed`
         : `${deletedCount} slides have been removed`
+
+      if (!mutation.isCurrent()) { mutation.reportUnconfirmed('delete'); return }
 
       toast({
         title: deletedCount === 1 ? 'Slide Deleted' : 'Slides Deleted',
@@ -1249,6 +2562,10 @@ export function PresentationViewer({
 
       debugLog(`🗑️ Bulk deleted ${deletedCount} slide(s), ${remainingCount} remaining`)
     } catch (error) {
+      if (!mutation.isCurrent()) { mutation.reportUnconfirmed('delete'); return }
+      if (studioShell && error instanceof Error && /command timeout/i.test(error.message)) {
+        mutation.reportUnconfirmed('delete'); return
+      }
       console.error('Error deleting slides:', error)
       toast({
         title: 'Error',
@@ -1256,24 +2573,40 @@ export function PresentationViewer({
         variant: 'destructive'
       })
     } finally {
-      setIsDeleting(false)
-      setShowDeleteDialog(false)
-      setSlidesToDelete(null)
+      if (!studioShell) {
+        setIsDeleting(false)
+        setShowDeleteDialog(false)
+        setSlidesToDelete(null)
+      } else if (dialog && studioDeleteDialogRef.current === dialog && mutation.isLogicalCurrent()) {
+        // Busy belongs to this request, even if its exact frame was retired.
+        setIsDeleting(previous => studioDeleteDialogRef.current === dialog && mutation.isLogicalCurrent() ? false : previous)
+        if (mutation.isCurrent()) {
+          dialog.open = false
+          setShowDeleteDialog(previous => studioDeleteDialogRef.current === dialog && mutation.isCurrent() ? false : previous)
+          setSlidesToDelete(previous => studioDeleteDialogRef.current === dialog && mutation.isCurrent() ? null : previous)
+        }
+      }
+      mutation.release()
     }
-  }, [slidesToDelete, totalSlides, currentSlide, toast])
+  }, [slidesToDelete, totalSlides, currentSlide, toast, captureThumbnailInvalidation, studioShell, beginStudioNativeSlideMutation])
 
   // Change slide layout handler
   const handleChangeLayout = useCallback(async (slideIndex: number, newLayout: SlideLayoutType) => {
-    if (!iframeRef.current) return
+    const mutation = beginStudioNativeSlideMutation('layout change')
+    if (!mutation) return
+    const invalidateThumbnails = captureThumbnailInvalidation()
 
     try {
-      const result = await sendCommand(iframeRef.current, 'changeSlideLayout', {
+      const result = await sendCommand(mutation.iframe, 'changeSlideLayout', {
         index: slideIndex,       // snake_case to match backend
         new_layout: newLayout,
         preserve_content: true
-      })
+      }, studioShell ? { requireRequestId: true } : 5000)
+      if (!mutation.isCurrent()) { mutation.reportUnconfirmed('layout change'); return }
 
       if (result.success) {
+        invalidateThumbnails()
+        if (!mutation.isCurrent()) { mutation.reportUnconfirmed('layout change'); return }
         toast({
           title: 'Layout Changed',
           description: `Slide ${slideIndex + 1} layout updated`
@@ -1282,31 +2615,40 @@ export function PresentationViewer({
         debugLog(`🔄 Changed slide ${slideIndex + 1} layout to ${newLayout}`)
       }
     } catch (error) {
+      if (!mutation.isCurrent()) { mutation.reportUnconfirmed('layout change'); return }
+      if (studioShell && error instanceof Error && /command timeout/i.test(error.message)) {
+        mutation.reportUnconfirmed('layout change'); return
+      }
       console.error('Error changing layout:', error)
       toast({
         title: 'Error',
         description: 'Failed to change layout. Please try again.',
         variant: 'destructive'
       })
-    }
-  }, [toast])
+    } finally { mutation.release() }
+  }, [toast, captureThumbnailInvalidation, studioShell, beginStudioNativeSlideMutation])
 
   // Reorder slides handler
   const handleReorderSlides = useCallback(async (fromIndex: number, toIndex: number) => {
-    if (!iframeRef.current) return
+    const mutation = beginStudioNativeSlideMutation('reorder')
+    if (!mutation) return
+    const invalidateThumbnails = captureThumbnailInvalidation()
 
     try {
-      const result = await sendCommand(iframeRef.current, 'reorderSlides', {
+      const result = await sendCommand(mutation.iframe, 'reorderSlides', {
         from_index: fromIndex,   // snake_case to match backend
         to_index: toIndex
-      })
+      }, studioShell ? { requireRequestId: true } : 5000)
+      if (!mutation.isCurrent()) { mutation.reportUnconfirmed('reorder'); return }
 
       if (result.success) {
         // Update current slide if it was moved
         if (currentSlide === fromIndex + 1) {
-          setCurrentSlide(toIndex + 1)
+          mutation.commitSelection(setCurrentSlide, toIndex + 1)
         }
-        setSlidesModifiedByCrud(true) // Invalidate stale slideStructure
+        mutation.commit<boolean>(setSlidesModifiedByCrud, true) // Invalidate stale slideStructure
+        invalidateThumbnails()
+        if (!mutation.isCurrent()) { mutation.reportUnconfirmed('reorder'); return }
 
         toast({
           title: 'Slide Moved',
@@ -1316,14 +2658,18 @@ export function PresentationViewer({
         debugLog(`↕️ Moved slide ${fromIndex + 1} → ${toIndex + 1}`)
       }
     } catch (error) {
+      if (!mutation.isCurrent()) { mutation.reportUnconfirmed('reorder'); return }
+      if (studioShell && error instanceof Error && /command timeout/i.test(error.message)) {
+        mutation.reportUnconfirmed('reorder'); return
+      }
       console.error('Error reordering slides:', error)
       toast({
         title: 'Error',
         description: 'Failed to reorder slides. Please try again.',
         variant: 'destructive'
       })
-    }
-  }, [currentSlide, toast, ensureEditMode])
+    } finally { mutation.release() }
+  }, [currentSlide, toast, ensureEditMode, captureThumbnailInvalidation, studioShell, beginStudioNativeSlideMutation])
 
   // === Layout Service v7.5.3 API Handlers ===
 
@@ -1767,6 +3113,7 @@ export function PresentationViewer({
       return false
     }
 
+    if (studioShell) viewerInteractionIntentRef.current += 1
     try {
       const result = await sendCommand(iframeRef.current, 'updateSectionContent', {
         slideIndex,
@@ -1788,24 +3135,26 @@ export function PresentationViewer({
       })
       return false
     }
-  }, [toast])
+  }, [toast, studioShell])
 
   // Send text box command to iframe (for TextBoxFormatPanel)
   const handleSendTextBoxCommand = useCallback(async (action: string, params: Record<string, any>) => {
     if (!iframeRef.current) {
       throw new Error('Iframe not ready')
     }
+    if (studioShell) viewerInteractionIntentRef.current += 1
     return sendCommand(iframeRef.current, action, params)
-  }, [])
+  }, [studioShell])
 
   // Trigger iframe refresh after Elementor auto-injection
   const triggerIframeRefresh = useCallback(() => {
     if (!iframeRef.current) return
+    if (studioShell) viewerInteractionIntentRef.current += 1
 
     // Send refreshSlide command to iframe - Layout Service will reload current slide
     postCommand(iframeRef.current, 'refreshSlide')
     debugLog('[Elementor] Triggered iframe refresh after auto-injection')
-  }, [])
+  }, [studioShell])
 
   // Send element command - routes to Layout Service or Elementor as appropriate
   const handleSendElementCommand = useCallback(async (action: string, params: Record<string, any>) => {
@@ -1814,10 +3163,31 @@ export function PresentationViewer({
     }
 
     const commandType = getCommandType(action)
+    if (studioShell && ![
+      'getElementGeometry', 'getSlideGenerationContext', 'getTemplateSlotCatalog',
+      'getElementThemeVariants', 'getSelectionInfo',
+    ].includes(action)) viewerInteractionIntentRef.current += 1
 
+    if (STUDIO_SLIDE_OPS_VIA_VIEWER_ENABLED && isSlideOpViewerAction(action)) { // SLIDE-OPS-VIA-VIEWER: the slide panel's duplicate / delete / layout change are the viewer's own commands
+      const loadRevisionAtSend = studioComposeLoadRevisionRef.current // SLIDE-OPS-VIA-VIEWER: the frame lifetime when the command goes out
+      const result = await sendCommand(iframeRef.current, action, params, { timeoutMs: SLIDE_OP_VIEWER_TIMEOUT_MS }) // SLIDE-OPS-VIA-VIEWER: it saves what is pending first, so it gets the mutating-command budget
+      if (action === 'deleteSlides' && STUDIO_SLIDE_DELETE_CANVAS_REFRESH_ENABLED && studioShell) studioSlideDeleteRefresh.acknowledged({ revisionAtSend: loadRevisionAtSend, revisionNow: studioComposeLoadRevisionRef.current }) // SLIDE-OPS-VIA-VIEWER: the same veil path as the rail's delete
+      const newTotal = slideTotalAfterAck(action, result) // SLIDE-OPS-VIA-VIEWER: the rail's own count commits for a delete or a duplicate, so the footer and the rail agree before the reloaded frame reports
+      if (newTotal !== null) { // SLIDE-OPS-VIA-VIEWER
+        setTotalSlides(newTotal) // SLIDE-OPS-VIA-VIEWER
+        if (STUDIO_SLIDE_COUNT_SYNC_ENABLED) setVisualTotalSlides(visualTotalAfterCommit({ totalBefore: slideTotalsRef.current.total, visualBefore: slideTotalsRef.current.visual, totalAfter: newTotal })) // SLIDE-OPS-VIA-VIEWER
+        setSlidesModifiedByCrud(true) // SLIDE-OPS-VIA-VIEWER
+      } // SLIDE-OPS-VIA-VIEWER
+      return result // SLIDE-OPS-VIA-VIEWER
+    } // SLIDE-OPS-VIA-VIEWER
     // Direct Layout Service command - send to iframe
     if (commandType === 'layout-service') {
       debugLog(`[ElementCommand] Layout Service: ${action}`, params)
+      if (shouldEnsureEditModeForPersistence(action, { enabled: STUDIO_INSERT_PERSIST_ENABLED, studioShell })) { // INSERT-PERSIST: Layout autosave drops changes made outside edit mode
+        const targetIframe = iframeRef.current // INSERT-PERSIST
+        const tracked = await ensureViewerTracksEdits((a, p) => sendCommand(targetIframe, a, p ?? {})) // INSERT-PERSIST
+        if (tracked.entered) { setIsEditMode(true); onEditModeChangeRef.current?.(true) } // INSERT-PERSIST
+      } // INSERT-PERSIST
       const timeoutMs = LAYOUT_ELEMENT_COMMAND_TIMEOUTS[action] ?? DEFAULT_LAYOUT_COMMAND_TIMEOUT_MS
       return sendCommand(iframeRef.current, action, params, { timeoutMs })
     }
@@ -1863,7 +3233,7 @@ export function PresentationViewer({
           ...(params.hasHeaderRow !== undefined && { has_header: params.hasHeaderRow }),
         }
 
-        const response = await fetch(`${ELEMENTOR_BASE_URL}${endpoint}`, {
+        const response = await fetch(`${getElementorServiceUrl()}${endpoint}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(elementorRequest)
@@ -1888,6 +3258,7 @@ export function PresentationViewer({
         // Elementor auto-injects content - trigger iframe refresh to show it
         if (data.injected) {
           triggerIframeRefresh()
+          reportLayoutCommandAck(action) // NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE: Elementor injected an element into the deck
         }
 
         return {
@@ -1907,9 +3278,41 @@ export function PresentationViewer({
     // Unknown command - try sending to iframe anyway (backwards compatibility)
     console.warn(`[ElementCommand] Unknown command type: ${action}, sending to iframe`)
     return sendCommand(iframeRef.current, action, params)
-  }, [presentationId, currentSlide, triggerIframeRefresh])
+  }, [presentationId, currentSlide, triggerIframeRefresh, studioShell])
+
+  const captureStudioElementGeneration = useCallback((): StudioElementGenerationLease | null => {
+    const owner = renderSlideMutationOwner
+    const mode = studioFormatModeRef.current
+    const safety = getStudioIntroductionSafety()
+    if (!studioShell || !owner.userId || !owner.presentationId || !owner.sessionId
+      || owner.sessionId === 'new' || owner.deckOwnerSessionId !== owner.sessionId
+      || mode.enabled || !safety.ready || safety.busy || safety.error) return null
+    const frame = captureStudioNativeSlideFrame()
+    if (!frame) return null
+    let retired = false
+    const isCurrent = () => {
+      if (retired) return false
+      const current = frame.isCurrent() && studioFormatModeRef.current === mode
+        && !mode.enabled && getStudioIntroductionSafety().ready
+      if (!current) retired = true
+      return current
+    }
+    return {
+      isCurrent,
+      sendElementCommand: async (action, params) => {
+        if (!isCurrent()) throw new Error('The presentation viewer changed during element generation.')
+        const result = await handleSendElementCommand(action, params)
+        if (!isCurrent()) throw new Error('The presentation viewer changed during element generation. Check the original slide before retrying.')
+        return result
+      },
+    }
+  }, [studioShell, renderSlideMutationOwner, captureStudioNativeSlideFrame, getStudioIntroductionSafety, handleSendElementCommand])
 
   const handleComposePlaceholderAdd = useCallback((jobId: string, visualIndex: number, replaceJobId?: string) => {
+    if (studioShell && iframeRef.current) {
+      viewerInteractionIntentRef.current += 1
+      nativeSnapshotStructureEditedRef.current = true
+    }
     return sendCommand(
       iframeRef.current,
       'composePlaceholderAdd',
@@ -1928,6 +3331,10 @@ export function PresentationViewer({
     realSlideId?: string | null,
     targetPresentationId?: string | null,
   ) => {
+    if (studioShell && iframeRef.current) {
+      viewerInteractionIntentRef.current += 1
+      nativeSnapshotStructureEditedRef.current = true
+    }
     return sendCommand(
       iframeRef.current,
       'composeSlideReconcile',
@@ -1987,6 +3394,10 @@ export function PresentationViewer({
     realSlideId: string,
     targetPresentationId?: string | null,
   ) => {
+    if (studioShell && iframeRef.current) {
+      viewerInteractionIntentRef.current += 1
+      nativeSnapshotStructureEditedRef.current = true
+    }
     return sendCommand(
       iframeRef.current,
       'refineSlideReconcile',
@@ -2013,10 +3424,142 @@ export function PresentationViewer({
     return sendCommand(iframeRef.current, 'composeGetState', {}, { timeoutMs: 5000 })
   }, [])
 
-  const handleComposeGoToVisualIndex = useCallback(async (visualIndex: number) => {
+  const handleComposeCaptureSelectionContext = useCallback((): StudioComposeSelectionContext | null => {
+    if (!studioShell) return null
+    const iframe = iframeRef.current
+    const owner = slideMutationOwnerRef.current
+    const source = iframe?.src
+    const nativeWindow = iframe?.contentWindow
+    const mount = slideMutationMountRef.current.generation
+    const mode = studioFormatModeRef.current
+    const interaction = viewerInteractionIntentRef.current
+    const structure = thumbnailNativeRevisionRef.current
+    const loadRevision = studioComposeLoadRevisionRef.current
+    const loadedFrame = studioComposeLoadedFrameRef.current
+    const continuationKey = JSON.stringify([owner.userId, owner.presentationId, owner.sessionId,
+      owner.deckOwnerSessionId, owner.activeVersion, mount, mode.revision, interaction, structure])
+    const deckOwner = studioComposeDeckOwnerRef.current.token
+    if (studioComposeContinuationRef.current?.key !== continuationKey || studioComposeContinuationRef.current.deckOwner !== deckOwner) {
+      studioComposeContinuationRef.current = { key: continuationKey, deckOwner, token: {} }
+    }
+    const continuation = studioComposeContinuationRef.current.token
+    let retired = false
+    const isCurrent = () => {
+      const safety = getStudioIntroductionSafety()
+      if (retired || !iframe || !nativeWindow || !owner.userId || !owner.presentationId
+        || !owner.sessionId || owner.sessionId === 'new' || owner.deckOwnerSessionId !== owner.sessionId
+        || !slideMutationMountRef.current.active || slideMutationMountRef.current.generation !== mount
+        || slideMutationOwnerRef.current !== owner || iframeRef.current !== iframe
+        || iframe.src !== source || iframe.contentWindow !== nativeWindow
+        || !loadedFrame || studioComposeLoadedFrameRef.current !== loadedFrame
+        || loadedFrame.iframe !== iframe || loadedFrame.source !== source || loadedFrame.nativeWindow !== nativeWindow
+        || loadedFrame.revision !== loadRevision || studioComposeLoadRevisionRef.current !== loadRevision
+        || source !== owner.source
+        || studioFormatModeRef.current !== mode || mode.enabled
+        || viewerInteractionIntentRef.current !== interaction || thumbnailNativeRevisionRef.current !== structure
+        || studioSaveRequestRef.current !== null || !safety.ready || safety.dirty || safety.busy || safety.error) {
+        retired = true
+        return false
+      }
+      return true
+    }
+    if (!isCurrent()) return null
+    const assertCurrent = () => {
+      if (!isCurrent()) throw new Error('Native selection context retired')
+    }
+    const readNativeOrder = async () => {
+      assertCurrent()
+      const receipt = await sendCommand(iframe, 'composeGetState', {}, { timeoutMs: 5000 })
+      assertCurrent()
+      if (!parseStudioNativeSlideOrder(receipt)) throw new Error('Native slide identity/order unavailable')
+      return receipt
+    }
+    return Object.freeze({
+      frameEpoch: owner,
+      continuationKey: continuation,
+      loadRevision,
+      interactionRevision: interaction,
+      structureRevision: structure,
+      presentationUrl: introSafetyRef.current.presentationUrl!,
+      isCurrent,
+      readNativeOrder,
+      restoreIdentity: async ({ slideId, expectedNativeCount, isCurrent: targetIsCurrent }: Parameters<StudioComposeSelectionContext['restoreIdentity']>[0]) => {
+        let orderRetired = false
+        const active = () => !orderRetired && isCurrent() && targetIsCurrent()
+        const check = () => {
+          if (!active()) throw new Error('Native selection target retired')
+        }
+        if (!slideId || slideId !== slideId.trim() || (expectedNativeCount !== null
+          && (!Number.isSafeInteger(expectedNativeCount) || expectedNativeCount < 1))) {
+          throw new Error('Invalid native selection identity/count')
+        }
+        check()
+        const initial = parseStudioNativeSlideOrder(await readNativeOrder())!
+        check()
+        const visualIndex = initial.slideIds.indexOf(slideId)
+        const nativeCount = initial.nativeCount
+        if (visualIndex < 0 || (expectedNativeCount !== null && nativeCount !== expectedNativeCount)) {
+          throw new Error('Requested native slide identity/count unavailable')
+        }
+        const read = async () => {
+          check()
+          const receipt = await readNativeOrder()
+          check()
+          const order = parseStudioNativeSlideOrder(receipt)!
+          if (order.nativeCount !== nativeCount || order.slideIds[visualIndex] !== slideId) {
+            // Never keep navigating an old index after the real ID moved.
+            orderRetired = true
+            throw new Error('Native slide order changed during selection')
+          }
+          return order
+        }
+        await restoreSlideViewerSelection({
+          targetVisualIndex: visualIndex,
+          readNavigationInfo: async () => {
+            const order = await read()
+            return { currentVisualIndex: order.currentVisualIndex, totalSlides: order.nativeCount }
+          },
+          navigate: async index => {
+            // Re-read the strict identity immediately before dispatch.
+            await read()
+            check()
+            await sendCommand(iframe, 'goToSlide', { index }, { timeoutMs: 1500 })
+            check()
+          },
+          wait: waitForViewerSettle,
+          isActive: active,
+        })
+        const final = await read()
+        check()
+        if (final.currentVisualIndex !== visualIndex || final.slideIds[visualIndex] !== slideId) {
+          throw new Error('Native selection readback did not match')
+        }
+        setCurrentSlide(visualIndex + 1)
+        setTotalSlides(nativeCount)
+        setVisualTotalSlides(nativeCount)
+        lastSlideInfoRef.current = { slide: visualIndex + 1, total: nativeCount, visualTotal: nativeCount }
+        onSlideChangeRef.current?.(visualIndex + 1)
+        return { slideId, visualIndex, nativeCount, verified: true as const }
+      },
+    })
+  }, [studioShell, getStudioIntroductionSafety])
+
+  const handleComposeGoToVisualIndex = useCallback(async (visualIndex: number, options?: { isCurrent?: () => boolean }) => {
     const safeVisualIndex = Math.max(0, visualIndex)
     const iframe = iframeRef.current
     if (!iframe) throw new Error('Iframe not ready')
+    const source = iframe.src
+    const nativeWindow = iframe.contentWindow
+    const owner = slideMutationOwnerRef.current
+    const mount = slideMutationMountRef.current.generation
+    const interaction = viewerInteractionIntentRef.current
+    const structure = thumbnailNativeRevisionRef.current
+    const mode = studioFormatModeRef.current
+    const isActive = () => (!options?.isCurrent || options.isCurrent())
+      && iframeRef.current === iframe && iframe.src === source && iframe.contentWindow === nativeWindow
+      && (!studioShell || (slideMutationMountRef.current.active && slideMutationMountRef.current.generation === mount
+        && slideMutationOwnerRef.current === owner && viewerInteractionIntentRef.current === interaction
+        && thumbnailNativeRevisionRef.current === structure && studioFormatModeRef.current === mode))
 
     const result = await restoreSlideViewerSelection({
       targetVisualIndex: safeVisualIndex,
@@ -2035,7 +3578,7 @@ export function PresentationViewer({
         )
       },
       wait: waitForViewerSettle,
-      isActive: () => iframeRef.current === iframe,
+      isActive,
       onRetry: retry => {
         scTrace(
           retry.phase === 'waiting'
@@ -2052,6 +3595,7 @@ export function PresentationViewer({
       },
     })
 
+    if (!isActive()) throw new Error('Presentation iframe changed during slide selection restore')
     const nextSlide = safeVisualIndex + 1
     setCurrentSlide(nextSlide)
     onSlideChangeRef.current?.(nextSlide)
@@ -2062,7 +3606,7 @@ export function PresentationViewer({
       attempts: result.attempts,
       verified: true,
     }
-  }, [])
+  }, [studioShell])
 
   const handleComposeGoToPlaceholder = useCallback(async (jobId: string) => {
     const state = await sendCommand(iframeRef.current, 'composeGetState', {}, { timeoutMs: 5000 })
@@ -2088,11 +3632,20 @@ export function PresentationViewer({
       getSelectionInfo: handleGetSelectionInfo,
       updateSectionContent: handleUpdateSectionContent,
       sendTextBoxCommand: handleSendTextBoxCommand,
-      sendElementCommand: handleSendElementCommand
+      sendElementCommand: handleSendElementCommand,
+      // MDC P8: index-based navigation for chat-invoked element placement.
+      goToSlide: handleGoToSlide,
+      ...(studioShell && CHAT_STALE_VIEWER_GUARD_ENABLED ? { getStudioSaveStatus } : {}), // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
+      ...(studioShell ? { getStudioIntroductionSafety, captureStudioElementGeneration } : {})
     })
 
     return () => onApiReady(null)
-  }, [viewerIsReady, onApiReady, handleGetSelectionInfo, handleUpdateSectionContent, handleSendTextBoxCommand, handleSendElementCommand])
+  }, [viewerIsReady, onApiReady, handleGetSelectionInfo, handleUpdateSectionContent, handleSendTextBoxCommand, handleSendElementCommand, handleGoToSlide, studioShell, getStudioIntroductionSafety, captureStudioElementGeneration])
+  // CHAT-ELEMENT-EDIT: while the viewer is ready, an element edit from chat can use its lazy edit mode (what selecting an element does), so Layout's autosave tracks the change. Flag off: nothing registers.
+  useEffect(() => { // CHAT-ELEMENT-EDIT
+    if (!CHAT_ELEMENT_EDIT_ENABLED || !viewerIsReady) return // CHAT-ELEMENT-EDIT
+    return registerChatEditViewer({ ensureEditMode: () => ensureEditMode() }) // CHAT-ELEMENT-EDIT
+  }, [viewerIsReady, ensureEditMode]) // CHAT-ELEMENT-EDIT
 
   useEffect(() => {
     if (!onComposeApiReady) return
@@ -2110,6 +3663,7 @@ export function PresentationViewer({
       composeGetState: handleComposeGetState,
       composeGoToPlaceholder: handleComposeGoToPlaceholder,
       composeGoToVisualIndex: handleComposeGoToVisualIndex,
+      ...(studioShell ? { composeCaptureSelectionContext: handleComposeCaptureSelectionContext } : {}),
       refineOverlayMark: handleRefineOverlayMark,
       refineSlideReconcile: handleRefineSlideReconcile,
       refineOverlayClear: handleRefineOverlayClear,
@@ -2126,18 +3680,42 @@ export function PresentationViewer({
     handleComposeGetState,
     handleComposeGoToPlaceholder,
     handleComposeGoToVisualIndex,
+    handleComposeCaptureSelectionContext,
+    studioShell,
+    renderSlideMutationOwner,
     handleRefineOverlayMark,
     handleRefineSlideReconcile,
     handleRefineOverlayClear,
   ])
 
   const handleFullscreen = useCallback(async () => {
-    if (!containerRef.current) return
+    const targetContainer = containerRef.current
+    if (!targetContainer) return
+    const interaction = studioShell ? beginStudioViewerInteraction() : null
+    const isCurrent = () => !interaction || (
+      interaction.isCurrent() && containerRef.current === targetContainer
+    )
+    if (!isCurrent()) return
 
     try {
       if (!document.fullscreenElement) {
+        if (studioShell && iframeRef.current) {
+          const targetIframe = interaction!.iframe
+          const current = await sendCommand(targetIframe, 'isEditModeActive')
+          if (!isCurrent()) return
+          let observed = current
+          if (current.isEditing) {
+            await sendCommand(targetIframe, 'exitEditMode')
+            if (!isCurrent()) return
+            observed = await sendCommand(targetIframe, 'isEditModeActive')
+            if (!isCurrent()) return
+          }
+          setIsEditMode(Boolean(observed.isEditing))
+          onEditModeChange?.(Boolean(observed.isEditing))
+          if (observed.isEditing || !isCurrent()) return
+        }
         // Exit edit mode before entering fullscreen (presentation mode should not be editable)
-        if (isEditMode && iframeRef.current) {
+        if (!studioShell && isEditMode && iframeRef.current) {
           await sendCommand(iframeRef.current, 'exitEditMode')
           setIsEditMode(false)
           onEditModeChange?.(false)
@@ -2146,32 +3724,37 @@ export function PresentationViewer({
 
         // Hide grid overlay before entering fullscreen
         if (isGridActive && iframeRef.current) {
-          await sendCommand(iframeRef.current, 'hideGridOverlay')
+          await sendCommand(interaction?.iframe ?? iframeRef.current, 'hideGridOverlay')
+          if (!isCurrent()) return
           setIsGridActive(false)
           debugLog('📐 Hid grid overlay for fullscreen presentation')
         }
 
         // Hide border highlight before entering fullscreen
         if (isBordersActive && iframeRef.current) {
-          await sendCommand(iframeRef.current, 'hideBorderHighlight')
+          await sendCommand(interaction?.iframe ?? iframeRef.current, 'hideBorderHighlight')
+          if (!isCurrent()) return
           setIsBordersActive(false)
           debugLog('🔲 Hid borders for fullscreen presentation')
         }
 
         // Enter fullscreen on container - we control the UI with black backgrounds
-        await containerRef.current.requestFullscreen()
+        if (!isCurrent()) return
+        await (studioShell ? targetContainer : containerRef.current!).requestFullscreen()
+        if (!isCurrent()) return
         setIsFullscreen(true)
         debugLog('🖥️ Entered fullscreen mode')
       } else {
         // Exit fullscreen
         await document.exitFullscreen()
+        if (!isCurrent()) return
         setIsFullscreen(false)
         debugLog('🖥️ Exited fullscreen mode')
       }
     } catch (error) {
       console.error('❌ Fullscreen error:', error)
     }
-  }, [isEditMode, onEditModeChange, isGridActive, isBordersActive])
+  }, [studioShell, isEditMode, onEditModeChange, isGridActive, isBordersActive, beginStudioViewerInteraction])
 
   // Debug: Log button states
   useEffect(() => {
@@ -2197,6 +3780,22 @@ export function PresentationViewer({
     document.addEventListener('fullscreenchange', handleFullscreenChange)
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
   }, [])
+
+  // A4: leaving Present drops a failed view-only frame so the next Present tries again, and
+  // brings the editing frame to the slide the audience ended on (the editing frame never moved).
+  useEffect(() => {
+    if (!presentViewOnlyEnabled || isFullscreen) return
+    setPresentFrameFailed(false)
+  }, [presentViewOnlyEnabled, isFullscreen])
+  useEffect(() => {
+    if (presentViewOnlyActive) return
+    const endedOn = presentSlideIndexRef.current
+    if (endedOn === null) return
+    presentSlideIndexRef.current = null
+    // The deck can have changed while presenting (a mutation shortened it): never ask for a slide past the end.
+    const target = clampPresentSlideIndex(endedOn, presentSlideTotal)
+    if (target !== currentSlide - 1) void handleGoToSlide(target)
+  }, [presentViewOnlyActive, currentSlide, presentSlideTotal, handleGoToSlide])
 
   // Calculate optimal slide dimensions in fullscreen mode
   useEffect(() => {
@@ -2289,13 +3888,14 @@ export function PresentationViewer({
   // Listen for save status/refine events from iframe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      if (!isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return
+      if (!VIEWER_ORIGIN || LAYOUT_URL_CONFIG_ERROR || !isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return
       const type = event.data?.type
       if (typeof type !== 'string' || !isLayoutViewerEvent(type)) return
 
       if (isDiagramRendererStateEvent(type)) {
         const update = parseDiagramRendererStateUpdate(event.data)
         if (!update) return
+        if (studioShell) viewerInteractionIntentRef.current += 1
         pendingDiagramStatesRef.current.set(update.elementId, update)
         const previousTimer = diagramStateTimersRef.current.get(update.elementId)
         if (previousTimer !== undefined) window.clearTimeout(previousTimer)
@@ -2321,6 +3921,17 @@ export function PresentationViewer({
       // Handle save status updates from auto-save system
       if (type === 'save_status' || type === 'saveStatusChanged') {
         const status = event.data.status as SaveStatus
+        if (!['saved', 'unsaved', 'saving', 'error'].includes(status)) return
+        if (CHAT_ELEMENT_EDIT_ENABLED) publishViewerSaveEvent({ status, hasPendingChanges: typeof event.data.hasPendingChanges === 'boolean' ? event.data.hasPendingChanges : null }) // CHAT-ELEMENT-EDIT: the ack an element edit from chat waits for (Layout's saveStatusChanged); flag off: nothing
+        if (status !== 'saved') {
+          if (!studioArrangeOwnsSaveStatus(status)) // STUDIO-ARRANGE: Layout's "unsaved" for the selection's own Arrange command (it arrives before the answer) does not retire the selection
+          if (studioShell) viewerInteractionIntentRef.current += 1
+          nativeSnapshotDirtyRef.current = true
+          if (isDeckSaveRefused(event.data)) reportDeckSaveRefused(); else // DECK-SAVE-REFUSED-NOTICE: Layout refused a stale whole-deck save (status error + deckChanged): the existing deck-changed notice, not this tab's own edit (flag off: isDeckSaveRefused is false, the next line runs as before)
+          reportOwnDeckEdit() // NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE: this tab's own autosave is not "another tab" (no-op with the flag off)
+        }
+        else if (event.data.hasPendingChanges === false) nativeSnapshotDirtyRef.current = false
+        setNativeSnapshotSafetyRevision(value => value + 1)
         setSaveStatus(status)
         debugLog(`💾 Save status: ${status}`)
       }
@@ -2373,11 +3984,25 @@ export function PresentationViewer({
       pendingDiagramStatesRef.current.clear()
     }
   }, [onRefineElementRequested])
+  // CHAT-STALE-VIEWER-GUARD CHAT-PARITY: the viewer's save acknowledgements for a chat add (lib/chat-stale-viewer-guard.ts requireChatAddSaved), published beside the effect above (which publishes them for the edit flag). A separate effect, so the one above is untouched. Off, or with the edit flag on: nothing.
+  useEffect(() => { // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
+    if (!CHAT_STALE_VIEWER_GUARD_ENABLED || CHAT_ELEMENT_EDIT_ENABLED) return // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
+    const handleSaveAck = (event: MessageEvent) => { // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
+      if (!VIEWER_ORIGIN || LAYOUT_URL_CONFIG_ERROR || !isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
+      const type = event.data?.type // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
+      if (type !== 'save_status' && type !== 'saveStatusChanged') return // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
+      const status = event.data.status as SaveStatus // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
+      if (!['saved', 'unsaved', 'saving', 'error'].includes(status)) return // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
+      publishViewerSaveEvent({ status, hasPendingChanges: typeof event.data.hasPendingChanges === 'boolean' ? event.data.hasPendingChanges : null }) // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
+    } // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
+    window.addEventListener('message', handleSaveAck) // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
+    return () => window.removeEventListener('message', handleSaveAck) // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
+  }, []) // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
 
   // Listen for text box selection events from iframe
   useEffect(() => {
     const handleMessage = async (event: MessageEvent) => {
-      if (!isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return
+      if (!VIEWER_ORIGIN || LAYOUT_URL_CONFIG_ERROR || !isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return
 
       // Handle text box selection - auto-enter edit mode
       if (event.data.type === 'textBoxSelected') {
@@ -2388,11 +4013,18 @@ export function PresentationViewer({
           : undefined
 
         // Auto-enter edit mode when user clicks on a text box
-        await ensureEditMode()
+        const interaction = studioShell ? beginStudioViewerInteraction() : null
+        if (interaction && !interaction.isCurrent()) return
+        const entered = await ensureEditMode(interaction?.iframe ?? undefined, interaction?.isCurrent)
+        if (interaction && (!entered || !interaction.isCurrent())) return
 
+        studioArrangeSelectionRef.current = null // STUDIO-ARRANGE: a text box's selection carries no properties
         setSelectedTextBoxId(elementId)
+        captureStudioFormatSelection(elementId, 'textBoxSelected')
         onTextBoxSelected?.(elementId, formatting, componentType)
-        void sendCommand(iframeRef.current, 'bringToFront', { elementId }).catch((error) => {
+        if (interaction && !interaction.isCurrent()) return
+        if (studioArrangeRaisesOnSelect()) // STUDIO-ARRANGE: the select-raise only while NEXT_PUBLIC_STUDIO_ARRANGE is off (the one guard: lib/studio-arrange.ts)
+        void sendCommand(interaction?.iframe ?? iframeRef.current, 'bringToFront', { elementId }).catch((error) => {
           console.warn('[PresentationViewer] Failed to bring selected text box to front:', error)
         })
         debugLog(`📦 Text box selected: ${elementId} (${componentType || 'TEXT_BOX'})`)
@@ -2400,6 +4032,7 @@ export function PresentationViewer({
 
       // Handle text box deselection
       if (event.data.type === 'textBoxDeselected') {
+        if (studioShell) viewerInteractionIntentRef.current += 1
         setSelectedTextBoxId(null)
         onTextBoxDeselected?.()
         debugLog('📦 Text box deselected')
@@ -2408,12 +4041,12 @@ export function PresentationViewer({
 
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [onTextBoxSelected, onTextBoxDeselected, ensureEditMode])
+  }, [onTextBoxSelected, onTextBoxDeselected, ensureEditMode, studioShell, beginStudioViewerInteraction, captureStudioFormatSelection])
 
   // Listen for element selection events from iframe (Image, Chart, Table, Infographic, Diagram)
   useEffect(() => {
     const handleMessage = async (event: MessageEvent) => {
-      if (!isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return
+      if (!VIEWER_ORIGIN || LAYOUT_URL_CONFIG_ERROR || !isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return
 
       // Handle element selection - auto-enter edit mode and show format panel
       if (event.data.type === 'elementSelected') {
@@ -2422,11 +4055,18 @@ export function PresentationViewer({
         const properties = event.data.properties as ElementProperties
 
         // Auto-enter edit mode when user clicks on an element
-        await ensureEditMode()
+        const interaction = studioShell ? beginStudioViewerInteraction() : null
+        if (interaction && !interaction.isCurrent()) return
+        const entered = await ensureEditMode(interaction?.iframe ?? undefined, interaction?.isCurrent)
+        if (interaction && (!entered || !interaction.isCurrent())) return
 
         // Notify parent to show the appropriate format panel
+        studioArrangeSelectionRef.current = properties // STUDIO-ARRANGE: the handle reads them (slide pixels while Layout's flag is on)
+        captureStudioFormatSelection(elementId, 'elementSelected', elementType)
         onElementSelected?.(elementId, elementType, properties)
-        void sendCommand(iframeRef.current, 'bringToFront', { elementId }).catch((error) => {
+        if (interaction && !interaction.isCurrent()) return
+        if (studioArrangeRaisesOnSelect()) // STUDIO-ARRANGE: the select-raise only while NEXT_PUBLIC_STUDIO_ARRANGE is off (the one guard: lib/studio-arrange.ts)
+        void sendCommand(interaction?.iframe ?? iframeRef.current, 'bringToFront', { elementId }).catch((error) => {
           console.warn('[PresentationViewer] Failed to bring selected element to front:', error)
         })
         debugLog(`🎯 Element selected: ${elementType} (${elementId})`)
@@ -2434,11 +4074,14 @@ export function PresentationViewer({
 
       // Handle element deselection
       if (event.data.type === 'elementDeselected') {
+        if (studioShell) viewerInteractionIntentRef.current += 1
         onElementDeselected?.()
         debugLog('🎯 Element deselected')
       }
 
       if (event.data.type === 'elementDeleted') {
+        if (studioShell) viewerInteractionIntentRef.current += 1
+        reportDeckChange('element') // NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE (no-op with the flag off)
         const elementId = event.data.elementId as string
         if (elementId) onElementDeleted?.(elementId)
         debugLog(`🎯 Element deleted: ${elementId}`)
@@ -2447,14 +4090,14 @@ export function PresentationViewer({
 
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [onElementSelected, onElementDeselected, onElementDeleted, ensureEditMode])
+  }, [onElementSelected, onElementDeselected, onElementDeleted, ensureEditMode, studioShell, beginStudioViewerInteraction, captureStudioFormatSelection])
 
   // Listen for element moved/resized events from iframe
   useEffect(() => {
     if (!onElementMoved) return
 
     const handleMessage = (event: MessageEvent) => {
-      if (!isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return
+      if (!VIEWER_ORIGIN || LAYOUT_URL_CONFIG_ERROR || !isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return
 
       if (event.data.type === 'elementMoved' || event.data.action === 'elementMoved') {
         const elementId = event.data.elementId as string
@@ -2463,6 +4106,7 @@ export function PresentationViewer({
         const gridColumn = position.gridColumn as string
 
         if (elementId && gridRow && gridColumn) {
+          if (studioShell) viewerInteractionIntentRef.current += 1
           onElementMoved(elementId, gridRow, gridColumn)
         }
       }
@@ -2470,10 +4114,10 @@ export function PresentationViewer({
 
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [onElementMoved])
+  }, [onElementMoved, studioShell])
 
   return (
-    <div ref={containerRef} className={`relative flex flex-col h-full ${className} ${isFullscreen ? 'bg-black' : ''}`}>
+    <div data-studio-v4-viewer={studioShell ? "true" : undefined} data-studio-v4-fullscreen={isFullscreen ? "true" : undefined} ref={containerRef} className={`relative flex flex-col h-full ${className} ${isFullscreen ? 'bg-black' : ''}`}>
       {/* Fullscreen toolbar trigger zone - at top, below Chrome's fullscreen bar */}
       {isFullscreen && (
         <div
@@ -2550,61 +4194,148 @@ export function PresentationViewer({
             action: () => onOpenGenerationPanel ? onOpenGenerationPanel('DIAGRAM') : handleInsertDiagram(),
           },
         ]
+        // PASS2 #6 (flag NEXT_PUBLIC_STUDIO_ELEMENT_GALLERY, default off): the Add Element picker as a card gallery in the
+        // normal Studio viewer. Same items, handlers and follow-on panel; off: the dropdown below is unchanged.
+        const studioElementGallery = studioShell && !isFullscreen && process.env.NEXT_PUBLIC_STUDIO_ELEMENT_GALLERY === 'true'
 
-        const toolbarContent = (
-          <div className={cn(
-            "flex items-center justify-between w-full min-w-0 gap-3",
-            isFullscreen ? "px-4 py-2" : "px-3 h-full",
-            isGenerating && "pointer-events-none opacity-50"
-          )}>
-            {/* LEFT — build cluster (Add Slide, Add Element, Template, Theme) + quiet view helpers (Mode, Show) */}
-            <div
+        const versionMenuItems = (
+          <>
+                      <DropdownMenuItem
+                        aria-current={studioShell && activeVersion === 'blank' ? 'true' : undefined}
+                        onClick={() => onVersionSwitch?.('blank')}
+                        className="cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <span>Custom</span>
+                          {activeVersion === 'blank' && <Check className="h-4 w-4 text-blue-500" />}
+                        </div>
+                      </DropdownMenuItem>
+                      {strawmanPreviewUrl && (
+                        <DropdownMenuItem
+                          aria-current={studioShell && activeVersion === 'strawman' ? 'true' : undefined}
+                          onClick={() => onVersionSwitch?.('strawman')}
+                          className="cursor-pointer"
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <span>Strawman</span>
+                            {activeVersion === 'strawman' && <Check className="h-4 w-4 text-blue-500" />}
+                          </div>
+                        </DropdownMenuItem>
+                      )}
+                      {finalPresentationUrl && (
+                        <DropdownMenuItem
+                          aria-current={studioShell && activeVersion === 'final' ? 'true' : undefined}
+                          onClick={() => onVersionSwitch?.('final')}
+                          className="cursor-pointer"
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <span>Final</span>
+                            {activeVersion === 'final' && <Check className="h-4 w-4 text-blue-500" />}
+                          </div>
+                        </DropdownMenuItem>
+                      )}
+          </>
+        )
+
+        // PASS2 #5: with the flag on (normal Studio viewer) Present closes the authoring strip instead of sitting in the slide footer.
+        const presentInStrip = studioToolbarCleanup && !isFullscreen
+        const presentControl = (
+              <button
+                onClick={handleFullscreen}
+                disabled={!viewerIsReady}
+                className={cn(toolbarButtonClass, toolbarBtnBase)}
+                title={isFullscreen ? "Exit fullscreen (ESC)" : "Present fullscreen"}
+                {...(presentInStrip ? { 'data-studio-toolbar-present': 'true' } : {})}
+              >
+                {isFullscreen ? (
+                  <Minimize2 className="h-5 w-5" />
+                ) : (
+                  <Play className="h-5 w-5" />
+                )}
+                <span className={toolbarLabelClass}>{studioShell ? (isFullscreen ? 'Exit' : 'Present') : 'Play'}</span>
+              </button>
+        )
+
+        // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: this tab is paused (the session is live in another tab). Undefined/false otherwise, so every
+        // `|| tabPaused` below and every hint is inert and the markup is what it was.
+        const tabPaused = Boolean(studioTabPausedHint)
+        // A disabled button swallows the pointer, so the hint sits on a box around it that receives the hover instead.
+        // PASS2B batch 1 (NEXT_PUBLIC_STUDIO_DISABLED_REASONS, default off): with the flag on, the box that carries the hint also says why a control is
+        // disabled for any reason (loading, Template Mode, a change in flight, or this paused tab): the same box (so `tabPausedWrap(` keeps its two
+        // calls below), now a keyboard tab stop with a tooltip on hover and focus and aria (components/studio-disabled-reason.tsx). The optional
+        // kind/label are given by the two picker call sites; reasonWrap does the same for the three buttons that never had a box. Off: the
+        // kind/label are ignored and this is exactly the wrapper above.
+        const toolbarReason = (kind: StudioToolbarControl) => studioToolbarDisabledReason(kind, { tabPausedHint: studioTabPausedHint, viewerIsReady, templateModeOn, slideMutationPending: isSlideMutationPending })
+        const reasonWrap = (control: React.ReactNode, kind: StudioToolbarControl, label: string) => STUDIO_DISABLED_REASONS_ENABLED
+          ? <StudioDisabledReason reason={toolbarReason(kind)} label={label} tabPaused={tabPaused} portalContainer={toolbarDropdownPortalContainer}>{control}</StudioDisabledReason>
+          : control
+        const tabPausedWrap = (control: React.ReactNode, kind?: StudioToolbarControl, label?: string) => STUDIO_DISABLED_REASONS_ENABLED && kind && label
+          ? reasonWrap(control, kind, label)
+          : tabPaused
+          ? <span title={studioTabPausedHint} data-studio-tab-paused="true" className="inline-flex [&_button]:pointer-events-none">{control}</span>
+          : control
+        const authoringControls = (
+          <div
               className={cn(
                 "flex items-center gap-1 min-w-0",
                 !isFullscreen && "transition-[margin] duration-300 ease-out"
               )}
-              style={!isFullscreen ? { marginLeft: toolbarOffset } : undefined}
+              style={!isFullscreen && !studioShell ? { marginLeft: toolbarOffset } : undefined}
             >
               {/* Add Slide */}
-              <SlideLayoutPicker
+              {tabPausedWrap(<SlideLayoutPicker
                 onAddSlide={handleAddSlide}
-                disabled={!viewerIsReady || templateModeOn || isSlideMutationPending}
+                onGenerateSlide={onGenerateSlide}
+                addSlideV2={ADD_SLIDE_V2_ENABLED && addSlideV2Settings ? { settings: addSlideV2Settings, currentSlide, slideCount: totalSlides, theme: buildThemeSelection, slides: addSlideV2Settings.regenerate ? slideThumbnails.map(slide => ({ slideId: slide.slideId ?? null, title: slide.title ?? '' })) : undefined } : undefined}
+                disabled={!viewerIsReady || templateModeOn || isSlideMutationPending || tabPaused}
                 className="min-w-[80px] justify-center"
-              />
+              />, 'add-slide', 'Add Slide')}
 
               {/* Add Element — same Plus icon as Add Slide; label disambiguates */}
-              <DropdownMenu>
+              {reasonWrap(<DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    disabled={!viewerIsReady || templateModeOn || isSlideMutationPending}
+                    disabled={!viewerIsReady || templateModeOn || isSlideMutationPending || tabPaused}
                     className={cn(toolbarButtonClass, toolbarBtnBase, "min-w-[96px]")}
-                    title="Add an element"
+                    title={tabPaused ? studioTabPausedHint : "Add an element"}
                   >
                     <Plus className="h-5 w-5" />
                     <span className={cn(toolbarLabelClass, "whitespace-nowrap")}>Add Element</span>
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuPortal container={toolbarDropdownPortalContainer}>
-                  <DropdownMenuContent align="start" sideOffset={8} className="w-52 p-1">
-                    {addElementItems.map(({ label, icon: Icon, disabled, action }) => (
-                      <DropdownMenuItem
-                        key={label}
-                        disabled={disabled}
-                        onClick={() => { void action() }}
-                        className="cursor-pointer gap-2"
-                      >
-                        <Icon className="h-4 w-4 text-gray-600" />
-                        <span>{label}</span>
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
+                  {studioElementGallery ? (
+                    <StudioElementGalleryMenu items={addElementItems} disabledReason={STUDIO_DISABLED_REASONS_ENABLED ? studioElementCardsDisabledReason(toolbarReason('add-element')) : undefined} />
+                  ) : (
+                    <DropdownMenuContent data-studio-authoring-menu={studioShell && !isFullscreen ? "add-element" : undefined} data-studio-v4-shell={studioShell && isFullscreen ? "true" : undefined} data-studio-presentation-popup={studioShell && isFullscreen ? "true" : undefined} align="start" sideOffset={8} className="w-52 p-1">
+                      {addElementItems.map(({ label, icon: Icon, disabled, action }) => (
+                        <DropdownMenuItem
+                          key={label}
+                          disabled={disabled}
+                          onClick={() => { void action() }}
+                          className="cursor-pointer gap-2"
+                        >
+                          <Icon className="h-4 w-4 text-gray-600" />
+                          <span>{label}</span>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  )}
                 </DropdownMenuPortal>
-              </DropdownMenu>
+              </DropdownMenu>, 'add-element', 'Add Element')}
+
+              {studioShell && onStudioFormatRequested && <button type="button"
+                disabled={!viewerIsReady || templateModeOn || isSlideMutationPending || studioFormatBusy || !studioFormatSelection?.isCurrent()}
+                className={cn(toolbarButtonClass, toolbarBtnBase)} title="Format the selected element"
+                onClick={() => { if (studioFormatSelection?.isCurrent()) onStudioFormatRequested(studioFormatSelection) }}>
+                <Palette className="h-5 w-5" /><span className={toolbarLabelClass}>Format</span>
+              </button>}
 
               {/* Template — "Save as Template" (Template Builder). Enabled once a
                   deck exists and we know the WS session to snapshot. */}
-              {templateBuilderEnabled ? (
-                <DropdownMenu
+              {/* PASS2-PK-FOUR item 4 (NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE, default off): Template ▾ moves next to Theme, below. */}
+              {studioShell && process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE === 'true' ? null : templateBuilderEnabled ? (
+                reasonWrap(<DropdownMenu
                   open={toolbarTemplateMenuOpen}
                   onOpenChange={(open) => {
                     setToolbarTemplateMenuOpen(open)
@@ -2613,19 +4344,22 @@ export function PresentationViewer({
                 >
                   <DropdownMenuTrigger asChild>
                     <button
-                      disabled={!viewerIsReady}
+                      disabled={!viewerIsReady || tabPaused}
                       className={cn(toolbarButtonClass, toolbarBtnBase)}
-                      title="Template options"
+                      title={tabPaused ? studioTabPausedHint : "Template options"}
+                      aria-label={studioShell ? "Template" : undefined}
                     >
                       <LayoutTemplate className="h-5 w-5" />
                       <span className={toolbarLabelClass}>Template</span>
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuPortal container={toolbarDropdownPortalContainer}>
-                    <DropdownMenuContent align="center" sideOffset={8} className="w-56 p-1">
+                    <DropdownMenuContent data-studio-authoring-menu={studioShell && !isFullscreen ? "template" : undefined} data-studio-v4-shell={studioShell && isFullscreen ? "true" : undefined} data-studio-presentation-popup={studioShell && isFullscreen ? "true" : undefined} align="center" sideOffset={8} className="w-56 p-1">
+                      {studioShell && studioWorkflowRequest?.action === 'templates' && studioWorkflowRequest.itemId && templateSelectionLocked && <p className="px-2 py-2 text-xs leading-relaxed text-muted-foreground" role="status">The library selection has not been applied. Template selection is locked for this deck.</p>}
                       <DropdownMenuItem
                         disabled={!canSaveTemplate}
-                        title={!canSaveTemplate && templateSaveGate.disabledReason ? templateSaveGate.disabledReason.replace(/_/g, ' ') : undefined}
+                        title={studioPartialArtifact ? 'Available when this deck is complete'
+                          : !canSaveTemplate && templateSaveGate.disabledReason ? templateSaveGate.disabledReason.replace(/_/g, ' ') : undefined}
                         className="cursor-pointer gap-2"
                         onClick={() => setShowTemplateSave(true)}
                       >
@@ -2636,6 +4370,7 @@ export function PresentationViewer({
                         disabled={!templateModeAvailable && !templateModeOn}
                         className="cursor-pointer gap-2"
                         onClick={() => {
+                          if (studioShell) viewerInteractionIntentRef.current += 1
                           onTemplateModeChange?.(!templateModeOn)
                           setToolbarTemplateMenuOpen(false)
                         }}
@@ -2663,8 +4398,9 @@ export function PresentationViewer({
                           <LayoutTemplate className="h-4 w-4 text-gray-600" />
                           <span>{templateSelectionLocked ? 'Template locked' : 'Available Templates'}</span>
                         </DropdownMenuSubTrigger>
-                        <DropdownMenuSubContent alignOffset={-4} className="w-64">
+                        <DropdownMenuSubContent data-studio-authoring-menu={studioShell && !isFullscreen ? "template-library" : undefined} data-studio-v4-shell={studioShell && isFullscreen ? "true" : undefined} data-studio-presentation-popup={studioShell && isFullscreen ? "true" : undefined} alignOffset={-4} className="w-64">
                           <TemplatePickerContent
+                            preferredTemplateId={studioWorkflowRequest?.action === 'templates' ? studioWorkflowRequest.itemId : undefined}
                             label="Available templates"
                             isOpen={toolbarTemplatePickerOpen}
                             mode="review"
@@ -2676,14 +4412,31 @@ export function PresentationViewer({
                           />
                         </DropdownMenuSubContent>
                       </DropdownMenuSub>
+                      {templateIngestEnabled && (
+                        <>
+                          <DropdownMenuSeparator />
+                          {/* Template Ingest (C-7): convert an uploaded deck into a template */}
+                          <DropdownMenuItem
+                            className="cursor-pointer gap-2"
+                            onClick={() => {
+                              setShowTemplateIngest(true)
+                              setToolbarTemplateMenuOpen(false)
+                            }}
+                          >
+                            <Upload className="h-4 w-4 text-gray-600" />
+                            <span>Upload presentation…</span>
+                          </DropdownMenuItem>
+                        </>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenuPortal>
-                </DropdownMenu>
-              ) : (
+                </DropdownMenu>, 'template', 'Template')
+              ) : studioToolbarCleanup ? null : (
                 <button
                   disabled
                   className={cn(toolbarButtonClass, "text-slate-400 dark:text-slate-500 cursor-not-allowed")}
                   title="Templates — coming soon"
+                  {...(process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === 'true' ? { title: "Templates are not available" } : undefined)}
                 >
                   <LayoutTemplate className="h-5 w-5" />
                   <span className={toolbarLabelClass}>Template</span>
@@ -2691,18 +4444,36 @@ export function PresentationViewer({
               )}
 
               {/* Theme — 4th primary build action; sits with its build siblings */}
-              <button
+              {reasonWrap(<button
                 onClick={() => setShowThemePanel(true)}
-                disabled={!viewerIsReady || templateModeOn}
+                disabled={!viewerIsReady || templateModeOn || tabPaused}
                 className={cn(toolbarButtonClass, toolbarBtnBase)}
-                title="Presentation theme"
+                title={tabPaused ? studioTabPausedHint : "Presentation theme"}
+                aria-label={studioShell ? "Theme" : undefined}
+                data-studio-v4-secondary={studioShell ? "true" : undefined}
               >
                 <Palette className="h-5 w-5" />
                 <span className={toolbarLabelClass}>Theme</span>
-              </button>
+              </button>, 'theme', 'Theme')}
 
               {/* Divider — separates the four primary build actions from the quiet view helpers */}
-              <div className="mx-1 h-6 w-px bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
+              {/* PASS2-PK-FOUR item 4 (NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE, default off): Template ▾ right after Theme (frame 3b): your
+                  templates, a preview, New topic / Reuse as-is and "Upload a template (.pptx)"; the old menu's Save Template and Template
+                  Mode stay in its footer. It shares the divider's slot, so with the flag off every element keeps its place (and its ids). */}
+              {studioShell && process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE === 'true' ? <>
+                {tabPausedWrap(<StudioTemplatePicker
+                  disabled={!viewerIsReady || tabPaused}
+                  triggerClassName={cn(toolbarButtonClass, toolbarBtnBase)}
+                  labelClassName={toolbarLabelClass}
+                  portalContainer={toolbarDropdownPortalContainer}
+                  onUploadTemplate={templateIngestEnabled ? () => setShowTemplateIngest(true) : undefined}
+                  onSaveTemplate={templateBuilderEnabled ? (canSaveTemplate ? () => setShowTemplateSave(true) : null) : undefined}
+                  templateMode={templateBuilderEnabled ? { on: templateModeOn, available: templateModeAvailable, toggle: () => { viewerInteractionIntentRef.current += 1; onTemplateModeChange?.(!templateModeOn) } } : null}
+                  onComposerTemplateAction={onComposerTemplateAction}
+                  onOpenComposerLibrary={onOpenComposerLibrary}
+                />, 'template', 'Template')}
+                <div className="mx-1 h-6 w-px bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
+              </> : <div className="mx-1 h-6 w-px bg-slate-200 dark:bg-slate-700" aria-hidden="true" />}
 
               {/* Mode — quiet helper: editing mode (View/Edit) + UI theme (Light/Dark) */}
               <DropdownMenu>
@@ -2711,13 +4482,15 @@ export function PresentationViewer({
                     disabled={!viewerIsReady}
                     className={cn(toolbarButtonClass, toolbarBtnQuiet)}
                     title="Editing mode + theme"
+                    aria-label={studioShell ? "Mode" : undefined}
+                    data-studio-v4-secondary={studioShell ? "true" : undefined}
                   >
                     <Settings2 className="h-5 w-5" />
                     <span className={toolbarLabelClass}>Mode</span>
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuPortal container={toolbarDropdownPortalContainer}>
-                  <DropdownMenuContent align="center" sideOffset={8} className="w-44">
+                  <DropdownMenuContent data-studio-authoring-menu={studioShell && !isFullscreen ? "mode" : undefined} data-studio-v4-shell={studioShell && isFullscreen ? "true" : undefined} data-studio-presentation-popup={studioShell && isFullscreen ? "true" : undefined} align="center" sideOffset={8} className="w-44">
                     <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
                       Editing mode
                     </DropdownMenuLabel>
@@ -2725,7 +4498,8 @@ export function PresentationViewer({
                       value={isEditMode ? 'edit' : 'view'}
                       onValueChange={(v) => {
                         const wantsEdit = v === 'edit'
-                        if (wantsEdit !== isEditMode) void handleToggleEditModeButton()
+                        if (studioShell) void handleToggleEditModeButton(wantsEdit)
+                        else if (wantsEdit !== isEditMode) void handleToggleEditModeButton()
                       }}
                     >
                       <DropdownMenuRadioItem value="view" className="cursor-pointer whitespace-nowrap">
@@ -2761,13 +4535,15 @@ export function PresentationViewer({
                     disabled={!viewerIsReady}
                     className={cn(toolbarButtonClass, toolbarBtnQuiet)}
                     title="Display options"
+                    aria-label={studioShell ? "Show" : undefined}
+                    data-studio-v4-secondary={studioShell ? "true" : undefined}
                   >
                     <SlidersHorizontal className="h-5 w-5" />
                     <span className={toolbarLabelClass}>Show</span>
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuPortal container={toolbarDropdownPortalContainer}>
-                  <DropdownMenuContent align="center" sideOffset={8} className="w-44">
+                  <DropdownMenuContent data-studio-authoring-menu={studioShell && !isFullscreen ? "show" : undefined} data-studio-v4-shell={studioShell && isFullscreen ? "true" : undefined} data-studio-presentation-popup={studioShell && isFullscreen ? "true" : undefined} align="center" sideOffset={8} className="w-44">
                     <DropdownMenuCheckboxItem
                       checked={isGridActive}
                       onCheckedChange={() => handleToggleGrid()}
@@ -2789,38 +4565,39 @@ export function PresentationViewer({
                     >
                       <Settings className="h-4 w-4 mr-2" /> Master…
                     </DropdownMenuItem>
+                    {studioShell && viewerIsReady && (strawmanPreviewUrl || finalPresentationUrl) && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel>Version</DropdownMenuLabel>
+                        {versionMenuItems}
+                      </>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenuPortal>
               </DropdownMenu>
-            </div>
 
-            {/* RIGHT — present: the two highest-value present actions (Play, Download) */}
-            <div className="flex flex-shrink-0 items-center gap-1">
+              {presentInStrip && (
+                <>
+                  <div className="mx-1 h-6 w-px bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
+                  {presentControl}
+                </>
+              )}
+            </div>
+        )
+        const deliveryControls = (
+          <div className="flex flex-shrink-0 items-center gap-1">
               {/* Save — transient status only; autosave is automatic, so nothing shows at rest */}
-              {saveStatus === 'saving' || isSaving ? (
-                <div
-                  className={cn(toolbarButtonClass, "text-slate-600 dark:text-slate-300 cursor-default")}
-                  title="Saving…"
-                >
-                  <div className="h-5 w-5 flex items-center justify-center">
-                    <div className="h-3.5 w-3.5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
-                  </div>
-                  <span className={toolbarLabelClass}>Saving</span>
-                </div>
-              ) : saveStatus === 'unsaved' || saveStatus === 'error' ? (
-                <button
-                  onClick={handleSaveChanges}
-                  disabled={isSaving || !viewerIsReady}
-                  className={cn(toolbarButtonClass, "bg-amber-500/20 text-amber-700 hover:bg-amber-500/30 dark:text-amber-200")}
-                  title="Save changes now"
-                >
-                  <Save className="h-5 w-5" />
-                  <span className={toolbarLabelClass}>Save</span>
-                </button>
-              ) : null}
+              <StudioToolbarSaveFeedback
+                saveStatus={saveStatus}
+                isSaving={isSaving}
+                viewerIsReady={viewerIsReady}
+                onSave={handleSaveChanges}
+                toolbarButtonClass={toolbarButtonClass}
+                toolbarLabelClass={toolbarLabelClass}
+              />
 
               {/* Version switcher — only surfaces once a tagged strawman/final version exists */}
-              {viewerIsReady && (strawmanPreviewUrl || finalPresentationUrl) && (
+              {!studioShell && viewerIsReady && (strawmanPreviewUrl || finalPresentationUrl) && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
@@ -2834,61 +4611,30 @@ export function PresentationViewer({
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuPortal container={toolbarDropdownPortalContainer}>
-                    <DropdownMenuContent align="end" className="w-40">
-                      <DropdownMenuItem
-                        onClick={() => onVersionSwitch?.('blank')}
-                        className="cursor-pointer"
-                      >
-                        <div className="flex items-center justify-between w-full">
-                          <span>Custom</span>
-                          {activeVersion === 'blank' && <Check className="h-4 w-4 text-blue-500" />}
-                        </div>
-                      </DropdownMenuItem>
-                      {strawmanPreviewUrl && (
-                        <DropdownMenuItem
-                          onClick={() => onVersionSwitch?.('strawman')}
-                          className="cursor-pointer"
-                        >
-                          <div className="flex items-center justify-between w-full">
-                            <span>Strawman</span>
-                            {activeVersion === 'strawman' && <Check className="h-4 w-4 text-blue-500" />}
-                          </div>
-                        </DropdownMenuItem>
-                      )}
-                      {finalPresentationUrl && (
-                        <DropdownMenuItem
-                          onClick={() => onVersionSwitch?.('final')}
-                          className="cursor-pointer"
-                        >
-                          <div className="flex items-center justify-between w-full">
-                            <span>Final</span>
-                            {activeVersion === 'final' && <Check className="h-4 w-4 text-blue-500" />}
-                          </div>
-                        </DropdownMenuItem>
-                      )}
+                    <DropdownMenuContent data-studio-authoring-menu={studioShell && !isFullscreen ? "version" : undefined} data-studio-v4-shell={studioShell && isFullscreen ? "true" : undefined} data-studio-presentation-popup={studioShell && isFullscreen ? "true" : undefined} align="end" className="w-40">
+                      {versionMenuItems}
                     </DropdownMenuContent>
                   </DropdownMenuPortal>
                 </DropdownMenu>
               )}
 
               {/* Play */}
-              <button
-                onClick={handleFullscreen}
-                disabled={!viewerIsReady}
-                className={cn(toolbarButtonClass, toolbarBtnBase)}
-                title={isFullscreen ? "Exit fullscreen (ESC)" : "Present fullscreen"}
-              >
-                {isFullscreen ? (
-                  <Minimize2 className="h-5 w-5" />
-                ) : (
-                  <Play className="h-5 w-5" />
-                )}
-                <span className={toolbarLabelClass}>Play</span>
-              </button>
+              {(!studioShell || isFullscreen) && presentControl}
 
               {/* Download Controls */}
               {viewerIsReady ? downloadControls : null}
             </div>
+        )
+        const toolbarContent = (
+          <div className={cn(
+            "flex items-center justify-between w-full min-w-0 gap-3",
+            isFullscreen ? "px-4 py-2" : "px-3 h-full",
+            presentViewOnlyActive && "justify-end",
+            isGenerating && "pointer-events-none opacity-50"
+          )}>
+            {/* A4: the view-only frame refuses edits, so its Present toolbar carries no authoring controls. */}
+            {presentViewOnlyActive ? null : authoringControls}
+            {deliveryControls}
           </div>
         )
 
@@ -2896,23 +4642,38 @@ export function PresentationViewer({
           <>
             {/* Fullscreen: inline floating overlay with auto-hide */}
             {isFullscreen && (
-              <div className={`absolute top-12 left-1/2 -translate-x-1/2 z-50 rounded-lg shadow-2xl border border-gray-200 bg-gray-50 transition-all duration-300 ${
+              <div data-studio-v4-shell={studioShell ? "true" : undefined} data-studio-presentation-toolbar={studioShell ? "true" : undefined} className={`absolute top-12 left-1/2 -translate-x-1/2 z-50 rounded-lg shadow-2xl border border-gray-200 bg-gray-50 transition-all duration-300 ${
                 !showToolbar ? 'opacity-0 -translate-y-full pointer-events-none' : 'opacity-100 translate-y-0'
               }`}>
                 {toolbarContent}
               </div>
             )}
 
+            {studioShell && !isFullscreen && studioAuthoringPortalTarget && createPortal(
+              <div data-studio-v4-authoring="true" className={cn(isGenerating && "pointer-events-none opacity-50")}>
+                <div ref={authoringStripRef} data-studio-v4-authoring-controls="true" role="group" aria-label="Slide authoring controls">{authoringControls}</div>
+              </div>,
+              studioAuthoringPortalTarget
+            )}
+            {studioShell && !isFullscreen && studioPresentPortalTarget && createPortal(
+              <div data-studio-slide-controls="true" role="group" aria-label="Presentation controls" className={cn(isGenerating && "pointer-events-none opacity-50")} {...(presentInStrip ? { 'data-studio-position-only': 'true' } : {})}>
+              <span>Slide {currentSlide} / {STUDIO_SLIDE_COUNT_SYNC_ENABLED
+                ? syncedFooterTotal({ visualTotalSlides, totalSlides, slideCount, partialArtifact: Boolean(studioPartialArtifact) })
+                : visualTotalSlides || totalSlides || slideCount || (studioPartialArtifact ? '—' : 1)}</span>
+                {!presentInStrip && presentControl}
+              </div>,
+              studioPresentPortalTarget
+            )}
             {/* Normal: portal to header slot */}
             {!isFullscreen && toolbarPortalTarget && createPortal(
-              toolbarContent,
+              studioShell ? <div data-studio-v4-delivery="true" className={cn(isGenerating && "pointer-events-none opacity-50")}>{deliveryControls}</div> : toolbarContent,
               toolbarPortalTarget
             )}
 
             {/* Fallback: inline if no portal target */}
             {!isFullscreen && !toolbarPortalTarget && (
               <div className="flex items-center justify-between px-6 py-2 bg-gray-50 border-b">
-                {toolbarContent}
+                {studioShell ? <div data-studio-v4-delivery="true" className={cn(isGenerating && "pointer-events-none opacity-50")}>{deliveryControls}</div> : toolbarContent}
               </div>
             )}
           </>
@@ -2920,12 +4681,25 @@ export function PresentationViewer({
       })()}
 
       {/* Main Content Area - Flex container for slide and thumbnails */}
-      <div className={`flex-1 flex min-h-0 min-w-0 ${isFullscreen ? 'bg-black' : ''}`}>
+      <div className={`flex-1 flex min-h-0 min-w-0 ${isFullscreen ? 'bg-black' : ''}${railFocusHidden ? ' relative' : ''}`}>
         {/* Left: Presentation Area */}
         <div className={`flex-1 flex flex-col min-w-0 min-h-0 ${isFullscreen ? 'bg-black' : 'overflow-hidden bg-gray-100 dark:bg-slate-800'}`}>
+          {studioShell && !isFullscreen && showControls && (
+            <div ref={setStudioAuthoringPortalTarget} data-studio-authoring-slot="true" />
+          )}
+          {/* Build Narration v2: ribbon slot — above the slide, height absorbed
+              by the slide container's ResizeObserver fit-contain. */}
+          {!isFullscreen && stageChrome?.ribbon ? (
+            <div className="flex-shrink-0">{stageChrome.ribbon}</div>
+          ) : null}
           {/* Presentation Iframe */}
           <div
             ref={slideContainerRef}
+            data-studio-slide-space={studioShell ? "true" : undefined}
+            tabIndex={studioShell && !isFullscreen && approvedPresentationUrl ? 0 : undefined}
+            role={studioShell && !isFullscreen && approvedPresentationUrl ? "region" : undefined}
+            aria-label={studioShell && !isFullscreen && approvedPresentationUrl ? "Slide canvas" : undefined}
+            data-studio-template-active={studioShell ? String(templateModeOn) : undefined}
             className={cn(
               "flex-1 min-h-0 relative flex items-center justify-center overflow-hidden",
               isFullscreen ? 'bg-black' : 'bg-gray-100 dark:bg-slate-800 p-4',
@@ -2942,6 +4716,7 @@ export function PresentationViewer({
                   className="pointer-events-auto inline-flex h-7 w-7 items-center justify-center rounded-full border border-violet-200 bg-white/95 text-violet-700 shadow-lg transition hover:border-violet-300 hover:bg-violet-50 dark:border-violet-800 dark:bg-slate-950/95 dark:text-violet-200 dark:hover:bg-violet-950"
                   onClick={(event) => {
                     event.stopPropagation()
+                    if (studioShell) viewerInteractionIntentRef.current += 1
                     void onTemplateModeChange?.(false)
                   }}
                   aria-label="Exit Template Mode"
@@ -2954,7 +4729,7 @@ export function PresentationViewer({
             {approvedPresentationUrl ? (
               <div
                 className={cn(
-                  isFullscreen ? '' : 'max-w-7xl',
+                  isFullscreen || studioShell ? '' : 'max-w-7xl',
                   "relative",
                   templateModeOn
                     ? "overflow-visible rounded-md bg-violet-950/5 shadow-[0_0_0_9999px_rgba(15,23,42,0.08)]"
@@ -2995,6 +4770,26 @@ export function PresentationViewer({
                   title="Presentation Viewer"
                   allow="fullscreen"
                 />
+                {/* Keyed like the editing iframe: when the viewer URL changes mid-Present (a Director deck
+                    mutation, a slide-compose refresh) the overlay reloads on it, on the slide the audience is on. */}
+                {presentViewOnlyActive && approvedIframeNavigationUrl && (
+                  <PresentViewOnlyFrame
+                    key={approvedIframeNavigationUrl}
+                    baseUrl={approvedIframeNavigationUrl}
+                    startIndex={presentFrameStartIndex(presentSlideIndexRef.current, currentSlide - 1, presentSlideTotal)}
+                    sendCommand={sendCommand}
+                    frameRef={presentFrameRef}
+                    onSlideIndex={(index) => { presentSlideIndexRef.current = index }}
+                    onFailed={() => {
+                      console.warn('[Present] View-only frame did not initialise; presenting the editing frame instead.')
+                      setPresentFrameFailed(true)
+                    }}
+                  />
+                )}
+                {studioShell && !viewerHasLoaded && <div className="absolute inset-0 z-20 pointer-events-none" data-studio-viewer-loading="true">
+                  <StudioWaitingState scope="canvas" message="Loading your slides…" />
+                </div>}
+                {studioShell && STUDIO_SLIDE_DELETE_CANVAS_REFRESH_ENABLED && <StudioSlideDeleteRefreshVeil />}{/* PASS2D B4 */}
                 {templateModeOn && templateBuilderEnabled && (
                   <TemplateModeOverlay
                     snapshot={templateSnapshot}
@@ -3007,6 +4802,19 @@ export function PresentationViewer({
                   />
                 )}
                 </div>
+                {/* Build Narration v2: frame slot — perimeter glow / QA pill /
+                    click-shield at exact slide geometry (components own their
+                    own positioning and pointer-events). */}
+                {!isFullscreen && stageChrome?.frame}
+                {/* Build Narration v2: placeholder slot — covers the iframe
+                    (blank-landing card). Rendered after frame so it stacks
+                    above it. */}
+                {!isFullscreen && stageChrome?.placeholder}
+              </div>
+            ) : LAYOUT_URL_CONFIG_ERROR ? (
+              <div role="alert" className="flex max-w-xl flex-col items-center justify-center rounded-lg border border-amber-300 bg-amber-50 p-8 text-center text-amber-950 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+                <p className="text-base font-semibold">Slides are unavailable in this environment</p>
+                <p className="mt-2 text-sm opacity-80">{LAYOUT_URL_CONFIG_ERROR.message}</p>
               </div>
             ) : viewerUrlDecision.status === 'blocked' ? (
               <div
@@ -3031,22 +4839,28 @@ export function PresentationViewer({
 
             {/* Generation Overlay - covers slide area during generation */}
             {isGenerating && (
-              <div className="absolute inset-0 z-20 bg-gray-100 dark:bg-slate-800 flex items-center justify-center">
+              <div data-studio-generation-cover={studioShell && !isFullscreen ? "true" : undefined} className="absolute inset-0 z-20 bg-gray-100 dark:bg-slate-800 flex items-center justify-center">
                 <SlideBuildingLoader className="w-full h-full" mode={generatingMode} />
               </div>
             )}
 
             {/* Edit Mode Instructions - positioned absolutely to not shift slide */}
-            {isEditMode && !isFullscreen && (
-              <div className="absolute bottom-0 left-0 right-0 px-3 py-1 text-[10px] text-stone-400">
-                <span className="font-semibold text-stone-300">Edit Mode:</span> Click on any text to edit. Select text for formatting toolbar.
-                <span className="ml-1.5 text-[9px] text-stone-500">
-                  Ctrl+B (Bold), Ctrl+I (Italic), Ctrl+U (Underline), Ctrl+S (Save)
-                </span>
-              </div>
+            {isEditMode && !isFullscreen && !studioShell && (
+              <EditModeGuide />
             )}
           </div>
 
+          {/* Studio edit guidance has its own row outside the fitted slide. */}
+          {studioShell && isEditMode && !isFullscreen && (
+            <EditModeGuide />
+          )}
+
+          {/* Build Narration v2: footer slot — below the slide (CoT lines,
+              stage dots, research card). Same height-absorption rule as the
+              notes panel beneath it. */}
+          {!isFullscreen && stageChrome?.footer ? (
+            <div className="flex-shrink-0">{stageChrome.footer}</div>
+          ) : null}
           {/* Script | Notes | References — collapsible panel below the slide.
               The slide container's ResizeObserver fit-contain absorbs the
               height change; hidden while presenting fullscreen. */}
@@ -3055,14 +4869,18 @@ export function PresentationViewer({
               presentationId={presentationId}
               currentSlideIndex={Math.max(0, currentSlide - 1)}
               slideStructure={slideStructure}
+              sessionId={sessionId ?? null}
             />
           )}
 
           {/* powered by deckster — inside slide column so it tracks the slide's right edge */}
           {!isFullscreen && (
-            <div className="flex-shrink-0 flex justify-end pr-4 py-0.5">
+            <div data-studio-canvas-brand={studioShell ? "true" : undefined} className="flex-shrink-0 flex justify-end pr-4 py-0.5">
+              {studioShell && (studioIntroReplay ?? <StudioIntroReplay className="studio-canvas-intro-replay" />)}
+              {studioShell && showControls && <div ref={setStudioPresentPortalTarget} data-studio-present-slot="true" />}
               <Link
                 href="/"
+                aria-label={studioShell ? 'Deckster home' : undefined}
                 className="group flex items-center opacity-60 hover:opacity-90 transition-opacity"
               >
                 <span className="text-xs text-slate-600 dark:text-slate-300 mr-1">powered by</span>
@@ -3074,22 +4892,69 @@ export function PresentationViewer({
 
         </div>
 
+        {studioShell && !isFullscreen && railShown && (
+          <div
+            data-studio-v4-thumbnail-resize="true"
+            role="separator"
+            tabIndex={0}
+            aria-label="Resize slide thumbnails"
+            aria-orientation="vertical"
+            aria-valuemin={96}
+            aria-valuemax={180}
+            aria-valuenow={thumbnailWidth}
+            aria-valuetext={`${thumbnailWidth} pixels`}
+            title="Drag to resize thumbnails. Use Left and Right arrows, Home or End."
+            onPointerDown={(event) => {
+              if (event.button !== 0) return
+              event.preventDefault()
+              thumbnailResizeRef.current = { startX: event.clientX, width: thumbnailWidth }
+              event.currentTarget.setPointerCapture(event.pointerId)
+              event.currentTarget.focus({ preventScroll: true })
+            }}
+            onPointerMove={(event) => {
+              const drag = thumbnailResizeRef.current
+              if (drag) setThumbnailWidth(clampThumbnailWidth(drag.width + drag.startX - event.clientX))
+            }}
+            onPointerUp={(event) => {
+              const drag = thumbnailResizeRef.current
+              if (drag) rememberThumbnailWidth(drag.width + drag.startX - event.clientX)
+              thumbnailResizeRef.current = null
+              if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+            }}
+            onPointerCancel={() => { thumbnailResizeRef.current = null }}
+            onLostPointerCapture={() => { thumbnailResizeRef.current = null }}
+            onKeyDown={(event) => {
+              const width = event.key === 'ArrowLeft' ? thumbnailWidth + (event.shiftKey ? 20 : 8)
+                : event.key === 'ArrowRight' ? thumbnailWidth - (event.shiftKey ? 20 : 8)
+                : event.key === 'Home' ? 96
+                : event.key === 'End' ? 180 : null
+              if (width === null) return
+              event.preventDefault()
+              event.stopPropagation() // Resize arrows must not navigate the deck.
+              rememberThumbnailWidth(width)
+            }}
+          />
+        )}
+
         {/* Right: Slide Thumbnail Handle — zero-width context, no grey line */}
         {!isFullscreen && (
           <div className="relative w-0 flex-shrink-0 z-10">
             <button
+              data-studio-v4-thumbnail-toggle={studioShell ? "true" : undefined}
               onClick={handleToggleOverview}
               className={cn(
                 "absolute top-[50%] -translate-y-1/2 right-0",
                 "w-4 py-3 rounded-l-md shadow-sm border border-r-0",
                 "flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors",
-                showThumbnails
+                railShown
                   ? "bg-indigo-200 hover:bg-indigo-300 border-indigo-400 text-indigo-700 dark:bg-indigo-900/50 dark:hover:bg-indigo-800/60 dark:border-indigo-700 dark:text-indigo-200"
                   : "bg-indigo-100 hover:bg-indigo-200 border-indigo-300 text-indigo-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-700 dark:text-indigo-300"
               )}
-              title={showThumbnails ? "Hide thumbnails" : "Show thumbnails"}
+              title={railShown ? "Hide thumbnails" : "Show thumbnails"}
+              aria-label={railShown ? "Hide thumbnails" : "Show thumbnails"}
+              aria-expanded={railShown}
             >
-              {showThumbnails ? (
+              {railShown ? (
                 <ChevronRight className="h-2.5 w-2.5" />
               ) : (
                 <ChevronLeft className="h-2.5 w-2.5" />
@@ -3103,12 +4968,12 @@ export function PresentationViewer({
 
         {/* Thumbnail Strip — separate flex participant */}
         {!isFullscreen && (
-          <div className={cn(
+          <div data-studio-v4-thumbnails={studioShell ? "true" : undefined} style={studioShell ? { width: showThumbnails ? thumbnailWidth : 0, ...(railFocusHidden ? STUDIO_RAIL_FOCUS_HIDDEN_STYLE : undefined) } : undefined} className={cn(
             "flex flex-col border-l border-gray-200 bg-gray-50 overflow-hidden flex-shrink-0",
-            "transition-[width] duration-300 ease-out",
+            !studioShell && "transition-[width] duration-300 ease-out",
             showThumbnails ? "w-36" : "w-0"
           )}>
-            {showThumbnails && (slideThumbnails.length > 0 || composeJobs.length > 0) && (
+            {showThumbnails && (slideThumbnails.length > 0 || composeJobs.length > 0 || Boolean(railBuildRows?.length)) && ( // RAIL-SLIDES-1-MIDBUILD
               <SlideThumbnailStrip
                 slides={slideThumbnails}
                 currentSlide={currentSlide}
@@ -3129,6 +4994,10 @@ export function PresentationViewer({
                 totalSlides={totalSlides}
                 composeJobs={composeJobs}
                 onRefineSlide={onRefineSlide}
+                keyBySlideId={railIdentityRows !== null}
+                livePreviewViewerUrl={approvedPresentationUrl}
+                {...(railAddSlide ? { addSlide: railAddSlide } : {})}
+                {...(railBuildPlan && railBuildRows ? { buildPlaceholders: railBuildRows, headingTotal: railBuildHeadingTotal({ totalSlides, rows: slideThumbnails.length, plan: railBuildPlan }) } : {})} // RAIL-SLIDES-1-MIDBUILD
               />
             )}
           </div>
@@ -3138,7 +5007,7 @@ export function PresentationViewer({
       {/* Delete Slide Confirmation Dialog */}
       <DeleteSlideDialog
         open={showDeleteDialog}
-        onOpenChange={setShowDeleteDialog}
+        onOpenChange={handleDeleteDialogOpenChange}
         slideNumbers={slidesToDelete ? slidesToDelete.map(i => i + 1) : []}
         onConfirm={handleConfirmDelete}
         isDeleting={isDeleting}
@@ -3155,16 +5024,25 @@ export function PresentationViewer({
         onTemplateOptimizationFailed={onTemplateOptimizationFailed}
       />
 
+      {/* Upload presentation → template (Template Ingest, C-7) */}
+      {templateIngestEnabled && (
+        <TemplateIngestDialog
+          open={showTemplateIngest}
+          onOpenChange={setShowTemplateIngest}
+        />
+      )}
+
       {/* Version History Panel */}
-      <VersionHistoryPanel
+      {VIEWER_ORIGIN && !LAYOUT_URL_CONFIG_ERROR && <VersionHistoryPanel
         isOpen={showVersionHistory}
         onClose={() => setShowVersionHistory(false)}
         iframeRef={iframeRef}
         viewerOrigin={VIEWER_ORIGIN}
-      />
+      />}
+      {STUDIO_VERSION_HISTORY_V2_ENABLED && VIEWER_ORIGIN && !LAYOUT_URL_CONFIG_ERROR && <VersionHistoryPanelV2 isOpen={versionHistoryV2Open} onClose={() => setVersionHistoryV2Open(false)} iframeRef={iframeRef} viewerOrigin={VIEWER_ORIGIN} deckKey={approvedIframeNavigationUrl} building={Boolean(isGenerating)} studio={studioShell} />}{/* VERSION-HISTORY-V2: the profile menu opens it; the old panel above stays unreachable */}
 
       {/* Presentation Settings Panel (Footer, Logo) */}
-      <PresentationSettingsPanel
+      {VIEWER_ORIGIN && !LAYOUT_URL_CONFIG_ERROR && <PresentationSettingsPanel
         isOpen={showPresentationSettings}
         onClose={() => setShowPresentationSettings(false)}
         iframeRef={iframeRef}
@@ -3172,7 +5050,7 @@ export function PresentationViewer({
         currentSlide={currentSlide}
         totalSlides={totalSlides}
         presentationId={presentationId}
-      />
+      />}
 
       {/* Theme Panel */}
       <ThemePanel
@@ -3181,6 +5059,7 @@ export function PresentationViewer({
         presentationId={presentationId}
         buildThemeSelection={buildThemeSelection}
         themeSync={themeSync}
+        {...(themeBlankCopy ? { blankNote: themeBlankCopy } : {})}
         selectionLocked={templateSelectionLocked}
         onBuildThemeChange={onBuildThemeChange}
       />

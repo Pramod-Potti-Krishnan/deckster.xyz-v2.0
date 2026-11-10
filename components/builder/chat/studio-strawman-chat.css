@@ -1,0 +1,12 @@
+/* STRAWMAN CHAT (NEXT_PUBLIC_STUDIO_STRAWMAN_CHAT): the chat's one quiet status line, above the composer. Present only with the flag on. */
+[data-studio-v4-shell="true"] [data-studio-strawman-chat-line] { flex-shrink: 0; display: flex; align-items: center; gap: 4px; margin: 0; padding: 6px 12px; color: var(--ss-muted); font-size: 11px; line-height: 16px; }
+[data-studio-v4-shell="true"] [data-studio-strawman-chat-line][hidden] { display: none; }
+[data-studio-v4-shell="true"] [data-studio-strawman-chat-line] > span[aria-hidden="true"]:not([data-studio-strawman-chat-elapsed]) { flex: none; width: 4px; height: 4px; border-radius: 50%; background: var(--ss-muted); animation: studio-strawman-chat-pulse 1.2s ease-in-out infinite; }
+[data-studio-v4-shell="true"] [data-studio-strawman-chat-line] > span[aria-hidden="true"]:nth-child(2) { animation-delay: .15s; }
+[data-studio-v4-shell="true"] [data-studio-strawman-chat-line] > span[aria-hidden="true"]:nth-child(3) { margin-right: 4px; animation-delay: .3s; }
+[data-studio-v4-shell="true"] [data-studio-strawman-chat-line] [data-studio-strawman-chat-words] { min-width: 0; overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-strawman-chat-line] [data-studio-strawman-chat-elapsed] { flex: none; margin-left: 2px; font-variant-numeric: tabular-nums; }
+@keyframes studio-strawman-chat-pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  [data-studio-v4-shell="true"] [data-studio-strawman-chat-line] > span[aria-hidden="true"] { animation: none; }
+}

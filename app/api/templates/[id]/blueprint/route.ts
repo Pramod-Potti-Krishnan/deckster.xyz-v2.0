@@ -1,9 +1,12 @@
+import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
+import { requireApprovedUser } from '@/lib/api-hardening'
 
-const DIRECTOR_API_URL =
-  process.env.DIRECTOR_API_URL || 'https://directorv33-production.up.railway.app';
+function directorBaseUrl(): string {
+  return requireServiceUrl('Director', [{ name: 'DIRECTOR_API_URL', value: process.env.DIRECTOR_API_URL }])
+}
 
 async function resolveUserId(): Promise<string | null> {
   const session = await getServerSession(authOptions);
@@ -11,9 +14,13 @@ async function resolveUserId(): Promise<string | null> {
   return uid ?? null;
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): approved users only, read from the DB. Off, this returns null and nothing changes.
+  const notApproved = await requireApprovedUser()
+  if (notApproved) return notApproved
   const userId = await resolveUserId();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { id } = await params;
 
   let payload: unknown;
   try {
@@ -24,7 +31,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   try {
     const r = await fetch(
-      `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(params.id)}/blueprint`,
+      `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(id)}/blueprint`,
       {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -33,7 +40,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     );
     const body = await r.json();
     return NextResponse.json(body, { status: r.status });
-  } catch {
+  } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
     return NextResponse.json({ error: 'director_unreachable' }, { status: 502 });
   }
 }

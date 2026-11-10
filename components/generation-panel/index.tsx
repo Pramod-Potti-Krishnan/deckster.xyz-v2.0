@@ -1,7 +1,9 @@
 'use client'
 
+import { keepStudioInspectorFocusVisible } from '@/lib/studio-inspector-focus'
 import { type ReactNode, useRef, useCallback, useEffect, useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
+import '@/components/builder/studio-panels.css'
 import { defaultElementResearchSelection, isNonResearchVisualElement } from '@/lib/element-research-policy'
 import { TemplateSlotCatalog, TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
 import { GenerationPanelHeader } from './header'
@@ -20,6 +22,9 @@ import { parseTemplateSlotCatalog } from '@/lib/text-slot-catalog'
 import { ResearchControls } from './shared/research-controls'
 import type { ElementGenerationSubmitIntent } from '@/lib/element-generation-retry'
 import { resolveChartFormDataFromGenerationConfig } from '@/lib/chart-data-contract'
+import { EMPTY_PROMPT_HINT, emptyPromptBlocksGenerate, mandatoryConfigPromptOptional } from '@/lib/studio-empty-prompt-guard'
+import { STUDIO_GENERATING_STATUS_ENABLED, generatingStatusText, escapeClosesWhileGenerating, isEditableEventTarget } from '@/lib/studio-generating-status'
+import { promptAutofocusKey, schedulePromptFocus } from '@/lib/studio-prompt-autofocus'
 
 function readObject(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -127,11 +132,15 @@ export function GenerationPanel({
   const panelTargetKey = `${activationId}:${draftKey ?? 'new'}:${elementType}:${existingTextTarget?.elementId ?? 'none'}`
 
   // Form registers its submit function here
+  const panelRootRef = useRef<HTMLDivElement>(null)
   const submitFnRef = useRef<{ key: string; submit: () => void } | null>(null)
   const submitIntentRef = useRef<{
     key: string
     intent: ElementGenerationSubmitIntent
   } | null>(null)
+
+  // J3-EMPTY-PROMPT-GUARD: set on every render (below, once the prompt and the form's config are known); read by handleFooterGenerate.
+  const emptyPromptBlockedRef = useRef(false)
 
   const registerSubmit = useCallback((fn: () => void) => {
     submitFnRef.current = { key: panelTargetKey, submit: fn }
@@ -140,6 +149,8 @@ export function GenerationPanel({
   const handleFooterGenerate = useCallback((
     intent: ElementGenerationSubmitIntent = 'generate',
   ) => {
+    // The one way in for the Generate button, the retry button and Cmd/Ctrl+Enter: a required prompt that is empty does nothing.
+    if (emptyPromptBlockedRef.current) return
     const registration = submitFnRef.current
     if (registration?.key !== panelTargetKey) return
     const effectiveIntent = (
@@ -252,6 +263,14 @@ export function GenerationPanel({
   const mandatoryConfig = mandatoryConfigState.key === panelTargetKey
     ? mandatoryConfigState.config
     : null
+  // J3-EMPTY-PROMPT-GUARD (NEXT_PUBLIC_STUDIO_EMPTY_PROMPT_GUARD, default off: always false): see lib/studio-empty-prompt-guard.ts.
+  const emptyPromptBlocked = emptyPromptBlocksGenerate({
+    mode,
+    prompt,
+    retryStrategy,
+    promptOptional: mandatoryConfigPromptOptional(mandatoryConfig),
+  })
+  emptyPromptBlockedRef.current = emptyPromptBlocked
 
   const persistedGenerationDraft = useMemoFromSavedGenerationConfig(
     existingTextTarget?.generationConfig,
@@ -305,6 +324,8 @@ export function GenerationPanel({
 
   // Visibility logic
   const showGenerationInput = mode === 'generate' || mode === 'refine'
+  // PASS2B J3-02 (NEXT_PUBLIC_STUDIO_PROMPT_AUTOFOCUS, default off: undefined): the key the prompt box is focused for (one per new element opened in generate mode).
+  const promptFocusKey = promptAutofocusKey({ isOpen, mode, showsPromptBox: showGenerationInput, activationId, elementType })
   const supportsResearch = !isNonResearchVisualElement(elementType)
 
   const researchControls = showGenerationInput && supportsResearch ? (
@@ -326,7 +347,19 @@ export function GenerationPanel({
     if (!isOpen) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isGenerating) {
+      // Hidden Studio drawers remain mounted to retain production form drafts.
+      // Their window shortcuts must not act on the active compact workspace.
+      if (panelRootRef.current?.closest('[data-studio-v4-shell="true"] [data-studio-workspace-visible="false"]')) return
+      // PASS2B J3-05 (NEXT_PUBLIC_STUDIO_GENERATING_STATUS, default off: `!isGenerating` exactly as before): while generating, Escape closes the panel
+      // the way the header's ✕ does (the same onClose), except an Escape typed into a text field outside the panel.
+      if (e.key === 'Escape' && (!isGenerating || escapeClosesWhileGenerating({
+        isGenerating,
+        fromEditableField: isEditableEventTarget(e.target),
+        outsidePanel: !(panelRootRef.current && e.target && panelRootRef.current.contains(e.target as Node)),
+      }))) {
+        // Radix consumes a picker Escape before it reaches this window listener.
+        // Let that layer dismiss and restore focus without closing its inspector.
+        if (process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && e.defaultPrevented) return
         e.preventDefault()
         onClose()
       }
@@ -344,6 +377,10 @@ export function GenerationPanel({
     <div className="absolute inset-0 z-20 flex pointer-events-none">
       {/* Panel content */}
       <div
+        ref={panelRootRef}
+        onFocusCapture={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? event => keepStudioInspectorFocusVisible(event.target) : undefined}
+        data-studio-v4-panel="element-generation"
+        data-studio-v4-panel-mode={mode}
         className={cn(
           "flex-1 bg-white dark:bg-slate-900 flex flex-col shadow-2xl overflow-hidden transition-all duration-200 ease-out",
           isOpen ? "pointer-events-auto opacity-100" : "opacity-0 max-w-0"
@@ -359,7 +396,7 @@ export function GenerationPanel({
 
         {/* Canvas position indicator */}
         {elementContext && elementType !== 'CHART' && (
-          <div className="px-3 py-1.5 bg-gray-50 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 text-xs text-gray-500 dark:text-slate-400 flex items-center gap-2">
+          <div data-studio-v4-panel-context className="px-3 py-1.5 bg-gray-50 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 text-xs text-gray-500 dark:text-slate-400 flex items-center gap-2">
             <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
             Position from canvas ({elementContext.width}&times;{elementContext.height} cells)
           </div>
@@ -378,12 +415,16 @@ export function GenerationPanel({
             error={error}
             retryStrategy={retryStrategy}
             placeholder={elementType === 'CHART' ? 'e.g., Show quarterly revenue growth for 2024' : undefined}
+            emptyPromptHint={emptyPromptBlocked ? EMPTY_PROMPT_HINT : undefined}
+            generatingStatus={STUDIO_GENERATING_STATUS_ENABLED ? (isGenerating ? generatingStatusText(elementType) : '') : undefined}
+            autoFocusKey={promptFocusKey}
+            scheduleFocus={promptFocusKey === undefined ? undefined : schedulePromptFocus}
           />
         )}
 
         {elementType !== 'TEXT_BOX' && elementType !== 'METRICS' && elementType !== 'TABLE' && elementType !== 'DIAGRAM' && researchControls}
 
-        <div className="flex-1 overflow-y-auto px-3 py-3">
+        <div data-studio-v4-panel-fields className="flex-1 overflow-y-auto px-3 py-3">
           <FormRouter
             // activationId changes for a genuinely new target. draftKey may
             // change when Layout reissues the same placeholder under a new ID,
@@ -394,6 +435,7 @@ export function GenerationPanel({
             registerSubmit={registerSubmit}
             isGenerating={isGenerating}
             slideIndex={slideIndex}
+            getTemplateSlotCatalog={getTemplateSlotCatalog}
             presentationId={presentationId}
             elementContext={elementContext}
             prompt={prompt}
@@ -412,6 +454,7 @@ export function GenerationPanel({
             slotCatalogError={slotCatalogError}
             existingTextTarget={existingTextTarget}
             initialDraft={effectiveDraft}
+            targetElementId={draftKey?.match(/^(?:blank|element):(.+)$/)?.[1] ?? null}
             onDraftChange={onDraftChange}
             existingInfographicTarget={existingInfographicTarget}
             panelMode={mode}
@@ -431,8 +474,10 @@ function FormRouter({
   registerSubmit,
   isGenerating,
   slideIndex,
+  getTemplateSlotCatalog,
   presentationId,
   elementContext,
+  targetElementId,
   prompt,
   showAdvanced,
   registerMandatoryConfig,
@@ -452,8 +497,10 @@ function FormRouter({
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
   slideIndex: number
+  getTemplateSlotCatalog?: GenerationPanelProps['getTemplateSlotCatalog']
   presentationId?: string | null
   elementContext?: ElementContext | null
+  targetElementId?: string | null
   prompt: string
   showAdvanced: boolean
   registerMandatoryConfig: (config: MandatoryConfig | MandatoryConfig[] | null) => void
@@ -481,26 +528,28 @@ function FormRouter({
 
   switch (elementType) {
     case 'TEXT_BOX':
-      return <TextBoxForm {...commonProps} researchControls={researchControls} slotCatalog={slotCatalog} slotCatalogLoading={slotCatalogLoading} slotCatalogError={slotCatalogError} existingTextTarget={existingTextTarget} />
+      return <TextBoxForm {...commonProps} researchControls={researchControls} slotCatalog={slotCatalog} slotCatalogLoading={slotCatalogLoading} slotCatalogError={slotCatalogError} existingTextTarget={existingTextTarget} initialDraft={initialDraft} onDraftChange={onDraftChange} targetElementId={targetElementId} />
     case 'METRICS':
-      return <MetricsForm {...commonProps} researchControls={researchControls} existingTextTarget={existingTextTarget} initialDraft={initialDraft} />
+      return <MetricsForm {...commonProps} researchControls={researchControls} existingTextTarget={existingTextTarget} initialDraft={initialDraft} onDraftChange={onDraftChange} targetElementId={targetElementId} />
     case 'TABLE':
       return <TableForm {...commonProps} researchControls={researchControls} initialDraft={initialDraft} onDraftChange={onDraftChange} />
     case 'CHART':
       return <ChartForm {...commonProps} initialDraft={initialDraft} onDraftChange={onDraftChange} panelMode={panelMode} />
     case 'IMAGE':
-      return <ImageForm {...commonProps} initialDraft={initialDraft} panelMode={panelMode} />
+      return <ImageForm {...commonProps} initialDraft={initialDraft} onDraftChange={onDraftChange} panelMode={panelMode} targetElementId={targetElementId} />
     case 'ICON_LABEL':
-      return <IconLabelForm {...commonProps} initialDraft={initialDraft} panelMode={panelMode} />
+      return <IconLabelForm {...commonProps} initialDraft={initialDraft} panelMode={panelMode} onDraftChange={onDraftChange} targetElementId={targetElementId} />
     case 'SHAPE':
-      return <ShapeForm {...commonProps} initialDraft={initialDraft} />
+      return <ShapeForm {...commonProps} initialDraft={initialDraft} onDraftChange={onDraftChange} targetElementId={targetElementId} slideIndex={slideIndex} getTemplateSlotCatalog={getTemplateSlotCatalog} />
     case 'INFOGRAPHIC':
       return (
         <InfographicForm
           {...commonProps}
           initialDraft={initialDraft}
+          onDraftChange={onDraftChange}
           panelMode={panelMode}
           existingTarget={existingInfographicTarget}
+          targetElementId={targetElementId}
         />
       )
     case 'DIAGRAM':
@@ -510,6 +559,7 @@ function FormRouter({
           researchControls={researchControls}
           existingDiagramTarget={existingDiagramTarget}
           initialDraft={initialDraft}
+          onDraftChange={onDraftChange}
         />
       )
     default:

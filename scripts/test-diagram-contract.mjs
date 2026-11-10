@@ -1,3 +1,4 @@
+import { serviceUrl } from './service-url-harness.mjs'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
@@ -13,10 +14,11 @@ function loadTypeScriptModule(path, stubs = {}) {
     module: mod,
     exports: mod.exports,
     console,
-    process,
-    fetch,
+    process: { env: {} },
+    fetch: () => { throw new Error('Offline fixture refuses unexpected fetch') },
     setTimeout,
     require: id => {
+      if (id === '@/lib/service-url') return serviceUrl
       if (id in stubs) return stubs[id]
       throw new Error(`Unexpected test import: ${id}`)
     },

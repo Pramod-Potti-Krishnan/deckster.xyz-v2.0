@@ -3,24 +3,67 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { features } from '@/lib/config'
+import { getInitializedBuilderHref } from '@/lib/studio-workflow'
+import {
+  createStudioInitialFreshCanonicalEntry,
+  type StudioInitialFreshCanonicalEntry,
+  type StudioInitialFreshCreation,
+} from '@/lib/studio-initial-stage-owner'
 import { debugLog } from '@/lib/debug-log'
-import { LAYOUT_SERVICE_URL, LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client'
+import { directorHistoryTimestamp, missingDirectorUserTurns } from '@/lib/director-chat-history'
+import { getLayoutServiceUrl, LAYOUT_URL_CONFIG_ERROR, LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client'
 import { recoverRestoredLayoutViewerUrls } from '@/lib/layout-viewer-url-policy'
 import { type DirectorMessage, type SlideUpdate } from "@/hooks/use-deckster-websocket-v2"
 import {
   type DirectorReconnectStatus,
   shouldRequestBuilderSessionConnection,
 } from '@/lib/director-reconnect-policy'
+import {
+  SESSION_CACHE_VERSION,
+  sessionCacheKey,
+  type CachedSessionState,
+} from '@/hooks/use-session-cache'
+import { unsavedBuilderSessionKey } from '@/lib/last-builder-session'
+import {
+  STUDIO_SESSION_HYGIENE_ENABLED,
+  decideMissingSession,
+  readSessionOrigin,
+  type SessionLoadOutcome,
+  type StudioSessionProblem,
+} from '@/lib/studio-session-hygiene'
+import { STUDIO_VOICE_INTERACTIVE_ENABLED } from '@/lib/studio-voice-interactive'
+import { STUDIO_BLANK_DECK_LEGACY_ROWS_ENABLED, isLegacyBlankDeckRow } from '@/lib/studio-legacy-blank-deck-row'
+import { STUDIO_SESSION_OPEN_READ_ONLY_ENABLED } from '@/lib/studio-open-read-only'
+import {
+  attachmentsFromPayload,
+  type UserChatMessage,
+} from '@/lib/user-message-attachments'
+
+/** Private, successful frontend-load receipt for display policy only. It is
+ * never persisted or treated as a complete Director history. */
+export interface StudioFrontendTranscriptReceipt {
+  readonly userId: string
+  readonly sessionId: string
+  readonly generation: number
+  readonly restoredAssistantIds: readonly string[]
+}
+
+/** NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: a write that Director's frames make on their own; the persistence hook ignores the mark with the flag off. */
+const PASSIVE_WRITE = { passive: true } as const
 
 interface UseBuilderSessionParams {
   user: any
   isAuthLoading: boolean
   searchParams: ReturnType<typeof import("next/navigation").useSearchParams>
   loadSession: (sessionId: string) => Promise<any>
+  /** NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the same lookup, but it says why there is no row. Unused when the flag is off. */
+  loadSessionResult?: (sessionId: string) => Promise<SessionLoadOutcome<any>>
   createSession: (sessionId: string) => Promise<any>
   persistence: {
-    queueMessage: (msg: DirectorMessage, userText?: string) => void
-    updateMetadata: (data: any) => void
+    queueMessage: (msg: DirectorMessage, userText?: string, options?: { passive?: boolean }) => void
+    updateMetadata: (data: any, options?: { passive?: boolean }) => void
+    /** NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: an existing session's row has been opened (lib/studio-open-read-only.ts). */
+    beginOpenQuiet?: (sessionId: string, row: unknown) => void
     generateTitle: (text: string) => string
   } | null
   // WebSocket methods
@@ -30,8 +73,8 @@ interface UseBuilderSessionParams {
   ensureConnected: () => boolean
   disconnect: () => void
   clearMessages: () => void
-  restoreMessages: (messages: DirectorMessage[], sessionState: any) => void
-  updateCacheUserMessages: (messages: Array<{ id: string; text: string; timestamp: number }>) => void
+  restoreMessages: (messages: DirectorMessage[], sessionState: any, studioTranscriptRestoredIds?: readonly string[]) => void
+  updateCacheUserMessages: (messages: UserChatMessage[]) => void
   messages: DirectorMessage[]
   toast: (opts: any) => any
   isUnsavedSession: boolean
@@ -48,6 +91,7 @@ export function useBuilderSession({
   isAuthLoading,
   searchParams,
   loadSession,
+  loadSessionResult,
   createSession,
   persistence,
   connected,
@@ -67,6 +111,47 @@ export function useBuilderSession({
   setSessionStoreName,
 }: UseBuilderSessionParams) {
   const router = useRouter()
+  const builderCacheOwner = user?.id ?? user?.email ?? ''
+  const transcriptScopeKey = JSON.stringify([builderCacheOwner, isAuthLoading, searchParams?.get('session_id') ?? null])
+  const transcriptScopeRef = useRef({ key: transcriptScopeKey, generation: 0, userIntentSeen: false })
+  if (transcriptScopeRef.current.key !== transcriptScopeKey) {
+    transcriptScopeRef.current = { key: transcriptScopeKey, generation: transcriptScopeRef.current.generation + 1, userIntentSeen: false }
+  }
+  const transcriptLoadRequestRef = useRef<object | null>(null)
+  const [studioFrontendTranscriptReceipt, setStudioFrontendTranscriptReceipt] = useState<StudioFrontendTranscriptReceipt | null>(null)
+
+  const freshStageAssignmentRef = useRef<{
+    userId: string; sessionId: string; sourceRoute: string | null;
+    sourceSession: string | null; canonicalSeen: boolean; targetSessionSeen: boolean; retired: boolean;
+  } | null>(null)
+  const [studioInitialFreshCanonicalEntry, setStudioInitialFreshCanonicalEntry] = useState<StudioInitialFreshCanonicalEntry | null>(null)
+  const freshAssignment = freshStageAssignmentRef.current
+  if (freshAssignment) {
+    const route = searchParams?.get('session_id') ?? null
+    if (currentSessionId === freshAssignment.sessionId) freshAssignment.targetSessionSeen = true
+    if (isAuthLoading || builderCacheOwner !== freshAssignment.userId
+      || (freshAssignment.targetSessionSeen && currentSessionId !== freshAssignment.sessionId)
+      || (currentSessionId !== null && currentSessionId !== freshAssignment.sessionId
+        && currentSessionId !== freshAssignment.sourceSession)) freshAssignment.retired = true
+    if (route === freshAssignment.sessionId) freshAssignment.canonicalSeen = true
+    else if (route !== freshAssignment.sourceRoute || freshAssignment.canonicalSeen) freshAssignment.retired = true
+  }
+  const freshAssignmentContextRef = useRef({ userId: builderCacheOwner, isAuthLoading, currentSessionId, route: searchParams?.get('session_id') ?? null })
+  freshAssignmentContextRef.current = { userId: builderCacheOwner, isAuthLoading, currentSessionId, route: searchParams?.get('session_id') ?? null }
+  const recordStudioFreshAssignment = useCallback((sessionId: string, creation: StudioInitialFreshCreation) => {
+    const context = freshAssignmentContextRef.current
+    const assignment = { userId: context.userId, sessionId,
+      sourceRoute: context.route, sourceSession: context.currentSessionId,
+      canonicalSeen: false, targetSessionSeen: false, retired: false }
+    freshStageAssignmentRef.current = assignment
+    const receipt = createStudioInitialFreshCanonicalEntry({
+      authUserId: context.userId, sessionId, sourceRouteSessionId: assignment.sourceRoute,
+      creation, assignmentCurrent: !context.isAuthLoading,
+      isCurrentAssignment: () => freshStageAssignmentRef.current === assignment && !assignment.retired,
+      restoration: 'none',
+    })
+    setStudioInitialFreshCanonicalEntry(receipt)
+  }, [])
 
   const currentSessionIdRef = useRef(currentSessionId)
 
@@ -76,18 +161,26 @@ export function useBuilderSession({
   const [isLoadingSession, setIsLoadingSession] = useState(() => Boolean(currentSessionId))
   const [isResumedSession, setIsResumedSession] = useState(false)
   const [isCreatingSession, setIsCreatingSession] = useState(false)
+  // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: why the URL's session cannot be opened. Always null with the flag off.
+  const [sessionProblem, setSessionProblem] = useState<{ kind: StudioSessionProblem; sessionId: string } | null>(null)
 
-  const [userMessages, setUserMessages] = useState<Array<{ id: string; text: string; timestamp: number }>>(() => {
+  const [userMessages, setUserMessages] = useState<UserChatMessage[]>(() => {
     if (typeof window === 'undefined') return [];
+    const cacheOwner = user?.id ?? user?.email ?? '';
+    if (isAuthLoading || !cacheOwner) return [];
     const urlParams = new URLSearchParams(window.location.search);
     const sessionId = urlParams.get('session_id');
     if (!sessionId) return [];
     try {
-      const cacheKey = `deckster_session_${sessionId}`;
+      const cacheKey = sessionCacheKey(cacheOwner, sessionId);
       const cached = sessionStorage.getItem(cacheKey);
       if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed.userMessages?.length > 0) {
+        const parsed = JSON.parse(cached) as CachedSessionState;
+        if (
+          parsed.version === SESSION_CACHE_VERSION
+          && parsed.ownerUserId === cacheOwner
+          && parsed.userMessages?.length > 0
+        ) {
           debugLog('⚡ Initialized userMessages from cache:', parsed.userMessages.length);
           return parsed.userMessages;
         }
@@ -127,17 +220,7 @@ export function useBuilderSession({
   useEffect(() => {
     if (!currentSessionId || messages.length === 0) return;
 
-    const directorUserMessages = messages.filter((m: any) => m.role === 'user');
-    if (directorUserMessages.length === 0) return;
-
-    const existingUserMessageIds = new Set(userMessages.map(um => um.id));
-    const existingUserMessageTexts = new Set(userMessages.map(um => um.text.trim().toLowerCase()));
-
-    const missingUserMessages = directorUserMessages.filter((m: any) => {
-      const text = m.payload?.text || m.content || '';
-      const normalizedText = text.trim().toLowerCase();
-      return !existingUserMessageIds.has(m.message_id) && !existingUserMessageTexts.has(normalizedText);
-    });
+    const missingUserMessages = missingDirectorUserTurns(currentSessionId, messages, userMessages);
 
     if (missingUserMessages.length > 0) {
       debugLog('🔄 [FIX 9] Recovering missing user messages from Director history:', missingUserMessages.length);
@@ -147,7 +230,8 @@ export function useBuilderSession({
         return {
           id: m.message_id,
           text: text,
-          timestamp: new Date(m.timestamp).getTime()
+          timestamp: directorHistoryTimestamp(m.timestamp),
+          attachments: attachmentsFromPayload(m.payload),
         };
       });
 
@@ -162,6 +246,7 @@ export function useBuilderSession({
       if (persistence) {
         missingUserMessages.forEach((m: any) => {
           const text = m.payload?.text || m.content || '';
+          const attachments = attachmentsFromPayload(m.payload);
           debugLog('💾 [FIX 9] Saving recovered user message to database:', {
             id: m.message_id,
             text: text.substring(0, 50)
@@ -171,8 +256,8 @@ export function useBuilderSession({
             session_id: currentSessionId,
             timestamp: m.timestamp,
             type: 'chat_message',
-            payload: { text }
-          } as DirectorMessage, text);
+            payload: attachments.length > 0 ? { text, attachments } : { text }
+          } as DirectorMessage, text, PASSIVE_WRITE);
         });
       }
 
@@ -187,12 +272,18 @@ export function useBuilderSession({
   }, [currentSessionId, messages, userMessages, persistence]);
 
   // Helper to create new session
-  const createNewSession = useCallback(async () => {
+  const createNewSession = useCallback(async (isCurrent: () => boolean = () => true) => {
     lastLoadedSessionRef.current = null
     const newSessionId = crypto.randomUUID()
+    const originScope = transcriptScopeRef.current
     const session = await createSession(newSessionId)
+    if (!isCurrent() || transcriptScopeRef.current !== originScope
+      || (session && session.id !== newSessionId)) return
 
     if (session) {
+      if (transcriptScopeRef.current === originScope && session.id === newSessionId) {
+        recordStudioFreshAssignment(newSessionId, { kind: 'confirmed_new_session', generatedSessionId: newSessionId, confirmedSessionId: session.id })
+      }
       setUserMessages([])
       clearMessages()
       setIsResumedSession(false)
@@ -204,6 +295,13 @@ export function useBuilderSession({
 
   // Session initialization - load or create session
   useEffect(() => {
+    const initializationScope = transcriptScopeRef.current
+    const initializationRequest = {}
+    transcriptLoadRequestRef.current = initializationRequest
+    let cancelled = false
+    const mayContinueInitialization = () => !cancelled
+      && transcriptScopeRef.current === initializationScope
+      && transcriptLoadRequestRef.current === initializationRequest
     const initializeSession = async () => {
       debugLog('🔍 [SESSION-INIT] Effect triggered', {
         hasUser: !!user,
@@ -246,6 +344,7 @@ export function useBuilderSession({
       }
 
       setIsLoadingSession(true)
+      if (STUDIO_SESSION_HYGIENE_ENABLED) setSessionProblem(null)
       hasTitleFromUserMessageRef.current = false
       hasTitleFromPresentationRef.current = false
       answeredActionsRef.current.clear()
@@ -303,10 +402,17 @@ export function useBuilderSession({
             return
           }
 
-          lastLoadedSessionRef.current = sessionParam
-
           debugLog('📂 Loading session from URL:', sessionParam)
-          const session = await loadSession(sessionParam)
+          const transcriptScope = initializationScope
+          const transcriptRequest = initializationRequest
+          setStudioFrontendTranscriptReceipt(null)
+          // Flag on: the lookup says WHY a row is missing, so a miss is never silently turned into a new empty session.
+          const hygieneLoad = STUDIO_SESSION_HYGIENE_ENABLED && loadSessionResult ? await loadSessionResult(sessionParam) : null
+          const session = hygieneLoad ? (hygieneLoad.kind === 'found' ? hygieneLoad.session : null) : await loadSession(sessionParam)
+          if (!mayContinueInitialization() || (session && session.id !== sessionParam)) return
+          const missingDecision = hygieneLoad && hygieneLoad.kind !== 'found'
+            ? decideMissingSession(hygieneLoad, readSessionOrigin(typeof window !== 'undefined' ? window.sessionStorage : null, builderCacheOwner, sessionParam))
+            : null
 
           if (session) {
             if (session.status === 'deleted') {
@@ -327,14 +433,36 @@ export function useBuilderSession({
             })
             setCurrentSessionId(session.id)
             setSessionStoreName(session.geminiStoreName || null)
+            if (STUDIO_SESSION_HYGIENE_ENABLED) {
+              // The history has a row for this id, so it is saved, whatever an unsaved flag left over from the previous session
+              // (bare /builder, then a click on a saved one in the sidebar) or a stale marker says. With the flag on an unsaved
+              // session writes nothing (use-session-persistence), so a saved one must not be mistaken for it.
+              setIsUnsavedSession(false)
+              try {
+                if (builderCacheOwner) sessionStorage.removeItem(unsavedBuilderSessionKey(builderCacheOwner, session.id))
+              } catch {}
+            }
             debugLog('✅ Session loaded successfully')
+            // NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: this session was opened, not created: it stays read-only until the user acts.
+            if (STUDIO_SESSION_OPEN_READ_ONLY_ENABLED) persistence?.beginOpenQuiet?.(session.id, session)
 
             if (session.title) {
               debugLog('📝 Session already has title:', session.title)
               hasTitleFromPresentationRef.current = true
             }
 
+            // NEXT_PUBLIC_STUDIO_BLANK_DECK_LEGACY_ROWS: a row the pre-#389 build saved with the untouched blank deck in its final slots too is restored as the blank deck it is: the loaded copy of the
+            // row reads its final slots as empty (in memory only; nothing is written).
+            if (STUDIO_BLANK_DECK_LEGACY_ROWS_ENABLED && isLegacyBlankDeckRow(session)) {
+              session.finalPresentationUrl = null
+              session.finalPresentationId = null
+            }
             const restoredSessionState = {
+              // The loaded record owns this metadata even before React commits
+              // the selected session and the socket adopts its new identity.
+              ...(process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+                ? { deckOwnerSessionId: session.id }
+                : {}),
               presentationUrl: session.finalPresentationUrl || session.strawmanPreviewUrl || session.blankPresentationUrl,
               presentationId: session.finalPresentationId || session.strawmanPresentationId || session.blankPresentationId,
               blankPresentationUrl: session.blankPresentationUrl,
@@ -349,6 +477,9 @@ export function useBuilderSession({
               currentStage: session.currentStage,
               activeVersion: (session as any).stateCache?.activeVersion || null
             }
+            if (LAYOUT_URL_CONFIG_ERROR && restoredSessionState.presentationUrl) {
+              toast({ title: 'Slides are unavailable in this environment', description: LAYOUT_URL_CONFIG_ERROR.message, variant: 'destructive' })
+            }
             const {
               state: sessionState,
               recovered: recoveredViewerUrls,
@@ -357,13 +488,15 @@ export function useBuilderSession({
               restoredSessionState,
               LAYOUT_VIEWER_URL_POLICY,
               async (presentationId) => {
+                if (!mayContinueInitialization()) return false
                 const response = await fetch(
-                  `${LAYOUT_SERVICE_URL}/api/presentations/${encodeURIComponent(presentationId)}`,
+                  `${getLayoutServiceUrl()}/api/presentations/${encodeURIComponent(presentationId)}`,
                   { cache: 'no-store' },
                 )
-                return response.ok
+                return mayContinueInitialization() && response.ok
               },
             )
+            if (!mayContinueInitialization()) return
 
             if (recoveredViewerUrls.length > 0) {
               const normalizedSessionUrls: Record<string, string> = {}
@@ -377,17 +510,20 @@ export function useBuilderSession({
                 }
               }
 
-              if (Object.keys(normalizedSessionUrls).length > 0) {
+              // NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: opening writes nothing; the recovered URLs are used in memory and recomputed on the next open.
+              if (Object.keys(normalizedSessionUrls).length > 0 && !STUDIO_SESSION_OPEN_READ_ONLY_ENABLED) {
                 try {
                   const response = await fetch(`/api/sessions/${encodeURIComponent(session.id)}`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(normalizedSessionUrls),
                   })
+                  if (!mayContinueInitialization()) return
                   if (!response.ok) {
                     console.warn('Failed to persist recovered Layout viewer URLs:', response.status)
                   }
                 } catch (error) {
+                  if (!mayContinueInitialization()) return
                   // The recovered in-memory state is still safe to use for this
                   // load; a later reload can retry the id-verified normalization.
                   console.warn('Failed to persist recovered Layout viewer URLs:', error)
@@ -395,7 +531,7 @@ export function useBuilderSession({
               }
             }
 
-            if (blockedViewerUrls.length > 0) {
+            if (!LAYOUT_URL_CONFIG_ERROR && blockedViewerUrls.length > 0) {
               toast({
                 title: 'Saved presentation unavailable here',
                 description: 'This session points to a Layout Service from another environment, so its viewer was not loaded.',
@@ -406,7 +542,7 @@ export function useBuilderSession({
             if (session.messages && session.messages.length > 0) {
               debugLog(`📥 Restoring ${session.messages.length} messages from database`)
 
-              const userMsgs: Array<{ id: string; text: string; timestamp: number }> = []
+              const userMsgs: UserChatMessage[] = []
               const botMsgs: DirectorMessage[] = []
               let lastActionRequestId: string | null = null
 
@@ -426,7 +562,8 @@ export function useBuilderSession({
                   userMsgs.push({
                     id: msg.id,
                     text: msg.userText,
-                    timestamp: new Date(msg.timestamp).getTime()
+                    timestamp: new Date(msg.timestamp).getTime(),
+                    attachments: attachmentsFromPayload(msg.payload),
                   })
                 } else {
                   debugLog('🤖 Classified as BOT message');
@@ -467,7 +604,10 @@ export function useBuilderSession({
               })
               debugLog('🗺️ Created content map with', userMessageContentMapRef.current.size, 'user messages')
 
-              restoreMessages(botMsgs, sessionState)
+              if (STUDIO_VOICE_INTERACTIVE_ENABLED) {
+                restoreMessages(botMsgs, sessionState, session.messages.map((message: any) => message.id)
+                  .filter((id: unknown): id is string => typeof id === 'string' && Boolean(id.trim())))
+              } else restoreMessages(botMsgs, sessionState)
               botMsgs.forEach(msg => persistedMessageIdsRef.current.add(msg.message_id))
 
               debugLog('📊 Restored session state:', {
@@ -491,7 +631,9 @@ export function useBuilderSession({
               const hasPresentationState = Boolean(
                 sessionState.presentationUrl ||
                 sessionState.finalPresentationUrl ||
-                sessionState.strawmanPreviewUrl
+                sessionState.strawmanPreviewUrl ||
+                restoredSessionState.presentationUrl ||
+                restoredSessionState.presentationId
               )
               if (hasPresentationState) {
                 restoreMessages([], sessionState)
@@ -505,24 +647,68 @@ export function useBuilderSession({
               setIsResumedSession(false)
               debugLog('📝 Existing session but no messages - will auto-connect')
             }
+            // A stale, adopted, failed or ambiguous load cannot issue display
+            // provenance. Preserve the existing restoration/persistence path.
+            if (transcriptScopeRef.current === transcriptScope
+              && transcriptLoadRequestRef.current === transcriptRequest
+              && builderCacheOwner && session.id === sessionParam
+              && Array.isArray(session.messages)) {
+              setStudioFrontendTranscriptReceipt(Object.freeze({
+                userId: builderCacheOwner,
+                sessionId: sessionParam,
+                generation: transcriptScope.generation,
+                restoredAssistantIds: Object.freeze(session.messages
+                  .filter((msg: any) => !msg.userText && typeof msg.id === 'string')
+                  .map((msg: any) => msg.id)),
+              }))
+            }
+          } else if (missingDecision === 'keep_unsaved') {
+            // A local id this tab generated (bare /builder, + Presentation, a reload of either). Its row is created by the
+            // first real action (first message, upload, manual-deck handoff), exactly like + Presentation always did.
+            setCurrentSessionId(sessionParam)
+            setSessionStoreName(null)
+            setIsUnsavedSession(true)
+            setIsResumedSession(false)
+            debugLog('🆕 [SESSION-HYGIENE] Local unsaved session kept; no history row written:', sessionParam)
+          } else if (missingDecision && missingDecision !== 'adopt') {
+            // Not a session this account can open. Show the state; write nothing, connect to nothing.
+            console.warn('⚠️ [SESSION-HYGIENE] Session cannot be opened:', missingDecision, sessionParam)
+            setCurrentSessionId(null)
+            setSessionStoreName(null)
+            setIsUnsavedSession(false)
+            setIsResumedSession(false)
+            setSessionProblem({ kind: missingDecision, sessionId: sessionParam })
+            return
           } else {
             console.warn('⚠️ Session not found in frontend DB, adopting URL session:', sessionParam)
             const adopted = await createSession(sessionParam)
+            if (!mayContinueInitialization() || (adopted && adopted.id !== sessionParam)) return
             if (adopted) {
               setCurrentSessionId(adopted.id)
               setSessionStoreName(adopted.geminiStoreName || null)
               setIsUnsavedSession(false)
-              try { sessionStorage.removeItem(`deckster_unsaved_${adopted.id}`) } catch {}
+              try {
+                if (builderCacheOwner) {
+                  sessionStorage.removeItem(unsavedBuilderSessionKey(builderCacheOwner, adopted.id))
+                }
+              } catch {}
               debugLog('✅ Adopted URL session in frontend DB:', adopted.id)
             } else {
               setCurrentSessionId(sessionParam)
               setSessionStoreName(null)
               setIsUnsavedSession(true)
-              try { sessionStorage.setItem(`deckster_unsaved_${sessionParam}`, 'true') } catch {}
+              try {
+                if (builderCacheOwner) {
+                  sessionStorage.setItem(unsavedBuilderSessionKey(builderCacheOwner, sessionParam), 'true')
+                }
+              } catch {}
               debugLog('⚠️ URL session adoption failed; keeping unsaved guard active:', sessionParam)
             }
             setIsResumedSession(false)
           }
+          // Only a completed current load is reusable. A cancelled in-flight
+          // request must not make a StrictMode replacement skip restoration.
+          lastLoadedSessionRef.current = sessionParam
         } else {
           debugLog('🆕 [SESSION-BRANCH] No session in URL', {
             currentSessionId,
@@ -535,15 +721,20 @@ export function useBuilderSession({
               const newSessionId = crypto.randomUUID()
               debugLog('🚀 [BUILDER-V2] Generating immediate session ID:', newSessionId)
               clearMessages()
+              recordStudioFreshAssignment(newSessionId, { kind: 'local_uuid', generatedSessionId: newSessionId })
               setCurrentSessionId(newSessionId)
               setIsUnsavedSession(true)
-              try { sessionStorage.setItem(`deckster_unsaved_${newSessionId}`, 'true') } catch {}
+              try {
+                if (builderCacheOwner) {
+                  sessionStorage.setItem(unsavedBuilderSessionKey(builderCacheOwner, newSessionId), 'true')
+                }
+              } catch {}
               setIsResumedSession(false)
-              router.replace(`/builder?session_id=${newSessionId}`, { scroll: false })
+              router.replace(getInitializedBuilderHref(searchParams, newSessionId, process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'), { scroll: false })
             } else {
               debugLog('✅ [BUILDER-V2] Session ID already exists:', currentSessionId)
               if (typeof window !== 'undefined' && !window.location.search.includes('session_id=')) {
-                router.replace(`/builder?session_id=${currentSessionId}`, { scroll: false })
+                router.replace(getInitializedBuilderHref(searchParams, currentSessionId, process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'), { scroll: false })
               }
             }
           } else {
@@ -564,15 +755,17 @@ export function useBuilderSession({
           }
         }
       } catch (error) {
+        if (!mayContinueInitialization()) return
         console.error('❌ Error initializing session:', error)
-        await createNewSession()
+        await createNewSession(mayContinueInitialization)
       } finally {
-        setIsLoadingSession(false)
+        if (mayContinueInitialization()) setIsLoadingSession(false)
       }
     }
 
     initializeSession()
-  }, [user, isAuthLoading, searchParams])
+    return () => { cancelled = true }
+  }, [transcriptScopeKey])
 
   // Loading timeout safety net
   useEffect(() => {
@@ -602,7 +795,11 @@ export function useBuilderSession({
       if (session) {
         setCurrentSessionId(session.id)
         setIsUnsavedSession(false)
-        try { sessionStorage.removeItem(`deckster_unsaved_${session.id}`) } catch {}
+        try {
+          if (builderCacheOwner) {
+            sessionStorage.removeItem(unsavedBuilderSessionKey(builderCacheOwner, session.id))
+          }
+        } catch {}
         // Only update URL if session ID changed (avoid redundant navigation)
         if (session.id !== currentSessionId) {
           router.push(`/builder?session_id=${session.id}`)
@@ -617,11 +814,12 @@ export function useBuilderSession({
     } finally {
       setIsCreatingSession(false)
     }
-  }, [currentSessionId, isUnsavedSession, createSession, router, setIsUnsavedSession])
+  }, [builderCacheOwner, currentSessionId, isUnsavedSession, createSession, router, setIsUnsavedSession])
 
   // Handle session selection from sidebar
   const handleSessionSelect = useCallback((sessionId: string) => {
     if (sessionId === currentSessionId) return
+    transcriptLoadRequestRef.current = null
 
     debugLog('📂 Switching to session:', sessionId)
 
@@ -643,9 +841,11 @@ export function useBuilderSession({
 
   // Handle new chat from sidebar
   const handleNewChat = useCallback(() => {
+    transcriptLoadRequestRef.current = null
     const newSessionId = crypto.randomUUID()
 
     debugLog('🆕 Starting new unsaved session')
+    recordStudioFreshAssignment(newSessionId, { kind: 'local_uuid', generatedSessionId: newSessionId })
     disconnect()
     setUserMessages([])
     clearMessages()
@@ -663,9 +863,13 @@ export function useBuilderSession({
     setCurrentSessionId(newSessionId)
     currentSessionIdRef.current = newSessionId
     setSessionStoreName(null)
-    try { sessionStorage.setItem(`deckster_unsaved_${newSessionId}`, 'true') } catch {}
+    try {
+      if (builderCacheOwner) {
+        sessionStorage.setItem(unsavedBuilderSessionKey(builderCacheOwner, newSessionId), 'true')
+      }
+    } catch {}
     router.push(`/builder?session_id=${newSessionId}`)
-  }, [router, clearMessages, disconnect, setUserMessages, setIsUnsavedSession, setIsResumedSession, setCurrentSessionId, setSessionStoreName])
+  }, [builderCacheOwner, router, clearMessages, disconnect, setUserMessages, setIsUnsavedSession, setIsResumedSession, setCurrentSessionId, setSessionStoreName])
 
   // The session layer owns exactly one initial connection request for each
   // adopted session. After that handoff, the WebSocket hook exclusively owns
@@ -713,45 +917,48 @@ export function useBuilderSession({
     user,
   ])
 
-  // Persist bot messages received from WebSocket
+  // Persist bot messages received from WebSocket.
+  // PK 2026-09-03: persist EVERY unpersisted message, not only the last one —
+  // React 18 batches back-to-back Director frames (e.g. the plan chat + the
+  // plan-confirmation action card) into one commit, so a last-message-only
+  // effect silently dropped the non-last rows and a later restore lost them.
   useEffect(() => {
     if (!currentSessionId || !persistence || messages.length === 0 || isUnsavedSession) return
 
-    const lastMessage = messages[messages.length - 1]
+    for (const msg of messages) {
+      if (persistedMessageIdsRef.current.has(msg.message_id)) continue
 
-    if (persistedMessageIdsRef.current.has(lastMessage.message_id)) {
-      debugLog('⏭️ Skipping duplicate persistence for message:', lastMessage.message_id)
-      return
-    }
+      if ((msg as any).role === 'user') {
+        const userText = (msg as any).payload?.text || (msg as any).content || '';
+        debugLog('💾 Persisting Director-replayed user message:', msg.message_id, userText.substring(0, 30))
+        persistedMessageIdsRef.current.add(msg.message_id)
+        userMessageIdsRef.current.add(msg.message_id)
+        persistence.queueMessage(msg, userText, PASSIVE_WRITE)
+        continue
+      }
 
-    if ((lastMessage as any).role === 'user') {
-      const userText = (lastMessage as any).payload?.text || (lastMessage as any).content || '';
-      debugLog('💾 Persisting Director-replayed user message:', lastMessage.message_id, userText.substring(0, 30))
-      persistedMessageIdsRef.current.add(lastMessage.message_id)
-      userMessageIdsRef.current.add(lastMessage.message_id)
-      persistence.queueMessage(lastMessage, userText)
-      return
-    }
+      if (msg.type !== 'chat_message') {
+        debugLog('💾 Persisting bot message:', msg.type, msg.message_id)
+        persistedMessageIdsRef.current.add(msg.message_id)
+        persistence.queueMessage(msg, undefined, PASSIVE_WRITE)
+      } else if (!userMessageIdsRef.current.has(msg.message_id)) {
+        debugLog('💾 Persisting bot chat_message (welcome/initial):', msg.message_id)
+        persistedMessageIdsRef.current.add(msg.message_id)
+        persistence.queueMessage(msg, undefined, PASSIVE_WRITE)
+      }
 
-    if (lastMessage.type !== 'chat_message') {
-      debugLog('💾 Persisting bot message:', lastMessage.type, lastMessage.message_id)
-      persistedMessageIdsRef.current.add(lastMessage.message_id)
-      persistence.queueMessage(lastMessage)
-    } else if (!userMessageIdsRef.current.has(lastMessage.message_id)) {
-      debugLog('💾 Persisting bot chat_message (welcome/initial):', lastMessage.message_id)
-      persistedMessageIdsRef.current.add(lastMessage.message_id)
-      persistence.queueMessage(lastMessage)
-    }
-
-    if (lastMessage.type === 'slide_update') {
-      const slideUpdate = lastMessage as SlideUpdate
-      const presentationTitle = slideUpdate.payload.metadata.main_title
-      if (presentationTitle) {
-        debugLog('📝 Updating session title from presentation:', presentationTitle)
-        persistence.updateMetadata({
-          title: presentationTitle
-        })
-        hasTitleFromPresentationRef.current = true
+      if (msg.type === 'slide_update') {
+        const slideUpdate = msg as SlideUpdate
+        const presentationTitle = slideUpdate.payload.metadata.main_title
+        // Persist initialization frames above, but their placeholder title is
+        // not an authored presentation title.
+        if (presentationTitle && slideUpdate.payload.is_blank !== true) {
+          debugLog('📝 Updating session title from presentation:', presentationTitle)
+          persistence.updateMetadata({
+            title: presentationTitle
+          }, PASSIVE_WRITE)
+          hasTitleFromPresentationRef.current = true
+        }
       }
     }
   }, [messages, currentSessionId, persistence, isUnsavedSession])
@@ -765,11 +972,11 @@ export function useBuilderSession({
     if (lastMessage.type === 'slide_update') {
       const slideUpdate = lastMessage as SlideUpdate
       const presentationTitle = slideUpdate.payload.metadata.main_title
-      if (presentationTitle && !hasTitleFromPresentationRef.current) {
+      if (presentationTitle && slideUpdate.payload.is_blank !== true && !hasTitleFromPresentationRef.current) {
         debugLog('📝 Updating session title from presentation:', presentationTitle)
         persistence.updateMetadata({
           title: presentationTitle
-        })
+        }, PASSIVE_WRITE)
         hasTitleFromPresentationRef.current = true
       }
     }
@@ -785,6 +992,18 @@ export function useBuilderSession({
     isResumedSession,
     setIsResumedSession,
     isCreatingSession,
+    sessionProblem,
+    studioInitialFreshCanonicalEntry: studioInitialFreshCanonicalEntry?.isCurrentAssignment()
+      ? studioInitialFreshCanonicalEntry : null,
+    // Read at display admission time, including user intent before an awaited
+    // send/session creation completes. This latch never affects wire behavior.
+    markStudioUserIntent: () => { transcriptScopeRef.current.userIntentSeen = true },
+    hasStudioUserIntent: () => transcriptScopeRef.current.userIntentSeen,
+    studioFrontendTranscriptReceipt: studioFrontendTranscriptReceipt
+      && studioFrontendTranscriptReceipt.userId === builderCacheOwner
+      && studioFrontendTranscriptReceipt.generation === transcriptScopeRef.current.generation
+      && studioFrontendTranscriptReceipt.sessionId === (currentSessionId || searchParams?.get('session_id'))
+      ? studioFrontendTranscriptReceipt : null,
     userMessages,
     setUserMessages,
 

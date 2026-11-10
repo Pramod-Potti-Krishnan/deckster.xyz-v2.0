@@ -1,0 +1,37 @@
+/* CHAT COMMANDS (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, default off): the "/" command menu, the "@" mention menu and the one-line note under them, in the v3.1 composer.
+   They sit on the composer's own "@" surface (studio-director.css [data-studio-composer-mentions]: the same card, 11.5 px rows, 9 px headings; nothing here is larger than live) and are
+   near-monochrome like the rest of chat clean (tokens --scc-*). Every selector starts at [data-studio-v4-shell="true"] [data-studio-chat-clean], an attribute the column carries only with
+   NEXT_PUBLIC_STUDIO_CHAT_CLEAN on, and names an attribute only the flag's menus set, so with the flag off nothing here matches. */
+
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-commands-menu] > p[data-studio-chat-commands-heading]:not(:first-child) {
+  margin: 0; padding: 8px 12px 4px; border-top: 1px solid var(--scc-line); color: var(--ss-muted); font-size: 9px;
+}
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-commands-menu] button[role="option"] { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-commands-menu] button[role="option"][data-active="true"] { background: var(--ss-active); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-commands-menu] button[role="option"] > svg { flex: none; width: 13px; height: 13px; color: var(--scc-ink-3); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-commands-menu] button[role="option"] > span:first-of-type { color: var(--scc-ink); font-weight: 500; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-commands-menu] button[role="option"] > span:last-child { flex: 1 1 auto; min-width: 0; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-commands-menu] > p[data-studio-chat-commands-empty] { margin: 0; padding: 4px 12px 8px; color: var(--ss-muted); font-size: 11px; line-height: 1.5; }
+
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-commands-note] > p[data-studio-chat-commands-heading] {
+  margin: 0; padding: 10px 12px 4px; color: var(--scc-ink); font-size: 11.5px; font-weight: 600; letter-spacing: 0; text-transform: none;
+}
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-commands-note="done"] > p[data-studio-chat-commands-heading] { padding-bottom: 10px; font-weight: 500; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-commands-note] > p[data-studio-chat-commands-body] { margin: 0; padding: 0 12px 8px; color: var(--ss-muted); font-size: 11px; line-height: 1.5; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-commands-note] > div[data-studio-chat-commands-actions] { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 12px 10px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-commands-note] > div[data-studio-chat-commands-actions] button {
+  display: inline-flex; align-items: center; width: auto; height: 24px; min-height: 24px; padding: 0 9px; border: 1px solid var(--scc-line); border-radius: 4px; background: transparent;
+  color: var(--scc-ink); font-size: 11px; font-weight: 500; line-height: 16px; cursor: pointer;
+}
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-commands-note] > div[data-studio-chat-commands-actions] button:hover { border-color: var(--scc-ink-2); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-commands-note] > div[data-studio-chat-commands-actions] button[data-studio-chat-commands-dismiss] { border-color: transparent; color: var(--scc-ink-2); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-commands-note] > div[data-studio-chat-commands-actions] button:focus-visible { outline: 2px solid var(--scc-ink); outline-offset: 1px; }
+
+/* phones and touch: rows and buttons are 44 px tall */
+@media (max-width: 767px), (pointer: coarse) {
+  [data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-commands-menu] button[role="option"] { min-height: 44px; }
+  [data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-commands-note] > div[data-studio-chat-commands-actions] button { min-height: 44px; padding: 0 14px; }
+}
+@media (forced-colors: active) {
+  [data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-commands-menu] button[role="option"][data-active="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
+}

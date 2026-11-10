@@ -1,0 +1,17 @@
+/* PASS2-DIRECTOR-CHAT PR D, item 7 (flag NEXT_PUBLIC_STUDIO_CHAT_RECOVERY): the calm recovery card at the end of the transcript, in the
+   accepted v4 mockup's voice ("The generation was interrupted. Your previous slides are safe.").
+   Every rule is keyed to [data-studio-chat-recovery], an attribute only the card carries, and the card is rendered only with the flag on
+   (Studio shell only), so with the flag off none of this matches anything. The card has no button and no handler; the tokens are the
+   Studio shell's own, so it follows light and dark. */
+[data-studio-v4-shell="true"] [data-studio-chat-recovery] {
+  display: flex; align-items: flex-start; gap: 9px; min-width: 0; padding: 10px 12px; box-sizing: border-box;
+  border: 1px solid var(--ss-line); border-radius: 10px; background: var(--ss-surface); color: var(--ss-text);
+}
+[data-studio-v4-shell="true"] [data-studio-chat-recovery] > svg { flex: none; margin-top: 2px; color: var(--ss-teal); }
+[data-studio-v4-shell="true"] [data-studio-chat-recovery] > div { min-width: 0; }
+[data-studio-v4-shell="true"] [data-studio-chat-recovery-part="title"] { margin: 0; color: var(--ss-text); font-size: 12px; font-weight: 600; line-height: 1.45; }
+[data-studio-v4-shell="true"] [data-studio-chat-recovery-part="body"] { margin: 3px 0 0; color: var(--ss-muted); font-size: 11.5px; line-height: 1.55; overflow-wrap: anywhere; }
+@media (forced-colors: active) {
+  [data-studio-v4-shell="true"] [data-studio-chat-recovery] { border-color: CanvasText; }
+  [data-studio-v4-shell="true"] [data-studio-chat-recovery] > svg { color: CanvasText; }
+}

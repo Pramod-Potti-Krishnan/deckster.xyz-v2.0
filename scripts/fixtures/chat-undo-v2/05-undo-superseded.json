@@ -1,0 +1,221 @@
+{
+ "scenario": "05-undo-superseded",
+ "description": "Same refine, then an edit on the canvas, then undo_change:<id> -> undo_result superseded (deck_changed) and a chat line; nothing restored, no deck_mutation.",
+ "director_commit": "18fa6604434bd633f6970afcb4d3174a6df1e6bc",
+ "flags": {
+  "MULTI_INTENT_ENABLED": "true",
+  "DIRECTOR_MDC_BULK_EDIT_ENABLED": "true",
+  "DIRECTOR_MDC_CHAT_UNDO_ENABLED": "true",
+  "CHAT_CAP_BULK_EDIT": "true",
+  "CHAT_CAP_CHAT_UNDO": "true",
+  "SLIDE_COMPOSER_ENABLED": "true",
+  "SLIDE_COMPOSER_ASYNC_ENABLED": "true",
+  "SLIDE_REFINER_ENABLED": "true",
+  "DIRECTOR_MDC_REFINE_SLIDE_ENABLED": "true",
+  "CHAT_CAP_REFINE_SLIDE": "true",
+  "DIRECTOR_MDC_HONEST_REPLIES_ENABLED": "true",
+  "DIRECTOR_MDC_SESSION_SCOPE_ENABLED": "true"
+ },
+ "client_caps": [
+  "mdc1",
+  "bulk_edit1",
+  "undo1"
+ ],
+ "recorded_by": "docs/mdc/bulk-edit-undo-frames/record.py (offline, $0)",
+ "scripted_model_output": [
+  {
+   "action_type": "refine_slide",
+   "response_text": null,
+   "questions": null,
+   "tool_calls": null,
+   "reasoning": "scripted",
+   "confidence": 0.95,
+   "requires_approval": false,
+   "extracted_context": null,
+   "target_slide_indices": [
+    2
+   ],
+   "new_topic": null,
+   "op_brief": "More concise",
+   "element_type": null,
+   "structured_questions": []
+  }
+ ],
+ "frame_counts": {
+  "in": 2,
+  "out": 7
+ },
+ "outbound_frame_types": [
+  "change_recorded",
+  "chat_message",
+  "deck_mutation",
+  "slide_ready",
+  "undo_result"
+ ],
+ "events": [],
+ "frames": [
+  {
+   "seq": 1,
+   "direction": "in",
+   "frame": {
+    "type": "user_message",
+    "data": {
+     "text": "Make slide 3 more concise",
+     "client_caps": [
+      "mdc1",
+      "bulk_edit1",
+      "undo1"
+     ]
+    }
+   }
+  },
+  {
+   "seq": 2,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_4dfb6c4b",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:25.536054Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Refining slide 3 (\"Churn Drivers\"): \"More concise\". The current slide stays as it is until the refined version is ready, then it's swapped in place. You can keep chatting meanwhile.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  },
+  {
+   "seq": 3,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_slide_ready_f2f7cad9",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:25.544404Z",
+    "type": "slide_ready",
+    "role": "assistant",
+    "payload": {
+     "job_id": "mdc_5cd2636ece79",
+     "kind": "refine",
+     "presentation_id": "pres-e2e",
+     "slide_index": 2,
+     "inserted_at_index": 2,
+     "presentation_url": null,
+     "real_slide_id": "R1-L2",
+     "replaced_slide_id": "L2",
+     "thumbnail_url": null,
+     "status": "built"
+    }
+   }
+  },
+  {
+   "seq": 4,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_dmut_db89a2be",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:25.546208Z",
+    "type": "deck_mutation",
+    "role": "assistant",
+    "payload": {
+     "mutation": "slide_replaced",
+     "slide_index": 2,
+     "new_slide_index": null,
+     "presentation_id": "pres-e2e",
+     "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+     "refresh_token": "dm_5312a94a4224"
+    }
+   }
+  },
+  {
+   "seq": 5,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_48c5e5fe",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:25.547852Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Done. Slide 3 is refined, in the same place.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  },
+  {
+   "seq": 6,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_chg_9964df0c",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:25.553013Z",
+    "type": "change_recorded",
+    "role": "assistant",
+    "payload": {
+     "change_id": "chg_848af543b5c3",
+     "label": "Refined slide 3",
+     "kind": "slide_replaced",
+     "presentation_id": "pres-e2e",
+     "undoable": true,
+     "anchor_message_id": "msg_48c5e5fe"
+    }
+   }
+  },
+  {
+   "seq": 7,
+   "direction": "in",
+   "frame": {
+    "type": "user_message",
+    "data": {
+     "text": "",
+     "client_caps": [
+      "mdc1",
+      "bulk_edit1",
+      "undo1"
+     ],
+     "action_value": "undo_change:chg_848af543b5c3",
+     "action_label": "undo_change:chg_848af543b5c3"
+    }
+   }
+  },
+  {
+   "seq": 8,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_undo_17eb156b",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:25.561480Z",
+    "type": "undo_result",
+    "role": "assistant",
+    "payload": {
+     "change_id": "chg_848af543b5c3",
+     "status": "superseded",
+     "reason": "deck_changed"
+    }
+   }
+  },
+  {
+   "seq": 9,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_ec26373a",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:25.561496Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "That change can't be undone any more: the deck has changed since (a later change or an edit on the canvas), so I left it as it is.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  }
+ ]
+}

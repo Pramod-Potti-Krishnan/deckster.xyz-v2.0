@@ -1,0 +1,269 @@
+{
+ "_provenance": {
+  "layout_builder_sha": "71f463109e8b91dc94c2543caa04e3248b7acba0",
+  "recorded": "2026-10-16",
+  "how": "Real layout-builder server.py at that commit, filesystem storage (ENABLE_SUPABASE=false), real Reveal.js 4.5.0 in headless Chromium; the page speaks the postMessage protocol Studio's sendCommand speaks (action, params, requestId) and the answers are stored verbatim. blank_two_elements = a B1 blank canvas after two insertTextBox calls shaped like handleOpenPanel's (a 10x6 TEXT_BOX at 4/10 x 2/12 and an 8x5 METRICS at 4/9 x 13/21). c1 = an empty C1 slide, hero = an empty H1s slide, l25 = an L25 slide with a rich_content body.",
+  "note": "Layout names an inserted text box itself (insert_answer.elementId) and echoes the position it was given as logical grid spans (insert_answer.position)."
+ },
+ "frames": {
+  "blank_empty": {
+   "success": true,
+   "action": "getSlideGenerationContext",
+   "requestId": "h-3",
+   "slide_index": 0,
+   "slide_title": "Slide Title",
+   "slide_summary": null,
+   "target_element_id": null,
+   "elements": [],
+   "truncated": false
+  },
+  "insert_answer": {
+   "success": true,
+   "action": "insertTextBox",
+   "requestId": "h-4",
+   "elementId": "textbox-mvan2v62-a068iy",
+   "position": {
+    "gridRow": "4/10",
+    "gridColumn": "2/12"
+   },
+   "zIndex": 1000,
+   "component_type": "TEXT_BOX",
+   "theme_variant_id": null,
+   "theme_bindings": {},
+   "style_owner": null,
+   "theme_variant_source": "element_generation",
+   "frame_owner": "layout",
+   "metrics_color_variant": null,
+   "research_provenance": null,
+   "generation_config": null,
+   "semantic_role": null,
+   "slot_name": null,
+   "slot_kind": null,
+   "accessory_type": null
+  },
+  "blank_two_elements": {
+   "success": true,
+   "action": "getSlideGenerationContext",
+   "requestId": "h-6",
+   "slide_index": 0,
+   "slide_title": "Slide Title",
+   "slide_summary": null,
+   "target_element_id": null,
+   "elements": [
+    {
+     "element_id": "textbox-mvan2v62-a068iy",
+     "renderer_type": "textbox",
+     "component_type": "TEXT_BOX",
+     "position": {
+      "gridRow": "4/10",
+      "gridColumn": "2/12"
+     },
+     "summary": "Placeholder",
+     "properties": {
+      "is_placeholder": false,
+      "locked": false,
+      "visible": true
+     },
+     "is_target": false
+    },
+    {
+     "element_id": "textbox-mvan2v6f-nc1a6t",
+     "renderer_type": "textbox",
+     "component_type": "METRICS",
+     "position": {
+      "gridRow": "4/9",
+      "gridColumn": "13/21"
+     },
+     "summary": "Placeholder",
+     "properties": {
+      "is_placeholder": false,
+      "locked": false,
+      "visible": true
+     },
+     "is_target": false
+    }
+   ],
+   "truncated": false
+  },
+  "c1": {
+   "success": true,
+   "action": "getSlideGenerationContext",
+   "requestId": "h-3",
+   "slide_index": 0,
+   "slide_title": "Slide Title",
+   "slide_summary": null,
+   "target_element_id": null,
+   "elements": [
+    {
+     "element_id": "slide_c1ea276acd37_textbox_64ad6d3b",
+     "renderer_type": "textbox",
+     "component_type": "TEXT_BOX",
+     "position": {
+      "gridRow": "18/19",
+      "gridColumn": "13/32"
+     },
+     "summary": "Sources",
+     "properties": {
+      "is_placeholder": false,
+      "locked": false,
+      "visible": true
+     },
+     "is_target": false
+    },
+    {
+     "element_id": "slide_c1ea276acd37_textbox_e51cc85e",
+     "renderer_type": "textbox",
+     "component_type": "TEXT_BOX",
+     "position": {
+      "gridRow": "1/3",
+      "gridColumn": "2/32"
+     },
+     "summary": "Slide Title",
+     "properties": {
+      "is_placeholder": false,
+      "locked": false,
+      "visible": true
+     },
+     "is_target": false
+    },
+    {
+     "element_id": "slide_c1ea276acd37_textbox_688d6ac7",
+     "renderer_type": "textbox",
+     "component_type": "TEXT_BOX",
+     "position": {
+      "gridRow": "3/4",
+      "gridColumn": "2/32"
+     },
+     "summary": "Subtitle",
+     "properties": {
+      "is_placeholder": false,
+      "locked": false,
+      "visible": true
+     },
+     "is_target": false
+    },
+    {
+     "element_id": "slide_c1ea276acd37_textbox_c10737b7",
+     "renderer_type": "textbox",
+     "component_type": "TEXT_BOX",
+     "position": {
+      "gridRow": "18/19",
+      "gridColumn": "2/13"
+     },
+     "summary": "Footer",
+     "properties": {
+      "is_placeholder": false,
+      "locked": false,
+      "visible": true
+     },
+     "is_target": false
+    },
+    {
+     "element_id": "slide_c1ea276acd37_textbox_8d62b2c8",
+     "renderer_type": "textbox",
+     "component_type": "TEXT_BOX",
+     "position": {
+      "gridRow": "4/18",
+      "gridColumn": "2/32"
+     },
+     "summary": "Content Area",
+     "properties": {
+      "is_placeholder": false,
+      "locked": false,
+      "visible": true
+     },
+     "is_target": false
+    }
+   ],
+   "truncated": false
+  },
+  "hero": {
+   "success": true,
+   "action": "getSlideGenerationContext",
+   "requestId": "h-3",
+   "slide_index": 0,
+   "slide_title": "Presentation Title",
+   "slide_summary": null,
+   "target_element_id": null,
+   "elements": [
+    {
+     "element_id": "slide_593f4c9ab1a6_image_8081e05e",
+     "renderer_type": "image",
+     "component_type": "IMAGE",
+     "position": {
+      "gridRow": "1/19",
+      "gridColumn": "1/33"
+     },
+     "summary": "",
+     "properties": {
+      "is_placeholder": true,
+      "locked": false,
+      "visible": true,
+      "object_fit": "cover"
+     },
+     "is_target": false
+    },
+    {
+     "element_id": "slide_593f4c9ab1a6_textbox_651c2914",
+     "renderer_type": "textbox",
+     "component_type": "TEXT_BOX",
+     "position": {
+      "gridRow": "5/10",
+      "gridColumn": "3/17"
+     },
+     "summary": "Presentation Title",
+     "properties": {
+      "is_placeholder": false,
+      "locked": false,
+      "visible": true
+     },
+     "is_target": false
+    },
+    {
+     "element_id": "slide_593f4c9ab1a6_textbox_b493a7c2",
+     "renderer_type": "textbox",
+     "component_type": "TEXT_BOX",
+     "position": {
+      "gridRow": "10/12",
+      "gridColumn": "3/17"
+     },
+     "summary": "Your tagline or subtitle here",
+     "properties": {
+      "is_placeholder": false,
+      "locked": false,
+      "visible": true
+     },
+     "is_target": false
+    },
+    {
+     "element_id": "slide_593f4c9ab1a6_textbox_435c63c8",
+     "renderer_type": "textbox",
+     "component_type": "TEXT_BOX",
+     "position": {
+      "gridRow": "16/18",
+      "gridColumn": "3/17"
+     },
+     "summary": "AUTHOR | DATE",
+     "properties": {
+      "is_placeholder": false,
+      "locked": false,
+      "visible": true
+     },
+     "is_target": false
+    }
+   ],
+   "truncated": false
+  },
+  "l25": {
+   "success": true,
+   "action": "getSlideGenerationContext",
+   "requestId": "h-3",
+   "slide_index": 0,
+   "slide_title": "Why demand forecasting matters",
+   "slide_summary": "Point 1 of the story 1Why demand forecasting mattersLocal fixture slide 1",
+   "target_element_id": null,
+   "elements": [],
+   "truncated": false
+  }
+ }
+}

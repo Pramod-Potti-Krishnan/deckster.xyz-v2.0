@@ -1,15 +1,31 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useToast } from '@/hooks/use-toast'
 import { UploadedFile } from '@/components/file-chip'
 import { validateFile } from '@/lib/file-validation'
-import { apiConfig, uploadConfig } from '@/lib/config'
+import { getKnowledgeServiceUrl, uploadConfig } from '@/lib/config'
+import { ingestStatusPollUrl, type IngestStatusPollIdentity } from '@/lib/researcher-ingest-status-auth'
+import {
+  getEnrichmentLabel,
+  resolveEnrichmentOutcome,
+  type IngestReadiness,
+} from '@/lib/upload-status'
 
 const MAX_FILES = uploadConfig.maxFiles
-const RESEARCHER_BASE_URL = apiConfig.knowledgeServiceUrl.replace(/\/$/, '')
-const POLL_ATTEMPTS = 30
-const POLL_INTERVAL_MS = 3000
+// Resolve only for an admitted Knowledge action; optional uploader imports stay safe.
+const getResearcherBaseUrl = () => getKnowledgeServiceUrl().replace(/\/$/, '')
+const POLL_ATTEMPTS = 120
+const POLL_INTERVAL_MS = 5000
+// Per-request ceiling. The attempt budget above is meaningless without it:
+// a hung fetch blocks the loop forever rather than costing one attempt.
+const POLL_REQUEST_TIMEOUT_MS = 10000
+// Wall-clock stop so a slow-but-answering server still terminates.
+const POLL_DEADLINE_MS = 10 * 60 * 1000
+// Transient failures in a row before we call it lost.
+const MAX_CONSECUTIVE_TRANSIENT = 4
+// The session<->file link must survive a reload, so this write gets retries.
+const RECORD_ATTEMPTS = 3
 
 type StorageUploadUrlResponse = {
   signed_url: string
@@ -17,7 +33,7 @@ type StorageUploadUrlResponse = {
   expires_in?: number
 }
 
-type ProcessUploadedResponse = {
+type ProcessUploadedResponse = IngestReadiness & {
   success?: boolean
   job_id?: string
   status?: string
@@ -27,15 +43,23 @@ type ProcessUploadedResponse = {
   storage_path?: string
   message?: string
   annotation_status?: string
+  parse_status?: string
+  error?: string | null
+  degraded_reason?: string | null
+  warning?: string | null
 }
 
-type IngestStatusResponse = {
+type IngestStatusResponse = IngestReadiness & {
   job_id: string
   session_id?: string
   file_name?: string
-  status: 'pending' | 'processing' | 'ready' | 'failed' | 'unknown'
+  status: 'pending' | 'processing' | 'ready' | 'degraded' | 'partial' | 'failed' | 'unknown'
   storage_path?: string
   error?: string | null
+  annotation_status?: string | null
+  parse_status?: string | null
+  degraded_reason?: string | null
+  warning?: string | null
 }
 
 interface UseFileUploadOptions {
@@ -70,26 +94,111 @@ function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
+// Studio upload ownership is local only; native wire fields and service stages
+// remain unchanged. Retired same-account transfers keep their original target.
+const STUDIO_UPLOAD_OWNERSHIP = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+type UploadLifetime = { generation: number; active: boolean; retired: boolean }
+type UploadOwner = {
+  lifetime: UploadLifetime
+  sessionId: string
+  userId: string
+  fileIds: Set<string>
+  researcherSessionId: string | null
+  researcherSessionPromise: Promise<string> | null
+}
+function useStudioUploadOwner(sessionId: string, userId: string, onUploadComplete: UseFileUploadOptions['onUploadComplete']) {
+  const [admissionLifetime, setAdmissionLifetime] = useState<UploadLifetime>(() => ({ generation: 1, active: false, retired: false }))
+  const lifetimeRef = useRef(admissionLifetime)
+  const newOwner = (session: string, user: string): UploadOwner => ({
+    sessionId: session, userId: user, lifetime: lifetimeRef.current,
+    fileIds: new Set(), researcherSessionId: null, researcherSessionPromise: null,
+  })
+  const ownerRef = useRef<UploadOwner>(newOwner(sessionId, userId))
+  if (ownerRef.current.sessionId !== sessionId || ownerRef.current.userId !== userId || ownerRef.current.lifetime !== lifetimeRef.current) {
+    ownerRef.current = newOwner(sessionId, userId)
+  }
+  const callbackRef = useRef(onUploadComplete)
+  callbackRef.current = onUploadComplete
+  useEffect(() => {
+    if (!STUDIO_UPLOAD_OWNERSHIP) return
+    if (lifetimeRef.current.retired) {
+      lifetimeRef.current = { generation: lifetimeRef.current.generation + 1, active: false, retired: false }
+      ownerRef.current = newOwner(ownerRef.current.sessionId, ownerRef.current.userId)
+      // Refresh real mounted callbacks after StrictMode/retained-ref setup;
+      // callbacks captured by a retired lifetime remain permanently retired.
+      setAdmissionLifetime(lifetimeRef.current)
+    }
+    const lifetime = lifetimeRef.current
+    lifetime.active = true
+    return () => { lifetime.active = false; lifetime.retired = true }
+  }, [])
+  const canAdmit = (lifetime: UploadLifetime | undefined, user?: string) => Boolean(
+    lifetime && lifetimeRef.current === lifetime && lifetime.active && !lifetime.retired && (user === undefined || ownerRef.current.userId === user),
+  )
+  const isCurrent = (owner: UploadOwner | undefined, fileId?: string) => Boolean(
+    owner && canAdmit(owner.lifetime) && ownerRef.current === owner && (!fileId || owner.fileIds.has(fileId)),
+  )
+  const requireLinkIdentity = (owner: UploadOwner | undefined) => {
+    if (!owner || !canAdmit(owner.lifetime) || ownerRef.current.userId !== owner.userId) {
+      throw new Error('File transfer completed, but its session link was not confirmed because the account changed or the uploader closed.')
+    }
+  }
+  return { ownerRef, callbackRef, admissionLifetime, canAdmit, isCurrent, requireLinkIdentity }
+}
+// End Studio upload ownership helpers.
+
 export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUploadOptions) {
   const [files, setFiles] = useState<UploadedFile[]>([])
   const { toast } = useToast()
+  const studio = useStudioUploadOwner(sessionId, userId, onUploadComplete)
+  const uploadAdmissionLifetime = studio.admissionLifetime
+  const visibleFiles = STUDIO_UPLOAD_OWNERSHIP ? files.filter(file => studio.ownerRef.current.fileIds.has(file.id)) : files
   const researcherSessionIdRef = useRef<string | null>(null)
   const researcherSessionPromiseRef = useRef<Promise<string> | null>(null)
 
   // Keep sessionId in a ref so the uploadFile callback always reads the latest value
   // (avoids stale closure when session is created just before upload)
   const sessionIdRef = useRef(sessionId)
+  if (STUDIO_UPLOAD_OWNERSHIP) sessionIdRef.current = sessionId
   if (sessionIdRef.current !== sessionId && sessionId) {
     sessionIdRef.current = sessionId
     researcherSessionIdRef.current = null
     researcherSessionPromiseRef.current = null
   }
 
-  const updateFile = useCallback((fileId: string, updates: Partial<UploadedFile>) => {
+  const updateFile = useCallback((fileId: string, updates: Partial<UploadedFile>, owner?: UploadOwner) => {
+    if (STUDIO_UPLOAD_OWNERSHIP && !studio.isCurrent(owner, fileId)) return
     setFiles(prev => prev.map(f => f.id === fileId ? { ...f, ...updates } : f))
   }, [])
 
-  const ensureResearcherSession = useCallback(async (): Promise<string> => {
+  const ensureResearcherSession = useCallback(async (owner?: UploadOwner): Promise<string> => {
+    if (STUDIO_UPLOAD_OWNERSHIP) {
+      if (!owner?.sessionId) throw new Error('No active session')
+      if (owner.researcherSessionId) return owner.researcherSessionId
+      if (owner.researcherSessionPromise) return owner.researcherSessionPromise
+      const pending = (async () => {
+        const response = await fetch(`${getResearcherBaseUrl()}/api/v1/sessions/create`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: owner.userId || 'anonymous',
+            session_id: owner.sessionId,
+            session_name: `Session_${owner.sessionId.slice(0, 8)}`,
+            metadata: { frontend_session_id: owner.sessionId, upload_path: 'direct_supabase' },
+          }),
+        })
+        const body = await readResponseBody(response)
+        if (!response.ok) throw new Error(getErrorMessage(body, `Failed to create Researcher session (${response.status})`))
+        const researcherSessionId = body?.session_id || owner.sessionId
+        if (studio.isCurrent(owner)) owner.researcherSessionId = researcherSessionId
+        return researcherSessionId
+      })()
+      owner.researcherSessionPromise = pending
+      try { return await pending }
+      finally {
+        if (studio.isCurrent(owner) && owner.researcherSessionPromise === pending) owner.researcherSessionPromise = null
+      }
+    }
     const currentSessionId = sessionIdRef.current
     if (!currentSessionId) {
       throw new Error('No active session')
@@ -104,7 +213,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     }
 
     researcherSessionPromiseRef.current = (async () => {
-      const response = await fetch(`${RESEARCHER_BASE_URL}/api/v1/sessions/create`, {
+      const response = await fetch(`${getResearcherBaseUrl()}/api/v1/sessions/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -140,7 +249,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     file: File,
     contentType: string,
   ): Promise<StorageUploadUrlResponse> => {
-    const response = await fetch(`${RESEARCHER_BASE_URL}/api/v1/files/storage-upload-url`, {
+    const response = await fetch(`${getResearcherBaseUrl()}/api/v1/files/storage-upload-url`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -185,7 +294,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     file: File,
     contentType: string,
   ): Promise<ProcessUploadedResponse> => {
-    const response = await fetch(`${RESEARCHER_BASE_URL}/api/v1/files/process-uploaded`, {
+    const response = await fetch(`${getResearcherBaseUrl()}/api/v1/files/process-uploaded`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -194,6 +303,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
         original_filename: file.name,
         content_type: contentType,
         display_name: file.name,
+        respond_async: true,
       }),
     })
 
@@ -212,23 +322,80 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
   const pollIngestStatus = useCallback(async (
     jobId: string,
     fileId: string,
+    owner?: UploadOwner,
+    // Captured when the upload started (not re-read here), so polling another deck cannot change it.
+    statusIdentity?: IngestStatusPollIdentity,
   ): Promise<IngestStatusResponse> => {
+    // Configuration is not a transient request failure. Refuse before sleeping
+    // or entering the retry loop, while preserving the existing poll protocol.
+    const researcherBaseUrl = getResearcherBaseUrl()
     let unknownCount = 0
+    let consecutiveTransient = 0
+    const deadline = Date.now() + POLL_DEADLINE_MS
     await sleep(2000)
 
     for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt += 1) {
-      const response = await fetch(`${RESEARCHER_BASE_URL}/api/v1/files/ingest-status/${jobId}`)
-      const body = await readResponseBody(response)
+      if (Date.now() > deadline) break
 
-      if (!response.ok) {
-        throw new Error(getErrorMessage(body, `Failed to check ingest status (${response.status})`))
+      let job: IngestStatusResponse
+      try {
+        // A per-request timeout is what keeps this loop alive. Without it a
+        // wedged Researcher (its event loop can stall for tens of seconds)
+        // leaves `fetch` pending forever, the loop never advances, and the
+        // overall attempt budget below can never be reached — the chip spins
+        // indefinitely and can reach neither 'success' nor 'error'.
+        // Flag NEXT_PUBLIC_RESEARCHER_INGEST_STATUS_AUTH_ENABLED (default off): on, the
+        // poll goes through the same-origin route that attaches the owner-bound token;
+        // off, this is the direct request it always was.
+        const response = await fetch(
+          ingestStatusPollUrl(researcherBaseUrl, jobId, statusIdentity),
+          { signal: AbortSignal.timeout(POLL_REQUEST_TIMEOUT_MS) },
+        )
+        const body = await readResponseBody(response)
+
+        if (response.status >= 500 || response.status === 429) {
+          throw new Error(getErrorMessage(body, `Researcher unavailable (${response.status})`))
+        }
+        if (!response.ok) {
+          // 4xx is a real answer about this job, not a blip — fail fast.
+          throw Object.assign(
+            new Error(getErrorMessage(body, `Failed to check ingest status (${response.status})`)),
+            { terminal: true },
+          )
+        }
+
+        job = body as IngestStatusResponse
+        consecutiveTransient = 0
+      } catch (error) {
+        if ((error as { terminal?: boolean })?.terminal) throw error
+
+        // Timeout, network drop, 5xx: the server may still be working.
+        consecutiveTransient += 1
+        if (consecutiveTransient >= MAX_CONSECUTIVE_TRANSIENT) {
+          throw new Error(
+            'Lost contact with the Researcher while processing this file. Please retry.',
+          )
+        }
+        console.warn(
+          `[FileUpload] ingest-status attempt ${attempt + 1} failed `
+          + `(${consecutiveTransient}/${MAX_CONSECUTIVE_TRANSIENT}), retrying:`,
+          error,
+        )
+        await sleep(POLL_INTERVAL_MS)
+        continue
       }
 
-      const job = body as IngestStatusResponse
       const progress = Math.min(95, 75 + Math.round((attempt / POLL_ATTEMPTS) * 20))
-      updateFile(fileId, { uploadProgress: progress })
+      updateFile(fileId, {
+        uploadProgress: progress,
+        enrichmentLabel: getEnrichmentLabel(job),
+      }, owner)
 
-      if (job.status === 'ready') {
+      if (
+        job.status === 'ready'
+        || job.status === 'degraded'
+        || job.status === 'partial'
+      ) {
         return job
       }
 
@@ -254,35 +421,59 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     file: File,
     fileUri: string,
     fileName: string | null,
+    owner?: UploadOwner,
   ) => {
-    const currentSessionId = sessionIdRef.current
-    if (!currentSessionId) return
-
-    try {
-      const response = await fetch(`/api/sessions/${currentSessionId}/files`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileName: file.name,
-          fileSize: file.size,
-          fileType: file.type || 'application/octet-stream',
-          geminiFileUri: fileUri,
-          geminiFileName: fileName,
-          geminiStoreName: researcherSessionId,
-        }),
-      })
-
-      if (!response.ok) {
-        const body = await readResponseBody(response)
-        console.warn('[FileUpload] File ingested but metadata save failed:', getErrorMessage(body, response.statusText))
-      }
-    } catch (error) {
-      console.warn('[FileUpload] File ingested but metadata save failed:', error)
+    // This write is what makes the upload survive a reload: it sets
+    // ChatSession.geminiStoreName, which the resume path reads back into
+    // `sessionStoreName` — the flag that tells the Director uploads exist.
+    // Losing it used to be a console.warn, which meant the chip went green,
+    // the send was allowed, and the NEXT page load silently forgot the
+    // document. So it retries, and a genuine failure fails the upload.
+    const currentSessionId = STUDIO_UPLOAD_OWNERSHIP ? owner?.sessionId : sessionIdRef.current
+    if (!currentSessionId) {
+      throw new Error('Session went away before the file could be linked to it')
     }
+
+    let lastError = 'unknown error'
+    for (let attempt = 1; attempt <= RECORD_ATTEMPTS; attempt += 1) {
+      if (STUDIO_UPLOAD_OWNERSHIP) studio.requireLinkIdentity(owner)
+      try {
+        const response = await fetch(`/api/sessions/${currentSessionId}/files`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileSize: file.size,
+            fileType: file.type || 'application/octet-stream',
+            geminiFileUri: fileUri,
+            geminiFileName: fileName,
+            geminiStoreName: researcherSessionId,
+          }),
+        })
+
+        if (response.ok) return
+
+        const body = await readResponseBody(response)
+        lastError = getErrorMessage(body, response.statusText)
+        // A 4xx won't change on retry — stop paying for attempts.
+        if (response.status < 500 && response.status !== 429) break
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : String(error)
+      }
+
+      if (attempt < RECORD_ATTEMPTS) await sleep(500 * attempt)
+    }
+
+    throw new Error(
+      `File was processed but could not be linked to this session (${lastError}). `
+      + 'Please remove it and try again.',
+    )
   }, [])
 
   const uploadFile = useCallback(async (file: File): Promise<UploadedFile> => {
-    const currentSessionId = sessionIdRef.current
+    if (STUDIO_UPLOAD_OWNERSHIP && !studio.canAdmit(uploadAdmissionLifetime, userId)) throw new Error('Uploader is no longer active')
+    const owner = STUDIO_UPLOAD_OWNERSHIP ? studio.ownerRef.current : undefined
+    const currentSessionId = STUDIO_UPLOAD_OWNERSHIP ? owner?.sessionId : sessionIdRef.current
     console.log(`[FileUpload] Starting upload: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB), sessionId=${currentSessionId}`)
 
     if (!currentSessionId) {
@@ -295,6 +486,13 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     }
 
     const fileId = crypto.randomUUID()
+    if (STUDIO_UPLOAD_OWNERSHIP) owner?.fileIds.add(fileId)
+    const setUploadFiles: typeof setFiles = next => {
+      if (!STUDIO_UPLOAD_OWNERSHIP || studio.isCurrent(owner, fileId)) setFiles(next)
+    }
+    const uploadToast = (options: Parameters<typeof toast>[0]) => {
+      if (!STUDIO_UPLOAD_OWNERSHIP || studio.isCurrent(owner, fileId)) toast(options)
+    }
 
     // Create initial file object
     const uploadedFile: UploadedFile = {
@@ -306,45 +504,161 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
       uploadProgress: 0
     }
 
-    setFiles(prev => [...prev, uploadedFile])
+    setUploadFiles(prev => [...(STUDIO_UPLOAD_OWNERSHIP ? prev.filter(file => owner?.fileIds.has(file.id)) : prev), uploadedFile])
 
     try {
       const contentType = file.type || 'application/octet-stream'
-      const researcherSessionId = await ensureResearcherSession()
-      updateFile(fileId, { uploadProgress: 10 })
+      const researcherSessionId = await ensureResearcherSession(owner)
+      updateFile(fileId, { uploadProgress: 10 }, owner)
 
       const uploadUrl = await requestStorageUploadUrl(researcherSessionId, file, contentType)
-      updateFile(fileId, { uploadProgress: 25 })
+      updateFile(fileId, { uploadProgress: 25 }, owner)
 
       await putFileToStorage(uploadUrl.signed_url, file, contentType)
-      updateFile(fileId, { uploadProgress: 65 })
+      updateFile(fileId, { uploadProgress: 65 }, owner)
 
-      const processResult = await processUploadedFile(researcherSessionId, uploadUrl.storage_path, file, contentType)
-      updateFile(fileId, { uploadProgress: processResult.job_id ? 75 : 95 })
+      // The raw object now exists. Link it to the chat session before starting
+      // enrichment so the composer can stop presenting a blocking upload and
+      // the Director can safely receive a command while its own source-
+      // readiness gate waits for background indexing.
+      const provisionalFileName = file.name
+      const provisionalFileUri = uploadUrl.storage_path
+      await recordUploadedFile(
+        researcherSessionId,
+        file,
+        provisionalFileUri,
+        provisionalFileName,
+        owner,
+      )
 
-      const ingestResult = processResult.job_id
-        ? await pollIngestStatus(processResult.job_id, fileId)
-        : null
-
-      const fileName = ingestResult?.file_name || processResult.file_name || file.name
-      const fileUri = processResult.file_uri || ingestResult?.storage_path || processResult.storage_path || uploadUrl.storage_path
-
-      await recordUploadedFile(researcherSessionId, file, fileUri, fileName)
-
-      // Update file status to success
-      const successFile: UploadedFile = {
+      // Storage durability is the UX boundary. Stop the upload spinner and
+      // publish the attachment now; extraction/indexing continues separately.
+      const storedFile: UploadedFile = {
         ...uploadedFile,
-        status: 'success',
+        status: 'stored',
         uploadProgress: 100,
-        geminiFileUri: fileUri,
-        geminiFileName: fileName,
+        geminiFileUri: provisionalFileUri,
+        geminiFileName: provisionalFileName,
+        geminiStoreName: researcherSessionId,
+      }
+      setUploadFiles(prev => prev.map(f => f.id === fileId ? storedFile : f))
+      try {
+        if (STUDIO_UPLOAD_OWNERSHIP) {
+          if (studio.isCurrent(owner, fileId)) studio.callbackRef.current?.([storedFile])
+        } else onUploadComplete?.([storedFile])
+      } catch (callbackError) {
+        console.error('[FileUpload] onUploadComplete callback failed:', callbackError)
+      }
+
+      let processResult: ProcessUploadedResponse
+      try {
+        processResult = await processUploadedFile(
+          researcherSessionId,
+          uploadUrl.storage_path,
+          file,
+          contentType,
+        )
+      } catch (error) {
+        const errorMessage = error instanceof Error
+          ? error.message
+          : 'Researcher could not start source enrichment'
+        const failedFile: UploadedFile = {
+          ...storedFile,
+          status: 'degraded',
+          uploadProgress: 100,
+          errorMessage,
+        }
+        setUploadFiles(prev => prev.map(f => f.id === fileId ? failedFile : f))
+        uploadToast({
+          title: 'Stored — source enrichment needs attention',
+          description: `${file.name} is attached and usable; indexing can be retried. ${errorMessage}`,
+        })
+        return failedFile
+      }
+
+      const processingFile: UploadedFile = {
+        ...storedFile,
+        status: 'processing',
+        uploadProgress: 100,
+        enrichmentLabel: getEnrichmentLabel(processResult),
+        geminiFileUri: processResult.file_uri
+          || processResult.storage_path
+          || provisionalFileUri,
+        geminiFileName: processResult.file_name || provisionalFileName,
+        geminiStoreName: researcherSessionId,
+      }
+      setUploadFiles(prev => prev.map(f => f.id === fileId ? processingFile : f))
+
+      if (processResult.job_id) {
+        void pollIngestStatus(processResult.job_id, fileId, owner, {
+          sessionId: currentSessionId,
+          userId: STUDIO_UPLOAD_OWNERSHIP ? owner?.userId : userId,
+        })
+          .then(ingestResult => {
+            const enrichment = resolveEnrichmentOutcome(ingestResult)
+            const completedFile: UploadedFile = {
+              ...processingFile,
+              status: enrichment.status,
+              uploadProgress: 100,
+              errorMessage: enrichment.detail,
+              enrichmentLabel: enrichment.status === 'success'
+                ? 'Searchable'
+                : 'Stored · partial',
+              geminiFileUri: processResult.file_uri
+                || ingestResult.storage_path
+                || provisionalFileUri,
+              geminiFileName: ingestResult.file_name || provisionalFileName,
+            }
+            setUploadFiles(prev => prev.map(f => f.id === fileId ? completedFile : f))
+            console.log(
+              `[FileUpload] Background enrichment ${enrichment.status}: ${file.name}, `
+              + `researcherSessionId=${researcherSessionId}`,
+            )
+          })
+          .catch(error => {
+            const errorMessage = error instanceof Error
+              ? error.message
+              : 'Researcher failed to index this file'
+            updateFile(fileId, {
+              // The raw object is already stored and linked. A failed or
+              // unobservable enrichment job is degraded, not an upload
+              // failure, and must not block the user from chatting.
+              status: 'degraded',
+              uploadProgress: 100,
+              errorMessage,
+            }, owner)
+            uploadToast({
+              title: 'Uploaded with limited source enrichment',
+              description: `${file.name}: ${errorMessage}. You can continue chatting.`,
+            })
+          })
+
+        return processingFile
+      }
+
+      const enrichment = resolveEnrichmentOutcome(processResult)
+      const completedFile: UploadedFile = {
+        ...storedFile,
+        status: enrichment.status,
+        uploadProgress: 100,
+        errorMessage: enrichment.detail,
+        enrichmentLabel: enrichment.status === 'success'
+          ? 'Searchable'
+          : 'Stored · partial',
+        geminiFileUri: processResult.file_uri
+          || processResult.storage_path
+          || provisionalFileUri,
+        geminiFileName: processResult.file_name || provisionalFileName,
         geminiStoreName: researcherSessionId,
       }
 
-      setFiles(prev => prev.map(f => f.id === fileId ? successFile : f))
-      console.log(`[FileUpload] Direct upload succeeded: ${file.name}, researcherSessionId=${researcherSessionId}`)
+      setUploadFiles(prev => prev.map(f => f.id === fileId ? completedFile : f))
+      console.log(
+        `[FileUpload] Direct upload ${enrichment.status}: ${file.name}, `
+        + `researcherSessionId=${researcherSessionId}`,
+      )
 
-      return successFile
+      return completedFile
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Upload failed'
       console.error(`[FileUpload] Upload failed: ${file.name}`, error)
@@ -356,9 +670,9 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
         errorMessage
       }
 
-      setFiles(prev => prev.map(f => f.id === fileId ? errorFile : f))
+      setUploadFiles(prev => prev.map(f => f.id === fileId ? errorFile : f))
 
-      toast({
+      uploadToast({
         title: 'Upload failed',
         description: `${file.name}: ${errorMessage}`,
         variant: 'destructive'
@@ -375,13 +689,18 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     requestStorageUploadUrl,
     toast,
     updateFile,
+    onUploadComplete,
+    uploadAdmissionLifetime,
   ])
 
   const handleFilesSelected = useCallback(async (selectedFiles: File[]) => {
+    if (STUDIO_UPLOAD_OWNERSHIP && !studio.canAdmit(uploadAdmissionLifetime, userId)) return
+    const batchOwner = STUDIO_UPLOAD_OWNERSHIP ? studio.ownerRef.current : undefined
+    const priorIds = STUDIO_UPLOAD_OWNERSHIP ? new Set(batchOwner?.fileIds) : null
     console.log(`[FileUpload] Files selected: ${selectedFiles.length}`, selectedFiles.map(f => `${f.name} (${(f.size / 1024 / 1024).toFixed(1)} MB)`))
 
     // Validate file count
-    if (files.length + selectedFiles.length > MAX_FILES) {
+    if (visibleFiles.length + selectedFiles.length > MAX_FILES) {
       toast({
         title: 'Too many files',
         description: `You can only attach up to ${MAX_FILES} files per session.`,
@@ -414,44 +733,52 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
 
     // Upload valid files
     const uploadPromises = validFiles.map(file => uploadFile(file))
+    const batchIds = STUDIO_UPLOAD_OWNERSHIP ? Array.from(batchOwner?.fileIds ?? []).filter(id => !priorIds?.has(id)) : []
 
     try {
       const uploadedFiles = await Promise.allSettled(uploadPromises)
-      const successfulUploads = uploadedFiles
+      if (STUDIO_UPLOAD_OWNERSHIP && (!studio.isCurrent(batchOwner) || batchIds.some(id => !batchOwner?.fileIds.has(id)))) return
+      const acceptedUploads = uploadedFiles
         .filter((result): result is PromiseFulfilledResult<UploadedFile> => result.status === 'fulfilled')
         .map(result => result.value)
 
-      if (successfulUploads.length > 0 && onUploadComplete) {
-        onUploadComplete(successfulUploads)
-      }
-
-      if (successfulUploads.length < validFiles.length) {
+      if (acceptedUploads.length < validFiles.length) {
         toast({
           title: 'Some uploads failed',
-          description: `${successfulUploads.length} of ${validFiles.length} files uploaded successfully.`,
+          description: `${acceptedUploads.length} of ${validFiles.length} files were accepted.`,
           variant: 'destructive'
         })
-      } else if (successfulUploads.length > 0) {
+      } else if (acceptedUploads.length > 0) {
+        const partialCount = acceptedUploads.filter(file => file.status === 'degraded').length
+        const enrichingCount = acceptedUploads.filter(
+          file => file.status === 'stored' || file.status === 'processing',
+        ).length
         toast({
-          title: 'Upload successful',
-          description: `${successfulUploads.length} file(s) uploaded successfully.`
+          title: 'Upload accepted',
+          description: partialCount > 0
+            ? `${acceptedUploads.length} file(s) uploaded; ${partialCount} has partial source enrichment.`
+            : enrichingCount > 0
+              ? `${acceptedUploads.length} file(s) uploaded. Source enrichment continues in the background.`
+              : `${acceptedUploads.length} file(s) uploaded and ready.`
         })
       }
     } catch (error) {
       console.error('File upload error:', error)
     }
-  }, [files.length, uploadFile, onUploadComplete, toast])
+  }, [visibleFiles.length, uploadFile, toast, uploadAdmissionLifetime])
 
   const removeFile = useCallback((fileId: string) => {
+    if (STUDIO_UPLOAD_OWNERSHIP) studio.ownerRef.current.fileIds.delete(fileId)
     setFiles(prev => prev.filter(f => f.id !== fileId))
   }, [])
 
   const clearAllFiles = useCallback(() => {
+    if (STUDIO_UPLOAD_OWNERSHIP) studio.ownerRef.current.fileIds.clear()
     setFiles([])
   }, [])
 
   return {
-    files,
+    files: visibleFiles,
     handleFilesSelected,
     removeFile,
     clearAllFiles

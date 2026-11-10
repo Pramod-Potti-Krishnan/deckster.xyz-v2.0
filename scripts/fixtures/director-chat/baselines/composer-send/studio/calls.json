@@ -1,0 +1,113 @@
+[
+  {
+    "args": [
+      {
+        "currentStage": 0,
+        "presentationId": "synthetic-blank-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "slideCount": 1
+      }
+    ],
+    "name": "hook.onSessionStateChange",
+    "step": 2
+  },
+  {"args":[{"message_id":"msg-init-blank","type":"presentation_init"}],"name":"hook.onMessage","step":2},
+  {"args":[{"message_id":"msg-greeting","type":"chat_message"}],"name":"hook.onMessage","step":3},
+  {"args":["Build a four slide deck about synthetic ocean currents"],"name":"composer.onInputChange","step":5},
+  {
+    "args": [{"currentTarget":{},"preventDefault":"[fn]","stopPropagation":"[fn]","target":{},"type":"submit"}],
+    "name": "composer.onSubmit",
+    "step": 7
+  },
+  {
+    "args": [
+      "Build a four slide deck about synthetic ocean currents",
+      0,
+      {
+        "deepResearch": false,
+        "extendedGeneration": true,
+        "fileUpload": false,
+        "storeName": null,
+        "useKnowledgeGraph": false,
+        "webSearch": false
+      }
+    ],
+    "name": "page.sendTypedTurn",
+    "step": 7
+  },
+  {
+    "args": [
+      {
+        "message_id": "synthetic-uuid-0001",
+        "payload": {"text":"Build a four slide deck about synthetic ocean currents"},
+        "type": "chat_message"
+      },
+      "Build a four slide deck about synthetic ocean currents"
+    ],
+    "name": "page.persistence.queueMessage",
+    "step": 7
+  },
+  {"args":[{"message_id":"msg-reply-1","type":"chat_message"}],"name":"hook.onMessage","step":10},
+  {
+    "args": [{"currentTarget":{},"preventDefault":"[fn]","stopPropagation":"[fn]","target":{},"type":"submit"}],
+    "name": "composer.onSubmit",
+    "step": 11
+  },
+  {
+    "args": [
+      {
+        "currentStage": 4,
+        "presentationId": "synthetic-final-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "slideCount": 3
+      }
+    ],
+    "name": "hook.onSessionStateChange",
+    "step": 13
+  },
+  {"args":[{"message_id":"msg-outline-1","type":"slide_update"}],"name":"hook.onMessage","step":13},
+  {
+    "args": [
+      {
+        "currentStage": 6,
+        "presentationId": "synthetic-final-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "slideCount": 3
+      }
+    ],
+    "name": "hook.onSessionStateChange",
+    "step": 14
+  },
+  {"args":[{"message_id":"msg-url-final","type":"presentation_url"}],"name":"hook.onMessage","step":14},
+  {"args":["Shorten the title on slide 3"],"name":"composer.onInputChange","step":20},
+  {"args":[null],"name":"composer.onSubmit","step":21},
+  {
+    "args": [
+      "Shorten the title on slide 3",
+      0,
+      {
+        "deepResearch": false,
+        "extendedGeneration": true,
+        "fileUpload": false,
+        "storeName": null,
+        "useKnowledgeGraph": false,
+        "webSearch": false
+      }
+    ],
+    "name": "page.sendTypedTurn",
+    "step": 21
+  },
+  {
+    "args": [
+      {"message_id":"synthetic-uuid-0002","payload":{"text":"Shorten the title on slide 3"},"type":"chat_message"},
+      "Shorten the title on slide 3"
+    ],
+    "name": "page.persistence.queueMessage",
+    "step": 21
+  },
+  {"args":[{"message_id":"msg-reply-2","type":"chat_message"}],"name":"hook.onMessage","step":24},
+  {"args":["A draft that Shift+Enter must not send"],"name":"composer.onInputChange","step":25},
+  {"args":[],"name":"composer.onClearTemplate","step":28},
+  {"args":[null],"name":"composer.onActiveBuildThemeProfileChange","step":29},
+  {"args":[{"mode":"auto"}],"name":"composer.onBuildThemeChange","step":29}
+]

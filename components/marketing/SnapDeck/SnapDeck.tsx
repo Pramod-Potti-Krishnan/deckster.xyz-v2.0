@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
+import { HEADER_OFFSET_PX } from "./constants"
 import { isTypingTarget, snapToAdjacent, snapToEdge } from "./use-snap-navigation"
 
 /**
@@ -12,15 +13,18 @@ import { isTypingTarget, snapToAdjacent, snapToEdge } from "./use-snap-navigatio
  *   their normal scroll feel.
  * - Per-section snap alignment is declared via `data-snap="slide"` + the
  *   matching rule in globals.css.
- * - Arrow keys / PageUp / PageDown / Home / End jump exactly one slide,
+ * - Arrow keys / PageUp / PageDown / Space / Home / End jump one snap target,
  *   ignoring focus inside form fields so typing isn't hijacked.
  *
  * Drop this once at the top of any page composed of `<section data-snap="slide">`
  * sections. Pair with <SlideNavArrows /> for on-screen up/down buttons.
  */
-export function SnapDeck() {
+export function SnapDeck({ headerOffsetPx = HEADER_OFFSET_PX }: { headerOffsetPx?: number }) {
   useEffect(() => {
     const html = document.documentElement
+    const previousOffset = html.style.getPropertyValue("--snap-deck-header-offset")
+    const previousPriority = html.style.getPropertyPriority("--snap-deck-header-offset")
+    html.style.setProperty("--snap-deck-header-offset", `${headerOffsetPx}px`)
     html.classList.add("snap-deck")
 
     const onKey = (e: KeyboardEvent) => {
@@ -30,6 +34,11 @@ export function SnapDeck() {
       switch (e.key) {
         case "ArrowDown":
         case "PageDown":
+          e.preventDefault()
+          snapToAdjacent(1)
+          return
+        case " ":
+          if (e.target instanceof HTMLElement && e.target.closest("button,a,[role='button']")) return
           e.preventDefault()
           snapToAdjacent(1)
           return
@@ -51,12 +60,25 @@ export function SnapDeck() {
       }
     }
 
+    const onNextClick = (e: MouseEvent) => {
+      if (!(e.target instanceof Element) || !e.target.closest("[data-next]")) return
+      e.preventDefault()
+      snapToAdjacent(1)
+    }
+
     window.addEventListener("keydown", onKey, { passive: false })
+    document.addEventListener("click", onNextClick)
 
     return () => {
       window.removeEventListener("keydown", onKey)
+      document.removeEventListener("click", onNextClick)
       html.classList.remove("snap-deck")
+      if (previousOffset) {
+        html.style.setProperty("--snap-deck-header-offset", previousOffset, previousPriority)
+      } else {
+        html.style.removeProperty("--snap-deck-header-offset")
+      }
     }
-  }, [])
+  }, [headerOffsetPx])
   return null
 }

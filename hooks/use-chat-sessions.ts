@@ -1,4 +1,6 @@
 import { useState, useCallback } from 'react';
+import { sessionLoadKindForStatus, type SessionLoadOutcome } from '@/lib/studio-session-hygiene';
+import { STUDIO_BLANK_START_NEW_SESSION_ENABLED, browserBlankStartStorage, forgetBlankStartEverywhere } from '@/lib/studio-blank-start-new-session';
 
 export interface ChatSession {
   id: string;
@@ -155,6 +157,33 @@ export function useChatSessions() {
   }, []);
 
   /**
+   * Load one session and say WHY when there is none (NEXT_PUBLIC_STUDIO_SESSION_HYGIENE only).
+   * loadSession above collapses every failure to null, which the Builder reads as "adopt this id and create a row".
+   * This one never throws and never writes: 404/403 -> not_found/forbidden, 410 or a deleted row -> gone, else error.
+   */
+  const loadSessionResult = useCallback(async (sessionId: string): Promise<SessionLoadOutcome<ChatSession>> => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}`);
+      if (!response.ok) {
+        const kind = sessionLoadKindForStatus(response.status);
+        return kind === 'error' ? { kind, status: response.status } : { kind };
+      }
+      const data = await response.json();
+      if (data?.session?.status === 'deleted') return { kind: 'gone' };
+      if (!data?.session) return { kind: 'error', status: response.status };
+      return { kind: 'found', session: data.session as ChatSession };
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Unknown error'));
+      return { kind: 'error' };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  /**
    * Create a new session
    */
   const createSession = useCallback(async (
@@ -293,6 +322,9 @@ export function useChatSessions() {
         throw new Error(`Failed to delete session: ${response.statusText}`);
       }
 
+      // NEXT_PUBLIC_STUDIO_BLANK_START_NEW_SESSION: a deleted session's blank-canvas memory goes with it.
+      if (STUDIO_BLANK_START_NEW_SESSION_ENABLED) forgetBlankStartEverywhere(browserBlankStartStorage(), sessionId);
+
       return true;
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Unknown error');
@@ -359,6 +391,7 @@ export function useChatSessions() {
     error,
     loadSessions,
     loadSession,
+    loadSessionResult,
     createSession,
     updateSession,
     deleteSession,

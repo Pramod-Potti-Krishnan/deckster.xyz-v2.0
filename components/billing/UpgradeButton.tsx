@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Loader2 } from 'lucide-react'
+import { PAYMENTS_OPEN_SOON_LINE, STUDIO_PAYMENTS_OPEN_SOON_ENABLED } from '@/lib/studio-payments-open-soon'
 
 interface UpgradeButtonProps {
   priceId: string
@@ -42,6 +43,15 @@ export function UpgradeButton({
       alert('Failed to start checkout. Please try again.')
       setIsLoading(false)
     }
+  }
+
+  // NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON (default off): no checkout can start; the button is disabled and says so. Off: the button below, as before.
+  if (STUDIO_PAYMENTS_OPEN_SOON_ENABLED) {
+    return (
+      <Button disabled aria-disabled="true" title={PAYMENTS_OPEN_SOON_LINE} className={className}>
+        {PAYMENTS_OPEN_SOON_LINE}
+      </Button>
+    )
   }
 
   return (

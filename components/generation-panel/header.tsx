@@ -2,6 +2,10 @@
 
 import { X, Type, TrendingUp, Table, BarChart3, ImageIcon, Tag, Pentagon, LayoutGrid, GitBranch } from 'lucide-react'
 import { TextLabsComponentType, COMPONENT_TYPE_INFO } from '@/types/textlabs'
+import { elementPanelEyebrow } from '@/lib/studio-panel-eyebrow'
+import { StudioPanelEyebrow } from '@/components/studio-panel-eyebrow'
+
+const STUDIO_GENERATION_HEADER = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
 
 const COMPONENT_ICONS: Record<TextLabsComponentType, React.ComponentType<{ className?: string }>> = {
   TEXT_BOX: Type,
@@ -25,9 +29,14 @@ interface GenerationPanelHeaderProps {
 export function GenerationPanelHeader({ elementType, onClose, mode }: GenerationPanelHeaderProps) {
   const Icon = COMPONENT_ICONS[elementType] || Type
   const info = COMPONENT_TYPE_INFO[elementType] || { label: elementType, description: '' }
+  const description = STUDIO_GENERATION_HEADER && elementType === 'IMAGE'
+    ? 'AI-generated images in 8 styles'
+    : STUDIO_GENERATION_HEADER && elementType === 'SHAPE'
+      ? 'SVG shapes with 25 choices, including custom'
+      : info.description
 
-  return (
-    <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
+  const header = (
+    <div data-studio-v4-panel-header className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
       <div className="flex items-center gap-2.5">
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
           <Icon className="h-3.5 w-3.5 text-primary" />
@@ -35,7 +44,7 @@ export function GenerationPanelHeader({ elementType, onClose, mode }: Generation
         <div>
           <h3 className="text-xs font-semibold text-gray-900 dark:text-slate-100">{info.label}</h3>
           <p className="text-[10px] text-gray-500 dark:text-slate-400">
-            {mode === 'edit' ? 'Edit element settings' : mode === 'refine' ? 'Refine selected element' : info.description}
+            {mode === 'edit' ? 'Edit element settings' : mode === 'refine' ? 'Refine selected element' : description}
           </p>
         </div>
       </div>
@@ -44,10 +53,15 @@ export function GenerationPanelHeader({ elementType, onClose, mode }: Generation
           onClick={onClose}
           className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-slate-800 dark:bg-slate-700 transition-colors"
           title="Close panel"
+          aria-label={STUDIO_GENERATION_HEADER ? 'Close element panel' : undefined}
         >
           <X className="h-4 w-4 text-gray-500 dark:text-slate-400" />
         </button>
       </div>
     </div>
   )
+  // PASS2B G33 (NEXT_PUBLIC_STUDIO_PANEL_EYEBROW, default off, Studio shell only): the violet band over the header ("CREATE ELEMENT", "Selected Chart").
+  return STUDIO_GENERATION_HEADER && process.env.NEXT_PUBLIC_STUDIO_PANEL_EYEBROW === 'true'
+    ? <><StudioPanelEyebrow {...elementPanelEyebrow({ mode, label: info.label })} />{header}</>
+    : header
 }

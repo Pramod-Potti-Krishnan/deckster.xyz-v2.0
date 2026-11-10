@@ -1,0 +1,50 @@
+{
+  "calls": [
+    {"args":[{"type":"sync_response"}],"at":2000,"name":"page.onMessage","step":3},
+    {
+      "args": [{"request_id":"restore:sess-built:req-9","status":"restored","type":"theme_sync"}],
+      "at": 2000,
+      "name": "page.onMessage",
+      "step": 3
+    },
+    {"args":[{"type":"chat_message"}],"at":2000,"name":"page.onMessage","step":3},
+    {"args":[{"type":"chat_message"}],"at":2000,"name":"page.onMessage","step":3},
+    {"args":[{"type":"slide_update"}],"at":2000,"name":"page.onMessage","step":3}
+  ],
+  "checkpoints": [
+    {
+      "activeBuildThemeProfile": null,
+      "buildThemeSelection": {
+        "color_overrides": {"accent":"#FFAA00"},
+        "font_family": "Inter",
+        "font_family_heading": "Playfair Display",
+        "mode": "custom",
+        "primary_hex": "#0A7D4F",
+        "secondary_hex": "#C2410C"
+      },
+      "connection": {"connected":true,"generation":1,"sockets":1},
+      "deck": {"effectivePresentationId":"deck-built","presentationId":"deck-built"},
+      "gate": {"phase":"restored","sessionId":"sess-built","syncSeen":true},
+      "label": "built deck resumed",
+      "messages": [
+        "db-director-1 | chat_message",
+        "msg_hist_2420c71976e9 | chat_message",
+        "msg_hist_b027ecd2ef7e | chat_message",
+        "msg_55a025be | slide_update"
+      ],
+      "setThemeSent": [],
+      "themeSelectionChangedLocally": false,
+      "themeSync": {
+        "error": null,
+        "presentationId": "deck-built",
+        "requestId": "restore:sess-built:req-9",
+        "status": "applied",
+        "themeFingerprint": "{\"mode\":\"custom\",\"primary_hex\":\"#0A7D4F\",\"color_overrides\":{\"accent\":\"#FFAA00\"},\"secondary_hex\":\"#C2410C\",\"font_family\":\"Inter\",\"font_family_heading\":\"Playfair Display\"}"
+      },
+      "toasts": 0,
+      "virtualMs": 28000
+    }
+  ],
+  "diagnostics": {"blockedNetwork":[],"console":[],"uncaught":[]},
+  "notes": ["step 4: themeAck skipped, no unanswered set_theme"]
+}

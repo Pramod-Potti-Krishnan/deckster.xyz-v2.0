@@ -1,0 +1,209 @@
+{
+ "name": "restore-null",
+ "description": "A topic-less session with no theme ever chosen reconnects: sync_response, restored theme null, the greeting replay. Flag on: Auto is shown and nothing is sent; then a user pick (Minimal) sends exactly one set_theme. Base / flag off: a socket-ready {mode:auto}, then the pick.",
+ "source": "Director 50772ff connect handler via THEME-2 support module (generator in the evidence folder), sha256 17410d071e9c1b29da3fdb7c9363a672be636825765a5ebf3358d68740c06c84 (topicless_null_on)",
+ "session": {
+  "id": "sess-topicless",
+  "userId": "synthetic-user-01"
+ },
+ "ackTemplate": [
+  {
+   "type": "theme_sync",
+   "session_id": "sess-themed-cl",
+   "timestamp": "2026-10-13T23:09:31.689734Z",
+   "payload": {
+    "request_id": "__REQ__",
+    "status": "syncing",
+    "presentation_id": "deck-themed-cl",
+    "theme": {
+     "mode": "auto"
+    }
+   }
+  },
+  {
+   "type": "theme_sync",
+   "session_id": "sess-themed-cl",
+   "timestamp": "2026-10-13T23:09:31.689741Z",
+   "payload": {
+    "request_id": "__REQ__",
+    "status": "applied",
+    "presentation_id": "deck-themed-cl",
+    "theme": {
+     "mode": "auto"
+    },
+    "theme_session_id": "ts-ack"
+   }
+  }
+ ],
+ "steps": [
+  {
+   "op": "restore",
+   "session": {
+    "id": "sess-topicless",
+    "status": "active",
+    "title": "Synthetic session",
+    "geminiStoreName": null,
+    "blankPresentationUrl": "https://layout.example.com/p/blank-topicless",
+    "blankPresentationId": "blank-topicless",
+    "strawmanPreviewUrl": null,
+    "strawmanPresentationId": null,
+    "finalPresentationUrl": null,
+    "finalPresentationId": null,
+    "slideCount": null,
+    "currentStage": 1,
+    "stateCache": {
+     "activeVersion": "blank",
+     "slideStructure": null
+    },
+    "messages": [
+     {
+      "id": "db-director-0",
+      "messageType": "chat_message",
+      "timestamp": "2026-10-13T09:00:00.000Z",
+      "payload": {
+       "text": "Hello! I'm your presentation assistant. I can help you create professional presentations. What topic would you like to present on?",
+       "sub_title": null,
+       "list_items": null
+      }
+     }
+    ]
+   }
+  },
+  {
+   "op": "ensureConnected"
+  },
+  {
+   "op": "open"
+  },
+  {
+   "op": "frames",
+   "frames": [
+    {
+     "message_id": "msg_sync_9e51fe33",
+     "session_id": "sess-topicless",
+     "timestamp": "2026-10-13T23:09:31.679007Z",
+     "type": "sync_response",
+     "role": "assistant",
+     "payload": {
+      "action": "send_history",
+      "message_count": 1,
+      "current_state": "BLANK_PRESENTATION",
+      "has_strawman": false,
+      "presentation_url": "https://layout.example.com/p/blank-topicless",
+      "presentation_id": "blank-topicless",
+      "slide_count": null
+     }
+    },
+    {
+     "type": "theme_sync",
+     "session_id": "sess-topicless",
+     "timestamp": "2026-10-13T23:09:31.680447Z",
+     "payload": {
+      "request_id": "restore:sess-topicless:none",
+      "status": "restored",
+      "presentation_id": "blank-topicless",
+      "theme": null,
+      "applied": false,
+      "desired_status": null
+     }
+    },
+    {
+     "message_id": "msg_hist_d59b57373ca0",
+     "session_id": "sess-topicless",
+     "timestamp": "2026-10-13T09:00:00Z",
+     "type": "chat_message",
+     "role": "assistant",
+     "payload": {
+      "text": "Hello! I'm your presentation assistant. I can help you create professional presentations. What topic would you like to present on?",
+      "sub_title": null,
+      "list_items": null,
+      "format": "markdown",
+      "ephemeral": false
+     }
+    }
+   ]
+  },
+  {
+   "op": "themeAck"
+  },
+  {
+   "op": "advance",
+   "ms": 25000
+  },
+  {
+   "op": "checkpoint",
+   "label": "restored null"
+  },
+  {
+   "op": "expect",
+   "on": {
+    "setTheme": 0,
+    "selection": {
+     "mode": "auto"
+    },
+    "themeSyncStatus": "idle",
+    "gatePhase": "restored"
+   },
+   "off": {
+    "setTheme": 1,
+    "lastSetTheme": {
+     "mode": "auto"
+    }
+   }
+  },
+  {
+   "op": "themePick",
+   "theme": {
+    "mode": "preset",
+    "preset_id": "minimal"
+   }
+  },
+  {
+   "op": "expect",
+   "on": {
+    "setTheme": 1,
+    "lastSetTheme": {
+     "mode": "preset",
+     "preset_id": "minimal"
+    }
+   },
+   "off": {
+    "setTheme": 2,
+    "lastSetTheme": {
+     "mode": "preset",
+     "preset_id": "minimal"
+    }
+   }
+  },
+  {
+   "op": "themeAck"
+  },
+  {
+   "op": "checkpoint",
+   "label": "user picked Minimal"
+  },
+  {
+   "op": "expect",
+   "on": {
+    "setTheme": 1,
+    "selection": {
+     "mode": "preset",
+     "preset_id": "minimal"
+    },
+    "themeSyncStatus": "applied",
+    "locallyChanged": false
+   },
+   "off": {
+    "setTheme": 2,
+    "selection": {
+     "mode": "preset",
+     "preset_id": "minimal"
+    },
+    "themeSyncStatus": "applied"
+   }
+  }
+ ],
+ "env": {
+  "NEXT_PUBLIC_LAYOUT_SERVICE_URL": "https://layout.example.com"
+ }
+}

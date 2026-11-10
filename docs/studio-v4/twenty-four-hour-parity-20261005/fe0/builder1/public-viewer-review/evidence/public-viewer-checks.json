@@ -1,0 +1,174 @@
+{
+  "scope": "Complete actual server page, client viewer, QA/passcode/resolver sources; deterministic synthetic lifecycle/database/cookie/fetch adapters. No browser/router/service acceptance.",
+  "narrationLifetimeGateIncluded": true,
+  "testScriptSha256": "4298a4b1239164850f614e6dff6b3f8d8163465d4dc2c10685aeaf8488c43d73",
+  "checks": [
+    {
+      "name": "actual public narration owner rejects deferred old JSON across Layout absence and slug change",
+      "pass": true,
+      "sourceSha256": "bc19a185a18c090a62325605fa037bbf35cf5823d47b6f9254ab03ceff00efb6",
+      "staleOffered": false,
+      "sequence": [
+        "old slug configured: response headers received; JSON deferred",
+        "new slug missing Layout: effect cancelled; no iframe",
+        "old JSON resolves",
+        "new slug configured: old narration offered before new response"
+      ],
+      "realOutbound": 0,
+      "syntheticInputsOnly": true
+    },
+    {
+      "name": "actual narration owner gates old offer and active presenter before passive effects on slug/base/snapshot changes",
+      "pass": true,
+      "sourceSha256": "bc19a185a18c090a62325605fa037bbf35cf5823d47b6f9254ab03ceff00efb6",
+      "cases": [
+        {
+          "field": "slug",
+          "staleOfferedBeforeEffects": false,
+          "stalePresenterBeforeEffects": false,
+          "staleCitationApplied": false
+        },
+        {
+          "field": "layoutBaseUrl",
+          "staleOfferedBeforeEffects": false,
+          "stalePresenterBeforeEffects": false,
+          "staleCitationApplied": false
+        },
+        {
+          "field": "snapshotPresentationId",
+          "staleOfferedBeforeEffects": false,
+          "stalePresenterBeforeEffects": false,
+          "staleCitationApplied": false
+        }
+      ],
+      "realOutbound": 0,
+      "renderPhase": "Actual component invocation with changed props before owner-change passive effects flush",
+      "syntheticInputsOnly": true
+    },
+    {
+      "name": "actual cancelled narration after headers or JSON cannot write unmounted client state",
+      "pass": true,
+      "cancelledHeaderAndJsonCases": 2,
+      "noPostUnmountWrites": true,
+      "listenersRemoved": true
+    },
+    {
+      "name": "actual server page catches only sanitized public Layout configuration errors after access gates",
+      "pass": true,
+      "configurationCases": 12,
+      "noServerAliasSubstitution": true,
+      "sanitizedOnlyCatch": true,
+      "faqAndViewCounterPreserved": true,
+      "serverOutbound": 0
+    },
+    {
+      "name": "actual missing/revoked/restricted page ordering avoids resolver, FAQ and view work until authorized",
+      "pass": true,
+      "missingRevokedNotFound": true,
+      "actualHmacVerification": true,
+      "lockedGateBeforeResolution": true,
+      "authorizedCookieAllowsConfigNotice": true,
+      "noPermissionBypass": true
+    },
+    {
+      "name": "actual missing Layout mounts safe client alert, FAQ and gated download links in both shells",
+      "pass": true,
+      "shells": 2,
+      "noIframeOrRelativeFrame": true,
+      "noNarrationRequest": true,
+      "visibleSanitizedAlert": true,
+      "faqAskDownloadPreserved": true,
+      "noMountCrashOrLoop": true
+    },
+    {
+      "name": "actual configured public resolver preserves prefix iframe, metadata and independent download flags",
+      "pass": true,
+      "exactPublicNotServerBase": true,
+      "terminalSlashesNormalized": true,
+      "prefixIframePreserved": true,
+      "publicMetadataIndexing": true,
+      "downloadPerFormatFlags": 3
+    },
+    {
+      "name": "actual approved FAQ citation projection, panel reading and slide navigation survive config state",
+      "pass": true,
+      "configuredAndMissing": true,
+      "actualServerCitationProjection": true,
+      "actualFaqExpansion": true,
+      "slideHashZeroBased": true,
+      "publicWebCitationKept": true,
+      "privateCitationNamesExcluded": true,
+      "faqRemainsWhenAskDisabled": true
+    },
+    {
+      "name": "actual independent Ask keeps local gate route and inline FAQ answer without Layout",
+      "pass": true,
+      "shells": 2,
+      "configuredAndMissing": true,
+      "actualAskKeyboardAction": true,
+      "localAuthorizedRoutePreserved": true,
+      "inlineAnswerKept": true,
+      "noBackendOutbound": true
+    },
+    {
+      "name": "actual configured narration stays optional, launches existing presenter and exits fullscreen",
+      "pass": true,
+      "userInitiatedPresenter": true,
+      "manifestAndSlugKept": true,
+      "citedSlideAdvances": true,
+      "fullscreenExit": true,
+      "optional404SilentNetworkNonblocking": true,
+      "audioPlaybackNotExercised": true
+    }
+  ],
+  "hashes": [
+    {
+      "file": "components/published-viewer.tsx",
+      "sha256": "bc19a185a18c090a62325605fa037bbf35cf5823d47b6f9254ab03ceff00efb6"
+    },
+    {
+      "file": "components/published-presenter.tsx",
+      "sha256": "0ee2e9952cd3f8f18a57a1668eff3bcb6030a512357dc2b842b133b35ffc932c"
+    },
+    {
+      "file": "components/presenter-question.tsx",
+      "sha256": "820d50370724c954fbbb3d309319a575ddd5a4c76ee56f14e2656039f4fbab2f"
+    },
+    {
+      "file": "components/published-qa-panel.tsx",
+      "sha256": "6cf4f4941c80c71ecd59f44efe7364f421d064e922cedf00da8bc5dba73f4a60"
+    },
+    {
+      "file": "lib/publish/qa-threads.ts",
+      "sha256": "29ef016c1e08ef882672356ed02f310c8c7e0cc5d51356dc3e35b35902df4eea"
+    },
+    {
+      "file": "app/p/[slug]/page.tsx",
+      "sha256": "87f28ec08e70303c5388486413d63082adafcf9872827536a4db1f0db37e5286"
+    },
+    {
+      "file": "lib/publish/passcode.ts",
+      "sha256": "099d7b5a2ab2ba09fd6035992ae2239a9ad7fff264fb268603b7f2df8869c185"
+    },
+    {
+      "file": "components/publish-passcode-gate.tsx",
+      "sha256": "f4ae09b738de8deb1a0de3daea31faad09e8902122588e19f42b995e553c5f07"
+    },
+    {
+      "file": "lib/publish/qa-serialize.ts",
+      "sha256": "6da7310588c9794103f7542c65f82fcbd3937a17a151a0f3fce78d3deba4e313"
+    },
+    {
+      "file": "lib/publish/qa-citations.ts",
+      "sha256": "9dbdce7558155c3419438d603a4dcf73eaa290a89f409a4d804b2ea9d40da32d"
+    },
+    {
+      "file": "lib/publish/service-urls.ts",
+      "sha256": "b08f46524b326128b45635d2efdf7b4ddf31ae9c20f475c74cc868d29c9b4c89"
+    },
+    {
+      "file": "lib/service-url.ts",
+      "sha256": "f4dafa63ed85979926051bb561f885fc89cdd586752e2b0dc58fc679dc3c700e"
+    }
+  ]
+}

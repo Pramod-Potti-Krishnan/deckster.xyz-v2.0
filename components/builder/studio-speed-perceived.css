@@ -1,0 +1,11 @@
+/* FRONTEND-2, NEXT_PUBLIC_STUDIO_SPEED_PERCEIVED (default off): the "Sending…" echo (components/builder/studio-speed-echo.tsx). Every rule is keyed to
+   [data-studio-speed-echo], which only the echo carries and only the flag draws, so with the flag off no rule here can match anything. */
+[data-studio-speed-echo="pending"] { opacity: 0.72; }
+/* The page draws the echo just after the transcript's empty end anchor, which already carries the list's 1rem gap: no second gap, so it sits exactly where the real bubble lands. */
+[data-studio-speed-echo] { margin-top: 0 !important; }
+[data-studio-speed-echo] [data-studio-speed-echo-part="status"] { margin-top: 2px; font-size: 11px; line-height: 1.4; color: #6b7280; }
+.dark [data-studio-speed-echo] [data-studio-speed-echo-part="status"] { color: #94a3b8; }
+[data-studio-speed-echo="failed"] [data-studio-speed-echo-part="status"] { color: #b91c1c; }
+.dark [data-studio-speed-echo="failed"] [data-studio-speed-echo-part="status"] { color: #f87171; }
+/* While a message is pending, the empty-chat welcome steps aside exactly as it will once the page commits the message (MessageList stops drawing it then). */
+[data-radix-scroll-area-viewport]:has([data-studio-speed-echo="pending"]) :is([data-studio-director-welcome], [data-studio-first-run-starters]) { display: none; }

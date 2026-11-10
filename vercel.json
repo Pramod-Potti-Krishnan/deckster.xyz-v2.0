@@ -5,6 +5,9 @@
   "installCommand": "pnpm install",
   "regions": ["iad1"],
   "functions": {
+    "app/api/knowledge-graph/backfill/route.ts": {
+      "maxDuration": 300
+    },
     "app/api/**/route.ts": {
       "maxDuration": 30
     }
@@ -39,6 +42,31 @@
           "value": "X-Requested-With, Content-Type, Authorization"
         }
       ]
+    },
+    {
+      "source": "/marketing/v3/slides/:path*",
+      "headers": [
+        {
+          "key":
+            "Cache-Control",
+          "value": "public, max-age=86400, stale-while-revalidate=604800"
+        }
+      ]
+    },
+    {
+      "source": "/marketing/v3-uat/slides/:path*",
+      "headers": [
+        {
+          "key":
+            "Cache-Control",
+          "value": "public, max-age=86400, stale-while-revalidate=604800"
+        }
+      ]
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "studio-v4-dev": false
+    }
+  }
 }

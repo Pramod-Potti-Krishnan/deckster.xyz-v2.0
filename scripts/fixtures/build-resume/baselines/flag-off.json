@@ -1,0 +1,195 @@
+{
+ "recorded_from": "origin/studio-v4-dev-preparation-code @ 282efbd",
+ "note": "Flag-off replay of scripts/fixtures/build-resume/j7-stop-resume.json on the base tree (run with --record-baseline --root <base>).",
+ "fixture_sha256": "f76c46c3531aaa4dbc17a6e7741f3b3eac2181dffe1ea94db4f6b961f7ba8a96",
+ "runs": {
+  "resume-without-reload|off|off": {
+   "checkpoints": "0ae6bab9e432589271d5ecb61a126feb23ef7b1e0573dc93607a5b4002ed3ba2",
+   "outbound": "70632da16348a8ed3357393e43cfea09a9f58bb0cf29c6298ba5f60f9fd59e30",
+   "calls": "7524d61dc7134d298deb5c26ddc0869eba24c9fa39c2f62861600b629383d614",
+   "checkpoints_view": [
+    {
+     "label": "after stop + URL + 2 s",
+     "phase": "complete",
+     "active": false,
+     "ribbon": false,
+     "buttons": [],
+     "locked": true
+    },
+    {
+     "label": "after typed resume + 2 s",
+     "phase": "complete",
+     "active": false,
+     "ribbon": false,
+     "buttons": [],
+     "locked": true
+    }
+   ]
+  },
+  "resume-without-reload|off|on": {
+   "checkpoints": "0ae6bab9e432589271d5ecb61a126feb23ef7b1e0573dc93607a5b4002ed3ba2",
+   "outbound": "70632da16348a8ed3357393e43cfea09a9f58bb0cf29c6298ba5f60f9fd59e30",
+   "calls": "44f182777a7778b6c060ae14f040a4a1b9d9bfbdde208fe13ad49656fb98f944",
+   "checkpoints_view": [
+    {
+     "label": "after stop + URL + 2 s",
+     "phase": "complete",
+     "active": false,
+     "ribbon": false,
+     "buttons": [],
+     "locked": true
+    },
+    {
+     "label": "after typed resume + 2 s",
+     "phase": "complete",
+     "active": false,
+     "ribbon": false,
+     "buttons": [],
+     "locked": true
+    }
+   ]
+  },
+  "same-tab-reload|off|off": {
+   "checkpoints": "fdc1d82b45a5e4eb249057ed536b16f272ec0ea4a4e7be7c01b87ed11056aed2",
+   "outbound": "e6741d93c89057c8c7a26f41260db0b6fab36df4de8be49e388d7183557536bb",
+   "calls": "36d59a5fdcd391002bebb08be94afc9544bbcf07ee167956f94ce5183c2b11b4",
+   "checkpoints_view": [
+    {
+     "label": "after stop + URL + 2 s",
+     "phase": "complete",
+     "active": false,
+     "ribbon": false,
+     "buttons": [],
+     "locked": true
+    },
+    {
+     "label": "after reload + 2 s",
+     "phase": "stopped",
+     "active": true,
+     "ribbon": true,
+     "buttons": [
+      "Resume"
+     ],
+     "locked": true
+    },
+    {
+     "label": "after typed resume + 2 s",
+     "phase": "stopped",
+     "active": true,
+     "ribbon": true,
+     "buttons": [
+      "Resume"
+     ],
+     "locked": true
+    }
+   ]
+  },
+  "same-tab-reload|off|on": {
+   "checkpoints": "cb1301e80f57d3e62f56c820f2db5d97936c18cd4fa74df277b4ab62576c2354",
+   "outbound": "e6741d93c89057c8c7a26f41260db0b6fab36df4de8be49e388d7183557536bb",
+   "calls": "2da52388869dadad976bf36fece4a96028c8e33beb11edbe0e25bdeae496ba00",
+   "checkpoints_view": [
+    {
+     "label": "after stop + URL + 2 s",
+     "phase": "complete",
+     "active": false,
+     "ribbon": false,
+     "buttons": [],
+     "locked": true
+    },
+    {
+     "label": "after reload + 2 s",
+     "phase": "stopped",
+     "active": true,
+     "ribbon": true,
+     "buttons": [
+      "Resume"
+     ],
+     "locked": true
+    },
+    {
+     "label": "after typed resume + 2 s",
+     "phase": "building",
+     "active": true,
+     "ribbon": true,
+     "buttons": [
+      "Pause",
+      "Stop"
+     ],
+     "locked": true
+    }
+   ]
+  },
+  "fresh-tab-reload|off|off": {
+   "checkpoints": "a8acf0873e7af906f2de670c16b2887fc3dfd1cd7879a3a301c723d470da5d95",
+   "outbound": "5bba17dd09d5e17229c3dd9daa4a05ce3946a66a22d64f6dbe3b214925677ec6",
+   "calls": "0655ffb63ce80cefcb84b0b5096b0183c0f00f33bf20a957eb7207c8de94a7c2",
+   "checkpoints_view": [
+    {
+     "label": "after stop + URL + 2 s",
+     "phase": "complete",
+     "active": false,
+     "ribbon": false,
+     "buttons": [],
+     "locked": true
+    },
+    {
+     "label": "after reload + 2 s",
+     "phase": "stopped",
+     "active": true,
+     "ribbon": true,
+     "buttons": [
+      "Resume"
+     ],
+     "locked": true
+    },
+    {
+     "label": "after typed resume + 2 s",
+     "phase": "stopped",
+     "active": true,
+     "ribbon": true,
+     "buttons": [
+      "Resume"
+     ],
+     "locked": true
+    }
+   ]
+  },
+  "fresh-tab-reload|off|on": {
+   "checkpoints": "68e0f12df17a63dbe140f6b6e7f5a4b149cc8a18b919c97221b3b80498cd9324",
+   "outbound": "5bba17dd09d5e17229c3dd9daa4a05ce3946a66a22d64f6dbe3b214925677ec6",
+   "calls": "5ae281a70e7e9743f11c35e8efb3ee673cbe0387b5e9b92f6155ac1175792476",
+   "checkpoints_view": [
+    {
+     "label": "after stop + URL + 2 s",
+     "phase": "complete",
+     "active": false,
+     "ribbon": false,
+     "buttons": [],
+     "locked": true
+    },
+    {
+     "label": "after reload + 2 s",
+     "phase": "stopped",
+     "active": true,
+     "ribbon": true,
+     "buttons": [
+      "Resume"
+     ],
+     "locked": true
+    },
+    {
+     "label": "after typed resume + 2 s",
+     "phase": "building",
+     "active": true,
+     "ribbon": true,
+     "buttons": [
+      "Pause",
+      "Stop"
+     ],
+     "locked": true
+    }
+   ]
+  }
+ }
+}

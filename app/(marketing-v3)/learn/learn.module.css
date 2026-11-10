@@ -1,0 +1,9 @@
+:global(.mv3) :global(.steps).fiveSteps {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+@media (max-width: 900px) {
+  :global(.mv3) :global(.steps).fiveSteps {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

@@ -1,0 +1,137 @@
+[
+  {
+    "args": [
+      {
+        "currentStage": 0,
+        "presentationId": "synthetic-blank-03",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-03",
+        "slideCount": 1
+      }
+    ],
+    "name": "hook.onSessionStateChange",
+    "step": 2
+  },
+  {"args":[{"message_id":"msg-init-blank","type":"presentation_init"}],"name":"hook.onMessage","step":2},
+  {"args":[{"message_id":"msg-greeting","type":"chat_message"}],"name":"hook.onMessage","step":3},
+  {
+    "args": [
+      "Build a short deck about ocean currents",
+      0,
+      {
+        "deepResearch": false,
+        "extendedGeneration": true,
+        "fileUpload": false,
+        "storeName": null,
+        "useKnowledgeGraph": false,
+        "webSearch": false
+      }
+    ],
+    "name": "page.sendTypedTurn",
+    "step": 4
+  },
+  {
+    "args": [
+      {
+        "message_id": "synthetic-uuid-0001",
+        "payload": {"text":"Build a short deck about ocean currents"},
+        "type": "chat_message"
+      },
+      "Build a short deck about ocean currents"
+    ],
+    "name": "page.persistence.queueMessage",
+    "step": 4
+  },
+  {"args":[{"message_id":"msg-plan","type":"chat_message"}],"name":"hook.onMessage","step":5},
+  {
+    "args": [{"message_id":"msg_plan_confirm_synthetic-session-reconnect","type":"action_request"}],
+    "name": "hook.onMessage",
+    "step": 6
+  },
+  {
+    "args": [
+      {"label":"Yes, let's build it!","primary":true,"requires_input":false,"value":"accept_plan"},
+      "msg_plan_confirm_synthetic-session-reconnect",
+      "msg_plan_confirm_synthetic-session-reconnect"
+    ],
+    "name": "ml.onActionClick",
+    "step": 7
+  },
+  {
+    "args": [
+      {
+        "message_id": "synthetic-uuid-0002",
+        "payload": {"action_label":"Yes, let's build it!","action_value":"accept_plan","text":"Yes, let's build it!"},
+        "session_id": "synthetic-session-reconnect",
+        "timestamp": "2026-10-05T12:00:04.000Z",
+        "type": "chat_message"
+      },
+      "Yes, let's build it!"
+    ],
+    "name": "page.persistence.queueMessage",
+    "step": 7
+  },
+  {"args":[{"message_id":"msg-status-1","type":"status_update"}],"name":"hook.onMessage","step":8},
+  {"args":[{"message_id":"msg-think-1","type":"chat_message"}],"name":"hook.onMessage","step":9},
+  {"args":[{"message_id":"msg-think-2","type":"chat_message"}],"name":"hook.onMessage","step":10},
+  {"args":[{"message_id":"msg-sync-1","type":"sync_response"}],"name":"hook.onMessage","step":19},
+  {"args":[{"message_id":"msg-think-2","type":"chat_message"}],"name":"hook.onMessage","step":20},
+  {
+    "args": [{"message_id":"msg_plan_confirm_synthetic-session-reconnect","type":"action_request"}],
+    "name": "hook.onMessage",
+    "step": 21
+  },
+  {"args":[{"message_id":"msg-think-3","type":"chat_message"}],"name":"hook.onMessage","step":22},
+  {"args":[{"message_id":"msg-context-1","type":"slide_context"}],"name":"hook.onMessage","step":24},
+  {
+    "args": [
+      {
+        "currentStage": 4,
+        "presentationId": "synthetic-strawman-03",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-strawman-03",
+        "slideCount": 4
+      }
+    ],
+    "name": "hook.onSessionStateChange",
+    "step": 25
+  },
+  {"args":[{"message_id":"msg-outline-1","type":"slide_update"}],"name":"hook.onMessage","step":25},
+  {"args":[],"name":"ml.onEphemeralFadeComplete","step":26},
+  {
+    "args": [
+      {
+        "currentStage": 6,
+        "presentationId": "synthetic-strawman-03",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-strawman-03",
+        "slideCount": 4
+      }
+    ],
+    "name": "hook.onSessionStateChange",
+    "step": 26
+  },
+  {"args":[{"message_id":"msg-url-strawman","type":"presentation_url"}],"name":"hook.onMessage","step":26},
+  {"args":[{"message_id":"msg-approve-outline","type":"action_request"}],"name":"hook.onMessage","step":27},
+  {"args":[{"message_id":"msg-sync-2","type":"sync_response"}],"name":"hook.onMessage","step":35},
+  {
+    "args": [
+      {"label":"Looks perfect!","primary":true,"requires_input":false,"value":"accept_strawman"},
+      "msg-approve-outline",
+      "msg-approve-outline"
+    ],
+    "name": "ml.onActionClick",
+    "step": 37
+  },
+  {
+    "args": [
+      {
+        "message_id": "synthetic-uuid-0003",
+        "payload": {"action_label":"Looks perfect!","action_value":"accept_strawman","text":"Looks perfect!"},
+        "session_id": "synthetic-session-reconnect",
+        "timestamp": "2026-10-05T12:00:22.000Z",
+        "type": "chat_message"
+      },
+      "Looks perfect!"
+    ],
+    "name": "page.persistence.queueMessage",
+    "step": 37
+  }
+]

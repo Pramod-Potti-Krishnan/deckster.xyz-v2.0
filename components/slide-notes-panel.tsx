@@ -1,12 +1,16 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import { getPresentation, updateSlideNarration, SlideNarrationFields } from '@/lib/layout-service-client'
+import { DeckQaInbox } from '@/components/deck-qa-inbox'
+import { SlideScriptPreview } from '@/components/slide-script-preview'
+import { CHAT_ELEMENT_EDIT_ENABLED, NOTES_UPDATED_EVENT } from '@/lib/chat-element-edit-wire' // CHAT-ELEMENT-EDIT (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off): Director wrote a slide's notes from chat
+import './studio-slide-notes.css'
 
 // localStorage keys for panel UI state (shared across sessions)
 const COLLAPSED_STORAGE_KEY = 'deckster.notesPanel.collapsed'
@@ -24,10 +28,10 @@ const MAX_DRAIN_PASSES = 4
 const DRAIN_BACKOFF_MS = 600
 const DRAIN_RETRY_MS = 3000
 
-type NotesTab = 'script' | 'notes' | 'references'
+type NotesTab = 'script' | 'notes' | 'references' | 'qa'
 type SaveState = 'idle' | 'saving' | 'saved' | 'error' | 'syncing'
 
-const NOTES_TABS: NotesTab[] = ['script', 'notes', 'references']
+const NOTES_TABS: NotesTab[] = ['script', 'notes', 'references', 'qa']
 
 // Per-slide editable content. References are edited as one-per-line text
 // and converted to/from the Layout Service's string array on the wire.
@@ -71,6 +75,12 @@ function createSaverState(): SaverState {
 interface SlideNotesPanelProps {
   /** The presentation currently shown in the viewer (writes go here) */
   presentationId: string | null
+  /**
+   * The chat session, used to resolve this deck's PUBLISHED record for the Q&A
+   * inbox. Absent (or unpublished) simply means the Q&A tab has nothing to show
+   * — it never blocks the narration tabs, which are the panel's main job.
+   */
+  sessionId?: string | null
   /** 0-based index of the slide currently on screen */
   currentSlideIndex: number
   /** SlideUpdate payload from the WebSocket — speaker_notes fallback source */
@@ -122,7 +132,9 @@ export function SlideNotesPanel({
   presentationId,
   currentSlideIndex,
   slideStructure,
+  sessionId = null,
 }: SlideNotesPanelProps) {
+  const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   const { toast } = useToast()
 
   // --- UI state (persisted) ---------------------------------------------
@@ -133,6 +145,8 @@ export function SlideNotesPanel({
   const [activeTab, setActiveTab] = useState<NotesTab>(() => {
     if (typeof window === 'undefined') return 'notes'
     const stored = window.localStorage.getItem(TAB_STORAGE_KEY) as NotesTab | null
+    // A stored tab that no longer exists — 'voice' moved to the publish dialog —
+    // falls back rather than leaving the panel on a tab with no content.
     return stored && NOTES_TABS.includes(stored) ? stored : 'notes'
   })
 
@@ -145,6 +159,13 @@ export function SlideNotesPanel({
       return next
     })
   }, [])
+
+  // Questions waiting on the owner. Lives here rather than in the inbox so the
+  // count can badge the tab while the tab is closed — which is the only way a
+  // publisher learns a viewer is waiting without going looking.
+  const [unansweredQuestions, setUnansweredQuestions] = useState(0)
+  // Bumped to force an authoritative re-read after a script is written elsewhere.
+  const [reloadToken, setReloadToken] = useState(0)
 
   const handleTabChange = useCallback((value: string) => {
     const tab = value as NotesTab
@@ -397,7 +418,48 @@ export function SlideNotesPanel({
     return () => {
       cancelled = true
     }
-  }, [presentationId, slideListLength, mergeDeck, getSaver])
+  }, [presentationId, slideListLength, reloadToken, mergeDeck, getSaver])
+
+  // Scripts can be written from somewhere else entirely — the publish dialog's
+  // "Write the script" drafts all of them at once. This panel has no idea that
+  // happened, so without this the author closes the dialog, opens the Script
+  // tab, and sees the empty box they left behind. A window event is the honest
+  // mechanism here: the two components have no shared ancestor holding this
+  // state, and inventing one to carry a refresh signal would be worse.
+  useEffect(() => {
+    const onExternalWrite = () => setReloadToken((token) => token + 1)
+    window.addEventListener('deckster:narration-script-written', onExternalWrite)
+    return () => window.removeEventListener('deckster:narration-script-written', onExternalWrite)
+  }, [])
+  // CHAT-ELEMENT-EDIT: Director wrote a slide's notes (deck_mutation notes_updated, routed by the Director socket hook as a window event). The deck is read again, which fills every field the user
+  // CHAT-ELEMENT-EDIT: has not edited; a notes field the user edited and has no unsaved change in is let go first, so Director's notes show (an unsaved edit of the user's stays). Flag off: no listener.
+  useEffect(() => { // CHAT-ELEMENT-EDIT
+    if (!CHAT_ELEMENT_EDIT_ENABLED) return // CHAT-ELEMENT-EDIT
+    const onNotesUpdated = (event: Event) => { // CHAT-ELEMENT-EDIT
+      const detail = (event as CustomEvent<{ presentationId?: unknown; slideIndex?: unknown }>).detail // CHAT-ELEMENT-EDIT
+      const pid = presentationIdRef.current // CHAT-ELEMENT-EDIT
+      if (!pid || !detail || detail.presentationId !== pid || typeof detail.slideIndex !== 'number') return // CHAT-ELEMENT-EDIT
+      const slideId = slideIdsRef.current[detail.slideIndex] // CHAT-ELEMENT-EDIT
+      if (slideId && !saversRef.current.get(pid)?.pending.get(slideId)?.has('notes')) editedFieldsRef.current.delete(`${slideId}:notes`) // CHAT-ELEMENT-EDIT
+      setReloadToken((token) => token + 1) // CHAT-ELEMENT-EDIT
+    } // CHAT-ELEMENT-EDIT
+    window.addEventListener(NOTES_UPDATED_EVENT, onNotesUpdated) // CHAT-ELEMENT-EDIT
+    return () => window.removeEventListener(NOTES_UPDATED_EVENT, onNotesUpdated) // CHAT-ELEMENT-EDIT
+  }, []) // CHAT-ELEMENT-EDIT
+  // CHAT-PARITY (rows 106 / 108): Director's notes_updated may name a slide's script or references (its `fields`); the socket hook raises 'deckster:chat-notes-fields' with them just before #522's
+  // CHAT-PARITY: event above, so those saved drafts are let go the same way as the notes and #522's reload then shows Director's text. No reload here, no second import: the name and the flag are inlined.
+  useEffect(() => { // CHAT-PARITY
+    if (process.env.NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT !== 'true') return // CHAT-PARITY
+    const onNotesFields = (event: Event) => { // CHAT-PARITY
+      const detail = (event as CustomEvent<{ presentationId?: unknown; slideIndex?: unknown; fields?: unknown }>).detail // CHAT-PARITY
+      const pid = presentationIdRef.current // CHAT-PARITY
+      if (!pid || !detail || detail.presentationId !== pid || typeof detail.slideIndex !== 'number' || !Array.isArray(detail.fields)) return // CHAT-PARITY
+      const slideId = slideIdsRef.current[detail.slideIndex] // CHAT-PARITY
+      if (slideId) for (const field of ['script', 'references'] as const) if (detail.fields.includes(field) && !saversRef.current.get(pid)?.pending.get(slideId)?.has(field)) editedFieldsRef.current.delete(`${slideId}:${field}`) // CHAT-PARITY
+    } // CHAT-PARITY
+    window.addEventListener('deckster:chat-notes-fields', onNotesFields) // CHAT-PARITY
+    return () => window.removeEventListener('deckster:chat-notes-fields', onNotesFields) // CHAT-PARITY
+  }, []) // CHAT-PARITY
 
   // --- Saving --------------------------------------------------------------
   // Re-queue a slide's dirty fields onto ITS presentation's saver so a later drain
@@ -718,12 +780,22 @@ export function SlideNotesPanel({
     ? draft.notes
     : draft.notes || wsNotesByIndex[currentSlideIndex] || ''
   const disabled = !presentationId
+  const fieldHelpId = useId()
+  const saveHelp = !disabled && (saveState === 'error' || saveState === 'syncing')
+    ? `${saveState === 'error' ? 'Changes are not saved yet.' : 'Changes are still waiting to save.'} Studio will retry while this workspace stays open.`
+    : null
+  const describedBy = (field: string) => studioShell
+    ? `${fieldHelpId}-${field}${saveHelp && activeTab !== 'qa' ? ` ${fieldHelpId}-save` : ''}`
+    : undefined
 
   return (
     <>
       {/* Handle — zero-height context so the tab floats over the slide area */}
-      <div className="relative h-0 flex-shrink-0 z-10">
+      <div data-studio-notes-handle={studioShell ? 'true' : undefined} className="relative h-0 flex-shrink-0 z-10">
         <button
+          type="button"
+          aria-expanded={expanded}
+          aria-label={expanded ? 'Hide script and notes' : 'Show script and notes'}
           onClick={handleToggleExpanded}
           className={cn(
             "absolute left-1/2 -translate-x-1/2 bottom-0",
@@ -749,19 +821,42 @@ export function SlideNotesPanel({
       {/* Expanded panel — fixed height; the slide container's ResizeObserver
           fit-contain shrinks the 16:9 slide to make room. */}
       {expanded && (
-        <div className="flex-shrink-0 h-60 border-t border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-900 flex flex-col">
+        <div
+          data-studio-slide-notes={studioShell ? 'true' : undefined}
+          data-studio-notes-tab={studioShell ? activeTab : undefined}
+          className={cn(
+            // The narration tabs are single textareas and 240px is plenty. A
+            // question QUEUE is not — at that height it shows one item and a
+            // scrollbar, which is the cramped-surface problem this panel exists
+            // to avoid. The slide container's ResizeObserver fit-contain
+            // absorbs the difference either way.
+            'flex-shrink-0 border-t border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-900 flex flex-col',
+            activeTab === 'qa' ? 'h-96' : 'h-60'
+          )}
+        >
           <Tabs
             value={activeTab}
             onValueChange={handleTabChange}
             className="flex-1 flex flex-col min-h-0 px-4 pt-2 pb-3"
           >
-            <div className="flex-shrink-0 flex items-center justify-between gap-2">
+            <div data-studio-notes-header={studioShell ? 'true' : undefined} className="flex-shrink-0 flex items-center justify-between gap-2">
               <TabsList className="h-8">
                 <TabsTrigger value="script" className="text-xs px-2.5 py-1">Script</TabsTrigger>
                 <TabsTrigger value="notes" className="text-xs px-2.5 py-1">Notes</TabsTrigger>
                 <TabsTrigger value="references" className="text-xs px-2.5 py-1">References</TabsTrigger>
+                <TabsTrigger value="qa" className="text-xs px-2.5 py-1">
+                  Q&amp;A
+                  {unansweredQuestions > 0 && (
+                    <span
+                      className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold text-white"
+                      aria-label={`${unansweredQuestions} questions waiting`}
+                    >
+                      {unansweredQuestions > 99 ? '99+' : unansweredQuestions}
+                    </span>
+                  )}
+                </TabsTrigger>
               </TabsList>
-              <div className="flex items-center gap-3 text-xs text-slate-400 dark:text-slate-500">
+              <div data-studio-notes-status={studioShell ? 'true' : undefined} role="status" aria-live="polite" className="flex items-center gap-3 text-xs text-slate-400 dark:text-slate-500">
                 {saveState === 'saving' && (
                   <span className="flex items-center gap-1">
                     <span className="h-3 w-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
@@ -787,17 +882,48 @@ export function SlideNotesPanel({
               </div>
             </div>
 
-            <TabsContent value="script" className="flex-1 min-h-0 mt-2">
+            {studioShell && activeTab !== 'qa' && saveHelp && (
+              <p
+                id={`${fieldHelpId}-save`}
+                data-studio-notes-save-help={saveState}
+                role={saveState === 'error' ? 'alert' : undefined}
+              >
+                {saveHelp}
+              </p>
+            )}
+            <TabsContent value="script" data-studio-notes-editor={studioShell ? 'true' : undefined} className="flex-1 min-h-0 mt-2 flex flex-col">
+              {studioShell && (
+                <p id={`${fieldHelpId}-script`} data-studio-notes-field-help="true">
+                  {disabled ? 'Open a presentation to write its slide script.' : `Spoken words for slide ${currentSlideIndex + 1}. Changes save automatically.`}
+                </p>
+              )}
+              {/* Above the words, not below: the question "does this sound
+                  right?" occurs while reading them, and the answer should not
+                  require leaving the tab. */}
+              <SlideScriptPreview
+                presentationId={presentationId}
+                slideId={slideIds[currentSlideIndex] ?? null}
+                refreshToken={reloadToken}
+              />
               <Textarea
+                aria-label="Slide script"
+                aria-describedby={describedBy('script')}
                 value={draft.script}
                 onChange={(e) => handleFieldChange('script', e.target.value)}
                 disabled={disabled}
                 placeholder="Write the spoken narration for this slide…"
-                className="h-full min-h-0 resize-none text-sm"
+                className="flex-1 min-h-0 resize-none text-sm"
               />
             </TabsContent>
-            <TabsContent value="notes" className="flex-1 min-h-0 mt-2">
+            <TabsContent value="notes" data-studio-notes-editor={studioShell ? 'true' : undefined} className="flex-1 min-h-0 mt-2">
+              {studioShell && (
+                <p id={`${fieldHelpId}-notes`} data-studio-notes-field-help="true">
+                  {disabled ? 'Open a presentation to write its speaker notes.' : `Cues and talking points for slide ${currentSlideIndex + 1}. Changes save automatically.`}
+                </p>
+              )}
               <Textarea
+                aria-label="Speaker notes"
+                aria-describedby={describedBy('notes')}
                 value={notesValue}
                 onChange={(e) => handleFieldChange('notes', e.target.value)}
                 disabled={disabled}
@@ -805,14 +931,35 @@ export function SlideNotesPanel({
                 className="h-full min-h-0 resize-none text-sm"
               />
             </TabsContent>
-            <TabsContent value="references" className="flex-1 min-h-0 mt-2">
+            <TabsContent value="references" data-studio-notes-editor={studioShell ? 'true' : undefined} className="flex-1 min-h-0 mt-2">
+              {studioShell && (
+                <p id={`${fieldHelpId}-references`} data-studio-notes-field-help="true">
+                  {disabled ? 'Open a presentation to add its sources and citations.' : 'One source or citation per line. Changes save automatically.'}
+                </p>
+              )}
               <Textarea
+                aria-label="Slide references"
+                aria-describedby={describedBy('references')}
                 value={draft.references}
                 onChange={(e) => handleFieldChange('references', e.target.value)}
                 disabled={disabled}
                 placeholder={"Sources and citations for this slide — one per line…"}
                 className="h-full min-h-0 resize-none text-sm"
               />
+            </TabsContent>
+            {/* Deck-scoped, not slide-scoped: a viewer asks about the deck, so
+                the queue must not change as the owner clicks through slides.
+
+                forceMount, because Radix unmounts an inactive tab — and an
+                unmounted inbox never fetches, so the badge would only ever
+                appear AFTER opening the tab, which is the one moment it is no
+                longer needed. Hidden via CSS instead. */}
+            <TabsContent
+              forceMount
+              value="qa"
+              className="flex-1 min-h-0 mt-2 data-[state=inactive]:hidden"
+            >
+              <DeckQaInbox sessionId={sessionId} onUnansweredChange={setUnansweredQuestions} />
             </TabsContent>
           </Tabs>
         </div>

@@ -8,6 +8,9 @@ export type DirectorReconnectStatus =
   | 'paused_offline'
   | 'exhausted'
   | 'manual'
+  // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: Director closed this tab's socket because the same session was opened in another tab
+  // (code 4000, "New connection opened"). Terminal until the user takes the session back; nothing reconnects by itself.
+  | 'superseded'
 
 export type DirectorReconnectPlan =
   | { kind: 'skip'; reason: 'disabled' | 'manual' | 'not_desired' | 'exhausted' }
@@ -75,7 +78,7 @@ export function shouldReconnectDirectorOnOnline({
   reconnectStatus,
 }: ShouldReconnectDirectorOnOnlineOptions): boolean {
   if (!reconnectEnabled || manualDisconnect || !connectionDesired) return false
-  if (reconnectStatus === 'exhausted' || reconnectStatus === 'manual') return false
+  if (reconnectStatus === 'exhausted' || reconnectStatus === 'manual' || reconnectStatus === 'superseded') return false
   if (resumingFromOffline) return true
   return false
 }

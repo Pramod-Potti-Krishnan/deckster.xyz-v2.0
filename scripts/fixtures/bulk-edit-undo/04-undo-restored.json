@@ -1,0 +1,238 @@
+{
+ "scenario": "04-undo-restored",
+ "description": "'Make slide 3 more concise' (chat refine) -> closing line + change_recorded; then undo_change:<id> -> undo_result restored, chat line, deck_mutation deck_restored.",
+ "director_commit": "8258481ba51a0c1279ef6bf7e76bee7c40a5b8c1",
+ "flags": {
+  "MULTI_INTENT_ENABLED": "true",
+  "DIRECTOR_MDC_BULK_EDIT_ENABLED": "true",
+  "DIRECTOR_MDC_CHAT_UNDO_ENABLED": "true",
+  "CHAT_CAP_BULK_EDIT": "true",
+  "CHAT_CAP_CHAT_UNDO": "true",
+  "SLIDE_COMPOSER_ENABLED": "true",
+  "SLIDE_COMPOSER_ASYNC_ENABLED": "true",
+  "SLIDE_REFINER_ENABLED": "true",
+  "DIRECTOR_MDC_REFINE_SLIDE_ENABLED": "true",
+  "CHAT_CAP_REFINE_SLIDE": "true",
+  "DIRECTOR_MDC_HONEST_REPLIES_ENABLED": "true",
+  "DIRECTOR_MDC_SESSION_SCOPE_ENABLED": "true"
+ },
+ "client_caps": [
+  "mdc1",
+  "bulk_edit1",
+  "undo1"
+ ],
+ "recorded_by": "docs/mdc/bulk-edit-undo-frames/record.py (offline, $0)",
+ "scripted_model_output": [
+  {
+   "action_type": "refine_slide",
+   "response_text": null,
+   "questions": null,
+   "tool_calls": null,
+   "reasoning": "scripted",
+   "confidence": 0.95,
+   "requires_approval": false,
+   "extracted_context": null,
+   "target_slide_indices": [
+    2
+   ],
+   "new_topic": null,
+   "op_brief": "More concise",
+   "element_type": null,
+   "structured_questions": []
+  }
+ ],
+ "frame_counts": {
+  "in": 2,
+  "out": 8
+ },
+ "outbound_frame_types": [
+  "change_recorded",
+  "chat_message",
+  "deck_mutation",
+  "slide_ready",
+  "undo_result"
+ ],
+ "frames": [
+  {
+   "seq": 1,
+   "direction": "in",
+   "frame": {
+    "type": "user_message",
+    "data": {
+     "text": "Make slide 3 more concise",
+     "client_caps": [
+      "mdc1",
+      "bulk_edit1",
+      "undo1"
+     ]
+    }
+   }
+  },
+  {
+   "seq": 2,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_a6172f1f",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:58.499036Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Refining slide 3 (\"Churn Drivers\"): \"More concise\". The current slide stays as it is until the refined version is ready, then it's swapped in place. You can keep chatting meanwhile.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  },
+  {
+   "seq": 3,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_slide_ready_b72bd7b6",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:58.505726Z",
+    "type": "slide_ready",
+    "role": "assistant",
+    "payload": {
+     "job_id": "mdc_daad9b15b2f9",
+     "kind": "refine",
+     "presentation_id": "pres-e2e",
+     "slide_index": 2,
+     "inserted_at_index": 2,
+     "presentation_url": null,
+     "real_slide_id": "R1-L2",
+     "replaced_slide_id": "L2",
+     "thumbnail_url": null,
+     "status": "built"
+    }
+   }
+  },
+  {
+   "seq": 4,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_dmut_87444726",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:58.507402Z",
+    "type": "deck_mutation",
+    "role": "assistant",
+    "payload": {
+     "mutation": "slide_replaced",
+     "slide_index": 2,
+     "new_slide_index": null,
+     "presentation_id": "pres-e2e",
+     "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+     "refresh_token": "dm_add397e85b24"
+    }
+   }
+  },
+  {
+   "seq": 5,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_b2584285",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:58.509010Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Done. Slide 3 is refined, in the same place.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  },
+  {
+   "seq": 6,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_chg_127336bb",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:58.512478Z",
+    "type": "change_recorded",
+    "role": "assistant",
+    "payload": {
+     "change_id": "chg_f07aebcf7498",
+     "label": "Refined slide 3",
+     "kind": "slide_replaced",
+     "presentation_id": "pres-e2e",
+     "undoable": true
+    }
+   }
+  },
+  {
+   "seq": 7,
+   "direction": "in",
+   "frame": {
+    "type": "user_message",
+    "data": {
+     "text": "",
+     "client_caps": [
+      "mdc1",
+      "bulk_edit1",
+      "undo1"
+     ],
+     "action_value": "undo_change:chg_f07aebcf7498",
+     "action_label": "undo_change:chg_f07aebcf7498"
+    }
+   }
+  },
+  {
+   "seq": 8,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_undo_a2ddd6f7",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:58.524350Z",
+    "type": "undo_result",
+    "role": "assistant",
+    "payload": {
+     "change_id": "chg_f07aebcf7498",
+     "status": "restored",
+     "reason": null
+    }
+   }
+  },
+  {
+   "seq": 9,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_847bd261",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:58.524373Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Undone: Refined slide 3. The deck is back to how it was before that change.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  },
+  {
+   "seq": 10,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_dmut_e138ea78",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:58.524394Z",
+    "type": "deck_mutation",
+    "role": "assistant",
+    "payload": {
+     "mutation": "deck_restored",
+     "slide_index": 0,
+     "new_slide_index": null,
+     "presentation_id": "pres-e2e",
+     "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+     "refresh_token": "dm_0defb8eecef6"
+    }
+   }
+  }
+ ]
+}

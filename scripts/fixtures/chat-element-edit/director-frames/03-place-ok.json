@@ -1,0 +1,123 @@
+{
+  "case": "03-place-ok",
+  "user_message": {
+    "text": "Move this to the top right",
+    "client_caps": [
+      "mdc1",
+      "element_edit1",
+      "notes1",
+      "undo1"
+    ],
+    "references": [
+      {
+        "kind": "element",
+        "element_id": "textbox_a1",
+        "element_type": "TEXT_BOX",
+        "slide_index": 2,
+        "slide_id": "L2",
+        "label": "Text \u00b7 slide 3"
+      }
+    ]
+  },
+  "decision": {
+    "action_type": "edit_element",
+    "reasoning": "scripted",
+    "confidence": 0.95,
+    "requires_approval": false,
+    "target_slide_indices": [
+      2
+    ],
+    "edit_op": "place",
+    "edit_place_h": "right",
+    "edit_place_v": "top"
+  },
+  "frames_in": [
+    {
+      "type": "element_edit_result",
+      "payload": {
+        "directive_id": "ele_61819cfe2c4a",
+        "ok": true
+      }
+    }
+  ],
+  "frames_out": [
+    [
+      {
+        "message_id": "msg_eedit_8afa81f3",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:21:58.352854Z",
+        "type": "element_edit",
+        "role": "assistant",
+        "payload": {
+          "directive_id": "ele_61819cfe2c4a",
+          "session_id": "s_e2e",
+          "presentation_id": "pres-e2e",
+          "slide_id": "L2",
+          "slide_index": 2,
+          "element_id": "textbox_a1",
+          "op": "place",
+          "place": {
+            "h": "right",
+            "v": "top"
+          }
+        }
+      },
+      {
+        "message_id": "msg_cb006228",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:21:58.354630Z",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Putting the text box on slide 3 at the top right.",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      }
+    ],
+    [
+      {
+        "message_id": "msg_da69649a",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:21:58.359881Z",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Done. The text box on slide 3 is now at the top right.",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      },
+      {
+        "message_id": "msg_chg_0ef66a9b",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:21:58.367012Z",
+        "type": "change_recorded",
+        "role": "assistant",
+        "payload": {
+          "change_id": "chg_670aa2cde244",
+          "label": "Edited the text box on slide 3",
+          "kind": "element_edited",
+          "presentation_id": "pres-e2e",
+          "undoable": true,
+          "anchor_message_id": "msg_da69649a"
+        }
+      }
+    ]
+  ],
+  "chat_lines": [
+    "Putting the text box on slide 3 at the top right.",
+    "Done. The text box on slide 3 is now at the top right."
+  ],
+  "layout_calls": [
+    "GET /api/presentations/pres-e2e",
+    "PUT /api/presentations/pres-e2e",
+    "GET /api/presentations/pres-e2e/versions",
+    "GET /api/presentations/pres-e2e",
+    "GET /api/presentations/pres-e2e/versions"
+  ]
+}

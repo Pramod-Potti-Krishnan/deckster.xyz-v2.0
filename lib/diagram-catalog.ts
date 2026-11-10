@@ -1,4 +1,5 @@
 import type { TextLabsDiagramSubtype } from '@/types/textlabs'
+import { requireServiceUrl } from '@/lib/service-url'
 
 export const DIAGRAM_CATALOG_VERSION = '2.1.0'
 
@@ -357,7 +358,7 @@ export const DIAGRAM_CATALOG_FALLBACK: DiagramCatalog = {
   })),
 }
 
-let cachedCatalog: { value: DiagramCatalog; expiresAt: number } | null = null
+let cachedCatalog: { value: DiagramCatalog; expiresAt: number; baseUrl: string } | null = null
 
 const REQUIRED_DIAGRAM_TYPES: TextLabsDiagramSubtype[] = [
   'CODE_DISPLAY',
@@ -428,14 +429,18 @@ export function isCompatibleDiagramCatalog(value: unknown): value is DiagramCata
 }
 
 export async function fetchDiagramCatalog(
-  baseUrl = process.env.NEXT_PUBLIC_ELEMENTOR_URL || 'https://web-production-3b42.up.railway.app',
+  baseUrl?: string,
   signal?: AbortSignal,
 ): Promise<DiagramCatalog> {
+  // Validate even on a cache hit; an absent/invalid host must not appear healthy.
+  const serviceUrl = requireServiceUrl('Diagram catalog service', baseUrl === undefined
+    ? [{ name: 'NEXT_PUBLIC_ELEMENTOR_URL', value: process.env.NEXT_PUBLIC_ELEMENTOR_URL }]
+    : [{ name: 'baseUrl', value: baseUrl }])
   const now = Date.now()
-  if (cachedCatalog && cachedCatalog.expiresAt > now) return cachedCatalog.value
+  if (cachedCatalog && cachedCatalog.baseUrl === serviceUrl && cachedCatalog.expiresAt > now) return cachedCatalog.value
 
   try {
-    const response = await fetch(`${baseUrl}/api/diagram/catalog`, {
+    const response = await fetch(`${serviceUrl}/api/diagram/catalog`, {
       headers: { Accept: 'application/json' },
       signal,
     })
@@ -444,12 +449,12 @@ export async function fetchDiagramCatalog(
     if (!isCompatibleDiagramCatalog(payload)) {
       throw new Error('Diagram catalog is missing the required v2.1 orchestration capabilities')
     }
-    cachedCatalog = { value: payload, expiresAt: now + 5 * 60_000 }
+    cachedCatalog = { value: payload, expiresAt: now + 5 * 60_000, baseUrl: serviceUrl }
     return payload
   } catch (error) {
     if (signal?.aborted) throw error
     console.warn('[DiagramCatalog] Using the versioned fallback catalog:', error)
-    cachedCatalog = { value: DIAGRAM_CATALOG_FALLBACK, expiresAt: now + 60_000 }
+    cachedCatalog = { value: DIAGRAM_CATALOG_FALLBACK, expiresAt: now + 60_000, baseUrl: serviceUrl }
     return DIAGRAM_CATALOG_FALLBACK
   }
 }

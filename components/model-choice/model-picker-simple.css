@@ -1,0 +1,69 @@
+/* NEXT_PUBLIC_STUDIO_MODEL_PICKER_SIMPLE, the simplified slider picker (components/model-choice/model-picker-simple.tsx; F-14, PK's final of 4 Nov). Every rule styles markup that picker alone renders: the mpick-simple-* classes, and the
+   slider's own mpick-slider-*, mpick-tick and mpick-stop* classes only inside .mpick-simple-pop (the popover and the phone sheet both carry it). With the flag off nothing renders them, so no element matches. The gauge, the rows
+   (mpick-item) and the slider's thumb states are model-slider.css's and model-picker.css's; this sheet keeps them and changes what PK asked: a title, a thicker bar, a reset icon, a plain Advanced row, and on phones a bottom sheet.
+   Near-monochrome, as the slider is: the page's text colour and the theme's popover tokens; the only colour is the focus ring. */
+
+/* The popover (desktop): 272 px wide like the slider's. The thumb is 18 px (--mpick-simple-thumb) and the bar 6 px, a little thicker than the slider's 16 px and 4 px. */
+.mpick-menu.mpick-simple-pop { --mpick-simple-thumb: 18px; --mpick-simple-bar: 6px; width: 272px; min-width: 0; max-width: calc(100vw - 16px); max-height: min(var(--radix-popover-content-available-height, 520px), 520px); padding: 12px 14px 6px; font-size: 11.5px; }
+.mpick-simple-pop .mpick-detail, .mpick-simple-pop .mpick-hint { font-size: 10px; }
+.mpick-simple-panel { display: flex; flex-direction: column; }
+.mpick-simple-grab { display: none; width: 36px; height: 4px; margin: 0 auto 10px; border-radius: 999px; background: color-mix(in srgb, currentColor 22%, transparent); }
+
+/* The head: the preset's name, and the reset icon at the right. */
+.mpick-simple-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px; }
+.mpick-simple-title { min-width: 0; margin: 0; overflow: hidden; font-size: 16px; font-weight: 600; letter-spacing: -0.01em; line-height: 24px; text-overflow: ellipsis; white-space: nowrap; }
+.mpick-simple-reset { display: inline-flex; flex: none; align-items: center; justify-content: center; box-sizing: border-box; width: 24px; height: 24px; margin: 0 -4px 0 0; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--mpick-muted, hsl(var(--muted-foreground, 240 3.8% 46.1%))); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.mpick-simple-reset:hover:not(:disabled) { background: var(--mpick-hover, color-mix(in srgb, currentColor 8%, transparent)); color: inherit; }
+.mpick-simple-reset:disabled { opacity: 0.35; cursor: default; }
+.mpick-simple-reset:focus-visible, .mpick-simple-line:focus-visible, .mpick-simple-pop .mpick-slider-thumb:focus-visible { outline: 2px solid var(--mpick-ring, hsl(var(--ring, 250 90% 60%))); outline-offset: 2px; }
+
+/* The line under the title: the router-resolved writing model, and a chevron that opens the per-step list. */
+.mpick-simple-line { display: flex; align-items: center; gap: 5px; box-sizing: border-box; max-width: calc(100% + 12px); margin: 1px 0 0 -6px; padding: 3px 6px; border: 0; border-radius: 6px; background: transparent; color: var(--mpick-muted, hsl(var(--muted-foreground, 240 3.8% 46.1%))); font: inherit; font-size: 12px; text-align: left; }
+button.mpick-simple-line { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button.mpick-simple-line:hover { background: var(--mpick-hover, color-mix(in srgb, currentColor 8%, transparent)); }
+.mpick-simple-line-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mpick-simple-line-name { color: color-mix(in srgb, var(--mpick-menu-fg, hsl(var(--popover-foreground, 240 10% 3.9%))) 82%, transparent); }
+.mpick-simple-chev { flex: none; transition: transform 120ms ease; }
+.mpick-simple-line[aria-expanded="true"] .mpick-simple-chev { transform: rotate(180deg); }
+
+/* The per-step list (read only) and its way to a specific model. */
+.mpick-simple-list { margin: 8px 0 0; padding-top: 2px; border-top: 1px solid var(--mpick-menu-line, hsl(var(--border, 240 5.9% 90%))); }
+.mpick-simple-row { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 6px 0; }
+.mpick-simple-rowname { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mpick-simple-rowval { flex: none; max-width: 62%; overflow: hidden; color: var(--mpick-muted, hsl(var(--muted-foreground, 240 3.8% 46.1%))); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.mpick-simple-list .mpick-item { margin-left: -8px; width: calc(100% + 16px); }
+
+/* The one slider: the slider's classes, a thicker bar and a bigger thumb. The track is inset by half a stop minus half the thumb, so a stop's thumb position sits over the middle of its name. */
+.mpick-simple-pop .mpick-slider-root { height: 28px; margin: 14px calc(50% / var(--mpick-stops, 4) - var(--mpick-simple-thumb) / 2) 0; }
+.mpick-simple-pop .mpick-slider-track { height: var(--mpick-simple-bar); }
+.mpick-simple-pop .mpick-tick { width: 8px; height: 8px; }
+.mpick-simple-pop .mpick-slider-thumb { width: var(--mpick-simple-thumb); height: var(--mpick-simple-thumb); }
+.mpick-simple-pop .mpick-stops { margin: 2px 0 0; }
+/* Advanced: the slider's own plain collapsed row; open, its rows are the slider's. */
+.mpick-simple-pop .mpick-advanced { margin: 8px -14px 0; padding: 4px 14px 0; }
+.mpick-simple-pop .mpick-advanced > .mpick-list { padding-bottom: 4px; }
+.mpick-simple-pop .mpick-advanced > .mpick-list .mpick-item { margin-left: -8px; width: calc(100% + 16px); }
+
+/* Phones: a bottom sheet over a scrim, the same content; 44 px touch targets, a 26 px thumb, a grab handle. It scrolls when Advanced is open. */
+.mpick-simple-scrim { position: fixed; inset: 0; z-index: 60; background: rgb(0 0 0 / 32%); }
+.mpick-menu.mpick-simple-sheet { --mpick-simple-thumb: 26px; --mpick-simple-bar: 8px; position: fixed; z-index: 61; right: 0; bottom: 0; left: 0; width: auto; max-width: none; max-height: 86dvh; padding: 8px 20px calc(14px + env(safe-area-inset-bottom, 0px)); border-width: 1px 0 0; border-radius: 16px 16px 0 0; font-size: 13px; box-shadow: 0 -8px 32px rgb(0 0 0 / 18%); }
+.mpick-simple-sheet .mpick-simple-grab { display: block; }
+.mpick-simple-sheet .mpick-simple-title { font-size: 20px; line-height: 28px; }
+.mpick-simple-sheet .mpick-simple-head { min-height: 28px; }
+.mpick-simple-sheet .mpick-simple-reset { width: 44px; height: 44px; margin: -8px -12px -8px 0; }
+.mpick-simple-sheet .mpick-simple-line { min-height: 36px; margin-left: -8px; padding: 6px 8px; font-size: 14px; }
+.mpick-simple-sheet .mpick-slider-root { height: 52px; margin-top: 8px; }
+.mpick-simple-sheet .mpick-tick { width: 10px; height: 10px; }
+.mpick-simple-sheet .mpick-stop { min-height: 44px; }
+.mpick-simple-sheet .mpick-stop-name { font-size: 13px; }
+.mpick-simple-sheet .mpick-advanced { margin: 8px -20px 0; padding: 2px 20px 0; }
+.mpick-simple-sheet .mpick-advanced > summary { min-height: 44px; font-size: 14px; }
+.mpick-simple-sheet .mpick-item { min-height: 44px; font-size: 14px; }
+.mpick-simple-sheet .mpick-detail, .mpick-simple-sheet .mpick-hint { font-size: 12px; }
+.mpick-simple-sheet .mpick-subhead { font-size: 11px; }
+.mpick-simple-sheet .mpick-simple-row { min-height: 44px; font-size: 14px; }
+.mpick-simple-sheet .mpick-simple-rowval { font-size: 12.5px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mpick-simple-chev { transition: none; }
+}

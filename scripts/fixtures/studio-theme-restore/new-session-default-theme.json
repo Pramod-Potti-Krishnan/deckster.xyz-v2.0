@@ -1,0 +1,412 @@
+{
+ "name": "new-session-default-theme",
+ "description": "A brand-new session: the user never picked a theme. Director auto-themed the blank deck with its default (corporate_light, stored only as applied_theme_state), so the connect restore is the REAL new-session frame: request_id restore:<sid>:none, theme corporate_light, applied true, desired_status null. Flag on: that default is not a pick. The selection stays Auto (the composer shows no \"Theme selected\" chip), the restore is committed applied for the Auto fingerprint of the blank deck, and nothing is sent: 0 set_theme, also after a reload (the second connect says restore:<sid>:none again) and 25 s later; Add Element's theme preflight is ready at once; the first real pick (Corporate Light, the same theme as the default) is then sent exactly once and shown. Base / flag off: the restore is ignored and the socket-ready {mode:auto} goes out.",
+ "source": "Director origin/uat (a76a086) connect handler via THEME-2's tests/theme_restore_on_connect_support.py (DIRECTOR_THEME_RESTORE_ON_CONNECT_ENABLED and DIRECTOR_RECONNECT_GREETING_DEDUP_ENABLED on; the blank deck is auto-themed with the system default corporate_light, stored only as applied_theme_state); generator in the evidence folder",
+ "session": {
+  "id": "sess-new-cl",
+  "userId": "synthetic-user-01"
+ },
+ "ackTemplate": [
+  {
+   "type": "theme_sync",
+   "session_id": "sess-ack",
+   "timestamp": "2026-10-14T04:21:51.829182Z",
+   "payload": {
+    "request_id": "__REQ__",
+    "status": "syncing",
+    "presentation_id": "deck-ack",
+    "theme": {
+     "mode": "auto"
+    }
+   }
+  },
+  {
+   "type": "theme_sync",
+   "session_id": "sess-ack",
+   "timestamp": "2026-10-14T04:21:51.829206Z",
+   "payload": {
+    "request_id": "__REQ__",
+    "status": "applied",
+    "presentation_id": "deck-ack",
+    "theme": {
+     "mode": "auto"
+    },
+    "theme_session_id": "ts-ack"
+   }
+  }
+ ],
+ "steps": [
+  {
+   "op": "ensureConnected"
+  },
+  {
+   "op": "open"
+  },
+  {
+   "op": "frames",
+   "frames": [
+    {
+     "type": "theme_sync",
+     "session_id": "sess-new-cl",
+     "timestamp": "2026-10-14T04:21:51.796648Z",
+     "payload": {
+      "request_id": "initial:blank-pres-1",
+      "status": "applied",
+      "presentation_id": "blank-pres-1",
+      "theme": {
+       "mode": "preset",
+       "preset_id": "corporate_light"
+      },
+      "theme_session_id": "theme-sess-1"
+     }
+    },
+    {
+     "message_id": "msg_e7a3dd73",
+     "session_id": "sess-new-cl",
+     "timestamp": "2026-10-14T04:21:51.796750Z",
+     "type": "presentation_init",
+     "role": "assistant",
+     "payload": {
+      "operation": "full_update",
+      "metadata": {
+       "main_title": "Untitled Presentation",
+       "overall_theme": "",
+       "design_suggestions": "",
+       "target_audience": "",
+       "presentation_duration": 0,
+       "preview_url": "https://layout.example.com/p/blank-pres-1",
+       "preview_presentation_id": "blank-pres-1"
+      },
+      "slides": [
+       {
+        "slide_id": "blank_slide_1",
+        "slide_number": 1,
+        "slide_type": "title_slide",
+        "title": "",
+        "subtitle": "",
+        "narrative": "",
+        "key_points": [],
+        "variant_id": "H1s",
+        "service": "text",
+        "purpose": "title_slide",
+        "semantic_group": null,
+        "analytics_needed": null,
+        "visuals_needed": null,
+        "diagrams_needed": null,
+        "structure_preference": null,
+        "container_layout": null,
+        "speaker_notes": null
+       }
+      ],
+      "affected_slides": null,
+      "is_blank": true
+     }
+    },
+    {
+     "type": "theme_sync",
+     "session_id": "sess-new-cl",
+     "timestamp": "2026-10-14T04:21:51.798393Z",
+     "payload": {
+      "request_id": "restore:sess-new-cl:none",
+      "status": "restored",
+      "presentation_id": "blank-pres-1",
+      "theme": {
+       "mode": "preset",
+       "preset_id": "corporate_light"
+      },
+      "applied": true,
+      "desired_status": null
+     }
+    },
+    {
+     "message_id": "msg_hist_2de3d73cbd75",
+     "session_id": "sess-new-cl",
+     "timestamp": "2026-10-14T04:21:51.800108Z",
+     "type": "chat_message",
+     "role": "assistant",
+     "payload": {
+      "text": "Hello! I'm your presentation assistant. I can help you create professional presentations. What topic would you like to present on?",
+      "sub_title": null,
+      "list_items": null,
+      "format": "markdown",
+      "ephemeral": false
+     }
+    }
+   ]
+  },
+  {
+   "op": "themeAck"
+  },
+  {
+   "op": "checkpoint",
+   "label": "new session: Director's default only"
+  },
+  {
+   "op": "expect",
+   "on": {
+    "setTheme": 0,
+    "selection": {
+     "mode": "auto"
+    },
+    "activeProfile": null,
+    "themeSyncStatus": "applied",
+    "themeSyncRequestId": "restore:sess-new-cl:none",
+    "themeSyncFingerprintOf": {
+     "mode": "auto"
+    },
+    "gatePhase": "restored",
+    "locallyChanged": false
+   },
+   "off": {
+    "setTheme": 1,
+    "lastSetTheme": {
+     "mode": "auto"
+    },
+    "selection": {
+     "mode": "auto"
+    }
+   }
+  },
+  {
+   "op": "elementPreflight"
+  },
+  {
+   "op": "expect",
+   "on": {
+    "preflightReady": true,
+    "preflightElapsedMs": 0,
+    "preflightSource": "director"
+   },
+   "off": {
+    "preflightReady": true,
+    "preflightElapsedMs": 0,
+    "preflightSource": "director"
+   }
+  },
+  {
+   "op": "advance",
+   "ms": 25000
+  },
+  {
+   "op": "checkpoint",
+   "label": "25 s later: still the default, no timeout"
+  },
+  {
+   "op": "expect",
+   "on": {
+    "setTheme": 0,
+    "selection": {
+     "mode": "auto"
+    },
+    "themeSyncStatus": "applied",
+    "themeSyncError": null
+   },
+   "off": {
+    "setTheme": 1,
+    "selection": {
+     "mode": "auto"
+    },
+    "themeSyncStatus": "applied"
+   }
+  },
+  {
+   "op": "unmount"
+  },
+  {
+   "op": "mount",
+   "freshTab": true
+  },
+  {
+   "op": "restore",
+   "session": {
+    "id": "sess-new-cl",
+    "status": "active",
+    "title": "Synthetic session",
+    "geminiStoreName": null,
+    "blankPresentationUrl": "https://layout.example.com/p/blank-pres-1",
+    "blankPresentationId": "blank-pres-1",
+    "strawmanPreviewUrl": null,
+    "strawmanPresentationId": null,
+    "finalPresentationUrl": null,
+    "finalPresentationId": null,
+    "slideCount": null,
+    "currentStage": 1,
+    "stateCache": {
+     "activeVersion": "blank",
+     "slideStructure": null
+    },
+    "messages": [
+     {
+      "id": "db-director-0",
+      "messageType": "chat_message",
+      "timestamp": "2026-10-14T09:00:00.000Z",
+      "payload": {
+       "text": "Hello! I'm your presentation assistant. I can help you create professional presentations. What topic would you like to present on?",
+       "sub_title": null,
+       "list_items": null
+      }
+     }
+    ]
+   }
+  },
+  {
+   "op": "ensureConnected"
+  },
+  {
+   "op": "open"
+  },
+  {
+   "op": "frames",
+   "frames": [
+    {
+     "message_id": "msg_sync_83e9edc6",
+     "session_id": "sess-new-cl",
+     "timestamp": "2026-10-14T04:21:51.800331Z",
+     "type": "sync_response",
+     "role": "assistant",
+     "payload": {
+      "action": "send_history",
+      "message_count": 1,
+      "current_state": "BLANK_PRESENTATION",
+      "has_strawman": false,
+      "presentation_url": "https://layout.example.com/p/blank-pres-1",
+      "presentation_id": "blank-pres-1",
+      "slide_count": null
+     }
+    },
+    {
+     "type": "theme_sync",
+     "session_id": "sess-new-cl",
+     "timestamp": "2026-10-14T04:21:51.801950Z",
+     "payload": {
+      "request_id": "restore:sess-new-cl:none",
+      "status": "restored",
+      "presentation_id": "blank-pres-1",
+      "theme": {
+       "mode": "preset",
+       "preset_id": "corporate_light"
+      },
+      "applied": true,
+      "desired_status": null
+     }
+    },
+    {
+     "message_id": "msg_hist_2de3d73cbd75",
+     "session_id": "sess-new-cl",
+     "timestamp": "2026-10-14T04:21:51.800108Z",
+     "type": "chat_message",
+     "role": "assistant",
+     "payload": {
+      "text": "Hello! I'm your presentation assistant. I can help you create professional presentations. What topic would you like to present on?",
+      "sub_title": null,
+      "list_items": null,
+      "format": "markdown",
+      "ephemeral": false
+     }
+    }
+   ]
+  },
+  {
+   "op": "themeAck"
+  },
+  {
+   "op": "advance",
+   "ms": 25000
+  },
+  {
+   "op": "checkpoint",
+   "label": "reload (second connect): still the default"
+  },
+  {
+   "op": "expect",
+   "on": {
+    "setTheme": 0,
+    "selection": {
+     "mode": "auto"
+    },
+    "activeProfile": null,
+    "themeSyncStatus": "applied",
+    "themeSyncRequestId": "restore:sess-new-cl:none",
+    "themeSyncFingerprintOf": {
+     "mode": "auto"
+    },
+    "gatePhase": "restored"
+   },
+   "off": {
+    "setTheme": 2,
+    "lastSetTheme": {
+     "mode": "auto"
+    },
+    "selection": {
+     "mode": "auto"
+    }
+   }
+  },
+  {
+   "op": "elementPreflight"
+  },
+  {
+   "op": "expect",
+   "on": {
+    "preflightReady": true,
+    "preflightElapsedMs": 0,
+    "preflightSource": "director"
+   }
+  },
+  {
+   "op": "themePick",
+   "theme": {
+    "mode": "preset",
+    "preset_id": "corporate_light"
+   }
+  },
+  {
+   "op": "expect",
+   "on": {
+    "setTheme": 1,
+    "lastSetTheme": {
+     "mode": "preset",
+     "preset_id": "corporate_light"
+    },
+    "locallyChanged": true
+   },
+   "off": {
+    "setTheme": 3,
+    "lastSetTheme": {
+     "mode": "preset",
+     "preset_id": "corporate_light"
+    }
+   }
+  },
+  {
+   "op": "themeAck"
+  },
+  {
+   "op": "checkpoint",
+   "label": "the first real pick: Corporate Light"
+  },
+  {
+   "op": "expect",
+   "on": {
+    "setTheme": 1,
+    "selection": {
+     "mode": "preset",
+     "preset_id": "corporate_light"
+    },
+    "themeSyncStatus": "applied",
+    "locallyChanged": false
+   },
+   "off": {
+    "setTheme": 3,
+    "selection": {
+     "mode": "preset",
+     "preset_id": "corporate_light"
+    },
+    "themeSyncStatus": "applied"
+   }
+  }
+ ],
+ "env": {
+  "NEXT_PUBLIC_LAYOUT_SERVICE_URL": "https://layout.example.com"
+ }
+}

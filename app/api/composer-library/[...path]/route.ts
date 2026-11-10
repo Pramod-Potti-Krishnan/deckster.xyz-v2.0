@@ -1,0 +1,135 @@
+import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth-options'
+import { prisma } from '@/lib/prisma'
+import { composerBriefLengthValid, composerReferenceMaxBytes } from '@/lib/composer-long-brief'
+import { requireComposerServiceUrl } from '@/lib/composer-library'
+import { composerUseKeys, composerUseModeAllowed } from '@/lib/composer-ditto'
+
+export const dynamic = 'force-dynamic'
+
+type RouteContext = { params: Promise<{ path: string[] }> }
+
+// Director's GET templates/{id} is the whole stored template (carrier, assets, every slide's HTML: it can run to megabytes, and a Vercel function may answer with 4.5 MB
+// at most). The Template library wants only the "What changed" report with its slides, at ingest_source.admission_report: that is all that goes on to the browser.
+function admissionTemplate(row: unknown) {
+  const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
+  const source = record(row) && record(row.ingest_source) ? row.ingest_source : {}
+  return { ...(record(row) && typeof row.id === 'string' ? { id: row.id } : {}), ingest_source: record(source.admission_report) ? { admission_report: source.admission_report } : {} }
+}
+
+async function proxy(req: NextRequest, context: RouteContext) {
+  if (process.env.NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED !== 'true') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  let userId: string
+  try {
+    const user = await prisma.user.findUnique({ where: { email: session.user.email }, select: { id: true } })
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    userId = user.id
+  } catch {
+    return NextResponse.json({ error: 'Could not verify the template library account.' }, { status: 503 })
+  }
+
+  const { path } = await context.params
+  const safeId = (value: string | undefined) => !!value && /^[a-zA-Z0-9_-]{1,200}$/.test(value)
+  const list = req.method === 'GET' && path.length === 1 && path[0] === 'templates'
+  const job = req.method === 'GET' && path.length === 2 && path[0] === 'jobs' && safeId(path[1])
+  // NEXT_PUBLIC_STUDIO_TEMPLATE_ADMISSION_REPORT (exact "true", default off): one read-only GET of a template (its "What changed" report with the slides). Flag off it is
+  // not a route at all: the request ends in the 404 below, as it always did. Only this exact shape: no sub-path (/uses, /infographics, /use), no other method.
+  const detail = process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_ADMISSION_REPORT === 'true' && req.method === 'GET' && path.length === 2 && path[0] === 'templates' && safeId(path[1])
+  const upload = req.method === 'POST' && path.length === 1 && path[0] === 'upload-reference'
+  const use = req.method === 'POST' && path.length === 3 && path[0] === 'templates' && safeId(path[1]) && path[2] === 'use'
+  if (!list && !job && !detail && !upload && !use) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  let body: string | undefined
+  if (upload || use) {
+    if (!req.headers.get('content-type')?.startsWith('application/json')) {
+      return NextResponse.json({ error: 'JSON references only; upload files directly to storage.' }, { status: 415 })
+    }
+    try {
+      const longBrief = process.env.NEXT_PUBLIC_COMPOSER_LONG_BRIEF_ENABLED === 'true'
+      const reader = req.body?.getReader()
+      if (!reader) throw new Error('missing body')
+      const chunks: Uint8Array[] = []
+      let bytes = 0
+      while (true) {
+        const chunk = await reader.read()
+        if (chunk.done) break
+        bytes += chunk.value.byteLength
+        if (bytes > composerReferenceMaxBytes(use, longBrief)) {
+          await reader.cancel()
+          return NextResponse.json({ error: 'Reference is too large.' }, { status: 413 })
+        }
+        chunks.push(chunk.value)
+      }
+      const payload = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+      const dittoEnabled = process.env.NEXT_PUBLIC_COMPOSER_STAGE1B_DITTO_ENABLED === 'true'
+      const keys = upload ? ['session_id', 'researcher_session_id', 'storage_path', 'file_name', 'kind'] : composerUseKeys(dittoEnabled)
+      const required = upload ? keys : ['session_id']
+      if (!payload || Array.isArray(payload) || Object.keys(payload).some(key => !keys.includes(key)) ||
+          !required.every(key => typeof payload[key] === 'string' && payload[key].length > 0) ||
+          !safeId(payload.session_id) || upload && payload.kind !== 'pptx') throw new Error('invalid reference')
+      if (use && !composerUseModeAllowed(payload)) throw new Error('invalid mode')
+      if (use && payload.brief !== undefined) {
+        if (process.env.NEXT_PUBLIC_COMPOSER_STAGE1B_NEW_TOPIC_ENABLED !== 'true') {
+          return NextResponse.json({ error: 'New-topic templates are not enabled.' }, { status: 404 })
+        }
+        if (typeof payload.brief !== 'string' || !composerBriefLengthValid(payload.brief, longBrief)) throw new Error('invalid brief')
+        payload.brief = payload.brief.trim()
+      }
+      if (upload) {
+        // Researcher's public session metadata is not an ownership authority.
+        // The storage namespace must be this authenticated Builder session.
+        const parts = payload.storage_path.split('/')
+        if (payload.researcher_session_id !== payload.session_id || parts.length !== 2 ||
+            parts[0] !== payload.session_id || !parts[1] || parts[1] === '.' || parts[1] === '..' ||
+            /[\\%?#:\x00-\x1f]/.test(payload.storage_path)) throw new Error('invalid storage namespace')
+      }
+      const ownedSession = await prisma.chatSession.findFirst({
+        where: { id: payload.session_id, userId, status: { not: 'deleted' } }, select: { id: true },
+      })
+      if (!ownedSession) return NextResponse.json({ error: 'Template library session not found.' }, { status: 404 })
+      body = JSON.stringify(payload)
+    } catch {
+      return NextResponse.json({ error: 'Invalid template library reference.' }, { status: 400 })
+    }
+  }
+  let base: string
+  const token = process.env.COMPOSER_FRONTDOOR_TOKEN
+  try {
+    const configured = requireServiceUrl('Template library Director', [
+      { name: 'COMPOSER_DIRECTOR_URL', value: process.env.COMPOSER_DIRECTOR_URL },
+    ])
+    base = requireComposerServiceUrl(configured, 'directorv40-uat.up.railway.app')
+    if (!token) throw new Error('missing token')
+  } catch (error) {
+    if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
+    return NextResponse.json({ error: 'Template library is not configured.' }, { status: 503 })
+  }
+
+  try {
+    const response = await fetch(`${base}/api/template-ingest/stage/${path.map(encodeURIComponent).join('/')}`, {
+      method: req.method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'X-Composer-User-Id': userId,
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+      },
+      body,
+      cache: 'no-store',
+      redirect: 'error',
+      signal: AbortSignal.timeout(25000),
+    })
+    const answer = await response.json()
+    return NextResponse.json(detail && response.ok ? admissionTemplate(answer) : answer, { status: response.status, headers: { 'Cache-Control': 'no-store' } })
+  } catch {
+    return NextResponse.json({ error: 'Template library is temporarily unavailable.' }, { status: 502 })
+  }
+}
+
+export const GET = proxy
+export const POST = proxy

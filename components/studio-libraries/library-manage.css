@@ -1,0 +1,12 @@
+/* FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE / NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE): the ⋮ menu and the inline rename on a library row.
+   Every rule is on a class only the flagged markup uses (.sl-record-row, .sl-row-menu, .sl-rename), so with the flags off nothing here matches. Colors are the library's own
+   --sl-* tokens, which already switch with .dark; the menu and the dialog are Studio's shared DropdownMenu / AlertDialog (portaled, themed by the app's tokens). */
+.studio-library .sl-record-row { position: relative; margin-bottom: 5px; }
+.studio-library .sl-record-row > .sl-record { margin-bottom: 0; padding-right: 46px; }
+.studio-library .sl-row-menu { position: absolute; top: 50%; right: 9px; transform: translateY(-50%); display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--sl-muted); }
+.studio-library .sl-row-menu:not(:disabled):hover, .studio-library .sl-row-menu[aria-expanded=true] { background: var(--sl-line); color: var(--sl-text); }
+.studio-library .sl-record-row[data-editing=true] > :is(.sl-record, .sl-row-menu) { display: none; }
+.studio-library .sl-rename { display: grid; gap: 8px; padding: 12px 11px; border: 1px solid var(--sl-line); border-radius: 8px; background: var(--sl-soft); }
+.studio-library .sl-rename .sl-field-error { margin: 0; }
+.studio-library .sl-rename-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.studio-library .sl-rename-actions :is(.sl-button, .sl-primary) { padding: 7px 12px; }

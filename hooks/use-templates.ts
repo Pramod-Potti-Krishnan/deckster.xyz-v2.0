@@ -162,6 +162,9 @@ export interface TemplateEnrichmentResult {
 export type TemplateGenerationStatus = ReturnType<typeof templateGenerationStatus>;
 
 export interface TemplateStatusWatchOptions {
+  /** Retired owners stop permanently; transient readiness pauses new reads. */
+  isCurrent?: () => boolean;
+  canStart?: () => boolean;
   intervalMs?: number;
   maxAttempts?: number;
   onUpdate?: (snapshot: TemplateSnapshot, status: TemplateGenerationStatus) => void;
@@ -192,9 +195,9 @@ export function templateGenerationStatus(
   const method = template.blueprint_generation_method ?? snapshot.template_blueprint?.generation_method ?? null;
   const status = template.blueprint_enrichment_status ?? null;
   const purity = template.template_purity_status ?? null;
+  if (status === 'queued' || status === 'running') return 'optimizing';
   if (purity === 'failed') return 'needs_cleanup';
   if (status === 'failed') return 'failed';
-  if (status === 'queued' || status === 'running') return 'optimizing';
   if (method === 'llm' && status === 'complete' && purity !== 'clean') return 'needs_cleanup';
   return 'needs_optimization';
 }
@@ -227,6 +230,24 @@ export function templateGenerationUnavailableReason(
   return 'Template is still being optimized; review is available, generation unlocks when enrichment completes.';
 }
 
+// NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE: rename one saved template. Director's PATCH /api/users/{uid}/templates/{id} (behind its DIRECTOR_TEMPLATE_RENAME_ENABLED, default off) answers 200 with the list-row summary,
+// 404 { detail: "template not found" }, 409 (the person already has a template of that name), 422 (a refused name) and, while its flag is off, 405 Allow: GET. Read as one reason each; a 404 with any other body
+// (Studio's own proxy with the flag off, a Director without the route) means the rename is not available, not that the template is gone.
+export type TemplateRenameReason = 'gone' | 'taken' | 'invalid' | 'unavailable' | 'sign_in' | 'failed';
+export type TemplateRenameResult =
+  | { ok: true; template: SavedTemplate }
+  | { ok: false; reason: TemplateRenameReason; detail?: string };
+
+export function templateRenameFailure(status: number, body: unknown): { reason: TemplateRenameReason; detail?: string } {
+  const detail = body && typeof body === 'object' ? (body as { detail?: unknown }).detail : undefined;
+  if (status === 404) return detail === 'template not found' ? { reason: 'gone' } : { reason: 'unavailable' };
+  if (status === 405) return { reason: 'unavailable' };
+  if (status === 409) return { reason: 'taken' };
+  if (status === 422) return typeof detail === 'string' && detail.trim() && detail.length <= 200 ? { reason: 'invalid', detail: detail.trim() } : { reason: 'invalid' };
+  if (status === 401 || status === 403) return { reason: 'sign_in' };
+  return { reason: 'failed' };
+}
+
 /**
  * Template Builder client hook (mirrors use-chat-sessions). Talks to the
  * /api/templates Next.js proxy, which forwards to Director CRUD. See
@@ -254,8 +275,10 @@ export function useTemplates() {
 
   const fetchTemplate = useCallback(async (
     id: string,
-    options: { trackLoading?: boolean } = {},
+    options: { trackLoading?: boolean; isCurrent?: () => boolean } = {},
   ): Promise<TemplateSnapshot | null> => {
+    const current = () => !options.isCurrent || options.isCurrent();
+    if (!current()) return null;
     const trackLoading = options.trackLoading !== false;
     if (trackLoading) setLoading(true);
     setError(null);
@@ -267,10 +290,10 @@ export function useTemplates() {
       }
       return data as TemplateSnapshot;
     } catch (e) {
-      setError(e instanceof Error ? e : new Error(String(e)));
+      if (current()) setError(e instanceof Error ? e : new Error(String(e)));
       return null;
     } finally {
-      if (trackLoading) setLoading(false);
+      if (trackLoading && current()) setLoading(false);
     }
   }, []);
 
@@ -290,20 +313,36 @@ export function useTemplates() {
 
     const stop = () => {
       cancelled = true;
-      if (timer) {
+      if (timer !== null) {
         clearTimeout(timer);
         timer = null;
       }
     };
 
+    const current = () => {
+      if (cancelled) return false;
+      if (options.isCurrent && !options.isCurrent()) { stop(); return false; }
+      return true;
+    };
+
+    const schedule = (attempt: number) => {
+      if (!current()) return;
+      timer = setTimeout(() => void poll(attempt), intervalMs);
+    };
+
     const poll = async (attempt: number) => {
-      const snapshot = await fetchTemplate(id, { trackLoading: false });
-      if (cancelled) return;
+      timer = null;
+      if (!current()) return;
+      // Paused ticks consume no read attempts, retaining the normal interval.
+      if (options.canStart && !options.canStart()) { schedule(attempt); return; }
+      const snapshot = await fetchTemplate(id, { trackLoading: false, isCurrent: current });
+      if (!current()) return;
 
       if (snapshot) {
         lastSnapshot = snapshot;
         const status = templateGenerationStatus(snapshot);
         options.onUpdate?.(snapshot, status);
+        if (!current()) return;
 
         if (isTemplateGenerationReady(snapshot)) {
           options.onReady?.(snapshot);
@@ -324,10 +363,10 @@ export function useTemplates() {
         return;
       }
 
-      timer = setTimeout(() => void poll(attempt + 1), intervalMs);
+      schedule(attempt + 1);
     };
 
-    timer = setTimeout(() => void poll(1), intervalMs);
+    schedule(1);
     return stop;
   }, [fetchTemplate]);
 
@@ -376,6 +415,27 @@ export function useTemplates() {
     } catch (e) {
       setError(e instanceof Error ? e : new Error(String(e)));
       return false;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const renameTemplate = useCallback(async (id: string, name: string): Promise<TemplateRenameResult> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/templates/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, ...templateRenameFailure(res.status, data) };
+      if (!data || typeof data.id !== 'string') return { ok: false, reason: 'failed' };
+      return { ok: true, template: data as SavedTemplate };
+    } catch (e) {
+      setError(e instanceof Error ? e : new Error(String(e)));
+      return { ok: false, reason: 'failed' };
     } finally {
       setLoading(false);
     }
@@ -434,6 +494,7 @@ export function useTemplates() {
     watchTemplateStatus,
     saveTemplate,
     deleteTemplate,
+    renameTemplate,
     updateTemplateBlueprint,
     reoptimizeTemplate,
   };

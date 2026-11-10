@@ -1,5 +1,7 @@
 "use client"
 
+import "./studio-arrange.css"
+
 import { useState, useEffect } from 'react'
 import {
   ArrowDownToLine,
@@ -25,6 +27,7 @@ import {
 } from '@/components/ui/panel'
 
 export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }: ArrangeTabProps) {
+  const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   // Size state
   const [width, setWidth] = useState(String(properties?.size?.width ?? 400))
   const [height, setHeight] = useState(String(properties?.size?.height ?? 300))
@@ -177,11 +180,13 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
   }
 
   return (
-    <div className="p-4 space-y-5">
+    <div data-studio-arrange={studio ? 'true' : undefined} className="p-4 space-y-5">
       {/* Order Section */}
       <PanelSection title="Order">
-        <div className="flex gap-1">
+        <div data-studio-arrange-part={studio ? 'order' : undefined} className="flex gap-1">
           <button
+            data-studio-arrange-control={studio ? 'handleSendToBack' : undefined}
+            aria-label={studio ? 'Send to Back' : undefined}
             onClick={handleSendToBack}
             disabled={isApplying || isLocked}
             title="Send to Back"
@@ -196,6 +201,8 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
             Back
           </button>
           <button
+            data-studio-arrange-control={studio ? 'handleSendBackward' : undefined}
+            aria-label={studio ? 'Send Backward' : undefined}
             onClick={handleSendBackward}
             disabled={isApplying || isLocked}
             title="Send Backward"
@@ -209,6 +216,8 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
             <ArrowDown className="h-3 w-3" />
           </button>
           <button
+            data-studio-arrange-control={studio ? 'handleBringForward' : undefined}
+            aria-label={studio ? 'Bring Forward' : undefined}
             onClick={handleBringForward}
             disabled={isApplying || isLocked}
             title="Bring Forward"
@@ -222,6 +231,8 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
             <ArrowUp className="h-3 w-3" />
           </button>
           <button
+            data-studio-arrange-control={studio ? 'handleBringToFront' : undefined}
+            aria-label={studio ? 'Bring to Front' : undefined}
             onClick={handleBringToFront}
             disabled={isApplying || isLocked}
             title="Bring to Front"
@@ -242,13 +253,14 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
 
       {/* Align Section */}
       <PanelSection title="Align">
-        <div className="flex gap-2">
+        <div data-studio-arrange-part={studio ? 'pair' : undefined} className="flex gap-2">
           <div className="flex-1">
             <PanelSelect
               options={ALIGN_OPTIONS.filter(o => ['left', 'center', 'right'].includes(o.value))}
               value=""
               onChange={handleAlign}
               disabled={isApplying || isLocked}
+              ariaLabel={studio ? 'Horizontal alignment' : undefined}
               placeholder="Horizontal"
             />
           </div>
@@ -258,6 +270,7 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
               value=""
               onChange={handleAlign}
               disabled={isApplying || isLocked}
+              ariaLabel={studio ? 'Vertical alignment' : undefined}
               placeholder="Vertical"
             />
           </div>
@@ -268,10 +281,11 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
 
       {/* Size Section */}
       <PanelSection title="Size">
-        <div className="flex items-center gap-2">
+        <div data-studio-arrange-part={studio ? 'pair' : undefined} className="flex items-center gap-2">
           <ControlRow label="W" labelWidth="sm" className="flex-1">
             <PanelInput
               type="number"
+              ariaLabel={studio ? 'Width in points' : undefined}
               value={width}
               onChange={setWidth}
               onBlur={() => handleWidthChange(width)}
@@ -281,6 +295,9 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
           </ControlRow>
 
           <button
+            data-studio-arrange-control={studio ? 'toggleConstrainProportions' : undefined}
+            aria-label={studio ? 'Constrain proportions' : undefined}
+            aria-pressed={studio ? constrainProportions : undefined}
             onClick={toggleConstrainProportions}
             disabled={isApplying || isLocked}
             title={constrainProportions ? "Proportions linked" : "Proportions unlinked"}
@@ -302,6 +319,7 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
           <ControlRow label="H" labelWidth="sm" className="flex-1">
             <PanelInput
               type="number"
+              ariaLabel={studio ? 'Height in points' : undefined}
               value={height}
               onChange={setHeight}
               onBlur={() => handleHeightChange(height)}
@@ -316,10 +334,11 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
 
       {/* Position Section */}
       <PanelSection title="Position">
-        <div className="flex gap-2">
+        <div data-studio-arrange-part={studio ? 'pair' : undefined} className="flex gap-2">
           <ControlRow label="X" labelWidth="sm" className="flex-1">
             <PanelInput
               type="number"
+              ariaLabel={studio ? 'Horizontal position in points' : undefined}
               value={posX}
               onChange={setPosX}
               onBlur={() => handlePositionChange('x', posX)}
@@ -330,6 +349,7 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
           <ControlRow label="Y" labelWidth="sm" className="flex-1">
             <PanelInput
               type="number"
+              ariaLabel={studio ? 'Vertical position in points' : undefined}
               value={posY}
               onChange={setPosY}
               onBlur={() => handlePositionChange('y', posY)}
@@ -347,6 +367,7 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
         <ControlRow label="Angle" labelWidth="md">
           <PanelInput
             type="number"
+            ariaLabel={studio ? 'Rotation angle in degrees' : undefined}
             value={angle}
             onChange={setAngle}
             onBlur={() => handleAngleChange(angle)}
@@ -360,6 +381,9 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
 
         <div className="flex gap-2 pt-1">
           <button
+            data-studio-arrange-control={studio ? 'handleFlipHorizontal' : undefined}
+            aria-label={studio ? 'Flip horizontally' : undefined}
+            aria-pressed={studio ? flippedH : undefined}
             onClick={handleFlipHorizontal}
             disabled={isApplying || isLocked}
             className={cn(
@@ -374,6 +398,9 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
             <span className="text-[10px]">Horizontal</span>
           </button>
           <button
+            data-studio-arrange-control={studio ? 'handleFlipVertical' : undefined}
+            aria-label={studio ? 'Flip vertically' : undefined}
+            aria-pressed={studio ? flippedV : undefined}
             onClick={handleFlipVertical}
             disabled={isApplying || isLocked}
             className={cn(
@@ -395,6 +422,9 @@ export function ArrangeTab({ properties, onSendCommand, isApplying, elementId }:
       {/* Lock Section */}
       <PanelSection title="Lock">
         <button
+          data-studio-arrange-control={studio ? 'handleLockToggle' : undefined}
+          aria-label={studio ? 'Lock element' : undefined}
+          aria-pressed={studio ? isLocked : undefined}
           onClick={handleLockToggle}
           disabled={isApplying}
           className={cn(

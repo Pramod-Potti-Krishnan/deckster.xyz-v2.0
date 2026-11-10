@@ -6,6 +6,7 @@
 // would create and delete presentations in production.
 
 import { getLayoutServiceBaseUrl } from './service-urls'
+import { ServiceUrlConfigError } from '@/lib/service-url'
 
 export { getLayoutServiceBaseUrl }
 
@@ -32,6 +33,7 @@ export async function snapshotPresentation(presentationId: string): Promise<Snap
     if (!data?.snapshot_id) return null
     return { snapshotId: data.snapshot_id, sourceId: data.source_id ?? presentationId }
   } catch (error) {
+    if (error instanceof ServiceUrlConfigError) throw error
     console.error('[Publish] Snapshot request error:', error)
     return null
   }
@@ -274,4 +276,31 @@ export async function getSnapshotSlideCountWithRetry(
     if (i < attempts - 1) await new Promise((resolve) => setTimeout(resolve, delayMs))
   }
   return null
+}
+
+/**
+ * The FULL deck JSON. Used only by the Q&A corpus freeze, which needs the slide
+ * bodies rather than the two facts `getPresentationMeta` keeps.
+ *
+ * Longer timeout than the meta read: this one runs in background work after the
+ * response has been sent, so a slow Layout costs nobody a wait, and giving up
+ * early would just mean an unbuilt corpus.
+ */
+const PRESENTATION_JSON_TIMEOUT_MS = 30000
+
+export async function getPresentationJson(
+  presentationId: string
+): Promise<Record<string, unknown> | null> {
+  try {
+    const response = await fetch(
+      `${getLayoutServiceBaseUrl()}/api/presentations/${presentationId}`,
+      { signal: AbortSignal.timeout(PRESENTATION_JSON_TIMEOUT_MS) }
+    )
+    if (!response.ok) return null
+    const data = await response.json()
+    return data && typeof data === 'object' ? (data as Record<string, unknown>) : null
+  } catch (error) {
+    console.error('[Publish] Presentation JSON fetch error:', presentationId, error)
+    return null
+  }
 }

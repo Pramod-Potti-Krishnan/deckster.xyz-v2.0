@@ -3,7 +3,7 @@
 import type { ComponentType } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useSubscription } from "@/hooks/use-subscription"
+import { useSession } from "next-auth/react"
 import { cn } from "@/lib/utils"
 import { User, Palette, Bell, ShieldCheck, Lock, Brain } from "lucide-react"
 
@@ -11,7 +11,7 @@ interface NavItem {
   href: string
   label: string
   icon: ComponentType<{ className?: string }>
-  premiumOnly?: boolean
+  authenticatedOnly?: boolean
 }
 
 const ITEMS: NavItem[] = [
@@ -20,19 +20,19 @@ const ITEMS: NavItem[] = [
   { href: "/settings/notifications", label: "Notifications", icon: Bell },
   { href: "/settings/privacy", label: "Privacy & Data", icon: ShieldCheck },
   { href: "/settings/security", label: "Security", icon: Lock },
-  { href: "/settings/knowledge-graph", label: "Knowledge Graph", icon: Brain, premiumOnly: true },
+  { href: "/settings/knowledge-graph", label: "Knowledge Graph", icon: Brain, authenticatedOnly: true },
 ]
 
 export function SettingsSidebar() {
+  const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true"
   const pathname = usePathname()
-  const { subscription } = useSubscription()
-  // Premium gate mirrors useKnowledgeGraph().isPremium exactly (subscription.tier).
-  const isPremium = subscription?.tier === "premium"
-
-  const items = ITEMS.filter((item) => !item.premiumOnly || isPremium)
+  const { data: session, status } = useSession()
+  const authenticated = status === "authenticated" && Boolean(session?.user?.id)
+  const items = ITEMS.filter((item) => !item.authenticatedOnly || authenticated)
 
   return (
     <nav
+      data-studio-settings-nav={studio ? "true" : undefined}
       aria-label="Settings"
       className="flex flex-row gap-1 overflow-x-auto pb-2 md:flex-col md:overflow-visible md:pb-0"
     >

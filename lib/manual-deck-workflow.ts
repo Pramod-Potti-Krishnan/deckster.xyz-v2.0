@@ -1,5 +1,6 @@
 import type { BuildThemeSelection } from '@/lib/theme-builder'
 import type { TemplateOverrides } from '@/lib/template-mode'
+import type { UserMessageAttachment } from '@/lib/user-message-attachments'
 
 const ELEMENT_COLLECTION_KEYS = [
   'text_boxes',
@@ -55,12 +56,18 @@ export interface ManualDeckContext {
 
 export interface PendingHandoffSubmission {
   version: 1
+  /** Local metadata only; never added to the classic Director request wire. */
+  owner_user_id?: string
+  submission_state?: 'staged' | 'submitted' | 'acknowledged' | 'failed'
+  handoff_status?: 'processing' | 'already_processing' | 'already_completed' | 'failed'
+  handoff_error?: string
   source_session_id: string
   new_session_id: string
   idempotency_key: string
   text: string
   store_name: string | null
   file_count: number
+  attachments?: UserMessageAttachment[]
   deep_research: boolean
   web_search: boolean
   extended_generation: boolean
@@ -369,6 +376,7 @@ export function readPendingHandoff(
     const parsed = JSON.parse(raw) as Partial<PendingHandoffSubmission>
     if (
       parsed.version !== 1 ||
+      !hasValidPendingHandoffMetadata(parsed) ||
       parsed.new_session_id !== sessionId ||
       typeof parsed.source_session_id !== 'string' ||
       typeof parsed.idempotency_key !== 'string' ||
@@ -392,6 +400,25 @@ export function readPendingHandoff(
     try { storage.removeItem(key) } catch {}
     return null
   }
+}
+
+/** Optional local metadata is validated without changing version-one records. */
+export function hasValidPendingHandoffMetadata(value: {
+  owner_user_id?: unknown
+  submission_state?: unknown
+  handoff_status?: unknown
+  handoff_error?: unknown
+}): boolean {
+  if (value.owner_user_id !== undefined && (typeof value.owner_user_id !== 'string' || !value.owner_user_id.trim())) return false
+  if (value.submission_state !== undefined && !['staged', 'submitted', 'acknowledged', 'failed'].includes(value.submission_state as string)) return false
+  if (value.handoff_status !== undefined && !['processing', 'already_processing', 'already_completed', 'failed'].includes(value.handoff_status as string)) return false
+  if (value.handoff_error !== undefined && typeof value.handoff_error !== 'string') return false
+  // Never interpret a recorded acknowledgement/failure as a fresh staged send.
+  if (value.handoff_status !== undefined) {
+    if (value.submission_state !== (value.handoff_status === 'failed' ? 'failed' : 'acknowledged')) return false
+  }
+  if (value.handoff_error !== undefined && value.handoff_status === undefined) return false
+  return true
 }
 
 export function clearPendingHandoff(storage: StorageReader, sessionId: string): void {

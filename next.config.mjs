@@ -25,14 +25,6 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_DECKSTER_BUILD_SHA: buildFingerprint,
   },
-  eslint: {
-    // Temporarily ignore ESLint during builds to deploy first
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    // Temporarily ignore TypeScript errors during builds to deploy first
-    ignoreBuildErrors: true,
-  },
   images: {
     unoptimized: true,
     domains: ['deckster.xyz'],
@@ -46,6 +38,11 @@ const nextConfig = {
     return [
       { source: '/resources', destination: '/learn', permanent: true },
       { source: '/resources/:slug', destination: '/learn/:slug', permanent: true },
+      { source: '/v3', destination: '/', permanent: false },
+      { source: '/templates', destination: '/bring#library', permanent: false },
+      { source: '/examples', destination: '/bring#library', permanent: false },
+      { source: '/integrations', destination: '/bring#inout', permanent: false },
+      { source: '/agents', destination: '/experts', permanent: false },
     ];
   },
   // Headers for security

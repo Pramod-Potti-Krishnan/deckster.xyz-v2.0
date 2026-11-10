@@ -1,0 +1,535 @@
+"use client"
+
+/**
+ * The owner's Q&A inbox, as a tab in the notes panel under the slide canvas.
+ *
+ * It lives HERE and not in the publish dialog on purpose. Every defer tells the
+ * asker "their answer appears here", and that promise is only kept if answering
+ * is somewhere the publisher already is. The publish dialog is a small modal
+ * that already carries visibility, passcode, downloads, Q&A settings and source
+ * permissions; burying a working queue behind it means reopening a crowded
+ * modal to do the one task the feature exists for. The notes panel is wide,
+ * persistent, and one click from the deck.
+ *
+ * Three actions, deliberately no more:
+ *   - **Answer** — the reply reaches the asker's follow-up link.
+ *   - **Publish to FAQ** — future askers get it with no model call at all.
+ *   - **Block** — for the caller who is probing rather than asking.
+ *
+ * The one thing this must never do is put words in the publisher's mouth. The
+ * machine's draft is shown as a draft, clearly labelled, and promoting it sends
+ * the text back to the server as the act of approval.
+ */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Ban,
+  Check,
+  Clock,
+  Loader2,
+  MessageSquare,
+  RefreshCw,
+  Send,
+  Sparkles,
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
+import { useToast } from '@/hooks/use-toast'
+import { faqItemIdOf, inboxRowActions, STUDIO_P2_PUBLISH_INBOX_ENABLED as STUDIO_P2_INBOX } from '@/lib/studio-p2-publish'
+
+import './studio-qa-inbox.css'
+
+const STUDIO_QA_INBOX = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+
+interface DeckQuestion {
+  id: string
+  question: string
+  status: string
+  gateReason: string | null
+  aiAnswer: string | null
+  askerName: string | null
+  askerEmail: string | null
+  ownerAnswer: string | null
+  ownerAnsweredAt: string | null
+  createdAt: string
+  /** NEXT_PUBLIC_STUDIO_P2_PUBLISH_INBOX: the published FAQ entry made from this question, when there is one. */
+  faqItemId?: string | null
+}
+
+interface InboxResponse {
+  questions: DeckQuestion[]
+  nextCursor: string | null
+  unansweredCount: number
+  qaEnabled: boolean
+  corpusStatus: string
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+/** A failed or partial read is not a receipt that publishing or Q&A is off. */
+function readPublishedSlug(data: unknown, sessionId: string): string | null {
+  if (!isRecord(data)) throw new Error('Could not load questions: invalid publish response')
+  const hasDeck = Object.prototype.hasOwnProperty.call(data, 'deck')
+  const hasAlias = Object.prototype.hasOwnProperty.call(data, 'publishedDeck')
+  const readRecord = (record: unknown): string => {
+    if (!isRecord(record) || typeof record.slug !== 'string' || !record.slug.trim()
+      || (record.sessionId !== undefined && record.sessionId !== sessionId)) {
+      throw new Error('Could not load questions: invalid publish response')
+    }
+    return record.slug
+  }
+  if (hasDeck) {
+    const slug = data.deck === null ? null : readRecord(data.deck)
+    if (hasAlias && (data.publishedDeck === null ? null : readRecord(data.publishedDeck)) !== slug) {
+      throw new Error('Could not load questions: conflicting publish response')
+    }
+    return slug
+  }
+  // Retain the existing non-null alias compatibility; absence comes from deck:null.
+  if (hasAlias) return readRecord(data.publishedDeck)
+  throw new Error('Could not load questions: invalid publish response')
+}
+
+function readInbox(data: unknown): InboxResponse {
+  if (!isRecord(data) || !Array.isArray(data.questions) || typeof data.qaEnabled !== 'boolean'
+    || typeof data.unansweredCount !== 'number' || !Number.isSafeInteger(data.unansweredCount)
+    || data.unansweredCount < 0) {
+    throw new Error('Could not load questions: invalid queue response')
+  }
+  const ids = new Set<string>()
+  const textFields = ['gateReason', 'aiAnswer', 'askerName', 'askerEmail', 'ownerAnswer', 'ownerAnsweredAt']
+  for (const item of data.questions) {
+    if (!isRecord(item) || typeof item.id !== 'string' || !item.id.trim() || ids.has(item.id)
+      || typeof item.question !== 'string' || typeof item.createdAt !== 'string'
+      || !['answered', 'deferred', 'owner_answered', 'blocked'].includes(item.status as string)
+      || textFields.some(field => item[field] !== undefined && item[field] !== null && typeof item[field] !== 'string')) {
+      throw new Error('Could not load questions: invalid queue response')
+    }
+    ids.add(item.id)
+  }
+  // Keep the server's count, authored text and extra fields; never infer a count from this page.
+  return data as unknown as InboxResponse
+}
+
+/** Why the machine stood down, in the owner's vocabulary rather than the gate's. */
+const GATE_LABELS: Record<string, string> = {
+  no_evidence: 'Not in the material',
+  low_confidence: 'Not confident enough',
+  unverified_claim: "Couldn't verify it",
+  policy: 'Needs you personally',
+  not_ready: 'Corpus was still building',
+}
+
+function relativeTime(iso: string): string {
+  const then = new Date(iso).getTime()
+  if (!Number.isFinite(then)) return ''
+  const seconds = Math.max(0, Math.round((Date.now() - then) / 1000))
+  if (seconds < 60) return 'just now'
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  return `${Math.round(hours / 24)}d ago`
+}
+
+/**
+ * One question, and whatever the owner can do about it.
+ *
+ * Answered-by-the-machine and deferred questions look deliberately different:
+ * a defer is work waiting, an answered one is a record. Both can be promoted to
+ * the FAQ, which is the only action that attaches the publisher's name to text.
+ */
+function QuestionRow({
+  item,
+  slug,
+  onChanged,
+}: {
+  item: DeckQuestion
+  slug: string
+  onChanged: (next?: DeckQuestion) => void
+}) {
+  const { toast } = useToast()
+  const [open, setOpen] = useState(false)
+  const [draft, setDraft] = useState(item.ownerAnswer ?? '')
+  const ownerKey = JSON.stringify([slug, item.id])
+  const ownerRef = useRef({ key: ownerKey })
+  if (ownerRef.current.key !== ownerKey) ownerRef.current = { key: ownerKey }
+  const owner = ownerRef.current
+  const [busyState, setBusy] = useState<{ owner: typeof owner; value: string | null } | null>(null)
+  const busy = busyState?.owner === owner ? busyState.value : null
+  const mountedRef = useRef(true)
+  const operationRef = useRef<object | null>(null)
+  const ownerIsCurrent = () => mountedRef.current && ownerRef.current === owner
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false; operationRef.current = null }
+  }, [])
+
+  const isDeferred = item.status === 'deferred'
+  const isBlocked = item.status === 'blocked'
+  const answered = Boolean(item.ownerAnswer)
+  const p2Actions = STUDIO_P2_INBOX ? inboxRowActions(item) : null
+
+  const call = useCallback(
+    async (action: string, path: string, body: unknown, ok: string, reverse?: { url: string }) => {
+      if (!ownerIsCurrent()) return false
+      const operation = {}
+      operationRef.current = operation
+      const isCurrent = () => ownerIsCurrent() && operationRef.current === operation
+      setBusy(previous => isCurrent() ? { owner, value: action } : previous)
+      try {
+        // `reverse` (NEXT_PUBLIC_STUDIO_P2_PUBLISH_INBOX): Unblock and Remove from FAQ are DELETEs on their own routes.
+        const response = await fetch(reverse?.url ?? `/api/publish/${slug}/questions/${item.id}${path}`, {
+          method: reverse ? 'DELETE' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: reverse ? undefined : JSON.stringify(body),
+        })
+        if (!isCurrent()) return false
+        const data = await response.json().catch(() => ({}))
+        if (!isCurrent()) return false
+        if (!response.ok) throw new Error(data.error || 'That did not go through')
+        toast({ title: ok })
+        if (!isCurrent()) return false
+        onChanged(data.question as DeckQuestion | undefined)
+        return isCurrent()
+      } catch (error) {
+        if (!isCurrent()) return false
+        toast({
+          title: error instanceof Error ? error.message : 'That did not go through',
+          variant: 'destructive',
+        })
+        return false
+      } finally {
+        setBusy(previous => isCurrent() ? { owner, value: null } : previous)
+      }
+    },
+    [item.id, onChanged, slug, toast, owner]
+  )
+
+  const sendAnswer = useCallback(async () => {
+    const text = draft.trim()
+    if (!text) return
+    const pending = call('answer', '/answer', { answerText: text }, 'Answer sent')
+    const operation = operationRef.current
+    const sent = await pending
+    if (sent) setOpen(previous => ownerIsCurrent() && operationRef.current === operation ? false : previous)
+  }, [call, draft, owner])
+
+  // Promoting a MACHINE draft sends the text back deliberately: that round trip
+  // IS the approval, and it is what lets the publisher's byline attach to words
+  // they actually submitted rather than words a form claims they saw.
+  const promote = useCallback(() => {
+    const text = (item.ownerAnswer ?? draft ?? item.aiAnswer ?? '').trim()
+    if (!text) {
+      toast({ title: 'Write an answer first', variant: 'destructive' })
+      return
+    }
+    void call('promote', '/promote', { answer: text }, 'Published to the FAQ')
+  }, [call, draft, item.aiAnswer, item.ownerAnswer, toast])
+
+  return (
+    <div className="studio-qa-question rounded-md border border-gray-200 px-3 py-2 dark:border-slate-700" data-question-status={STUDIO_QA_INBOX ? answered ? 'answered' : isBlocked ? 'blocked' : isDeferred ? 'deferred' : 'automatic' : undefined} aria-busy={STUDIO_QA_INBOX ? busy !== null : undefined}>
+      <div className="studio-qa-question-top flex items-start justify-between gap-2">
+        <p id={STUDIO_QA_INBOX ? `studio-qa-question-${item.id}` : undefined} className="studio-qa-question-title text-sm font-medium text-slate-800 dark:text-slate-100">{item.question}</p>
+        <span className="studio-qa-question-time flex-shrink-0 whitespace-nowrap text-[11px] text-slate-400">
+          {relativeTime(item.createdAt)}
+        </span>
+      </div>
+
+      <div className="studio-qa-question-meta mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">
+        {answered ? (
+          <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+            <Check className="h-3 w-3" /> You answered
+          </span>
+        ) : isBlocked ? (
+          <span className="inline-flex items-center gap-1 text-slate-400">
+            <Ban className="h-3 w-3" /> Blocked
+          </span>
+        ) : isDeferred ? (
+          <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
+            <Clock className="h-3 w-3" /> Waiting on you
+            {item.gateReason ? ` — ${GATE_LABELS[item.gateReason] ?? item.gateReason}` : ''}
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1">
+            <Sparkles className="h-3 w-3" /> Answered automatically
+          </span>
+        )}
+        {item.askerName && <span>· from {item.askerName}</span>}
+        {/* The email is shown but never mailed from here — see the panel note. */}
+        {item.askerEmail && <span>· {item.askerEmail}</span>}
+        {p2Actions && faqItemIdOf(item) !== null && <span className="studio-qa-in-faq inline-flex items-center gap-1"><Check className="h-3 w-3" /> In the FAQ</span>}
+      </div>
+
+      {/* The machine's text is labelled as a DRAFT wherever the owner has not
+          answered, so nothing reads as the publisher speaking until they say so. */}
+      {item.aiAnswer && !answered && (
+        <p className="studio-qa-question-draft mt-1.5 border-l-2 border-slate-200 pl-2 text-xs italic text-slate-500 dark:border-slate-600 dark:text-slate-400">
+          {item.aiAnswer}
+        </p>
+      )}
+      {answered && (
+        <p className="studio-qa-question-answer mt-1.5 border-l-2 border-emerald-300 pl-2 text-xs text-slate-600 dark:border-emerald-700 dark:text-slate-300">
+          {item.ownerAnswer}
+        </p>
+      )}
+
+      {open && (
+        <div className="studio-qa-question-editor mt-2 space-y-1.5">
+          <Textarea
+            aria-label={STUDIO_QA_INBOX ? 'Your answer' : undefined}
+            aria-describedby={STUDIO_QA_INBOX ? `studio-qa-question-${item.id}` : undefined}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Your answer — this is what the asker sees, in your name…"
+            className="min-h-[70px] resize-none text-sm"
+            autoFocus
+          />
+          <div className="studio-qa-question-actions flex items-center gap-2">
+            <Button size="sm" className="studio-qa-answer-send" onClick={sendAnswer} disabled={busy !== null || !draft.trim()}>
+              {busy === 'answer' ? (
+                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+              ) : (
+                <Send className="mr-1 h-3 w-3" />
+              )}
+              Send
+            </Button>
+            {item.aiAnswer && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setDraft(item.aiAnswer ?? '')}
+                disabled={busy !== null}
+              >
+                Start from the draft
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" onClick={() => setOpen(false)} disabled={busy !== null}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {!open && !isBlocked && (
+        <div className="studio-qa-question-actions mt-2 flex flex-wrap items-center gap-1.5">
+          <Button size="sm" variant="outline" className="studio-qa-answer-open" onClick={() => setOpen(true)} disabled={busy !== null}>
+            {answered ? 'Edit answer' : 'Answer'}
+          </Button>
+          {p2Actions?.removeFromFaq ? (
+            <Button size="sm" variant="ghost" className="studio-qa-remove-faq" disabled={busy !== null}
+              onClick={() => void call('unfaq', '', {}, 'Removed from the FAQ', { url: `/api/publish/${slug}/faq/${encodeURIComponent(faqItemIdOf(item) ?? '')}` })}>
+              {busy === 'unfaq' ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+              Remove from FAQ
+            </Button>
+          ) : (
+          <Button size="sm" variant="ghost" onClick={promote} disabled={busy !== null}>
+            {busy === 'promote' ? (
+              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+            ) : null}
+            Publish to FAQ
+          </Button>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="studio-qa-block text-slate-400 hover:text-red-600"
+            onClick={() => void call('block', '/block', {}, 'Blocked')}
+            disabled={busy !== null}
+          >
+            {busy === 'block' ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+            Block
+          </Button>
+        </div>
+      )}
+
+      {p2Actions?.unblock && (
+        <div className="studio-qa-question-actions mt-2 flex flex-wrap items-center gap-1.5">
+          <Button size="sm" variant="outline" className="studio-qa-unblock" disabled={busy !== null}
+            onClick={() => void call('unblock', '/block', {}, 'Unblocked', { url: `/api/publish/${slug}/questions/${item.id}/block` })}>
+            {busy === 'unblock' ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+            Unblock
+          </Button>
+          <span className="studio-qa-unblock-note text-[11px] text-slate-500 dark:text-slate-400">Their blocked questions come back to this inbox as waiting.</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The inbox itself. Resolves the deck from the session, then reads the queue.
+ *
+ * `onUnansweredChange` drives the tab badge — the panel needs the count even
+ * when the tab is not open, which is the whole point of a badge.
+ */
+export function DeckQaInbox({
+  sessionId,
+  onUnansweredChange,
+}: {
+  sessionId: string | null
+  onUnansweredChange?: (count: number) => void
+}) {
+  const ownerRef = useRef({ sessionId })
+  if (ownerRef.current.sessionId !== sessionId) ownerRef.current = { sessionId }
+  const owner = ownerRef.current
+  const mountedRef = useRef(true)
+  const requestRef = useRef<object | null>(null)
+  const [view, setView] = useState<{
+    owner: typeof owner; slug: string | null; state: InboxResponse | null; loading: boolean; error: string | null
+  } | null>(null)
+  const currentView = view?.owner === owner ? view : null
+  const slug = currentView?.slug ?? null
+  const state = currentView?.state ?? null
+  const loading = currentView?.loading ?? true
+  const error = currentView?.error ?? null
+  // Read in an effect but never rendered — a ref, so changing it cannot loop.
+  const notify = useRef(onUnansweredChange)
+  notify.current = onUnansweredChange
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false; requestRef.current = null }
+  }, [])
+
+  const load = useCallback(async () => {
+    if (!mountedRef.current || ownerRef.current !== owner) return
+    const request = {}
+    requestRef.current = request
+    const isCurrent = () => mountedRef.current && ownerRef.current === owner && requestRef.current === request
+    const publish = (next: (previous: NonNullable<typeof view>) => NonNullable<typeof view>) => {
+      setView(previous => isCurrent() ? next(previous?.owner === owner ? previous
+        : { owner, slug: null, state: null, loading: true, error: null }) : previous)
+    }
+    if (!sessionId) {
+      publish(previous => ({ ...previous, loading: false }))
+      return
+    }
+    publish(previous => ({ ...previous, error: null, loading: previous.state === null }))
+    try {
+      const deckResponse = await fetch(`/api/publish/by-session/${sessionId}`)
+      if (!isCurrent()) return
+      const deckData: unknown = await deckResponse.json()
+      if (!isCurrent()) return
+      if (!deckResponse.ok) throw new Error(isRecord(deckData) && typeof deckData.error === 'string' ? deckData.error : 'Could not load questions')
+      const publishedSlug = readPublishedSlug(deckData, sessionId)
+      if (publishedSlug === null) {
+        publish(previous => ({ ...previous, slug: null, state: null }))
+        notify.current?.(0)
+        return
+      }
+      publish(previous => previous.slug === publishedSlug
+        ? { ...previous, slug: publishedSlug }
+        : { ...previous, slug: publishedSlug, state: null, loading: true })
+
+      const response = await fetch(`/api/publish/${publishedSlug}/questions`)
+      if (!isCurrent()) return
+      const data: unknown = await response.json()
+      if (!isCurrent()) return
+      if (!response.ok) throw new Error(isRecord(data) && typeof data.error === 'string' ? data.error : 'Could not load questions')
+      const inbox = readInbox(data)
+      publish(previous => ({ ...previous, state: inbox }))
+      notify.current?.(inbox.unansweredCount)
+    } catch (e) {
+      publish(previous => ({ ...previous, error: e instanceof Error ? e.message : 'Could not load questions' }))
+    } finally {
+      publish(previous => ({ ...previous, loading: false }))
+    }
+  }, [sessionId, owner])
+
+  useEffect(() => {
+    void load()
+    return () => { requestRef.current = null }
+  }, [load])
+
+  const questions = state?.questions ?? []
+  const waiting = useMemo(
+    () => questions.filter((q) => !q.ownerAnswer && q.status !== 'blocked').length,
+    [questions]
+  )
+
+  if (loading) {
+    return (
+      <div className="studio-qa-inbox-notice flex h-full items-center justify-center text-xs text-slate-400" data-studio-v4-shell={STUDIO_QA_INBOX} data-studio-qa-inbox={STUDIO_QA_INBOX} role={STUDIO_QA_INBOX ? 'status' : undefined}>
+        <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Loading questions…
+      </div>
+    )
+  }
+
+  if (!state && error) {
+    return (
+      <div className="studio-qa-inbox-read-error flex h-full flex-col items-center justify-center text-center"
+        data-studio-v4-shell={STUDIO_QA_INBOX} data-studio-qa-inbox={STUDIO_QA_INBOX} data-studio-qa-inbox-error={STUDIO_QA_INBOX ? 'true' : undefined}>
+        <div role="alert">
+          <strong>Questions could not be loaded</strong>
+          <p>{error}</p>
+        </div>
+        <Button type="button" variant="outline" size="sm" data-studio-qa-inbox-retry="true"
+          onClick={() => { void load() }}>
+          <RefreshCw className="mr-1.5 h-3.5 w-3.5" />Retry questions
+        </Button>
+      </div>
+    )
+  }
+
+  if (!slug) {
+    return (
+      <div className="studio-qa-inbox-notice flex h-full flex-col items-center justify-center gap-1 text-center text-xs text-slate-400" data-studio-v4-shell={STUDIO_QA_INBOX} data-studio-qa-inbox={STUDIO_QA_INBOX}>
+        <MessageSquare className="h-4 w-4" />
+        <p>Publish this deck to start collecting questions from viewers.</p>
+      </div>
+    )
+  }
+
+  if (state && !state.qaEnabled) {
+    return (
+      <div className="studio-qa-inbox-notice flex h-full flex-col items-center justify-center gap-1 text-center text-xs text-slate-400" data-studio-v4-shell={STUDIO_QA_INBOX} data-studio-qa-inbox={STUDIO_QA_INBOX}>
+        <MessageSquare className="h-4 w-4" />
+        <p>{STUDIO_QA_INBOX ? 'Questions are off for this deck. Turn them on under Publish → Sharing.' : 'Q&A is off for this deck. Turn it on under Publish → Q&A.'}</p>
+        {error && <>
+          <p role="alert" className="studio-qa-inbox-error text-xs text-amber-600 dark:text-amber-400">{error}</p>
+          <Button type="button" variant="outline" size="sm" onClick={() => { void load() }}>
+            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />Retry questions
+          </Button>
+        </>}
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex h-full flex-col" data-studio-v4-shell={STUDIO_QA_INBOX} data-studio-qa-inbox={STUDIO_QA_INBOX}>
+      <div className="studio-qa-inbox-heading flex flex-shrink-0 items-center justify-between pb-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+        <span>
+          {state === null
+            ? 'Questions not confirmed'
+            : waiting > 0
+            ? `${waiting} waiting on you`
+            : questions.length > 0
+              ? 'Nothing waiting'
+              : 'No questions yet'}
+        </span>
+        <button
+          type="button"
+          onClick={() => void load()}
+          className="inline-flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-200"
+        >
+          <RefreshCw className="h-3 w-3" /> Refresh
+        </button>
+      </div>
+
+      {error && <p role={STUDIO_QA_INBOX ? 'alert' : undefined} className="studio-qa-inbox-error pb-1.5 text-xs text-amber-600 dark:text-amber-400">{error}</p>}
+
+      <div className="studio-qa-inbox-list flex-1 space-y-1.5 overflow-y-auto pr-1">
+        {questions.length === 0 && !error && (
+          <p className="studio-qa-inbox-empty pt-6 text-center text-xs text-slate-400">
+            Questions your viewers ask will appear here.
+          </p>
+        )}
+        {questions.map((item) => (
+          <QuestionRow key={item.id} item={item} slug={slug} onChanged={() => void load()} />
+        ))}
+      </div>
+    </div>
+  )
+}

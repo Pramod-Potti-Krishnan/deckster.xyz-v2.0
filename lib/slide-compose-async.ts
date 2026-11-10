@@ -8,6 +8,28 @@ export type AsyncSlideComposeRequest<T extends Record<string, unknown>> = T & {
 // preserving FIFO, and a Slide Builder pass can take about 120s. Keep this
 // client watchdog above that budget until a backend heartbeat replaces it.
 export const SLIDE_COMPOSE_WATCHDOG_MS = 480_000
+const MAX_PROCESSED_STATE_FRAME_IDS = 1000
+const STATE_FRAME_TYPES = new Set(['slide_built', 'slide_ready', 'slide_failed'])
+
+export function markSlideStateFrameProcessed(
+  processedFrameKeys: Set<string>,
+  message: { type?: unknown; message_id?: unknown; session_id?: unknown },
+): boolean {
+  const frameType = String(message.type || '')
+  if (!STATE_FRAME_TYPES.has(frameType)) return true
+  const messageId = typeof message.message_id === 'string' ? message.message_id.trim() : ''
+  if (!messageId) return true
+  const sessionId = typeof message.session_id === 'string' ? message.session_id.trim() : ''
+  const frameKey = `${sessionId}:${frameType}:${messageId}`
+  if (processedFrameKeys.has(frameKey)) return false
+
+  processedFrameKeys.add(frameKey)
+  if (processedFrameKeys.size > MAX_PROCESSED_STATE_FRAME_IDS) {
+    const oldest = processedFrameKeys.values().next().value
+    if (oldest) processedFrameKeys.delete(oldest)
+  }
+  return true
+}
 
 export interface SlideComposeProgressStatusInput {
   text?: unknown
@@ -52,7 +74,7 @@ export function withAsyncSlideComposeFields<T extends Record<string, unknown>>(
 export function normalizeSlideComposeSocketFrame<T extends { type?: string; payload?: unknown } & Record<string, unknown>>(
   raw: T,
 ): T {
-  if ((raw.type === 'slide_ready' || raw.type === 'slide_failed') && !raw.payload) {
+  if ((raw.type === 'slide_ready' || raw.type === 'slide_failed' || raw.type === 'slide_built') && !raw.payload) {
     const { type, message_id, session_id, timestamp, ...payload } = raw
     return {
       message_id,
@@ -301,10 +323,13 @@ export function shouldNavigateToResolvedComposeSlide(options: {
   currentSlideIndex: number
   jobTargetVisualIndex?: number | null
   resolvedVisualIndex: number
+  /** J2 v2 (DEC-P9): the visual slide the job was started from; staying on it also follows the new slide. */
+  followVisualIndex?: number | null
 }): boolean {
   return (
     options.currentSlideIndex === options.jobTargetVisualIndex ||
-    options.currentSlideIndex === options.resolvedVisualIndex
+    options.currentSlideIndex === options.resolvedVisualIndex ||
+    (options.followVisualIndex != null && options.currentSlideIndex === options.followVisualIndex)
   )
 }
 
@@ -312,6 +337,7 @@ export function resolveSlideComposeSelectionAfterReady(options: {
   currentSlideIndex: number
   jobTargetVisualIndex?: number | null
   resolvedVisualIndex: number
+  followVisualIndex?: number | null
 }): number {
   return shouldNavigateToResolvedComposeSlide(options)
     ? Math.max(0, options.resolvedVisualIndex)
@@ -374,43 +400,58 @@ export async function restoreSlideViewerSelection(options: {
   const maxAttempts = Math.max(1, options.maxAttempts ?? 20)
   let lastError: unknown = null
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+  const checkActive = () => {
     if (options.isActive && !options.isActive()) {
       throw new Error('Presentation iframe changed during slide selection restore')
     }
+  }
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    checkActive()
 
     try {
       const before = await options.readNavigationInfo()
+      checkActive()
       if (!before || targetVisualIndex >= before.totalSlides) {
         options.onRetry?.({ attempt, phase: 'waiting', viewerState: before })
         await options.wait(200)
+        checkActive()
         continue
       }
 
       await options.navigate(targetVisualIndex)
+      checkActive()
       await options.wait(100)
+      checkActive()
       const firstCheck = await options.readNavigationInfo()
+      checkActive()
       if (firstCheck?.currentVisualIndex !== targetVisualIndex) {
         options.onRetry?.({ attempt, phase: 'first_check', viewerState: firstCheck })
         await options.wait(200)
+        checkActive()
         continue
       }
 
       // Reveal can acknowledge navigation before initialization finishes.
       // Verify again after its ready event has had time to reset the initial index.
       await options.wait(450)
+      checkActive()
       const stableCheck = await options.readNavigationInfo()
+      checkActive()
       if (stableCheck?.currentVisualIndex !== targetVisualIndex) {
         options.onRetry?.({ attempt, phase: 'stability_check', viewerState: stableCheck })
         await options.wait(200)
+        checkActive()
         continue
       }
 
       return { attempts: attempt }
     } catch (error) {
+      checkActive()
       lastError = error
       options.onRetry?.({ attempt, phase: 'command_error', error })
       await options.wait(200)
+      checkActive()
     }
   }
 

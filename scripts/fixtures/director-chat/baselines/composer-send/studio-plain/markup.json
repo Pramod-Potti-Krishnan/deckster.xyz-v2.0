@@ -1,0 +1,68 @@
+{
+  "01-empty-composer-no-deck-yet": {
+    "chat": "6691f4f2d5b0118fcb7b91d59321000d3d221e2f29f04c5b9076de2ad8081a0a",
+    "composer": "523a7a8cc53cce070edca6411bb935729bf222282c36ce02bfe6e7d63d1e69f9",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "02-draft-typed": {
+    "chat": "6691f4f2d5b0118fcb7b91d59321000d3d221e2f29f04c5b9076de2ad8081a0a",
+    "composer": "794010f9b290c8dec8b4a3f90cf0473d81aca7b4e9dc3524973e4a9f140ca29d",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "03-sent-from-the-send-button": {
+    "chat": "322ae3792554f881202d1d8d248696906c5b6a0fb6315b466f368761d3abcb60",
+    "composer": "c59e53a2c3aa070d7c6d269b1c865701fe31ed14106022ad6beef0fcdccfc121",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "04-deck-open-slide-1": {
+    "chat": "d1ed509a2ba0e53eb755f4e5ae78010a0ad20f7df9df976f582c6b3fc6d7a9dc",
+    "composer": "523a7a8cc53cce070edca6411bb935729bf222282c36ce02bfe6e7d63d1e69f9",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "05-deck-open-slide-3": {
+    "chat": "d1ed509a2ba0e53eb755f4e5ae78010a0ad20f7df9df976f582c6b3fc6d7a9dc",
+    "composer": "523a7a8cc53cce070edca6411bb935729bf222282c36ce02bfe6e7d63d1e69f9",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "06-template-and-theme-selected": {
+    "chat": "d1ed509a2ba0e53eb755f4e5ae78010a0ad20f7df9df976f582c6b3fc6d7a9dc",
+    "composer": "17759df69dbd37dc62f409ace2d5067e9c72bb3227dcd94336eb67a3d8e03d26",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "07-sent-with-enter-with-a-template-and-theme-select": {
+    "chat": "8d8de7030e489db44a122bdaeeb19f3c5f6fe01a3dccd0aab0fe741ac1386459",
+    "composer": "bac6a6cca58c28a932b5197eb9a55b5ed6d4e078a57d292653b3bc6c7db15678",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "08-pills-cleared-the-handlers-were-called-the-page-": {
+    "chat": "cea10ebab599133da90afa3375073cc86886547bbb806549fff5d793e2e514fd",
+    "composer": "af47b556e73c800d497c67e0865b1321a51213a63aff7194de24e76c2c71a8fe",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "09-selections-locked": {
+    "chat": "cea10ebab599133da90afa3375073cc86886547bbb806549fff5d793e2e514fd",
+    "composer": "6b873e35acf7d0d173626c41b8e5a6f990c276e4753b9ebc51bc13c7aa1863ac",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "10-socket-lost": {
+    "chat": "cea10ebab599133da90afa3375073cc86886547bbb806549fff5d793e2e514fd",
+    "composer": "2294bda8547b87246b7ff9a5b8b42c08678a22958b8372f92f72e46478800257",
+    "header": "6ba45185bd4bd90b41aebd401b6bcdf2b65d89fc69739a66d8c9d6af40221f67",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "11-final": {
+    "chat": "cea10ebab599133da90afa3375073cc86886547bbb806549fff5d793e2e514fd",
+    "composer": "2294bda8547b87246b7ff9a5b8b42c08678a22958b8372f92f72e46478800257",
+    "header": "6ba45185bd4bd90b41aebd401b6bcdf2b65d89fc69739a66d8c9d6af40221f67",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

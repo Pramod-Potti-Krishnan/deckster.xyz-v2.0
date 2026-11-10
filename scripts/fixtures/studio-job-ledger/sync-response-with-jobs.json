@@ -1,0 +1,52 @@
+{
+ "message_id": "msg_sync_0afc9bf7",
+ "session_id": "sess-restart",
+ "timestamp": "2026-10-23T15:15:48.765701Z",
+ "type": "sync_response",
+ "role": "assistant",
+ "payload": {
+  "action": "skip_history",
+  "message_count": 0,
+  "current_state": "TOPIC_SET",
+  "has_strawman": false,
+  "presentation_url": "https://layout.example.com/p/deck",
+  "presentation_id": "deck-pres",
+  "slide_count": null,
+  "jobs": [
+   {
+    "job_id": "mdc_lost00000001",
+    "kind": "slide_compose",
+    "state": "failed",
+    "seq": 3,
+    "started_at": "2027-01-15T07:58:00.000Z",
+    "updated_at": "2027-01-15T08:00:00.000Z",
+    "deadline_at": "2027-01-15T08:13:00.000Z",
+    "presentation_id": "deck-pres",
+    "slide_index": 3,
+    "failure": {
+     "code": "lost_on_restart",
+     "retryable": true
+    },
+    "retry": {
+     "via": "frame",
+     "job_id": "mdc_lost00000001"
+    },
+    "retry_of": null
+   },
+   {
+    "job_id": "exp_0123456789ab",
+    "kind": "export",
+    "state": "done",
+    "seq": 2,
+    "started_at": "2027-01-15T07:57:00.000Z",
+    "updated_at": "2027-01-15T07:57:20.000Z",
+    "deadline_at": "2027-01-15T08:07:00.000Z",
+    "presentation_id": "deck-pres",
+    "slide_index": null,
+    "failure": null,
+    "retry": null,
+    "retry_of": null
+   }
+  ]
+ }
+}

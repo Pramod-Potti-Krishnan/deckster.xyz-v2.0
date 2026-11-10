@@ -1,0 +1,19 @@
+{
+  "diagnostics": {
+    "blockedNetwork": [],
+    "console": [{"level":"warn","text":"🔌 WebSocket connection closed <object>"}],
+    "fetches": [
+      {"method":"GET","url":"/api/director/ws-token?session_id=synthetic-session-reconnect"},
+      {"method":"GET","url":"/api/director/ws-token?session_id=synthetic-session-reconnect"},
+      {"method":"GET","url":"/api/director/ws-token?session_id=synthetic-session-reconnect"}
+    ],
+    "sockets": 3,
+    "timersLeft": 3,
+    "uncaughtTimerErrors": [],
+    "windowOpens": []
+  },
+  "fixture": "reconnect-mid-build",
+  "fixtureSha": "12e587385929a4b8",
+  "profile": "studio-plain",
+  "schema": 1
+}

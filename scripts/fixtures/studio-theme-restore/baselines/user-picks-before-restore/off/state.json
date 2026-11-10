@@ -1,0 +1,109 @@
+{
+  "calls": [
+    {
+      "args": [{"mode":"auto"},"synthetic-uuid-0001","deck-themed-cl",true],
+      "at": 1500,
+      "name": "hook.sendThemeSelection",
+      "step": 2
+    },
+    {"args":[{"type":"sync_response"}],"at":2000,"name":"page.onMessage","step":3},
+    {"args":[{"mode":"preset","preset_id":"vibrant"}],"at":2500,"name":"page.handleBuildThemeChange","step":4},
+    {"args":[],"at":2500,"name":"page.saveSessionOnFirstAction","step":4},
+    {
+      "args": [{"mode":"preset","preset_id":"vibrant"},"synthetic-uuid-0002","deck-themed-cl",true],
+      "at": 2500,
+      "name": "hook.sendThemeSelection",
+      "step": 4
+    },
+    {
+      "args": [{"request_id":"restore:sess-themed-cl:req-cl-1","status":"restored","type":"theme_sync"}],
+      "at": 4000,
+      "name": "page.onMessage",
+      "step": 7
+    },
+    {"args":[{"type":"chat_message"}],"at":4000,"name":"page.onMessage","step":7},
+    {"args":[{"type":"chat_message"}],"at":4000,"name":"page.onMessage","step":7},
+    {
+      "args": [{"request_id":"synthetic-uuid-0002","status":"syncing","type":"theme_sync"}],
+      "at": 5500,
+      "name": "page.onMessage",
+      "step": 10
+    },
+    {
+      "args": [{"request_id":"synthetic-uuid-0002","status":"applied","type":"theme_sync"}],
+      "at": 5500,
+      "name": "page.onMessage",
+      "step": 10
+    }
+  ],
+  "checkpoints": [
+    {
+      "activeBuildThemeProfile": null,
+      "buildThemeSelection": {"mode":"preset","preset_id":"vibrant"},
+      "connection": {"connected":true,"generation":1,"sockets":1},
+      "deck": {"effectivePresentationId":"deck-themed-cl","presentationId":"deck-themed-cl"},
+      "label": "picked before the restore",
+      "messages": ["db-director-1 | chat_message"],
+      "setThemeSent": [
+        {"at":1500,"socket":0,"theme":{"mode":"auto"}},
+        {"at":2500,"socket":0,"theme":{"mode":"preset","preset_id":"vibrant"}}
+      ],
+      "themeSelectionChangedLocally": true,
+      "themeSync": {
+        "error": null,
+        "presentationId": "deck-themed-cl",
+        "requestId": "synthetic-uuid-0002",
+        "status": "syncing",
+        "themeFingerprint": "{\"mode\":\"preset\",\"preset_id\":\"vibrant\"}"
+      },
+      "toasts": 0,
+      "virtualMs": 3000
+    },
+    {
+      "activeBuildThemeProfile": null,
+      "buildThemeSelection": {"mode":"preset","preset_id":"vibrant"},
+      "connection": {"connected":true,"generation":1,"sockets":1},
+      "deck": {"effectivePresentationId":"deck-themed-cl","presentationId":"deck-themed-cl"},
+      "label": "restore arrived after the pick",
+      "messages": ["db-director-1 | chat_message","msg_hist_0b681a89edc6 | chat_message","msg_hist_b6bf31b5a056 | chat_message"],
+      "setThemeSent": [
+        {"at":1500,"socket":0,"theme":{"mode":"auto"}},
+        {"at":2500,"socket":0,"theme":{"mode":"preset","preset_id":"vibrant"}}
+      ],
+      "themeSelectionChangedLocally": true,
+      "themeSync": {
+        "error": null,
+        "presentationId": "deck-themed-cl",
+        "requestId": "synthetic-uuid-0002",
+        "status": "syncing",
+        "themeFingerprint": "{\"mode\":\"preset\",\"preset_id\":\"vibrant\"}"
+      },
+      "toasts": 0,
+      "virtualMs": 4500
+    },
+    {
+      "activeBuildThemeProfile": null,
+      "buildThemeSelection": {"mode":"preset","preset_id":"vibrant"},
+      "connection": {"connected":true,"generation":1,"sockets":1},
+      "deck": {"effectivePresentationId":"deck-themed-cl","presentationId":"deck-themed-cl"},
+      "label": "pick applied",
+      "messages": ["db-director-1 | chat_message","msg_hist_0b681a89edc6 | chat_message","msg_hist_b6bf31b5a056 | chat_message"],
+      "setThemeSent": [
+        {"at":1500,"socket":0,"theme":{"mode":"auto"}},
+        {"at":2500,"socket":0,"theme":{"mode":"preset","preset_id":"vibrant"}}
+      ],
+      "themeSelectionChangedLocally": false,
+      "themeSync": {
+        "error": null,
+        "presentationId": "deck-themed-cl",
+        "requestId": "synthetic-uuid-0002",
+        "status": "applied",
+        "themeFingerprint": "{\"mode\":\"preset\",\"preset_id\":\"vibrant\"}"
+      },
+      "toasts": 0,
+      "virtualMs": 31000
+    }
+  ],
+  "diagnostics": {"blockedNetwork":[],"console":[],"uncaught":[]},
+  "notes": []
+}

@@ -5,8 +5,10 @@ import { prisma } from '@/lib/prisma'
 import { unlockCookieName, verifyUnlockCookie } from '@/lib/publish/passcode'
 import { PublishedViewer } from '@/components/published-viewer'
 import { PublishPasscodeGate } from '@/components/publish-passcode-gate'
+import { serializeFaqForViewer } from '@/lib/publish/qa-serialize'
 
 import { getPublicLayoutBaseUrl } from '@/lib/publish/service-urls'
+import { ServiceUrlConfigError } from '@/lib/service-url'
 
 // Slug resolution reads the database — never prerender/cache this page
 export const dynamic = 'force-dynamic'
@@ -16,7 +18,10 @@ interface PublishedDeckPageProps {
 }
 
 async function loadDeck(slug: string) {
-  const deck = await prisma.publishedDeck.findUnique({ where: { slug } })
+  const deck = await prisma.publishedDeck.findUnique({
+    where: { slug },
+    include: { user: { select: { name: true } } },
+  })
   if (!deck || deck.revokedAt) return null
   return deck
 }
@@ -57,15 +62,44 @@ export default async function PublishedDeckPage({ params }: PublishedDeckPagePro
     .update({ where: { id: deck.id }, data: { viewCount: { increment: 1 } } })
     .catch(() => {})
 
+  const ownerName = deck.user?.name?.trim() || 'the deck owner'
+
+  // SSR the FAQ: it is the publisher's own approved text and should be readable
+  // without waiting on a fetch (or on JavaScript at all).
+  const faqRows = await prisma.deckFaqItem.findMany({
+    where: { publishedDeckId: deck.id, published: true },
+    orderBy: [{ sortOrder: 'asc' }, { approvedAt: 'asc' }],
+  })
+  const initialFaq = faqRows.map((row) =>
+    serializeFaqForViewer(row, {
+      slug: deck.slug,
+      citeWebSources: deck.qaCiteWebSources,
+      ownerName,
+    })
+  )
+
+  let layoutBaseUrl: string | null = null
+  let layoutConfigurationError: string | undefined
+  try {
+    layoutBaseUrl = getPublicLayoutBaseUrl()
+  } catch (error) {
+    if (!(error instanceof ServiceUrlConfigError)) throw error
+    layoutConfigurationError = error.message
+  }
+
   return (
     <PublishedViewer
       title={deck.title}
       slug={deck.slug}
-      layoutBaseUrl={getPublicLayoutBaseUrl()}
+      layoutBaseUrl={layoutBaseUrl}
+      layoutConfigurationError={layoutConfigurationError}
       snapshotPresentationId={deck.snapshotPresentationId}
       slideCount={deck.slideCount}
       allowPdf={deck.allowPdf}
       allowPptx={deck.allowPptx}
+      ownerName={ownerName}
+      qaEnabled={deck.qaEnabled}
+      initialFaq={initialFaq}
     />
   )
 }
