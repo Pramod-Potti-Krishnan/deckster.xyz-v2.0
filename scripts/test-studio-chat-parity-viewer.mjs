@@ -24,8 +24,9 @@ let checks = 0
 const ok = (condition, message) => { checks++; assert.ok(condition, message) }
 const plain = value => JSON.parse(JSON.stringify(value === undefined ? null : value)) // values built inside the loader's vm have their own Array / Object prototypes: compare them as plain data
 const eq = (actual, expected, message) => { checks++; assert.deepEqual(plain(actual), plain(expected), message) }
-const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const read = rel => stripWorkspace.stripChatParityWorkspace(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): every read is the file without the workspace commands' lines (stripWorkspace is bound below: a read is only made later)
 const strip = await import('./studio-chat-parity-viewer-strip.mjs')
+const stripWorkspace = await import('./studio-chat-parity-workspace-strip.mjs') // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): the workspace slash commands (stacked after this change) add marked lines to files this proof reads and to the viewer half's own lib and menu; it reads them as this change left them
 const registry = await import('./studio-later-changes.mjs')
 const { createModuleLoader } = await import('./studio-chat-harness/module-loader.mjs')
 
@@ -279,7 +280,7 @@ async function busSuite(text = read(LIB)) {
 // ============================================================================================================================================
 const MARK = strip.CHAT_PARITY_VIEWER_MARKER_RE
 const importLines = text => text.split('\n').filter(line => /^import\s/.test(line))
-const addedLines = (rel, from = strip.BASE_COMMIT) => git('diff', '--no-color', '-U0', from, '--', rel).split('\n').filter(line => /^\+(?!\+\+)/.test(line)).map(line => line.slice(1))
+const addedLines = (rel, from = strip.BASE_COMMIT) => git('diff', '--no-color', '-U0', from, '--', rel).split('\n').filter(line => /^\+(?!\+\+)/.test(line)).map(line => line.slice(1)).filter(line => !stripWorkspace.CHAT_PARITY_WORKSPACE_MARKER_RE.test(line)) // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): the workspace commands' marked lines are a later change's
 const removedLines = (rel, from = strip.BASE_COMMIT) => git('diff', '--no-color', '-U0', from, '--', rel).split('\n').filter(line => /^-(?!--)/.test(line)).map(line => line.slice(1))
 
 /** The viewer's added lines: the gate, the handlers, the effects (a pure function of the viewer's text: the mutants run it). */
@@ -337,7 +338,7 @@ function sourceChecks() {
   eq(regLines.length, 2, 'registry: two lines')
   ok(regLines.every(line => line.includes('// LATER-CHANGE: ')), 'registry: both marked LATER-CHANGE')
   for (const rel of strip.CHAT_PARITY_VIEWER_SCOPE_FILES) ok(registry.LATER_CHANGE_FILES.has(rel), `registry: ${rel} is registered`)
-  ok(registry.LATER_STRIPS.includes(strip.stripChatParityViewer) && registry.LATER_STRIPS[registry.LATER_STRIPS.length - 1] === strip.stripChatParityViewer, 'registry: the strip is registered, last')
+  ok(registry.LATER_STRIPS.includes(strip.stripChatParityViewer) && registry.LATER_STRIPS.slice(registry.LATER_STRIPS.indexOf(strip.stripChatParityViewer) + 1).every(later => /^stripChatParity/.test(later.name)), 'registry: the strip is registered, last but for the chat parity changes stacked on it') // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE)
   eq(registry.LATER_ENV_BLOCKS.some(block => /STUDIO_CHAT_PARITY_VIEWER/.test(String(block))), false, 'registry: no .env.example block (no flag of its own)')
   const lastFilesLine = reg.split('\n').filter(line => /^  \.\.\.\(await import\(/.test(line)).pop()
   ok(/studio-chat-parity-viewer-strip\.mjs/.test(lastFilesLine) && reg.indexOf(lastFilesLine) < reg.indexOf('// one line per later change, above this comment'), 'registry: appended at the end of the files list, above the marker comment')
