@@ -99,7 +99,7 @@ const SESSIONS = [
 function fakePage(nav, init = {}, behave = {}) {
   const calls = []
   const page = {
-    sessionId: 'cur', decksOpen: false, loadSessions: async () => ({ sessions: SESSIONS }), duplicate: null,
+    sessionId: 'cur', decksOpen: false, loadSessions: async () => ({ sessions: SESSIONS }), duplicate: null, usage: true,
     openDeck: id => { calls.push(['openDeck', id]); if (behave.openDeck === 'throw') throw new Error('boom'); if (behave.openDeck !== 'noop') page.sessionId = id },
     toggleDecks: () => { calls.push(['toggleDecks']); if (behave.toggleDecks !== 'noop') page.decksOpen = !page.decksOpen },
     go: path => { calls.push(['go', path]) },
@@ -139,13 +139,16 @@ function libSuite(pairText) {
   eq(all.slice(-5).map(row => row.group), Array(5).fill('Go to'), 'the Go to rows sit together at the end (one heading)')
   eq(navOnly(all).map(row => [row.command, row.fill, row.run]), [['open', true, null], ['decks', false, { name: 'decks' }], ['dashboard', false, { name: 'dashboard' }], ['settings', false, { name: 'settings' }], ['more', true, null]], '/open and More… fill; the others run')
   ok(navOnly(all).every(row => row.disabled === null && row.hint === null), 'with a deck open and nothing unsaved, no Go to row is disabled')
-  eq(navOnly(rows('more', null)).map(row => row.command), ['open', 'decks', 'duplicate-deck', 'dashboard', 'themes', 'templates', 'intelligence', 'knowledge', 'settings', 'help', 'shortcuts', 'about'], '/more: every Go to command, in the group\'s order (no More… row)')
-  eq(navOnly(rows('more', '')).map(row => row.command).length, 12, 'the filled "/more " shows them all too')
+  eq(navOnly(rows('more', null)).map(row => row.command), ['open', 'decks', 'duplicate-deck', 'dashboard', 'themes', 'templates', 'intelligence', 'knowledge', 'settings', 'details', 'usage', 'billing', 'help', 'shortcuts', 'about'], '/more: every Go to command, in the group\'s order (no More… row)')
+  eq(navOnly(rows('more', '')).map(row => row.command).length, 15, 'the filled "/more " shows them all too')
   eq(rows('more', null).filter(row => row.group !== 'Go to'), [], '/more shows nothing of the viewer half')
   eq(labels(rows('dash', null)), ['/dashboard'], 'typing searches all of them: dash')
   eq(labels(rows('sett', null)), ['/settings'], 'typing searches all of them: sett')
   eq(labels(rows('know', null)), ['/knowledge'], 'typing searches all of them: know')
   eq(labels(rows('abou', null)), ['/about'], 'typing searches all of them: abou')
+  eq(labels(rows('deta', null)), ['/details'], 'typing searches all of them: deta finds /details')
+  eq(labels(rows('usa', null)), ['/usage'], 'typing searches all of them: usa finds /usage')
+  eq(labels(rows('bill', null)), ['/billing'], 'typing searches all of them: bill finds /billing')
   eq(labels(rows('dup', null)), ['/duplicate-deck'], '/dup finds /duplicate-deck (the slide commands are the existing menu\'s)')
   eq(labels(navOnly(rows('the', null))), ['/themes'], '/the finds /themes next to the viewer half\'s /theme <name>')
   eq(labels(navOnly(rows('temp', null))), ['/templates'], '/temp finds /templates')
@@ -223,16 +226,39 @@ function libSuite(pairText) {
   eq(rows('decks', 'zzz').map(row => row.hint), [W.noDeckMatch('zzz')], '/decks <nothing it names>: a hint')
 
   // -- the page commands --------------------------------------------------------------------------------------------------------------------------
-  for (const name of ['dashboard', 'themes', 'templates', 'intelligence', 'knowledge', 'settings', 'help', 'shortcuts', 'about', 'duplicate-deck']) {
+  for (const name of ['dashboard', 'themes', 'templates', 'intelligence', 'knowledge', 'settings', 'details', 'usage', 'billing', 'help', 'shortcuts', 'about', 'duplicate-deck']) {
     const hint = rows(name, 'now')
     eq([hint.length, hint[0].hint, hint[0].run], [1, W.nothingAfter(name), null], `a word after /${name}: a hint, not a run`)
   }
-  for (const name of ['dashboard', 'themes', 'templates', 'intelligence', 'knowledge', 'settings', 'help', 'shortcuts', 'about']) {
+  for (const name of ['dashboard', 'themes', 'templates', 'intelligence', 'knowledge', 'settings', 'details', 'usage', 'billing', 'help', 'shortcuts', 'about']) {
     eq(rows(name, '').map(row => row.run), [{ name }], `/${name} with a trailing space is still the one row`)
     eq(rows(name, null).map(row => row.disabled), [null], `/${name} is never disabled for a build or unsaved edits (it opens a new tab then)`)
   }
   ok(rows('dashboard', null, { building: true })[0].blurb.endsWith('in a new tab') && rows('dashboard', null, { viewer: slideState({ save: 'unsaved' }) })[0].blurb.endsWith('in a new tab') && !rows('dashboard', null)[0].blurb.includes('new tab'), 'the row says "in a new tab" while a build runs or edits are unsaved, and only then')
   ok(!rows('about', null, { building: true })[0].blurb.includes('new tab'), '/about is a dialog: never a new tab')
+  // -- /details, /usage, /billing: the same rows as the other page commands, behind More… (never among the four collapsed rows) ---------------------------------------------
+  for (const [name, blurb] of [['details', 'Open Your details'], ['usage', 'Open Usage'], ['billing', 'Open Billing and plan']]) {
+    eq(rows(name, null).map(row => [row.label, row.group, row.command, row.fill, row.hint, row.disabled, row.blurb, row.run]), [[`/${name}`, 'Go to', name, false, null, null, blurb, { name }]], `/${name}: one Go to row that runs (it takes no word), not disabled with the Usage page on`)
+    eq(rows(name, null, { building: true }).map(row => [row.disabled, row.blurb]), [[null, `${blurb} in a new tab`]], `/${name} while a build runs: still enabled, and the row says it opens in a new tab`)
+    eq(rows(name, null, { viewer: slideState({ save: 'unsaved' }) }).map(row => [row.disabled, row.blurb]), [[null, `${blurb} in a new tab`]], `/${name} with unsaved edits: still enabled, and the row says it opens in a new tab`)
+    eq(rows(name, null).map(row => row.blurb.length <= 48), [true], `/${name}: one short line`)
+    ok(!nav.NAV_COMMANDS.find(def => def.name === name).common, `/${name} is not one of the four collapsed rows`)
+    ok(!labels(navOnly(all)).includes(`/${name}`) && labels(navOnly(rows('more', null))).includes(`/${name}`), `/${name}: not in the collapsed group, there under More…`)
+  }
+  eq(nav.NAV_COMMANDS.map(def => def.name).slice(nav.NAV_COMMANDS.findIndex(def => def.name === 'settings'), nav.NAV_COMMANDS.findIndex(def => def.name === 'help')), ['settings', 'details', 'usage', 'billing'], 'the three sit after /settings (the account rows together), before /help')
+  // the Usage page is off (NEXT_PUBLIC_STUDIO_USAGE_PAGE, handed over by the page as page.usage): /usage is a 404 then, so its row is disabled and says so
+  eq(W.noUsage, 'Usage isn\'t available yet.', 'the words the brief names for /usage with the Usage page off')
+  for (const [why, init] of [['the Usage page off', { usage: false }], ['no word from the page about it', { usage: undefined }]]) {
+    const off = world({ pairText, pageInit: { ...init, duplicate: { run: async () => ({ ok: true, title: 'x' }) } } }) // copying is on here, so /usage is the only row that can be held back
+    const usageRows = (name, arg, over) => off.viewer.parityRows({ name, arg }, envOf(over))
+    eq(usageRows('usage', null).map(row => [row.label, row.group, row.disabled, row.hint, row.fill, row.run]), [['/usage', 'Go to', W.noUsage, null, false, { name: 'usage' }]], `/usage with ${why}: ONE row, disabled, "Usage isn't available yet."`)
+    eq(usageRows('usage', null, { building: true }).map(row => row.disabled), [W.noUsage], `/usage with ${why} during a build: the same reason (no new tab for a page that is not there)`)
+    eq(usageRows('usage', null, { viewer: slideState({ save: 'unsaved' }) }).map(row => row.disabled), [W.noUsage], `/usage with ${why} and unsaved edits: the same reason`)
+    eq(usageRows('usa', null).map(row => [row.command, row.disabled]), [['usage', W.noUsage]], `/usa with ${why}: the searched row says the same`)
+    eq(navOnly(usageRows('more', null)).filter(row => row.disabled).map(row => row.command), ['usage'], `with ${why} under More…: /usage is the only Go to row held back (/details and /billing are not)`)
+    eq(navOnly(usageRows('', null)).map(row => [row.command, row.disabled]), [['open', null], ['decks', null], ['dashboard', null], ['settings', null], ['more', null]], `with ${why} the collapsed group is the same five rows, none disabled`)
+    eq(usageRows('usage', 'now').map(row => [row.hint, row.run]), [[W.nothingAfter('usage'), null]], `a word after /usage with ${why}: the same hint as any page command`)
+  }
   eq(nav.isNavName('open') && nav.isNavName('more') && !nav.isNavName('theme') && !nav.isNavName('goto') && !nav.isNavName('layout'), true, 'the viewer half\'s own names are never nav names')
   eq(w.viewer.PARITY_COMMANDS.filter(def => nav.isNavName(def.name)).length, 0, '...so no command name is in both groups')
   eq(nav.NAV_COMMANDS.map(def => def.name).filter(name => w.viewer.PARITY_COMMANDS.some(def => def.name === name)), [], '...and the groups share no name')
@@ -255,8 +281,8 @@ function libSuite(pairText) {
   ok(Object.values(W).every(value => typeof value === 'function' || (typeof value === 'string' && value.length <= 60)), 'every fixed word is short')
   ok(![...Object.values(W).filter(value => typeof value === 'string'), ...navAll.map(row => row.blurb)].some(text => /\b(handler|iframe|postMessage|undefined|null|error code|API|router|session)\b/i.test(text)), 'plain words: no jargon')
   eq(Object.keys(nav.NAV_HANDLERS).sort(), nav.NAV_COMMANDS.map(def => def.name).sort(), 'every command names the handler or route it uses')
-  eq(Object.entries(nav.NAV_PAGES).map(([name, page]) => [name, page.path]), [['dashboard', '/dashboard'], ['themes', '/studio/themes'], ['templates', '/studio/templates'], ['intelligence', '/studio/intelligence'], ['knowledge', '/knowledge'], ['settings', '/settings'], ['help', '/help'], ['shortcuts', '/shortcuts']], 'the routes')
-  eq(Object.values(nav.NAV_PAGES).map(page => page.label), ['Decks', 'Themes', 'Templates', 'Intelligence', 'Knowledge', 'Settings', 'Help', 'Shortcuts'], 'the names a note uses')
+  eq(Object.entries(nav.NAV_PAGES).map(([name, page]) => [name, page.path]), [['dashboard', '/dashboard'], ['themes', '/studio/themes'], ['templates', '/studio/templates'], ['intelligence', '/studio/intelligence'], ['knowledge', '/knowledge'], ['settings', '/settings'], ['details', '/studio/details'], ['usage', '/usage'], ['billing', '/billing'], ['help', '/help'], ['shortcuts', '/shortcuts']], 'the routes')
+  eq(Object.values(nav.NAV_PAGES).map(page => page.label), ['Decks', 'Themes', 'Templates', 'Intelligence', 'Knowledge', 'Settings', 'Your details', 'Usage', 'Billing', 'Help', 'Shortcuts'], 'the names a note uses')
   eq(nav.NAV_COMMANDS.filter(def => def.common).map(def => def.name), ['open', 'decks', 'dashboard', 'settings'], 'the four most used rows are /open, /decks, /dashboard, /settings')
   eq([nav.NAV_DECK_ROWS.open, nav.NAV_DECK_ROWS.decks], [5, 8], '/open shows up to five, /decks <words> up to eight')
 
@@ -285,7 +311,7 @@ function libSuite(pairText) {
 async function runSuite(pairText) {
   const W = loadPair(pairText).nav.NAV_WORDS
   const fresh = (opts = {}) => world({ pairText, ...opts })
-  const PAGES = [['dashboard', '/dashboard', 'Decks'], ['themes', '/studio/themes', 'Themes'], ['templates', '/studio/templates', 'Templates'], ['intelligence', '/studio/intelligence', 'Intelligence'], ['knowledge', '/knowledge', 'Knowledge'], ['settings', '/settings', 'Settings'], ['help', '/help', 'Help'], ['shortcuts', '/shortcuts', 'Shortcuts']]
+  const PAGES = [['dashboard', '/dashboard', 'Decks'], ['themes', '/studio/themes', 'Themes'], ['templates', '/studio/templates', 'Templates'], ['intelligence', '/studio/intelligence', 'Intelligence'], ['knowledge', '/knowledge', 'Knowledge'], ['settings', '/settings', 'Settings'], ['details', '/studio/details', 'Your details'], ['usage', '/usage', 'Usage'], ['billing', '/billing', 'Billing'], ['help', '/help', 'Help'], ['shortcuts', '/shortcuts', 'Shortcuts']]
   // -- the page commands: in place, or a NEW TAB -------------------------------------------------------------------------------------------------
   for (const [name, route, label] of PAGES) {
     { const w = fresh(); const r = await runNav(w, { name }); eq([w.calls, r], [[['go', route]], { ok: true, note: `Opened ${label}` }], `/${name}: router.push(${route}), nothing else, one note`) }
@@ -295,6 +321,13 @@ async function runSuite(pairText) {
     { const w = fresh(); const r = await runNav(w, { name }, { building: true, viewer: slideState({ save: 'unsaved' }) }); eq([w.calls.length, /build keeps going/.test(r.note)], [1, true], `/${name}, a build and unsaved edits: one new tab, the build's reason`) }
   }
   { const w = fresh(); const r = await runNav(w, { name: 'dashboard' }, { viewer: null }); eq([w.calls, r.ok], [[['go', '/dashboard']], true], 'no deck on screen (no viewer): opens in place') }
+  // /usage needs the Usage page on (page.usage): with it off the route is a 404, so nothing is called (no push, no tab) and it says why, whatever else is going on; /details and /billing do not need it
+  for (const [label, init, ctx] of [['the Usage page off', { usage: false }, {}], ['the Usage page off during a build', { usage: false }, { building: true }], ['the Usage page off with unsaved edits', { usage: false }, { viewer: slideState({ save: 'unsaved' }) }], ['no word from the page about it', { usage: undefined }, {}]]) {
+    const w = fresh({ pageInit: init }); const r = await runNav(w, { name: 'usage' }, ctx); eq([w.calls, r], [[], { ok: false, note: W.noUsage }], `/usage with ${label}: nothing is called, "Usage isn't available yet."`)
+  }
+  for (const [name, route, label] of [['details', '/studio/details', 'Your details'], ['billing', '/billing', 'Billing']]) {
+    const w = fresh({ pageInit: { usage: false } }); const r = await runNav(w, { name }); eq([w.calls, r], [[['go', route]], { ok: true, note: `Opened ${label}` }], `/${name} with the Usage page off: still opens (only /usage needs that page)`)
+  }
   // the call into the page happens before any wait: a new tab opens inside the key press that chose it
   { const w = fresh(); const pending = runNav(w, { name: 'themes' }, { building: true }); eq(w.calls, [['openTab', '/studio/themes']], 'the new tab is opened SYNCHRONOUSLY (before the first await), so the browser sees the key press as its cause'); await pending }
   { const w = fresh(); const pending = runNav(w, { name: 'dashboard' }); eq(w.calls, [['go', '/dashboard']], 'router.push is called synchronously too'); await pending }
@@ -344,6 +377,8 @@ async function runSuite(pairText) {
     const r2 = await w.viewer.runParity({ name: 'dashboard' }, { building: true, choosePreset: () => {}, showCanvas: null, scale: SCALE }); eq([r2.ok, w.calls], [true, [['openTab', '/dashboard']]], 'runParity passes the composer\'s "a build is running": a new tab')
     const r3 = await w.viewer.runParity({ name: 'goto', slide: 2 }, { building: false, choosePreset: () => {}, showCanvas: null, scale: SCALE }); eq(r3.ok, false, 'a viewer command still goes to the viewer half (here no handler)')
     off() }
+  { const w = fresh({ pageInit: { usage: false } }); const r = await w.viewer.runParity({ name: 'usage' }, { building: false, choosePreset: () => {}, showCanvas: null, scale: SCALE }); eq([r, w.calls], [{ ok: false, note: W.noUsage }, []], 'runParity: /usage with the Usage page off is held in the nav lib the same way (nothing called)') }
+  { const w = fresh(); const r = await w.viewer.runParity({ name: 'billing' }, { building: true, choosePreset: () => {}, showCanvas: null, scale: SCALE }); eq([r, w.calls], [{ ok: true, note: 'Opened Billing in a new tab so your build keeps going' }, [['openTab', '/billing']]], 'runParity: /billing during a build is a new tab') }
 }
 
 // ============================================================================================================================================
@@ -497,6 +532,7 @@ function pageChecks(text, label = 'page') {
   ok(/openTab: path => \{ window\.open\(path, '_blank', 'noopener'\) \}/.test(block), `${label}: a new tab is window.open with noopener`)
   ok(/loadSessions: \(\) => chatNavLoadSessions\(\{ limit: 50, status: 'active' \}\)/.test(block), `${label}: the deck list is the Sessions panel's own loadSessions call, same arguments`)
   ok(/duplicate: process\.env\.NEXT_PUBLIC_STUDIO_DUPLICATE_DECK === 'true' \? \{ run: async \(\) => \{ if \(!currentSessionId\) return/.test(block), `${label}: /duplicate-deck exists only with the Decks page's own flag`)
+  ok(/ : null, usage: process\.env\.NEXT_PUBLIC_STUDIO_USAGE_PAGE === 'true' \} \/\/ CHAT-PARITY-NAV/.test(block), `${label}: /usage exists only with the Usage page's own flag (the exact string "true", the one the route's own gate reads), handed over as one boolean`)
   ok(/await loadSession\(currentSessionId\)/.test(block) && /\(await import\('@\/lib\/studio-duplicate-deck-deps'\)\)\.duplicateSessionDeck\(row\)/.test(block), `${label}: the copy reads the saved deck, then runs the shared deps (loaded when asked, not imported)`)
   ok(/const \{ loadSessions: chatNavLoadSessions \} = useChatSessions\(\)/.test(block) && /\n  const \{ loadSession, loadSessionResult, createSession \} = useChatSessions\(\)\n  const \{ loadSessions: chatNavLoadSessions \} = useChatSessions\(\)/.test(text), `${label}: loadSessions comes from the hook the page already uses, on its own line right after the page's own destructuring (which is untouched: the session-hygiene proof pins it)`)
   eq(importLines(text).filter(line => /studio-chat-parity-nav|studio-duplicate-deck-deps/.test(line)), [], `${label}: no new import line (the Builder page's many proofs see no new import)`)
@@ -576,14 +612,24 @@ async function sourceChecks() {
   const scan = text => { for (const match of text.matchAll(/NEXT_PUBLIC_[A-Z0-9_]+/g)) flagNames.add(match[0]) }
   for (const rel of [NAV, DEPS, DECKS, ABOUT]) scan(read(rel))
   if (hasHead) for (const rel of [...strip.CHAT_PARITY_NAV_FILES, ...strip.CHAT_PARITY_NAV_VIEWER_NEW_EDITED]) scan(addedLines(rel).join('\n'))
-  eq([...flagNames].sort(), ['NEXT_PUBLIC_STUDIO_CHAT_CLEAN', 'NEXT_PUBLIC_STUDIO_CHAT_COMMANDS', 'NEXT_PUBLIC_STUDIO_DUPLICATE_DECK'], 'no new flag: the commands flag it sits behind, the chat clean flag that needs, and the Decks page\'s own copy flag (set only by the page line)')
+  eq([...flagNames].sort(), ['NEXT_PUBLIC_STUDIO_CHAT_CLEAN', 'NEXT_PUBLIC_STUDIO_CHAT_COMMANDS', 'NEXT_PUBLIC_STUDIO_DUPLICATE_DECK', 'NEXT_PUBLIC_STUDIO_USAGE_PAGE'], 'no new flag: the commands flag it sits behind, the chat clean flag that needs, the Decks page\'s own copy flag and the Usage page\'s own flag (each read only by the page line)')
   // the routes exist, and each is one the rail or the account menu already links to
   const { NAV_PAGES } = loadPair().nav
   for (const [name, page] of Object.entries(NAV_PAGES)) {
     ok(routeExists(page.path), `/${name}: the route ${page.path} exists on this branch`)
     const linkers = ['components/layout/studio-rail.tsx', 'components/builder/builder-header.tsx', 'components/user-profile-menu.tsx', 'components/user-profile-menu-p2.tsx', 'lib/studio-profile-menu.ts', 'components/layout/app-header.tsx', 'components/studio-about-dialog.tsx', 'components/layout/studio-phone-tab-bar.tsx', 'app/(app)/layout.tsx'].filter(rel => fs.existsSync(path.join(root, rel)) && [`'${page.path}'`, `"${page.path}"`, `\`${page.path}`].some(quoted => read(rel).includes(quoted)))
-    ok(linkers.length > 0, `/${name}: ${page.path} is a route the app already links to (${linkers.join(', ')})`)
+    if (name === 'usage') eq(linkers, [], '/usage: no page of the app links to /usage yet (it is a flagged route: see the gate below)')
+    else ok(linkers.length > 0, `/${name}: ${page.path} is a route the app already links to (${linkers.join(', ')})`)
   }
+  // /usage: the route is a 404 unless NEXT_PUBLIC_STUDIO_USAGE_PAGE is exactly "true", so the row is disabled with it off (the page hands over that one fact)
+  ok(/export function isStudioUsagePageOn\(value: unknown = process\.env\.NEXT_PUBLIC_STUDIO_USAGE_PAGE\): boolean \{\n  return value === "true"\n\}/.test(read('lib/studio-billing-usage.ts')), '/usage: the Usage page\'s own flag is on only for the exact string "true" (what the page line reads)')
+  ok(/if \(!isStudioUsagePageOn\(\)\) notFound\(\)/.test(read('app/(app)/usage/page.tsx')), '/usage: the route is a 404 with that flag off, so the Go to row is disabled then')
+  // /details: /studio/details is the live Your details page (the rail and the account menu link it, the Studio shell the commands need serves it); /profile is only a redirect to Settings > Profile
+  ok(/redirect\("\/settings\/profile"\)/.test(read('app/(app)/profile/page.tsx')), '/details: /profile is only a redirect to /settings/profile, so it is not the details page')
+  ok(['components/layout/studio-rail.tsx', 'lib/studio-profile-menu.ts', 'components/user-profile-menu.tsx'].every(rel => !/["'`]\/profile["'`]/.test(read(rel))), '/details: neither the rail nor the account menu links /profile')
+  ok(/"Your details"[^\n]*href="\/studio\/details"|label="Your details"><Link href="\/studio\/details"/.test(read('components/layout/studio-rail.tsx')) && /label: 'Your details', href: '\/studio\/details'/.test(read('lib/studio-profile-menu.ts')), '/details: the rail\'s and the account menu\'s "Your details" link /studio/details (the note says "Your details")')
+  ok(/NEXT_PUBLIC_STUDIO_V4_SHELL !== "true"\) notFound\(\)/.test(read('app/(app)/studio/details/page.tsx')) && /<AccountDetailsWorkspace \/>/.test(read('app/(app)/studio/details/page.tsx')), '/details: /studio/details is the Studio shell\'s page (the shell these commands already need)')
+  ok(/label: 'Workspace & billing', href: '\/billing'/.test(read('lib/studio-profile-menu.ts')), '/billing: the account menu\'s "Workspace & billing" row is this route')
   ok(routeExists('/settings/profile'), '/settings: the page it redirects to exists')
   ok(/redirect\("\/settings\/profile"\)/.test(read('app/(app)/settings/page.tsx')), '/settings: the settings index redirects to Profile')
   // the Decks page: NOT touched (older proofs hold its duplicateSession by exact text, through strips of their own), and the helper's deps are its inline deps, member by member
@@ -660,8 +706,11 @@ function menuChecks(text = read(MENU)) {
   ok(['open', 'decks', 'dashboard', 'settings', 'more'].every(command => html.includes(`data-studio-chat-command="${command}"`)), 'menu: the four rows and More… are drawn, each with an icon')
   ok(/aria-label="\/open &lt;title&gt;: Open one of your decks by name"/.test(html) && /aria-label="More…: Show every Go to command"/.test(html), 'menu: the labels for assistive technology')
   const more = renderToStaticMarkup(React.createElement(module.exports.ChatParityRows, { rows: rowsOf(w, 'more', null), offset: 0, rowProps, headingClass: 'heading' }))
-  eq([...more.matchAll(/data-studio-chat-command="([\w-]+)"/g)].map(match => match[1]), ['open', 'decks', 'duplicate-deck', 'dashboard', 'themes', 'templates', 'intelligence', 'knowledge', 'settings', 'help', 'shortcuts', 'about'], 'menu: /more draws all twelve under one heading')
+  eq([...more.matchAll(/data-studio-chat-command="([\w-]+)"/g)].map(match => match[1]), ['open', 'decks', 'duplicate-deck', 'dashboard', 'themes', 'templates', 'intelligence', 'knowledge', 'settings', 'details', 'usage', 'billing', 'help', 'shortcuts', 'about'], 'menu: /more draws all fifteen under one heading')
   eq((more.match(/data-studio-chat-commands-heading/g) || []).length, 1, 'menu: ...under one heading')
+  const usageOff = renderToStaticMarkup(React.createElement(module.exports.ChatParityRows, { rows: rowsOf(world({ pageInit: { usage: false } }), 'usage', null), offset: 0, rowProps, headingClass: 'heading' }))
+  ok(/Usage isn(?:'|&#x27;|&#39;)t available yet\./.test(usageOff) && usageOff.includes('aria-disabled="true"') && usageOff.includes('data-studio-chat-command="usage"'), 'menu: /usage with the Usage page off says why in place of its description, and is aria-disabled')
+  ok(!/aria-disabled/.test(renderToStaticMarkup(React.createElement(module.exports.ChatParityRows, { rows: rowsOf(w, 'usage', null), offset: 0, rowProps, headingClass: 'heading' }))), 'menu: /usage with the Usage page on is an ordinary row')
   const dirty = renderToStaticMarkup(React.createElement(module.exports.ChatParityRows, { rows: rowsOf(w, 'open', '', { viewer: slideState({ save: 'unsaved' }) }), offset: 0, rowProps, headingClass: 'heading' }))
   ok(dirty.includes('Save or discard your edits first.') && dirty.includes('aria-disabled="true"'), 'menu: the unsaved-edits reason is on the row, and the row is aria-disabled')
   const decks = renderToStaticMarkup(React.createElement(module.exports.ChatParityRows, { rows: rowsOf(w, 'open', 'board'), offset: 0, rowProps, headingClass: 'heading' }))
@@ -698,6 +747,18 @@ async function mutantsSuite() {
   await caught('a page is pushed twice', "page.go(target.path)\n        return done(`Opened ${target.label}`)", "page.go(target.path); page.go(target.path)\n        return done(`Opened ${target.label}`)")
   await caught('the themes route is wrong', "themes: { path: '/studio/themes', label: 'Themes' }", "themes: { path: '/themes', label: 'Themes' }")
   await caught('the Decks route is wrong', "dashboard: { path: '/dashboard', label: 'Decks' }", "dashboard: { path: '/decks', label: 'Decks' }")
+  await caught('/usage is never held back (the rows and the run)', "case 'usage': return page.usage ? null : NAV_WORDS.noUsage", "case 'usage': return null")
+  await caught('/usage is held back with the Usage page ON', "case 'usage': return page.usage ? null : NAV_WORDS.noUsage", "case 'usage': return page.usage ? NAV_WORDS.noUsage : null")
+  await caught('/usage with the Usage page off says the general word', `noUsage: "Usage isn't available yet.",`, `noUsage: "That isn't available right now.",`)
+  await caught('/details and /billing are held back with the Usage page off too', "case 'usage': return page.usage ? null : NAV_WORDS.noUsage", "case 'usage': case 'details': case 'billing': return page.usage ? null : NAV_WORDS.noUsage")
+  await caught('/usage is one of the collapsed rows', "{ name: 'usage', blurb: 'Open Usage', takes: false }", "{ name: 'usage', blurb: 'Open Usage', takes: false, common: true }")
+  await caught('/billing is one of the collapsed rows', "{ name: 'billing', blurb: 'Open Billing and plan', takes: false }", "{ name: 'billing', blurb: 'Open Billing and plan', takes: false, common: true }")
+  await caught('/details is one of the collapsed rows', "{ name: 'details', blurb: 'Open Your details', takes: false }", "{ name: 'details', blurb: 'Open Your details', takes: false, common: true }")
+  await caught('/details goes to /profile (a redirect, not the details page)', "details: { path: '/studio/details', label: 'Your details' }", "details: { path: '/profile', label: 'Your details' }")
+  await caught('/usage goes to the wrong route', "usage: { path: '/usage', label: 'Usage' }", "usage: { path: '/settings/usage', label: 'Usage' }")
+  await caught('/billing goes to the wrong route', "billing: { path: '/billing', label: 'Billing' }", "billing: { path: '/settings/billing', label: 'Billing' }")
+  await caught('the /billing note names another page', "billing: { path: '/billing', label: 'Billing' }", "billing: { path: '/billing', label: 'Settings' }")
+  await caught('/details is missing from the group', "  { name: 'details', blurb: 'Open Your details', takes: false },\n", '')
   await caught('the new-tab reason is not said', "return done(`Opened ${target.label} in a new tab ${newTabWhy(away)}`)", 'return done(`Opened ${target.label} in a new tab`)')
   await caught('/duplicate-deck switches to the copy', "if (outcome.ok) decksEpochNow += 1", 'if (outcome.ok) { decksEpochNow += 1; page.openDeck(outcome.title) }')
   await caught('/duplicate-deck does not offer /open', ' It stays closed: say /open ${clip(outcome.title, 60)} to switch to it.', '')
@@ -782,6 +843,10 @@ async function mutantsSuite() {
     ['pages are not pushed with the router', 'go: path => router.push(path)', 'go: path => window.location.assign(path)'],
     ['/decks is a blind set', 'toggleDecks: () => setShowChatHistory(prev => !prev)', 'toggleDecks: () => setShowChatHistory(true)'],
     ['the copy runs with its flag off', "duplicate: process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_DECK === 'true' ? {", 'duplicate: true ? {'],
+    ['/usage is on with the Usage page off', "usage: process.env.NEXT_PUBLIC_STUDIO_USAGE_PAGE === 'true' }", 'usage: true }'],
+    ['/usage reads another flag', "usage: process.env.NEXT_PUBLIC_STUDIO_USAGE_PAGE === 'true' }", "usage: process.env.NEXT_PUBLIC_STUDIO_QUOTA_SCREENS === 'true' }"],
+    ['/usage reads the flag loosely', "usage: process.env.NEXT_PUBLIC_STUDIO_USAGE_PAGE === 'true' }", 'usage: Boolean(process.env.NEXT_PUBLIC_STUDIO_USAGE_PAGE) }'],
+    ['the page does not hand over the Usage page fact', ", usage: process.env.NEXT_PUBLIC_STUDIO_USAGE_PAGE === 'true' } // CHAT-PARITY-NAV", ' } // CHAT-PARITY-NAV'],
     ['the deck list is another call', "chatNavLoadSessions({ limit: 50, status: 'active' })", "chatNavLoadSessions({ limit: 5 })"],
     ['the page imports the nav lib', "import { useRouter, useSearchParams } from \"next/navigation\"", "import { useRouter, useSearchParams } from \"next/navigation\"\nimport { setNavLive } from '@/lib/studio-chat-parity-nav'"],
   ]) {
@@ -813,7 +878,7 @@ async function mutantsSuite() {
     hit(strip.stripChatParityNav('scripts/test-studio-chat-parity-viewer.mjs', wrongPin) !== showAt(strip.VIEWER_HEAD, 'scripts/test-studio-chat-parity-viewer.mjs'), 'mutant caught: a taught line edited after the fact does not put back')
   }
   // the menu
-  for (const [name, from, to] of [['the menu forgets its icons for the group', 'open: FolderOpen,', ''], ['the menu starts its indexes at zero', 'rowProps(offset + index)', 'rowProps(index)']]) {
+  for (const [name, from, to] of [['the menu forgets its icons for the group', 'open: FolderOpen,', ''], ['the menu forgets the /details icon', 'details: UserRound,', ''], ['the menu forgets the /usage icon', 'usage: Gauge,', ''], ['the menu forgets the /billing icon', 'billing: CreditCard,', ''], ['the menu starts its indexes at zero', 'rowProps(offset + index)', 'rowProps(index)']]) {
     const menuText = read(MENU)
     const mutated = menuText.replace(from, () => to)
     assert.notEqual(mutated, menuText, `mutant applies: ${name}`)

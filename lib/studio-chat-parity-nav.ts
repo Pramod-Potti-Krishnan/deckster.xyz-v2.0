@@ -6,11 +6,13 @@
  *   /decks             the Sessions panel's own toggle (setShowChatHistory)        /decks <words>   the matches, as rows (the panel has no outside filter); a pick opens the deck
  *   /duplicate-deck    runDuplicateDeck for the deck on screen (lib/studio-duplicate-deck.ts; the deps are lib/studio-duplicate-deck-deps.ts, the Decks page's own five); NEXT_PUBLIC_STUDIO_DUPLICATE_DECK
  *   /dashboard /themes /templates /intelligence /knowledge /settings /help /shortcuts    router.push to the route the rail and the account menu already link to
+ *   /details /billing  router.push to /studio/details and /billing, the same way (the rail's "Your details" and the account menu's "Workspace & billing"; /profile is only a redirect to /settings/profile)
+ *   /usage             router.push to /usage, the same way; that route is a 404 unless NEXT_PUBLIC_STUDIO_USAGE_PAGE is on, so the row is disabled ("Usage isn't available yet.") until it is (the page hands this file that one fact)
  *   /about             the existing About dialog (components/studio-about-dialog.tsx)
  *
  * Three rules for the commands that leave this deck (Opus design): while a build runs, or the viewer holds unsaved edits, a page opens in a NEW TAB (the build keeps going, the edits stay) and the note says
  * so; /open never discards unsaved edits (it is disabled until they are saved or discarded); /duplicate-deck never switches to the copy (the note offers /open <new title>). Every command ends in one short note
- * of what it SAW; an unknown or empty word is a hint row and the menu stays open. With nothing typed the group shows its four most used rows and "More..."; typing searches all of them.
+ * of what it SAW; an unknown or empty word is a hint row and the menu stays open. With nothing typed the group shows its four most used rows and "More..."; typing searches all of them (/details, /usage and /billing sit behind "More...").
  *
  * The rows are plain data that lib/studio-chat-parity-viewer.ts hands back from parityRows (they sit in the same menu, the same index, the same ARIA ids as the viewer's). The page hands this file its handles
  * through the composer hook (setNavLive, while rendering, the way the viewer sets its own handle); every browser call is one of those handles. Nothing here touches the DOM, the router or the network.
@@ -19,7 +21,7 @@ import type { ParityEnv, ParityResult, ParityRow, ParityTrigger, ViewerState } f
 
 // ---- the commands ---------------------------------------------------------------------------------------------------------------------------
 
-export type NavPageName = 'dashboard' | 'themes' | 'templates' | 'intelligence' | 'knowledge' | 'settings' | 'help' | 'shortcuts'
+export type NavPageName = 'dashboard' | 'themes' | 'templates' | 'intelligence' | 'knowledge' | 'settings' | 'details' | 'usage' | 'billing' | 'help' | 'shortcuts'
 export type NavRun =
   | { name: 'open'; deck: { id: string; title: string } }
   | { name: 'decks' }
@@ -52,6 +54,9 @@ export const NAV_COMMANDS: readonly NavDef[] = Object.freeze([
   { name: 'intelligence', blurb: 'Open Intelligence', takes: false },
   { name: 'knowledge', blurb: 'Open Knowledge', takes: false },
   { name: 'settings', blurb: 'Open Settings', takes: false, common: true },
+  { name: 'details', blurb: 'Open Your details', takes: false },
+  { name: 'usage', blurb: 'Open Usage', takes: false },
+  { name: 'billing', blurb: 'Open Billing and plan', takes: false },
   { name: 'help', blurb: 'Open Help', takes: false },
   { name: 'shortcuts', blurb: 'See the keyboard shortcuts', takes: false },
   { name: 'about', blurb: 'About Deckster Studio', takes: false },
@@ -65,6 +70,9 @@ export const NAV_PAGES: Readonly<Record<NavPageName, { path: string; label: stri
   intelligence: { path: '/studio/intelligence', label: 'Intelligence' },
   knowledge: { path: '/knowledge', label: 'Knowledge' },
   settings: { path: '/settings', label: 'Settings' },
+  details: { path: '/studio/details', label: 'Your details' },
+  usage: { path: '/usage', label: 'Usage' },
+  billing: { path: '/billing', label: 'Billing' },
   help: { path: '/help', label: 'Help' },
   shortcuts: { path: '/shortcuts', label: 'Shortcuts' },
 })
@@ -80,6 +88,9 @@ export const NAV_HANDLERS: Readonly<Record<string, string>> = Object.freeze({
   intelligence: "router.push('/studio/intelligence')",
   knowledge: "router.push('/knowledge')",
   settings: "router.push('/settings')",
+  details: "router.push('/studio/details')",
+  usage: "router.push('/usage')",
+  billing: "router.push('/billing')",
   help: "router.push('/help')",
   shortcuts: "router.push('/shortcuts')",
   about: 'StudioAboutDialog',
@@ -103,6 +114,7 @@ export const NAV_WORDS = Object.freeze({
   noDeckMatch: (typed: string) => `No deck matches "${typed}".`,
   alreadyOpen: 'This deck is already open.',
   noCopy: "Copying a deck isn't switched on here.",
+  noUsage: "Usage isn't available yet.",
   copyEdits: 'Save your edits first so the copy has them.',
   copying: 'Already copying a deck.',
   nothingAfter: (name: string) => `Nothing goes after /${name}.`,
@@ -140,6 +152,8 @@ export interface ChatParityNavPage {
   loadSessions: () => Promise<{ sessions: NavSessionRow[] } | null>
   /** null with NEXT_PUBLIC_STUDIO_DUPLICATE_DECK off; else runDuplicateDeck for the deck on screen, answered as a title or a message. */
   duplicate: { run: () => Promise<NavDuplicateOutcome> } | null
+  /** NEXT_PUBLIC_STUDIO_USAGE_PAGE is on: the /usage route exists (with it off the route is a 404, so /usage is disabled). */
+  usage: boolean
 }
 
 /** The sessions as deck rows (the title the Sessions panel shows, else "Untitled"). */
@@ -213,6 +227,7 @@ export function navBlocked(name: NavName, state: { building: boolean; viewer: Vi
       if (!viewer || !page.sessionId) return words.noDeck
       if (state.building || viewer.building) return words.building
       return viewerDirty(viewer) ? NAV_WORDS.copyEdits : null
+    case 'usage': return page.usage ? null : NAV_WORDS.noUsage
     default: return null
   }
 }
