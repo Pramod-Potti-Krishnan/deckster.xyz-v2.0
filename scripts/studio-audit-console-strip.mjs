@@ -83,6 +83,10 @@ export const AUDIT_CONSOLE_PIN_EDITS = {
     ["    const stripped = stripP2Publish(rel, stripAuditConsole(rel, sources[rel])) // LATER-CHANGES: registry read (AUDIT-CONSOLE): this change's lines (the layout's gated <Analytics />) come out first\n", "    const stripped = stripP2Publish(rel, sources[rel])\n"],
     ["    let text = stripAuditConsole(rel, sources[rel]) // LATER-CHANGES: registry read (AUDIT-CONSOLE): this change's lines come out before the listed changes are put back\n", "    let text = sources[rel]\n"],
   ],
+  "scripts/test-studio-deck-card-thumbnail.mjs": [
+    ["import { stripAuditConsole } from './studio-audit-console-strip.mjs' // LATER-CHANGES: registry read (AUDIT-CONSOLE)\n", ""],
+    ["const pageText = stripAuditConsole(DASHBOARD_PAGE, read(DASHBOARD_PAGE)) // LATER-CHANGES: registry read (AUDIT-CONSOLE): this change's lines come out first\n", "const pageText = read(DASHBOARD_PAGE)\n"],
+  ],
 }
 
 /**

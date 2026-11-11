@@ -154,7 +154,7 @@ function sourceChecks(texts, mod = stripModule) {
     assert.equal(diff.removed.length, (edits[rel] || []).flatMap(([, was]) => was.split('\n')).filter(line => line !== '').length, `${rel}: the base lines this change rewrites (all of them, no other)`)
   }
   // the older proofs this change teaches: each gains one marked line (the first-parent walk leaves this change's commits out) and is the base's without it
-  const EXTRA_PIN_FILES = ["scripts/test-studio-deck-card-count.mjs","scripts/test-studio-create-word.mjs","scripts/test-studio-deck-cards-v2.mjs","scripts/test-studio-plain-nav-labels.mjs","scripts/test-atlas-decks-pagination.mjs","scripts/test-present-view-only.mjs","scripts/test-studio-deck-card-thumbnail-cards.mjs","scripts/test-studio-p2-publish.mjs"]
+  const EXTRA_PIN_FILES = ["scripts/test-studio-deck-card-count.mjs","scripts/test-studio-create-word.mjs","scripts/test-studio-deck-cards-v2.mjs","scripts/test-studio-plain-nav-labels.mjs","scripts/test-atlas-decks-pagination.mjs","scripts/test-present-view-only.mjs","scripts/test-studio-deck-card-thumbnail-cards.mjs","scripts/test-studio-p2-publish.mjs","scripts/test-studio-deck-card-thumbnail.mjs"]
   assert.deepEqual([...mod.AUDIT_CONSOLE_PIN_FILES].sort(), [...PIN_FILES, ...EXTRA_PIN_FILES].sort(), 'the older proofs this change teaches')
   // an older proof that compiles a touched file with a fixed import list: one marked insertion, the base's proof without it
   for (const rel of EXTRA_PIN_FILES) {
@@ -233,7 +233,7 @@ function messageProblems(subject, body) {
 // ============================================================================================================================================
 // run
 // ============================================================================================================================================
-const TEXTS = Object.fromEntries([...TOUCHED, ...NEW_FILES, '.env.example', REGISTRY, ...PIN_FILES, ...["scripts/test-studio-deck-card-count.mjs","scripts/test-studio-create-word.mjs","scripts/test-studio-deck-cards-v2.mjs","scripts/test-studio-plain-nav-labels.mjs","scripts/test-atlas-decks-pagination.mjs","scripts/test-present-view-only.mjs","scripts/test-studio-deck-card-thumbnail-cards.mjs","scripts/test-studio-p2-publish.mjs"], VOICE_CALL].map(rel => [rel, read(rel)]))
+const TEXTS = Object.fromEntries([...TOUCHED, ...NEW_FILES, '.env.example', REGISTRY, ...PIN_FILES, ...["scripts/test-studio-deck-card-count.mjs","scripts/test-studio-create-word.mjs","scripts/test-studio-deck-cards-v2.mjs","scripts/test-studio-plain-nav-labels.mjs","scripts/test-atlas-decks-pagination.mjs","scripts/test-present-view-only.mjs","scripts/test-studio-deck-card-thumbnail-cards.mjs","scripts/test-studio-p2-publish.mjs","scripts/test-studio-deck-card-thumbnail.mjs"], VOICE_CALL].map(rel => [rel, read(rel)]))
 
 await check('1a. the analytics gate: the flag, the whole truth table, odd values, the constants under every env combination', () => gateChecks())
 await check('1b. the deck tab label: the flag, off = the base\'s text for every count, on = "Built decks (N)", odd values', () => tabsChecks())
