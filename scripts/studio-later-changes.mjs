@@ -74,6 +74,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-phone-hints-strip.mjs')).PHONE_HINTS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, F-13 phone hints (PR 2): the portrait rotate card, swipe to change slide, Full screen (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
   ...(await import('./studio-connectors-gdrive-strip.mjs')).CONNECTORS_GDRIVE_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE, P4-15 slice 1 Google Drive picker connector (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED)
   ...(await import('./studio-connectors-session-links-strip.mjs')).CONNECTORS_SESSION_LINKS_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE, P4-15 slice 3 Drive session links (NEXT_PUBLIC_STUDIO_CONNECTORS_SESSION_LINKS_ENABLED)
+  ...(await import('./studio-connectors-item-remove-strip.mjs')).CONNECTORS_ITEM_REMOVE_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE, P4-15 piece C remove one Drive item (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED; no .env.example block, no strip)
   // one line per later change, above this comment
 ])
 

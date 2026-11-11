@@ -170,7 +170,8 @@
     "test:studio-deck-import": "node scripts/test-studio-deck-import.mjs",
     "test:studio-launch-wording": "node scripts/test-studio-launch-wording.mjs",
     "test:studio-connectors-gdrive": "node scripts/test-studio-connectors-gdrive.mjs",
-    "test:studio-connectors-session-links": "node scripts/test-studio-connectors-session-links.mjs"
+    "test:studio-connectors-session-links": "node scripts/test-studio-connectors-session-links.mjs",
+    "test:studio-connectors-item-remove": "node scripts/test-studio-connectors-item-remove.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",

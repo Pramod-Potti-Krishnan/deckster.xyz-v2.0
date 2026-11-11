@@ -87,6 +87,7 @@ export const CONNECTOR_ERROR_CODES = [
   'CONNECTOR_IDENTITY_NOT_CONFIGURED', 'CONNECTOR_IDENTITY_REQUIRED', 'CONNECTOR_IDENTITY_INVALID', 'CONNECTOR_OWNER_MISMATCH',
   'CONNECTOR_NOT_CONNECTED', 'CONNECTOR_GRANT_REVOKED', 'CONNECTOR_CRYPTO_UNAVAILABLE', 'CONNECTOR_UPSTREAM_ERROR',
   'CONNECTOR_EXCHANGE_FAILED', 'CONNECTOR_NO_REFRESH_TOKEN',
+  'CONNECTOR_ERASE_UNAVAILABLE', 'CONNECTOR_ITEM_ID_INVALID', // piece C: remove one item (Researcher DELETE /gdrive/items)
 ] as const
 export function connectorErrorCode(detail: unknown): string | null {
   return typeof detail === 'string' && (CONNECTOR_ERROR_CODES as readonly string[]).includes(detail) ? detail : null
