@@ -63,7 +63,16 @@ export const CHAT_PARITY_VIEWER_NEW_FILES = [
 
 /** The older proofs this change teaches: [line now, line before] per edit, whole lines (a line now carries "registry read (CHAT-PARITY-VIEWER)" and occurs once in its file). */
 export const CHAT_PARITY_VIEWER_PIN_EDITS = {
-
+  "scripts/test-studio-chat-commands.mjs": [
+    ["import { stripChatParityViewer, CHAT_PARITY_VIEWER_FILES } from './studio-chat-parity-viewer-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): the viewer's slash commands (stacked after chat commands) add rows and lines to files this proof reads; it reads them as chat commands had them\n",
+     ""],
+    ["{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && CHAT_PARITY_VIEWER_FILES.includes(rel) ? stripChatParityViewer(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): every read of a file that change touched (the module loader's too) is the file as chat commands had it\n",
+     ""]
+  ],
+  "scripts/test-studio-chat-parity.mjs": [
+    ["const OWN = (() => { try { return git('log', '--format=%H%x09%s', '-E', '--grep=^Chat parity', 'HEAD').split('\\n').filter(Boolean).map(line => line.split('\\t')).find(([, subject]) => !subject.startsWith('Chat parity viewer:'))?.[0] || null } catch { return null } })() // a merge of dev into this branch is this change's commit too (its subject starts the same way) // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): the viewer's slash commands (commits \"Chat parity viewer: ...\") are a later change's, not this one's",
+     "const OWN = (() => { try { return git('log', '-1', '--format=%H', '-E', '--grep=^Chat parity', 'HEAD').trim() || null } catch { return null } })() // a merge of dev into this branch is this change's commit too (its subject starts the same way)"]
+  ]
 }
 export const CHAT_PARITY_VIEWER_PIN_FILES = Object.keys(CHAT_PARITY_VIEWER_PIN_EDITS)
 /** Files this change edits that are neither marked app code nor new: the registry (two lines) and the older proofs it teaches. No package.json script: run the proof with `node scripts/test-studio-chat-parity-viewer.mjs`. */
