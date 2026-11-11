@@ -166,18 +166,18 @@ function libSuite(more = loadMore()) {
 
   // -- the menu ---------------------------------------------------------------------------------------------------------------------------
   const all = rows('', null)
-  eq(labels(all), ['/delete-theme <name>', '/delete-template <name>', '/model <choice>', '/kg-search <words>', '/ask <question>', '/switch-template <name>'], 'every command has one row, in the menu\'s order')
-  eq(all.map(row => row.group), ['Library', 'Library', 'Model', 'Knowledge', 'Knowledge', 'Workspace'], 'groups: Library, Model, Knowledge, and the template switch with the workspace commands')
+  eq(labels(all), ['/switch-template <name>', '/delete-theme <name>', '/delete-template <name>', '/model <choice>', '/kg-search <words>', '/ask <question>'], 'every command has one row, in the menu\'s order')
+  eq(all.map(row => row.group), ['Workspace', 'Library', 'Library', 'Model', 'Knowledge', 'Knowledge'], 'groups: the template switch first (it draws under the workspace half\'s own Workspace heading), then Library, Model, Knowledge')
   ok(all.every(row => row.fill && row.run === null && row.hint === null), 'every command takes a word, so every first row fills its name and runs nothing')
   ok(all.every(row => row.blurb && row.blurb.length <= 54), 'one short line each')
   eq(all.map(row => row.disabled), [null, null, null, null, null, null], 'everything in reach: nothing is disabled')
   eq(new Set(all.map(row => row.key)).size, all.length, 'row keys are unique')
   eq(labels(rows('del', null)), ['/delete-theme <name>', '/delete-template <name>', '/model <choice>'], 'typing filters: the names that start with it, then the names that contain it (mo-del)')
-  eq(labels(rows('temp', null)), ['/delete-template <name>', '/switch-template <name>'], 'typing filters: names that contain it too')
-  eq(labels(rows('a', null)), ['/ask <question>', '/delete-template <name>', '/kg-search <words>', '/switch-template <name>'], 'a letter lists the names that start with it, then those that contain it')
+  eq(labels(rows('temp', null)), ['/switch-template <name>', '/delete-template <name>'], 'typing filters: names that contain it too')
+  eq(labels(rows('a', null)), ['/ask <question>', '/switch-template <name>', '/delete-template <name>', '/kg-search <words>'], 'a letter lists the names that start with it, then those that contain it')
   eq(rows('nope', null), [], 'a word that names no command: no rows (the other menus close it)')
   // out of reach before any word: the button's own reason
-  eq(rows('', null, { flags: { themeDelete: false, templateDelete: false, ask: false } }).map(row => [row.command, row.disabled]), [['delete-theme', W.themeOff], ['delete-template', W.templateOff], ['model', null], ['kg-search', null], ['ask', W.askOff], ['switch-template', null]], 'a library or the Ask box that is not switched on: its row says so')
+  eq(rows('', null, { flags: { themeDelete: false, templateDelete: false, ask: false } }).map(row => [row.command, row.disabled]), [['switch-template', null], ['delete-theme', W.themeOff], ['delete-template', W.templateOff], ['model', null], ['kg-search', null], ['ask', W.askOff]], 'a library or the Ask box that is not switched on: its row says so')
   eq(rows('model', null, { modelOn: false })[0].disabled, W.modelOff, '/model: the gauge is not turned on')
   eq(rows('model', null, { model: null })[0].disabled, W.modelLoading, '/model: no gauge on screen yet')
   eq(rows('model', null, { model: GAUGE({ ready: false }) })[0].disabled, W.modelLoading, '/model: the gauge is still loading (its button is disabled until it is ready)')

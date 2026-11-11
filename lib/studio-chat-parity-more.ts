@@ -154,14 +154,14 @@ export type MoreName = MoreRun['name']
 
 interface MoreDef { name: MoreName; group: MoreGroup; blurb: string; label: string }
 
-/** The menu's order. Every one takes a word after its name, so each first-level row is a "fill" row: picking it writes "/name " and the choices show. */
+/** The menu's order: the template switch first, so it draws under the workspace half's own "Workspace" heading (the rows are pushed after those); then Library, Model, Knowledge. Every one takes a word after its name, so each first-level row is a "fill" row: picking it writes "/name " and the choices show. */
 export const MORE_COMMANDS: readonly MoreDef[] = Object.freeze([
+  { name: 'switch-template', group: 'Workspace', blurb: 'Switch to a template Director suggests', label: '/switch-template <name>' },
   { name: 'delete-theme', group: 'Library', blurb: 'Delete a saved theme (asks first)', label: '/delete-theme <name>' },
   { name: 'delete-template', group: 'Library', blurb: 'Delete a saved template (asks first)', label: '/delete-template <name>' },
   { name: 'model', group: 'Model', blurb: "Director's depth, or a model for one kind of work", label: '/model <choice>' },
   { name: 'kg-search', group: 'Knowledge', blurb: 'Search your knowledge graph', label: '/kg-search <words>' },
   { name: 'ask', group: 'Knowledge', blurb: 'Ask your second brain (you press Ask)', label: '/ask <question>' },
-  { name: 'switch-template', group: 'Workspace', blurb: 'Switch to a template Director suggests', label: '/switch-template <name>' },
 ] as MoreDef[])
 
 /** The real handler or control behind each command (the proof reads these names from the sources). */
