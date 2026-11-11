@@ -147,6 +147,11 @@ function Close() {
 }
 
 export default async function BringPage() {
+  // NEXT_PUBLIC_MARKETING_V4 (default off): with the flag on this page is the v4 design (components/marketing/v4). Off: the page below, as it was.
+  if (process.env.NEXT_PUBLIC_MARKETING_V4 === "true") {
+    const { V4BringPage } = await import("@/components/marketing/v4/pages/bring")
+    return <V4BringPage />
+  }
   if (process.env.NEXT_PUBLIC_STUDIO_UAT_MARKETING === "true") {
     const { UatBringPage } = await import("@/components/marketing/v3-uat/pages/bring")
     return <UatBringPage />

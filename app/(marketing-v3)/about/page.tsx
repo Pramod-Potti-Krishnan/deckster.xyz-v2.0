@@ -23,6 +23,11 @@ const STACK_IMAGES = [
 const PRINCIPLE_COLORS = ["var(--coral)", "var(--violet)", "var(--mint)"] as const
 
 export default async function AboutV3Page() {
+  // NEXT_PUBLIC_MARKETING_V4 (default off): with the flag on this page is the v4 design (components/marketing/v4). Off: the page below, as it was.
+  if (process.env.NEXT_PUBLIC_MARKETING_V4 === "true") {
+    const { V4AboutPage } = await import("@/components/marketing/v4/pages/about")
+    return <V4AboutPage />
+  }
   if (process.env.NEXT_PUBLIC_STUDIO_UAT_MARKETING === "true") {
     const { UatAboutPage } = await import("@/components/marketing/v3-uat/pages/about")
     return <UatAboutPage />

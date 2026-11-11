@@ -8,6 +8,8 @@ import { SlideProgressRail } from "@/components/marketing/SnapDeck/SlideProgress
 import "@/styles/marketing-v3.css"
 // NEXT_PUBLIC_STUDIO_UAT_MARKETING: UAT's rules, every one scoped to .mv3:where(.mv3-uat), so inert on any page that is not the UAT tree. Imported here, straight after the base sheet, so they come after it in the cascade whatever the flag (a stylesheet pulled in only by the shell's import() lands before the base sheet).
 import "@/styles/marketing-v3-uat.css"
+// NEXT_PUBLIC_MARKETING_V4: the v4 rules, every one scoped to .mv3:where(.mv4), so inert on any page that is not the v4 tree. Imported last so they follow both sheets in the cascade.
+import "@/styles/marketing-v4.css"
 
 const display = Bricolage_Grotesque({ subsets: ["latin"], axes: ["opsz"], weight: "variable", variable: "--font-display" })
 const body = Instrument_Sans({ subsets: ["latin"], weight: "variable", style: ["normal", "italic"], variable: "--font-body" })
@@ -17,6 +19,11 @@ const slide = Inter({ subsets: ["latin"], weight: ["400", "600", "700"], variabl
 
 // NEXT_PUBLIC_STUDIO_UAT_MARKETING (default off): with the flag on the page is wrapped in UAT's shell (its header, runtime and pointer light; components/marketing/v3-uat/shell.tsx). The import() sits inside the flag test: the shell is loaded only then (and a build that defines the variable as anything but true leaves it out of the bundle). Off: the layout below, as it was.
 export default async function MarketingV3Layout({ children }: Readonly<{ children: React.ReactNode }>) {
+  // NEXT_PUBLIC_MARKETING_V4 (default off): with the flag on the page is wrapped in the v4 shell (components/marketing/v4/shell.tsx). Off: as below.
+  if (process.env.NEXT_PUBLIC_MARKETING_V4 === "true") {
+    const { V4MarketingShell } = await import("@/components/marketing/v4/shell")
+    return <V4MarketingShell fonts={`${display.variable} ${body.variable} ${human.variable} ${mono.variable} ${slide.variable}`}>{children}</V4MarketingShell>
+  }
   if (process.env.NEXT_PUBLIC_STUDIO_UAT_MARKETING === "true") {
     const { UatMarketingShell } = await import("@/components/marketing/v3-uat/shell")
     return <UatMarketingShell fonts={`${display.variable} ${body.variable} ${human.variable} ${mono.variable} ${slide.variable}`}>{children}</UatMarketingShell>

@@ -77,6 +77,11 @@ function Close() {
 }
 
 export default async function ExpertsPage() {
+  // NEXT_PUBLIC_MARKETING_V4 (default off): with the flag on this page is the v4 design (components/marketing/v4). Off: the page below, as it was.
+  if (process.env.NEXT_PUBLIC_MARKETING_V4 === "true") {
+    const { V4ExpertsPage } = await import("@/components/marketing/v4/pages/experts")
+    return <V4ExpertsPage />
+  }
   if (process.env.NEXT_PUBLIC_STUDIO_UAT_MARKETING === "true") {
     const { UatExpertsPage } = await import("@/components/marketing/v3-uat/pages/experts")
     return <UatExpertsPage />

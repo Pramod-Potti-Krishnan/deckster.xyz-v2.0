@@ -16,6 +16,11 @@ export const metadata: Metadata = process.env.NEXT_PUBLIC_STUDIO_UAT_MARKETING =
 }
 
 export default async function LearnV3Page() {
+  // NEXT_PUBLIC_MARKETING_V4 (default off): with the flag on this page is the v4 design (components/marketing/v4). Off: the page below, as it was.
+  if (process.env.NEXT_PUBLIC_MARKETING_V4 === "true") {
+    const { V4LearnPage } = await import("@/components/marketing/v4/pages/learn")
+    return <V4LearnPage />
+  }
   if (process.env.NEXT_PUBLIC_STUDIO_UAT_MARKETING === "true") {
     const { UatLearnPage } = await import("@/components/marketing/v3-uat/pages/learn")
     return <UatLearnPage />
