@@ -75,6 +75,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-connectors-gdrive-strip.mjs')).CONNECTORS_GDRIVE_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE, P4-15 slice 1 Google Drive picker connector (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED)
   ...(await import('./studio-connectors-session-links-strip.mjs')).CONNECTORS_SESSION_LINKS_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE, P4-15 slice 3 Drive session links (NEXT_PUBLIC_STUDIO_CONNECTORS_SESSION_LINKS_ENABLED)
   ...(await import('./studio-connectors-gdrive-composer-strip.mjs')).CONNECTORS_GDRIVE_COMPOSER_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE, P4-15 composer half: Add from Google Drive in the attach menu + Drive chips (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED + _SESSION_LINKS_ENABLED; no .env.example block)
+  ...(await import('./studio-connectors-gdrive-badge-strip.mjs')).CONNECTORS_GDRIVE_BADGE_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE, P4-15 piece B Drive badge on citations (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED)
   // one line per later change, above this comment
 ])
 
@@ -176,6 +177,7 @@ export const LATER_STRIPS = [
   (await import('./studio-phone-hints-strip.mjs')).stripPhoneHints, // LATER-CHANGE: FRONTEND-1, F-13 phone hints, PR 2 (NEXT_PUBLIC_STUDIO_PHONE_HINTS)
   (await import('./studio-connectors-session-links-strip.mjs')).stripConnectorsSessionLinks, // LATER-CHANGE: KNOWLEDGE, P4-15 slice 3 Drive session links (NEXT_PUBLIC_STUDIO_CONNECTORS_SESSION_LINKS_ENABLED)
   (await import('./studio-connectors-gdrive-composer-strip.mjs')).stripConnectorsGdriveComposer, // LATER-CHANGE: KNOWLEDGE, P4-15 composer half: Add from Google Drive in the attach menu + Drive chips (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED + _SESSION_LINKS_ENABLED; no .env.example block)
+  (await import('./studio-connectors-gdrive-badge-strip.mjs')).stripConnectorsGdriveBadge, // LATER-CHANGE: KNOWLEDGE, P4-15 piece B Drive badge on citations (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED)
   // one line per later change, above this comment
 ]
 
