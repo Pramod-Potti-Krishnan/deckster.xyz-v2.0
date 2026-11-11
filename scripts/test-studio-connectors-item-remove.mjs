@@ -213,7 +213,7 @@ await t('page: flag on => every listed file with an id gets a Remove from librar
 // 6. flag-off identity: every edit to an older file is additive (only the lines named here are replaced), so with the Drive flag off nothing
 //    older changes; the new code is reachable only through the Drive-flag-gated page and the handler's own gate (section 1).
 await t('older files: this change only ADDS lines, except the named replaced lines (vs the base)', async () => {
-  const base = process.env.ITEM_REMOVE_BASE || '1baf289da2aca08b83a996ac0c4dd3b30aea315a' // origin/knowledge/connectors-gdrive-session-links
+  const base = process.env.ITEM_REMOVE_BASE || 'f4192aa0' // combined gdrive e2e branch just before piece C merged (#608 + composer A + badge B); piece C alone was measured vs 1baf289d
   const git = (...a) => execFileSync('git', a, { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20 })
   git('cat-file', '-e', `${base}^{commit}`)
   const REPLACED = {
