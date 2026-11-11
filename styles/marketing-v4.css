@@ -1,0 +1,530 @@
+/* Marketing v4: additions to marketing-v3.css and marketing-v3-uat.css.
+   Every rule is scoped to .mv3:where(.mv4), the root class only the v4 shell renders (NEXT_PUBLIC_MARKETING_V4), so the sheet is inert on any other page.
+   Bundled from Deckster/design-marketing-v4/assets by tools/port_to_next.py. */
+
+/* ---- v4.css ---- */
+/* ==========================================================================
+   Deckster marketing v4: additions to the live marketing CSS.
+   The live sheets (assets/live/*.css) are untouched; everything here is scoped
+   to .mv3:where(.mv4) and built from the live tokens (--line, --surface, --accent = agents,
+   --you = you), so each piece works on paper and on night slides.
+   New pieces: status words, newsline, drive dial, voice call, agent loop,
+   provenance badges, change history, brand kit, bring-anything, mode table.
+   ========================================================================== */
+
+/* screenshot mode (?static=1): everything revealed, nothing mid-transition */
+
+.mv3:where(.mv4){--mono:var(--font-mono,"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace);--disp:var(--font-display,"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif);--serif:var(--font-human,"Instrument Serif",Georgia,"Times New Roman",serif)}
+.mv3:where(.mv4) .k4{font:600 10.5px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--muted-2)}
+.mv3:where(.mv4) .tight .slide__inner{padding-top:30px;padding-bottom:64px}
+.mv3:where(.mv4) .tight .h2{font-size:clamp(30px,3.9vw,52px)}
+.mv3:where(.mv4) .tight .lede{margin-top:14px;font-size:17px}
+
+/* ---------- newsline: what's new under the hero CTAs ---------- */
+.mv3:where(.mv4) .newsline{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:22px}
+.mv3:where(.mv4) .newsline__k{font:700 10px/1 var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--you);margin-right:4px}
+.mv3:where(.mv4) .newsline a{display:inline-flex;align-items:center;gap:8px;height:30px;padding:0 6px 0 12px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.03);font-size:13px;color:var(--muted);transition:border-color .2s,color .2s}
+.mv3:where(.mv4) .newsline a:hover{border-color:var(--accent);color:var(--snow)}
+
+/* ---------- drive dial: click it · say it · hand it over ---------- */
+.mv3:where(.mv4) .drive{margin-top:26px;--pos:50}
+.mv3:where(.mv4) .drive[data-active="click"]{--pos:16.667}.mv3:where(.mv4) .drive[data-active="say"]{--pos:50}.mv3:where(.mv4) .drive[data-active="agent"]{--pos:83.333}
+.mv3:where(.mv4) .drive__ends{display:flex;justify-content:space-between;font:600 10px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--muted-2)}
+.mv3:where(.mv4) .drive__ends span:first-child{color:var(--you)}.mv3:where(.mv4) .drive__ends span:last-child{color:var(--accent)}
+.mv3:where(.mv4) .drive__track{position:relative;height:30px;margin-top:4px}
+.mv3:where(.mv4) .drive__track::before{content:"";position:absolute;left:0;right:0;top:14px;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--you),var(--accent))}
+.mv3:where(.mv4) .drive__track i{position:absolute;top:10px;width:10px;height:10px;border-radius:99px;background:var(--surface);border:2px solid var(--muted-2);transform:translateX(-50%)}
+.mv3:where(.mv4) .drive__track i:nth-child(1){left:16.667%}.mv3:where(.mv4) .drive__track i:nth-child(2){left:50%}.mv3:where(.mv4) .drive__track i:nth-child(3){left:83.333%}
+.mv3:where(.mv4) .drive__knob{position:absolute;top:3px;left:calc(var(--pos)*1%);width:24px;height:24px;border-radius:99px;transform:translateX(-50%);background:var(--snow);border:2px solid var(--you);box-shadow:0 0 0 6px var(--you-soft);transition:left .55s var(--ease)}
+.mv3:where(.mv4) .slide--paper .drive__knob{background:#fff}
+.mv3:where(.mv4) .drive__modes{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:10px}
+.mv3:where(.mv4) .dmode{display:flex;flex-direction:column;gap:10px;text-align:left;padding:18px 18px 16px;border-radius:18px;border:1px solid var(--line);background:var(--surface);transition:border-color .3s,box-shadow .3s,transform .3s var(--ease);cursor:pointer}
+.mv3:where(.mv4) .dmode:hover{transform:translateY(-2px)}
+.mv3:where(.mv4) .dmode.is-on{border-color:var(--you);box-shadow:0 0 0 1px var(--you),0 34px 60px -44px rgba(0,0,0,.7)}
+.mv3:where(.mv4) .dmode__hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mv3:where(.mv4) .dmode__hd .k4{margin-right:auto}
+.mv3:where(.mv4) .dmode__t{font:600 clamp(24px,2.3vw,32px)/1.02 var(--disp);letter-spacing:-.025em}
+.mv3:where(.mv4) .dmode__t .you{font-size:1.12em}
+.mv3:where(.mv4) .dmode p{margin:0;font-size:14px;line-height:1.45;color:var(--muted)}
+.mv3:where(.mv4) .dmode__demo{margin-top:2px;min-height:128px;padding:12px;border-radius:12px;border:1px solid var(--line-2,var(--line));background:var(--surface-2);display:flex;flex-direction:column;gap:8px;justify-content:center}
+.mv3:where(.mv4) .dmode__demo .you{font-size:17px;line-height:1.25}
+.mv3:where(.mv4) .dmode__demo .agent{font-size:11.5px;line-height:1.45}
+.mv3:where(.mv4) .dmode__foot{margin-top:auto;font:500 11px/1.5 var(--mono);letter-spacing:.04em;color:var(--muted-2)}
+@media (max-width:900px){.mv3:where(.mv4) .drive__modes{grid-template-columns:1fr}.mv3:where(.mv4) .drive__track,.mv3:where(.mv4) .drive__ends{display:none}}
+
+/* mini canvas (the "click it" demo) */
+.mv3:where(.mv4) .mini{position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--line);aspect-ratio:16/9;max-height:118px;align-self:center;background:#fff}
+.mv3:where(.mv4) .mini img{display:block;width:100%;height:100%;object-fit:cover}
+.mv3:where(.mv4) .mini__sel{position:absolute;border:2px solid var(--coral);border-radius:3px;background:rgba(244,80,47,.10)}
+.mv3:where(.mv4) .mini__sel::after{content:attr(data-l);position:absolute;left:-2px;top:-17px;padding:2px 5px;border-radius:3px;background:var(--coral);color:#fff;font:600 8px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
+.mv3:where(.mv4) .mini__cur{position:absolute;width:16px;height:16px;color:var(--ink,#111116);filter:drop-shadow(0 1px 2px rgba(255,255,255,.9))}
+
+/* run card (the "hand it over" demo, and the agent page) */
+.mv3:where(.mv4) .run{display:flex;flex-direction:column;gap:6px;font:500 11.5px/1.4 var(--mono);color:var(--accent)}
+.mv3:where(.mv4) .run span b{color:var(--mint);margin-right:6px;font-weight:700}
+.mv3:where(.mv4) .run .is-now{color:var(--snow)}.mv3:where(.mv4) .slide--paper .run .is-now{color:var(--ink)}
+.mv3:where(.mv4) .run .is-now b{color:var(--you)}
+.mv3:where(.mv4) .meter{display:flex;align-items:center;gap:8px;margin-top:4px;font:600 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted-2)}
+.mv3:where(.mv4) .meter i{flex:1;height:5px;border-radius:9px;background:var(--line);position:relative;overflow:hidden}
+.mv3:where(.mv4) .meter i::after{content:"";position:absolute;inset:0;width:calc(var(--v,60)*1%);background:linear-gradient(90deg,var(--accent),var(--you));border-radius:9px}
+
+/* voice strip + wave */
+.mv3:where(.mv4) .vstrip{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:999px;border:1px solid var(--line);font:500 11px/1 var(--mono);letter-spacing:.04em;color:var(--muted)}
+.mv3:where(.mv4) .vstrip .mic{width:18px;height:18px;border-radius:99px;background:var(--you);display:grid;place-items:center;flex:none}
+.mv3:where(.mv4) .vstrip .mic::after{content:"";width:6px;height:9px;border-radius:4px;background:#fff}
+.mv3:where(.mv4) .vwave{display:inline-flex;align-items:center;gap:2px;height:16px;flex:1;min-width:40px}
+.mv3:where(.mv4) .vwave i{width:2px;border-radius:2px;background:var(--you);height:calc(var(--a,40)*1%)}
+.mv3:where(.mv4) .vwave--agent i{background:var(--accent)}
+.mv3:where(.mv4) .vstrip .st{margin-left:auto}
+
+/* ---------- the call card: talk to the Director ---------- */
+.mv3:where(.mv4) .call{border:1px solid var(--line);border-radius:20px;background:var(--surface);overflow:hidden;box-shadow:0 40px 80px -50px rgba(0,0,0,.7)}
+.mv3:where(.mv4) .call__top{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);font:500 10.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted-2)}
+.mv3:where(.mv4) .call__top .live{width:8px;height:8px;border-radius:99px;background:var(--you);box-shadow:0 0 0 4px var(--you-soft)}
+.mv3:where(.mv4) .call__top .t{margin-left:auto;letter-spacing:.06em}
+.mv3:where(.mv4) .call__stage{display:grid;grid-template-columns:150px 1fr;gap:18px;align-items:center;padding:20px 18px;background:radial-gradient(120% 140% at 0% 0%,var(--accent-soft),transparent 60%)}
+.mv3:where(.mv4) .face{width:150px;aspect-ratio:1;border-radius:28px;display:grid;place-items:center;background:linear-gradient(150deg,#7C6EFF,#4433E6);position:relative;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18),0 18px 40px -22px rgba(68,51,230,.9)}
+.mv3:where(.mv4) .face svg{width:74%;height:74%}
+.mv3:where(.mv4) .face__ring{position:absolute;inset:-9px;border-radius:36px;border:1.5px solid var(--accent);opacity:.45}
+.mv3:where(.mv4) .face--sm{width:54px;border-radius:14px}.mv3:where(.mv4) .face--sm .face__ring{inset:-5px;border-radius:19px}
+.mv3:where(.mv4) .call__cap{display:flex;flex-direction:column;gap:10px;min-width:0}
+.mv3:where(.mv4) .call__cap .k4{display:block;margin-bottom:3px}
+.mv3:where(.mv4) .call__cap .you{font-size:clamp(19px,1.7vw,24px);line-height:1.2}
+.mv3:where(.mv4) .call__cap .agent{font-size:12.5px;line-height:1.5}
+.mv3:where(.mv4) .call__cards{display:grid;gap:6px;padding:0 18px 14px}
+.mv3:where(.mv4) .wcard{display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);font-size:13px;color:var(--muted)}
+.mv3:where(.mv4) .wcard b{color:var(--mint);font:700 12px var(--mono)}
+.mv3:where(.mv4) .wcard .undo{margin-left:auto;font:600 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--you);border:1px solid var(--you);border-radius:99px;padding:4px 8px}
+.mv3:where(.mv4) .call__ctl{display:flex;align-items:center;gap:8px;padding:12px 16px;border-top:1px solid var(--line);flex-wrap:wrap}
+.mv3:where(.mv4) .call__ctl .btn{height:36px;padding:0 14px;font-size:13px}
+.mv3:where(.mv4) .call__ctl .small{margin-left:auto}
+@media (max-width:560px){.mv3:where(.mv4) .call__stage{grid-template-columns:1fr}.mv3:where(.mv4) .face{width:110px}}
+
+/* ---------- say rows: a request and what came back ---------- */
+.mv3:where(.mv4) .says{display:grid;gap:8px;margin-top:22px}
+.mv3:where(.mv4) .say{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:14px;align-items:center;padding:11px 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface)}
+.mv3:where(.mv4) .say .you{font-size:18px;line-height:1.2}
+.mv3:where(.mv4) .say .agent{font-size:12px;line-height:1.45}
+@media (max-width:700px){.mv3:where(.mv4) .say{grid-template-columns:1fr}}
+
+/* confirm card: irreversible actions always ask */
+.mv3:where(.mv4) .confirm{border:1px solid var(--you);border-radius:16px;background:var(--you-soft);padding:16px 18px}
+.mv3:where(.mv4) .confirm b{display:block;font:600 19px/1.2 var(--disp);letter-spacing:-.015em}
+.mv3:where(.mv4) .confirm p{margin:6px 0 12px;font-size:14px;color:var(--muted)}
+.mv3:where(.mv4) .confirm .btn{height:36px;padding:0 14px;font-size:13px;margin-right:6px}
+
+/* ---------- agent loop: plan, design, check, repair, report ---------- */
+.mv3:where(.mv4) .aloop{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:28px;position:relative}
+.mv3:where(.mv4) .anode{position:relative;padding:16px 14px 14px;border-radius:16px;border:1px solid var(--line);background:var(--surface)}
+.mv3:where(.mv4) .anode .n{font:700 11px var(--mono);letter-spacing:.14em;color:var(--accent)}
+.mv3:where(.mv4) .anode b{display:block;margin-top:8px;font:600 19px/1.1 var(--disp);letter-spacing:-.015em}
+.mv3:where(.mv4) .anode p{margin:6px 0 0;font-size:13.5px;line-height:1.45;color:var(--muted)}
+.mv3:where(.mv4) .anode:not(:last-child)::after{content:"→";position:absolute;right:-10px;top:50%;transform:translate(50%,-50%);z-index:2;font:600 13px var(--mono);color:var(--muted-2)}
+.mv3:where(.mv4) .anode--you{border-color:var(--you);background:var(--you-soft)}
+.mv3:where(.mv4) .anode--you .n{color:var(--you)}
+.mv3:where(.mv4) .anode--loop{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent-soft)}
+.mv3:where(.mv4) .aloop__back{grid-column:3 / span 2;margin-top:-2px;padding:7px 10px;border:1px dashed var(--accent);border-top:0;border-radius:0 0 14px 14px;text-align:center;font:600 10px/1.3 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+@media (max-width:900px){.mv3:where(.mv4) .aloop{grid-template-columns:1fr 1fr}.mv3:where(.mv4) .anode::after{display:none}.mv3:where(.mv4) .aloop__back{grid-column:1 / -1}}
+
+/* rules strip: short promises with a kicker */
+.mv3:where(.mv4) .rules{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:18px}
+.mv3:where(.mv4) .rule{padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface);font-size:13.5px;line-height:1.45;color:var(--muted)}
+.mv3:where(.mv4) .rule b{display:block;margin-bottom:4px;font:600 10.5px/1.2 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--you)}
+.mv3:where(.mv4) .rules--3{grid-template-columns:repeat(3,1fr)}
+@media (max-width:900px){.mv3:where(.mv4) .rules,.mv3:where(.mv4) .rules--3{grid-template-columns:1fr 1fr}}
+@media (max-width:560px){.mv3:where(.mv4) .rules,.mv3:where(.mv4) .rules--3{grid-template-columns:1fr}}
+
+/* ---------- provenance badges ---------- */
+.mv3:where(.mv4) .pb{display:inline-flex;align-items:center;gap:4px;height:17px;padding:0 6px 0 5px;border-radius:99px;font:700 8.5px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;vertical-align:middle;border:1px solid currentColor;white-space:nowrap}
+.mv3:where(.mv4) .pb::before{content:"";width:6px;height:6px;border-radius:2px;background:currentColor}
+.mv3:where(.mv4) .pb--file{color:#D2401F;background:rgba(244,80,47,.08)}
+.mv3:where(.mv4) .pb--web{color:#4A3DE0;background:rgba(91,77,255,.08)}
+.mv3:where(.mv4) .pb--est{color:#9A6A10;background:rgba(216,155,46,.10);border-style:dashed}
+.mv3:where(.mv4) .pb--est::before{border-radius:99px;background:transparent;box-shadow:inset 0 0 0 1.5px currentColor}
+.mv3:where(.mv4) .slide--night .pb--file{color:var(--coral-d)}.mv3:where(.mv4) .slide--night .pb--web{color:var(--violet-d)}.mv3:where(.mv4) .slide--night .pb--est{color:var(--gold)}
+/* the white slide that carries them (a real-looking metrics slide) */
+.mv3:where(.mv4) .pslide{position:relative;aspect-ratio:16/9;border-radius:14px;background:#fff;color:#16203A;padding:5.2% 5.4% 4%;box-shadow:0 40px 80px -46px rgba(0,0,0,.75),0 0 0 1px rgba(17,17,22,.08);font-family:var(--font-inter,Inter,system-ui,sans-serif);display:flex;flex-direction:column}
+.mv3:where(.mv4) .pslide .pb--file{color:#D2401F}.mv3:where(.mv4) .pslide .pb--web{color:#4A3DE0}.mv3:where(.mv4) .pslide .pb--est{color:#9A6A10}
+.mv3:where(.mv4) .pslide__eb{font:700 9px/1 var(--font-inter,Inter,sans-serif);letter-spacing:.16em;color:#B8860B}
+.mv3:where(.mv4) .pslide__t{margin:6px 0 0;font:700 clamp(15px,1.5vw,21px)/1.15 var(--font-inter,Inter,sans-serif);letter-spacing:-.01em}
+.mv3:where(.mv4) .pslide__t em{font-style:normal;color:#385B9D}
+.mv3:where(.mv4) .pslide__m{display:grid;grid-template-columns:repeat(3,1fr);gap:3%;margin-top:4.5%}
+.mv3:where(.mv4) .pm{position:relative;padding:8% 8% 7%;border-radius:8px;background:#F1F4F9;border-top:3px solid #16203A}
+.mv3:where(.mv4) .pm:nth-child(2){border-top-color:#385B9D}.mv3:where(.mv4) .pm:nth-child(3){border-top-color:#E8A013}
+.mv3:where(.mv4) .pm b{display:block;font:700 clamp(18px,2.1vw,30px)/1 var(--font-inter,Inter,sans-serif);letter-spacing:-.02em}
+.mv3:where(.mv4) .pm span.l{display:block;margin-top:5px;font:600 8.5px/1.2 var(--font-inter,Inter,sans-serif);letter-spacing:.1em;text-transform:uppercase;color:#6B7689}
+.mv3:where(.mv4) .pm .pb{margin-top:8px}
+.mv3:where(.mv4) .pm.is-open{box-shadow:0 0 0 2px var(--coral)}
+.mv3:where(.mv4) .pslide__band{margin-top:auto;padding:2.6% 3%;border-radius:6px;background:#16203A;color:#fff;font:600 clamp(9px,.9vw,12px)/1.3 var(--font-inter,Inter,sans-serif)}
+.mv3:where(.mv4) .pslide__foot{display:flex;justify-content:space-between;margin-top:2.4%;font:500 8px/1 var(--font-inter,Inter,sans-serif);color:#8791A3}
+.mv3:where(.mv4) .ppop{position:absolute;left:4%;bottom:-13%;width:min(300px,62%);z-index:3;padding:12px 14px;border-radius:12px;background:var(--night-2,#14151E);color:var(--snow,#F4F1EA);border:1px solid rgba(255,123,95,.55);box-shadow:0 24px 50px -24px rgba(0,0,0,.8);font-family:var(--font-body,"Instrument Sans",system-ui,sans-serif)}
+.mv3:where(.mv4) .ppop::before{content:"";position:absolute;left:28px;top:-7px;width:12px;height:12px;background:var(--night-2,#14151E);border-left:1px solid rgba(255,123,95,.55);border-top:1px solid rgba(255,123,95,.55);transform:rotate(45deg)}
+.mv3:where(.mv4) .ppop .k4{color:var(--coral-d)}
+.mv3:where(.mv4) .ppop b{display:block;margin-top:6px;font-size:14px;line-height:1.3}
+.mv3:where(.mv4) .ppop q{display:block;margin-top:6px;font:italic 400 15px/1.3 var(--serif);color:rgba(244,241,234,.76);quotes:"“" "”"}
+.mv3:where(.mv4) .ppop a{display:inline-block;margin-top:8px;font:600 10px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--coral-d)}
+.mv3:where(.mv4) .pkey{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:20px;font-size:13.5px;color:var(--muted)}
+.mv3:where(.mv4) .pkey span{display:inline-flex;align-items:center;gap:7px}
+
+/* ---------- change history ---------- */
+.mv3:where(.mv4) .hist{border:1px solid var(--line);border-radius:16px;background:var(--surface);overflow:hidden}
+.mv3:where(.mv4) .hist__hd{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line);font:500 10.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted-2)}
+.mv3:where(.mv4) .hist__hd .st{margin-left:auto}
+.mv3:where(.mv4) .hist__row{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--line-2,var(--line));font-size:13.5px;line-height:1.35}
+.mv3:where(.mv4) .hist__row:last-child{border-bottom:0}
+.mv3:where(.mv4) .hist__row i{width:9px;height:9px;border-radius:99px;background:var(--accent)}
+.mv3:where(.mv4) .hist__row.is-you i{background:var(--you)}
+.mv3:where(.mv4) .hist__row span{color:var(--muted-2);font:500 11px var(--mono)}
+.mv3:where(.mv4) .hist__row .who{font:600 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-right:6px}
+.mv3:where(.mv4) .hist__row.is-you .who{color:var(--you)}
+.mv3:where(.mv4) .hist__row .undo{font:600 10px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:5px 9px}
+
+/* ---------- brand kit ---------- */
+.mv3:where(.mv4) .kit{border:1px solid var(--line);border-radius:18px;background:var(--surface);padding:16px;display:grid;gap:12px}
+.mv3:where(.mv4) .kit__hd{display:flex;align-items:center;gap:10px}
+.mv3:where(.mv4) .kit__hd b{font:600 17px/1.2 var(--disp);letter-spacing:-.01em}
+.mv3:where(.mv4) .kit__hd .st{margin-left:auto}
+.mv3:where(.mv4) .kit__row{display:grid;grid-template-columns:76px 1fr;gap:12px;align-items:center;padding-top:10px;border-top:1px solid var(--line-2,var(--line))}
+.mv3:where(.mv4) .kit__row .k4{font-size:9.5px}
+.mv3:where(.mv4) .kit__logo{display:inline-flex;align-items:center;gap:9px;padding:8px 12px;border-radius:10px;background:#16203A;color:#fff;font:700 15px/1 var(--font-inter,Inter,sans-serif);letter-spacing:-.01em}
+.mv3:where(.mv4) .kit__logo i{width:16px;height:16px;border-radius:4px;background:#E8A013;display:block}
+.mv3:where(.mv4) .kit__sw{display:flex;gap:6px;flex-wrap:wrap}
+.mv3:where(.mv4) .kit__sw i{display:grid;place-items:end start;width:54px;height:38px;border-radius:8px;padding:4px 5px;font:600 7.5px/1 var(--mono);font-style:normal;color:#fff;box-shadow:inset 0 0 0 1px rgba(17,17,22,.12)}
+.mv3:where(.mv4) .kit__sw i.l{color:#16203A}
+.mv3:where(.mv4) .kit__type{font-size:13.5px;color:var(--muted)}
+.mv3:where(.mv4) .kit__type b{font:700 15px var(--font-inter,Inter,sans-serif);color:inherit;letter-spacing:-.01em}
+.mv3:where(.mv4) .kit__foot{display:flex;justify-content:space-between;gap:10px;padding:6px 10px;border-radius:6px;background:var(--surface-2);font:500 10px/1.2 var(--font-inter,Inter,sans-serif);color:var(--muted-2)}
+
+/* ---------- bring anything: an outside design becomes an editable deck ---------- */
+.mv3:where(.mv4) .crack{display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:center;margin-top:26px}
+.mv3:where(.mv4) .crack__pane{position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:#fff;aspect-ratio:16/9}
+.mv3:where(.mv4) .crack__pane img{display:block;width:100%;height:100%;object-fit:cover}
+.mv3:where(.mv4) .crack__pane--flat img{filter:saturate(.75)}
+.mv3:where(.mv4) .crack__tag{position:absolute;left:10px;top:10px;padding:5px 8px;border-radius:6px;background:rgba(12,13,19,.86);color:#F4F1EA;font:600 9.5px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase}
+.mv3:where(.mv4) .crack__tag--ok{background:var(--violet)}
+.mv3:where(.mv4) .crack__box{position:absolute;border:1.5px dashed var(--violet);border-radius:4px;background:rgba(91,77,255,.07)}
+.mv3:where(.mv4) .crack__box::after{content:attr(data-r);position:absolute;left:-1px;bottom:100%;padding:2px 5px;border-radius:3px 3px 0 0;background:var(--violet);color:#fff;font:600 8px/1.2 var(--mono);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.mv3:where(.mv4) .crack__arrow{display:grid;justify-items:center;gap:6px;font:600 10px/1.3 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent);text-align:center}
+.mv3:where(.mv4) .crack__arrow svg{width:34px;height:34px}
+.mv3:where(.mv4) .srcs4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px}
+.mv3:where(.mv4) .srcs4 div{padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surface);font-size:13px;line-height:1.4;color:var(--muted)}
+.mv3:where(.mv4) .srcs4 b{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px;font:600 14.5px/1.2 var(--disp);color:var(--ink,inherit);letter-spacing:-.01em}
+.mv3:where(.mv4) .slide--night .srcs4 b{color:var(--snow)}
+@media (max-width:900px){.mv3:where(.mv4) .crack{grid-template-columns:1fr}.mv3:where(.mv4) .crack__arrow svg{transform:rotate(90deg)}.mv3:where(.mv4) .srcs4{grid-template-columns:1fr 1fr}}
+
+/* ---------- composer strip: exact · mix & match · agentic ---------- */
+.mv3:where(.mv4) .stages{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px}
+.mv3:where(.mv4) .stage{padding:14px 16px;border-radius:14px;border:1px solid var(--line);background:var(--surface)}
+.mv3:where(.mv4) .stage .n{font:700 10.5px var(--mono);letter-spacing:.14em;color:var(--accent)}
+.mv3:where(.mv4) .stage b{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;font:600 18px/1.15 var(--disp);letter-spacing:-.015em}
+.mv3:where(.mv4) .stage p{margin:6px 0 0;font-size:13.5px;line-height:1.45;color:var(--muted)}
+@media (max-width:900px){.mv3:where(.mv4) .stages{grid-template-columns:1fr}}
+
+/* ---------- build modes table (reuses .matrix) ---------- */
+.mv3:where(.mv4) .matrix--modes td:first-child{width:20%;font:600 10.5px/1.4 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted-2)}
+.mv3:where(.mv4) .matrix--modes th{font-family:var(--disp);font-size:19px;letter-spacing:-.015em;text-transform:none;color:inherit;font-weight:600}
+.mv3:where(.mv4) .matrix--modes th .st{margin-left:8px}
+.mv3:where(.mv4) .matrix--modes td{font-size:14px;line-height:1.45;color:var(--muted)}
+.mv3:where(.mv4) .matrix--modes td b{color:var(--ink,inherit);font-weight:600}
+.mv3:where(.mv4) .slide--night .matrix--modes td b{color:var(--snow)}
+
+/* ---------- small helpers ---------- */
+.mv3:where(.mv4) .stack{display:grid;gap:14px}
+.mv3:where(.mv4) .note4{margin-top:14px;font:500 11.5px/1.6 var(--mono);letter-spacing:.04em;color:var(--muted-2)}
+.mv3:where(.mv4) .note4 b{color:var(--you);font-weight:600}
+.mv3:where(.mv4) .cols--top{align-items:start}
+.mv3:where(.mv4) .companion{position:absolute;right:10px;bottom:10px;z-index:3;display:flex;align-items:center;gap:9px;max-width:78%;padding:7px 11px 7px 7px;border-radius:14px;background:rgba(12,13,19,.88);border:1px solid rgba(156,147,255,.5);color:#F4F1EA;backdrop-filter:blur(8px);font-size:12px;line-height:1.3;text-align:left}
+.mv3:where(.mv4) .companion .face--sm{width:36px;border-radius:10px;flex:none}
+.mv3:where(.mv4) .companion .k4{display:block;color:var(--violet-d);font-size:8.5px;margin-bottom:2px}
+.mv3:where(.mv4) .ladder--5{grid-template-columns:repeat(5,1fr)}
+@media (max-width:900px){.mv3:where(.mv4) .ladder--5{grid-template-columns:1fr 1fr}}
+.mv3:where(.mv4) .org__row--7{grid-template-columns:repeat(7,1fr)}
+.mv3:where(.mv4) .tiers--4{grid-template-columns:repeat(4,1fr)}
+@media (max-width:1100px){.mv3:where(.mv4) .tiers--4{grid-template-columns:1fr 1fr}}
+@media (max-width:640px){.mv3:where(.mv4) .tiers--4{grid-template-columns:1fr}}
+.mv3:where(.mv4) .tier--free{border-style:dashed}
+
+/* v4 layout tweaks on live components */
+.mv3:where(.mv4) .ppop{bottom:auto;top:63%}
+.mv3:where(.mv4) .themes__left{display:grid;gap:14px;align-content:start;min-width:0}
+.mv3:where(.mv4) .studio__list--wide{margin:0;padding:12px 14px;list-style:none;border:1px solid var(--line);border-radius:14px;background:var(--surface);display:grid;gap:8px;font-size:13.5px;color:var(--muted)}
+.mv3:where(.mv4) .studio__list--wide li{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.mv3:where(.mv4) .companion{max-width:62%}
+.mv3:where(.mv4) .compact .ladder--5 div{font-size:13px;padding:10px 12px}
+.mv3:where(.mv4) .newsline--film{justify-content:center;margin-top:16px}
+.mv3:where(.mv4) .anode:has(+ .aloop__back)::after{display:none}
+
+/* ==========================================================================
+   Revision 2: the agent comes first.
+   agent stage (a video call with the deck on screen), phone frame, drawn
+   personas (avatars), three capability cards, the avatar spawn flow.
+   ========================================================================== */
+.mv3:where(.mv4) .astage{position:relative;border:1px solid var(--line);border-radius:20px;background:var(--surface);overflow:visible;box-shadow:0 40px 80px -50px rgba(0,0,0,.75)}
+.mv3:where(.mv4) .astage__top{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line);font:500 10.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted-2)}
+.mv3:where(.mv4) .astage__top .live{width:8px;height:8px;border-radius:99px;background:var(--you);box-shadow:0 0 0 4px var(--you-soft);flex:none}
+.mv3:where(.mv4) .astage__top .t{margin-left:auto;letter-spacing:.06em}
+.mv3:where(.mv4) .astage__body{display:grid;grid-template-columns:1fr 132px;gap:10px;padding:12px}
+.mv3:where(.mv4) .astage__canvas{position:relative;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:#fff;aspect-ratio:16/9;min-width:0}
+.mv3:where(.mv4) .astage__canvas img{display:block;width:100%;height:100%;object-fit:cover}
+.mv3:where(.mv4) .astage__sel{position:absolute;border:2px solid var(--coral);border-radius:4px;background:rgba(244,80,47,.10)}
+.mv3:where(.mv4) .astage__sel::after{content:attr(data-l);position:absolute;left:-2px;bottom:100%;padding:3px 6px;border-radius:4px 4px 0 0;background:var(--coral);color:#fff;font:600 8.5px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
+.mv3:where(.mv4) .astage__cur{position:absolute;width:18px;height:18px;color:#111116;filter:drop-shadow(0 1px 2px rgba(255,255,255,.95))}
+.mv3:where(.mv4) .astage__tiles{display:grid;gap:10px;align-content:start;min-width:0}
+.mv3:where(.mv4) .vtile{position:relative;border-radius:12px;overflow:hidden;aspect-ratio:1;display:grid;place-items:center;border:1px solid var(--line);background:var(--surface-2)}
+.mv3:where(.mv4) .vtile--agent{background:linear-gradient(150deg,#7C6EFF,#4433E6);border-color:rgba(156,147,255,.6)}
+.mv3:where(.mv4) .vtile--agent svg{width:66%;height:66%}
+.mv3:where(.mv4) .vtile--you{color:var(--you);border-color:var(--you)}
+.mv3:where(.mv4) .vtile--you svg{width:52%;height:52%}
+.mv3:where(.mv4) .vtile--you .persona{width:100%;height:100%}
+.mv3:where(.mv4) .vtile__n{position:absolute;left:6px;bottom:6px;padding:3px 6px;border-radius:5px;background:rgba(12,13,19,.78);color:#F4F1EA;font:600 8.5px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase}
+.mv3:where(.mv4) .astage__cap{display:grid;gap:5px;padding:2px 14px 12px;min-width:0}
+.mv3:where(.mv4) .astage__cap .you{font-size:clamp(17px,1.45vw,21px);line-height:1.2}
+.mv3:where(.mv4) .astage__cap .agent{font-size:12px;line-height:1.45}
+.mv3:where(.mv4) .astage__modes{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px;border-top:1px solid var(--line)}
+.mv3:where(.mv4) .amode{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 10px;border-radius:99px;border:1px solid var(--line);font:600 12.5px/1 var(--font-body,"Instrument Sans",system-ui,sans-serif);color:var(--muted)}
+.mv3:where(.mv4) .amode.is-on{border-color:var(--you);color:var(--you);background:var(--you-soft)}
+.mv3:where(.mv4) .astage--withphone{margin-right:64px}
+.mv3:where(.mv4) .astage .phone{position:absolute;right:-64px;bottom:-26px;z-index:3}
+
+/* phone frame: the same conversation in your hand */
+.mv3:where(.mv4) .phone{width:168px;border-radius:28px;padding:7px;background:#07070B;border:1px solid rgba(244,241,234,.22);box-shadow:0 30px 60px -24px rgba(0,0,0,.85)}
+.mv3:where(.mv4) .phone__scr{position:relative;border-radius:22px;overflow:hidden;background:linear-gradient(180deg,#1B1A3A,#0C0D13 70%);color:#F4F1EA;display:grid;gap:8px;padding:22px 10px 10px;aspect-ratio:9/18.6;align-content:start}
+.mv3:where(.mv4) .phone__scr::before{content:"";position:absolute;left:50%;top:7px;width:44px;height:9px;border-radius:9px;background:#07070B;transform:translateX(-50%)}
+.mv3:where(.mv4) .phone__k{font:600 7.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:rgba(244,241,234,.6);text-align:center}
+.mv3:where(.mv4) .phone__face{justify-self:center;width:74px;aspect-ratio:1;border-radius:20px;display:grid;place-items:center;background:linear-gradient(150deg,#7C6EFF,#4433E6);box-shadow:0 0 0 5px rgba(156,147,255,.18)}
+.mv3:where(.mv4) .phone__face svg{width:70%;height:70%}
+.mv3:where(.mv4) .phone__slide{border-radius:7px;overflow:hidden;border:1px solid rgba(244,241,234,.2);background:#fff;aspect-ratio:16/9}
+.mv3:where(.mv4) .phone__slide img{display:block;width:100%;height:100%;object-fit:cover}
+.mv3:where(.mv4) .phone__cap{font:italic 400 13px/1.2 var(--serif);color:var(--coral-d)}
+.mv3:where(.mv4) .phone__ag{font:500 8.5px/1.4 var(--mono);color:var(--violet-d)}
+.mv3:where(.mv4) .phone__btn{margin-top:auto;justify-self:center;display:grid;place-items:center;width:44px;height:44px;border-radius:99px;background:var(--coral);box-shadow:0 0 0 6px rgba(244,80,47,.22)}
+.mv3:where(.mv4) .phone__btn::after{content:"";width:9px;height:14px;border-radius:6px;background:#fff}
+.mv3:where(.mv4) .phone__hint{font:600 7px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;text-align:center;color:rgba(244,241,234,.55)}
+.mv3:where(.mv4) .phone--lg{width:232px;border-radius:36px;padding:9px}
+.mv3:where(.mv4) .phone--lg .phone__scr{border-radius:28px;padding:30px 14px 14px;gap:11px}
+.mv3:where(.mv4) .phone--lg .phone__scr::before{width:60px;height:12px;top:9px}
+.mv3:where(.mv4) .phone--lg .phone__face{width:104px;border-radius:28px}
+.mv3:where(.mv4) .phone--lg .phone__cap{font-size:17px}.mv3:where(.mv4) .phone--lg .phone__ag{font-size:10.5px}
+.mv3:where(.mv4) .phone--lg .phone__k{font-size:9px}.mv3:where(.mv4) .phone--lg .phone__hint{font-size:8.5px}
+.mv3:where(.mv4) .phone--lg .phone__btn{width:58px;height:58px}
+
+/* personas: drawn avatars (illustrations, never photos) */
+.mv3:where(.mv4) .persona{display:block;width:100%;height:100%}
+.mv3:where(.mv4) .ptile{position:relative;border-radius:14px;overflow:hidden;aspect-ratio:1;border:1px solid var(--line);background:var(--surface-2)}
+.mv3:where(.mv4) .ptile.is-pick{border-color:var(--you);box-shadow:0 0 0 2px var(--you)}
+.mv3:where(.mv4) .ptile__n{position:absolute;left:0;right:0;bottom:0;padding:5px 6px;background:rgba(12,13,19,.74);color:#F4F1EA;font:600 8.5px/1.2 var(--mono);letter-spacing:.1em;text-transform:uppercase;text-align:center}
+.mv3:where(.mv4) .ptile--photo{display:grid;place-items:center;border-style:dashed;color:var(--muted-2)}
+.mv3:where(.mv4) .ptile--photo svg{width:46%;height:46%}
+
+/* three headline capabilities */
+.mv3:where(.mv4) .caps3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:26px}
+.mv3:where(.mv4) .cap{display:flex;flex-direction:column;gap:10px;padding:18px 18px 16px;border-radius:18px;border:1px solid var(--line);background:var(--surface);min-width:0}
+.mv3:where(.mv4) .cap__hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mv3:where(.mv4) .cap__hd .k4{margin-right:auto}
+.mv3:where(.mv4) .cap__t{font:600 clamp(23px,2.2vw,30px)/1.04 var(--disp);letter-spacing:-.025em}
+.mv3:where(.mv4) .cap__t .you{font-size:1.1em}
+.mv3:where(.mv4) .cap p{margin:0;font-size:14.5px;line-height:1.45;color:var(--muted)}
+.mv3:where(.mv4) .cap__demo{margin-top:auto;padding:12px;border-radius:12px;border:1px solid var(--line-2,var(--line));background:var(--surface-2);display:grid;gap:8px;min-height:150px;align-content:center}
+.mv3:where(.mv4) .cap__demo .you{font-size:17px;line-height:1.22}
+.mv3:where(.mv4) .cap__demo .agent{font-size:11.5px;line-height:1.45}
+.mv3:where(.mv4) .cap__foot{font:500 11px/1.5 var(--mono);letter-spacing:.04em;color:var(--muted-2)}
+.mv3:where(.mv4) .cap--you{border-color:var(--you);box-shadow:0 0 0 1px var(--you)}
+@media (max-width:900px){.mv3:where(.mv4) .caps3{grid-template-columns:1fr}}
+
+/* avatar spawn: your photo -> three drawn candidates -> that's me */
+.mv3:where(.mv4) .spawn{display:grid;grid-template-columns:1fr auto 3fr;gap:10px;align-items:center}
+.mv3:where(.mv4) .spawn__arrow{font:600 13px var(--mono);color:var(--muted-2)}
+.mv3:where(.mv4) .spawn__cands{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.mv3:where(.mv4) .spawn--lg{gap:16px}
+.mv3:where(.mv4) .spawn--lg .spawn__cands{gap:12px}
+.mv3:where(.mv4) .spawncard{border:1px solid var(--line);border-radius:20px;background:var(--surface);padding:18px;display:grid;gap:14px;box-shadow:0 40px 80px -50px rgba(0,0,0,.7)}
+.mv3:where(.mv4) .spawncard__hd{display:flex;align-items:center;gap:10px;font:500 10.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted-2)}
+.mv3:where(.mv4) .spawncard__hd .st{margin-left:auto}
+.mv3:where(.mv4) .spawncard__row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--line)}
+.mv3:where(.mv4) .spawncard__row .btn{height:36px;padding:0 14px;font-size:13px}
+.mv3:where(.mv4) .spawncard__row .small{margin-left:auto}
+
+/* phone layouts for the revision-2 pieces */
+@media (max-width:900px){
+  .mv3:where(.mv4) .astage--withphone{margin-right:0}
+  .mv3:where(.mv4) .astage .phone{display:none}
+  .mv3:where(.mv4) .astage__body{grid-template-columns:1fr 84px}
+  .mv3:where(.mv4) .phone--solo{margin:0 auto}
+}
+@media (max-width:560px){
+  .mv3:where(.mv4) .astage__body{grid-template-columns:1fr}
+  .mv3:where(.mv4) .astage__tiles{grid-template-columns:1fr 1fr}
+  .mv3:where(.mv4) .vtile{aspect-ratio:16/10}
+  .mv3:where(.mv4) .vtile--agent svg{width:40%;height:auto}
+  .mv3:where(.mv4) .spawn{grid-template-columns:1fr}
+  .mv3:where(.mv4) .spawn__arrow{display:none}
+  .mv3:where(.mv4) .spawn>.ptile--photo{max-width:38%;justify-self:center}
+}
+/* a phone-only block: shown under 900px where the desktop stage hides its phone */
+.mv3:where(.mv4) .only-phone{display:none}
+@media (max-width:900px){.mv3:where(.mv4) .only-phone{display:block}}
+
+/* agent stage, second pass: faces sit picture-in-picture on the deck, the phone overlaps the lower right corner */
+.mv3:where(.mv4) .astage__body{display:block;padding:12px}
+.mv3:where(.mv4) .astage__pip{position:absolute;right:8px;top:8px;display:flex;gap:6px;align-items:flex-start}
+.mv3:where(.mv4) .astage__pip .vtile{width:84px;aspect-ratio:1;border-radius:12px;box-shadow:0 10px 24px -10px rgba(0,0,0,.6)}
+.mv3:where(.mv4) .astage__pip .vtile--you{width:60px;background:#1D1F2C}
+.mv3:where(.mv4) .astage__pip .vtile__n{left:4px;bottom:4px;font-size:7.5px;padding:2px 5px}
+.mv3:where(.mv4) .astage--withphone{margin-right:58px}
+.mv3:where(.mv4) .astage .phone{right:-58px;bottom:-34px;width:150px}
+.mv3:where(.mv4) .astage--withphone .astage__cap,.mv3:where(.mv4) .astage--withphone .astage__modes{padding-right:112px}
+@media (max-width:900px){
+  .mv3:where(.mv4) .astage--withphone{margin-right:0}
+  .mv3:where(.mv4) .astage--withphone .astage__cap,.mv3:where(.mv4) .astage--withphone .astage__modes{padding-right:14px}
+  .mv3:where(.mv4) .astage__body{display:block}
+}
+@media (max-width:560px){
+  .mv3:where(.mv4) .astage__body{display:block}
+  .mv3:where(.mv4) .astage__pip .vtile{width:64px;aspect-ratio:1}
+  .mv3:where(.mv4) .astage__pip .vtile--you{width:46px}
+  .mv3:where(.mv4) .astage__pip .vtile--agent svg{width:66%;height:66%}
+}
+.mv3:where(.mv4) .astage .phone .phone__ag,.mv3:where(.mv4) .astage .phone .phone__k{display:none}
+.mv3:where(.mv4) .astage .phone .phone__scr{gap:9px;padding-top:26px}
+.mv3:where(.mv4) .astage .phone .phone__cap{font-size:12.5px;text-align:center}
+/* talk slide: stage, phone, rules side by side */
+.mv3:where(.mv4) .talkrow{display:grid;grid-template-columns:minmax(0,1.55fr) auto minmax(0,1fr);gap:22px;align-items:center;margin-top:24px}
+.mv3:where(.mv4) .talkrow .rules{grid-template-columns:1fr;margin-top:0;gap:10px}
+@media (max-width:1100px){.mv3:where(.mv4) .talkrow{grid-template-columns:1fr}.mv3:where(.mv4) .talkrow .phone{margin:0 auto}}
+
+/* phone fixes found by tools/fit.py --mobile */
+.mv3:where(.mv4) .bring__notes--4{grid-template-columns:repeat(4,1fr)}
+@media (max-width:900px){
+  .mv3:where(.mv4) .bring__notes--4{grid-template-columns:1fr}
+  .mv3:where(.mv4) .org__row--7{grid-template-columns:repeat(3,1fr)}
+  .mv3:where(.mv4) .tscroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .mv3:where(.mv4) .tscroll .matrix{min-width:640px}
+}
+@media (max-width:560px){.mv3:where(.mv4) .org__row--7{grid-template-columns:repeat(2,1fr)}}
+
+/* ---- v4-build.css ---- */
+/* Build page only */
+.mv3:where(.mv4) :where(main[data-page="build"]) .ways{border:1px solid var(--line);border-radius:20px;background:var(--surface);overflow:hidden;box-shadow:0 40px 80px -50px rgba(0,0,0,.7)}
+.mv3:where(.mv4) :where(main[data-page="build"]) .way{display:grid;grid-template-columns:150px 1fr;gap:16px;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line)}
+.mv3:where(.mv4) :where(main[data-page="build"]) .way:last-child{border-bottom:0}
+.mv3:where(.mv4) :where(main[data-page="build"]) .way__k{display:grid;gap:8px;justify-items:start}
+.mv3:where(.mv4) :where(main[data-page="build"]) .way__k b{font:600 21px/1 var(--disp);letter-spacing:-.02em}
+.mv3:where(.mv4) :where(main[data-page="build"]) .way__d{display:grid;gap:6px;min-width:0}
+.mv3:where(.mv4) :where(main[data-page="build"]) .way__d .you{font-size:19px;line-height:1.2}
+.mv3:where(.mv4) :where(main[data-page="build"]) .way__d .agent{font-size:12px;line-height:1.45}
+.mv3:where(.mv4) :where(main[data-page="build"]) .way.is-on{background:linear-gradient(90deg,var(--you-soft),transparent 70%)}
+.mv3:where(.mv4) :where(main[data-page="build"]) .way .mini{max-height:74px;align-self:start;justify-self:start}
+.mv3:where(.mv4) :where(main[data-page="build"]) .keep{margin-top:14px;padding:14px 16px;border-radius:14px;border:1px dashed var(--line);font-size:14px;line-height:1.5;color:var(--muted)}
+.mv3:where(.mv4) :where(main[data-page="build"]) .keep b{display:block;margin-bottom:4px;font:600 10.5px/1.2 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted-2)}
+.mv3:where(.mv4) :where(main[data-page="build"]) .runcard{border:1px solid var(--line);border-radius:18px;background:var(--surface);overflow:hidden;box-shadow:0 30px 60px -40px rgba(0,0,0,.45)}
+.mv3:where(.mv4) :where(main[data-page="build"]) .runcard__bar{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);font:500 10.5px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted-2)}
+.mv3:where(.mv4) :where(main[data-page="build"]) .runcard__bar .st{margin-left:auto}
+.mv3:where(.mv4) :where(main[data-page="build"]) .runcard__body{padding:16px;background:linear-gradient(180deg,var(--surface-2),var(--surface))}
+.mv3:where(.mv4) :where(main[data-page="build"]) .runcard .run{font-size:12.5px;gap:9px}
+.mv3:where(.mv4) :where(main[data-page="build"]) .runcard .run em{font-style:normal;color:var(--muted-2)}
+.mv3:where(.mv4) :where(main[data-page="build"]) .runcard__ctl{display:flex;gap:8px;align-items:center;padding:12px 14px;border-top:1px solid var(--line)}
+.mv3:where(.mv4) :where(main[data-page="build"]) .runcard__ctl .btn{height:36px;padding:0 14px;font-size:13px}
+.mv3:where(.mv4) :where(main[data-page="build"]) .runcard__ctl .small{margin-left:auto}
+.mv3:where(.mv4) :where(main[data-page="build"]) .rules--2{grid-template-columns:1fr 1fr}
+@media (max-width:560px){.mv3:where(.mv4) :where(main[data-page="build"]) .way{grid-template-columns:1fr}.mv3:where(.mv4) :where(main[data-page="build"]) .rules--2{grid-template-columns:1fr}}
+
+/* ---- v4-bring.css ---- */
+/* ==========================================================================
+   Bring page only (bring.html). Loaded right after v4.css.
+   ========================================================================== */
+
+/* the "read into Deckster's format" arrow: narrow, so the words wrap and the panes keep their width */
+.mv3:where(.mv4) :where(main[data-page="bring"]) #any .crack__arrow{width:104px}
+.mv3:where(.mv4) :where(main[data-page="bring"]) #any .lede{max-width:66ch}
+.mv3:where(.mv4) :where(main[data-page="bring"]) #any .srcs4 p{margin:0}
+.mv3:where(.mv4) :where(main[data-page="bring"]) #any .srcs4 b .st{margin-left:2px}
+.mv3:where(.mv4) :where(main[data-page="bring"]) #any .checks{margin-top:16px}
+/* tags sit top-right so they do not cover the slide's own title */
+.mv3:where(.mv4) :where(main[data-page="bring"]) #any .crack__tag{left:auto;right:10px}
+
+/* brand kit: a modest sample slide under the kit card */
+.mv3:where(.mv4) :where(main[data-page="bring"]) #brand .kit{margin-top:0}
+.mv3:where(.mv4) :where(main[data-page="bring"]) .kitslide{position:relative;margin:14px 0 0;border-radius:12px;overflow:hidden;border:1px solid var(--line);box-shadow:0 22px 44px -30px rgba(17,17,22,.5);background:#fff}
+.mv3:where(.mv4) :where(main[data-page="bring"]) .kitslide img{display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:cover}
+.mv3:where(.mv4) :where(main[data-page="bring"]) .kitslide figcaption{position:absolute;left:10px;bottom:10px;padding:5px 8px;border-radius:6px;background:rgba(12,13,19,.86);color:#F4F1EA;font-size:9.5px;letter-spacing:.12em}
+
+/* library: one row of four cards, then the three ways to use them */
+.mv3:where(.mv4) :where(main[data-page="bring"]) #library .tgrid{margin-top:22px}
+
+/* sources: four rows on the right now, so the slide takes the tight padding and the rows a little less air */
+.mv3:where(.mv4) :where(main[data-page="bring"]) #knowledge .slide__inner{padding-top:30px;padding-bottom:64px}
+.mv3:where(.mv4) :where(main[data-page="bring"]) #knowledge .steps{gap:12px}
+.mv3:where(.mv4) :where(main[data-page="bring"]) #knowledge .steps .step{padding:16px 20px 14px}
+.mv3:where(.mv4) :where(main[data-page="bring"]) #knowledge .steps .step>.st{margin-bottom:0;margin-top:2px}
+.mv3:where(.mv4) :where(main[data-page="bring"]) #knowledge .note4{display:flex;align-items:flex-start;gap:10px;margin-top:18px}
+.mv3:where(.mv4) :where(main[data-page="bring"]) #knowledge .note4 .st{flex:none}
+
+@media (max-width:900px){
+  .mv3:where(.mv4) :where(main[data-page="bring"]) #any .crack__arrow{width:auto}
+  .mv3:where(.mv4) :where(main[data-page="bring"]) #any .crack__tag{top:auto;bottom:6px;right:6px;font-size:8px;padding:4px 6px}
+  .mv3:where(.mv4) :where(main[data-page="bring"]) #brand .cols{gap:28px}
+}
+
+/* ---- v4-present.css ---- */
+/* present.html: page-specific v4 layout (loads right after v4.css) */
+
+/* One button: five cards in one row */
+.mv3:where(.mv4) :where(main[data-page="present"]) .grid5{grid-template-columns:repeat(5,1fr);gap:12px}
+.mv3:where(.mv4) :where(main[data-page="present"]) .grid5 .card{padding:18px 16px 16px}
+.mv3:where(.mv4) :where(main[data-page="present"]) .grid5 .card .h3{font-size:20px}
+.mv3:where(.mv4) :where(main[data-page="present"]) .grid5 .card p{font-size:13.5px;line-height:1.48}
+@media (max-width:1100px){.mv3:where(.mv4) :where(main[data-page="present"]) .grid5{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:900px){.mv3:where(.mv4) :where(main[data-page="present"]) .grid5{grid-template-columns:1fr 1fr}}
+@media (max-width:560px){.mv3:where(.mv4) :where(main[data-page="present"]) .grid5{grid-template-columns:1fr}}
+
+/* Partner: the 2x2 rules set inline; stack them on a phone */
+@media (max-width:560px){.mv3:where(.mv4) :where(main[data-page="present"]) #partner .rules{grid-template-columns:1fr!important}}
+
+/* ---- v4-experts.css ---- */
+/* experts.html: page-specific v4 layout (loads right after v4.css) */
+
+/* The team: seven specialists, 4 + 3 on a twelve-column grid */
+.mv3:where(.mv4) :where(main[data-page="experts"]) .grid7{grid-template-columns:repeat(12,1fr);gap:14px}
+.mv3:where(.mv4) :where(main[data-page="experts"]) .grid7 .card{grid-column:span 4;padding:18px 20px 16px}
+.mv3:where(.mv4) :where(main[data-page="experts"]) .grid7 .card:nth-child(-n+4){grid-column:span 3}
+.mv3:where(.mv4) :where(main[data-page="experts"]) .grid7 .card .h3{margin-top:10px}
+@media (max-width:900px){.mv3:where(.mv4) :where(main[data-page="experts"]) .grid7{grid-template-columns:1fr 1fr}.mv3:where(.mv4) :where(main[data-page="experts"]) .grid7 .card,.mv3:where(.mv4) :where(main[data-page="experts"]) .grid7 .card:nth-child(-n+4){grid-column:auto}}
+@media (max-width:560px){.mv3:where(.mv4) :where(main[data-page="experts"]) .grid7{grid-template-columns:1fr}}
+
+/* Agent mode: v4.css puts an arrow after every node that is not the last child; the back-link is the last child, so node 05 would get a stray arrow */
+.mv3:where(.mv4) :where(main[data-page="experts"]) #agent .anode:nth-child(5)::after{display:none}
+
+/* ---- v4-pricing.css ---- */
+/* pricing page: four tiers in a row, a matrix tight enough for one screen */
+.mv3:where(.mv4) :where(main[data-page="pricing"]) .tiers--4{gap:14px;margin-top:26px}
+.mv3:where(.mv4) :where(main[data-page="pricing"]) .tiers--4 .tier{padding:20px 20px 18px}
+.mv3:where(.mv4) :where(main[data-page="pricing"]) .tiers--4 .tier__price b{font-size:40px}
+.mv3:where(.mv4) :where(main[data-page="pricing"]) .tiers--4 .tier__blurb{font-size:14px;min-height:2.8em}
+.mv3:where(.mv4) :where(main[data-page="pricing"]) .tiers--4 .tier li{font-size:13.5px}
+.mv3:where(.mv4) :where(main[data-page="pricing"]) .tiers--4 .tier__tag{right:12px;top:12px}
+.mv3:where(.mv4) :where(main[data-page="pricing"]) .tier__name .st{margin-left:8px}
+.mv3:where(.mv4) :where(main[data-page="pricing"]) .tiers--4 .tier__name{display:flex;align-items:center;min-height:22px}
+.mv3:where(.mv4) :where(main[data-page="pricing"]) .tier--free .btn--off{opacity:.5;border-style:dashed;cursor:default;pointer-events:none}
+
+.mv3:where(.mv4) :where(main[data-page="pricing"]) .matrix{margin-top:16px;font-size:13px}
+.mv3:where(.mv4) :where(main[data-page="pricing"]) .matrix td,.mv3:where(.mv4) :where(main[data-page="pricing"]) .matrix th{padding:8px 14px;vertical-align:middle}
+.mv3:where(.mv4) :where(main[data-page="pricing"]) .matrix th{padding-bottom:8px}
+.mv3:where(.mv4) :where(main[data-page="pricing"]) .matrix td .st{margin-left:6px}
+@media (max-width:1100px){.mv3:where(.mv4) :where(main[data-page="pricing"]) .tiers--4 .tier__blurb{min-height:0}}
+
+/* ---- v4-about.css ---- */
+/* about page: the status board grows to four columns (Live, Beta, Coming, Later) */
+.mv3:where(.mv4) :where(main[data-page="about"]) .ladder4.ladder4--4{grid-template-columns:repeat(4,1fr);gap:12px;margin-top:22px}
+.mv3:where(.mv4) :where(main[data-page="about"]) .ladder4--4 .col{padding:16px 18px}
+.mv3:where(.mv4) :where(main[data-page="about"]) .ladder4--4 ul{margin-top:10px;gap:7px;font-size:13.5px;line-height:1.4}
+@media (max-width:900px){.mv3:where(.mv4) :where(main[data-page="about"]) .ladder4.ladder4--4{grid-template-columns:1fr 1fr}}
+@media (max-width:560px){.mv3:where(.mv4) :where(main[data-page="about"]) .ladder4.ladder4--4{grid-template-columns:1fr}}
+
+/* ---- v4-learn.css ---- */
+/* learn page: the "three ways to drive" note sits a little further from the cards */
+.mv3:where(.mv4) :where(main[data-page="learn"]) #start .note4{margin-top:22px}
+
+/* ---- experts loop on phones (was an inline style in the mock) ---- */
+@media (max-width:900px){.mv3:where(.mv4) #loop .steps{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media (max-width:560px){.mv3:where(.mv4) #loop .steps{grid-template-columns:1fr!important}}
+.mv3:where(.mv4) .ppop__link{display:inline-block;margin-top:8px;font:600 10px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--coral-d)}

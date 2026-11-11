@@ -20,6 +20,11 @@ export const metadata: Metadata = process.env.NEXT_PUBLIC_STUDIO_UAT_MARKETING =
 }
 
 export default async function MarketingV3HomePage() {
+  // NEXT_PUBLIC_MARKETING_V4 (default off): with the flag on this page is the v4 design (components/marketing/v4). Off: the page below, as it was.
+  if (process.env.NEXT_PUBLIC_MARKETING_V4 === "true") {
+    const { V4HomePage } = await import("@/components/marketing/v4/pages/home")
+    return <V4HomePage />
+  }
   if (process.env.NEXT_PUBLIC_STUDIO_UAT_MARKETING === "true") {
     const { UatHomePage } = await import("@/components/marketing/v3-uat/pages/home")
     return <UatHomePage />

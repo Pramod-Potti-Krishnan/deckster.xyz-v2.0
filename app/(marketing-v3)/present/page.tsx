@@ -1,3 +1,4 @@
+import { V4PresentPage } from "@/components/marketing/v4/pages/present"
 import { V3_CONTENT } from "@/lib/marketing/v3-content"
 import type { Metadata } from "next"
 import type { CSSProperties } from "react"
@@ -87,5 +88,7 @@ function Close() {
 }
 
 export default function PresentPage() {
+  // NEXT_PUBLIC_MARKETING_V4 (default off): with the flag on this page is the v4 design (components/marketing/v4). Off: the page below, as it was.
+  if (process.env.NEXT_PUBLIC_MARKETING_V4 === "true") return <V4PresentPage />
   if (studioUatMarketing.on) return <UatPresentPage />
   return <main><Hero /><Four /><Grounded /><Time /><Close /></main> }
