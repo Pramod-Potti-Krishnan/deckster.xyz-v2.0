@@ -231,6 +231,7 @@ export function createSlideInventoryController({
   pendingFastWindowMs = 60_000,
   pendingSlowPollMs = 15_000,
   pendingMaxMs = 600_000,
+  readFallback, // AUDIT-PREVIEWS
 }: {
   presentationId: string
   getBaseUrl: () => string
@@ -246,6 +247,8 @@ export function createSlideInventoryController({
   pendingFastWindowMs?: number
   pendingSlowPollMs?: number
   pendingMaxMs?: number
+  /** NEXT_PUBLIC_STUDIO_INVENTORY_FALLBACK (the hook passes it only with the flag on): asked once when the inventory answers 404 or 405; a result stands in for the inventory, null keeps the answer. */ // AUDIT-PREVIEWS
+  readFallback?: (args: { baseUrl: string; presentationId: string; fetchImpl: typeof fetch; signal?: AbortSignal }) => Promise<SlideInventoryResult | null> // AUDIT-PREVIEWS
 }) {
   let state: SlideInventoryState = { status: 'idle', inventory: null }
   let disposed = false
@@ -296,6 +299,7 @@ export function createSlideInventoryController({
     let result: SlideInventoryResult
     try {
       result = await fetchSlideInventory({ baseUrl, presentationId, fetchImpl, signal: abort?.signal })
+      if (readFallback && result.kind === 'unavailable' && (result.reason === 'http_404' || result.reason === 'http_405')) { const derived = await readFallback({ baseUrl, presentationId, fetchImpl, signal: abort?.signal }).catch(() => null); if (derived) result = derived } // AUDIT-PREVIEWS
     } finally {
       if (timer !== null) clearTimer(timer)
       abort = null

@@ -13,6 +13,7 @@ import {
   type SlideInventoryState,
   type SlideRailRow,
 } from '@/lib/slide-rail-identity'
+import { STUDIO_INVENTORY_FALLBACK_ENABLED, readInventoryFallback } from '@/lib/studio-inventory-fallback' // AUDIT-PREVIEWS (NEXT_PUBLIC_STUDIO_INVENTORY_FALLBACK, default off)
 
 const IDLE: SlideInventoryState = { status: 'idle', inventory: null }
 
@@ -56,6 +57,7 @@ export function useSlideRailIdentity({
       getBaseUrl: () => getLayoutServiceUrl(),
       fetchImpl: (input, init) => fetch(input, init),
       onChange: state => setSnapshot({ presentationId, state }),
+      ...(STUDIO_INVENTORY_FALLBACK_ENABLED ? { readFallback: async args => { const derived = await readInventoryFallback(args); return derived.kind === 'ok' ? derived : null } } : {}), // AUDIT-PREVIEWS
     })
     controllerRef.current = controller
     controller.refresh()
