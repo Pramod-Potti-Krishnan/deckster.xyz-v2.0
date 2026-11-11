@@ -306,8 +306,9 @@ export interface WorkspaceEnv {
 
 /** A run of this file, as data (the one cast: the union is keyed by name, the call sites name the fields). */
 const R = (value: { name: WorkspaceName } & Record<string, unknown>): WorkspaceRun => ({ ws: true, ...value }) as WorkspaceRun
+/** The viewer half's row type names the viewer half's own commands, groups and runs: a workspace row is the same shape, so its three names go in through this one cast (the viewer half's lib is left as it is). */
 const mk = (command: WorkspaceName, label: string, blurb: string, what: WorkspaceRun | null, disabled: string | null, key = `ws:${label}`): ParityRow =>
-  ({ key, command, group: WORKSPACE_GROUP, label, blurb, disabled, hint: null, fill: false, run: what as ParityRun | null })
+  ({ key, command: command as unknown as ParityRow['command'], group: WORKSPACE_GROUP as unknown as ParityRow['group'], label, blurb, disabled, hint: null, fill: false, run: what as unknown as ParityRow['run'] })
 const problem = (command: WorkspaceName, label: string, text: string, key = `ws:${label}`): ParityRow => ({ ...mk(command, label, '', null, null, key), hint: text })
 const fill = (def: WorkspaceDef, disabled: string | null): ParityRow => ({ ...mk(def.name, def.label ?? `/${def.name}`, def.blurb, null, disabled), fill: true })
 

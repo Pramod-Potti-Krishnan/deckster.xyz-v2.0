@@ -418,7 +418,8 @@ function sourceChecks() {
       ok(registry.stripLaterChanges(rel, now) === registry.stripLaterChanges(rel, base), `${rel}: ...and through the registry (both sides: every registered change strips its own lines)`)
       const added = diffLines(rel, '+'), removed = diffLines(rel, '-')
       eq(added.filter(line => !MARK.test(line)), [], `${rel}: every line added to it carries the marker`)
-      eq(removed.slice().sort(), (strip.CHAT_PARITY_WORKSPACE_EDITS[rel] || []).map(([, before]) => before).sort(), `${rel}: the only lines gone are the recorded changed lines`)
+      eq(removed.slice().sort(), (strip.CHAT_PARITY_WORKSPACE_EDITS[rel] || []).map(([, before]) => before).sort(), `${rel}: no line of the viewer half's file is changed or gone (every line this change adds is a pure insertion)`)
+      eq(Object.keys(strip.CHAT_PARITY_WORKSPACE_EDITS), [], `${rel}: ...so there are no recorded changed lines`)
       for (const [has, before] of strip.CHAT_PARITY_WORKSPACE_EDITS[rel] || []) { ok(MARK.test(has) && now.split('\n').filter(line => line === has).length === 1, `${rel}: a changed line carries the marker and occurs once`); ok(!MARK.test(before), `${rel}: the line before is the viewer half's`) }
       ok(added.length > 0, `${rel}: has marked lines`)
       // the viewer half's own strip still works on it: none of its lines is changed or gone
@@ -571,7 +572,6 @@ async function mutantsSuite() {
   const identity = async mod => { if (!hasBase) throw new Error('no base: the mutant cannot be judged here (treated as caught)'); for (const rel of strip.CHAT_PARITY_WORKSPACE_FILES) if (mod.stripChatParityWorkspace(rel, read(rel)) !== baseOf(rel)) throw new Error(`${rel}: not the base`) }
   for (const [name, from, to] of [
     ['the strip forgets the marker', 'CHAT_PARITY_WORKSPACE_MARKER_RE = /(?<![\\w-])CHAT-PARITY-WORKSPACE(?![\\w-])/', 'CHAT_PARITY_WORKSPACE_MARKER_RE = /(?<![\\w-])CHAT-PARITY-WORKSPACE-NOT(?![\\w-])/'],
-    ['the strip does not put changed lines back', 'const swapped = (CHAT_PARITY_WORKSPACE_EDITS[rel] || []).reduce((out, [has, was]) => out.replace(has, () => was), text)', 'const swapped = text'],
     ['the strip drops a file', '  "components/slide-notes-panel.tsx",\n', ''],
     ['the strip drops the viewer half\'s menu', '  "components/builder/chat/studio-chat-parity-viewer-menu.tsx",\n]', ']'],
   ]) {

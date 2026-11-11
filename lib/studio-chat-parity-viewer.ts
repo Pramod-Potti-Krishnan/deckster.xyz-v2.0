@@ -18,7 +18,6 @@
  */
 import { SLIDE_LAYOUTS } from '@/types/elements'
 import { addSlideV2BlankNativeOptions, type AddSlideV2BlankTarget } from '@/lib/studio-add-slide-v2'
-import type { WorkspaceRun } from '@/lib/studio-chat-parity-workspace' // CHAT-PARITY-WORKSPACE
 
 // ---- the words (one place) ------------------------------------------------------------------------------------------------------------------
 
@@ -120,9 +119,9 @@ export type ViewerRun =
   | { name: 'save' }
   | { name: 'discard' }
   | { name: 'version'; version: VersionName }
-export type ParityRun = ViewerRun | { name: 'theme'; preset: { id: string; name: string } } | { name: 'canvas' } | WorkspaceRun // CHAT-PARITY-WORKSPACE: the workspace commands' runs (lib/studio-chat-parity-workspace.ts)
+export type ParityRun = ViewerRun | { name: 'theme'; preset: { id: string; name: string } } | { name: 'canvas' }
 export type ParityName = ParityRun['name']
-export type ParityGroup = 'Slides' | 'View' | 'Deck' | 'Workspace' // CHAT-PARITY-WORKSPACE
+export type ParityGroup = 'Slides' | 'View' | 'Deck'
 export const PARITY_GROUPS: readonly ParityGroup[] = Object.freeze(['Slides', 'View', 'Deck'] as ParityGroup[])
 
 interface ParityDef {

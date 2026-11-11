@@ -2,10 +2,9 @@
 // the composer's "/" menu gains a "Workspace" group: /kg on|off, /template <name> | clear | stop, /template-mode on|off, /notes show|hide, /dark /light /system, /intro, /pane chat|slides|inspector, /history. Each calls the handler the matching button calls
 // (lib/studio-chat-parity-workspace.ts lists them), through ONE small bus in PARTS that the Builder page, the viewer, the notes panel and the introduction register on in gated effects (the shape of the viewer half's bus). No new flag, no .env.example block, no backend, no Director change.
 // lib/studio-chat-parity-workspace.ts decides (the rows, what cannot run and why, the words, the bus), components/builder/chat/studio-chat-parity-workspace.tsx is the composer's glue (appearance, history, the saved templates), and the viewer half's menu draws the group.
-// Every line this change adds to an EXISTING file carries the marker CHAT-PARITY-WORKSPACE (matched as a whole token; CHAT-PARITY-VIEWER is the viewer half's and CHAT-PARITY is another change's). Most are pure insertions. 2 are CHANGED lines, both in the viewer half's own
-// lib (the run union and the group union gain a member): CHAT_PARITY_WORKSPACE_EDITS holds [line now, line before] for each, whole lines. Put the changed lines back, then take the marked lines out, and each file is the viewer half's head, byte for byte.
+// Every line this change adds to an EXISTING file carries the marker CHAT-PARITY-WORKSPACE (matched as a whole token; CHAT-PARITY-VIEWER is the viewer half's and CHAT-PARITY is another change's). All are pure insertions (CHAT_PARITY_WORKSPACE_EDITS is empty: another change's strip never meets one of its lines changed). Take the marked lines out and each file is the viewer half's head, byte for byte.
 // The base is the viewer half's head, not the commit under it: for a file the viewer half touched that is its text; for a file it left alone the two commits agree (BASE_TOUCHED says which is which: the proof reads each from its own commit and checks the list against git).
-// How the older pins reach it: this change REGISTERS its files and this strip (scripts/studio-later-changes.mjs, two lines; no .env.example block), and teaches the three older proofs that read files this change touched without going through the registry.
+// How the older pins reach it: this change REGISTERS its files and this strip (scripts/studio-later-changes.mjs, two lines; no .env.example block), and teaches the four older proofs that read files this change touched without going through the registry.
 // Plain node, no imports, nothing read from disk or git here.
 
 export const BASE_COMMIT = '5efe114b09b8a76e33cdda45240830831e24d574' // origin/frontend1/chat-parity-viewer (#611's head); the tree diff from it to this change's newest commit is this change
@@ -29,15 +28,8 @@ export const CHAT_PARITY_WORKSPACE_FILES = [
   "components/builder/chat/studio-chat-parity-viewer-menu.tsx",
 ]
 
-/** The changed lines: [line now, line before] per edit, whole lines; every line now carries the marker and occurs once in its file. */
-export const CHAT_PARITY_WORKSPACE_EDITS = {
-  "lib/studio-chat-parity-viewer.ts": [
-    ["export type ParityRun = ViewerRun | { name: 'theme'; preset: { id: string; name: string } } | { name: 'canvas' } | WorkspaceRun // CHAT-PARITY-WORKSPACE: the workspace commands' runs (lib/studio-chat-parity-workspace.ts)",
-     "export type ParityRun = ViewerRun | { name: 'theme'; preset: { id: string; name: string } } | { name: 'canvas' }"],
-    ["export type ParityGroup = 'Slides' | 'View' | 'Deck' | 'Workspace' // CHAT-PARITY-WORKSPACE",
-     "export type ParityGroup = 'Slides' | 'View' | 'Deck'"]
-  ]
-}
+/** The changed lines: [line now, line before] per edit, whole lines; every line now carries the marker and occurs once in its file. None: every line this change adds to an existing file is a pure insertion (the viewer half's own lib and menu included), so another change's strip never meets one of its lines changed. */
+export const CHAT_PARITY_WORKSPACE_EDITS = {}
 
 /** The files of this change that the viewer half touched too (the proof reads the base of each of these from the viewer half's head, every other file of this change from the commit under it: the two agree for those). */
 export const BASE_TOUCHED = [
