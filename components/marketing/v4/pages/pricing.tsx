@@ -207,7 +207,7 @@ export function V4PricingPage() {
                   <b>
                     {"Build"}
                   </b>
-                  {" — plan, outline and slides with the Director; every element type"}
+                  {" — plan, outline and slides with your agent; every element type"}
                 </td>
                 <td className="c">
                   <span aria-hidden="true">

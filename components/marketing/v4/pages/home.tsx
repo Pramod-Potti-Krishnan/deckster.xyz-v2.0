@@ -8,7 +8,7 @@ import { BuildCta } from "@/components/marketing/v3-uat/BuildCta"
 import { ZoomBuild } from "@/components/marketing/v3-uat/ZoomBuild"
 import { KnowledgeGraphCanvas } from "@/components/marketing/v3-uat/KnowledgeGraphCanvas"
 import { ExpertsLoop } from "@/components/marketing/v3-uat/ExpertsLoop"
-import { V4_LOOP } from "@/components/marketing/v4/content"
+import { V4_LOOP, V4_ZOOM } from "@/components/marketing/v4/content"
 import { AudienceQA } from "@/components/marketing/v3-uat/AudienceQA"
 import { CycleWord } from "@/components/marketing/v3-uat/CycleWord"
 import { Waveform } from "@/components/marketing/v3-uat/Waveform"
@@ -142,8 +142,8 @@ export function V4HomePage() {
                   </span>
                   <span className="amode">
                     {"Point at it "}
-                    <span className="st st--beta st--sm">
-                      {"Beta"}
+                    <span className="st st--build st--sm">
+                      {"Coming"}
                     </span>
                   </span>
                 </div>
@@ -402,7 +402,7 @@ export function V4HomePage() {
           {"Your agent"}
         </div>
       </section>
-      <ZoomBuild copy={c.zoom} n={3} total={12} tileAlts={c.zoom.tiles.map((tile) => showcaseAlt(tile.slide, tile.title))} slideStatus={statusOf("slidePanel")} />
+      <ZoomBuild copy={V4_ZOOM} n={3} total={12} tileAlts={V4_ZOOM.tiles.map((tile) => showcaseAlt(tile.slide, tile.title))} slideStatus={statusOf("slidePanel")} />
       <section className="slide slide--paper" id="experts" data-snap="slide" data-chapter="Build" data-slide-label="Experts" data-label="Experts">
         <div className="grain" />
         <div className="slide__inner">
@@ -415,7 +415,7 @@ export function V4HomePage() {
                 {"You direct. Specialists build."}
               </h2>
               <p className="lede" data-reveal="true" style={{ "--d": "2" } as CSSProperties}>
-                {"The Director plans the deck and hands the work to specialists for research, writing, charts and design. You approve the plan, watch the build, and edit anything yourself. Soon a reviewer will look at every finished slide and repair what is off."}
+                {"Your agent plans the deck and hands the work to specialists for research, writing, charts and design. You approve the plan, watch the build, and edit anything yourself. Soon a reviewer will look at every finished slide and repair what is off."}
               </p>
               <div className="org" data-reveal="true" style={{ "--d": "3" } as CSSProperties}>
                 <div className="org__you">
@@ -440,7 +440,7 @@ export function V4HomePage() {
                   <i className="dot" />
                   <div>
                     <b>
-                      {"Director"}
+                      {"Your agent"}
                     </b>
                     {" "}
                     <span>
@@ -1167,7 +1167,7 @@ export function V4HomePage() {
                   <i />
                   <div>
                     <span className="who">
-                      {"Director"}
+                      {"Your agent"}
                     </span>
                     {"Chart on slide 5 recreated as a waterfall"}
                   </div>
@@ -1723,7 +1723,7 @@ export function V4HomePage() {
             {" deck."}
           </h2>
           <p className="lede balance" data-reveal="true" style={{ "--d": "2" } as CSSProperties}>
-            {"Give the Director one sentence, or attach the report, spreadsheet or old deck it should start from. You approve the plan before a single slide is built."}
+            {"Give your agent one sentence, or attach the report, spreadsheet or old deck it should start from. You approve the plan before a single slide is built."}
           </p>
           <div className="ctas" style={{ justifyContent: "center", "--d": "3" } as CSSProperties} data-reveal="true">
             <BuildCta className="btn btn--primary" location="v3_close_build">

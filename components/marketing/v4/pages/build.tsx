@@ -113,8 +113,8 @@ export function V4BuildPage() {
                     <b>
                       {"Show it."}
                     </b>
-                    <span className="st st--beta st--sm">
-                      {"Beta"}
+                    <span className="st st--build st--sm">
+                      {"Coming"}
                     </span>
                   </div>
                   <div className="way__d">
@@ -284,8 +284,8 @@ export function V4BuildPage() {
                 </span>
                 <span className="amode">
                   {"Point at it "}
-                  <span className="st st--beta st--sm">
-                    {"Beta"}
+                  <span className="st st--build st--sm">
+                    {"Coming"}
                   </span>
                 </span>
               </div>
@@ -506,13 +506,7 @@ export function V4BuildPage() {
                   </b>
                   {"If it cannot finish, it says so. It never quietly switches to something cheaper."}
                 </div>
-                <div className="rule">
-                  <b>
-                    {"No deck, credits back"}
-                  </b>
-                  {"If a build ends without a deck, the credits it used go back to your balance."}
-                </div>
-                <div className="rule">
+                <div className="rule" style={{ gridColumn: "1/-1" } as CSSProperties}>
                   <b>
                     {"Still editable"}
                   </b>
