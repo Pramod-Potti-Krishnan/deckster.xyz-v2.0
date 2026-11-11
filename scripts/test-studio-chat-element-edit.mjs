@@ -993,8 +993,8 @@ await check('notes panel: the refetch effect is the existing one and depends on 
 })
 await check('notes panel: the stripped panel is the base byte for byte; every added line carries the marker', async () => {
   const rel = 'components/slide-notes-panel.tsx'
-  assert.equal(stripChatElementEdit(rel, read(rel)), baseFile(rel))
-  for (const line of git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n').filter(l => l.startsWith('+') && !l.startsWith('+++') && !/(?<![\w-])CHAT-PARITY(?![\w-])/.test(l))) assert.match(line, CHAT_ELEMENT_EDIT_MARKER_RE) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked lines in the panel (its fields listener) are its own
+  assert.equal(stripPeers(rel, stripChatElementEdit(rel, read(rel))), stripPeers(rel, baseFile(rel))) // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): the workspace slash commands add marked lines to this panel (the Notes bar's handler for /notes): read it as every other later change leaves it, like the viewer's byte pins below
+  for (const line of git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n').filter(l => l.startsWith('+') && !l.startsWith('+++') && !/(?<![\w-])CHAT-PARITY(?![\w-])/.test(l) && !/(?<![\w-])CHAT-PARITY-WORKSPACE(?![\w-])/.test(l))) assert.match(line, CHAT_ELEMENT_EDIT_MARKER_RE) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked lines in the panel (its fields listener) are its own // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): its marked lines are a later change's too
 })
 
 // ===== 5b. DIRECTOR-2's recorded frames (!566) through the real hook and the real runner =============================================================
