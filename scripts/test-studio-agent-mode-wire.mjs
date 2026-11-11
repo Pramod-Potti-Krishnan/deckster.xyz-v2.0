@@ -98,7 +98,7 @@ function load(rel, { env = {}, texts = {}, react = React } = {}) {
     const local = localFile(spec, rel)
     return local ? load(local, { env, texts, react }) : nodeRequire(spec)
   }
-  vm.runInNewContext(compile(rel, texts[rel] ?? read(rel)), { module, exports: module.exports, require: req, process: { env: { ...env } }, setTimeout, clearTimeout }, { filename: rel })
+  vm.runInNewContext(compile(rel, texts[rel] ?? read(rel)), { module, exports: module.exports, require: req, process: { env: { ...env } }, setTimeout, clearTimeout, fetch: () => assert.fail(`${rel} fetched`) }, { filename: rel })
   return module.exports
 }
 const SHELL = { NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' }
@@ -138,7 +138,7 @@ function runFragment(code, names) {
   const js = ts.transpileModule(source, { reportDiagnostics: true, compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React } })
   const errors = (js.diagnostics ?? []).filter(d => d.category === ts.DiagnosticCategory.Error)
   assert.equal(errors.length, 0, `the marked lines parse: ${errors[0] ? `${ts.flattenDiagnosticMessageText(errors[0].messageText, ' ')} at ${JSON.stringify(source.slice(Math.max(0, (errors[0].start ?? 0) - 50), (errors[0].start ?? 0) + 50))}` : ''}`)
-  return vm.runInNewContext(js.outputText, { React })
+  return vm.runInNewContext(js.outputText, { React, setTimeout: () => assert.fail('a marked line scheduled a timer'), setInterval: () => assert.fail('a marked line scheduled an interval'), queueMicrotask: () => assert.fail('a marked line queued a task'), fetch: () => assert.fail('a marked line fetched'), localStorage: { setItem: () => assert.fail('a marked line stored something'), getItem: () => assert.fail('a marked line read storage') }, sessionStorage: { setItem: () => assert.fail('a marked line stored something'), getItem: () => assert.fail('a marked line read storage') } })
 }
 /** The expression of a marked JSX line: "{EXPR}{/* AGENT-MODE-WIRE ... *\/}" gives EXPR. */
 const jsxExpression = line => { const m = /^\s*\{(.*)\}\{\/\* AGENT-MODE-WIRE/.exec(line); assert.ok(m, `a marked JSX line: ${line.slice(0, 80)}`); return m[1] }
@@ -192,7 +192,7 @@ function pageBuildMode({ env = ENV_ON, text = read(PAGE), buildMode = 'agent', p
 /** The page's frame option: what `{ ...(flag ? { onAgentFrame } : {}) }` yields. */
 function pageFrameOption({ env = ENV_ON, text = read(PAGE) } = {}) {
   const lib = load(LIB, { env }), dispatched = []
-  const options = runFragment(`return ({ ${pageLines(text).option}\n })`, ['STUDIO_AGENT_MODE_ENABLED', 'dispatchAgentRun'])(lib.STUDIO_AGENT_MODE_ENABLED, f => dispatched.push(f))
+  const options = runFragment(`return ({ ${pageLines(text).option}\n })`, ['STUDIO_AGENT_MODE_ENABLED', 'dispatchAgentRun', 'sendAgentAnswer'])(lib.STUDIO_AGENT_MODE_ENABLED, f => dispatched.push(f), () => assert.fail('the frame option sent an answer'))
   return { options, dispatched }
 }
 /** The page's session effect, run for a move from `previous` to `next`. */
@@ -333,7 +333,7 @@ function answerChecks(texts = {}) {
   // what is not sent: a socket that is not open (nothing queued, nothing retried), a send that throws, a bad answer
   for (const [name, state] of [['connecting', 0], ['closing', 2], ['closed', 3]]) { const s = fakeSocket(state); assert.equal(answerSender(s, { text: hook })(answerOf('A3', 'stop')), false, `${name}: false`); assert.equal(s.attempts, 0, `${name}: no send attempt`) }
   assert.equal(answerSender(null, { text: hook })(answerOf('A3', 'stop')), false, 'no socket: false')
-  const throwing = fakeSocket(1, { throws: true }); assert.equal(answerSender(throwing, { text: hook })(answerOf('A3', 'stop')), false, 'a throwing send: false'); assert.equal(throwing.attempts, 1, 'tried once, not retried')
+  const throwing = fakeSocket(1, { throws: true }); let thrown = false, result; try { result = answerSender(throwing, { text: hook })(answerOf('A3', 'stop')) } catch { thrown = true }; assert.equal(thrown, false, 'a throwing send does not throw out of the sender'); assert.equal(result, false, 'a throwing send: false'); assert.equal(throwing.attempts, 1, 'tried once, not retried')
   for (const bad of [answerOf('A2', 'continue'), answerOf('A3', 'start'), answerOf('A3', 'finish'), answerOf('A4', 'continue'), answerOf('A6', 'add'), answerOf('A1', 'stop'), answerOf('A3', 'continue', ''), { runId: 7, card: 'A3', choice: 'continue' }, { card: 'A3', choice: 'continue' }]) { const s = fakeSocket(1); assert.equal(answerSender(s, { text: hook })(bad), false, `a bad answer is not sent: ${JSON.stringify(bad)}`); assert.equal(s.attempts, 0) }
   // never replayed: the function holds no state; a closed socket then an open one sends only the second call's frame
   const ref = { current: fakeSocket(3) }; const lib = load(LIB, { env: ENV_ON })
@@ -376,6 +376,9 @@ function noAutoStartChecks(texts = {}) {
   // 4. an estimate past its expires_at: Start sends nothing (Cancel still goes); the fixture's own example has long expired
   const expired = stateOf(ENV_ON, [wireFrame('agent_estimate')]); const exp = pageCards({ text: page, wireText, state: expired }); buttonOf(cardsInside(exp.element), 'start').props.onClick(); deepEqual(exp.spies.sent, [], 'an expired estimate: Start sends nothing'); deepEqual(exp.spies.toasts, [], '... and says nothing is wrong with the connection')
   buttonOf(cardsInside(exp.element), 'cancel').props.onClick(); deepEqual(exp.spies.sent, [answerOf('A1', 'cancel')], 'Cancel still goes')
+  // 4b. the rule itself (the card guards the click too): before expires_at an A1 start goes, from the instant on it does not, Cancel always does
+  const expiresAt = Date.parse(EX('agent_estimate').expires_at), sent4 = []
+  assert.equal(wire.answerAgentCard(expired, answerOf('A1', 'start'), a => { sent4.push(a); return true }, () => {}, () => {}, expiresAt - 1), 'sent', 'one instant before the expiry: Start goes'); assert.equal(wire.answerAgentCard(expired, answerOf('A1', 'start'), a => { sent4.push(a); return true }, () => {}, () => {}, expiresAt), 'closed', 'at the expiry: not'); assert.equal(wire.answerAgentCard(expired, answerOf('A1', 'start'), a => { sent4.push(a); return true }, () => {}, () => {}), 'closed', 'now (long past it): not'); assert.equal(wire.answerAgentCard(expired, answerOf('A1', 'cancel'), a => { sent4.push(a); return true }, () => {}, () => {}), 'sent', 'Cancel always goes'); deepEqual(sent4, [answerOf('A1', 'start'), answerOf('A1', 'cancel')])
   // 5. A3, A4, A6: one frame per click, with its own choice; a card that is not open, another run's, and an A6 fallback that was not offered send nothing
   const withCard = frame => runOf(lib, [estimateNow(), wireFrame('agent_step'), frame])
   for (const [type, card, choices] of [['agent_checkpoint', 'A3', ['continue', 'stop']], ['agent_research_offer', 'A4', ['add', 'skip']]]) for (const choice of choices) {
@@ -444,8 +447,8 @@ function pageChecks(texts = {}) {
   for (const junk of [undefined, null, 'x', 7, {}, { type: 'agent_unknown', payload: {} }, { type: 'agent_step', payload: {} }]) assert.strictEqual(wire.agentWireReducer(running, junk), running, `a frame the reducer does not take gives the same state: ${JSON.stringify(junk)}`)
   deepEqual(wire.agentWireReducer(idle, estimateNow()), lib.agentRunReducer(idle, estimateNow()), 'a frame goes to #607\'s reducer as it is')
   assert.equal(wire.agentCardsKey(idle), ''); const k1 = wire.agentCardsKey(runOf(lib, [estimateNow()])), k2 = wire.agentCardsKey(running), k3 = wire.agentCardsKey(runOf(lib, [estimateNow(), wireFrame('agent_step'), wireFrame('agent_checkpoint')]))
-  assert.ok(k1 && k2 && k3 && new Set([k1, k2, k3]).size === 3, 'the key changes when a card appears or goes'); assert.equal(wire.agentCardsKey(runOf(lib, [estimateNow(), wireFrame('agent_step'), wireFrame('agent_step', { step: 2, credits_used: 99 })])), wire.agentCardsKey(runOf(lib, [estimateNow(), wireFrame('agent_step')])) === k2 ? wire.agentCardsKey(runOf(lib, [estimateNow(), wireFrame('agent_step'), wireFrame('agent_step', { step: 2, credits_used: 99 })])) : '', 'steps and totals do not change the key')
-  assert.equal(wire.agentCardsKey(runOf(lib, [estimateNow(), wireFrame('agent_step')])), wire.agentCardsKey(runOf(lib, [estimateNow(), wireFrame('agent_step'), wireFrame('agent_step', { step: 2, label: 'Building slide 2', credits_used: 120 })])), 'a run\'s progress does not pull the chat')
+  assert.ok(k1 && k2 && k3 && new Set([k1, k2, k3]).size === 3, 'the key changes when a card appears or goes')
+  assert.equal(wire.agentCardsKey(runOf(lib, [estimateNow(), wireFrame('agent_step')])), wire.agentCardsKey(runOf(lib, [estimateNow(), wireFrame('agent_step'), wireFrame('agent_step', { step: 2, label: 'Building slide 2', credits_used: 500 })])), 'a run\'s progress (another step, more credits used) does not pull the chat')
   assert.equal(wire.agentSessionChanged(null, 'A'), false); assert.equal(wire.agentSessionChanged('A', 'A'), false); assert.equal(wire.agentSessionChanged('A', 'B'), true); assert.equal(wire.agentSessionChanged('A', null), true); assert.equal(wire.agentSessionChanged(null, null), false)
   // the words: plain, with the next step, no leak words, no currency
   const words = [wire.AGENT_WIRE_COPY.answerNotSent, wire.AGENT_WIRE_COPY.controlNotSent('pause'), wire.AGENT_WIRE_COPY.controlNotSent('resume'), wire.AGENT_WIRE_COPY.controlNotSent('stop')].flatMap(w => [w.title, w.description])
@@ -477,10 +480,12 @@ function sourceChecks(texts = {}, strip = stripAgentModeWire, shown = {}) {
     assert.equal(strip(rel, now(rel)), baseText(rel), `${rel}: the strip puts #607's head back byte for byte`); assert.equal(strip(rel, baseText(rel)), baseText(rel), `${rel}: idempotent on the base`)
     assert.equal(count(now(rel), 'AGENT-MODE-WIRE') >= added.length, true)
   }
-  // the older proofs: the two subject filters (pure insertions, the pin mark), the shell's one scope line (the one replaced line)
+  // the older proofs: each [has, was] pair carries the registry-read mark and is in the file once; the two subject filters are pure insertions; the shell's one scope line is the one replaced line; the strip puts #607's head back
   for (const rel of PIN_FILES) {
-    const { added, baseKept } = insertionsOf(baseText(rel), now(rel)); assert.ok(baseKept === (rel !== 'scripts/test-studio-agent-mode-shell.mjs'), `${rel}: ${rel === 'scripts/test-studio-agent-mode-shell.mjs' ? 'exactly one base line is replaced' : 'every base line is kept'}`)
-    for (const line of added) assert.ok(line.includes(PIN_MARK.replace('// ', '')) , `${rel}: an added line carries the registry-read mark: ${line.slice(0, 80)}`)
+    const shell = rel === 'scripts/test-studio-agent-mode-shell.mjs', baseLines = baseText(rel).split('\n'), nowLines = now(rel).split('\n')
+    for (const [has, was] of ALL_EDITS[rel]) { assert.ok(has.includes(PIN_MARK.replace('// ', '')), `${rel}: the line carries the registry-read mark: ${has.slice(0, 70)}`); assert.equal(count(now(rel), has), 1, `${rel}: in the file once`); assert.equal(was === '', !shell, `${rel}: ${shell ? 'the replaced line' : 'a pure insertion'}`) }
+    const only = (a, b) => { const seen = new Map(); for (const l of b) seen.set(l, (seen.get(l) ?? 0) + 1); return a.filter(l => { const n = seen.get(l) ?? 0; if (n > 0) { seen.set(l, n - 1); return false } return true }) }
+    assert.equal(only(nowLines, baseLines).length, ALL_EDITS[rel].length, `${rel}: the lines this change has that the base lacks are its pairs'`); assert.equal(only(baseLines, nowLines).length, shell ? 1 : 0, `${rel}: ${shell ? 'exactly one base line is replaced' : 'no base line is lost'}`)
     assert.equal(strip(rel, now(rel)), baseText(rel), `${rel}: the strip puts #607's head back`)
   }
   // the strip: other files untouched, no line of another file is claimed, the pairs are whole lines
