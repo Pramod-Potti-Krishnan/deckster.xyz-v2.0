@@ -5456,8 +5456,61 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   // CHAT-PARITY: Answered on the delivering socket only; a group that is off or an action the build does not know is answered `failed` at once (flag_off / unsupported). Every flag off: no runner.
   const chatParityThemeProfiles = useThemeProfiles() // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES): the composer palette's own writes (hooks/use-theme-profiles.ts) for the theme executors; a second instance of the hook, its own loading state
   const chatParityTemplates = useTemplates() // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_TEMPLATES): the Templates page's and the Save Template dialog's own calls (hooks/use-templates.ts); a second instance, its own loading state
+  // CHAT-PARITY-C2 (NEXT_PUBLIC_STUDIO_CHAT_PARITY_DECKOPS / _PUBLISH, each default off; lib/studio-chat-parity-c2.ts): Director's `deck_ops` and `publish` studio_action groups. Each action calls the click path's own handler (the viewer's, through its bus
+  // CHAT-PARITY-C2: in components/presentation-viewer.tsx; the Sessions list's session calls; the Publish dialog's own requests), is answered on the delivering socket only, and says `done` only on evidence (lib/studio-chat-parity-deckops.ts). Off: no deps, no runner.
+  const chatParityC2Sessions = useChatSessions() // CHAT-PARITY-C2: a second instance of the hook (its own loading state), as the theme and template groups take theirs: the session row's load, the title save and the delete are the Sessions list's own
+  const chatParityC2BlankRef = useRef(false) // CHAT-PARITY-C2
+  chatParityC2BlankRef.current = blankPlaceholderDismissed // CHAT-PARITY-C2: read by the blank-canvas executor after it starts the canvas (the closure below is the render the frame arrived in)
+  const chatParityC2Building = () => studioPartialMetadata || isGeneratingFinal || isGeneratingStrawman || templateReuseAwaitingInput || slideComposeThumbnailJobs.length > 0 // CHAT-PARITY-C2: the viewer's own "a build is in progress" rule (deckSyncBuildingRef above)
+  const runChatParityC2Frame = (request: ChatParityRequest, message: ChatParityRequestFrame, owner: ChatParityOwner) => { // CHAT-PARITY-C2
+    void runChatParityC2Action(request, owner, { displayed: () => elementDirectiveGenerationOwnerRef.current, // CHAT-PARITY-C2
+      ...(STUDIO_CHAT_PARITY_DECKOPS_ENABLED ? { deckOps: { // CHAT-PARITY-C2
+        sessionId: () => elementDirectiveGenerationOwnerRef.current.sessionId ?? null, // CHAT-PARITY-C2
+        viewer: () => chatParityDeckOpsBus.viewer, // CHAT-PARITY-C2: the viewer's own add / layout / present / mode / rail handlers, registered by its gated effect
+        goToSlide: () => layoutServiceApis?.goToSlide ?? null, // CHAT-PARITY-C2: the viewer's handleGoToSlide, as the chat element runners take it
+        readOrder: async () => { // CHAT-PARITY-C2: Layout's own order of slides, read as the stale-viewer guard reads it
+          const compose = composeViewerApiRef.current; if (!compose) return null // CHAT-PARITY-C2
+          try { const receipt = await compose.composeGetState(); return parseStudioNativeSlideOrder(receipt) ?? (Array.isArray(receipt?.placeholders) && receipt.placeholders.length > 0 ? 'busy' as const : null) } catch { return null } // CHAT-PARITY-C2
+        }, // CHAT-PARITY-C2
+        readLayout: async slideIndex => readChatParityInventoryLayout({ fetch: (input, init) => fetch(input, init), baseUrl: getLayoutServiceUrl(), presentationId: elementDirectiveGenerationOwnerRef.current.presentationId ?? null, slideIndex }), // CHAT-PARITY-C2
+        blankOptions: position => addSlideV2BlankNativeOptions(position), // CHAT-PARITY-C2: the Add Slide panel's Blank button's own options
+        gate: () => ({ building: chatParityC2Building(), paused: oneLiveTabSuperseded, templateMode: templateModeOn }), // CHAT-PARITY-C2
+        fullscreen: () => typeof document !== 'undefined' && Boolean(document.fullscreenElement), // CHAT-PARITY-C2
+        blank: studioShell ? { available: () => studioWelcome && !blankPlaceholderDismissed, start: handleStartOnBlankCanvas, started: () => chatParityC2BlankRef.current } : null, // CHAT-PARITY-C2: the welcome's own "Start on a blank canvas" handler
+        session: { // CHAT-PARITY-C2
+          rename: async (sessionId, name) => (await chatParityC2Sessions.updateSession(sessionId, { title: name }))?.title ?? null, // CHAT-PARITY-C2: PATCH /api/sessions/{id} { title }, the row's own save; no deck-rename click exists
+          deleteDeck: async sessionId => { // CHAT-PARITY-C2: the Sessions list's own delete and its cache cleanup (components/chat-history-sidebar.tsx handleDeleteSession; the Decks page's confirmDelete)
+            if (!(await chatParityC2Sessions.deleteSession(sessionId))) return false // CHAT-PARITY-C2
+            const cacheOwner = user?.id ?? user?.email ?? '' // CHAT-PARITY-C2
+            if (cacheOwner) { // CHAT-PARITY-C2
+              try { sessionStorage.removeItem(sessionCacheKey(cacheOwner, sessionId)); sessionStorage.removeItem(sessionMetadataCacheKey(cacheOwner, sessionId)) } catch { /* the row is gone; a browser that cannot clear its cache still reloads the list */ } // CHAT-PARITY-C2
+              try { const key = lastBuilderSessionKey(cacheOwner); if (localStorage.getItem(key) === sessionId) localStorage.removeItem(key) } catch { /* as above */ } // CHAT-PARITY-C2
+            } // CHAT-PARITY-C2
+            return true // CHAT-PARITY-C2
+          }, // CHAT-PARITY-C2
+          startNew: () => handleNewChatWrappedRef.current?.(), // CHAT-PARITY-C2: the Builder's New flow, as the Sessions list calls it after deleting the open deck
+          duplicate: process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_DECK === 'true' ? { // CHAT-PARITY-C2: the Decks page's Duplicate (NEXT_PUBLIC_STUDIO_DUPLICATE_DECK), with the deps its duplicateSession builds
+            loadSession: sessionId => chatParityC2Sessions.loadSession(sessionId), evaluateUrl: url => evaluateLayoutViewerUrl(url, LAYOUT_VIEWER_URL_POLICY), // CHAT-PARITY-C2
+            deps: { fetch: (input, init) => fetch(input, init), layoutBaseUrl: () => getLayoutServiceUrl(), newId: () => crypto.randomUUID(), now: () => new Date(), sleep: ms => new Promise<void>(resolve => setTimeout(resolve, ms)) }, // CHAT-PARITY-C2
+          } : null, // CHAT-PARITY-C2
+        }, // CHAT-PARITY-C2
+        wait: ms => new Promise<void>(resolve => setTimeout(resolve, ms)), now: () => Date.now(), // CHAT-PARITY-C2
+      } } : {}), // CHAT-PARITY-C2
+      ...(STUDIO_CHAT_PARITY_PUBLISH_ENABLED ? { publish: { // CHAT-PARITY-C2: the Publish dialog's own requests (lib/studio-chat-parity-publish.ts); Director's click card comes first, and the group's flag stays off until PK rules
+        sessionId: () => elementDirectiveGenerationOwnerRef.current.sessionId ?? null, fetch: (input, init) => fetch(input, init), loadSession: sessionId => chatParityC2Sessions.loadSession(sessionId), // CHAT-PARITY-C2
+        link: record => publishedLink(record), // CHAT-PARITY-C2: the dialog's own link
+        copy: async text => { try { await navigator.clipboard.writeText(text); return true } catch { return false } }, // CHAT-PARITY-C2: what the dialog's useCopyToClipboard does
+        open: url => { try { const tab = window.open(url, '_blank'); if (!tab) return false; try { tab.opener = null } catch { /* cross-origin: already severed */ } return true } catch { return false } }, // CHAT-PARITY-C2: a new tab, never leaving the builder; a blocked popup is not a success
+        gate: () => ({ building: chatParityC2Building(), paused: oneLiveTabSuperseded }), // CHAT-PARITY-C2
+      } } : {}), // CHAT-PARITY-C2
+    }, message).then(outcome => { // CHAT-PARITY-C2
+      if (owner.isCurrent()) chatParityBus.send?.(outcome.data) // CHAT-PARITY-C2
+      try { outcome.after?.() } catch { /* the answer is sent; a failed follow-up is the user's to repeat from the button */ } // CHAT-PARITY-C2
+    }) // CHAT-PARITY-C2
+  } // CHAT-PARITY-C2
   chatParityBus.request = !STUDIO_CHAT_PARITY_ANY_ENABLED ? null : (message, owner) => { // CHAT-PARITY
     const request = chatParityRequest(message); if (!request) return // CHAT-PARITY
+    if (isChatParityC2Group(request.group)) { const c2Refusal = chatParityC2Refusal(request); if (c2Refusal) { if (owner.isCurrent()) chatParityBus.send?.(chatParityResult(request.requestId, 'failed', c2Refusal)); return } runChatParityC2Frame(request, message, owner); return } // CHAT-PARITY-C2: Director's deck_ops / publish groups run through their own runner
     const refusal = chatParityRefusal(request); if (refusal) { if (owner.isCurrent()) chatParityBus.send?.(chatParityResult(request.requestId, 'failed', refusal)); return } // CHAT-PARITY
     void runChatParityAction(request, owner, { displayed: () => elementDirectiveGenerationOwnerRef.current, // CHAT-PARITY
       ...(STUDIO_CHAT_PARITY_THEMES_ENABLED ? { themes: { // CHAT-PARITY: the theme picker's own apply and sync (as the theme directive's deps above) and the palette's own library writes
@@ -8483,6 +8536,13 @@ import { StudioStrawmanNote } from '@/components/builder/studio-strawman-note' /
 import { STUDIO_CHAT_PARITY_ANY_ENABLED, STUDIO_CHAT_PARITY_IDENTITY_ENABLED, STUDIO_CHAT_PARITY_TEMPLATES_ENABLED, STUDIO_CHAT_PARITY_THEMES_ENABLED, chatParityBus, chatParityRefusal, chatParityRequest, chatParityResult } from '@/lib/studio-chat-parity' // CHAT-PARITY: placed here with the flow and chat-clean imports, after the Builder's runners, for the same older proof
 import { runChatParityAction } from '@/lib/studio-chat-parity-runners' // CHAT-PARITY
 import { composerTemplateActions, loadComposerTemplates } from '@/lib/studio-composer-popups' // CHAT-PARITY: the composer library's own list and action set (row 67)
+import { STUDIO_CHAT_PARITY_DECKOPS_ENABLED, STUDIO_CHAT_PARITY_PUBLISH_ENABLED, type ChatParityOwner, type ChatParityRequest, type ChatParityRequestFrame } from '@/lib/studio-chat-parity' // CHAT-PARITY-C2: placed here with the other chat parity imports, after the Builder's runners
+import { chatParityC2Refusal, isChatParityC2Group } from '@/lib/studio-chat-parity-c2' // CHAT-PARITY-C2
+import { runChatParityC2Action } from '@/lib/studio-chat-parity-c2-run' // CHAT-PARITY-C2
+import { chatParityDeckOpsBus, readChatParityInventoryLayout } from '@/lib/studio-chat-parity-deckops' // CHAT-PARITY-C2
+import { addSlideV2BlankNativeOptions } from '@/lib/studio-add-slide-v2' // CHAT-PARITY-C2: the Add Slide panel's Blank button's own native options
+import { sessionCacheKey, sessionMetadataCacheKey } from '@/hooks/use-session-cache' // CHAT-PARITY-C2: the Sessions list's own cache keys, for a chat delete
+import { publishedLink } from '@/components/publish-p2' // CHAT-PARITY-C2: the Publish dialog's own link
 import { STUDIO_CHAT_COMMANDS_ENABLED } from '@/lib/studio-chat-commands-wire' // CHAT-COMMANDS: placed here with chat clean's imports, at the end, for the same older proofs
 import type { ChatCommandsPageProps } from '@/lib/studio-chat-commands' // CHAT-COMMANDS
 import type { ExportDirectiveMessage } from '@/lib/chat-theme-export' // CHAT-COMMANDS
