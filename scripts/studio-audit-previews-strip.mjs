@@ -68,6 +68,9 @@ export const AUDIT_PREVIEWS_PIN_EDITS = {
   "scripts/test-studio-deck-sync-truth.mjs": [
     ["  shas.splice(0, shas.length, ...shas.filter(sha => !/^Audit fix:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (AUDIT-PREVIEWS): on a branch stacked after this change (the audit P-01 / P-07 / P-29 previews fix), the first-parent commits are its own, not this change's; with none left the identity checks cover the files\n", ""],
   ],
+  "scripts/test-studio-rail-slide-identity.mjs": [
+    ["    if (name === '@/lib/studio-inventory-fallback') return { STUDIO_INVENTORY_FALLBACK_ENABLED: false, readInventoryFallback: async () => ({ kind: 'unavailable', reason: 'stub' }) } // LATER-CHANGES: registry read (AUDIT-PREVIEWS): the hook now imports the fallback lib (flag off here: the base's hook)\n", ""],
+  ],
 }
 
 /**

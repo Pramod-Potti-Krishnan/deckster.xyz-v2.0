@@ -591,6 +591,7 @@ function hookHarness({ storage = new Map(), fetchImpl, clockRef }) {
     if (name === 'react') return react
     if (name === '@/lib/layout-service-client') return { getLayoutServiceUrl: () => 'https://l.test' }
     if (name === '@/lib/slide-rail-identity') return hookLib
+    if (name === '@/lib/studio-inventory-fallback') return { STUDIO_INVENTORY_FALLBACK_ENABLED: false, readInventoryFallback: async () => ({ kind: 'unavailable', reason: 'stub' }) } // LATER-CHANGES: registry read (AUDIT-PREVIEWS): the hook now imports the fallback lib (flag off here: the base's hook)
     throw Error(`unexpected import ${name}`)
   }, sandbox).useSlideRailIdentity
   const once = () => { cursor = 0; dirty = false; api = hook(currentProps) }

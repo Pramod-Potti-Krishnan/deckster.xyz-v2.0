@@ -352,7 +352,15 @@ function sourceChecks(texts, mod = stripModule) {
     assert.equal(diff.removed.length, (edits[rel] || []).flatMap(([, was]) => was.split('\n')).filter(line => line !== '').length, `${rel}: the base lines this change rewrites (all of them, no other)`)
   }
   // the older proofs this change teaches: each gains one marked line (the first-parent walk leaves this change's commits out) and is the base's without it
-  assert.deepEqual([...mod.AUDIT_PREVIEWS_PIN_FILES].sort(), PIN_FILES, 'the older proofs this change teaches')
+  const EXTRA_PIN_FILES = ["scripts/test-studio-rail-slide-identity.mjs"]
+  assert.deepEqual([...mod.AUDIT_PREVIEWS_PIN_FILES].sort(), [...PIN_FILES, ...EXTRA_PIN_FILES].sort(), 'the older proofs this change teaches')
+  // an older proof that compiles a touched file with a fixed import list: one marked insertion, the base's proof without it
+  for (const rel of EXTRA_PIN_FILES) {
+    const now = laterStrips(rel, texts[rel]), diff = lineDiff(baseText(rel), now)
+    assert.equal(strip(rel, now), baseText(rel), `${rel}: without this change's line the proof is the base's, byte for byte`)
+    assert.deepEqual([diff.removed.length, diff.added.length], [0, 1], `${rel}: the proof gains one line and loses none`)
+    assert.ok(diff.added[0].includes(mod.AUDIT_PREVIEWS_PIN_MARK), `${rel}: the line carries the pin mark`)
+  }
   for (const rel of PIN_FILES) {
     const now = laterStrips(rel, texts[rel]), diff = lineDiff(baseText(rel), now)
     assert.equal(strip(rel, now), baseText(rel), `${rel}: without this change's line the proof is the base's, byte for byte`)
@@ -422,7 +430,7 @@ function messageProblems(subject, body) {
 // ============================================================================================================================================
 // run
 // ============================================================================================================================================
-const TEXTS = Object.fromEntries([...TOUCHED, ...NEW_FILES, '.env.example', REGISTRY, ...PIN_FILES, VOICE_CALL].map(rel => [rel, read(rel)]))
+const TEXTS = Object.fromEntries([...TOUCHED, ...NEW_FILES, '.env.example', REGISTRY, ...PIN_FILES, ...["scripts/test-studio-rail-slide-identity.mjs"], VOICE_CALL].map(rel => [rel, read(rel)]))
 
 await check('1. the re-home lib: the flag, the id, the target rule, the read (status mapping, abort at the status, the limit), the store (one read per id, shared, three at once), the decision Duplicate reads', () => rehomeChecks())
 await check('2. the fallback lib: the flag, the 404/405 rule, titles, the inventory from a presentation body (every refusal), the read, the Publish frame gate', () => fallbackChecks())
