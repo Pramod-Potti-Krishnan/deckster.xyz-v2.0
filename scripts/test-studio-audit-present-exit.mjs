@@ -108,14 +108,15 @@ async function libChecks(libText = read(LIB)) {
 // ============================================================================================================================================
 function viewerChecks(text = read(VIEWER)) {
   const lines = text.split('\n'), marked = lines.filter(line => MARKER_RE.test(line))
-  assert.equal(marked.length, 3, 'the viewer carries the marker on three lines: the import, the check, the dependency list')
+  assert.equal(marked.length, 3, 'the viewer carries the marker on three lines: the import, the ref line, the check')
   const at = lines.findIndex(line => line.includes('presentExitDesynced('))
   assert.ok(at > 0, 'the check is there')
   assert.equal(lines[at - 1], '    try {', 'the check is the first thing inside the toggle\'s try')
   assert.equal(lines[at + 1], '      if (!document.fullscreenElement) {', 'the original toggle follows it untouched')
   assert.ok(lines.slice(0, at).reverse().find(line => line.startsWith('  const handleFullscreen = useCallback(')), 'the check is in handleFullscreen')
-  assert.match(lines[at], /^      if \(presentExitDesynced\(STUDIO_PRESENT_EXIT_FIX_ENABLED, isFullscreen, Boolean\(document\.fullscreenElement\)\)\) \{ await leaveBrowserFullscreen\(document\); if \(!isCurrent\(\)\) return; setIsFullscreen\(false\); return \} \/\/ AUDIT-PRESENT-EXIT: /, 'the check reads the flag, the page state and the browser, waits for the browser, then sets the page state and returns')
-  assert.match(text, /\n  \}, \[studioShell, isEditMode, onEditModeChange, isGridActive, isBordersActive, beginStudioViewerInteraction, isFullscreen\]\) \/\/ AUDIT-PRESENT-EXIT: /, 'the callback depends on isFullscreen (a stale value would never see the desync)')
+  assert.match(lines[at], /^      if \(presentExitDesynced\(STUDIO_PRESENT_EXIT_FIX_ENABLED, isFullscreenRef\.current, Boolean\(document\.fullscreenElement\)\)\) \{ await leaveBrowserFullscreen\(document\); if \(!isCurrent\(\)\) return; setIsFullscreen\(false\); return \} \/\/ AUDIT-PRESENT-EXIT: /, 'the check reads the flag, the page state and the browser, waits for the browser, then sets the page state and returns')
+  assert.ok(text.includes("  const [isFullscreen, setIsFullscreen] = useState(false)\n  const isFullscreenRef = useRef(isFullscreen); isFullscreenRef.current = isFullscreen // AUDIT-PRESENT-EXIT: "), 'the ref follows the page\'s own state, right after it is declared (so the toggle never reads a stale value)')
+  assert.ok(text.includes("\n  }, [studioShell, isEditMode, onEditModeChange, isGridActive, isBordersActive, beginStudioViewerInteraction])\n"), 'the toggle\'s dependency list is the base\'s (the callback is not rebuilt for the flag)')
   assert.match(text, /^import \{ STUDIO_PRESENT_EXIT_FIX_ENABLED, presentExitDesynced, leaveBrowserFullscreen \} from '@\/lib\/studio-present-exit' \/\/ AUDIT-PRESENT-EXIT$/m, 'the viewer imports the lib')
   assert.equal(text.includes('process.env.NEXT_PUBLIC_STUDIO_PRESENT_EXIT_FIX'), false, 'the viewer does not read the env itself')
 }
@@ -189,7 +190,7 @@ function sourceChecks(texts, mod = stripModule) {
   assert.equal(texts['.env.example'], `${baseText('.env.example')}\n${block}`, '.env.example is the base plus the block')
   for (const flag of mod.AUDIT_PRESENT_EXIT_FLAGS) {
     assert.match(block, new RegExp(`^${flag}="false"$`, 'm'), `the block documents ${flag} as "false"`)
-    assert.equal((texts['.env.example'].match(new RegExp(flag, 'g')) || []).length, 1, `.env.example names ${flag} once`)
+    assert.equal((texts['.env.example'].match(new RegExp(`^${flag}=`, 'gm')) || []).length, 1, `.env.example assigns ${flag} once`)
   }
   assert.ok(block.endsWith('\n') && block.split('\n').filter(line => line && !line.startsWith('#')).length === mod.AUDIT_PRESENT_EXIT_FLAGS.length, 'the block is comments and one assignment per flag')
 }
@@ -233,7 +234,7 @@ function messageProblems(subject, body) {
 const TEXTS = Object.fromEntries([...TOUCHED, ...NEW_FILES, '.env.example', REGISTRY, ...PIN_FILES, VOICE_CALL].map(rel => [rel, read(rel)]))
 
 await check('1. the lib: the flag, the desync rule (whole truth table, odd values), leaving the browser\'s fullscreen', () => libChecks())
-await check('2. the viewer: the check is the first thing in the toggle\'s try, waits for the browser, sets the page state and returns; the callback depends on isFullscreen; no env read', () => viewerChecks())
+await check('2. the viewer: the check is the first thing in the toggle\'s try, waits for the browser, sets the page state and returns; the page state is read through a ref that follows isFullscreen; no env read', () => viewerChecks())
 
 await check('3a. the strip gives every touched file its base back byte for byte; every marked line is where it should be; the libs, the flag reads, the older proofs\' pin lines, the voice-call pin and .env.example', () => sourceChecks(TEXTS))
 await check('3b. the registry names this change in all three lists (strip, block, files) and loses nothing; read through it, the files are the base\'s', () => registryChecks(TEXTS[REGISTRY]))
@@ -277,8 +278,10 @@ const VIEWER_MUTANTS = [
   ['the check never sets the page state', 'setIsFullscreen(false); return } // AUDIT-PRESENT-EXIT', 'return } // AUDIT-PRESENT-EXIT'],
   ['the check does not return (the toggle would run too)', 'setIsFullscreen(false); return } // AUDIT-PRESENT-EXIT', 'setIsFullscreen(false) } // AUDIT-PRESENT-EXIT'],
   ['the check reads true instead of the flag', 'presentExitDesynced(STUDIO_PRESENT_EXIT_FIX_ENABLED,', 'presentExitDesynced(true,'],
-  ['the check reads a stale page state', 'presentExitDesynced(STUDIO_PRESENT_EXIT_FIX_ENABLED, isFullscreen,', 'presentExitDesynced(STUDIO_PRESENT_EXIT_FIX_ENABLED, false,'],
-  ['the callback does not depend on isFullscreen', 'beginStudioViewerInteraction, isFullscreen]) // AUDIT-PRESENT-EXIT', 'beginStudioViewerInteraction]) // AUDIT-PRESENT-EXIT'],
+  ['the check reads a stale page state', 'presentExitDesynced(STUDIO_PRESENT_EXIT_FIX_ENABLED, isFullscreenRef.current,', 'presentExitDesynced(STUDIO_PRESENT_EXIT_FIX_ENABLED, false,'],
+  ['the ref is never updated', 'isFullscreenRef.current = isFullscreen // AUDIT-PRESENT-EXIT', '// AUDIT-PRESENT-EXIT'],
+  ['the ref is declared away from the state', "  const isFullscreenRef = useRef(isFullscreen); isFullscreenRef.current = isFullscreen // AUDIT-PRESENT-EXIT", "  const unrelated = 1\n  const isFullscreenRef = useRef(isFullscreen); isFullscreenRef.current = isFullscreen // AUDIT-PRESENT-EXIT"],
+  ['the dependency list is rewritten again', '  }, [studioShell, isEditMode, onEditModeChange, isGridActive, isBordersActive, beginStudioViewerInteraction])\n', '  }, [studioShell, isEditMode, onEditModeChange, isGridActive, isBordersActive, beginStudioViewerInteraction, isFullscreen])\n'],
   ['the check sits after the toggle (not first in the try)', '    try {\n      if (presentExitDesynced(', '    try {\n      const first = 1\n      if (presentExitDesynced('],
   ['the flag is read from the env by the viewer', 'presentExitDesynced(STUDIO_PRESENT_EXIT_FIX_ENABLED,', 'presentExitDesynced(process.env.NEXT_PUBLIC_STUDIO_PRESENT_EXIT_FIX === "true",'],
   ['the check line loses its marker', ' // AUDIT-PRESENT-EXIT: the page says presenting', ' // the page says presenting'],

@@ -760,6 +760,7 @@ export function PresentationViewer({
   const slideTotalsRef = useRef({ total: 0, visual: 0 })
   slideTotalsRef.current = { total: totalSlides, visual: visualTotalSlides }
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const isFullscreenRef = useRef(isFullscreen); isFullscreenRef.current = isFullscreen // AUDIT-PRESENT-EXIT: the toggle reads the page's own state through a ref (its callback is not rebuilt for it)
   // A4: while Present is on, a separate `?viewOnly=true` frame covers the editing frame so audiences
   // never see authoring placeholders. Flag NEXT_PUBLIC_PRESENT_VIEW_ONLY_ENABLED, default off = unchanged.
   const presentViewOnlyEnabled = isPresentViewOnlyEnabled()
@@ -3699,7 +3700,7 @@ export function PresentationViewer({
     if (!isCurrent()) return
 
     try {
-      if (presentExitDesynced(STUDIO_PRESENT_EXIT_FIX_ENABLED, isFullscreen, Boolean(document.fullscreenElement))) { await leaveBrowserFullscreen(document); if (!isCurrent()) return; setIsFullscreen(false); return } // AUDIT-PRESENT-EXIT: the page says presenting, the browser says not full screen: Exit leaves Present (the toggle below would ask for fullscreen again)
+      if (presentExitDesynced(STUDIO_PRESENT_EXIT_FIX_ENABLED, isFullscreenRef.current, Boolean(document.fullscreenElement))) { await leaveBrowserFullscreen(document); if (!isCurrent()) return; setIsFullscreen(false); return } // AUDIT-PRESENT-EXIT: the page says presenting, the browser says not full screen: Exit leaves Present (the toggle below would ask for fullscreen again)
       if (!document.fullscreenElement) {
         if (studioShell && iframeRef.current) {
           const targetIframe = interaction!.iframe
@@ -3756,7 +3757,7 @@ export function PresentationViewer({
     } catch (error) {
       console.error('❌ Fullscreen error:', error)
     }
-  }, [studioShell, isEditMode, onEditModeChange, isGridActive, isBordersActive, beginStudioViewerInteraction, isFullscreen]) // AUDIT-PRESENT-EXIT: the desync check reads the page's own state
+  }, [studioShell, isEditMode, onEditModeChange, isGridActive, isBordersActive, beginStudioViewerInteraction])
 
   // Debug: Log button states
   useEffect(() => {

@@ -31,8 +31,8 @@ export const AUDIT_PRESENT_EXIT_LIB_FLAGS = [["lib/studio-present-exit.ts","NEXT
 export const AUDIT_PRESENT_EXIT_EDITS = {
   "components/presentation-viewer.tsx": [
     ["import { STUDIO_PRESENT_EXIT_FIX_ENABLED, presentExitDesynced, leaveBrowserFullscreen } from '@/lib/studio-present-exit' // AUDIT-PRESENT-EXIT\n", ""],
-    ["      if (presentExitDesynced(STUDIO_PRESENT_EXIT_FIX_ENABLED, isFullscreen, Boolean(document.fullscreenElement))) { await leaveBrowserFullscreen(document); if (!isCurrent()) return; setIsFullscreen(false); return } // AUDIT-PRESENT-EXIT: the page says presenting, the browser says not full screen: Exit leaves Present (the toggle below would ask for fullscreen again)\n", ""],
-    ["  }, [studioShell, isEditMode, onEditModeChange, isGridActive, isBordersActive, beginStudioViewerInteraction, isFullscreen]) // AUDIT-PRESENT-EXIT: the desync check reads the page's own state\n", "  }, [studioShell, isEditMode, onEditModeChange, isGridActive, isBordersActive, beginStudioViewerInteraction])\n"],
+    ["  const isFullscreenRef = useRef(isFullscreen); isFullscreenRef.current = isFullscreen // AUDIT-PRESENT-EXIT: the toggle reads the page's own state through a ref (its callback is not rebuilt for it)\n", ""],
+    ["      if (presentExitDesynced(STUDIO_PRESENT_EXIT_FIX_ENABLED, isFullscreenRef.current, Boolean(document.fullscreenElement))) { await leaveBrowserFullscreen(document); if (!isCurrent()) return; setIsFullscreen(false); return } // AUDIT-PRESENT-EXIT: the page says presenting, the browser says not full screen: Exit leaves Present (the toggle below would ask for fullscreen again)\n", ""],
   ],
 }
 
