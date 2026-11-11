@@ -92,6 +92,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-voice-core-strip.mjs')).VOICE_CORE_SCOPE_FILES, // LATER-CHANGE: ELEMENT-3, pure Director voice core (NEXT_PUBLIC_STUDIO_VOICE_CALL)
   ...(await import('./studio-voice-call-strip.mjs')).VOICE_CALL_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, W6 P4-20 voice call UI: the call button, the docked companion, push-to-talk, the router speech contract (NEXT_PUBLIC_STUDIO_VOICE_CALL / _VOICE_COMPANION)
   ...(await import('./studio-agent-mode-shell-strip.mjs')).AGENT_MODE_SHELL_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B69 agent mode shell: Studio's build-mode picker and the Agent build cards, new files only, nothing mounted (NEXT_PUBLIC_AGENT_MODE / NEXT_PUBLIC_AUTHOR_MODE_PICKER)
+  ...(await import('./studio-agent-mode-wire-strip.mjs')).AGENT_MODE_WIRE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, Agent mode wire: the picker, the agent frames and the card answer mounted in the Studio, stacked on the Agent build shell (NEXT_PUBLIC_AGENT_MODE and NEXT_PUBLIC_STUDIO_V4_SHELL; no .env.example block of its own: the flag's block is the shell's)
   // one line per later change, above this comment
 ])
 
@@ -224,6 +225,7 @@ export const LATER_STRIPS = [
   (await import('./studio-voice-core-strip.mjs')).stripVoiceCore, // LATER-CHANGE: ELEMENT-3, voice port compatibility pin
   (await import('./studio-voice-call-strip.mjs')).stripVoiceCall, // LATER-CHANGE: FRONTEND-1, W6 P4-20 voice call UI (NEXT_PUBLIC_STUDIO_VOICE_CALL)
   (await import('./studio-agent-mode-shell-strip.mjs')).stripAgentModeShell, // LATER-CHANGE: FRONTEND-2, B69 agent mode shell (NEXT_PUBLIC_AGENT_MODE)
+  (await import('./studio-agent-mode-wire-strip.mjs')).stripAgentModeWire, // LATER-CHANGE: FRONTEND-1, Agent mode wire (NEXT_PUBLIC_AGENT_MODE and NEXT_PUBLIC_STUDIO_V4_SHELL; no .env.example block of its own)
   // one line per later change, above this comment
 ]
 

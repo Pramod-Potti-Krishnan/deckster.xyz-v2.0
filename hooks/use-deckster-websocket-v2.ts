@@ -55,6 +55,7 @@ import {
   shouldReconnectDirectorOnOnline,
 } from '@/lib/director-reconnect-policy';
 import { STUDIO_ONE_LIVE_TAB_ENABLED, isDirectorSupersededClose } from '@/lib/studio-one-live-tab';
+import { STUDIO_AGENT_MODE_ENABLED, agentAnswerFrame, agentAnswerSendable, isAgentFrameType } from '@/lib/studio-agent-mode'; // AGENT-MODE-WIRE (NEXT_PUBLIC_AGENT_MODE and NEXT_PUBLIC_STUDIO_V4_SHELL, both exact "true"; default off)
 import {
   buildControlEndpointFromWsUrl,
   createBuildControlRequestId,
@@ -624,6 +625,7 @@ export interface UserMessage {
     // One-shot key seeded by POST /api/sessions/{id}/handoff. Director uses it
     // to suppress navigation/reconnect retries of the pending build request.
     handoff_idempotency_key?: string;
+    build_mode?: 'standard' | 'author' | 'agent'; // AGENT-MODE-WIRE: Director's opt-in key (MR-604); omitted unless the picker chose and the plan allows it
   };
 }
 
@@ -633,6 +635,7 @@ export interface SendUserMessageOptions {
   deepResearch?: boolean;
   webSearch?: boolean;
   extendedGeneration?: boolean;
+  buildMode?: 'standard' | 'author' | 'agent'; // AGENT-MODE-WIRE
   fileUpload?: boolean;
   storeName?: string | null;
   useKnowledgeGraph?: boolean;
@@ -780,6 +783,7 @@ export interface UseDecksterWebSocketV2Options {
   // jobs list, possibly []). Never rendered in chat. Unused with the flag off.
   onJobUpdate?: (row: import('@/lib/studio-job-ledger').JobLedgerRow, owner: import('@/lib/studio-job-ledger').JobLedgerOwner) => void;
   onJobsSync?: (rows: import('@/lib/studio-job-ledger').JobLedgerRow[], owner: import('@/lib/studio-job-ledger').JobLedgerOwner) => void;
+  onAgentFrame?: (frame: unknown, owner: { sessionId: string | null; isCurrent: () => boolean }) => void; // AGENT-MODE-WIRE: Director's six agent_* frames ({ type, payload }, no session envelope) go to the page's run card, only with the flags. Unused with them off.
   onSlideComposeReady?: (message: SlideComposeReady) => void;
   onSlideComposeFailed?: (message: SlideComposeFailed) => void;
   onTemplateIngestReady?: (message: TemplateIngestReady) => void;
@@ -1995,6 +1999,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             // BULK-EDIT-UNDO: so a frame is its own capability, with or without a sync_response. Every other frame carries on as before. Flags off: nothing is routed.
             if (STUDIO_BULK_EDIT_UNDO_ENABLED && routeStudioBulkEditUndoFrame(parsedMessage, bulkEditUndoContext(socketSessionId, deckMutationOwnerRef.current, slideStructureRef.current, isCurrentSocket())) === 'consumed') return; // BULK-EDIT-UNDO
             if (STUDIO_CHAT_UNDO_ENABLED) normaliseDeckRestored(parsedMessage); // BULK-EDIT-UNDO: an undo's deck_mutation {mutation:"deck_restored"} is read as a whole-viewer refresh (slide_replaced, restored:true) before the checks below; flag off: untouched, ignored as before
+            // AGENT-MODE-WIRE (NEXT_PUBLIC_AGENT_MODE and NEXT_PUBLIC_STUDIO_V4_SHELL, default off): Director's six agent frames (agent_estimate, agent_step, agent_checkpoint, agent_research_offer, agent_failed, agent_done) go to the page's run card, here, ahead of the allowlist,
+            // AGENT-MODE-WIRE: so they never reach the reducer, the transcript or the cache, and they do not unlock the turn. Like the other server frames without the regular envelope, a frame carries no session id: its owner is this exact socket (a session id, if one is
+            // AGENT-MODE-WIRE: sent, must be this socket's). Flags off: an agent frame is an unknown type, dropped below as before.
+            if (STUDIO_AGENT_MODE_ENABLED && isAgentFrameType(parsedMessage.type)) { if (isCurrentSocket() && (rawMessage.session_id === undefined || rawMessage.session_id === socketSessionId)) transportCallbacksRef.current.onAgentFrame?.(parsedMessage, { sessionId: socketSessionId, isCurrent: isCurrentSocket }); return; } // AGENT-MODE-WIRE
             if (!isKnownDirectorMessageType(parsedMessage.type)) {
               return;
             }
@@ -3436,6 +3444,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           ...(options?.ingestUploadRef && { ingest_upload_ref: options.ingestUploadRef }),
           ...(options?.manualDeck && { manual_deck: options.manualDeck }),
           ...(options?.deckIdentity && { deck_identity: options.deckIdentity }),
+          ...(options?.buildMode && { build_mode: options.buildMode }), // AGENT-MODE-WIRE
           ...(options?.handoffIdempotencyKey && {
             handoff_idempotency_key: options.handoffIdempotencyKey,
           }),
@@ -3614,6 +3623,13 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     try { wsRef.current.send(JSON.stringify(chatParityResultFrame(data))); return true; } catch { return false; } // CHAT-PARITY
   }, []); // CHAT-PARITY
   chatParityBus.send = sendChatParityResult // CHAT-PARITY: the page's runner answers through the bus (lib/studio-chat-parity.ts)
+  // AGENT-MODE-WIRE: the person's answer to an agent card (the contract's { type: 'agent_answer', data: { run_id, card, choice } }, lib/studio-agent-mode.ts agentAnswerFrame). It goes out ONLY on the live socket, never queued, never replayed after a reconnect
+  // AGENT-MODE-WIRE: (Director ignores an answer from a socket that is not the signed, current one); false (flags off, no live socket, a bad answer, a throwing send) leaves the card open for another click and sends nothing.
+  const sendAgentAnswer = useCallback((answer: import('@/lib/studio-agent-mode').AgentAnswer): boolean => { // AGENT-MODE-WIRE
+    const socket = wsRef.current; // AGENT-MODE-WIRE
+    if (!STUDIO_AGENT_MODE_ENABLED || !socket || !agentAnswerSendable(answer, socket.readyState === WebSocket.OPEN)) return false; // AGENT-MODE-WIRE
+    try { socket.send(JSON.stringify(agentAnswerFrame(answer))); return true; } catch { return false; } // AGENT-MODE-WIRE
+  }, []); // AGENT-MODE-WIRE
 
   const sendControlMessage = useCallback((type: ControlMessage['type'], data?: { job_id: string }): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
@@ -4237,6 +4253,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     sendElementDirectiveResult,
     sendElementEditResult, // CHAT-ELEMENT-EDIT
     sendControlMessage,
+    sendAgentAnswer, // AGENT-MODE-WIRE
     applyTemplateIngestReady,
     sendThemeSelection,
     sendBuildControl,
