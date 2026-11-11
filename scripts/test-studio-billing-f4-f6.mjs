@@ -9,7 +9,9 @@ import { execSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import assert from 'node:assert/strict'
 const git = cmd => execSync(`git ${cmd}`, { encoding: 'utf8' })
+import * as registry from "./studio-later-changes.mjs" // LATER-CHANGES: registry read (ROUTER-BILLING-USAGE)
 const m = await import('./studio-billing-f4-f6-strip.mjs')
+const laterStrips = (rel, text) => registry.LATER_STRIPS.slice(registry.LATER_STRIPS.indexOf(m.stripBillingF4F6) + 1).reduce((out, strip) => strip(rel, out), text) // LATER-CHANGES: registry read (ROUTER-BILLING-USAGE)
 let n = 0
 const ok = (c, msg) => { assert.ok(c, msg); n++ }
 
@@ -17,7 +19,7 @@ const ok = (c, msg) => { assert.ok(c, msg); n++ }
 const bases = { 'app/api/wallet/debit/route.ts': 'origin/frontend1/tier-update-guard' }
 for (const rel of [...m.BILLING_F4F6_FILES, ...Object.keys(m.BILLING_F4F6_EDITS)]) {
   const base = git(`show ${bases[rel] || m.BASE_COMMIT}:"${rel}"`)
-  ok(m.stripBillingF4F6(rel, readFileSync(rel, 'utf8')) === base, `A: ${rel} strips to its base`)
+  ok(m.stripBillingF4F6(rel, laterStrips(rel, readFileSync(rel, 'utf8'))) === base, `A: ${rel} strips to its base`) // LATER-CHANGES: registry read (ROUTER-BILLING-USAGE)
 }
 const env = readFileSync('.env.example', 'utf8')
 ok(env === `${git(`show ${m.BASE_COMMIT}:.env.example`)}\n${m.BILLING_F4F6_ENV_BLOCK}` || env.includes(m.BILLING_F4F6_ENV_BLOCK), 'A: env block present')

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth-options"
 import { prisma } from "@/lib/prisma"
+import { getRouterCreditsForSession, routerCreditsReadEnabled } from "@/lib/billing/router-credits" // ROUTER-BILLING-USAGE
 
 /**
  * GET /api/account/usage
@@ -14,7 +15,7 @@ export async function GET() {
     const session = await getServerSession(authOptions)
 
     if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401, ...(routerCreditsReadEnabled() ? { headers: { "Cache-Control": "private, no-store" } } : {}) }) // ROUTER-BILLING-USAGE
     }
 
     const userId = session.user.id
@@ -27,12 +28,15 @@ export async function GET() {
       }),
     ])
 
+    if (routerCreditsReadEnabled()) { // ROUTER-BILLING-USAGE
+      return NextResponse.json({ presentationCount, storageBytes: storageAgg._sum.fileSize ?? 0, billing: await getRouterCreditsForSession(userId) }, { headers: { "Cache-Control": "private, no-store" } }) // ROUTER-BILLING-USAGE
+    } // ROUTER-BILLING-USAGE
     return NextResponse.json({
       presentationCount,
       storageBytes: storageAgg._sum.fileSize ?? 0,
     })
   } catch (error) {
     console.error("[api/account/usage] GET error:", error)
-    return NextResponse.json({ error: "Failed to load usage" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to load usage" }, { status: 500, ...(routerCreditsReadEnabled() ? { headers: { "Cache-Control": "private, no-store" } } : {}) }) // ROUTER-BILLING-USAGE
   }
 }

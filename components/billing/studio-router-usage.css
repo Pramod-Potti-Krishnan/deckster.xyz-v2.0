@@ -1,0 +1,35 @@
+.sru {
+  --sru-panel: var(--ss-panel, #fff);
+  --sru-soft: var(--ss-soft, #edf2f0);
+  --sru-line: var(--ss-line, #dde5e2);
+  --sru-text: var(--ss-text, #243438);
+  --sru-muted: var(--ss-muted, #566965);
+  --sru-accent: var(--ss-teal, #1f6f72);
+  box-sizing: border-box;
+  display: grid; gap: 16px; min-width: 0; max-width: 100%;
+  color: var(--sru-text); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere;
+}
+.dark .sru { --sru-panel: var(--ss-panel, #1b2426); --sru-soft: var(--ss-soft, #243034); --sru-line: var(--ss-line, #334245); --sru-text: var(--ss-text, #e2ebe8); --sru-muted: var(--ss-muted, #a0b1ad); --sru-accent: var(--ss-teal, #83c4bd); }
+.sru *, .sru *::before, .sru *::after { box-sizing: border-box; min-width: 0; }
+.sru-page { max-width: 760px; width: 100%; margin: 0 auto; padding: 24px; }
+.sru h1, .sru h2, .sru h3, .sru p, .sru dl, .sru dd, .sru ol { margin: 0; }
+.sru h1 { font-size: 24px; font-weight: 600; }
+.sru h2 { font-size: 18px; font-weight: 600; }
+.sru h3 { font-size: 14px; font-weight: 600; }
+.sru-row { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; }
+.sru-muted, .sru small { color: var(--sru-muted); font-size: 13px; }
+.sru-card { display: grid; gap: 12px; border: 1px solid var(--sru-line); border-radius: 12px; padding: 16px; background: var(--sru-panel); }
+.sru-track { height: 8px; background: var(--sru-soft); border-radius: 8px; overflow: hidden; }
+.sru-track i { display: block; height: 100%; background: var(--sru-accent); }
+.sru-balances { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.sru-balances > div { display: grid; gap: 4px; padding: 12px; border-radius: 8px; background: var(--sru-soft); }
+.sru-balances dt { color: var(--sru-muted); font-size: 12px; }
+.sru-balances dd { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.sru-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.sru a { color: var(--sru-accent); text-decoration: underline; text-underline-offset: 3px; }
+.sru button { justify-self: start; min-height: 40px; padding: 8px 16px; border: 1px solid var(--sru-line); border-radius: 8px; background: var(--sru-panel); color: var(--sru-text); cursor: pointer; }
+.sru a:focus-visible, .sru button:focus-visible { outline: 2px solid var(--sru-accent); outline-offset: 3px; }
+.sru-bars { display: flex; align-items: end; gap: 3px; height: 112px; padding: 0; list-style: none; }
+.sru-bars li { display: flex; align-items: end; height: 100%; flex: 1 1 0; }
+.sru-bars i { width: 100%; background: var(--sru-accent); border-radius: 2px 2px 0 0; }
+@media (max-width: 520px) { .sru-balances { grid-template-columns: minmax(0, 1fr); } .sru-page { padding: 16px; } .sru-card { padding: 12px; } }

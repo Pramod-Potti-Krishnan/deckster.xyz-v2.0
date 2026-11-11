@@ -16,6 +16,7 @@ import { features } from "@/lib/config"
 import { PRICING_TIERS, TOPUP_PACKS } from "@/lib/marketing/homepage-v2-pricing" // BILLING-F4F6
 import { studioBillingPriceLine, studioNextPlan, studioPlanForTier, studioPlanLines, type StudioBillingQuota } from "@/lib/studio-billing"
 import { StudioBillingCapacity } from "@/components/billing/studio-billing-capacity"
+import { StudioRouterUsage, STUDIO_ROUTER_USAGE_ENABLED } from "@/components/billing/studio-router-usage" // ROUTER-BILLING-USAGE
 import "@/components/billing/studio-billing.css"
 import "@/components/settings/studio-p2-account.css"
 
@@ -455,6 +456,7 @@ function BillingPageContent() {
           </CardHeader>
           <CardContent data-studio-billing-body={studioShell ? "true" : undefined}>
             <div className="space-y-4" data-studio-billing-usage={studioShell ? "true" : undefined}>
+              {STUDIO_ROUTER_USAGE_ENABLED && <StudioRouterUsage />} {/* ROUTER-BILLING-USAGE */}
               <div>
                 <div className="mb-1 flex justify-between text-sm">
                   <span>Presentations</span>
