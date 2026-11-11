@@ -6,7 +6,7 @@
 // The older proofs this change teaches (tests only, every line carries the registry-read mark): the two that read the first-parent commits of BASE..HEAD for their own commits' subjects get one more inserted line each, for "Avatar spawn mock:",
 // as #567 / #568 / B61 / B63 did. The one exception among FRONTEND-1's files: the four lines of their voice-call PROOF that FRONTEND-1 OK'd (to-FRONTEND-2.md lines 545 / 528, FE1-OK-REQUEST-2.md; AVATAR_SPAWN_FE1_PROOF_OK), byte for byte and with the same mark as #603's, so the Drafts merge clean in any order. How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = 'eeb78d4f4b7676d75c244746f1edc7da1d269478' // Studio dev (8 Nov), the merge of #598
+export const BASE_COMMIT = '6872a8139f67e7c032f39ec064d0fdfed4e7b616' // Studio dev after D94 (#607 merged, 11 Nov), the base this change is restacked on
 export const AVATAR_SPAWN_FLAG = 'NEXT_PUBLIC_STUDIO_AVATAR_SPAWN'
 export const AVATAR_SPAWN_MARKER = 'AVATAR-SPAWN'
 /** The marker as a WHOLE token: AVATAR-SPAWN is this change's; AVATAR-SPAWN-X and X-AVATAR-SPAWN are not. */
