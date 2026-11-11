@@ -68,6 +68,34 @@ export const AUDIT_PREVIEWS_PIN_EDITS = {
   "scripts/test-studio-deck-sync-truth.mjs": [
     ["  shas.splice(0, shas.length, ...shas.filter(sha => !/^Audit fix:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (AUDIT-PREVIEWS): on a branch stacked after this change (the audit P-01 / P-07 / P-29 previews fix), the first-parent commits are its own, not this change's; with none left the identity checks cover the files\n", ""],
   ],
+  "scripts/test-studio-deck-card-count.mjs": [
+    ["import { stripAuditPreviews } from './studio-audit-previews-strip.mjs' // LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", ""],
+    ["const read = rel => stripDeckCardThumbnail(rel, stripAuditPreviews(rel, fs.readFileSync(path.join(root, rel), 'utf8'))) // LATER-CHANGES: registry read (AUDIT-PREVIEWS); DECK-CARD-THUMBNAIL: its marked lines on the Decks page come out first\n", "const read = rel => stripDeckCardThumbnail(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // DECK-CARD-THUMBNAIL: its marked lines on the Decks page come out first\n"],
+  ],
+  "scripts/test-studio-create-word.mjs": [
+    ["import { stripAuditPreviews } from './studio-audit-previews-strip.mjs' // LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", ""],
+    ["const read = rel => stripLaunchWording(rel, stripDeckCardThumbnail(rel, stripAuditPreviews(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))) // LATER-CHANGES: registry read (AUDIT-PREVIEWS); DECK-CARD-THUMBNAIL: its lines out first\n", "const read = rel => stripLaunchWording(rel, stripDeckCardThumbnail(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))) // DECK-CARD-THUMBNAIL: its lines out first\n"],
+  ],
+  "scripts/test-studio-deck-cards-v2.mjs": [
+    ["import { stripAuditPreviews } from './studio-audit-previews-strip.mjs' // LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", ""],
+    ["const read = file => stripDeckCardThumbnail(file, stripAuditPreviews(file, fs.readFileSync(path.join(root, file), 'utf8'))); // LATER-CHANGES: registry read (AUDIT-PREVIEWS); DECK-CARD-THUMBNAIL: its marked lines on the Decks page come out first\n", "const read = file => stripDeckCardThumbnail(file, fs.readFileSync(path.join(root, file), 'utf8')); // DECK-CARD-THUMBNAIL: its marked lines on the Decks page come out first\n"],
+  ],
+  "scripts/test-studio-plain-nav-labels.mjs": [
+    ["import { stripAuditPreviews } from './studio-audit-previews-strip.mjs' // LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", ""],
+    ["const read = rel => stripLaunchWording(rel, stripDeckCardThumbnail(rel, stripAuditPreviews(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))) // LATER-CHANGES: registry read (AUDIT-PREVIEWS); DECK-CARD-THUMBNAIL: its lines out first\n", "const read = rel => stripLaunchWording(rel, stripDeckCardThumbnail(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))) // DECK-CARD-THUMBNAIL: its lines out first\n"],
+  ],
+  "scripts/test-atlas-decks-pagination.mjs": [
+    ["import { stripAuditPreviews } from './studio-audit-previews-strip.mjs' // LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", ""],
+    ["const source = stripAuditPreviews('app/(app)/dashboard/page.tsx', fs.readFileSync(new URL('../app/(app)/dashboard/page.tsx', import.meta.url), 'utf8')) // LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", "const source = fs.readFileSync(new URL('../app/(app)/dashboard/page.tsx', import.meta.url), 'utf8')\n"],
+  ],
+  "scripts/test-present-view-only.mjs": [
+    ["import { stripAuditPreviews } from './studio-audit-previews-strip.mjs' // LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", ""],
+    ["const read = path => stripAuditPreviews(path, fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')) // LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", "const read = path => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')\n"],
+  ],
+  "scripts/test-studio-deck-card-thumbnail-cards.mjs": [
+    ["import { stripAuditPreviews } from './studio-audit-previews-strip.mjs' // LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", ""],
+    ["const read = rel => stripAuditPreviews(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", "const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')\n"],
+  ],
   "scripts/test-studio-rail-slide-identity.mjs": [
     ["    if (name === '@/lib/studio-inventory-fallback') return { STUDIO_INVENTORY_FALLBACK_ENABLED: false, readInventoryFallback: async () => ({ kind: 'unavailable', reason: 'stub' }) } // LATER-CHANGES: registry read (AUDIT-PREVIEWS): the hook now imports the fallback lib (flag off here: the base's hook)\n", ""],
   ],
