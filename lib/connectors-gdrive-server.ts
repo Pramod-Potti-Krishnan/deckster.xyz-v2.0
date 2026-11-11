@@ -15,6 +15,7 @@ import {
   GDRIVE_NONCE_COOKIE, STATE_TTL_MS, buildGoogleAuthUrl, isGdriveConnectorEnabled, newNonce, signState, validateFileIds, verifyState, MAX_ITEMS_PER_POST,
 } from '@/lib/connectors-gdrive'
 import { isGdriveSessionLinksEnabled, validChatSessionId, validateLinkedItemIds } from '@/lib/connectors-gdrive-session-links'
+import { GDRIVE_RETURN_COOKIE, GDRIVE_RETURN_QUERY, returnRedirectPath, validReturnPath } from '@/lib/connectors-gdrive-composer' // GDRIVE-COMPOSER
 
 const notFound = () => NextResponse.json({ error: 'Not found' }, { status: 404 })
 const fail = (status: number, error: string) => NextResponse.json({ error }, { status })
@@ -86,7 +87,7 @@ async function guarded(failMsg: string, fn: () => Promise<NextResponse>): Promis
   }
 }
 
-export async function handleStart(): Promise<NextResponse> {
+export async function handleStart(req?: Request): Promise<NextResponse> {
   const g = await gate(); if (g.error) return g.error
   const clientId = process.env.GOOGLE_CONNECTOR_CLIENT_ID
   const uri = redirectUri()
@@ -94,15 +95,20 @@ export async function handleStart(): Promise<NextResponse> {
   const nonce = newNonce()
   const res = NextResponse.redirect(buildGoogleAuthUrl(clientId, uri, signState(stateSecret(), g.userId, nonce)))
   res.cookies.set(GDRIVE_NONCE_COOKIE, nonce, { httpOnly: true, secure: true, sameSite: 'lax', path: '/api/connectors/gdrive', maxAge: STATE_TTL_MS / 1000 })
+  // GDRIVE-COMPOSER: the composer's Connect remembers the chat to come back to (only /builder?session_id=<id>); no ?return= = the Settings landing, as before
+  const returnTo = req ? validReturnPath(new URL(req.url).searchParams.get(GDRIVE_RETURN_QUERY)) : null // GDRIVE-COMPOSER
+  if (returnTo) res.cookies.set(GDRIVE_RETURN_COOKIE, returnTo, { httpOnly: true, secure: true, sameSite: 'lax', path: '/api/connectors/gdrive', maxAge: STATE_TTL_MS / 1000 }) // GDRIVE-COMPOSER
   return res
 }
 
 export async function handleCallback(req: NextRequest): Promise<NextResponse> {
   const g = await gate(); if (g.error) return g.error
   const url = new URL(req.url)
+  const returnTo = validReturnPath(req.cookies.get(GDRIVE_RETURN_COOKIE)?.value) // GDRIVE-COMPOSER: the chat the composer's Connect started from, if any
   const back = (status: string) => {
-    const res = NextResponse.redirect(new URL(`/settings/connectors?gdrive=${status}`, url.origin))
+    const res = NextResponse.redirect(new URL(returnTo ? returnRedirectPath(returnTo, status) : `/settings/connectors?gdrive=${status}`, url.origin))
     res.cookies.set(GDRIVE_NONCE_COOKIE, '', { httpOnly: true, secure: true, sameSite: 'lax', path: '/api/connectors/gdrive', maxAge: 0 })
+    if (returnTo) res.cookies.set(GDRIVE_RETURN_COOKIE, '', { httpOnly: true, secure: true, sameSite: 'lax', path: '/api/connectors/gdrive', maxAge: 0 }) // GDRIVE-COMPOSER
     return res
   }
   if (url.searchParams.get('error')) return back('cancelled')

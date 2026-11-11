@@ -58,6 +58,8 @@ import { STUDIO_CHAT_CLEAN_ENABLED, CHAT_CLEAN_TEXTAREA_MIN_HEIGHT, type ChatCle
 import { StudioChatCleanSendSide } from '@/components/builder/chat/studio-chat-clean' // CHAT-CLEAN
 import { useStudioChatCommands } from '@/components/builder/chat/studio-chat-commands' // CHAT-COMMANDS (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, default off)
 import type { ChatCommandsPageProps } from '@/lib/studio-chat-commands' // CHAT-COMMANDS
+import { GdriveAttachMenu, GdriveChipsBar } from './gdrive-composer' // GDRIVE-COMPOSER (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED + _SESSION_LINKS_ENABLED, default off)
+import type { GdriveComposerApi } from '@/hooks/use-gdrive-composer' // GDRIVE-COMPOSER
 
 const TEXTAREA_MIN_HEIGHT = 96
 const TEXTAREA_MAX_HEIGHT = 220
@@ -145,6 +147,8 @@ export interface ChatInputProps {
   studioEditPrompt?: boolean
   studioChatClean?: ChatCleanComposerProps // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN): the composer's mode and the page's Stop / send-directions handlers; passed only with the flag on
   studioChatCommands?: ChatCommandsPageProps // CHAT-COMMANDS (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS): the deck's slides, the current slide, the selected element and the export runner for the "/" and "@" menus; passed only with the flag on
+  /** GDRIVE-COMPOSER: "Add from Google Drive" in the attach menu, the Drive chips above the composer. The page passes it only with both Drive flags on and an entitled user; absent, the composer is exactly the base's. */
+  gdrive?: GdriveComposerApi // GDRIVE-COMPOSER
 }
 
 export function ChatInput({
@@ -201,6 +205,7 @@ export function ChatInput({
   studioEditPrompt = false,
   studioChatClean, // CHAT-CLEAN
   studioChatCommands, // CHAT-COMMANDS
+  gdrive, // GDRIVE-COMPOSER
 }: ChatInputProps) {
   const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN, Studio shell only, default off): PK's v3 composer (lib/studio-chat-clean.ts). Every line carrying this marker renders or applies only with the flag on and the page's props present; off, every spread adds nothing and every branch is null, so the element tree is exactly the base's.
@@ -799,6 +804,11 @@ export function ChatInput({
     if (stillReady) void refreshSavedThemes(true)
   }
   // Studio theme mutations END.
+  const gdriveUpload = async () => { // GDRIVE-COMPOSER: "Upload file" in the attach menu does what the Paperclip does without the menu
+    if (popupsV2) setComposerPopup(null) // GDRIVE-COMPOSER
+    try { await onRequestSession() } catch { return } // GDRIVE-COMPOSER
+    fileInputRef.current?.click() // GDRIVE-COMPOSER
+  } // GDRIVE-COMPOSER
   const hiddenFileInput = (
     <input
       ref={fileInputRef}
@@ -1016,6 +1026,7 @@ export function ChatInput({
         </div>
       )}
 
+      {gdrive ? <GdriveChipsBar gdrive={gdrive} /> : null}{/* GDRIVE-COMPOSER: the Drive chips, their alerts and the connect prompt, above the composer box; off, null */}
       {/* Main input container - Claude style */}
       <form onSubmit={guardedSubmit}>
         <div data-studio-v4-prompt="true"
@@ -1151,6 +1162,7 @@ export function ChatInput({
             className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-2 bg-gray-50 rounded-b-xl dark:bg-slate-800">
             {/* Left: Action buttons */}
             <div className="flex items-center gap-1">
+              {gdrive ? <GdriveAttachMenu studio={studio} uploadEnabled={features.enableFileUploads} uploadDisabled={uploadedFiles.length >= 5} busy={gdrive.busy} onUpload={() => void gdriveUpload()} onAddFromDrive={() => gdrive.addFromDrive(onRequestSession)} /> : null}{/* GDRIVE-COMPOSER: the attach menu (Upload file / Add from Google Drive), beside the direct Paperclip it hides; off, null */}
               {/* Direct file upload */}
               {features.enableFileUploads && (
                 <StudioComposerHint enabled={studio} label="Attach files">
@@ -1169,6 +1181,7 @@ export function ChatInput({
                   }}
                   title={studio ? undefined : "Upload a file"}
                   aria-label="Upload a file"
+                  {...(gdrive ? { style: { display: 'none' }, 'aria-hidden': true, tabIndex: -1 } : {})} // GDRIVE-COMPOSER: with the Drive menu beside it, this direct button is hidden (the menu's Upload file does the same job)
                 >
                   <Paperclip className="h-4 w-4" />
                 </button>

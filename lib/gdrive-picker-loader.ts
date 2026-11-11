@@ -31,7 +31,7 @@ export async function openDrivePicker(): Promise<string[]> {
   if (!apiKey || !appId) throw new Error('Google Drive picker is not set up yet.')
   const res = await fetch('/api/connectors/gdrive/picker-token', { method: 'POST' })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok || typeof data.access_token !== 'string') throw new Error(data.error || 'Could not open Google Drive. Please reconnect.')
+  if (!res.ok || typeof data.access_token !== 'string') throw Object.assign(new Error(data.error || 'Could not open Google Drive. Please reconnect.'), { code: typeof data.error_code === 'string' ? data.error_code : null, status: res.status }) // GDRIVE-COMPOSER: the composer tells "connect first" and "connection expired" apart by code
   await loadGapi()
   const g = window.google
   return new Promise<string[]>(resolve => {

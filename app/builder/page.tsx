@@ -17,6 +17,8 @@ import { STUDIO_PHONE_SHELL_ENABLED } from '@/lib/studio-phone-shell' // PHONE-S
 import { StudioPhoneBuilderTop } from '@/components/builder/studio-phone-builder-top' // PHONE-SHELL-TOP (NEXT_PUBLIC_STUDIO_PHONE_SHELL, default off): on a phone one top row, the switch below it with a Director dot
 import { StudioPhoneLandscape } from '@/components/builder/studio-phone-landscape' // PHONE-LANDSCAPE (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE, default off, with the phone shell): a phone turned sideways gets a viewing stage
 import { STUDIO_PHONE_LANDSCAPE_ENABLED } from '@/lib/studio-phone-landscape' // PHONE-LANDSCAPE
+import { useGdriveComposer } from '@/hooks/use-gdrive-composer' // GDRIVE-COMPOSER (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED + _SESSION_LINKS_ENABLED, default off): "Add from Google Drive" in the composer's attach menu
+import { isGdriveComposerEnabled } from '@/lib/connectors-gdrive-composer' // GDRIVE-COMPOSER
 import { useStudioPhoneWorkspaceClamp } from '@/hooks/use-studio-phone-landscape' // PHONE-LANDSCAPE
 import { StudioPhoneHints } from '@/components/builder/studio-phone-hints' // PHONE-HINTS (NEXT_PUBLIC_STUDIO_PHONE_HINTS, default off, needs the landscape flag too): the portrait rotate and swipe hints, Full screen
 import { STUDIO_PHONE_HINTS_ENABLED } from '@/lib/studio-phone-hints' // PHONE-HINTS
@@ -884,6 +886,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const kgAccessLoading = kgIsLoading
   const [knowledgeGraphEnabled, setKnowledgeGraphEnabled] = useState(false)
   const canUseKnowledgeGraph = kgIsPremium && kgSubscribed && kgServiceAvailable
+  const gdriveOffer = isGdriveComposerEnabled(kgIsPremium) // GDRIVE-COMPOSER: both Drive flags on AND the existing Knowledge entitlement; off, the composer gets no gdrive prop
   // Keep the feature discoverable for every user. The chat row renders an
   // upgrade/setup affordance until both paid entitlement and explicit consent
   // are present; only the ready state can send KG=true.
@@ -1863,6 +1866,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       if (urlSessionId && urlSessionId !== 'new') return urlSessionId
     return null
   })
+  const gdriveLinkedIdsRef = useRef<string[] | undefined>(undefined) // GDRIVE-COMPOSER: the Drive items linked to this chat (undefined until the user links one, [] once cleared); read at send time by the four build sends below, so it is never stale
+  const gdriveComposer = useGdriveComposer({ sessionId: currentSessionId, onLinkedIdsChange: ids => { gdriveLinkedIdsRef.current = ids } }) // GDRIVE-COMPOSER: a no-op unless both Drive flags are on
 
   // A socket receipt can arrive before the submission effect. Keep the owned
   // in-memory receipt ahead of an older staged copy in browser storage.
@@ -6253,6 +6258,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           actionValue: action.value,
           actionLabel: action.label,
           ...buildSendOptions,
+          ...(gdriveLinkedIdsRef.current ? { linkedItemIds: gdriveLinkedIdsRef.current } : {}), // GDRIVE-COMPOSER: linked_item_ids on the build message (#608 hook; dropped there with the session-links flag off)
           manualDeck: turnContext?.manualDeck,
         })
         if (!success || !isCurrentSubmission()) return
@@ -6332,6 +6338,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               fileUpload: !!sessionStoreName,
               storeName: sessionStoreName,
               ...buildSendOptions,
+              ...(gdriveLinkedIdsRef.current ? { linkedItemIds: gdriveLinkedIdsRef.current } : {}), // GDRIVE-COMPOSER: linked_item_ids on the build message (#608 hook; dropped there with the session-links flag off)
               manualDeck: turnContext?.manualDeck,
             })
             if (!success || !isCurrentSubmission()) return
@@ -6435,6 +6442,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         fileUpload: !!sessionStoreName,
         storeName: sessionStoreName,
         ...buildSendOptions,
+        ...(gdriveLinkedIdsRef.current ? { linkedItemIds: gdriveLinkedIdsRef.current } : {}), // GDRIVE-COMPOSER: linked_item_ids on the build message (#608 hook; dropped there with the session-links flag off)
         manualDeck: turnContext?.manualDeck,
       })
 
@@ -6869,6 +6877,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             actionValue: action.value,
             actionLabel: action.label,
             ...buildSendOptions,
+            ...(gdriveLinkedIdsRef.current ? { linkedItemIds: gdriveLinkedIdsRef.current } : {}), // GDRIVE-COMPOSER: linked_item_ids on the build message (#608 hook; dropped there with the session-links flag off)
           }, undefined, isCurrentSubmission)
         } catch {
           // Reconnect can reject as well as refuse; preserve the native retry UI.
@@ -7928,6 +7937,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   </div>}
                   <ChatInput
                     {...(chatCleanShell ? { studioChatClean: { composer: chatCleanComposer, onStop: chatCleanStop, onSendDirections: chatCleanSendDirections, sessionId: currentSessionId } } : {}) /* CHAT-CLEAN: Send <-> Stop, new directions while held, the "+" menu, the research chips and the model picker */}
+                    {...(gdriveOffer ? { gdrive: gdriveComposer } : {}) /* GDRIVE-COMPOSER: the attach menu's Drive item and the Drive chips; off, nothing is added */}
                     composerTextareaRef={studioShell ? textareaRef : undefined}
                     studioSavedThemeRequest={savedThemeWorkflowId ? { id: savedThemeWorkflowId, key: workflowKey } : undefined}
                     inputMessage={inputMessage}
