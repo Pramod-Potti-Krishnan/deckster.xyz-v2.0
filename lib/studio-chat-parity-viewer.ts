@@ -18,6 +18,7 @@
  */
 import { SLIDE_LAYOUTS } from '@/types/elements'
 import { addSlideV2BlankNativeOptions, type AddSlideV2BlankTarget } from '@/lib/studio-add-slide-v2'
+import { isNavName, isNavRun, navRows, runNav, type NavRun } from '@/lib/studio-chat-parity-nav' // CHAT-PARITY-NAV: the Go to group's rows and run (lib/studio-chat-parity-nav.ts)
 
 // ---- the words (one place) ------------------------------------------------------------------------------------------------------------------
 
@@ -119,10 +120,10 @@ export type ViewerRun =
   | { name: 'save' }
   | { name: 'discard' }
   | { name: 'version'; version: VersionName }
-export type ParityRun = ViewerRun | { name: 'theme'; preset: { id: string; name: string } } | { name: 'canvas' }
+export type ParityRun = ViewerRun | { name: 'theme'; preset: { id: string; name: string } } | { name: 'canvas' } | NavRun // CHAT-PARITY-NAV
 export type ParityName = ParityRun['name']
-export type ParityGroup = 'Slides' | 'View' | 'Deck'
-export const PARITY_GROUPS: readonly ParityGroup[] = Object.freeze(['Slides', 'View', 'Deck'] as ParityGroup[])
+export type ParityGroup = 'Slides' | 'View' | 'Deck' | 'Go to' // CHAT-PARITY-NAV
+export const PARITY_GROUPS: readonly ParityGroup[] = Object.freeze(['Slides', 'View', 'Deck', 'Go to'] as ParityGroup[]) // CHAT-PARITY-NAV
 
 interface ParityDef {
   name: ParityName
@@ -226,6 +227,8 @@ export function looseScore(query: string, text: string): number {
   return letters.length >= 3 && next === letters.length ? 30 : 0
 }
 
+/** What the Go to group (lib/studio-chat-parity-nav.ts) borrows from this file: the loose matching and the words a reason is said in. */ // CHAT-PARITY-NAV
+const NAV_HELPERS = { score: looseScore, words: PARITY_WORDS } // CHAT-PARITY-NAV
 export interface LayoutChoice { id: string; label: string }
 /** The slide layouts, as the rail's "Change layout" menu lists them (SLIDE_LAYOUTS, in its order). */
 export const layoutChoices = (): LayoutChoice[] => SLIDE_LAYOUTS.map(item => ({ id: item.layout as string, label: item.label }))
@@ -284,6 +287,7 @@ function build(command: ParityName, label: string, blurb: string, run: ParityRun
 
 /** Why `run` cannot run in `env`: the viewer's reasons, or for /theme and /canvas their own. */
 export function runBlocked(run: ParityRun, env: ParityEnv): string | null {
+  if (isNavRun(run)) return null // CHAT-PARITY-NAV: the Go to rows are built and held by lib/studio-chat-parity-nav.ts
   if (run.name === 'theme') return env.themeBlocked
   if (run.name === 'canvas') return env.canvasClosed ? null : PARITY_WORDS.canvasOpen
   return blockedReason(run, env.viewer, env.building)
@@ -333,9 +337,10 @@ export function parityRows(trigger: ParityTrigger, env: ParityEnv): ParityRow[] 
   if (trigger.arg === null) {
     const starts = PARITY_COMMANDS.filter(def => def.name.startsWith(name))
     const contains = name ? PARITY_COMMANDS.filter(def => !def.name.startsWith(name) && def.name.includes(name)) : []
-    return [...starts, ...contains].map(def => firstLevel(def, env)).sort((a, b) => groupRank(a.group) - groupRank(b.group))
+    return [...[...starts, ...contains].map(def => firstLevel(def, env)).sort((a, b) => groupRank(a.group) - groupRank(b.group)), ...navRows(trigger, env, NAV_HELPERS)] // CHAT-PARITY-NAV: the Go to group, after the viewer's three
   }
   const arg = trigger.arg.trim()
+  if (isNavName(name)) return navRows(trigger, env, NAV_HELPERS) // CHAT-PARITY-NAV: /open, /decks <words>, /more ... (the viewer's own names are never nav names)
   if (name === 'theme') return themeRows(arg, env)
   const def = PARITY_COMMANDS.find(item => item.name === name)
   if (!def) return []
@@ -528,6 +533,7 @@ export interface ParityDeps {
 
 /** Run any of the commands: the viewer's through the bus, /theme through the preset chip, /canvas through the Show canvas function. */
 export async function runParity(run: ParityRun, deps: ParityDeps): Promise<ParityResult> {
+  if (isNavRun(run)) return runNav(run, { building: deps.building, viewer: viewerStateSnapshot(), words: PARITY_WORDS, scale: deps.scale }) // CHAT-PARITY-NAV: a Go to command (before any wait, so a new tab opens inside the key press)
   if (run.name === 'theme') {
     deps.choosePreset(run.preset.id)
     return done(`Theme set to ${run.preset.name} for your next build`)

@@ -34,6 +34,7 @@ import { studioTemplateDisplayName } from "@/lib/studio-template-display-name"
 // FRONTEND-2 Pass 3 (NEXT_PUBLIC_STUDIO_DUPLICATE_DECK, default off): the deck list can copy a deck. Everything below is behind the flag; off, the Duplicate item stays disabled as it was.
 import { toast } from "@/hooks/use-toast"
 import { duplicateTargetFor, runDuplicateDeck } from "@/lib/studio-duplicate-deck"
+import { studioDuplicateDeckDeps } from "@/lib/studio-duplicate-deck-deps" // CHAT-PARITY-NAV
 import { useStudioDeckCardThumbnail } from "@/hooks/use-studio-deck-card-thumbnail" // DECK-CARD-THUMBNAIL (NEXT_PUBLIC_STUDIO_DECK_CARD_THUMBNAILS_ENABLED, default off): a card shows its first-slide image instead of the live viewer
 
 // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
@@ -350,13 +351,7 @@ function DashboardForAccount({ user, isLoading }: Pick<ReturnType<typeof useAuth
       const result = await runDuplicateDeck({
         source: { sessionId: presentation.id, shownTitle, currentStage: presentation.currentStage, slideCount: presentation.slideCount },
         target,
-        deps: {
-          fetch: (input, init) => fetch(input, init),
-          layoutBaseUrl: () => getLayoutServiceUrl(),
-          newId: () => crypto.randomUUID(),
-          now: () => new Date(),
-          sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
-        },
+        deps: studioDuplicateDeckDeps(), // CHAT-PARITY-NAV: the deps object moved, unchanged, to lib/studio-duplicate-deck-deps.ts (the Builder's /duplicate-deck uses it too)
       })
       if (currentOwner.current !== copyOwner) return
       if (!result.ok) { setDuplicateError(result.message); return }

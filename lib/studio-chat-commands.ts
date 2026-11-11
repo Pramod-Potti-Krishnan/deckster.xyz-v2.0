@@ -30,6 +30,8 @@ export interface ChatCommandsPageProps {
   exportDeck: ((format: ExportFormat) => Promise<{ status: string; error_code: string | null }>) | null
   /** Chat parity, viewer commands (lib/studio-chat-parity-viewer.ts): where a note goes (the thread). Passed with the flag on. */ // CHAT-PARITY-VIEWER
   parity?: import('@/lib/studio-chat-parity-viewer').ChatParityPage // CHAT-PARITY-VIEWER
+  /** Chat parity, navigation (lib/studio-chat-parity-nav.ts): the Builder page's handles for the Go to commands. Passed with the flag on. */ // CHAT-PARITY-NAV
+  nav?: import('@/lib/studio-chat-parity-nav').ChatParityNavPage // CHAT-PARITY-NAV
 }
 
 // ---- the words (one place) ------------------------------------------------------------------------------------------------------------------
@@ -134,6 +136,8 @@ const COMMAND_RE = /(^|\s)\/([\w-]*)(?: ([\w-]*))?$/
 const MENTION_RE = /@([\w ]{0,30})$/
 /** "/layout image text", "/theme dark blue": these two take several words after the name (the rest of the commands keep the one-word rule above). */ // CHAT-PARITY-VIEWER
 const COMMAND_WORDS_RE = /(^|\s)\/(layout|theme) ([^\n]*)$/i // CHAT-PARITY-VIEWER
+/** "/open quarterly review", "/decks board": a deck's title is several words. */ // CHAT-PARITY-NAV
+const NAV_WORDS_RE = /(^|\s)\/(open|decks) ([^\n]*)$/i // CHAT-PARITY-NAV
 
 export function detectTrigger(text: string): MenuTrigger | null {
   if (typeof text !== 'string') return null
@@ -141,6 +145,8 @@ export function detectTrigger(text: string): MenuTrigger | null {
   if (mention) return { kind: 'mention', start: mention.index, query: mention[1] ?? '' }
   const words = COMMAND_WORDS_RE.exec(text) // CHAT-PARITY-VIEWER
   if (words) return { kind: 'command', start: words.index + words[1].length, name: words[2], arg: words[3] } // CHAT-PARITY-VIEWER: several words after /layout or /theme
+  const navWords = NAV_WORDS_RE.exec(text) // CHAT-PARITY-NAV
+  if (navWords) return { kind: 'command', start: navWords.index + navWords[1].length, name: navWords[2], arg: navWords[3] } // CHAT-PARITY-NAV: several words after /open or /decks
   const command = COMMAND_RE.exec(text)
   if (command) return { kind: 'command', start: command.index + command[1].length, name: command[2] ?? '', arg: command[3] === undefined ? null : command[3] }
   return null
