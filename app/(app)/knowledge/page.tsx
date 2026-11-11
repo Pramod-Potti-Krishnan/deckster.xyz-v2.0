@@ -37,6 +37,7 @@ import { StudioP2Sources } from "@/components/knowledge/studio-p2-sources"
 import { StudioP2SourcesMenu } from "@/components/knowledge/studio-p2-sources-menu"
 import { StudioP2DeckProvider } from "@/components/knowledge/studio-p2-deck-provider"
 import { StudioKgAsk } from "@/components/knowledge/studio-kg-ask"
+import { takeBrowserHandoff } from "@/lib/studio-chat-parity-more-handoff" // CHAT-PARITY-MORE
 import type { StudioDeckDirectory } from "@/hooks/use-studio-p2-deck-titles"
 import {
   clearImportMarker, IMPORT_FAILED_TEXT, importConfirmWarning, importFailureText, normalizeKgGraph, normalizeKgStats, OFFLINE_IMPORT_TEXT, ownerTag,
@@ -848,6 +849,10 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
       if (await admitted() && isCurrent()) setSearchLoading(false)
     }
   }, [clearSearchResults, searchQuery, operationOwner, operationLifetime, waitForAdmission])
+  // CHAT-PARITY-MORE (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS with NEXT_PUBLIC_STUDIO_CHAT_CLEAN, default off): /kg-search <words> from the chat opens this page with the words in the search box and runs the page's own search (runSearch) once the account is ready. The words come from a one-time hand-off, not the address. Flag off: nothing is read.
+  const chatMoreSearch = useRef<string | null>(null) // CHAT-PARITY-MORE
+  useEffect(() => { const handed = takeBrowserHandoff("kg-search"); if (handed?.text) { chatMoreSearch.current = handed.text; setSearchQuery(handed.text) } }, []) // CHAT-PARITY-MORE
+  useEffect(() => { if (chatMoreSearch.current && searchQuery === chatMoreSearch.current && accessStatus === "ready") { chatMoreSearch.current = null; void runSearch() } }, [accessStatus, searchQuery, runSearch]) // CHAT-PARITY-MORE: the box holds the handed words and the page can search: the same search a click on Run search makes
 
   const runImport = useCallback(async () => {
     const owner = operationOwner

@@ -17,6 +17,7 @@ import { customEntryPaletteMode, paletteModeChoices, paletteModeSelectValue, the
 // FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE): rename / delete on a saved theme's row.
 import { ManagedLibraryRow, type ManagedRowChild } from './library-manage'
 import { BUSY_TEXT, isUserOwnedLibraryItem, runLibraryDelete, runLibraryRename, selectionAfterRemoval } from '@/lib/studio-library-manage'
+import { takeBrowserHandoff } from '@/lib/studio-chat-parity-more-handoff' // CHAT-PARITY-MORE
 import './themes-fidelity.css'
 
 const INITIAL_THEME: BuildThemeSelection = { mode: 'preset', preset_id: 'minimal' }
@@ -98,6 +99,11 @@ export function ThemesWorkspace() {
   const [specimen, setSpecimen] = useState<ThemeSpecimen>('title')
   const [compareBase, setCompareBase] = useState(false)
   const [replacePrompt, setReplacePrompt] = useState<SavedThemeProfile | 'blank' | null>(null)
+  // CHAT-PARITY-MORE (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS with NEXT_PUBLIC_STUDIO_CHAT_CLEAN, default off; acts only with NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE): /delete-theme <name> from the chat opens this page showing the saved themes, and asks that theme's row to open its OWN delete confirmation (the same one Delete… opens). A one-time hand-off, not the address. Nothing is deleted from here: the click on Delete in that dialog deletes.
+  const [chatMoreDelete, setChatMoreDelete] = useState<string | null>(null) // CHAT-PARITY-MORE: the theme whose row is asked to open its confirmation
+  const chatMoreAsked = useRef<{ id: string; name: string } | null>(null) // CHAT-PARITY-MORE: the theme the chat named, until the library has loaded
+  useEffect(() => { const handed = THEME_LIBRARY_MANAGE ? takeBrowserHandoff('delete-theme') : null; if (handed?.id) { chatMoreAsked.current = { id: handed.id, name: handed.text }; setMode('library') } }, []) // CHAT-PARITY-MORE
+  useEffect(() => { const asked = chatMoreAsked.current; if (!asked || !themes || loading || !accountReady) return; chatMoreAsked.current = null; const hit = themes.find(theme => theme.id === asked.id); if (hit && isUserOwnedLibraryItem(hit)) setChatMoreDelete(hit.id); else setNotice(`“${asked.name}” isn't in your themes any more, so there is nothing to delete.`) }, [themes, loading, accountReady]) // CHAT-PARITY-MORE
   const mounted = useRef(true)
   const busy = useRef(false)
   const listRequest = useRef(0)
@@ -254,7 +260,7 @@ export function ThemesWorkspace() {
     return result
   }
   const manageRow = (theme: SavedThemeProfile, row: ManagedRowChild) => THEME_LIBRARY_MANAGE && isUserOwnedLibraryItem(theme)
-    ? <ManagedLibraryRow key={theme.id} kind="theme" name={theme.name} isStandard={Boolean(theme.is_standard)} disabled={!accountReady || loading || Boolean(operation)} otherNames={(themes ?? []).filter(item => item.id !== theme.id).map(item => item.name)} onRename={nextName => manageRename(theme, nextName)} onDelete={() => manageDelete(theme)}>{row}</ManagedLibraryRow>
+    ? <ManagedLibraryRow key={theme.id} kind="theme" name={theme.name} isStandard={Boolean(theme.is_standard)} disabled={!accountReady || loading || Boolean(operation)} otherNames={(themes ?? []).filter(item => item.id !== theme.id).map(item => item.name)} onRename={nextName => manageRename(theme, nextName)} onDelete={() => manageDelete(theme)} confirmRequest={chatMoreDelete === theme.id} onConfirmRequest={() => setChatMoreDelete(null)}>{row}</ManagedLibraryRow> // CHAT-PARITY-MORE
     : row
 
   const changePreset = (id: string) => {

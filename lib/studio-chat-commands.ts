@@ -136,6 +136,8 @@ const MENTION_RE = /@([\w ]{0,30})$/
 const COMMAND_WORDS_RE = /(^|\s)\/(layout|theme) ([^\n]*)$/i // CHAT-PARITY-VIEWER
 /** "/template Quarterly Review": a saved template's name is several words (/template-mode keeps the one-word rule: the name has to be followed by a space). */ // CHAT-PARITY-WORKSPACE
 const COMMAND_TEMPLATE_RE = /(^|\s)\/(template) ([^\n]*)$/i // CHAT-PARITY-WORKSPACE
+/** "/model research gemini", "/ask what did we learn?", "/kg-search q3 churn", "/delete-theme brand blue": the remaining commands take several words after the name (a name, a question, a model). */ // CHAT-PARITY-MORE
+const COMMAND_MORE_RE = /(^|\s)\/(model|ask|kg-search|delete-theme|delete-template|switch-template) ([^\n]*)$/i // CHAT-PARITY-MORE
 
 export function detectTrigger(text: string): MenuTrigger | null {
   if (typeof text !== 'string') return null
@@ -145,6 +147,8 @@ export function detectTrigger(text: string): MenuTrigger | null {
   if (words) return { kind: 'command', start: words.index + words[1].length, name: words[2], arg: words[3] } // CHAT-PARITY-VIEWER: several words after /layout or /theme
   const template = COMMAND_TEMPLATE_RE.exec(text) // CHAT-PARITY-WORKSPACE
   if (template) return { kind: 'command', start: template.index + template[1].length, name: template[2], arg: template[3] } // CHAT-PARITY-WORKSPACE: several words after /template
+  const more = COMMAND_MORE_RE.exec(text) // CHAT-PARITY-MORE
+  if (more) return { kind: 'command', start: more.index + more[1].length, name: more[2], arg: more[3] } // CHAT-PARITY-MORE: several words after the remaining commands
   const command = COMMAND_RE.exec(text)
   if (command) return { kind: 'command', start: command.index + command[1].length, name: command[2] ?? '', arg: command[3] === undefined ? null : command[3] }
   return null

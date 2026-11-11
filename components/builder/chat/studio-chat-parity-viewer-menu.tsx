@@ -9,12 +9,14 @@ import { ChevronLeft, ChevronRight, Eye, FilePlus, Grid2x2, Hash, Layers, Layout
 import type { ParityGroup, ParityName, ParityRow } from '@/lib/studio-chat-parity-viewer'
 import '../studio-chat-parity-viewer.css'
 import { WORKSPACE_ICONS } from '@/components/builder/chat/studio-chat-parity-workspace-icons' // CHAT-PARITY-WORKSPACE
+import { MORE_ICONS } from '@/components/builder/chat/studio-chat-parity-more-icons' // CHAT-PARITY-MORE
 
 const ICONS: Record<ParityName, React.ComponentType<{ className?: string }>> = {
   goto: Hash, next: ChevronRight, prev: ChevronLeft, 'blank-slide': FilePlus, layout: Layout,
   present: Play, edit: Pencil, view: Eye, rail: PanelLeft, grid: Grid2x2, borders: Square,
   save: Save, discard: RotateCcw, version: Layers, theme: Palette, canvas: Monitor,
   ...WORKSPACE_ICONS, // CHAT-PARITY-WORKSPACE: the workspace commands' rows (the Workspace group)
+  ...MORE_ICONS, // CHAT-PARITY-MORE: the remaining commands' rows (Library, Model, Knowledge, and the template switch under Workspace)
 }
 
 export interface ChatParityRowsProps {

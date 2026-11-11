@@ -1,6 +1,8 @@
 "use client"
 
 import { useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react"
+import { useEffect } from "react" // CHAT-PARITY-MORE
+import { takeBrowserHandoff } from "@/lib/studio-chat-parity-more-handoff" // CHAT-PARITY-MORE
 import Link from "next/link"
 import { AlertCircle, ArrowRight, ExternalLink, FileText, Loader2, Sparkles, X } from "lucide-react"
 import { useStudioKgAsk } from "@/hooks/use-studio-kg-ask"
@@ -76,6 +78,7 @@ export function StudioKgAsk() {
   const headingId = useId()
   const inputId = useId()
   const noteId = useId()
+  useEffect(() => { const handed = takeBrowserHandoff("kg-ask"); if (handed?.text) { setText(handed.text); inputRef.current?.focus() } }, []) // CHAT-PARITY-MORE (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS with NEXT_PUBLIC_STUDIO_CHAT_CLEAN, default off): /ask <question> from the chat opens this page with the question FILLED in the box (a one-time hand-off, not the address). Nothing is sent from here: Ask costs money, so the person presses Ask. Flag off: nothing is read.
 
   const loading = state.phase === "loading"
   const length = studioKgAskLength(text)

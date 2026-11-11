@@ -25,6 +25,7 @@ import { ChatParityRows } from '@/components/builder/chat/studio-chat-parity-vie
 import { parityRows, runParity, subscribeViewerState, viewerStateSnapshot, type ParityEnv, type ParityResult, type ParityRow } from '@/lib/studio-chat-parity-viewer' // CHAT-PARITY-VIEWER
 import { useStudioStageShowCanvas } from '@/lib/studio-stage-open-gate' // CHAT-PARITY-VIEWER
 import { useChatParityWorkspace } from '@/components/builder/chat/studio-chat-parity-workspace' // CHAT-PARITY-WORKSPACE
+import { useChatParityMore } from '@/components/builder/chat/studio-chat-parity-more' // CHAT-PARITY-MORE
 import '../studio-chat-commands.css'
 
 // the model gauge is drawn only with this flag (components/model-choice/use-model-choice.ts STUDIO_MODEL_PICKER_ENABLED, the same literal read)
@@ -150,6 +151,8 @@ export function useStudioChatCommands(input: StudioChatCommandsInput): StudioCha
   const parity: ParityRow[] = enabled && trigger?.kind === 'command' ? parityRows(trigger, parityEnv) : [] // CHAT-PARITY-VIEWER: the viewer commands' rows, after the existing commands (a command that cannot run is a disabled row with its reason)
   const workspaceRows = useChatParityWorkspace({ enabled, trigger: trigger?.kind === 'command' ? trigger : null, text: input.text, template: input.template, listTemplates, menuOpen: dismissed !== key }) // CHAT-PARITY-WORKSPACE: the Workspace group's rows (kg, template, template-mode, notes, appearance, intro, pane, history); a command that cannot run is a disabled row with its reason
   parity.push(...workspaceRows) // CHAT-PARITY-WORKSPACE: after the viewer's rows, so they draw as the last group
+  const more = useChatParityMore({ enabled, trigger: trigger?.kind === 'command' ? trigger : null, menuOpen: dismissed !== key, building: input.stop.visible, saved: input.saved, savedStatus: input.savedStatus, refreshSaved: input.refreshSaved, templateSaved: input.template.saved, listTemplates }) // CHAT-PARITY-MORE: the remaining commands' rows (/delete-theme, /delete-template, /model <choice>, /kg-search, /ask, /switch-template), and the two picks that were declines (/publish, an @template); a command that cannot run is a disabled row with its reason
+  parity.push(...more.rows) // CHAT-PARITY-MORE: after the workspace rows
   const mention: MentionModel | null = trigger?.kind === 'mention' && source ? buildMentionModel(source, trigger.query) : null
   const count = trigger?.kind === 'command' ? rows.length + parity.length : mention ? mention.items.length : 0 // CHAT-PARITY-VIEWER
   const menuOpen = Boolean(enabled && trigger && dismissed !== key && (trigger.kind === 'command' ? rows.length + parity.length > 0 : mention && (mention.items.length > 0 || mention.empty))) // CHAT-PARITY-VIEWER
@@ -247,10 +250,12 @@ export function useStudioChatCommands(input: StudioChatCommandsInput): StudioCha
     const at = trigger as CommandTrigger
     const before = textBefore(input.text, at)
     if (row.fill) { input.setText(`${before}/${row.id} `); focusEnd(); return }
+    if (row.id === 'publish' && more.publish) { setDismissed(null); setNote(null); input.setText(before); focusEnd(); postNote(more.publish()); return } // CHAT-PARITY-MORE: /publish presses the Publish button, which opens the Publish wizard; publishing itself stays a click inside it
     execute(resolveCommand(row.id as ChatCommandId, row.arg, ctx), before)
   }
   const pickMention = (item: MentionItem) => {
     const at = trigger as MentionTrigger
+    if (item.section === 'template' && item.reference?.kind === 'template' && more.template) { setDismissed(null); setNote(null); input.setText(input.text.slice(0, at.start)); focusEnd(); void more.template(item.reference.template_id).then(postNote); return } // CHAT-PARITY-MORE: a picked @template is CHOSEN, the way the toolbar's Template picker chooses it (the workspace half's /template <name>), and is not written into the message (Director declines a template mention)
     if (item.reference) registerMention(item.token, item.reference)
     setNote(null)
     input.setText(textWithMention(input.text, at, item.token))
