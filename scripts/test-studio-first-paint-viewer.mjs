@@ -40,7 +40,7 @@ let checks = 0
 const check = (fn, ...args) => { checks++; return fn(...args) }
 
 // =========================================================== Part 1: source pins ===========================================================
-const viewerText = chatParityStrip.stripChatParity(VIEWER, (await import('./studio-chat-parity-c2-strip.mjs')).stripChatParityC2(VIEWER, read(VIEWER))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out before the byte pin below // LATER-CHANGES: registry read (CHAT-PARITY-C2): chat parity C2's marked lines in the viewer (the deck_ops bus effect) come out too
+const viewerText = chatParityStrip.stripChatParity(VIEWER, read(VIEWER)) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out before the byte pin below
 const baseViewer = baseSource(VIEWER)
 check(assert.equal, sha(stripFirstPaint(VIEWER, viewerText)), sha(baseViewer), 'flag-off identity: the viewer without this change\'s lines is the base commit\'s, byte for byte')
 check(assert.ok, !stripFirstPaint(VIEWER, viewerText).includes(FIRST_PAINT_MARKER), 'the viewer without this change\'s lines carries no marker')

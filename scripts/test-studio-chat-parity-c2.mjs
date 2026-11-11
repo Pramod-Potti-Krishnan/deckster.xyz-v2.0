@@ -31,6 +31,7 @@ const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const read = rel => fs.readFileSync(path.join(repo, rel), 'utf8')
 const registry = await import('./studio-later-changes.mjs')
 const stripModule = await import('./studio-chat-parity-c2-strip.mjs')
+const olderStrip = await import('./studio-chat-parity-strip.mjs') // the chat parity change's strip (marker CHAT-PARITY)
 const { BASE_COMMIT, CHAT_PARITY_C2_FILES, CHAT_PARITY_C2_NEW_FILES, CHAT_PARITY_C2_SCOPE_FILES, CHAT_PARITY_C2_ENV_BLOCK, CHAT_PARITY_C2_SUBJECT, CHAT_PARITY_C2_MARKER_RE } = stripModule
 const git = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28, timeout: 60_000 })
 const baseCache = new Map()
@@ -44,7 +45,7 @@ const plain = value => JSON.parse(JSON.stringify(value))
 
 const PARITY = 'lib/studio-chat-parity.ts', C2 = 'lib/studio-chat-parity-c2.ts', DECKOPS = 'lib/studio-chat-parity-deckops.ts', PUBLISH = 'lib/studio-chat-parity-publish.ts', RUN = 'lib/studio-chat-parity-c2-run.ts'
 const RUNNERS = 'lib/studio-chat-parity-runners.ts', DUP = 'lib/studio-duplicate-deck.ts', PAGE = 'app/builder/page.tsx', VIEWER = 'components/presentation-viewer.tsx', HOOK = 'hooks/use-deckster-websocket-v2.ts'
-const ENV = '.env.example', REGISTRY = 'scripts/studio-later-changes.mjs', STRIP = 'scripts/studio-chat-parity-c2-strip.mjs', SELF = 'scripts/test-studio-chat-parity-c2.mjs', VOICE_CALL = 'scripts/test-studio-voice-call.mjs', OLD_PROOF = 'scripts/test-studio-chat-parity.mjs', FIRST_PAINT_PROOF = 'scripts/test-studio-first-paint-viewer.mjs'
+const ENV = '.env.example', REGISTRY = 'scripts/studio-later-changes.mjs', STRIP = 'scripts/studio-chat-parity-c2-strip.mjs', SELF = 'scripts/test-studio-chat-parity-c2.mjs', VOICE_CALL = 'scripts/test-studio-voice-call.mjs', OLD_PROOF = 'scripts/test-studio-chat-parity.mjs'
 const FLAG_DECKOPS = 'NEXT_PUBLIC_STUDIO_CHAT_PARITY_DECKOPS', FLAG_PUBLISH = 'NEXT_PUBLIC_STUDIO_CHAT_PARITY_PUBLISH'
 
 // ---- the TS modules, transpiled into a bare function scope with a fake process ----------------------------------------------------------------
@@ -62,7 +63,7 @@ function loadModule(text, fileName, requires = {}, env = {}, scope = {}) {
   new Function(...names, compile(text, fileName))(module, module.exports, require, { env }, ...Object.values(scope))
   return module.exports
 }
-const texts = Object.fromEntries([PARITY, C2, DECKOPS, PUBLISH, RUN, RUNNERS, DUP, PAGE, VIEWER, HOOK, ENV, REGISTRY, STRIP, SELF, VOICE_CALL, OLD_PROOF, FIRST_PAINT_PROOF].map(rel => [rel, read(rel)]))
+const texts = Object.fromEntries([PARITY, C2, DECKOPS, PUBLISH, RUN, RUNNERS, DUP, PAGE, VIEWER, HOOK, ENV, REGISTRY, STRIP, SELF, VOICE_CALL, OLD_PROOF].map(rel => [rel, read(rel)]))
 const ALL_ON = { [FLAG_DECKOPS]: 'true', [FLAG_PUBLISH]: 'true' }
 function loadAll(t = texts, env = ALL_ON, scope = {}) {
   const parity = loadModule(t[PARITY], PARITY, {}, env)
@@ -613,7 +614,7 @@ function runBlock(block, scope, exposed) {
   return module.exports.harness(scope)
 }
 async function viewerChecks(t = texts) {
-  const block = blockOf(t[VIEWER], '// CHAT-PARITY-C2 (NEXT_PUBLIC_STUDIO_CHAT_PARITY_DECKOPS', '  }, []) // CHAT-PARITY-C2: registered once; its methods read the live ref above at call time')
+  const block = blockOf(t[VIEWER], '// CHAT-PARITY-C2 CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_DECKOPS', '  }, []) // CHAT-PARITY-C2 CHAT-PARITY: registered once; its methods read the live ref above at call time')
   const calls = [], effects = [], refs = []
   const handlers = {
     handleAddSlide: async (layout, options) => { calls.push(['addSlide', layout, options]) }, handleChangeLayout: async (index, layout) => { calls.push(['changeLayout', index, layout]) },
@@ -785,16 +786,16 @@ function sourceChecks(t, mod = stripModule, reg = registry) {
   const count = rel => t[rel].split('\n').filter(line => CHAT_PARITY_C2_MARKER_RE.test(line)).length
   assert.ok(count(VIEWER) >= 10 && count(VIEWER) <= 30, 'the viewer gains a few lines (one ref, one effect), in one region'); const viewerLines = t[VIEWER].split('\n'), first = viewerLines.findIndex(l => CHAT_PARITY_C2_MARKER_RE.test(l)), last = viewerLines.length - 1 - [...viewerLines].reverse().findIndex(l => CHAT_PARITY_C2_MARKER_RE.test(l))
   assert.equal(last - first + 1, count(VIEWER), 'all of them are one contiguous block (a separate region, for the other builder\'s viewer lines)')
+  // the viewer's lines carry the older chat parity marker too (the way B43's viewer lines do): the older proofs that pin the viewer's bytes after taking out only the strips they know (first paint, arrange) then see none of this change's lines, and need no edit
+  { const mine = t[VIEWER].split('\n').filter(line => CHAT_PARITY_C2_MARKER_RE.test(line)); assert.ok(mine.every(line => olderStrip.CHAT_PARITY_MARKER_RE.test(line)), 'every viewer line of this change carries the older marker as its own token')
+    assert.equal(olderStrip.stripChatParity(VIEWER, t[VIEWER]).split('\n').filter(line => CHAT_PARITY_C2_MARKER_RE.test(line)).length, 0, 'the older strip alone takes every one of them out') }
   assert.ok(count(PAGE) >= 20, 'the page carries its runner block, routing line and imports')
   // the pure files read the env once each (the flag reads are in the older lib), nothing else reads it
   assert.equal((t[PARITY].match(/process\.env\.NEXT_PUBLIC_STUDIO_CHAT_PARITY_DECKOPS\b/g) || []).length, 1); assert.equal((t[PARITY].match(/process\.env\.NEXT_PUBLIC_STUDIO_CHAT_PARITY_PUBLISH\b/g) || []).length, 1)
   for (const rel of [C2, DECKOPS, PUBLISH, RUN, PAGE, HOOK]) assert.equal((t[rel].match(/process\.env\.NEXT_PUBLIC_STUDIO_CHAT_PARITY_(DECKOPS|PUBLISH)\b/g) || []).length, 0, `${rel} does not read the C2 env itself`)
   assert.equal((t[VIEWER].match(/process\.env\.NEXT_PUBLIC_STUDIO_CHAT_PARITY_PUBLISH\b/g) || []).length, 0, 'the viewer has no part in publish')
   // the older proofs this change teaches: the chat parity proof's own-commit walk (one line), and FRONTEND-1's voice-call proof's four-line registry-read edit, byte for byte with #603 / #604
-  assert.deepEqual([...mod.CHAT_PARITY_C2_PIN_FILES].sort(), [OLD_PROOF, FIRST_PAINT_PROOF].sort(), 'the older proofs this change teaches'); assert.deepEqual([...mod.CHAT_PARITY_C2_VOICE_CALL_PIN_FILES], [VOICE_CALL])
-  { const now = t[FIRST_PAINT_PROOF], diff = lineDiff(baseText(FIRST_PAINT_PROOF), now)
-    assert.equal(stripChatParityC2(FIRST_PAINT_PROOF, now), baseText(FIRST_PAINT_PROOF), `${FIRST_PAINT_PROOF}: without this change's line the proof is the base's, byte for byte`)
-    assert.deepEqual([diff.removed.length, diff.added.length], [1, 1], `${FIRST_PAINT_PROOF}: one line changed, nothing else`); assert.ok(diff.added[0].includes(mod.CHAT_PARITY_C2_PIN_MARK) && diff.added[0].includes("stripChatParityC2(VIEWER, read(VIEWER))"), `${FIRST_PAINT_PROOF}: the line carries the pin mark and takes this change's lines out of the viewer before its byte pin`) }
+  assert.deepEqual([...mod.CHAT_PARITY_C2_PIN_FILES], [OLD_PROOF], 'the older proofs this change teaches: the chat parity proof only (the viewer proofs read through the older marker, below)'); assert.deepEqual([...mod.CHAT_PARITY_C2_VOICE_CALL_PIN_FILES], [VOICE_CALL])
   { const now = t[OLD_PROOF], diff = lineDiff(baseText(OLD_PROOF), now)
     assert.equal(stripChatParityC2(OLD_PROOF, now), baseText(OLD_PROOF), `${OLD_PROOF}: without this change's line the proof is the base's, byte for byte`)
     assert.deepEqual([diff.removed.length, diff.added.length], [1, 1], `${OLD_PROOF}: one line changed, nothing else`); assert.ok(diff.added[0].includes(mod.CHAT_PARITY_C2_PIN_MARK) && diff.added[0].includes(BASE_COMMIT), `${OLD_PROOF}: the line carries the pin mark and starts the walk at the base`) }
@@ -1013,8 +1014,8 @@ for (const [rel, name, from, to] of MUTANTS) {
 }
 // the viewer's and the page's marked lines
 const VIEWER_MUTANTS = [
-  ['the flag is read as "1"', "process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_DECKOPS !== 'true') return // CHAT-PARITY-C2", "process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_DECKOPS === 'false') return // CHAT-PARITY-C2"],
-  ['the effect registers whatever the flag says', "    if (process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_DECKOPS !== 'true') return // CHAT-PARITY-C2\n", ''],
+  ['the flag is read as "1"', "process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_DECKOPS !== 'true') return // CHAT-PARITY-C2 CHAT-PARITY", "process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_DECKOPS === 'false') return // CHAT-PARITY-C2 CHAT-PARITY"],
+  ['the effect registers whatever the flag says', "    if (process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_DECKOPS !== 'true') return // CHAT-PARITY-C2 CHAT-PARITY\n", ''],
   ['the live ref is assigned with the flag off', "if (process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_DECKOPS === 'true') chatParityDeckLiveRef.current = {", "chatParityDeckLiveRef.current = {"],
   ['addSlide calls the layout handler', "addSlide: async (layout, options) => { await live()?.addSlide(layout as SlideLayoutType, options) }", "addSlide: async (layout, options) => { await live()?.changeLayout(0, layout as SlideLayoutType) }"],
   ['addSlide drops the options', "await live()?.addSlide(layout as SlideLayoutType, options)", "await live()?.addSlide(layout as SlideLayoutType)"],
@@ -1023,8 +1024,8 @@ const VIEWER_MUTANTS = [
   ['setMode ignores the requested mode', "setMode: async edit => { await live()?.mode(edit) }", "setMode: async edit => { await live()?.mode() }"],
   ['setRail inverts', "setRail: visible => setShowThumbnails(visible)", "setRail: visible => setShowThumbnails(!visible)"],
   ['the state reads a stale closure', "state: () => ({ ready: live()?.ready ?? false, mutationPending: live()?.pending ?? false, editMode: live()?.edit ?? false, rail: live()?.rail ?? true })", "state: ((snapshot) => () => snapshot)({ ready: true, mutationPending: false, editMode: false, rail: true })"],
-  ['the cleanup does not clear the bus', "return () => { gone = true; if (bus) bus.viewer = null } // CHAT-PARITY-C2", "return () => { gone = true } // CHAT-PARITY-C2"],
-  ['an unmount before the import still registers', "      if (gone) return // CHAT-PARITY-C2\n", ''],
+  ['the cleanup does not clear the bus', "return () => { gone = true; if (bus) bus.viewer = null } // CHAT-PARITY-C2 CHAT-PARITY", "return () => { gone = true } // CHAT-PARITY-C2 CHAT-PARITY"],
+  ['an unmount before the import still registers', "      if (gone) return // CHAT-PARITY-C2 CHAT-PARITY\n", ''],
   ['the pending state ignores the ref', "pending: isSlideMutationPending || slideMutationPendingRef.current,", "pending: isSlideMutationPending,"],
 ]
 for (const [name, from, to] of VIEWER_MUTANTS) await check(`mutant caught: viewer: ${name}`, async () => { const mutant = mutate(texts[VIEWER], from, to, name); assert.ok(await throws(async () => { await viewerChecks(withText(VIEWER, mutant)); sourceChecks(withText(VIEWER, mutant)) }), 'sections 5a and 6a must fail') })
@@ -1072,8 +1073,6 @@ await check('mutant caught: a taught proof with an unmarked extra line, without 
   assert.ok(await throws(() => sourceChecks(withText(rel, `${text}// stray\n`))), 'an unmarked extra line')
   assert.ok(await throws(() => sourceChecks(withText(rel, text.replace(`'${BASE_COMMIT}'`, "'HEAD'")))), 'the walk starts at HEAD again (the proof would read this change\'s commit as its own)')
   assert.ok(await throws(() => sourceChecks(withText(rel, text.replace('registry read (CHAT-PARITY-C2)', 'registry read (OTHER)')))), 'the pin mark changed')
-  assert.ok(await throws(() => sourceChecks(withText(FIRST_PAINT_PROOF, texts[FIRST_PAINT_PROOF].replace('stripChatParityC2(VIEWER, read(VIEWER))', 'read(VIEWER)')))), 'the first-paint proof no longer takes this change\'s viewer lines out')
-  assert.ok(await throws(() => sourceChecks(withText(FIRST_PAINT_PROOF, `${texts[FIRST_PAINT_PROOF]}// stray\n`))), 'an unmarked extra line in the first-paint proof')
   const voice = texts[VOICE_CALL]
   assert.ok(await throws(() => sourceChecks(withText(VOICE_CALL, voice.split('\n').filter(line => !line.includes('laterEnvOut = text =>')).join('\n')))), 'the voice-call helper line removed')
   assert.ok(await throws(() => sourceChecks(withText(VOICE_CALL, voice.replace('registry read (UX-FINDINGS-E)', 'registry read (CHAT-PARITY-C2)')))), 'the voice-call lines carry another mark than #603\'s')

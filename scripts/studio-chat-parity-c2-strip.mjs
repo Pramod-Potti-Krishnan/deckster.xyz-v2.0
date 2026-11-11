@@ -6,6 +6,7 @@
 // Every line this change adds to an EXISTING file carries the marker CHAT-PARITY-C2 (matched as a whole token). Most are pure insertions (the viewer's one effect, the Builder page's runner block, its routing line and imports); TWO base lines of
 // lib/studio-chat-parity.ts are rewritten (the any-flag constant and the caps constant), so the strip is a list of [has, was] pairs for those and a marker filter for the rest: putting each pair back and dropping the other marked lines gives the
 // file at BASE_COMMIT byte for byte. The new files (four libs, this strip, a proof) have no base text.
+// The viewer's lines carry the older CHAT-PARITY marker as well (as B43's viewer lines do): the older proofs that pin the viewer's bytes after taking out only the strips they know (first paint, arrange) then see none of this change's lines, so neither needs an edit.
 // Older proofs taught: FRONTEND-1's chat parity proof finds "its own" newest commit by subject ("Chat parity"), and this change's commits start the same way, so its walk now starts at BASE_COMMIT (one line); FRONTEND-1's voice-call proof gets the
 // four-line registry-read edit of FRONTEND-2's UX findings E (#603), BYTE-IDENTICAL, because its .env.example pins read the file raw and this change's block sits after voice-call's (so both merge clean in either order, as #604 did).
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
@@ -52,18 +53,6 @@ export const CHAT_PARITY_C2_PIN_EDITS = {
   'scripts/test-studio-chat-parity.mjs': [
     [`const OWN = (() => { try { return git('log', '-1', '--format=%H', '-E', '--grep=^Chat parity', '${BASE_COMMIT}').trim() || null } catch { return null } })() // a merge of dev into this branch is this change's commit too (its subject starts the same way) // ${CHAT_PARITY_C2_PIN_MARK}: the walk starts at the commit the later "Chat parity C2:" change was made on (#598), so that change's own commits, which start the same way, are not read as this change's newest commit\n`,
       `const OWN = (() => { try { return git('log', '-1', '--format=%H', '-E', '--grep=^Chat parity', 'HEAD').trim() || null } catch { return null } })() // a merge of dev into this branch is this change's commit too (its subject starts the same way)\n`],
-  ],
-  // FRONTEND-1's first-paint viewer proof (COMPOSER-2's): it pins the viewer byte for byte after taking out only the strips it knows, so the viewer's C2 lines come out through this change's strip too
-  'scripts/test-studio-first-paint-viewer.mjs': [
-    ["const viewerText = chatParityStrip.stripChatParity(VIEWER, (await import('./studio-chat-parity-c2-strip.mjs')).stripChatParityC2(VIEWER, read(VIEWER))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out before the byte pin below // LATER-CHANGES: registry read (CHAT-PARITY-C2): chat parity C2's marked lines in the viewer (the deck_ops bus effect) come out too\n",
-      "const viewerText = chatParityStrip.stripChatParity(VIEWER, read(VIEWER)) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out before the byte pin below\n"],
-  ],
-  // FRONTEND-2's arrange proof: it reads the viewer through the strips it knows and pins the base's bytes, so this change's viewer lines come out through its strip too (one inserted line, one changed line)
-  'scripts/test-studio-arrange.mjs': [
-    ["const c2Strip = await import('./studio-chat-parity-c2-strip.mjs') // LATER-CHANGES: registry read (CHAT-PARITY-C2): the strip of the change stacked after chat parity\n",
-      ""],
-    ["const read = rel => chatParityStrip.stripChatParity(rel, stripChatElementEdit(rel, c2Strip.stripChatParityC2(rel, fs.readFileSync(path.join(root, rel), 'utf8')))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out too, outside #522's strip // LATER-CHANGES: registry read (CHAT-PARITY-C2): chat parity C2's marked lines in the viewer (the deck_ops bus effect) come out too\n",
-      "const read = rel => chatParityStrip.stripChatParity(rel, stripChatElementEdit(rel, fs.readFileSync(path.join(root, rel), 'utf8'))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out too, outside #522's strip\n"],
   ],
 }
 
