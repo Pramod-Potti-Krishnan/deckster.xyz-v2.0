@@ -66,6 +66,18 @@ export const STUDIO_CHAT_PARITY_TEMPLATES_ENABLED = chatParityFlagOn(process.env
 /** Rows 70 / 75: a composer job each (paid). Sub-flags of TEMPLATES (both must be on), default off until PK rules on paid actions. */
 export const STUDIO_CHAT_PARITY_PAID_SAVE_TEMPLATE_ENABLED = STUDIO_CHAT_PARITY_TEMPLATES_ENABLED && chatParityFlagOn(process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_SAVE_TEMPLATE)
 export const STUDIO_CHAT_PARITY_PAID_OPTIMIZE_ENABLED = STUDIO_CHAT_PARITY_TEMPLATES_ENABLED && chatParityFlagOn(process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_OPTIMIZE)
+// CHAT-PARITY-C2: two more groups, Director's C2 `deck_ops` (cap deckops1) and `publish` (cap publish1), each on only for the string "true", default off, build-time (lib/studio-chat-parity-c2.ts has their request frames and
+// CHAT-PARITY-C2: refusals; they are kept out of CHAT_PARITY_FLAGS / CHAT_PARITY_ACTIONS above so every pin on those three groups reads what it always did). With a flag on, the cap joins client_caps and the frame is taken out of band.
+export const STUDIO_CHAT_PARITY_DECKOPS_ENABLED = chatParityFlagOn(process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_DECKOPS) // CHAT-PARITY-C2
+export const STUDIO_CHAT_PARITY_PUBLISH_ENABLED = chatParityFlagOn(process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_PUBLISH) // CHAT-PARITY-C2
+export interface ChatParityC2Flags { deck_ops: boolean; publish: boolean } // CHAT-PARITY-C2
+export const CHAT_PARITY_C2_FLAGS: Readonly<ChatParityC2Flags> = Object.freeze({ deck_ops: STUDIO_CHAT_PARITY_DECKOPS_ENABLED, publish: STUDIO_CHAT_PARITY_PUBLISH_ENABLED }) // CHAT-PARITY-C2
+export const CHAT_PARITY_C2_GROUP_CAPS: Readonly<Record<keyof ChatParityC2Flags, string>> = Object.freeze({ deck_ops: 'deckops1', publish: 'publish1' }) // CHAT-PARITY-C2: exact, case-sensitive; Director also needs mdc1 (NEXT_PUBLIC_CHAT_DIRECTIVES) for both
+// CHAT-PARITY-C2: the C2 caps a build with these flags sends, in group order (deck_ops, then publish); empty when both are off
+export function chatParityC2Caps(flags: Readonly<ChatParityC2Flags>): string[] { // CHAT-PARITY-C2
+  return (['deck_ops', 'publish'] as const).filter(group => flags[group] === true).map(group => CHAT_PARITY_C2_GROUP_CAPS[group]) // CHAT-PARITY-C2
+} // CHAT-PARITY-C2
+export const STUDIO_CHAT_PARITY_C2_ANY_ENABLED = Object.values(CHAT_PARITY_C2_FLAGS).some(Boolean) // CHAT-PARITY-C2
 
 export interface ChatParityFlags {
   themes: boolean
@@ -81,7 +93,7 @@ export const CHAT_PARITY_FLAGS: Readonly<ChatParityFlags> = Object.freeze({
 })
 
 /** True when any group is on: the request frame is then taken out of band (a group that is off answers `failed` / `flag_off`). */
-export const STUDIO_CHAT_PARITY_ANY_ENABLED = Object.values(CHAT_PARITY_FLAGS).some(Boolean)
+export const STUDIO_CHAT_PARITY_ANY_ENABLED = Object.values(CHAT_PARITY_FLAGS).some(Boolean) || STUDIO_CHAT_PARITY_C2_ANY_ENABLED // CHAT-PARITY-C2
 
 // ---------------------------------------------------------------------------------------------------------------------------------------
 // Capabilities (Studio -> Director, on every user_message)
@@ -99,7 +111,7 @@ export function chatParityCaps(flags: Readonly<ChatParityFlags>): string[] {
   return (['themes', 'identity', 'templates'] as const).filter(group => flags[group] === true).map(group => CHAT_PARITY_GROUP_CAPS[group])
 }
 
-export const CHAT_PARITY_CAPS: readonly string[] = chatParityCaps(CHAT_PARITY_FLAGS)
+export const CHAT_PARITY_CAPS: readonly string[] = [...chatParityCaps(CHAT_PARITY_FLAGS), ...chatParityC2Caps(CHAT_PARITY_C2_FLAGS)] // CHAT-PARITY-C2: deckops1 / publish1 after the three groups' caps
 
 /**
  * Adds the caps to a built `user_message.data`, in place: after whatever caps are there (mdc1, theme1, ...), each once. Called only when
