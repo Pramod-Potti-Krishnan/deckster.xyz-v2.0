@@ -44,7 +44,7 @@ const plain = value => JSON.parse(JSON.stringify(value))
 
 const PARITY = 'lib/studio-chat-parity.ts', C2 = 'lib/studio-chat-parity-c2.ts', DECKOPS = 'lib/studio-chat-parity-deckops.ts', PUBLISH = 'lib/studio-chat-parity-publish.ts', RUN = 'lib/studio-chat-parity-c2-run.ts'
 const RUNNERS = 'lib/studio-chat-parity-runners.ts', DUP = 'lib/studio-duplicate-deck.ts', PAGE = 'app/builder/page.tsx', VIEWER = 'components/presentation-viewer.tsx', HOOK = 'hooks/use-deckster-websocket-v2.ts'
-const ENV = '.env.example', REGISTRY = 'scripts/studio-later-changes.mjs', STRIP = 'scripts/studio-chat-parity-c2-strip.mjs', SELF = 'scripts/test-studio-chat-parity-c2.mjs', VOICE_CALL = 'scripts/test-studio-voice-call.mjs', OLD_PROOF = 'scripts/test-studio-chat-parity.mjs'
+const ENV = '.env.example', REGISTRY = 'scripts/studio-later-changes.mjs', STRIP = 'scripts/studio-chat-parity-c2-strip.mjs', SELF = 'scripts/test-studio-chat-parity-c2.mjs', VOICE_CALL = 'scripts/test-studio-voice-call.mjs', OLD_PROOF = 'scripts/test-studio-chat-parity.mjs', FIRST_PAINT_PROOF = 'scripts/test-studio-first-paint-viewer.mjs'
 const FLAG_DECKOPS = 'NEXT_PUBLIC_STUDIO_CHAT_PARITY_DECKOPS', FLAG_PUBLISH = 'NEXT_PUBLIC_STUDIO_CHAT_PARITY_PUBLISH'
 
 // ---- the TS modules, transpiled into a bare function scope with a fake process ----------------------------------------------------------------
@@ -62,7 +62,7 @@ function loadModule(text, fileName, requires = {}, env = {}, scope = {}) {
   new Function(...names, compile(text, fileName))(module, module.exports, require, { env }, ...Object.values(scope))
   return module.exports
 }
-const texts = Object.fromEntries([PARITY, C2, DECKOPS, PUBLISH, RUN, RUNNERS, DUP, PAGE, VIEWER, HOOK, ENV, REGISTRY, STRIP, SELF, VOICE_CALL, OLD_PROOF].map(rel => [rel, read(rel)]))
+const texts = Object.fromEntries([PARITY, C2, DECKOPS, PUBLISH, RUN, RUNNERS, DUP, PAGE, VIEWER, HOOK, ENV, REGISTRY, STRIP, SELF, VOICE_CALL, OLD_PROOF, FIRST_PAINT_PROOF].map(rel => [rel, read(rel)]))
 const ALL_ON = { [FLAG_DECKOPS]: 'true', [FLAG_PUBLISH]: 'true' }
 function loadAll(t = texts, env = ALL_ON, scope = {}) {
   const parity = loadModule(t[PARITY], PARITY, {}, env)
@@ -214,7 +214,7 @@ function contractChecks() {
   assert.match(pyLine(DECK_PY, 265), /args\.update\(layout=layout, preserve_content=True\)/, 'deck.py:265 change_layout sends preserve_content: True')
   assert.match(pyLine(DECK_PY, 279), /position="end", insertion_index=len\(_slides\(session\)\)/, 'deck.py:279 add at the end: insertion_index is the slide count')
   assert.match(pyLine(DECK_PY, 285), /insertion_index=target\["slide_index"\] \+ \(position == "after"\)/, 'deck.py:285 before / after: the index (+1 after)')
-  assert.match(pyLine(DECK_PY, 327), /token = "dd_" \+ uuid\.uuid4\(\)\.hex\[:24\]/, 'deck.py:327 the delete token'); assert.match(pyLine(DECK_PY, 388), /"delete_deck", \{"confirmed": True, "confirmation_id": deleteCard\}/, 'deck.py:388 the delete args')
+  assert.match(pyLine(DECK_PY, 327), /token = "dd_" \+ uuid\.uuid4\(\)\.hex\[:24\]/, 'deck.py:327 the delete token'); assert.match(pyLine(DECK_PY, 388), /"delete_deck", \{"confirmed": True, "confirmation_id": token\}/, 'deck.py:388 the delete args')
   assert.match(pyLine(DECK_PY, 349), /if clicked is not True:/, 'deck.py:349 only a structured click confirms a delete')
   assert.match(pyLine(DECK_PY, 324), /async def _ask_delete/); assert.match(pyLine(DECK_PY, 426), /def closing_text/)
   // publish: mdc_chat_parity_publish.py
@@ -791,7 +791,10 @@ function sourceChecks(t, mod = stripModule, reg = registry) {
   for (const rel of [C2, DECKOPS, PUBLISH, RUN, PAGE, HOOK]) assert.equal((t[rel].match(/process\.env\.NEXT_PUBLIC_STUDIO_CHAT_PARITY_(DECKOPS|PUBLISH)\b/g) || []).length, 0, `${rel} does not read the C2 env itself`)
   assert.equal((t[VIEWER].match(/process\.env\.NEXT_PUBLIC_STUDIO_CHAT_PARITY_PUBLISH\b/g) || []).length, 0, 'the viewer has no part in publish')
   // the older proofs this change teaches: the chat parity proof's own-commit walk (one line), and FRONTEND-1's voice-call proof's four-line registry-read edit, byte for byte with #603 / #604
-  assert.deepEqual([...mod.CHAT_PARITY_C2_PIN_FILES], [OLD_PROOF], 'the older proofs this change teaches'); assert.deepEqual([...mod.CHAT_PARITY_C2_VOICE_CALL_PIN_FILES], [VOICE_CALL])
+  assert.deepEqual([...mod.CHAT_PARITY_C2_PIN_FILES].sort(), [OLD_PROOF, FIRST_PAINT_PROOF].sort(), 'the older proofs this change teaches'); assert.deepEqual([...mod.CHAT_PARITY_C2_VOICE_CALL_PIN_FILES], [VOICE_CALL])
+  { const now = t[FIRST_PAINT_PROOF], diff = lineDiff(baseText(FIRST_PAINT_PROOF), now)
+    assert.equal(stripChatParityC2(FIRST_PAINT_PROOF, now), baseText(FIRST_PAINT_PROOF), `${FIRST_PAINT_PROOF}: without this change's line the proof is the base's, byte for byte`)
+    assert.deepEqual([diff.removed.length, diff.added.length], [1, 1], `${FIRST_PAINT_PROOF}: one line changed, nothing else`); assert.ok(diff.added[0].includes(mod.CHAT_PARITY_C2_PIN_MARK) && diff.added[0].includes("stripChatParityC2(VIEWER, read(VIEWER))"), `${FIRST_PAINT_PROOF}: the line carries the pin mark and takes this change's lines out of the viewer before its byte pin`) }
   { const now = t[OLD_PROOF], diff = lineDiff(baseText(OLD_PROOF), now)
     assert.equal(stripChatParityC2(OLD_PROOF, now), baseText(OLD_PROOF), `${OLD_PROOF}: without this change's line the proof is the base's, byte for byte`)
     assert.deepEqual([diff.removed.length, diff.added.length], [1, 1], `${OLD_PROOF}: one line changed, nothing else`); assert.ok(diff.added[0].includes(mod.CHAT_PARITY_C2_PIN_MARK) && diff.added[0].includes(BASE_COMMIT), `${OLD_PROOF}: the line carries the pin mark and starts the walk at the base`) }
@@ -1049,7 +1052,7 @@ const PAGE_MUTANTS = [
 ]
 for (const [name, from, to] of PAGE_MUTANTS) await check(`mutant caught: page: ${name}`, async () => { const mutant = mutate(texts[PAGE], from, to, name); assert.ok(await throws(async () => { await pageChecks(withText(PAGE, mutant)); sourceChecks(withText(PAGE, mutant)) }), 'sections 5b and 6a must fail') })
 await check('mutant caught: an unmarked line in the viewer, the page or the older lib; a marker moved to another line (a base line rewritten without its pair)', async () => {
-  for (const [rel, anchor] of [[VIEWER, '  // Debug: Log button states\n'], [PAGE, "import { runChatParityAction } from '@/lib/studio-chat-parity-runners' // CHAT-PARITY\n"], [PARITY, 'export type ChatParityGroup']]) {
+  for (const [rel, anchor] of [[VIEWER, '  // Calculate optimal slide dimensions in fullscreen mode\n'], [PAGE, "import { runChatParityAction } from '@/lib/studio-chat-parity-runners' // CHAT-PARITY\n"], [PARITY, 'export type ChatParityGroup']]) {
     const text = texts[rel]; assert.equal(text.split(anchor).length - 1, 1)
     assert.ok(await throws(() => sourceChecks(withText(rel, text.replace(anchor, `const stray = 1\n${anchor}`)))), `${rel}: an unmarked added line`)
   }
@@ -1069,6 +1072,8 @@ await check('mutant caught: a taught proof with an unmarked extra line, without 
   assert.ok(await throws(() => sourceChecks(withText(rel, `${text}// stray\n`))), 'an unmarked extra line')
   assert.ok(await throws(() => sourceChecks(withText(rel, text.replace(`'${BASE_COMMIT}'`, "'HEAD'")))), 'the walk starts at HEAD again (the proof would read this change\'s commit as its own)')
   assert.ok(await throws(() => sourceChecks(withText(rel, text.replace('registry read (CHAT-PARITY-C2)', 'registry read (OTHER)')))), 'the pin mark changed')
+  assert.ok(await throws(() => sourceChecks(withText(FIRST_PAINT_PROOF, texts[FIRST_PAINT_PROOF].replace('stripChatParityC2(VIEWER, read(VIEWER))', 'read(VIEWER)')))), 'the first-paint proof no longer takes this change\'s viewer lines out')
+  assert.ok(await throws(() => sourceChecks(withText(FIRST_PAINT_PROOF, `${texts[FIRST_PAINT_PROOF]}// stray\n`))), 'an unmarked extra line in the first-paint proof')
   const voice = texts[VOICE_CALL]
   assert.ok(await throws(() => sourceChecks(withText(VOICE_CALL, voice.split('\n').filter(line => !line.includes('laterEnvOut = text =>')).join('\n')))), 'the voice-call helper line removed')
   assert.ok(await throws(() => sourceChecks(withText(VOICE_CALL, voice.replace('registry read (UX-FINDINGS-E)', 'registry read (CHAT-PARITY-C2)')))), 'the voice-call lines carry another mark than #603\'s')

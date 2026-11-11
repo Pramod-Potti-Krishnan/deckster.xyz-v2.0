@@ -53,6 +53,18 @@ export const CHAT_PARITY_C2_PIN_EDITS = {
     [`const OWN = (() => { try { return git('log', '-1', '--format=%H', '-E', '--grep=^Chat parity', '${BASE_COMMIT}').trim() || null } catch { return null } })() // a merge of dev into this branch is this change's commit too (its subject starts the same way) // ${CHAT_PARITY_C2_PIN_MARK}: the walk starts at the commit the later "Chat parity C2:" change was made on (#598), so that change's own commits, which start the same way, are not read as this change's newest commit\n`,
       `const OWN = (() => { try { return git('log', '-1', '--format=%H', '-E', '--grep=^Chat parity', 'HEAD').trim() || null } catch { return null } })() // a merge of dev into this branch is this change's commit too (its subject starts the same way)\n`],
   ],
+  // FRONTEND-1's first-paint viewer proof (COMPOSER-2's): it pins the viewer byte for byte after taking out only the strips it knows, so the viewer's C2 lines come out through this change's strip too
+  'scripts/test-studio-first-paint-viewer.mjs': [
+    ["const viewerText = chatParityStrip.stripChatParity(VIEWER, (await import('./studio-chat-parity-c2-strip.mjs')).stripChatParityC2(VIEWER, read(VIEWER))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out before the byte pin below // LATER-CHANGES: registry read (CHAT-PARITY-C2): chat parity C2's marked lines in the viewer (the deck_ops bus effect) come out too\n",
+      "const viewerText = chatParityStrip.stripChatParity(VIEWER, read(VIEWER)) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out before the byte pin below\n"],
+  ],
+  // FRONTEND-2's arrange proof: it reads the viewer through the strips it knows and pins the base's bytes, so this change's viewer lines come out through its strip too (one inserted line, one changed line)
+  'scripts/test-studio-arrange.mjs': [
+    ["const c2Strip = await import('./studio-chat-parity-c2-strip.mjs') // LATER-CHANGES: registry read (CHAT-PARITY-C2): the strip of the change stacked after chat parity\n",
+      ""],
+    ["const read = rel => chatParityStrip.stripChatParity(rel, stripChatElementEdit(rel, c2Strip.stripChatParityC2(rel, fs.readFileSync(path.join(root, rel), 'utf8')))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out too, outside #522's strip // LATER-CHANGES: registry read (CHAT-PARITY-C2): chat parity C2's marked lines in the viewer (the deck_ops bus effect) come out too\n",
+      "const read = rel => chatParityStrip.stripChatParity(rel, stripChatElementEdit(rel, fs.readFileSync(path.join(root, rel), 'utf8'))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out too, outside #522's strip\n"],
+  ],
 }
 
 /**
