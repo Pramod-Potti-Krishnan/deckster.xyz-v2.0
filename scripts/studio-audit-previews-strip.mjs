@@ -71,6 +71,9 @@ export const AUDIT_PREVIEWS_PIN_EDITS = {
   "scripts/test-studio-rail-slide-identity.mjs": [
     ["    if (name === '@/lib/studio-inventory-fallback') return { STUDIO_INVENTORY_FALLBACK_ENABLED: false, readInventoryFallback: async () => ({ kind: 'unavailable', reason: 'stub' }) } // LATER-CHANGES: registry read (AUDIT-PREVIEWS): the hook now imports the fallback lib (flag off here: the base's hook)\n", ""],
   ],
+  "scripts/test-studio-publish-preview.mjs": [
+    ["    if (name === '@/hooks/use-studio-publish-preview-frame') return { useStudioPublishPreviewFrame: () => null } // LATER-CHANGES: registry read (AUDIT-PREVIEWS): flag off, the frame hook answers null\n    if (name === '@/components/studio-publish-preview-frame') return { PublishPreviewFrame: 'PublishPreviewFrame' } // LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", ""],
+  ],
   "scripts/test-studio-publish-preview-inventory.mjs": [
     ["    '@/hooks/use-studio-publish-preview-frame': { useStudioPublishPreviewFrame: () => null }, '@/components/studio-publish-preview-frame': { PublishPreviewFrame: 'PublishPreviewFrame' }, // LATER-CHANGES: registry read (AUDIT-PREVIEWS): the component now imports the frame hook (flag off: null) and the frame\n", ""],
     ["    const head = stripLaterChanges(COMPONENT, fs.readFileSync(path.join(root, COMPONENT), 'utf8')).split('\\n'), base = baseOf(COMPONENT).split('\\n') // LATER-CHANGES: registry read (AUDIT-PREVIEWS): a later change's lines come out first\n", "    const head = fs.readFileSync(path.join(root, COMPONENT), 'utf8').split('\\n'), base = baseOf(COMPONENT).split('\\n')\n"],
