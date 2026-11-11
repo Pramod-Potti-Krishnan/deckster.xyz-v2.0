@@ -91,6 +91,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-usage-credits-page-strip.mjs')).USAGE_CREDITS_PAGE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B63 usage credits page: the credits view on FRONTEND-1's Usage page, two marked lines (no flag of its own: NEXT_PUBLIC_STUDIO_USAGE_CREDITS is B62's; no .env.example block)
   ...(await import('./studio-voice-core-strip.mjs')).VOICE_CORE_SCOPE_FILES, // LATER-CHANGE: ELEMENT-3, pure Director voice core (NEXT_PUBLIC_STUDIO_VOICE_CALL)
   ...(await import('./studio-voice-call-strip.mjs')).VOICE_CALL_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, W6 P4-20 voice call UI: the call button, the docked companion, push-to-talk, the router speech contract (NEXT_PUBLIC_STUDIO_VOICE_CALL / _VOICE_COMPANION)
+  ...(await import('./studio-chat-parity-viewer-strip.mjs')).CHAT_PARITY_VIEWER_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, overnight chat parity, viewer slash commands: /goto /next /prev /blank-slide /layout /present /edit /view /rail /grid /borders /save /discard /version /canvas and /theme <preset> (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS; no flag of its own, no .env.example block)
   // one line per later change, above this comment
 ])
 
@@ -221,6 +222,7 @@ export const LATER_STRIPS = [
   (await import('./studio-usage-credits-page-strip.mjs')).stripUsageCreditsPage, // LATER-CHANGE: FRONTEND-2, B63 usage credits page (NEXT_PUBLIC_STUDIO_USAGE_CREDITS is B62's; no flag of its own)
   (await import('./studio-voice-core-strip.mjs')).stripVoiceCore, // LATER-CHANGE: ELEMENT-3, voice port compatibility pin
   (await import('./studio-voice-call-strip.mjs')).stripVoiceCall, // LATER-CHANGE: FRONTEND-1, W6 P4-20 voice call UI (NEXT_PUBLIC_STUDIO_VOICE_CALL)
+  (await import('./studio-chat-parity-viewer-strip.mjs')).stripChatParityViewer, // LATER-CHANGE: FRONTEND-1, overnight chat parity, viewer slash commands (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS)
   // one line per later change, above this comment
 ]
 

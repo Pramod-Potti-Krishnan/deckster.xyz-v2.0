@@ -20,6 +20,10 @@ import {
   type MentionSource, type MentionTrigger, type Resolution, type RunAction,
 } from '@/lib/studio-chat-commands'
 import { STUDIO_CHAT_COMMANDS_ENABLED, registerCommand, registerMention } from '@/lib/studio-chat-commands-wire'
+import { useSyncExternalStore } from 'react' // CHAT-PARITY-VIEWER
+import { ChatParityRows } from '@/components/builder/chat/studio-chat-parity-viewer-menu' // CHAT-PARITY-VIEWER
+import { parityRows, runParity, subscribeViewerState, viewerStateSnapshot, type ParityEnv, type ParityResult, type ParityRow } from '@/lib/studio-chat-parity-viewer' // CHAT-PARITY-VIEWER
+import { useStudioStageShowCanvas } from '@/lib/studio-stage-open-gate' // CHAT-PARITY-VIEWER
 import '../studio-chat-commands.css'
 
 // the model gauge is drawn only with this flag (components/model-choice/use-model-choice.ts STUDIO_MODEL_PICKER_ENABLED, the same literal read)
@@ -55,6 +59,8 @@ export interface StudioChatCommandsInput {
   saved: Array<{ id: string; name: string }>
   savedStatus: 'loading' | 'ready' | 'failed'
   refreshSaved: () => void
+  /** /theme <preset>: the theme popup's own preset chip (ChatInput handlePresetChange -> the page's handleBuildThemeChange). */ // CHAT-PARITY-VIEWER
+  choosePreset?: (presetId: string) => void // CHAT-PARITY-VIEWER
   disabled: boolean
 }
 
@@ -137,9 +143,13 @@ export function useStudioChatCommands(input: StudioChatCommandsInput): StudioCha
   } : null
 
   const rows: CommandRow[] = trigger?.kind === 'command' ? commandRows(trigger) : []
+  const parityViewer = useSyncExternalStore(subscribeViewerState, viewerStateSnapshot, viewerStateSnapshot) // CHAT-PARITY-VIEWER: the viewer's own state (lib/studio-chat-parity-viewer.ts), read the way a button reads it
+  const showCanvas = useStudioStageShowCanvas() // CHAT-PARITY-VIEWER: the Show canvas button's own function (null while the canvas is open)
+  const parityEnv: ParityEnv = { viewer: parityViewer, building: input.stop.visible, themeBlocked: input.themeBlocked, presets: input.presets, canvasClosed: Boolean(showCanvas) } // CHAT-PARITY-VIEWER
+  const parity: ParityRow[] = enabled && trigger?.kind === 'command' ? parityRows(trigger, parityEnv) : [] // CHAT-PARITY-VIEWER: the viewer commands' rows, after the existing commands (a command that cannot run is a disabled row with its reason)
   const mention: MentionModel | null = trigger?.kind === 'mention' && source ? buildMentionModel(source, trigger.query) : null
-  const count = trigger?.kind === 'command' ? rows.length : mention ? mention.items.length : 0
-  const menuOpen = Boolean(enabled && trigger && dismissed !== key && (trigger.kind === 'command' ? rows.length > 0 : mention && (mention.items.length > 0 || mention.empty)))
+  const count = trigger?.kind === 'command' ? rows.length + parity.length : mention ? mention.items.length : 0 // CHAT-PARITY-VIEWER
+  const menuOpen = Boolean(enabled && trigger && dismissed !== key && (trigger.kind === 'command' ? rows.length + parity.length > 0 : mention && (mention.items.length > 0 || mention.empty))) // CHAT-PARITY-VIEWER
   const sig = trigger ? `${key}|${trigger.kind === 'command' ? `${trigger.name} ${trigger.arg}` : trigger.query}` : ''
   const active = cursor.sig === sig && cursor.index < count ? cursor.index : 0
 
@@ -243,8 +253,17 @@ export function useStudioChatCommands(input: StudioChatCommandsInput): StudioCha
     input.setText(textWithMention(input.text, at, item.token))
     focusEnd()
   }
+  const postNote = (result: ParityResult) => { const add = page?.parity?.addNote; if (add) add(result.note); else show({ tone: result.ok ? 'done' : 'notice', title: result.note, body: '', control: null, button: null }) } // CHAT-PARITY-VIEWER: one short note in the thread (the card above the composer when the page gave no thread)
+  const pickParity = (row: ParityRow) => { // CHAT-PARITY-VIEWER
+    if (row.disabled || row.hint) return // CHAT-PARITY-VIEWER: its reason or hint is on the row and the menu stays open: never a silent no-op
+    const before = textBefore(input.text, trigger as CommandTrigger) // CHAT-PARITY-VIEWER
+    if (row.fill) { input.setText(`${before}/${row.command} `); focusEnd(); return } // CHAT-PARITY-VIEWER: a command that takes a word fills its name so the choices show
+    if (!row.run) return // CHAT-PARITY-VIEWER
+    setDismissed(null); setNote(null); input.setText(before); focusEnd() // CHAT-PARITY-VIEWER
+    void runParity(row.run, { building: input.stop.visible, choosePreset: input.choosePreset ?? (() => {}), showCanvas }).then(postNote) // CHAT-PARITY-VIEWER: runs the real handler, then says what it SAW
+  } // CHAT-PARITY-VIEWER
   const pickAt = (index: number) => {
-    if (trigger?.kind === 'command') { if (rows[index]) pickCommand(rows[index]) } else if (mention?.items[index]) pickMention(mention.items[index])
+    if (trigger?.kind === 'command') { if (rows[index]) pickCommand(rows[index]); else if (parity[index - rows.length]) pickParity(parity[index - rows.length]) } else if (mention?.items[index]) pickMention(mention.items[index]) // CHAT-PARITY-VIEWER
   }
 
   const onKeyDown = (event: KeyEventLike): boolean => {
@@ -265,7 +284,7 @@ export function useStudioChatCommands(input: StudioChatCommandsInput): StudioCha
 
   if (!STUDIO_CHAT_COMMANDS_ENABLED || input.page === null) return INERT
   const menu = menuOpen && trigger
-    ? <ChatCommandsMenu kind={trigger.kind} rows={rows} mention={mention} active={active} onPick={pickAt} onHover={index => setCursor({ sig, index })} />
+    ? <ChatCommandsMenu kind={trigger.kind} rows={rows} parity={parity} mention={mention} active={active} onPick={pickAt} onHover={index => setCursor({ sig, index })} /> // CHAT-PARITY-VIEWER
     : note ? <ChatCommandsNote note={note} onButton={press} onDismiss={() => setNote(null)} /> : null
   return {
     active: true,
@@ -294,12 +313,14 @@ export interface ChatCommandsMenuProps {
   kind: 'command' | 'mention'
   rows: CommandRow[]
   mention: MentionModel | null
+  /** Chat parity, viewer commands: their rows, drawn after the existing commands in three groups. */ // CHAT-PARITY-VIEWER
+  parity?: ParityRow[] // CHAT-PARITY-VIEWER
   active: number
   onPick: (index: number) => void
   onHover: (index: number) => void
 }
 
-export function ChatCommandsMenu({ kind, rows, mention, active, onPick, onHover }: ChatCommandsMenuProps) {
+export function ChatCommandsMenu({ kind, rows, parity, mention, active, onPick, onHover }: ChatCommandsMenuProps) { // CHAT-PARITY-VIEWER
   const rowProps = (index: number) => ({
     id: optionId(index), type: 'button' as const, role: 'option' as const, tabIndex: -1, 'aria-selected': index === active, 'data-active': index === active ? 'true' : undefined,
     'data-studio-v4-type-role': 'mention-row',
@@ -311,7 +332,7 @@ export function ChatCommandsMenu({ kind, rows, mention, active, onPick, onHover 
   if (kind === 'command') {
     return (
       <div data-studio-composer-mentions="true" data-studio-chat-commands-menu="commands" id={LIST_ID} role="listbox" aria-label="Commands" className={SURFACE}>
-        <p role="presentation" data-studio-v4-type-role="mention-heading" data-studio-chat-commands-heading="commands" className={HEADING}>{W.commandsHeading}</p>
+        {rows.length > 0 && <p role="presentation" data-studio-v4-type-role="mention-heading" data-studio-chat-commands-heading="commands" className={HEADING}>{W.commandsHeading}</p>}{/* CHAT-PARITY-VIEWER */}
         {rows.map((row, index) => {
           const Icon = COMMAND_ICONS[row.id]
           return (
@@ -322,6 +343,7 @@ export function ChatCommandsMenu({ kind, rows, mention, active, onPick, onHover 
             </button>
           )
         })}
+        {parity && parity.length > 0 ? <ChatParityRows rows={parity} offset={rows.length} rowProps={rowProps} headingClass={HEADING} /> : null}{/* CHAT-PARITY-VIEWER */}
         <p role="presentation" data-studio-composer-part="mention-hint">{W.hintMenu}</p>
       </div>
     )

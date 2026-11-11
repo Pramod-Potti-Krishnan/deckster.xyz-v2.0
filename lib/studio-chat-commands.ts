@@ -28,6 +28,8 @@ export interface ChatCommandsPageProps {
   getElement: () => ElementMentionReference | null
   /** The export directive's own runner (lib/chat-theme-export.ts runExportDirective: the Download menu's downloadPDF / downloadPPTX with its rule), answered as a status. */
   exportDeck: ((format: ExportFormat) => Promise<{ status: string; error_code: string | null }>) | null
+  /** Chat parity, viewer commands (lib/studio-chat-parity-viewer.ts): where a note goes (the thread). Passed with the flag on. */ // CHAT-PARITY-VIEWER
+  parity?: import('@/lib/studio-chat-parity-viewer').ChatParityPage // CHAT-PARITY-VIEWER
 }
 
 // ---- the words (one place) ------------------------------------------------------------------------------------------------------------------
@@ -130,11 +132,15 @@ export type MenuTrigger = CommandTrigger | MentionTrigger
 const COMMAND_RE = /(^|\s)\/([\w-]*)(?: ([\w-]*))?$/
 /** The composer's own K1 "@" expression, unchanged. */
 const MENTION_RE = /@([\w ]{0,30})$/
+/** "/layout image text", "/theme dark blue": these two take several words after the name (the rest of the commands keep the one-word rule above). */ // CHAT-PARITY-VIEWER
+const COMMAND_WORDS_RE = /(^|\s)\/(layout|theme) ([^\n]*)$/i // CHAT-PARITY-VIEWER
 
 export function detectTrigger(text: string): MenuTrigger | null {
   if (typeof text !== 'string') return null
   const mention = MENTION_RE.exec(text)
   if (mention) return { kind: 'mention', start: mention.index, query: mention[1] ?? '' }
+  const words = COMMAND_WORDS_RE.exec(text) // CHAT-PARITY-VIEWER
+  if (words) return { kind: 'command', start: words.index + words[1].length, name: words[2], arg: words[3] } // CHAT-PARITY-VIEWER: several words after /layout or /theme
   const command = COMMAND_RE.exec(text)
   if (command) return { kind: 'command', start: command.index + command[1].length, name: command[2] ?? '', arg: command[3] === undefined ? null : command[3] }
   return null
