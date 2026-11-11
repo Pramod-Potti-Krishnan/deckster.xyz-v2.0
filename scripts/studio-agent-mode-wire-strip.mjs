@@ -7,7 +7,8 @@
 //   - the pure half (lib/studio-agent-mode-wire.ts, new): the page's reducer, when the picker is off, the one rule of an answer, the words of a failed send, the key that brings a card into view.
 // Every line this change adds to an EXISTING file carries the marker AGENT-MODE-WIRE (matched as a whole token). All of them are pure insertions: NO base line is rewritten (older proofs hold every base line of the page and the hook, in order), so the strip is a list of
 // [has, was] pairs with was = '': putting each pair back gives the file at STACK_BASE (#607's head) byte for byte. The new files (a lib, this strip, a proof) have no base text.
-// Older proofs this change teaches (tests only, every line carries the registry-read mark): the two that read the first-parent commits for their own commits' subjects get one more inserted line each, "Agent mode wire:", right after the shell's. No other older proof needed an edit
+// Older proofs this change teaches (tests only, every line carries the registry-read mark): the two that read the first-parent commits for their own commits' subjects get one more inserted line each, "Agent mode wire:", right after the shell's; and #607's own proof, whose
+// scope check held the hook and the Builder page to the base byte for byte ("the drafts are not applied": the one line that applies them now reads them past the later changes' strips, so it is the one line REPLACED). No other older proof needed an edit
 // (the registry takes this change's lines out of the files they read). How the older pins reach it: it REGISTERS its files and its strip (scripts/studio-later-changes.mjs, two lines: the env-block list gets none, this change adds no block).
 // Plain node, no imports, nothing read from disk or git here.
 
@@ -80,19 +81,21 @@ export const AGENT_MODE_WIRE_EDITS = {
   ],
 }
 
-/** The older proofs this change teaches: [text the proof has now, text it had before] per edit. Every line the proof has now that this change added carries AGENT_MODE_WIRE_PIN_MARK. */
+/** The older proofs this change teaches: [text the proof has now, text it had before] per edit (was = '' for an inserted line). Every line the proof has now that this change added carries AGENT_MODE_WIRE_PIN_MARK. */
 export const AGENT_MODE_WIRE_PIN_MARK = '// LATER-CHANGES: registry read (AGENT-MODE-WIRE)'
 const PIN_LINE = "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Agent mode wire:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (AGENT-MODE-WIRE): on a branch stacked after this change (the Agent build wire, on the Agent build shell), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files\n"
 export const AGENT_MODE_WIRE_PIN_EDITS = {
   // two older proofs walk the first-parent line of BASE..HEAD without merges and require every subject on it to be their own: this change's commits (subject "Agent mode wire:") are left out of that line, like every later change's
   'scripts/test-studio-chat-element-edit.mjs': [[PIN_LINE, '']],
   'scripts/test-studio-deck-sync-truth.mjs': [[PIN_LINE, '']],
+  // #607's own proof: the scope check that held the hook and the Builder page to the base reads them past the later changes' strips (the replaced line is its "drafts are not applied" line)
+  'scripts/test-studio-agent-mode-shell.mjs': [["  for (const rel of AGENT_MODE_SHELL_DRAFT_FILES) assert.equal(later(rel, git('show', `${head}:${rel}`)), baseText(rel), `the drafts are not applied: ${rel} is dev's, byte for byte (a later change's registered lines out first)`) // LATER-CHANGES: registry read (AGENT-MODE-WIRE): on a branch stacked after this change (the Agent build wire applies lines to the hook and the Builder page), the committed files are read past the later changes' strips\n", "  assert.equal(git('diff', '--stat', `${BASE_COMMIT}..${head}`, '--', ...AGENT_MODE_SHELL_DRAFT_FILES).trim(), '', 'the drafts are not applied: the hook and the Builder page are dev\\'s, byte for byte')\n"]],
 }
 /** Where the taught line goes: right after the shell's (#607) subject filter, the line that starts with this text. */
 export const AGENT_MODE_WIRE_PIN_AFTER = "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Agent mode shell:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (AGENT-MODE-SHELL)"
 export const AGENT_MODE_WIRE_PIN_FILES = Object.keys(AGENT_MODE_WIRE_PIN_EDITS)
 
-/** Every [has, was] pair this change makes to an existing file, by file: the two app files and the two taught proofs. */
+/** Every [has, was] pair this change makes to an existing file, by file: the two app files and the three taught proofs. */
 export const AGENT_MODE_WIRE_ALL_EDITS = { ...AGENT_MODE_WIRE_EDITS, ...AGENT_MODE_WIRE_PIN_EDITS }
 
 /** Files this change edits that are not app code: the registry (two lines: its files and its strip) and the older proofs it teaches. */

@@ -735,7 +735,7 @@ const scopeCommittedFiles = (head, { later = laterStrips, registered = registry.
   for (const rel of AGENT_MODE_SHELL_FE1_PROOF_FILES) { const text = git('show', `${head}:${rel}`); assert.equal(stripAgentModeShell(rel, text), baseText(rel), `${rel}: FRONTEND-1's voice-call proof, the one file of theirs this change edits: put back it is the base's (exactly the four OK'd lines differ)`); proveFe1Proof(rel, text) }
   for (const rel of UNTOUCHED) assert.ok(!touched.has(rel), `${rel} is not touched by this change`)
   for (const rel of touched) assert.ok(!LANES.test(rel), `${rel} is in FRONTEND-1's, COMPOSER-2's or the reconnect proof's lane: no file of theirs may be touched`)
-  assert.equal(git('diff', '--stat', `${BASE_COMMIT}..${head}`, '--', ...AGENT_MODE_SHELL_DRAFT_FILES).trim(), '', 'the drafts are not applied: the hook and the Builder page are dev\'s, byte for byte')
+  for (const rel of AGENT_MODE_SHELL_DRAFT_FILES) assert.equal(later(rel, git('show', `${head}:${rel}`)), baseText(rel), `the drafts are not applied: ${rel} is dev's, byte for byte (a later change's registered lines out first)`) // LATER-CHANGES: registry read (AGENT-MODE-WIRE): on a branch stacked after this change (the Agent build wire applies lines to the hook and the Builder page), the committed files are read past the later changes' strips
   proveDrafts(rel => git('show', `${head}:${rel}`))
 }
 const scopeAll = (head, opts) => { scopeOwnCommits(head); scopeCommittedFiles(head, opts); proveRegistryAt(head) }
