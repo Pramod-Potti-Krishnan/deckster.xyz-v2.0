@@ -35,7 +35,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import ts from 'typescript'
 import { Root, hostNodes, textOf as nodeText } from './studio-chat-harness/mini-react.mjs'
 import {
-  AVATAR_SPAWN_DRAFT, AVATAR_SPAWN_EDITS, AVATAR_SPAWN_ENV_BLOCK, AVATAR_SPAWN_FE1_PROOF_FILES, AVATAR_SPAWN_FE1_PROOF_OK, AVATAR_SPAWN_FLAG, AVATAR_SPAWN_MARKER_RE, AVATAR_SPAWN_NEW_FILES, AVATAR_SPAWN_OWN_EDITS, AVATAR_SPAWN_PIN_AFTER, AVATAR_SPAWN_PIN_EDITS,
+  AVATAR_SPAWN_DRAFT, AVATAR_SPAWN_EDITS, AVATAR_SPAWN_ENV_BLOCK, AVATAR_SPAWN_FLAG, AVATAR_SPAWN_MARKER_RE, AVATAR_SPAWN_NEW_FILES, AVATAR_SPAWN_OWN_EDITS, AVATAR_SPAWN_PIN_AFTER, AVATAR_SPAWN_PIN_EDITS,
   AVATAR_SPAWN_PIN_FILES, AVATAR_SPAWN_PIN_MARK, AVATAR_SPAWN_SCOPE_FILES, AVATAR_SPAWN_SUBJECT, BASE_COMMIT, stripAvatarSpawn,
 } from './studio-avatar-spawn-strip.mjs'
 import * as registry from './studio-later-changes.mjs'
@@ -628,35 +628,24 @@ await check('the styling adds no colour (every hex is already in the usage credi
 console.log('J. the strip, the registry, the env block')
 const SUBJECT_FILTER = /^ {2}shas\.splice\(0, shas\.length, \.\.\.shas\.filter\(sha => !\/\^Avatar spawn mock:\/\.test\(git\('log', '-1', '--format=%s', sha\)\)\)\) \/\/ LATER-CHANGES: registry read \(AVATAR-SPAWN\): /
 const LEGACY_FILES = ['app/builder/page.tsx', 'app/(app)/layout.tsx', 'app/(app)/usage/page.tsx', 'components/layout/studio-rail.tsx', 'lib/studio-voice-call-ui.ts', 'hooks/use-studio-voice-call.ts', 'app/api/account/route.ts', REGISTRY, '.env.example', 'scripts/test-studio-usage-credits-page.mjs']
-/** FRONTEND-1's voice-call proof and the four lines they OK'd (to-FRONTEND-2.md lines 545 / 528): the bytes are pinned by hash (the same four pairs #603 carries), each a whole line with the mark (the put-back text has none), the two inserted lines sit right after the anchor, four marked lines and no more. */
-const FE1_MARK = '// LATER-CHANGES: registry read (UX-FINDINGS-E)', FE1_ANCHOR = "const core = await import('./studio-voice-core-strip.mjs')", FE1_OK_SHA256 = 'a1d866850327b3d4d621ec1c135e5600400d1fd2a587e4d2fd3af58cd708d0c8', VCALL = AVATAR_SPAWN_FE1_PROOF_FILES[0]
-function proveFe1Proof(rel, now, a = m => m) {
-  const pairs = AVATAR_SPAWN_FE1_PROOF_OK[rel], hash = crypto.createHash('sha256')
-  for (const [has, was] of pairs) { hash.update(has); hash.update('\0'); hash.update(was); hash.update('\0') }
-  assert.equal(hash.digest('hex'), FE1_OK_SHA256, a(`${rel}: the OK'd lines are the four FRONTEND-1 OK'd, byte for byte`))
-  assert.equal(pairs.length, 4, a(`${rel}: four OK'd lines`)); assert.ok(pairs.every(([has, was], i) => has.endsWith('\n') && has.includes(FE1_MARK) && !was.includes(FE1_MARK) && (was === '') === (i < 2)), a(`${rel}: whole lines with the mark; two insertions, then two rewrites; the put-back text has no mark`))
-  const lines = now.split('\n'), base = baseText(rel).split('\n'), at = lines.indexOf(FE1_ANCHOR)
-  assert.ok(at >= 0 && at === base.indexOf(FE1_ANCHOR), a(`${rel}: the anchor line is where dev has it`)); assert.deepEqual(lines.slice(at + 1, at + 3), pairs.slice(0, 2).map(([has]) => has.slice(0, -1)), a(`${rel}: the two inserted lines sit right after the anchor`))
-  assert.equal(lines.filter(line => line.includes(FE1_MARK)).length, 4, a(`${rel}: four marked lines, no more`)); assert.equal(lines.length - base.length, 2, a(`${rel}: two lines longer than dev's`))
-}
+/** FRONTEND-1's voice-call proof: dev has the four lines FRONTEND-1 OK'd (#607, D94), so this change must not touch it. Named here for the lane guard's and the scope's mutants: any edit of it, however small, is refused. */
+const VCALL = 'scripts/test-studio-voice-call.mjs'
 function proveStrip(strip, readNow = read, later = laterStrips, at = '') {
   const a = m => (at ? `${at}: ${m}` : m)
-  assert.deepEqual(Object.keys(AVATAR_SPAWN_EDITS).sort(), [...AVATAR_SPAWN_PIN_FILES, ...AVATAR_SPAWN_FE1_PROOF_FILES].sort(), a('the strip edits the two older proofs it teaches and FRONTEND-1\'s voice-call proof (the four lines they OK\'d) and nothing else (no app file: new files only)'))
+  assert.deepEqual(Object.keys(AVATAR_SPAWN_EDITS).sort(), [...AVATAR_SPAWN_PIN_FILES].sort(), a('the strip edits the two older proofs it teaches and nothing else (no FRONTEND-1 file, voice-call proof included: dev has its four lines; no app file: new files only)'))
   for (const [rel, edits] of Object.entries(AVATAR_SPAWN_EDITS)) {
-    // FRONTEND-1's voice-call proof carries the same four lines in every Draft (and #603): it is read as it is on disk, never past a later change's strip, which would take the same lines out first
-    const now = AVATAR_SPAWN_FE1_PROOF_FILES.includes(rel) ? readNow(rel) : later(rel, readNow(rel)), base = baseText(rel)
+    const now = later(rel, readNow(rel)), base = baseText(rel)
     assert.equal(strip(rel, now), base, a(`${rel}: put back it is the base's, byte for byte`)); assert.equal(strip(rel, strip(rel, now)), base, a(`${rel}: put back twice changes nothing more`))
     for (const [has, was] of edits) assert.equal(count(`\n${now}`, `\n${has}`), 1, a(`${rel}: an edited line is there exactly once`))
     const diff = lineDiff(base, now), has = edits.flatMap(([hasText]) => hasText.split('\n').filter(Boolean)), was = edits.flatMap(([, wasText]) => wasText.split('\n').filter(Boolean))
     assert.deepEqual(diff.filter(line => line.startsWith('+')), has.map(line => `+${line}`), a(`${rel}: exactly the taught lines are added`)); assert.deepEqual(diff.filter(line => line.startsWith('-')), was.map(line => `-${line}`), a(`${rel}: nothing of the base is gone`))
   }
-  for (const rel of AVATAR_SPAWN_FE1_PROOF_FILES) proveFe1Proof(rel, readNow(rel), a)
   for (const rel of AVATAR_SPAWN_PIN_FILES) {
     const now = later(rel, readNow(rel)), lines = now.split('\n'), marked = lines.filter(line => line.includes(AVATAR_SPAWN_PIN_MARK))
     assert.equal(marked.length, 1, a(`${rel}: one taught line, carrying the registry-read mark`)); assert.equal(`${marked[0]}\n`, AVATAR_SPAWN_PIN_EDITS[rel][0][0]); assert.ok(SUBJECT_FILTER.test(marked[0]), a(`${rel}: the taught line is a subject filter for "Avatar spawn mock:"`))
     assert.ok(AVATAR_SPAWN_PIN_EDITS[rel].every(([, was]) => !was.includes(AVATAR_SPAWN_PIN_MARK)), a('the put-back text has no mark'))
     const at0 = lines.indexOf(marked[0]); assert.ok(/shas\.filter\(sha => !\/\^/.test(lines[at0 - 1]) && baseText(rel).split('\n').includes(lines[at0 - 1]), a(`${rel}: an insertion right after a subject filter its base already has (the last one of that form)`))
-    assert.ok(lines[at0 - 1].startsWith(AVATAR_SPAWN_PIN_AFTER), a(`${rel}: right after the usage credits page's filter`)); assert.equal(lines.filter(line => /shas\.filter\(sha => !\/\^Avatar spawn mock:\//.test(line)).length, 1, a(`${rel}: no second filter for this subject`))
+    assert.ok(lines[at0 - 1].startsWith(AVATAR_SPAWN_PIN_AFTER), a(`${rel}: right after the agent mode shell's filter (dev's last)`)); assert.equal(lines.filter(line => /shas\.filter\(sha => !\/\^Avatar spawn mock:\//.test(line)).length, 1, a(`${rel}: no second filter for this subject`))
     assert.ok(AVATAR_SPAWN_MARKER_RE.test(marked[0]), a('and the line carries the marker as a whole token'))
   }
   // a file it does not own comes back unchanged (also with the lines in it); a longer line that merely ends with a line is not a line; a non-string is returned as it is
@@ -666,13 +655,13 @@ function proveStrip(strip, readNow = read, later = laterStrips, at = '') {
   assert.equal(strip(P, `x${line}`), `x${line}`, a('a line that merely ends with it is not it')); assert.equal(strip(P, `${line.replace(/\n$/, '')}x\n`), `${line.replace(/\n$/, '')}x\n`)
   assert.equal(strip(P, `a\n${line}${line}b\n`), `a\n${line}b\n`, a('a line that is there twice is a merge mistake: only the first goes, the older pins still see the second')); assert.equal(strip(P, 'a\nb\n'), 'a\nb\n', a('a proof without the line is returned as it is'))
 }
-await check('the strip: the two taught proofs and FRONTEND-1\'s voice-call proof (their four OK\'d lines, byte for byte as #603 carries them) put back are the base\'s, byte for byte, idempotent; each taught line is one subject filter with the registry-read mark, right after the usage credits page\'s filter; a file it does not own (also with the line in it), a longer line, a non-string and a proof without the line come back as they are; a doubled line is not hidden', () => proveStrip(stripAvatarSpawn))
+await check('the strip: the two taught proofs put back are the base\'s (dev after D94), byte for byte, idempotent; each taught line is one subject filter with the registry-read mark, right after the agent mode shell\'s filter (dev\'s last); a file it does not own (also with the line in it), a longer line, a non-string and a proof without the line come back as they are; a doubled line is not hidden', () => proveStrip(stripAvatarSpawn))
 
 function proveStripData(draft = AVATAR_SPAWN_DRAFT, stripText = read(STRIP)) {
   assert.doesNotMatch(stripText.replace(/"(?:[^"\\\n]|\\.)*"/g, '""').replace(/'(?:[^'\\\n]|\\.)*'/g, "''").replace(/`[^`]*`/g, '``').replace(/\/\/.*$/gm, ''), /^import |require\(|readFileSync|execFileSync/m, 'the strip is plain data: no imports, nothing read from disk or git')
   assert.ok(AVATAR_SPAWN_MARKER_RE.test('a // AVATAR-SPAWN') && !AVATAR_SPAWN_MARKER_RE.test('a // AVATAR-SPAWN-X') && !AVATAR_SPAWN_MARKER_RE.test('a // X-AVATAR-SPAWN') && !AVATAR_SPAWN_MARKER_RE.test('a // AVATAR_SPAWN'), 'the marker is a whole token')
   assert.equal(AVATAR_SPAWN_SUBJECT, 'Avatar spawn mock:'); assert.equal(AVATAR_SPAWN_FLAG, 'NEXT_PUBLIC_STUDIO_AVATAR_SPAWN'); assert.match(BASE_COMMIT, /^[0-9a-f]{40}$/); git('merge-base', '--is-ancestor', BASE_COMMIT, 'HEAD')
-  assert.equal(AVATAR_SPAWN_PIN_AFTER.includes('Usage credits page:'), true)
+  assert.equal(AVATAR_SPAWN_PIN_AFTER.includes('Agent mode shell:'), true)
   for (const rel of AVATAR_SPAWN_NEW_FILES) assert.doesNotMatch(read(rel), SECRET_SHAPE, `${rel}: no secret-shaped literal`)
   for (const rel of AVATAR_SPAWN_NEW_FILES) assert.doesNotMatch(read(rel).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\s\/\/ .*$/gm, ''), new RegExp(`-{2}std${'in'}`), `${rel}: no stdin pipe into git`)
   // the DRAFT lines for the owners: six, each anchored on the exact dev lines (quoted, with their numbers), each carrying the marker, none applied
@@ -704,7 +693,10 @@ function proveRegistryText(regText) {
   assert.deepEqual(own.map(line => sectionOf(reg, reg.indexOf(line.slice(1)))), ['LATER_CHANGE_FILES', 'LATER_ENV_BLOCKS', 'LATER_STRIPS'], 'one in each list')
   for (const line of own) {
     const at = reg.indexOf(line.slice(1)); assert.ok(at > 0, line.slice(1, 80))
-    assert.ok(baseReg.includes(reg[at - 1]) && reg[at - 1].includes('// LATER-CHANGE:') && reg[at - 1].includes('studio-voice-call-strip.mjs'), `right after studio-voice-call-strip.mjs's line, a registered line dev already has: ${line.slice(1, 80)}`)
+    // ORDER: the voice call's line comes BEFORE ours in the same list, and whatever sits between the two is a registered line of another change that dev already has (#607's agent mode shell, after D94)
+    const list = sectionOf(reg, at), vAt = reg.findIndex((l, i) => i < at && sectionOf(reg, i) === list && l.includes('// LATER-CHANGE:') && l.includes('studio-voice-call-strip.mjs'))
+    assert.ok(vAt >= 0 && vAt < at, `studio-voice-call-strip.mjs's line comes before ours in its list: ${line.slice(1, 80)}`)
+    for (const between of reg.slice(vAt + 1, at)) assert.ok(baseReg.includes(between) && between.includes('// LATER-CHANGE:') && /-strip\.mjs/.test(between), `between the voice call's line and ours only a registered line of another change that dev already has: ${between.slice(0, 80)}`)
     assert.ok(reg[at + 1] === END || laterRegistry.has(reg[at + 1]), 'the true end of its list (or followed only by a later change\'s registered line)')
   }
 }
@@ -714,7 +706,7 @@ function proveEnv(envText, blockOk = true) {
   assert.ok(AVATAR_SPAWN_ENV_BLOCK.includes(`${AVATAR_SPAWN_FLAG}="false"`), 'the flag is documented as off'); assert.equal(AVATAR_SPAWN_ENV_BLOCK.split('\n').filter(l => /^[A-Z_]+=/.test(l)).length, 1, 'one variable'); assert.ok(AVATAR_SPAWN_MARKER_RE.test(AVATAR_SPAWN_ENV_BLOCK))
   assert.doesNotMatch(AVATAR_SPAWN_ENV_BLOCK, SECRET_SHAPE)
 }
-await check('the registry holds exactly this change\'s three lines (files, env block, strip) at the true end of each list, right after the voice call\'s, and loses none; .env.example is dev\'s plus one block (after one blank line, the last, flag "false"); every scope file is registered', () => {
+await check('the registry holds exactly this change\'s three lines (files, env block, strip) at the true end of each list, after the voice call\'s (only another change\'s registered line between), and loses none; .env.example is dev\'s plus one block (after one blank line, the last, flag "false"); every scope file is registered', () => {
   assert.ok(registry.LATER_STRIPS.includes(stripAvatarSpawn) && registry.LATER_ENV_BLOCKS.includes(AVATAR_SPAWN_ENV_BLOCK) && [...AVATAR_SPAWN_SCOPE_FILES].every(rel => registry.LATER_CHANGE_FILES.has(rel)), 'the registry holds the strip, the block and every file')
   const regLines = read(REGISTRY).split('\n'); assert.equal(regLines.filter(line => line.includes(OWN_NAME)).length, 3, 'three lines name this change\'s strip module'); proveRegistryText(read(REGISTRY)); proveEnv(read('.env.example'))
   assert.ok(registry.LATER_STRIPS.indexOf(stripAvatarSpawn) > registry.LATER_STRIPS.findIndex(fn => typeof fn === 'function' && fn.name === 'stripVoiceCall'), 'the strip comes after the voice call\'s')
@@ -753,8 +745,8 @@ const scopeOwnCommits = (head, opts) => {
 }
 /** Lanes this change must not touch (FRONTEND-1's, COMPOSER-2's, the reconnect proof): none of their files changes, the lines they would need are DRAFTS. */
 const LANES = /^(scripts\/test-studio-(p2-|billing-|launch-wording|env-append-tolerant|route-params|admin-email-guard|uat-marketing|deck-title|flow-control|voice-call)|scripts\/test-atlas-help-recovery|scripts\/test-director-websocket-reconnect|scripts\/test-(deck-card-thumbnail|first-paint)|lib\/studio-flow-control\.ts|hooks\/use-studio-flow-control\.ts|lib\/studio-voice-call|components\/builder\/voice-call\/|hooks\/use-studio-voice-call\.ts|components\/layout\/)/
-/** The lane guard: no file of FRONTEND-1's, COMPOSER-2's or the reconnect proof's lane is touched, except the one proof FRONTEND-1 OK'd (AVATAR_SPAWN_FE1_PROOF_FILES: exactly four lines of it, checked separately). */
-const assertLanes = (touched, allowed = AVATAR_SPAWN_FE1_PROOF_FILES) => { for (const rel of touched) assert.ok(!LANES.test(rel) || allowed.includes(rel), `${rel} is in FRONTEND-1's, COMPOSER-2's or the reconnect proof's lane: their lines are DRAFTS here`) }
+/** The lane guard: no file of FRONTEND-1's, COMPOSER-2's or the reconnect proof's lane is touched, none excepted (the voice-call proof's four OK'd lines are dev's now, so an edit of it is a foreign edit too). */
+const assertLanes = (touched, allowed = []) => { for (const rel of touched) assert.ok(!LANES.test(rel) || allowed.includes(rel), `${rel} is in FRONTEND-1's, COMPOSER-2's or the reconnect proof's lane: their lines are DRAFTS here`) }
 const UNTOUCHED = ['lib/studio-voice-call-ui.ts', 'hooks/use-studio-voice-call.ts', 'components/layout/studio-rail.tsx', 'components/builder/voice-call/voice-call-stage.tsx', 'components/builder/voice-call/companion-player.tsx', 'app/api/account/route.ts', 'app/(app)/layout.tsx', 'app/(app)/studio-v4-account.css', 'app/(app)/usage/page.tsx', 'components/studio-usage-credits.css', 'components/layout/studio-shell.css', 'hooks/use-auth.ts', 'package.json', 'pnpm-lock.yaml', 'tsconfig.json']
 const existsAt = (rev, rel) => { try { git('cat-file', '-e', `${rev}:${rel}`); return true } catch { return false } }
 const scopeCommittedFiles = (head, { later = laterStrips, registered = registry.LATER_CHANGE_FILES } = {}) => {
@@ -763,11 +755,10 @@ const scopeCommittedFiles = (head, { later = laterStrips, registered = registry.
   const net = new Set(git('diff', '--name-only', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)); for (const rel of [...touched]) if (!net.has(rel)) touched.delete(rel)
   assert.deepEqual([...touched].sort(), [...AVATAR_SPAWN_SCOPE_FILES].sort(), 'the files this change\'s own commits touch (net of what they put back) are exactly its scope')
   assert.deepEqual([...net].filter(rel => AVATAR_SPAWN_SCOPE_FILES.has(rel) || !registered.has(rel)).sort(), [...AVATAR_SPAWN_SCOPE_FILES].sort(), 'and the whole committed diff from BASE is nothing else (a file the registry names for a later change, stacked on this head, is left to that change; an unregistered file still fails)')
-  // NEW FILES ONLY: of the files this change touches, the ones dev already has are the registry, .env.example, the two taught proofs and FRONTEND-1's voice-call proof (their four OK'd lines), never an app file
-  assert.deepEqual([...touched].filter(rel => existsAt(BASE_COMMIT, rel)).sort(), [...AVATAR_SPAWN_OWN_EDITS].sort(), 'new files only: the only existing files touched are .env.example, the registry, the two taught proofs and FRONTEND-1\'s voice-call proof')
+  // NEW FILES ONLY: of the files this change touches, the ones dev already has are the registry, .env.example, the two taught proofs, never an app file or a FRONTEND-1 file
+  assert.deepEqual([...touched].filter(rel => existsAt(BASE_COMMIT, rel)).sort(), [...AVATAR_SPAWN_OWN_EDITS].sort(), 'new files only: the only existing files touched are .env.example, the registry and the two taught proofs')
   for (const rel of AVATAR_SPAWN_NEW_FILES) { assert.equal(git('cat-file', '-t', `${head}:${rel}`).trim(), 'blob', rel); assert.ok(!existsAt(BASE_COMMIT, rel), `${rel} is new: dev has none`) }
   for (const rel of AVATAR_SPAWN_PIN_FILES) assert.equal(stripAvatarSpawn(rel, later(rel, git('show', `${head}:${rel}`))), baseText(rel), `${rel}: an older proof taught: put back it is the base's (a later change's registered lines out first)`)
-  for (const rel of AVATAR_SPAWN_FE1_PROOF_FILES) { const text = git('show', `${head}:${rel}`); assert.equal(stripAvatarSpawn(rel, text), baseText(rel), `${rel}: FRONTEND-1's voice-call proof, the one file of theirs this change edits: put back it is the base's (exactly the four OK'd lines differ)`); proveFe1Proof(rel, text) }
   for (const rel of UNTOUCHED) { assert.ok(!touched.has(rel), `${rel} is not touched by this change`); assert.equal(sha(git('show', `${head}:${rel}`)), sha(baseText(rel)), `${rel}: flag off, an existing app file is dev's, byte for byte`) }
   assertLanes(touched)
 }
@@ -782,8 +773,8 @@ const scopeCheck = (label, fn) => (ON_OWN_LINE ? check(label, fn) : undefined)
 const scopeMutant = (label, fn) => (ON_OWN_LINE ? mutant(label, fn) : undefined)
 if (!ON_OWN_LINE) console.log('NOTE scope: no commit of this change on the first-parent line from BASE (merged into dev: its commits are on a second parent); the scope checks stand down, the pins above cover the files')
 await scopeCheck(`this change's own commits (subject starts "${AVATAR_SPAWN_SUBJECT}", found across the whole line, no merges) exist, with the co-author line; none could be taken for an older change's (the taught proofs' filters at dev do not match)`, () => { scopeOwnCommits(HEAD) })
-await scopeCheck('the committed files are exactly this change\'s (the page, the lib, the components, the strip, this proof, .env.example, the registry, the two taught proofs and FRONTEND-1\'s voice-call proof, only their four OK\'d lines); NEW FILES ONLY: no existing app file changes (FRONTEND-1\'s rail, call hook and picker lib, the account route, the layout and the Usage page are dev\'s, byte for byte)', () => scopeCommittedFiles(HEAD))
-await scopeCheck('the registry gains exactly this change\'s three marked lines at the true end of each list, right after the voice call\'s, and loses none; .env.example is dev\'s plus one block (after one blank line, the last)', () => { proveRegistryText(git('show', `${HEAD}:${REGISTRY}`)); proveEnv(git('show', `${HEAD}:.env.example`)) })
+await scopeCheck('the committed files are exactly this change\'s (the page, the lib, the components, the strip, this proof, .env.example, the registry, the two taught proofs); NEW FILES ONLY: no FRONTEND-1 file, voice-call proof included: no existing app file changes (FRONTEND-1\'s rail, call hook and picker lib, the account route, the layout and the Usage page are dev\'s, byte for byte)', () => scopeCommittedFiles(HEAD))
+await scopeCheck('the registry gains exactly this change\'s three marked lines at the true end of each list, after the voice call\'s (only another change\'s registered line between), and loses none; .env.example is dev\'s plus one block (after one blank line, the last)', () => { proveRegistryText(git('show', `${HEAD}:${REGISTRY}`)); proveEnv(git('show', `${HEAD}:.env.example`)) })
 const gateMerge = (dev, head) => plumb(['commit-tree', plumb(['merge-tree', '--write-tree', dev, head]).split('\n')[0], '-p', dev, '-p', head, '-m', 'gate-style merge (local, no ref)'])
 const GATE = ON_OWN_LINE ? gateMerge(BASE_COMMIT, HEAD) : null
 await scopeCheck('GATE-SAFE: on a gate-style merge (first parent BASE, second parent this change\'s head) the scope head is HEAD^2 and the whole scope section passes against it; the merged tree is read too', () => {
@@ -792,7 +783,6 @@ await scopeCheck('GATE-SAFE: on a gate-style merge (first parent BASE, second pa
   assert.equal(scopeHead(GATE), HEAD, 'HEAD^2 is the change\'s head')
   scopeAll(scopeHead(GATE)); proveRegistryText(git('show', `${GATE}:${REGISTRY}`)); proveEnv(git('show', `${GATE}:.env.example`))
   for (const rel of AVATAR_SPAWN_PIN_FILES) assert.equal(stripAvatarSpawn(rel, git('show', `${GATE}:${rel}`)), baseText(rel), `the merged tree, without this change's taught line, is dev's ${rel}`)
-  for (const rel of AVATAR_SPAWN_FE1_PROOF_FILES) assert.equal(stripAvatarSpawn(rel, git('show', `${GATE}:${rel}`)), baseText(rel), `the merged tree, without the four OK'd lines, is dev's ${rel}`)
   assert.equal(scopeHead(HEAD), HEAD, 'a branch head is used as it is'); assert.equal(scopeHead(BASE_COMMIT), BASE_COMMIT, 'BASE itself is used as it is')
 })
 await scopeCheck('mutant caught: the old first-parent own-commit query finds no own commit on the gate-style merge, and without the HEAD^2 rule the scope head is the merge itself', () => {
@@ -823,15 +813,15 @@ const scopeBreakers = {
   'a stray file in an own commit': () => { const stray = commitWith(HEAD, { 'stray-avatar-spawn.txt': 'stray\n' }, `${AVATAR_SPAWN_SUBJECT} a stray file${TRAILER}`); assert.ok(ownOf(stray).includes(stray)); assert.doesNotThrow(() => scopeCommittedFiles(HEAD)); scopeCommittedFiles(stray) },
   'an own commit without the co-author line': () => { const c = commitWith(HEAD, {}, `${AVATAR_SPAWN_SUBJECT} no trailer`); assert.throws(() => scopeOwnCommits(c), error => /^[0-9a-f]{8}$/.test(error.message), 'the commit without the trailer is named'); scopeOwnCommits(c) },
 }
-const SNEAKY_FILES = ['components/layout/studio-rail.tsx', 'hooks/use-studio-voice-call.ts', 'lib/studio-voice-call-ui.ts', 'app/api/account/route.ts', 'app/(app)/usage/page.tsx', 'scripts/test-studio-voice-call-replay.mjs']
-await scopeCheck('scope: a stray file in an own commit fails the files check, an own commit without the co-author line is named, and a line added to any existing app file (the rail, the call hook, the picker lib, the account route, the Usage page: the DRAFT files; another voice-call proof) fails it, a fifth line in FRONTEND-1\'s voice-call proof fails it (only their four OK\'d lines are allowed), the lane guard names exactly the OK\'d proof; a real own commit set still passes', () => {
+const SNEAKY_FILES = ['components/layout/studio-rail.tsx', VCALL, 'hooks/use-studio-voice-call.ts', 'lib/studio-voice-call-ui.ts', 'app/api/account/route.ts', 'app/(app)/usage/page.tsx', 'scripts/test-studio-voice-call-replay.mjs']
+await scopeCheck('scope: a stray file in an own commit fails the files check, an own commit without the co-author line is named, and a line added to any existing app file (the rail, the call hook, the picker lib, the account route, the Usage page: the DRAFT files; another voice-call proof) fails it, an edit of FRONTEND-1\'s voice-call proof fails it (dev has their four lines now: the lane guard refuses it too, with no exemption); a real own commit set still passes', () => {
   assert.throws(scopeBreakers['a stray file in an own commit'], /exactly its scope/); assert.throws(scopeBreakers['an own commit without the co-author line'], error => /^[0-9a-f]{8}$/.test(error.message), 'the commit without the trailer is named')
   for (const rel of SNEAKY_FILES) {
     const foreign = commitWith(HEAD, { [rel]: `${git('show', `${HEAD}:${rel}`)}\n// AVATAR-SPAWN: a draft line applied\n` }, `${AVATAR_SPAWN_SUBJECT} touches ${rel}${TRAILER}`)
     assert.notEqual(git('show', `${foreign}:${rel}`), git('show', `${HEAD}:${rel}`), `positive control: ${rel} is changed`); assert.throws(() => scopeCommittedFiles(foreign), /exactly its scope|is not touched|lane|new files only/, rel)
   }
-  assert.throws(() => scopeCommittedFiles(commitWith(HEAD, { [VCALL]: `${git('show', `${HEAD}:${VCALL}`)}// a fifth line\n` }, `${AVATAR_SPAWN_SUBJECT} a fifth voice-call line${TRAILER}`)), /put back it is the base's/, 'a fifth line in the voice-call proof')
-  assert.doesNotThrow(() => assertLanes(new Set(AVATAR_SPAWN_FE1_PROOF_FILES)), 'the OK\'d proof passes the lane guard'); for (const rel of ['scripts/test-studio-voice-call-replay.mjs', 'scripts/test-studio-voice-call-mutants-2.mjs', 'scripts/test-studio-billing-usage.mjs']) assert.throws(() => assertLanes(new Set([...AVATAR_SPAWN_FE1_PROOF_FILES, rel])), /lane/, `${rel}: not OK'd, refused`)
+  assert.throws(() => scopeCommittedFiles(commitWith(HEAD, { [VCALL]: `${git('show', `${HEAD}:${VCALL}`)}// a fifth line\n` }, `${AVATAR_SPAWN_SUBJECT} a line in the voice-call proof${TRAILER}`)), /exactly its scope/, 'any line in the voice-call proof')
+  assert.doesNotThrow(() => assertLanes(new Set(AVATAR_SPAWN_SCOPE_FILES)), 'this change\'s own files pass the lane guard'); for (const rel of [VCALL, 'scripts/test-studio-voice-call-replay.mjs', 'scripts/test-studio-voice-call-mutants-2.mjs', 'scripts/test-studio-billing-usage.mjs']) assert.throws(() => assertLanes(new Set([...AVATAR_SPAWN_SCOPE_FILES, rel])), /lane/, `${rel}: refused, no FRONTEND-1 file is exempt`)
   scopeAll(HEAD)
 })
 
@@ -965,22 +955,14 @@ const REG_NOW = read(REGISTRY), regLinesOf = text => text.split('\n')
 const PIN0 = AVATAR_SPAWN_PIN_FILES[0], PIN1 = AVATAR_SPAWN_PIN_FILES[1]
 await mutant('strip: a strip that leaves a line (a taught proof is not put back)', () => proveStrip((rel, text) => (rel === PIN0 ? text : stripAvatarSpawn(rel, text))))
 await mutant('strip: a strip that is not idempotent (it takes one more line away each time)', () => proveStrip((rel, text) => { const out = stripAvatarSpawn(rel, text); return rel === PIN1 && out === text ? out.replace(/^import [^\n]*\n/m, '') : out }))
-await mutant('strip: a strip that leaves the voice-call lines (FRONTEND-1\'s OK\'d edit stays in the proof)', () => proveStrip((rel, text) => (rel === VCALL ? text : stripAvatarSpawn(rel, text))))
-await mutant('strip: an OK\'d voice-call line edited by one character (the changed .env.example line loses its trimEnd)', () => proveStrip(stripAvatarSpawn, rel => (rel === VCALL ? swap(read(rel), ".trimEnd().endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly", ".endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly") : read(rel))))
-await mutant('strip: a fifth line in the voice-call proof (an unlisted edit beside the four OK\'d)', () => proveStrip(stripAvatarSpawn, rel => (rel === VCALL ? `${read(rel)}// a fifth line\n` : read(rel))))
-await mutant('strip: the two inserted voice-call lines moved off their anchor (to the top of the file)', () => proveStrip(stripAvatarSpawn, rel => {
-  if (rel !== VCALL) return read(rel)
-  const lines = read(rel).split('\n'), at = lines.indexOf(FE1_ANCHOR), moved = lines.splice(at + 1, 2); lines.splice(0, 0, ...moved); return lines.join('\n')
-}))
-await mutant('strip: an OK\'d voice-call line without its mark in the file (the helper line)', () => proveStrip(stripAvatarSpawn, rel => (rel === VCALL ? swap(read(rel), "''), text) // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", "''), text)\n") : read(rel))))
 await mutant('lanes: another voice-call proof that was NOT OK\'d is touched (the replay proof): the lane guard refuses it', () => assertLanes(new Set([...AVATAR_SPAWN_SCOPE_FILES, 'scripts/test-studio-voice-call-replay.mjs'])))
-await mutant('lanes: a lane guard that names no exemption refuses the OK\'d voice-call proof (positive control: it is allowed)', () => assertLanes(new Set(AVATAR_SPAWN_FE1_PROOF_FILES), []))
+await mutant('lanes: FRONTEND-1\'s voice-call proof itself is touched (dev has its four lines now; no exemption): the lane guard refuses it', () => assertLanes(new Set([...AVATAR_SPAWN_SCOPE_FILES, VCALL])))
 await mutant('strip: a strip that edits a file it does not own', () => proveStrip((rel, text) => (rel === 'app/builder/page.tsx' ? `${text}x` : stripAvatarSpawn(rel, text))))
 await mutant('strip: a strip that takes the base\'s own filter too', () => proveStrip((rel, text) => stripAvatarSpawn(rel, text).replace(/^ {2}shas\.splice[^\n]*Chat caps:[^\n]*\n/m, '')))
 await mutant('strip: a taught proof keeps a second, unmarked line', () => proveStrip(stripAvatarSpawn, rel => (rel === PIN0 ? read(rel).replace(AVATAR_SPAWN_PIN_EDITS[rel][0][0], `${AVATAR_SPAWN_PIN_EDITS[rel][0][0]}  // stray\n`) : read(rel))))
 await mutant('strip: a taught line without the registry-read mark', () => proveStrip(stripAvatarSpawn, rel => (rel === PIN1 ? swap(read(rel), 'registry read (AVATAR-SPAWN): on a branch', 'on a branch') : read(rel))))
 await mutant('strip: a taught line that is not a subject filter for this change', () => proveStrip(stripAvatarSpawn, rel => (rel === PIN1 ? swap(read(rel), '!/^Avatar spawn mock:/', '!/^Avatar spawn:/') : read(rel))))
-await mutant('strip: a taught line put somewhere that is not after the usage credits page\'s filter', () => proveStrip(stripAvatarSpawn, rel => {
+await mutant('strip: a taught line put somewhere that is not after the agent mode shell\'s filter', () => proveStrip(stripAvatarSpawn, rel => {
   if (rel !== PIN0) return read(rel)
   const lines = read(rel).split('\n'), at = lines.findIndex(l => l.includes(AVATAR_SPAWN_PIN_MARK)), [line] = lines.splice(at, 1); lines.splice(lines.findIndex(l => l.includes('registry read (CHAT-CAPS-META)')) + 1, 0, line); return lines.join('\n')
 }))
@@ -988,6 +970,9 @@ await mutant('draft: a draft anchor that is not dev\'s line', () => proveStripDa
 await mutant('draft: a draft line without the marker', () => proveStripData(AVATAR_SPAWN_DRAFT.map((d, i) => (i === 0 ? { ...d, line: d.line.replace(' // AVATAR-SPAWN', ' //') } : d))))
 await mutant('draft: a draft applied (its file is in the scope)', () => { const d = AVATAR_SPAWN_DRAFT[0]; assert.ok(!AVATAR_SPAWN_SCOPE_FILES.has(d.file), 'positive control: not in scope'); proveStripData(AVATAR_SPAWN_DRAFT.map((x, i) => (i === 0 ? { ...x, file: 'scripts/studio-later-changes.mjs', after: 1 } : x))) })
 await mutant('registry: the files line above the voice call\'s (not the true end of its list)', () => { const reg = regLinesOf(REG_NOW), at = reg.findIndex(l => l.includes(OWN_NAME) && l.includes('SCOPE_FILES')), [line] = reg.splice(at, 1); reg.splice(reg.findIndex(l => l.includes('studio-voice-call-strip.mjs') && l.includes('SCOPE_FILES')), 0, line); proveRegistryText(reg.join('\n')) })
+await mutant('registry: the env block line above the voice call\'s (ours must come after it)', () => { const reg = regLinesOf(REG_NOW), at = reg.findIndex(l => l.includes(OWN_NAME) && l.includes('ENV_BLOCK')), [line] = reg.splice(at, 1); reg.splice(reg.findIndex(l => l.includes('studio-voice-call-strip.mjs') && l.includes('ENV_BLOCK')), 0, line); proveRegistryText(reg.join('\n')) })
+await mutant('registry: the strip line moved to just above the voice call\'s (ours must come after it)', () => { const reg = regLinesOf(REG_NOW), at = reg.findIndex(l => l.includes(OWN_NAME) && l.includes('stripAvatarSpawn')), [line] = reg.splice(at, 1); reg.splice(reg.findIndex(l => l.includes('studio-voice-call-strip.mjs') && l.includes('stripVoiceCall')), 0, line); proveRegistryText(reg.join('\n')) })
+await mutant('registry: a line that is not another change\'s registered line between the voice call\'s and ours', () => { const reg = regLinesOf(REG_NOW), at = reg.findIndex(l => l.includes(OWN_NAME) && l.includes('SCOPE_FILES')); reg.splice(at, 0, "  ...(await import('./studio-x-strip.mjs')).X_SCOPE_FILES, // between: not registered"); proveRegistryText(reg.join('\n')) })
 await mutant('registry: the strip line moved above the usage credits page\'s', () => { const reg = regLinesOf(REG_NOW), at = reg.findIndex(l => l.includes(OWN_NAME) && l.includes('stripAvatarSpawn')), [line] = reg.splice(at, 1); reg.splice(reg.findIndex(l => l.includes('studio-usage-credits-page-strip.mjs') && l.includes('stripUsageCreditsPage')), 0, line); proveRegistryText(reg.join('\n')) })
 await mutant('registry: the strip line missing', () => proveRegistryText(regLinesOf(REG_NOW).filter(l => !(l.includes(OWN_NAME) && l.includes('stripAvatarSpawn'))).join('\n')))
 await mutant('registry: the env block line missing', () => proveRegistryText(regLinesOf(REG_NOW).filter(l => !(l.includes(OWN_NAME) && l.includes('ENV_BLOCK'))).join('\n')))
@@ -1008,7 +993,7 @@ if (ON_OWN_LINE) {
   await mutant('scope: the old first-parent query (finds no own commit on the gate-style merge)', () => scopeOwnCommits(GATE, { firstParentOnly: true }))
   await mutant('scope: the HEAD^2 rule dropped (the scope runs against the merge itself)', () => { assert.equal(scopeHead(GATE, { gateRule: false }), HEAD, 'the scope head is the change\'s head') })
   await mutant('scope: a DRAFT line applied to the rail (an existing app file edited in an own commit)', () => scopeCommittedFiles(commitWith(HEAD, { 'components/layout/studio-rail.tsx': swap(git('show', `${HEAD}:components/layout/studio-rail.tsx`), 'import { studioNavLabels } from "@/lib/studio-nav-labels"\n', 'import { studioNavLabels } from "@/lib/studio-nav-labels"\nimport { STUDIO_AVATAR_SPAWN_ENABLED } from "@/lib/studio-avatar-spawn" // AVATAR-SPAWN\n') }, `${AVATAR_SPAWN_SUBJECT} applies a draft line${TRAILER}`)))
-  await mutant('scope: a fifth line added to FRONTEND-1\'s voice-call proof in an own commit (only their four OK\'d lines are allowed)', () => scopeCommittedFiles(commitWith(HEAD, { [VCALL]: `${git('show', `${HEAD}:${VCALL}`)}// a fifth line\n` }, `${AVATAR_SPAWN_SUBJECT} a fifth voice-call line${TRAILER}`)))
+  await mutant('scope: a line added to FRONTEND-1\'s voice-call proof in an own commit (dev has its four lines; this change touches none of theirs)', () => scopeCommittedFiles(commitWith(HEAD, { [VCALL]: `${git('show', `${HEAD}:${VCALL}`)}// a fifth line\n` }, `${AVATAR_SPAWN_SUBJECT} a fifth voice-call line${TRAILER}`)))
   await mutant('scope: another FRONTEND-1 voice-call proof touched in an own commit (the replay proof was not OK\'d)', () => scopeCommittedFiles(commitWith(HEAD, { 'scripts/test-studio-voice-call-replay.mjs': `${git('show', `${HEAD}:scripts/test-studio-voice-call-replay.mjs`)}\n` }, `${AVATAR_SPAWN_SUBJECT} touches the replay proof${TRAILER}`)))
   await mutant('scope: a stray line in the Usage page in an own commit', () => scopeCommittedFiles(commitWith(HEAD, { 'app/(app)/usage/page.tsx': `${git('show', `${HEAD}:app/(app)/usage/page.tsx`)}\n` }, `${AVATAR_SPAWN_SUBJECT} edits the Usage page${TRAILER}`)))
   await mutant('scope: a later commit with an unregistered file stacked on this head', () => scopeCommittedFiles(laterCommit(HEAD, { registryLines: true, extra: { 'stray-later-change.txt': 'stray\n' } }), { later: synLater }))
