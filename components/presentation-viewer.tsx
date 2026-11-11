@@ -914,6 +914,8 @@ export function PresentationViewer({
   const chatParityViewerLive = useRef<import('@/lib/studio-chat-parity-viewer').ViewerHandle | null>(null) // CHAT-PARITY-VIEWER: this render's { state, actions }: the state is what the buttons read, each action calls the handler the matching button calls
   const chatParityViewerMod = useRef<typeof import('@/lib/studio-chat-parity-viewer') | null>(null) // CHAT-PARITY-VIEWER: the bus module, once the gated effect below has loaded it
   const chatParityLayoutDone = useRef(false) // CHAT-PARITY-VIEWER: raised by handleChangeLayout's own success path, so /layout says it only after the viewer confirmed it
+  const chatParityWorkspaceLive = useRef<import('@/lib/studio-chat-parity-workspace').WorkspacePart | null>(null) // CHAT-PARITY-WORKSPACE: this render's Template Mode part (what the Template menu's toggle reads, and its handler) for the workspace "/" commands
+  const chatParityWorkspaceMod = useRef<typeof import('@/lib/studio-chat-parity-workspace') | null>(null) // CHAT-PARITY-WORKSPACE: the workspace bus module, once the gated effect below has loaded it
   const [showThemePanel, setShowThemePanel] = useState(false)
   const handledWorkflowRef = useRef<string | null>(null)
 
@@ -3773,6 +3775,11 @@ export function PresentationViewer({
       setRail: (show: boolean) => { if (show && railFocusHidden) onStudioRailReveal?.(); else setShowThumbnails(show) } } } // CHAT-PARITY-VIEWER: the rail's own reveal when a panel folded it away, else the user's show / hide choice
   useEffect(() => { if (!chatParityViewerOn) return; let off: (() => void) | null = null; let live = true; void import('@/lib/studio-chat-parity-viewer').then(mod => { if (!live) return; chatParityViewerMod.current = mod; off = mod.registerViewer(() => chatParityViewerLive.current) }); return () => { live = false; off?.() } }, [chatParityViewerOn]) // CHAT-PARITY-VIEWER
   useEffect(() => { if (chatParityViewerOn) chatParityViewerMod.current?.publishViewerState() }) // CHAT-PARITY-VIEWER: after every commit; the bus tells the composer only when the state it shows changed
+  chatParityWorkspaceLive.current = !chatParityViewerOn ? null : { // CHAT-PARITY-WORKSPACE (same gate as the viewer commands above): the Template menu's Template Mode item, for /template-mode
+    state: { mode: { builder: Boolean(templateBuilderEnabled), on: templateModeOn, available: templateModeAvailable, blocked: studioToolbarDisabledReason('template', { tabPausedHint: studioTabPausedHint, viewerIsReady, templateModeOn, slideMutationPending: isSlideMutationPending }) } }, // CHAT-PARITY-WORKSPACE: drawn with the templates feature; the Template button's own reason (the viewer loading, a paused tab); available = a template is chosen
+    actions: { setTemplateMode: (on: boolean) => { if (studioShell) viewerInteractionIntentRef.current += 1; onTemplateModeChange?.(on) } } } // CHAT-PARITY-WORKSPACE: the item's own click, asked for the mode wanted (the same intent bump, the same page callback)
+  useEffect(() => { if (!chatParityViewerOn) return; let off: (() => void) | null = null; let live = true; void import('@/lib/studio-chat-parity-workspace').then(mod => { if (!live) return; chatParityWorkspaceMod.current = mod; off = mod.registerWorkspacePart('viewer', () => chatParityWorkspaceLive.current) }); return () => { live = false; off?.() } }, [chatParityViewerOn]) // CHAT-PARITY-WORKSPACE
+  useEffect(() => { if (chatParityViewerOn) chatParityWorkspaceMod.current?.publishWorkspaceState() }) // CHAT-PARITY-WORKSPACE: after every commit; the bus tells the composer only when the merged state it shows changed
 
   // Debug: Log button states
   useEffect(() => {

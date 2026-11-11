@@ -159,6 +159,13 @@ export function SlideNotesPanel({
       return next
     })
   }, [])
+  // CHAT-PARITY-WORKSPACE (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS with NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell, default off): the Notes bar for /notes show|hide. The composer reaches it through ONE small bus (lib/studio-chat-parity-workspace.ts): this panel registers a getter of what the bar reads (open or not) and its own handler. Flag off: null, and neither effect does anything.
+  const chatParityWorkspaceOn = studioShell && process.env.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS === 'true' && process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true' // CHAT-PARITY-WORKSPACE
+  const chatParityWorkspaceLive = useRef<import('@/lib/studio-chat-parity-workspace').WorkspacePart | null>(null) // CHAT-PARITY-WORKSPACE
+  const chatParityWorkspaceMod = useRef<typeof import('@/lib/studio-chat-parity-workspace') | null>(null) // CHAT-PARITY-WORKSPACE: the bus module, once the gated effect below has loaded it
+  chatParityWorkspaceLive.current = !chatParityWorkspaceOn ? null : { state: { notes: { shown: expanded } }, actions: { toggleNotes: handleToggleExpanded } } // CHAT-PARITY-WORKSPACE: the bar's own handler; the command passes no value, it asks only when the bar is not already as wanted
+  useEffect(() => { if (!chatParityWorkspaceOn) return; let off: (() => void) | null = null; let live = true; void import('@/lib/studio-chat-parity-workspace').then(mod => { if (!live) return; chatParityWorkspaceMod.current = mod; off = mod.registerWorkspacePart('notes', () => chatParityWorkspaceLive.current) }); return () => { live = false; off?.() } }, [chatParityWorkspaceOn]) // CHAT-PARITY-WORKSPACE
+  useEffect(() => { if (chatParityWorkspaceOn) chatParityWorkspaceMod.current?.publishWorkspaceState() }) // CHAT-PARITY-WORKSPACE: after every commit; the bus tells the composer only when the merged state it shows changed
 
   // Questions waiting on the owner. Lives here rather than in the inbox so the
   // count can badge the tab while the tab is closed — which is the only way a

@@ -8,11 +8,13 @@ import React from 'react'
 import { ChevronLeft, ChevronRight, Eye, FilePlus, Grid2x2, Hash, Layers, Layout, Monitor, Palette, PanelLeft, Pencil, Play, RotateCcw, Save, Square } from 'lucide-react'
 import type { ParityGroup, ParityName, ParityRow } from '@/lib/studio-chat-parity-viewer'
 import '../studio-chat-parity-viewer.css'
+import { WORKSPACE_ICONS } from '@/components/builder/chat/studio-chat-parity-workspace-icons' // CHAT-PARITY-WORKSPACE
 
 const ICONS: Record<ParityName, React.ComponentType<{ className?: string }>> = {
   goto: Hash, next: ChevronRight, prev: ChevronLeft, 'blank-slide': FilePlus, layout: Layout,
   present: Play, edit: Pencil, view: Eye, rail: PanelLeft, grid: Grid2x2, borders: Square,
   save: Save, discard: RotateCcw, version: Layers, theme: Palette, canvas: Monitor,
+  ...WORKSPACE_ICONS, // CHAT-PARITY-WORKSPACE: the workspace commands' rows (the Workspace group)
 }
 
 export interface ChatParityRowsProps {
