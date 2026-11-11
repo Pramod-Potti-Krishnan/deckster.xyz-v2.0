@@ -19,6 +19,7 @@ import ts from 'typescript'
 import {
   BASE_COMMIT, DASHBOARD_PAGE, DECK_CARD_THUMBNAIL_ENV_BLOCK, DECK_CARD_THUMBNAIL_FILES, DECK_CARD_THUMBNAIL_MARKER, DECK_CARD_THUMBNAIL_NEW_FILES, DECK_CARD_THUMBNAIL_SCOPE_FILES, stripDeckCardThumbnail,
 } from './studio-deck-card-thumbnail-strip.mjs'
+import { stripAuditPreviews } from './studio-audit-previews-strip.mjs' // LATER-CHANGES: registry read (AUDIT-PREVIEWS)
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
@@ -282,7 +283,7 @@ await proveLib(libFor(libSource), 'lib')
 console.log(`PASS lib: ${checks} checks`)
 
 // =========================================================== 2. the page pin
-const pageText = read(DASHBOARD_PAGE)
+const pageText = stripAuditPreviews(DASHBOARD_PAGE, read(DASHBOARD_PAGE)) // LATER-CHANGES: registry read (AUDIT-PREVIEWS): this change's lines come out first
 const basePage = git('show', `${BASE_COMMIT}:${DASHBOARD_PAGE}`)
 function provePage(page, label = 'page') {
   const at = text => `${label}: ${text}`

@@ -96,6 +96,10 @@ export const AUDIT_PREVIEWS_PIN_EDITS = {
     ["import { stripAuditPreviews } from './studio-audit-previews-strip.mjs' // LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", ""],
     ["const read = rel => stripAuditPreviews(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", "const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')\n"],
   ],
+  "scripts/test-studio-deck-card-thumbnail.mjs": [
+    ["import { stripAuditPreviews } from './studio-audit-previews-strip.mjs' // LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", ""],
+    ["const pageText = stripAuditPreviews(DASHBOARD_PAGE, read(DASHBOARD_PAGE)) // LATER-CHANGES: registry read (AUDIT-PREVIEWS): this change's lines come out first\n", "const pageText = read(DASHBOARD_PAGE)\n"],
+  ],
   "scripts/test-studio-rail-slide-identity.mjs": [
     ["    if (name === '@/lib/studio-inventory-fallback') return { STUDIO_INVENTORY_FALLBACK_ENABLED: false, readInventoryFallback: async () => ({ kind: 'unavailable', reason: 'stub' }) } // LATER-CHANGES: registry read (AUDIT-PREVIEWS): the hook now imports the fallback lib (flag off here: the base's hook)\n", ""],
   ],
