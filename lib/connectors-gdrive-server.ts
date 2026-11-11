@@ -16,6 +16,7 @@ import {
 } from '@/lib/connectors-gdrive'
 import { isGdriveSessionLinksEnabled, validChatSessionId, validateLinkedItemIds } from '@/lib/connectors-gdrive-session-links'
 import { GDRIVE_RETURN_COOKIE, GDRIVE_RETURN_QUERY, returnRedirectPath, validReturnPath } from '@/lib/connectors-gdrive-composer' // GDRIVE-COMPOSER
+import { validateRemoveItemIds } from '@/lib/connectors-gdrive-remove'
 
 const notFound = () => NextResponse.json({ error: 'Not found' }, { status: 404 })
 const fail = (status: number, error: string) => NextResponse.json({ error }, { status })
@@ -183,4 +184,24 @@ export async function handleSessionLinks(req: Request, method: 'POST' | 'DELETE'
   const msg = method === 'POST' ? 'Could not add your Drive files to this chat. Please try again.' : 'Could not remove your Drive files from this chat. Please try again.'
   return guarded(msg, async () => relay(await callResearcher(g.userId, '/gdrive/session-links', method,
     { owner_id: g.userId, session_id: sessionId, item_ids: ids }, undefined, chatSessionIdentityHeader(g.userId, sessionId)), linksView, msg))
+}
+
+const removeView = (d: Record<string, unknown>) => ({
+  removed: Array.isArray(d.removed) ? d.removed.filter(x => typeof x === 'string') : [],
+  rejected: Array.isArray(d.rejected) ? d.rejected.map(r => pick(r, ['id', 'error'])) : [],
+  content_erased: d.content_erased === true,
+})
+
+/**
+ * DELETE /api/connectors/gdrive/items {item_ids}: remove library items with a real erase (Researcher !273, its own flag). Drive flag off: 404, no fetch.
+ * Owner is always the session cuid (never the body). Researcher fails closed (503 CONNECTOR_ERASE_UNAVAILABLE) when it cannot erase; that surfaces as 502 +
+ * error_code, never as a success, and the client tells the user nothing was changed.
+ */
+export async function handleItemsDelete(req: Request): Promise<NextResponse> {
+  const g = await gate(); if (g.error) return g.error
+  const body = (await req.json().catch(() => null)) as { item_ids?: unknown } | null
+  const ids = validateRemoveItemIds(body?.item_ids)
+  if (!ids) return fail(400, 'Please choose between 1 and 25 Drive files to remove.')
+  const msg = "Couldn't remove your Drive files. Nothing was changed. Please try again."
+  return guarded(msg, async () => relay(await callResearcher(g.userId, '/gdrive/items', 'DELETE', { owner_id: g.userId, item_ids: ids }), removeView, msg))
 }

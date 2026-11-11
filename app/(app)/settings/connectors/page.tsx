@@ -7,6 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { isGdriveConnectorEnabled } from "@/lib/connectors-gdrive-flag"
 import { openDrivePicker } from "@/lib/gdrive-picker-loader"
+import { useToast } from "@/hooks/use-toast"
+import { DriveRemoveButton } from "@/components/settings/gdrive-remove-item"
+import { removeDriveItem } from "@/lib/connectors-gdrive-remove"
 
 export const dynamic = "force-dynamic"
 
@@ -23,6 +26,7 @@ function GoogleDriveCard() {
   const [state, setState] = useState<DriveState | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const { toast } = useToast()
 
   const load = useCallback(async () => {
     try {
@@ -46,6 +50,13 @@ function GoogleDriveCard() {
     const res = await fetch("/api/connectors/gdrive/disconnect", { method: "POST" })
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Could not disconnect.")
     await load()
+  })
+  // Piece C: real erase of one library item. Success is only what Researcher confirms (toast); everything else is an alert saying what state the item is in.
+  const removeItem = (id: string) => run(async () => {
+    const out = await removeDriveItem(id)
+    if (out.kind === "removed") toast({ description: out.message })
+    else setMessage(out.message)
+    if (out.refresh) await load()
   })
 
   return (
@@ -74,6 +85,7 @@ function GoogleDriveCard() {
                 <span className="font-medium">{item.url ? <a href={item.url} target="_blank" rel="noopener noreferrer">{item.title ?? "Untitled"}</a> : (item.title ?? "Untitled")}</span>
                 <span className="text-slate-500">{item.modified_time ? `Modified ${new Date(item.modified_time).toLocaleString()}` : ""}</span>
                 <span>{item.status ?? "queued"}{item.error ? `: ${item.error}` : ""}</span>
+                {item.id && <DriveRemoveButton title={item.title} disabled={busy} onConfirm={() => removeItem(item.id!)} />}
               </li>
             ))}
           </ul>
