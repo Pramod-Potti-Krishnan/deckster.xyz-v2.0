@@ -45,7 +45,7 @@ const ENV = '.env.example'
 const REGISTRY = 'scripts/studio-later-changes.mjs'
 const FONT_PROOF = 'scripts/test-theme-font-selection.mjs'
 const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'ignore'] })
-const OWN = (() => { try { return git('log', '-1', '--format=%H', '-E', '--grep=^Chat parity', 'HEAD').trim() || null } catch { return null } })() // a merge of dev into this branch is this change's commit too (its subject starts the same way)
+const OWN = (() => { try { return git('log', '-1', '--format=%H', '-E', '--grep=^Chat parity', 'eeb78d4f4b7676d75c244746f1edc7da1d269478').trim() || null } catch { return null } })() // a merge of dev into this branch is this change's commit too (its subject starts the same way) // LATER-CHANGES: registry read (CHAT-PARITY-C2): the walk starts at the commit the later "Chat parity C2:" change was made on (#598), so that change's own commits, which start the same way, are not read as this change's newest commit
 const readOwn = rel => { if (!OWN) return read(rel); try { return git('show', `${OWN}:${rel}`) } catch { return read(rel) } }
 const hasBase = (() => { try { git('cat-file', '-e', `${strip.BASE_COMMIT}^{commit}`); return true } catch { return false } })()
 const baseOf = rel => git('show', `${strip.BASE_COMMIT}:${rel}`)

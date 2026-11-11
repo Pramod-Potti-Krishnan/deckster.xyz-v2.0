@@ -3797,6 +3797,29 @@ export function PresentationViewer({
     if (target !== currentSlide - 1) void handleGoToSlide(target)
   }, [presentViewOnlyActive, currentSlide, presentSlideTotal, handleGoToSlide])
 
+  // CHAT-PARITY-C2 CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_DECKOPS, read inline, default off): Director's deck_ops requests (lib/studio-chat-parity-deckops.ts) run THIS viewer's own handlers: native Add Slide, Change Layout, Present, the Mode and the slide rail. The
+  // CHAT-PARITY-C2 CHAT-PARITY: live ref holds the latest render's handlers and state (assigned every render, as onEditModeChangeRef above); the gated effect below hands the page a viewer whose methods read it, so no closure is stale. Off: nothing is registered. Each line also carries the older CHAT-PARITY marker, so the older proofs that pin this file's bytes through the older strip read none of them.
+  const chatParityDeckLiveRef = useRef<{ addSlide: typeof handleAddSlide; changeLayout: typeof handleChangeLayout; fullscreen: typeof handleFullscreen; mode: typeof handleToggleEditModeButton; ready: boolean; pending: boolean; edit: boolean; rail: boolean } | null>(null) // CHAT-PARITY-C2 CHAT-PARITY
+  if (process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_DECKOPS === 'true') chatParityDeckLiveRef.current = { addSlide: handleAddSlide, changeLayout: handleChangeLayout, fullscreen: handleFullscreen, mode: handleToggleEditModeButton, ready: viewerIsReady, pending: isSlideMutationPending || slideMutationPendingRef.current, edit: isEditMode, rail: showThumbnails } // CHAT-PARITY-C2 CHAT-PARITY
+  useEffect(() => { // CHAT-PARITY-C2 CHAT-PARITY
+    if (process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_DECKOPS !== 'true') return // CHAT-PARITY-C2 CHAT-PARITY
+    let bus: typeof import('@/lib/studio-chat-parity-deckops').chatParityDeckOpsBus | null = null // CHAT-PARITY-C2 CHAT-PARITY
+    let gone = false // CHAT-PARITY-C2 CHAT-PARITY
+    void import('@/lib/studio-chat-parity-deckops').then(mod => { // CHAT-PARITY-C2 CHAT-PARITY: loaded inside the gated effect, so the viewer's proofs see no new import
+      if (gone) return // CHAT-PARITY-C2 CHAT-PARITY
+      const live = () => chatParityDeckLiveRef.current // CHAT-PARITY-C2 CHAT-PARITY
+      bus = mod.chatParityDeckOpsBus // CHAT-PARITY-C2 CHAT-PARITY
+      bus.viewer = { // CHAT-PARITY-C2 CHAT-PARITY
+        addSlide: async (layout, options) => { await live()?.addSlide(layout as SlideLayoutType, options) }, // CHAT-PARITY-C2 CHAT-PARITY
+        changeLayout: async (slideIndex, layout) => { await live()?.changeLayout(slideIndex, layout as SlideLayoutType) }, // CHAT-PARITY-C2 CHAT-PARITY
+        present: async () => { await live()?.fullscreen() }, // CHAT-PARITY-C2 CHAT-PARITY
+        setMode: async edit => { await live()?.mode(edit) }, // CHAT-PARITY-C2 CHAT-PARITY
+        setRail: visible => setShowThumbnails(visible), // CHAT-PARITY-C2 CHAT-PARITY
+        state: () => ({ ready: live()?.ready ?? false, mutationPending: live()?.pending ?? false, editMode: live()?.edit ?? false, rail: live()?.rail ?? true }), // CHAT-PARITY-C2 CHAT-PARITY
+      } // CHAT-PARITY-C2 CHAT-PARITY
+    }) // CHAT-PARITY-C2 CHAT-PARITY
+    return () => { gone = true; if (bus) bus.viewer = null } // CHAT-PARITY-C2 CHAT-PARITY
+  }, []) // CHAT-PARITY-C2 CHAT-PARITY: registered once; its methods read the live ref above at call time
   // Calculate optimal slide dimensions in fullscreen mode
   useEffect(() => {
     if (!isFullscreen || !slideContainerRef.current) return
