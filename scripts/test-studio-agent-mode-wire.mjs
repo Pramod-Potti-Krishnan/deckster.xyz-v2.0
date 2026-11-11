@@ -180,7 +180,7 @@ const pageLines = text => ({
   wire: lineWith(text, 'const buildModeWire = STUDIO_AGENT_MODE_ENABLED ?'),
   option: lineWith(text, '...(STUDIO_AGENT_MODE_ENABLED ? { onAgentFrame:'),
   cards: lineWith(text, "{STUDIO_AGENT_MODE_ENABLED && agentRun.status !== 'idle' ? <div ref={agentCardsRef}"),
-  picker: lineWith(text, '{STUDIO_AGENT_MODE_ENABLED ? <div className="px-3 pb-1"><BuildModePicker'),
+  picker: lineWith(text, '{STUDIO_AGENT_MODE_ENABLED ? <div className="mx-auto w-full max-w-[668px] px-3 pb-1"><BuildModePicker'),
   reset: lineBlock(text, 'useEffect(() => { // AGENT-MODE-WIRE: a run, its cards', '}, [currentSessionId]) // AGENT-MODE-WIRE'),
   scroll: lineWith(text, 'useEffect(() => { if (STUDIO_AGENT_MODE_ENABLED && agentCardsViewKey)'),
 })
@@ -432,7 +432,7 @@ function pageChecks(texts = {}) {
   // where they sit: the cards in the chat's scroll area, after the messages; the picker right above the composer
   const lines = page.split('\n'), idx = needle => lines.findIndex(l => l.includes(needle))
   assert.ok(idx('<MessageList') < idx("{STUDIO_AGENT_MODE_ENABLED && agentRun.status !== 'idle'") && idx("{STUDIO_AGENT_MODE_ENABLED && agentRun.status !== 'idle'") < idx('</ScrollArea>'), 'the cards are in the scroll area, after the message list')
-  assert.equal(lines[idx('{STUDIO_AGENT_MODE_ENABLED ? <div className="px-3 pb-1"><BuildModePicker') + 1].trim(), '<ChatInput', 'the picker is the element right above the composer')
+  assert.equal(lines[idx('{STUDIO_AGENT_MODE_ENABLED ? <div className="mx-auto w-full max-w-[668px] px-3 pb-1"><BuildModePicker') + 1].trim(), '<ChatInput', 'the picker is the element right above the composer')
   // the session effect: a move clears the run, the cards and the mode; the first save of a new chat does not; a no-op when off
   const move = (previous, next) => pageSessionEffect({ text: page, wireText, previous, next })
   deepEqual(move('A', 'B').calls, [['dispatch', 'agent_wire_reset'], ['mode', 'standard'], ['from', undefined]], 'A to B: cleared'); assert.equal(move('A', 'B').ref, 'B')
@@ -596,7 +596,7 @@ await pageMutant('the frame option is passed with the flag off', '...(STUDIO_AGE
 await pageMutant('the frame option dispatches a frame of a socket that is no longer current', '=> { if (owner.isCurrent()) dispatchAgentRun(frame) }', '=> { dispatchAgentRun(frame) }')
 await pageMutant('the frame option answers the frame', '=> { if (owner.isCurrent()) dispatchAgentRun(frame) }', "=> { if (owner.isCurrent()) { dispatchAgentRun(frame); sendAgentAnswer({ runId: 'x', card: 'A1', choice: 'start' }) } }")
 await pageMutant('the cards are mounted with the flag off', "{STUDIO_AGENT_MODE_ENABLED && agentRun.status !== 'idle' ? <div ref={agentCardsRef}", "{agentRun.status !== 'idle' ? <div ref={agentCardsRef}")
-await pageMutant('the picker is mounted with the flag off', '{STUDIO_AGENT_MODE_ENABLED ? <div className="px-3 pb-1"><BuildModePicker', '{true ? <div className="px-3 pb-1"><BuildModePicker')
+await pageMutant('the picker is mounted with the flag off', '{STUDIO_AGENT_MODE_ENABLED ? <div className="mx-auto w-full max-w-[668px] px-3 pb-1"><BuildModePicker', '{true ? <div className="mx-auto w-full max-w-[668px] px-3 pb-1"><BuildModePicker')
 await pageMutant('the picker is not off while a run is in progress', 'disabled={agentRunBusy(agentRun)}', 'disabled={false}')
 await pageMutant('the picker is given a plan that is always Pro', 'plan={agentPlan}', 'plan="pro"')
 await pageMutant('a card answer sends without the open-card rule', 'answerAgentCard(agentRun, answer, sendAgentAnswer, dispatchAgentRun, () => toast(AGENT_WIRE_COPY.answerNotSent))', 'sendAgentAnswer(answer)')
