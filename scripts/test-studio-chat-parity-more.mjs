@@ -487,6 +487,13 @@ async function handoffSuite(text = read(HANDOFF)) {
     eq([handoff.takeBrowserHandoff('kg-ask'), waiting.map.size], [null, 1], 'flag off: nothing is read or removed')
     const on = loadHandoff(text, { NEXT_PUBLIC_STUDIO_CHAT_COMMANDS: 'true', NEXT_PUBLIC_STUDIO_CHAT_CLEAN: 'true' })
     eq([on.takeBrowserHandoff('kg-ask'), waiting.map.size], [{ text: 'x', id: null }, 0], 'flag on: the page takes it')
+    eq([on.takeBrowserHandoff('kg-ask'), waiting.map.size], [{ text: 'x', id: null }, 0], 'a remount of the same page (it is keyed by the account, so it mounts twice on a cold load) gets the same entry again: the storage entry is already gone')
+    eq(on.takeBrowserHandoff('kg-search'), null, 'the hold is for that page\'s own entry, not another\'s')
+    const realNow = Date.now
+    try {
+      Date.now = () => realNow() + on.MORE_HANDOFF_HOLD_MS + 1
+      eq(on.takeBrowserHandoff('kg-ask'), null, 'after the hold it is gone: a later visit to the page finds nothing')
+    } finally { Date.now = realNow }
     const half = loadHandoff(text, { NEXT_PUBLIC_STUDIO_CHAT_COMMANDS: 'true' })
     handoff.putHandoff(waiting, { kind: 'kg-ask', text: 'x', id: null }, Date.now()); eq([half.takeBrowserHandoff('kg-ask'), waiting.map.size], [null, 1], 'it needs chat clean too, like the other commands')
     eq(on.putBrowserHandoff({ kind: 'kg-search', text: 'y', id: null }), true, 'the composer\'s put goes to this browser\'s storage')
@@ -574,7 +581,7 @@ function modelSources(text) {
   ok(!/\bfetch\(|localStorage|document\.|window\./.test(text.replace(/\/\/.*$/gm, '')), 'the helper touches no network, no storage, no DOM')
 }
 function handoffSources(text) {
-  ok(/process\.env\.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS === 'true' && process\.env\.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true'/.test(text) && /CHAT_PARITY_MORE_ON \? takeHandoff\(/.test(text), 'the page\'s take answers null with the flag off (the commands flag, with chat clean)')
+  ok(/process\.env\.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS === 'true' && process\.env\.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true'/.test(text) && /if \(!CHAT_PARITY_MORE_ON\) return null/.test(text), 'the page\'s take answers null with the flag off (the commands flag, with chat clean)')
   ok(/store\.removeItem\(MORE_HANDOFF_KEY\)/.test(text) && !/location|URLSearchParams|history\./.test(text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')), 'a take removes the entry, and nothing is put in the address')
 }
 function glueSources(glue, ui) {
@@ -697,7 +704,9 @@ async function mutantChecks() {
   await H("    store.removeItem(MORE_HANDOFF_KEY)\n    return { text: entry.text", "    return { text: entry.text", 'a take leaves the entry behind')
   await H("if (entry.kind !== kind) return null", "if (entry.kind !== kind) { store.removeItem(MORE_HANDOFF_KEY); return null }", 'another page\'s entry is thrown away')
   await H("now - entry.at <= MORE_HANDOFF_TTL_MS", "true", 'an old entry is taken')
-  await H("return CHAT_PARITY_MORE_ON ? takeHandoff(browserStore(), kind, Date.now()) : null", "return takeHandoff(browserStore(), kind, Date.now())", 'the page takes a hand-off with the flag off')
+  await H("if (!CHAT_PARITY_MORE_ON) return null", "", 'the page takes a hand-off with the flag off')
+  await H("if (kept && now - kept.at >= 0 && now - kept.at <= MORE_HANDOFF_HOLD_MS) return kept.value", "", 'a remounted page finds nothing (the cold new tab loses its words)')
+  await H("now - kept.at <= MORE_HANDOFF_HOLD_MS) return kept.value", "now - kept.at >= 0) return kept.value", 'a held entry never expires')
   await H("now - entry.at >= 0 &&", "", 'an entry from the future is taken')
   // sources: the confirms
   const row = read(ROW), ask = read(ASK), hook = read(HOOK)

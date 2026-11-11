@@ -3,7 +3,7 @@
  * Gated by NEXT_PUBLIC_STUDIO_CHAT_COMMANDS (which already needs NEXT_PUBLIC_STUDIO_CHAT_CLEAN). No new flag, no backend, no Director change.
  *
  * /delete-theme, /delete-template, /kg-search and /ask leave the Builder for a page that already does the work (Themes, Templates, Knowledge). What the person typed is not put in the address (a URL is logged and
- * stays in history); it is written once, to this browser's local storage, for ONE page to take: the take removes it, and an entry older than two minutes is dropped. Local storage (not a module variable) so a page
+ * stays in history); it is written once, to this browser's local storage, for ONE page to take: the take removes it (the page that took it keeps it a few seconds for its own remounts), and an entry older than two minutes is dropped. Local storage (not a module variable) so a page
  * opened in a NEW TAB (a build is running, or edits are unsaved) gets it too. The page then does what its own control does: the Knowledge search runs its own search, the Ask box is only FILLED (never submitted),
  * the Themes and Templates pages open the row's own delete confirmation (a click there deletes; nothing here ever does).
  *
@@ -45,9 +45,22 @@ export function takeHandoff(store: MoreHandoffStore | null, kind: MoreHandoffKin
 const CHAT_PARITY_MORE_ON = process.env.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS === 'true' && process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true'
 const browserStore = (): MoreHandoffStore | null => { try { return typeof window !== 'undefined' ? window.localStorage : null } catch { return null } }
 
-/** The page's take. With the flag off: null, nothing read, nothing removed. */
+/**
+ * How long a page that took an entry keeps it for ITS OWN remounts (ms). A page that mounts before its account is known is mounted again once it is (the Knowledge page is keyed by the account), and the first mount's state is gone:
+ * a tab opened cold took the entry on the first mount and the second mount found nothing. The taken entry is held here, in this page's memory only (a reload starts empty, and the storage entry is already gone), for a few seconds.
+ */
+export const MORE_HANDOFF_HOLD_MS = 15_000
+const held = new Map<MoreHandoffKind, { value: { text: string; id: string | null }; at: number }>()
+
+/** The page's take. With the flag off: null, nothing read, nothing removed. A remount of the same page within the hold gets the same entry again (the storage entry is gone after the first take). */
 export function takeBrowserHandoff(kind: MoreHandoffKind): { text: string; id: string | null } | null {
-  return CHAT_PARITY_MORE_ON ? takeHandoff(browserStore(), kind, Date.now()) : null
+  if (!CHAT_PARITY_MORE_ON) return null
+  const now = Date.now()
+  const kept = held.get(kind)
+  if (kept && now - kept.at >= 0 && now - kept.at <= MORE_HANDOFF_HOLD_MS) return kept.value
+  const taken = takeHandoff(browserStore(), kind, now)
+  if (taken) held.set(kind, { value: taken, at: now }); else held.delete(kind)
+  return taken
 }
 
 /** The composer's put. */
