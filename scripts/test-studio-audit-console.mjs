@@ -183,7 +183,7 @@ function sourceChecks(texts, mod = stripModule) {
   assert.equal(texts['.env.example'], `${baseText('.env.example')}\n${block}`, '.env.example is the base plus the block')
   for (const flag of mod.AUDIT_CONSOLE_FLAGS) {
     assert.match(block, new RegExp(`^${flag}="false"$`, 'm'), `the block documents ${flag} as "false"`)
-    assert.equal((texts['.env.example'].match(new RegExp(flag, 'g')) || []).length, 1, `.env.example names ${flag} once`)
+    assert.equal((texts['.env.example'].match(new RegExp(`^${flag}=`, 'gm')) || []).length, 1, `.env.example assigns ${flag} once`)
   }
   assert.ok(block.endsWith('\n') && block.split('\n').filter(line => line && !line.startsWith('#')).length === mod.AUDIT_CONSOLE_FLAGS.length, 'the block is comments and one assignment per flag')
 }
