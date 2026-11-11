@@ -100,11 +100,11 @@ function tabsChecks(libText = read(TABS_LIB)) {
 // ============================================================================================================================================
 function fileChecks(texts = TEXTS) {
   const layout = texts[LAYOUT], dash = texts[DASH]
-  assert.equal(layout.split('\n').filter(line => MARKER_RE.test(line)).length, 2, 'the layout carries the marker on two lines: the import and the gated element')
+  assert.equal(layout.split('\n').filter(line => MARKER_RE.test(line)).length, 3, 'the layout carries the marker on three lines: the renamed component import, the gate import and the gated alias')
   assert.equal((layout.match(/<Analytics \/>/g) || []).length, 1, 'the layout renders <Analytics /> once')
-  assert.ok(layout.includes("        {STUDIO_ANALYTICS_MOUNTS && <Analytics />}{/* AUDIT-CONSOLE */}\n"), 'and only through the gate')
-  assert.ok(layout.includes("import { STUDIO_ANALYTICS_MOUNTS } from '@/lib/studio-analytics-gate' // AUDIT-CONSOLE\n"), 'the layout imports the lib\'s constant')
-  assert.ok(layout.includes("import { Analytics } from '@vercel/analytics/next'\n"), 'the component import is untouched')
+  assert.ok(layout.includes("\n        <Analytics />\n"), 'and that element line is the base\'s, byte for byte (older proofs pin the lines around it)')
+  assert.ok(layout.includes("import { Analytics as VercelAnalytics } from '@vercel/analytics/next' // AUDIT-CONSOLE\nimport { STUDIO_ANALYTICS_MOUNTS } from '@/lib/studio-analytics-gate' // AUDIT-CONSOLE\n"), 'the real component is imported under its own name, then the lib\'s constant')
+  assert.ok(layout.includes("const inter = Inter({ subsets: ['latin'] })\nconst Analytics = STUDIO_ANALYTICS_MOUNTS ? VercelAnalytics : () => null // AUDIT-CONSOLE: "), 'the name <Analytics /> is the real component with the gate open and nothing with it closed')
   assert.equal(/process\.env\.NEXT_PUBLIC_STUDIO_ANALYTICS/.test(layout), false, 'the layout does not read the env itself')
   assert.equal(dash.split('\n').filter(line => MARKER_RE.test(line)).length, 2, 'the Decks page carries the marker on two lines: the import and the tab label')
   assert.ok(dash.includes('import { STUDIO_DECK_TABS_HONEST_ENABLED, deckBuiltTabLabel } from "@/lib/studio-deck-tabs-honest" // AUDIT-CONSOLE\n'), 'the page imports the lib')
@@ -154,7 +154,16 @@ function sourceChecks(texts, mod = stripModule) {
     assert.equal(diff.removed.length, (edits[rel] || []).flatMap(([, was]) => was.split('\n')).filter(line => line !== '').length, `${rel}: the base lines this change rewrites (all of them, no other)`)
   }
   // the older proofs this change teaches: each gains one marked line (the first-parent walk leaves this change's commits out) and is the base's without it
-  assert.deepEqual([...mod.AUDIT_CONSOLE_PIN_FILES].sort(), PIN_FILES, 'the older proofs this change teaches')
+  const EXTRA_PIN_FILES = ["scripts/test-studio-deck-card-count.mjs","scripts/test-studio-create-word.mjs","scripts/test-studio-deck-cards-v2.mjs","scripts/test-studio-plain-nav-labels.mjs","scripts/test-atlas-decks-pagination.mjs","scripts/test-present-view-only.mjs","scripts/test-studio-deck-card-thumbnail-cards.mjs","scripts/test-studio-p2-publish.mjs"]
+  assert.deepEqual([...mod.AUDIT_CONSOLE_PIN_FILES].sort(), [...PIN_FILES, ...EXTRA_PIN_FILES].sort(), 'the older proofs this change teaches')
+  // an older proof that compiles a touched file with a fixed import list: one marked insertion, the base's proof without it
+  for (const rel of EXTRA_PIN_FILES) {
+    const now = laterStrips(rel, texts[rel]), diff = lineDiff(baseText(rel), now)
+    assert.equal(strip(rel, now), baseText(rel), `${rel}: without this change's line the proof is the base's, byte for byte`)
+    const pairs = mod.AUDIT_CONSOLE_PIN_EDITS[rel], wasLines = pairs.flatMap(([, was]) => was.split('\n')).filter(line => line !== ''), hasLines = pairs.flatMap(([has]) => has.split('\n')).filter(line => line !== '')
+    assert.deepEqual([diff.removed.length, diff.added.length], [wasLines.length, hasLines.length], `${rel}: the proof gains and loses exactly the lines of its pairs`)
+    for (const line of diff.added) assert.ok(line.includes(mod.AUDIT_CONSOLE_PIN_MARK), `${rel}: a line added carries the pin mark`)
+  }
   for (const rel of PIN_FILES) {
     const now = laterStrips(rel, texts[rel]), diff = lineDiff(baseText(rel), now)
     assert.equal(strip(rel, now), baseText(rel), `${rel}: without this change's line the proof is the base's, byte for byte`)
@@ -224,7 +233,7 @@ function messageProblems(subject, body) {
 // ============================================================================================================================================
 // run
 // ============================================================================================================================================
-const TEXTS = Object.fromEntries([...TOUCHED, ...NEW_FILES, '.env.example', REGISTRY, ...PIN_FILES, VOICE_CALL].map(rel => [rel, read(rel)]))
+const TEXTS = Object.fromEntries([...TOUCHED, ...NEW_FILES, '.env.example', REGISTRY, ...PIN_FILES, ...["scripts/test-studio-deck-card-count.mjs","scripts/test-studio-create-word.mjs","scripts/test-studio-deck-cards-v2.mjs","scripts/test-studio-plain-nav-labels.mjs","scripts/test-atlas-decks-pagination.mjs","scripts/test-present-view-only.mjs","scripts/test-studio-deck-card-thumbnail-cards.mjs","scripts/test-studio-p2-publish.mjs"], VOICE_CALL].map(rel => [rel, read(rel)]))
 
 await check('1a. the analytics gate: the flag, the whole truth table, odd values, the constants under every env combination', () => gateChecks())
 await check('1b. the deck tab label: the flag, off = the base\'s text for every count, on = "Built decks (N)", odd values', () => tabsChecks())
@@ -284,10 +293,13 @@ for (const [name, from, to] of TABS_MUTANTS) {
   })
 }
 const FILE_MUTANTS = [
-  [LAYOUT, 'the layout mounts <Analytics /> unconditionally again', '{STUDIO_ANALYTICS_MOUNTS && <Analytics />}{/* AUDIT-CONSOLE */}', '<Analytics />'],
-  [LAYOUT, 'the layout gates on true', '{STUDIO_ANALYTICS_MOUNTS && <Analytics />}', '{true && <Analytics />}'],
-  [LAYOUT, 'the layout mounts a second <Analytics />', '{STUDIO_ANALYTICS_MOUNTS && <Analytics />}{/* AUDIT-CONSOLE */}\n', '{STUDIO_ANALYTICS_MOUNTS && <Analytics />}{/* AUDIT-CONSOLE */}\n        <Analytics />{/* AUDIT-CONSOLE */}\n'],
-  [LAYOUT, 'the layout reads the env itself', '{STUDIO_ANALYTICS_MOUNTS && <Analytics />}', '{process.env.NEXT_PUBLIC_STUDIO_ANALYTICS_GATE !== "true" && <Analytics />}'],
+  [LAYOUT, 'the layout mounts the real component unconditionally again', 'const Analytics = STUDIO_ANALYTICS_MOUNTS ? VercelAnalytics : () => null', 'const Analytics = VercelAnalytics'],
+  [LAYOUT, 'the layout gates on true', 'const Analytics = STUDIO_ANALYTICS_MOUNTS ? VercelAnalytics', 'const Analytics = true ? VercelAnalytics'],
+  [LAYOUT, 'the layout never mounts it', 'const Analytics = STUDIO_ANALYTICS_MOUNTS ? VercelAnalytics : () => null', 'const Analytics = () => null'],
+  [LAYOUT, 'the layout mounts a second <Analytics />', '\n        <Analytics />\n', '\n        <Analytics />\n        <Analytics />\n'],
+  [LAYOUT, 'the layout rewrites the element line (older proofs pin it)', '\n        <Analytics />\n', '\n        <Analytics /> {/* x */}\n'],
+  [LAYOUT, 'the layout reads the env itself', 'const Analytics = STUDIO_ANALYTICS_MOUNTS ?', "const Analytics = process.env.NEXT_PUBLIC_STUDIO_ANALYTICS_GATE !== 'true' ?"],
+  [LAYOUT, 'the component keeps its old name (the gate is bypassed)', "import { Analytics as VercelAnalytics } from '@vercel/analytics/next' // AUDIT-CONSOLE", "import { Analytics } from '@vercel/analytics/next' // AUDIT-CONSOLE"],
   [DASH, 'the tab is always the honest label', '{STUDIO_DECK_TABS_HONEST_ENABLED ? deckBuiltTabLabel(true, completedPresentations.length) : <>Completed Presentations ({completedPresentations.length})</>}', '{deckBuiltTabLabel(true, completedPresentations.length)}'],
   [DASH, 'the tab ignores the flag (honest only when off)', '{STUDIO_DECK_TABS_HONEST_ENABLED ? deckBuiltTabLabel(true,', '{!STUDIO_DECK_TABS_HONEST_ENABLED ? deckBuiltTabLabel(true,'],
   [DASH, 'the off path changes the base\'s JSX', ': <>Completed Presentations ({completedPresentations.length})</>}', ': <>Completed Presentations</>}'],

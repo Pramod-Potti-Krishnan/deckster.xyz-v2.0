@@ -3,8 +3,9 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
 import postcss from 'postcss'
+import { stripAuditConsole } from './studio-audit-console-strip.mjs' // LATER-CHANGES: registry read (AUDIT-CONSOLE)
 
-const source = fs.readFileSync(new URL('../app/(app)/dashboard/page.tsx', import.meta.url), 'utf8')
+const source = stripAuditConsole('app/(app)/dashboard/page.tsx', fs.readFileSync(new URL('../app/(app)/dashboard/page.tsx', import.meta.url), 'utf8')) // LATER-CHANGES: registry read (AUDIT-CONSOLE)
 const deferred = () => { let resolve; const promise = new Promise(value => { resolve = value }); return { promise, resolve } }
 const settle = async () => { for (let index = 0; index < 6; index++) await Promise.resolve() }
 const same = (a, b) => a && b && a.length === b.length && a.every((value, index) => Object.is(value, b[index]))

@@ -25,6 +25,7 @@ import ts from 'typescript'
 import { stripDeckTitle } from './studio-deck-title-strip.mjs'
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 import { stripDeckCardThumbnail } from './studio-deck-card-thumbnail-strip.mjs' // DECK-CARD-THUMBNAIL (NEXT_PUBLIC_STUDIO_DECK_CARD_THUMBNAILS_ENABLED, COMPOSER-2): its marked lines on the Decks page come out first, before every older change's strip
+import { stripAuditConsole } from './studio-audit-console-strip.mjs' // LATER-CHANGES: registry read (AUDIT-CONSOLE)
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
@@ -32,7 +33,7 @@ const React = nodeRequire('react')
 const jsxRuntime = nodeRequire('react/jsx-runtime')
 const { renderToStaticMarkup } = nodeRequire('react-dom/server')
 const BASE_COMMIT = process.env.CREATE_WORD_BASE || 'e9503ae'
-const read = rel => stripLaunchWording(rel, stripDeckCardThumbnail(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))) // DECK-CARD-THUMBNAIL: its lines out first
+const read = rel => stripLaunchWording(rel, stripDeckCardThumbnail(rel, stripAuditConsole(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))) // LATER-CHANGES: registry read (AUDIT-CONSOLE); DECK-CARD-THUMBNAIL: its lines out first
 function baseSource(rel) {
   try {
     execFileSync('git', ['cat-file', '-e', `${BASE_COMMIT}^{commit}`], { cwd: repoRoot, stdio: 'ignore' })

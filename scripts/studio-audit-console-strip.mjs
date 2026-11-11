@@ -32,8 +32,8 @@ export const AUDIT_CONSOLE_LIB_FLAGS = [["lib/studio-analytics-gate.ts","NEXT_PU
 /** [text the file has now, text the file had at BASE_COMMIT] per edit (one per hunk), in the order they sit in the file; putting them back gives the base file byte for byte. */
 export const AUDIT_CONSOLE_EDITS = {
   "app/layout.tsx": [
-    ["import { STUDIO_ANALYTICS_MOUNTS } from '@/lib/studio-analytics-gate' // AUDIT-CONSOLE\n", ""],
-    ["        {STUDIO_ANALYTICS_MOUNTS && <Analytics />}{/* AUDIT-CONSOLE */}\n", "        <Analytics />\n"],
+    ["import { Analytics as VercelAnalytics } from '@vercel/analytics/next' // AUDIT-CONSOLE\nimport { STUDIO_ANALYTICS_MOUNTS } from '@/lib/studio-analytics-gate' // AUDIT-CONSOLE\n", "import { Analytics } from '@vercel/analytics/next'\n"],
+    ["const Analytics = STUDIO_ANALYTICS_MOUNTS ? VercelAnalytics : () => null // AUDIT-CONSOLE: the gate (lib/studio-analytics-gate.ts); the flag off is the real component, so the Analytics element below is as before\n", ""],
   ],
   "app/(app)/dashboard/page.tsx": [
     ["import { STUDIO_DECK_TABS_HONEST_ENABLED, deckBuiltTabLabel } from \"@/lib/studio-deck-tabs-honest\" // AUDIT-CONSOLE\n", ""],
@@ -49,6 +49,39 @@ export const AUDIT_CONSOLE_PIN_EDITS = {
   ],
   "scripts/test-studio-deck-sync-truth.mjs": [
     ["  shas.splice(0, shas.length, ...shas.filter(sha => !/^Audit fix:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (AUDIT-CONSOLE): on a branch stacked after this change (the audit P-30 / P-32 console fixes), the first-parent commits are its own, not this change's; with none left the identity checks cover the files\n", ""],
+  ],
+  "scripts/test-studio-deck-card-count.mjs": [
+    ["import { stripAuditConsole } from './studio-audit-console-strip.mjs' // LATER-CHANGES: registry read (AUDIT-CONSOLE)\n", ""],
+    ["const read = rel => stripDeckCardThumbnail(rel, stripAuditConsole(rel, fs.readFileSync(path.join(root, rel), 'utf8'))) // LATER-CHANGES: registry read (AUDIT-CONSOLE); DECK-CARD-THUMBNAIL: its marked lines on the Decks page come out first\n", "const read = rel => stripDeckCardThumbnail(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // DECK-CARD-THUMBNAIL: its marked lines on the Decks page come out first\n"],
+  ],
+  "scripts/test-studio-create-word.mjs": [
+    ["import { stripAuditConsole } from './studio-audit-console-strip.mjs' // LATER-CHANGES: registry read (AUDIT-CONSOLE)\n", ""],
+    ["const read = rel => stripLaunchWording(rel, stripDeckCardThumbnail(rel, stripAuditConsole(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))) // LATER-CHANGES: registry read (AUDIT-CONSOLE); DECK-CARD-THUMBNAIL: its lines out first\n", "const read = rel => stripLaunchWording(rel, stripDeckCardThumbnail(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))) // DECK-CARD-THUMBNAIL: its lines out first\n"],
+  ],
+  "scripts/test-studio-deck-cards-v2.mjs": [
+    ["import { stripAuditConsole } from './studio-audit-console-strip.mjs' // LATER-CHANGES: registry read (AUDIT-CONSOLE)\n", ""],
+    ["const read = file => stripDeckCardThumbnail(file, stripAuditConsole(file, fs.readFileSync(path.join(root, file), 'utf8'))); // LATER-CHANGES: registry read (AUDIT-CONSOLE); DECK-CARD-THUMBNAIL: its marked lines on the Decks page come out first\n", "const read = file => stripDeckCardThumbnail(file, fs.readFileSync(path.join(root, file), 'utf8')); // DECK-CARD-THUMBNAIL: its marked lines on the Decks page come out first\n"],
+  ],
+  "scripts/test-studio-plain-nav-labels.mjs": [
+    ["import { stripAuditConsole } from './studio-audit-console-strip.mjs' // LATER-CHANGES: registry read (AUDIT-CONSOLE)\n", ""],
+    ["const read = rel => stripLaunchWording(rel, stripDeckCardThumbnail(rel, stripAuditConsole(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))) // LATER-CHANGES: registry read (AUDIT-CONSOLE); DECK-CARD-THUMBNAIL: its lines out first\n", "const read = rel => stripLaunchWording(rel, stripDeckCardThumbnail(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))) // DECK-CARD-THUMBNAIL: its lines out first\n"],
+  ],
+  "scripts/test-atlas-decks-pagination.mjs": [
+    ["import { stripAuditConsole } from './studio-audit-console-strip.mjs' // LATER-CHANGES: registry read (AUDIT-CONSOLE)\n", ""],
+    ["const source = stripAuditConsole('app/(app)/dashboard/page.tsx', fs.readFileSync(new URL('../app/(app)/dashboard/page.tsx', import.meta.url), 'utf8')) // LATER-CHANGES: registry read (AUDIT-CONSOLE)\n", "const source = fs.readFileSync(new URL('../app/(app)/dashboard/page.tsx', import.meta.url), 'utf8')\n"],
+  ],
+  "scripts/test-present-view-only.mjs": [
+    ["import { stripAuditConsole } from './studio-audit-console-strip.mjs' // LATER-CHANGES: registry read (AUDIT-CONSOLE)\n", ""],
+    ["const read = path => stripAuditConsole(path, fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')) // LATER-CHANGES: registry read (AUDIT-CONSOLE)\n", "const read = path => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')\n"],
+  ],
+  "scripts/test-studio-deck-card-thumbnail-cards.mjs": [
+    ["import { stripAuditConsole } from './studio-audit-console-strip.mjs' // LATER-CHANGES: registry read (AUDIT-CONSOLE)\n", ""],
+    ["const read = rel => stripAuditConsole(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // LATER-CHANGES: registry read (AUDIT-CONSOLE)\n", "const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')\n"],
+  ],
+  "scripts/test-studio-p2-publish.mjs": [
+    ["import { stripAuditConsole } from './studio-audit-console-strip.mjs' // LATER-CHANGES: registry read (AUDIT-CONSOLE)\n", ""],
+    ["    const stripped = stripP2Publish(rel, stripAuditConsole(rel, sources[rel])) // LATER-CHANGES: registry read (AUDIT-CONSOLE): this change's lines (the layout's gated <Analytics />) come out first\n", "    const stripped = stripP2Publish(rel, sources[rel])\n"],
+    ["    let text = stripAuditConsole(rel, sources[rel]) // LATER-CHANGES: registry read (AUDIT-CONSOLE): this change's lines come out before the listed changes are put back\n", "    let text = sources[rel]\n"],
   ],
 }
 
