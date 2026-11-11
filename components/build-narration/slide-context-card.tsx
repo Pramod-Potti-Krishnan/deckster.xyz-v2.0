@@ -3,6 +3,8 @@
 import React from 'react'
 import { BookOpenCheck, CircleAlert, CircleHelp } from 'lucide-react'
 import type { SlideContextItem } from '@/hooks/use-deckster-websocket-v2'
+import { StudioCitationSources } from '@/components/builder/studio-citation-sources'
+import { citationSourceRows } from '@/lib/connectors-gdrive-citations'
 import './studio-build-status.css'
 
 /**
@@ -28,8 +30,9 @@ export function SlideContextCard({
   const citations = context.citation_count ?? 0
   const sources = context.source_types || []
   const issues = context.research_issues || []
+  const driveRows = citationSourceRows(context.content) // P4-15 piece B: [] unless NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED is on and a citation is a Drive file
 
-  return (
+  const strip = (
     <div
       className={[
         'flex min-w-0 items-center gap-2 rounded-md border border-border/70 bg-card/70 px-2.5 py-1.5',
@@ -81,4 +84,5 @@ export function SlideContextCard({
       </span>
     </div>
   )
+  return driveRows.length > 0 ? <div className="flex min-w-0 flex-col gap-1">{strip}<StudioCitationSources rows={driveRows} /></div> : strip
 }
