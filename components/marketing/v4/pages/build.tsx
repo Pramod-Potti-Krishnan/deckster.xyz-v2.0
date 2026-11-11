@@ -238,14 +238,9 @@ export function V4BuildPage() {
                   </svg>
                   <div className="astage__pip">
                     <div className="vtile vtile--agent">
-                      <svg viewBox="0 0 64 64" aria-hidden="true">
-                        <rect x="8" y="14" width="48" height="36" rx="8" fill="#fff" />
-                        <circle cx="24" cy="29" r="3.6" fill="#16162B" />
-                        <circle cx="40" cy="29" r="3.6" fill="#16162B" />
-                        <rect x="24" y="38" width="16" height="4.6" rx="2.3" fill="#FF6A4D" />
-                      </svg>
+                      <video className="castv" muted loop playsInline preload="none" poster="/marketing/v4/cast/kofi.webp" data-src="/marketing/v4/cast/kofi-talking.webm" width="320" height="320" aria-label="Kofi, a Deckster companion, talking" />
                       <span className="vtile__n">
-                        {"Agent"}
+                        {"Your agent"}
                       </span>
                     </div>
                     <div className="vtile vtile--you">
@@ -301,12 +296,7 @@ export function V4BuildPage() {
                   {"Your agent · on a call"}
                 </span>
                 <span className="phone__face">
-                  <svg viewBox="0 0 64 64" aria-hidden="true">
-                    <rect x="8" y="14" width="48" height="36" rx="8" fill="#fff" />
-                    <circle cx="24" cy="29" r="3.6" fill="#16162B" />
-                    <circle cx="40" cy="29" r="3.6" fill="#16162B" />
-                    <rect x="24" y="38" width="16" height="4.6" rx="2.3" fill="#FF6A4D" />
-                  </svg>
+                  <video className="castv" muted loop playsInline preload="none" poster="/marketing/v4/cast/tao.webp" data-src="/marketing/v4/cast/tao-talking.webm" width="320" height="320" aria-label="Tao, a Deckster companion, talking" />
                 </span>
                 <span className="phone__slide">
                   <img src="/marketing/v3-uat/slides/deck-06.jpg" alt="" width="1280" height="720" />

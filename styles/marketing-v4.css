@@ -402,6 +402,45 @@
 }
 @media (max-width:560px){.mv3:where(.mv4) .org__row--7{grid-template-columns:repeat(2,1fr)}}
 
+/* ==========================================================================
+   Revision 3: the Deckster companion cast (our own art) replaces every stand-in face.
+   Stills are .castp; short muted loops are .castv (poster = the still).
+   ========================================================================== */
+.mv3:where(.mv4) .castp,.mv3:where(.mv4) .castv{display:block;width:100%;height:100%;object-fit:cover;background:#EEF0F4}
+.mv3:where(.mv4) .vtile--agent{background:#EEF0F4;border-color:rgba(156,147,255,.75);box-shadow:0 0 0 2px rgba(124,110,255,.55),0 10px 24px -10px rgba(0,0,0,.6)}
+.mv3:where(.mv4) .astage__pip .vtile--agent{width:112px}
+.mv3:where(.mv4) .face--cast{background:#EEF0F4;overflow:hidden;padding:0}
+.mv3:where(.mv4) .face--cast .castp,.mv3:where(.mv4) .face--cast .castv{border-radius:inherit}
+.mv3:where(.mv4) .face--sm.face--cast{display:block}
+.mv3:where(.mv4) .phone__face{overflow:hidden;background:#EEF0F4}
+.mv3:where(.mv4) .phone__face .castp,.mv3:where(.mv4) .phone__face .castv{border-radius:inherit}
+.mv3:where(.mv4) .ptile .castp{position:absolute;inset:0}
+/* "presents with you": the slide, with a companion pointing at it */
+.mv3:where(.mv4) .cap__demo--present{position:relative;padding:0;overflow:hidden;display:block;min-height:0;aspect-ratio:16/10}
+.mv3:where(.mv4) .cap__demo--present>img{display:block;width:100%;height:100%;object-fit:cover;object-position:left top}
+.mv3:where(.mv4) .presenter{position:absolute;right:8px;bottom:8px;width:34%;aspect-ratio:1;border-radius:14px;overflow:hidden;border:2px solid rgba(124,110,255,.7);box-shadow:0 12px 26px -12px rgba(0,0,0,.6)}
+.mv3:where(.mv4) .companion--left{right:auto;left:8px;bottom:8px;max-width:56%}
+/* pick from the cast, or make yours */
+.mv3:where(.mv4) .spawn{display:grid;grid-template-columns:1fr;gap:10px}
+.mv3:where(.mv4) .spawn__cast{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.mv3:where(.mv4) .spawn__you{display:grid;grid-template-columns:1fr auto 1fr 1.6fr;gap:8px;align-items:center}
+.mv3:where(.mv4) .spawn__note{font:500 11px/1.4 var(--mono);color:var(--muted-2)}
+.mv3:where(.mv4) .spawn--lg{gap:14px}
+.mv3:where(.mv4) .spawn--lg .spawn__cast{grid-template-columns:repeat(8,1fr);gap:8px}
+.mv3:where(.mv4) .spawn--lg .spawn__you{grid-template-columns:120px auto 120px 1fr;gap:12px}
+.mv3:where(.mv4) .cap__demo .spawn__you{grid-template-columns:1fr auto 1fr}
+.mv3:where(.mv4) .cap__demo .spawn__note{display:none}
+.mv3:where(.mv4) .ptile__n{font-size:8px;padding:4px 3px}
+@media (max-width:560px){
+  .mv3:where(.mv4) .spawn--lg .spawn__cast{grid-template-columns:repeat(4,1fr)}
+  .mv3:where(.mv4) .spawn--lg .spawn__you{grid-template-columns:1fr auto 1fr}
+  .mv3:where(.mv4) .spawn--lg .spawn__note{grid-column:1 / -1}
+  .mv3:where(.mv4) .spawn>.ptile--photo{max-width:none}
+}
+.mv3:where(.mv4) .face--cast{position:relative}
+.mv3:where(.mv4) .face--cast .castp,.mv3:where(.mv4) .face--cast .castv{position:absolute;inset:0}
+.mv3:where(.mv4) .face--sm.face--cast{display:block;aspect-ratio:1}
+
 /* ---- v4-build.css ---- */
 /* Build page only */
 .mv3:where(.mv4) :where(main[data-page="build"]) .ways{border:1px solid var(--line);border-radius:20px;background:var(--surface);overflow:hidden;box-shadow:0 40px 80px -50px rgba(0,0,0,.7)}

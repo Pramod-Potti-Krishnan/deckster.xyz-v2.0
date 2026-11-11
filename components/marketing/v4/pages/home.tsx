@@ -96,14 +96,9 @@ export function V4HomePage() {
                     </svg>
                     <div className="astage__pip">
                       <div className="vtile vtile--agent">
-                        <svg viewBox="0 0 64 64" aria-hidden="true">
-                          <rect x="8" y="14" width="48" height="36" rx="8" fill="#fff" />
-                          <circle cx="24" cy="29" r="3.6" fill="#16162B" />
-                          <circle cx="40" cy="29" r="3.6" fill="#16162B" />
-                          <rect x="24" y="38" width="16" height="4.6" rx="2.3" fill="#FF6A4D" />
-                        </svg>
+                        <video className="castv" muted loop playsInline preload="none" poster="/marketing/v4/cast/hana.webp" data-src="/marketing/v4/cast/hana-talking.webm" width="320" height="320" aria-label="Hana, a Deckster companion, talking" />
                         <span className="vtile__n">
-                          {"Agent"}
+                          {"Your agent"}
                         </span>
                       </div>
                       <div className="vtile vtile--you">
@@ -158,12 +153,7 @@ export function V4HomePage() {
                       {"Your agent · on a call"}
                     </span>
                     <span className="phone__face">
-                      <svg viewBox="0 0 64 64" aria-hidden="true">
-                        <rect x="8" y="14" width="48" height="36" rx="8" fill="#fff" />
-                        <circle cx="24" cy="29" r="3.6" fill="#16162B" />
-                        <circle cx="40" cy="29" r="3.6" fill="#16162B" />
-                        <rect x="24" y="38" width="16" height="4.6" rx="2.3" fill="#FF6A4D" />
-                      </svg>
+                      <img className="castp" src="/marketing/v4/cast/hana.webp" alt="Hana, a Deckster companion" width="320" height="320" loading="lazy" decoding="async" />
                     </span>
                     <span className="phone__slide">
                       <img src="/marketing/v3-uat/slides/deck-06.jpg" alt="" width="1280" height="720" />
@@ -188,12 +178,7 @@ export function V4HomePage() {
                       {"Your agent · on a call"}
                     </span>
                     <span className="phone__face">
-                      <svg viewBox="0 0 64 64" aria-hidden="true">
-                        <rect x="8" y="14" width="48" height="36" rx="8" fill="#fff" />
-                        <circle cx="24" cy="29" r="3.6" fill="#16162B" />
-                        <circle cx="40" cy="29" r="3.6" fill="#16162B" />
-                        <rect x="24" y="38" width="16" height="4.6" rx="2.3" fill="#FF6A4D" />
-                      </svg>
+                      <video className="castv" muted loop playsInline preload="none" poster="/marketing/v4/cast/hana.webp" data-src="/marketing/v4/cast/hana-talking.webm" width="320" height="320" aria-label="Hana, a Deckster companion, talking" />
                     </span>
                     <span className="phone__slide">
                       <img src="/marketing/v3-uat/slides/deck-06.jpg" alt="" width="1280" height="720" />
@@ -312,17 +297,12 @@ export function V4HomePage() {
               <p>
                 {"On the day it speaks the script you approved, moves the deck along, and answers questions from your slides and documents."}
               </p>
-              <span className="cap__demo" style={{ padding: "0", overflow: "hidden", position: "relative" } as CSSProperties}>
-                <img src="/marketing/v3-uat/slides/deck-04.jpg" alt="" width="1280" height="720" style={{ display: "block", width: "100%", height: "100%", objectFit: "cover" } as CSSProperties} />
-                <span className="companion">
-                  <span className="face face--sm">
-                    <svg viewBox="0 0 64 64" aria-hidden="true">
-                      <rect x="8" y="14" width="48" height="36" rx="8" fill="#fff" />
-                      <circle cx="24" cy="29" r="3.6" fill="#16162B" />
-                      <circle cx="40" cy="29" r="3.6" fill="#16162B" />
-                      <rect x="24" y="38" width="16" height="4.6" rx="2.3" fill="#FF6A4D" />
-                    </svg>
-                  </span>
+              <span className="cap__demo cap__demo--present">
+                <img src="/marketing/v3-uat/slides/deck-04.jpg" alt="" width="1280" height="720" />
+                <span className="presenter">
+                  <video className="castv" muted loop playsInline preload="none" poster="/marketing/v4/cast/ollie.webp" data-src="/marketing/v4/cast/ollie-pointing.webm" width="320" height="320" aria-label="Ollie, a Deckster companion, pointing" />
+                </span>
+                <span className="companion companion--left">
                   <span>
                     <span className="k4">
                       {"Presenting · slide 11"}
@@ -354,74 +334,59 @@ export function V4HomePage() {
               </p>
               <span className="cap__demo">
                 <div className="spawn">
-                  <div className="ptile ptile--photo">
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <circle cx="12" cy="8" r="4" fill="currentColor" />
-                      <path d="M4 20c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5" fill="currentColor" />
-                    </svg>
-                    <span className="ptile__n">
-                      {"Your photo"}
-                    </span>
-                  </div>
-                  <span className="spawn__arrow">
-                    {"→"}
-                  </span>
-                  <div className="spawn__cands">
-                    <div className="ptile">
-                      <svg className="persona" viewBox="0 0 64 64" aria-hidden="true">
-                        <rect width="64" height="64" fill="#E7E2F7" />
-                        <path d="M8 64c1-12 10-17 24-17s23 5 24 17z" fill="#16203A" />
-                        <rect x="27" y="40" width="10" height="10" rx="4" fill="#C98F68" />
-                        <ellipse cx="32" cy="29" rx="13" ry="15" fill="#C98F68" />
-                        <path d="M17 27c-1-12 6-19 15-19s16 7 15 19c-2-6-5-9-8-10-5 3-13 4-18 3-2 2-3 4-4 7z" fill="#2B211C" />
-                        <circle cx="26" cy="30" r="1.9" fill="#16162B" />
-                        <circle cx="38" cy="30" r="1.9" fill="#16162B" />
-                        <g fill="none" stroke="#16162B" strokeWidth="1.4">
-                          <rect x="20.5" y="26.5" width="9" height="7" rx="3" />
-                          <rect x="34.5" y="26.5" width="9" height="7" rx="3" />
-                          <path d="M29.5 29.5h5" />
-                        </g>
-                        <path d="M27 37.5c3 2.6 7 2.6 10 0" fill="none" stroke="#16162B" strokeWidth="1.6" strokeLinecap="round" />
-                      </svg>
-                    </div>
-                    <div className="ptile is-pick">
-                      <svg className="persona" viewBox="0 0 64 64" aria-hidden="true">
-                        <rect width="64" height="64" fill="#F7E4DA" />
-                        <path d="M8 64c1-12 10-17 24-17s23 5 24 17z" fill="#385B9D" />
-                        <rect x="27" y="40" width="10" height="10" rx="4" fill="#E9B994" />
-                        <ellipse cx="32" cy="29" rx="13" ry="15" fill="#E9B994" />
-                        <path d="M14 40c-3-18 4-32 18-32s21 14 18 32c-2 1-4 1-5 0 1-9 0-15-3-19-6 3-14 3-20 1-3 4-4 10-3 18-1 1-3 1-5 0z" fill="#7A3F23" />
-                        <circle cx="26" cy="30" r="1.9" fill="#16162B" />
-                        <circle cx="38" cy="30" r="1.9" fill="#16162B" />
-                        <path d="M27 37.5c3 2.6 7 2.6 10 0" fill="none" stroke="#16162B" strokeWidth="1.6" strokeLinecap="round" />
+                  <div className="spawn__you">
+                    <div className="ptile ptile--photo">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <circle cx="12" cy="8" r="4" fill="currentColor" />
+                        <path d="M4 20c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5" fill="currentColor" />
                       </svg>
                       <span className="ptile__n">
-                        {"That’s me"}
+                        {"Your photo"}
+                      </span>
+                    </div>
+                    <span className="spawn__arrow">
+                      {"→"}
+                    </span>
+                    <div className="ptile is-pick">
+                      <img className="castp" src="/marketing/v4/cast/gabe.webp" alt="Gabe, a Deckster companion" width="320" height="320" loading="lazy" decoding="async" />
+                      <span className="ptile__n">
+                        {"Your avatar · example"}
+                      </span>
+                    </div>
+                    <span className="spawn__note">
+                      {"Drawn in the same style as the cast."}
+                    </span>
+                  </div>
+                  <div className="spawn__cast">
+                    <div className="ptile">
+                      <img className="castp" src="/marketing/v4/cast/hana.webp" alt="Hana, a Deckster companion" width="320" height="320" loading="lazy" decoding="async" />
+                      <span className="ptile__n">
+                        {"Hana"}
                       </span>
                     </div>
                     <div className="ptile">
-                      <svg className="persona" viewBox="0 0 64 64" aria-hidden="true">
-                        <rect width="64" height="64" fill="#DDEFE8" />
-                        <path d="M8 64c1-12 10-17 24-17s23 5 24 17z" fill="#E8A013" />
-                        <rect x="27" y="40" width="10" height="10" rx="4" fill="#8E5B3F" />
-                        <ellipse cx="32" cy="29" rx="13" ry="15" fill="#8E5B3F" />
-                        <g fill="#17130F">
-                          <circle cx="20" cy="17" r="7" />
-                          <circle cx="30" cy="12" r="8" />
-                          <circle cx="41" cy="15" r="7.5" />
-                          <circle cx="47" cy="24" r="6" />
-                          <circle cx="16" cy="26" r="6" />
-                        </g>
-                        <circle cx="26" cy="30" r="1.9" fill="#16162B" />
-                        <circle cx="38" cy="30" r="1.9" fill="#16162B" />
-                        <path d="M27 37.5c3 2.6 7 2.6 10 0" fill="none" stroke="#16162B" strokeWidth="1.6" strokeLinecap="round" />
-                      </svg>
+                      <img className="castp" src="/marketing/v4/cast/ollie.webp" alt="Ollie, a Deckster companion" width="320" height="320" loading="lazy" decoding="async" />
+                      <span className="ptile__n">
+                        {"Ollie"}
+                      </span>
+                    </div>
+                    <div className="ptile">
+                      <img className="castp" src="/marketing/v4/cast/kofi.webp" alt="Kofi, a Deckster companion" width="320" height="320" loading="lazy" decoding="async" />
+                      <span className="ptile__n">
+                        {"Kofi"}
+                      </span>
+                    </div>
+                    <div className="ptile">
+                      <img className="castp" src="/marketing/v4/cast/clover.webp" alt="Clover, a Deckster companion" width="320" height="320" loading="lazy" decoding="async" />
+                      <span className="ptile__n">
+                        {"Clover"}
+                      </span>
                     </div>
                   </div>
                 </div>
               </span>
               <span className="cap__foot">
-                {"Drawn, never photoreal · your photo is deleted once you pick"}
+                {"Pick one of ours, or have yours drawn · never photoreal"}
               </span>
             </div>
           </div>
@@ -1506,13 +1471,8 @@ export function V4HomePage() {
                   {"Slide 11 of 16"}
                 </span>
                 <span className="companion">
-                  <span className="face face--sm">
-                    <svg viewBox="0 0 64 64" aria-hidden="true">
-                      <rect x="8" y="14" width="48" height="36" rx="8" fill="#fff" />
-                      <circle cx="24" cy="29" r="3.6" fill="#16162B" />
-                      <circle cx="40" cy="29" r="3.6" fill="#16162B" />
-                      <rect x="24" y="38" width="16" height="4.6" rx="2.3" fill="#FF6A4D" />
-                    </svg>
+                  <span className="face face--sm face--cast">
+                    <img className="castp" src="/marketing/v4/cast/ollie.webp" alt="" width="320" height="320" loading="lazy" />
                   </span>
                   <span>
                     <span className="k4">

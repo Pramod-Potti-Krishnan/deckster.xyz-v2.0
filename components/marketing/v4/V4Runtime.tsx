@@ -4,8 +4,10 @@ import { useEffect } from "react"
 import { usePathname } from "next/navigation"
 
 /**
- * The two small behaviours the v4 pages need beyond the shared deck runtime:
- * the dashed connectors on the Bring flow (each file to the mark, the mark to each asset) and the theme switch on the Brand slide.
+ * The small behaviours the v4 pages need beyond the shared deck runtime:
+ * the dashed connectors on the Bring flow (each file to the mark, the mark to each asset), the theme switch on the Brand slide,
+ * and the companion clips: each <video class="castv"> shows its still as the poster; on wider screens the short muted loop
+ * is loaded and played only while it is on screen (phones and reduced-motion keep the still).
  */
 export function V4Runtime() {
   const pathname = usePathname()
@@ -46,11 +48,26 @@ export function V4Runtime() {
       })
       scope.querySelectorAll<HTMLImageElement>("img[data-theme]").forEach((img) => img.classList.toggle("is-on", img.dataset.theme === button.dataset.theme))
     }
+    let clips: IntersectionObserver | null = null
+    if (window.innerWidth >= 700 && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      clips = new IntersectionObserver((entries) => entries.forEach((entry) => {
+        const video = entry.target as HTMLVideoElement
+        if (entry.isIntersecting) {
+          if (!video.getAttribute("src") && video.dataset.src) video.src = video.dataset.src
+          video.muted = true
+          video.play().catch(() => {})
+        } else {
+          video.pause()
+        }
+      }), { threshold: 0.25 })
+      document.querySelectorAll<HTMLVideoElement>(".mv4 video.castv[data-src]").forEach((video) => clips?.observe(video))
+    }
     drawFlows()
     const timer = setTimeout(drawFlows, 400)
     window.addEventListener("resize", drawFlows)
     document.addEventListener("click", onThemeClick)
     return () => {
+      clips?.disconnect()
       clearTimeout(timer)
       window.removeEventListener("resize", drawFlows)
       document.removeEventListener("click", onThemeClick)
