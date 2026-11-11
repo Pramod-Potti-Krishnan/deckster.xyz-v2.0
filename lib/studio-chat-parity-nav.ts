@@ -221,6 +221,14 @@ export function navBlocked(name: NavName, state: { building: boolean; viewer: Vi
 
 const clip = (text: string, max: number): string => { const flat = text.replace(/\s+/g, ' ').trim(); return flat.length > max ? `${flat.slice(0, max - 1).trimEnd()}…` : flat }
 
+/** A title cut to `max` characters in the MIDDLE, so its end survives ("Q3 product review…map (copy)"): a deck and its copy differ at the end, and a row that cut the end could not tell them apart. */
+export function clipMiddle(text: string, max: number): string {
+  const flat = text.replace(/\s+/g, ' ').trim()
+  if (flat.length <= max) return flat
+  const head = Math.ceil((max - 1) * 0.6), tail = max - 1 - head
+  return `${flat.slice(0, head).trimEnd()}…${flat.slice(flat.length - tail).trimStart()}`
+}
+
 /** "just now", "5 min ago", "3 h ago", "2 days ago", "3 wk ago", else the date. */
 export function ago(when: string | null, now: number): string | null {
   const time = when ? Date.parse(when) : NaN
@@ -263,11 +271,12 @@ function firstLevel(def: NavDef, env: ParityEnv, page: ChatParityNavPage, helper
 const moreRow = (): ParityRow => rowOf('more', 'More…', NAV_WORDS.more, null, { fill: true })
 
 function deckRows(name: 'open' | 'decks', arg: string, env: ParityEnv, page: ChatParityNavPage, helpers: NavHelpers): ParityRow[] {
-  const label = `/${name} ${arg}`.trimEnd()
+  const label = `/${name} ${clip(arg, 28)}`.trimEnd()
+  const bare = `/${name}` // a row that only says why it cannot run keeps its label short, so the reason fits the menu's width
   const dirty = viewerDirty(env.viewer)
-  if (dirty) return [{ ...rowOf(name, label, '', null), disabled: NAV_WORDS.dirty }]
+  if (dirty) return [{ ...rowOf(name, bare, '', null), disabled: NAV_WORDS.dirty }]
   const { status, items } = live.decks
-  if (status === 'idle' || status === 'loading') return [{ ...rowOf(name, label, '', null), disabled: NAV_WORDS.loadingDecks }]
+  if (status === 'idle' || status === 'loading') return [{ ...rowOf(name, bare, '', null), disabled: NAV_WORDS.loadingDecks }]
   if (status === 'failed') return [problem(name, label, NAV_WORDS.decksFailed)]
   if (!items.length) return [problem(name, label, NAV_WORDS.noDecks)]
   const hits = matchDecks(items, arg, helpers.score, NAV_DECK_ROWS[name])
@@ -276,7 +285,7 @@ function deckRows(name: 'open' | 'decks', arg: string, env: ParityEnv, page: Cha
   const now = Date.now()
   return hits.map(deck => {
     const blurb = [building ? 'Opens in a new tab' : null, deck.slides ? `${deck.slides} slide${deck.slides === 1 ? '' : 's'}` : null, ago(deck.when, now)].filter(Boolean).join(' · ')
-    return rowOf(name, `/${name} ${clip(deck.title, 28)}`, blurb, { name: 'open', deck: { id: deck.id, title: deck.title } }, { key: `${name}:${deck.id}`, disabled: deck.id === page.sessionId ? NAV_WORDS.alreadyOpen : null })
+    return rowOf(name, `/${name} ${clipMiddle(deck.title, 28)}`, blurb, { name: 'open', deck: { id: deck.id, title: deck.title } }, { key: `${name}:${deck.id}`, disabled: deck.id === page.sessionId ? NAV_WORDS.alreadyOpen : null })
   })
 }
 
