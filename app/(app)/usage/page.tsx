@@ -7,9 +7,11 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { formatCredits, isStudioQuotaScreensOn, isStudioUsagePageOn, refusalCopy, usageView, utcMonthPeriod, type UsageView } from "@/lib/studio-billing-usage"
 import { StudioUsageCredits } from "@/components/studio-usage-credits" // USAGE-CREDITS
+import { StudioRouterUsage, STUDIO_ROUTER_USAGE_ENABLED } from "@/components/billing/studio-router-usage" // ROUTER-BILLING-USAGE
 
 export default function UsagePage() {
   if (!isStudioUsagePageOn()) notFound()
+  if (STUDIO_ROUTER_USAGE_ENABLED) return <StudioRouterUsage page /> // ROUTER-BILLING-USAGE
   return <UsageBody />
 }
 
