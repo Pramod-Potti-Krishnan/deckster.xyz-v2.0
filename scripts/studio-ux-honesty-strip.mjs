@@ -1,7 +1,8 @@
 // FRONTEND-1 UX honesty + polish (frontend1/ux-honesty-polish, 4 Nov). Two kinds of change, one strip:
 //   1. HONESTY (no flag, always on): content/docs.ts drops the Google Slides export claim and says "Deckster"; Help drops "eight specialists" and the hard-coded plan prices (points to the pricing page);
 //      Billing reads every plan fact from the pricing v2 list (lib/marketing/homepage-v2-pricing.ts, PRICING_TIERS) and states none of its own; /docs/api says "API access is not open yet" and lists no endpoint;
-//      Help and Docs name the create button by its current label ("New deck" / "+ Presentation"). These are rewrites, not insertions, so UX_HONESTY_EDITS holds [text now, text before] and the strip puts the
+//      Help and Docs name the create button by its current label ("New deck" / "+ Presentation"). G-06: the Docs Export article lists only PowerPoint and PDF (no Images PNG/JPEG zip, no Embed Code, no quality, slide-range or PDF password option:
+//      the download control offers PDF and PowerPoint at one fixed quality; the Download Limits block names no quality either, and the P2 docs fact rule that replaces that block (content/studio-p2-docs-facts.ts) follows the article). These are rewrites, not insertions, so UX_HONESTY_EDITS holds [text now, text before] and the strip puts the
 //      before-text back: an older pin that holds one of these files to an earlier commit reads it as it was. scripts/test-studio-ux-honesty.mjs holds the NEW truth.
 //   2. UX-09 (flag NEXT_PUBLIC_STUDIO_PAGE_HEADINGS, the string "true", default off): one shared heading container and heading style on the Studio pages. Every line it adds to an existing file carries the
 //      marker PAGE-HEADINGS (a whole token) and is a pure insertion; the strip takes those lines out.
@@ -74,6 +75,30 @@ export const UX_HONESTY_EDITS = {
   ],
   "content/docs.ts": [
     [
+      "1. Click \"Export\" \u2192 \"PowerPoint\"\n2. Download .pptx file\n",
+      "1. Click \"Export\" \u2192 \"PowerPoint\"\n2. Choose quality settings\n3. Download .pptx file\n"
+    ],
+    [
+      "- Smaller file size\n\n**How to export:**\n1. Click \"Export\" \u2192 \"PDF\"\n2. Download PDF file\n\n### Web Link (Hosted)\n**Best for:** Online sharing\n",
+      "- Smaller file size\n\n**Options:**\n- **Standard**: Regular quality, smaller size\n- **High Resolution**: Print quality, larger size\n- **With Notes**: Includes speaker notes\n\n**How to export:**\n1. Click \"Export\" \u2192 \"PDF\"\n2. Select quality option\n3. Download PDF file\n\n### Images (PNG/JPEG)\n**Best for:** Social media, websites, individual slides\n\n**Features:**\n- Per-slide images\n- Custom dimensions\n- High resolution\n- Transparent backgrounds (PNG)\n\n**How to export:**\n1. Click \"Export\" \u2192 \"Images\"\n2. Select format (PNG or JPEG)\n3. Choose slides (all or selection)\n4. Set resolution\n5. Download zip file\n\n### Web Link (Hosted)\n**Best for:** Online sharing, embedding\n"
+    ],
+    [
+      "4. Share link\n\n## Sharing Options\n",
+      "4. Share link\n\n### Embed Code\n**Best for:** Embedding on websites\n\n**Features:**\n- Responsive iframe\n- Customizable size\n- Auto-play options\n- Interactive or static\n\n**How to embed:**\n1. Click \"Share\" \u2192 \"Embed\"\n2. Customize options\n3. Copy embed code\n4. Paste in website HTML\n\n## Export Settings\n\n### Quality Options\n\n**Draft**: Fast export, lower quality\n- File size: Small\n- Export time: < 10s\n- Use case: Quick previews\n\n**Standard**: Balanced quality and size\n- File size: Medium\n- Export time: 10-30s\n- Use case: Most presentations\n\n**High Quality**: Maximum quality\n- File size: Large\n- Export time: 30s+\n- Use case: Print, large displays\n\n### Slide Selection\n\nExport options:\n- **All slides**: Complete presentation\n- **Current slide**: Just one slide\n- **Slide range**: Slides 3-7, for example\n- **Selected slides**: Custom selection\n\n### Additional Options\n\n- **Include speaker notes**: Add notes pages\n- **Include animations**: Preserve transitions (PowerPoint only)\n- **Optimize for web**: Smaller file sizes\n- **Password protect**: Add password to PDF\n\n## Sharing Options\n"
+    ],
+    [
+      "- PDF for client deliverables\n\n### For Collaboration",
+      "- PDF for client deliverables\n- Images for social media teasers\n\n### For Collaboration"
+    ],
+    [
+      "- Check internet connection\n- Reduce file size",
+      "- Check internet connection\n- Try lower quality setting\n- Reduce file size"
+    ],
+    [
+      "### Free Tier\n- 3 exports per presentation\n- PowerPoint and PDF only\n\n### Pro Tier\n- Unlimited exports\n- Priority export queue\n",
+      "### Free Tier\n- 3 exports per presentation\n- Standard quality only\n- PowerPoint and PDF only\n\n### Pro Tier\n- Unlimited exports\n- All formats and quality levels\n- Priority export queue\n"
+    ],
+    [
       "Welcome to Deckster! This guide will help you create your first AI-powered presentation in just 5 minutes.\n",
       "Welcome to deckster! This guide will help you create your first AI-powered presentation in just 5 minutes.\n"
     ],
@@ -109,6 +134,12 @@ export const UX_HONESTY_EDITS = {
       "Present directly from Deckster:\n",
       "Present directly from deckster:\n"
     ]
+  ],
+  "content/studio-p2-docs-facts.ts": [
+    [
+      "### Free Tier\n- 3 exports per presentation\n- PowerPoint and PDF only\n\n### Pro Tier\n- Unlimited exports\n- Priority export queue\n",
+      "### Free Tier\n- 3 exports per presentation\n- Standard quality only\n- PowerPoint and PDF only\n\n### Pro Tier\n- Unlimited exports\n- All formats and quality levels\n- Priority export queue\n"
+    ]
   ]
 }
 
@@ -116,7 +147,7 @@ export const UX_HONESTY_EDITS = {
 export const PAGE_HEADINGS_FILES = ['app/(app)/layout.tsx']
 
 /** New files (no base text to put back). */
-export const UX_HONESTY_NEW_FILES = ['scripts/studio-ux-honesty-strip.mjs', 'scripts/test-studio-ux-honesty.mjs', 'lib/studio-page-headings.ts', 'components/studio-page-headings/studio-page-headings-mount.tsx', 'components/studio-page-headings/studio-page-headings.css']
+export const UX_HONESTY_NEW_FILES = ['scripts/studio-ux-honesty-strip.mjs', 'scripts/test-studio-ux-honesty.mjs', 'scripts/test-studio-docs-export-honesty.mjs', 'lib/studio-page-headings.ts', 'components/studio-page-headings/studio-page-headings-mount.tsx', 'components/studio-page-headings/studio-page-headings.css']
 
 /** The older proofs and strips this change teaches (one marked line each). */
 export const UX_HONESTY_PIN_FILES = ['scripts/studio-launch-wording-strip.mjs', 'scripts/test-studio-p2-docs.mjs']

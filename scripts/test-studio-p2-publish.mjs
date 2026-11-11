@@ -32,6 +32,7 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { BASE_COMMIT, P2_FILES, P2_NEW_FILES, P2_PAIRS, stripP2Publish } from './studio-p2-publish-strip.mjs'
 import { stripP2Polish } from './studio-p2-polish-strip.mjs'
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (RESTACK-UX-POLISH2): the later changes' lines come out of every file this proof reads
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const BASE = process.env.P2_PUBLISH_BASE || BASE_COMMIT
@@ -54,7 +55,7 @@ const CSS = 'components/studio-publish.css'
 const ROUTES_WITH_RECORD = ['app/api/publish/route.ts', 'app/api/publish/by-session/[sessionId]/route.ts', 'app/api/publish/[slug]/route.ts', 'app/api/publish/[slug]/rotate/route.ts']
 
 // the Pass 2 polish change (scripts/test-studio-p2-polish.mjs) is put back out first: this test holds the files as this page's change left them
-const read = rel => stripP2Polish(rel, stripVoiceCore(rel, fs.readFileSync(path.join(root, rel), 'utf8')))
+const read = rel => stripP2Polish(rel, stripVoiceCore(rel, stripLaterChanges(rel, fs.readFileSync(path.join(root, rel), 'utf8')))) // LATER-CHANGES: registry read (RESTACK-UX-POLISH2): the later changes' lines are read out first, innermost
 const baseOf = rel => execFileSync('git', ['show', `${BASE}:${rel}`], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 })
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 const ser = value => JSON.stringify(value, (key, item) => typeof item === 'function' ? '[fn]' : item === undefined ? '__undefined__' : item)

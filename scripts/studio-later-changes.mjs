@@ -93,7 +93,9 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-voice-call-strip.mjs')).VOICE_CALL_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, W6 P4-20 voice call UI: the call button, the docked companion, push-to-talk, the router speech contract (NEXT_PUBLIC_STUDIO_VOICE_CALL / _VOICE_COMPANION)
   ...(await import('./studio-agent-mode-shell-strip.mjs')).AGENT_MODE_SHELL_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B69 agent mode shell: Studio's build-mode picker and the Agent build cards, new files only, nothing mounted (NEXT_PUBLIC_AGENT_MODE / NEXT_PUBLIC_AUTHOR_MODE_PICKER)
   ...(await import('./studio-page-consistency-strip.mjs')).PAGE_CONSISTENCY_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, UX-07 / UX-10 Billing and Settings on the Studio shell, one create label (NEXT_PUBLIC_STUDIO_PAGE_CONSISTENCY)
+  ...(await import('./studio-ux-polish-2-strip.mjs')).UX_POLISH_2_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, UX polish 2: one Studio accent, Docs on it, Intelligence overlap (NEXT_PUBLIC_STUDIO_UX_POLISH_2)
   ...(await import('./studio-restack-ux-pc-proofs-strip.mjs')).RESTACK_UX_PC_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, restack of FRONTEND-1's page consistency: older proofs read the later changes right after the merge onto newer dev (tests only)
+  ...(await import('./studio-restack-ux-polish2-proofs-strip.mjs')).RESTACK_UX_POLISH2_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, restack of FRONTEND-1's UX polish 2: older proofs read the later changes right after the merge onto newer dev (tests only)
   // one line per later change, above this comment
 ])
 
@@ -154,6 +156,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-voice-call-strip.mjs')).VOICE_CALL_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, W6 P4-20 voice call UI (NEXT_PUBLIC_STUDIO_VOICE_COMPANION; the call flag's own line is ELEMENT-3's)
   (await import('./studio-agent-mode-shell-strip.mjs')).AGENT_MODE_SHELL_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B69 agent mode shell (NEXT_PUBLIC_AGENT_MODE / NEXT_PUBLIC_AUTHOR_MODE_PICKER)
   (await import('./studio-page-consistency-strip.mjs')).PAGE_CONSISTENCY_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, UX-07 / UX-10 page consistency (NEXT_PUBLIC_STUDIO_PAGE_CONSISTENCY)
+  (await import('./studio-ux-polish-2-strip.mjs')).UX_POLISH_2_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, UX polish 2 (NEXT_PUBLIC_STUDIO_UX_POLISH_2)
   // one line per later change, above this comment
 ]
 
@@ -228,7 +231,9 @@ export const LATER_STRIPS = [
   (await import('./studio-voice-call-strip.mjs')).stripVoiceCall, // LATER-CHANGE: FRONTEND-1, W6 P4-20 voice call UI (NEXT_PUBLIC_STUDIO_VOICE_CALL)
   (await import('./studio-agent-mode-shell-strip.mjs')).stripAgentModeShell, // LATER-CHANGE: FRONTEND-2, B69 agent mode shell (NEXT_PUBLIC_AGENT_MODE)
   (await import('./studio-page-consistency-strip.mjs')).stripPageConsistency, // LATER-CHANGE: FRONTEND-1, UX-07 / UX-10 page consistency (NEXT_PUBLIC_STUDIO_PAGE_CONSISTENCY)
+  (await import('./studio-ux-polish-2-strip.mjs')).stripUxPolish2, // LATER-CHANGE: FRONTEND-1, UX polish 2 (NEXT_PUBLIC_STUDIO_UX_POLISH_2)
   (await import('./studio-restack-ux-pc-proofs-strip.mjs')).stripRestackUxPc, // LATER-CHANGE: FRONTEND-2, restack of FRONTEND-1's page consistency: older proofs read the later changes right after the merge onto newer dev (tests only)
+  (await import('./studio-restack-ux-polish2-proofs-strip.mjs')).stripRestackUxPolish2, // LATER-CHANGE: FRONTEND-2, restack of FRONTEND-1's UX polish 2: older proofs read the later changes right after the merge onto newer dev (tests only)
   // one line per later change, above this comment
 ]
 
