@@ -1,18 +1,19 @@
 // FRONTEND-1 (overnight chat parity, 11 Nov 2026), the NAVIGATION half, stacked on the viewer half (#611, scripts/studio-chat-parity-viewer-strip.mjs). Flag NEXT_PUBLIC_STUDIO_CHAT_COMMANDS (the string "true", default off, build-time;
 // it already needs NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell): the composer's "/" menu gains a "Go to" group (/open <title>, /decks, /duplicate-deck, /dashboard, /themes, /templates, /intelligence, /knowledge, /settings,
 // /help, /shortcuts, /about; with nothing typed the group shows /open, /decks, /dashboard, /settings and "More..."). Each calls the handler or route the matching click uses (lib/studio-chat-parity-nav.ts lists them). No new flag,
-// no .env.example block, no backend, no Director change. lib/studio-chat-parity-nav.ts decides (the rows, what cannot run and why, the words, the run), lib/studio-duplicate-deck-deps.ts is the deps object the Decks page built inline (moved
-// unchanged, one marked line in the page), components/builder/chat/studio-chat-parity-nav-decks.ts reads the deck list for /open and /decks, components/builder/chat/studio-chat-parity-nav-about.tsx draws the existing About dialog.
+// no .env.example block, no backend, no Director change. lib/studio-chat-parity-nav.ts decides (the rows, what cannot run and why, the words, the run), lib/studio-duplicate-deck-deps.ts holds the deps object the Decks page builds inline (a copy: the Decks page is
+// left exactly as it was, and the proof holds the two to each other member by member), components/builder/chat/studio-chat-parity-nav-decks.ts reads the deck list for /open and /decks, components/builder/chat/studio-chat-parity-nav-about.tsx draws the existing About dialog.
 // Every line this change adds to an EXISTING file carries the marker CHAT-PARITY-NAV (matched as a whole token; CHAT-PARITY-VIEWER is the viewer half's). Most are pure insertions. CHAT_PARITY_NAV_EDITS holds [line now, line before] for each
-// CHANGED line (whole lines; the Decks page's seven-line deps object is one pair): put those back, then take the marked lines out, and each file is the viewer half's head, byte for byte (the Decks page: the base's, which is the same).
-// Six of the files are the viewer half's own or touched by it; the strip goes back to ITS head (VIEWER_HEAD) for them, and to the base for the one file only this change touches (the Decks page).
+// CHANGED line (whole lines): put those back, then take the marked lines out, and each file is the viewer half's head, byte for byte. Five files are the viewer half's own or touched by it; the strip goes back to ITS head (VIEWER_HEAD).
+// The Decks page is NOT touched. An earlier cut moved its inline deps object into the shared helper (one marked line); two older proofs (test-studio-deck-title, test-studio-deck-grid-4) hold that page with their OWN strips, by the
+// exact text of duplicateSession, and failed on it: the move was skipped, and the helper copies the five members instead.
 // Registry: stripChatParityNavAfterViewer is what the registry holds. It takes this change's lines out and then runs the viewer half's own strip over the result, so the registry's order (the viewer's strip first, this one after) can never
 // leave a viewer line behind where this change edited one, and neither needs the other to have run. Plain node; the only import is the viewer half's strip module. Nothing is read from disk or git here.
 
 import { stripChatParityViewer } from './studio-chat-parity-viewer-strip.mjs'
 
 export const VIEWER_HEAD = '5efe114b09b8a76e33cdda45240830831e24d574' // origin/frontend1/chat-parity-viewer (PR #611) when this change was cut: the strip puts a file back to it
-export const BASE_COMMIT = 'eeb78d4f4b7676d75c244746f1edc7da1d269478' // origin/studio-v4-dev-preparation-code (#598 merged): the viewer half's base; the file only this change touches is put back to it
+export const BASE_COMMIT = 'eeb78d4f4b7676d75c244746f1edc7da1d269478' // origin/studio-v4-dev-preparation-code (#598 merged): the viewer half's base (the proof compares the files the Decks page and this change both leave alone with it)
 export const CHAT_PARITY_NAV_FLAG = 'NEXT_PUBLIC_STUDIO_CHAT_COMMANDS'
 export const CHAT_PARITY_NAV_MARKER = 'CHAT-PARITY-NAV'
 /** The marker as a WHOLE token: CHAT-PARITY-NAV-X and X-CHAT-PARITY-NAV are not this change's (CHAT-PARITY-VIEWER and CHAT-PARITY are other changes'). */
@@ -20,15 +21,12 @@ export const CHAT_PARITY_NAV_MARKER_RE = /(?<![\w-])CHAT-PARITY-NAV(?![\w-])/
 /** The subject prefix of this change's own commits (the proof reads these; chat parity's own proof must not take them for its commit). */
 export const CHAT_PARITY_NAV_SUBJECT = 'Chat parity nav:'
 
-/** Existing files that get marked lines. The first four the viewer half touched (put back to VIEWER_HEAD); the Decks page only this change touches. */
+/** Existing files that get marked lines (all three the viewer half touched too: put back to VIEWER_HEAD). The Decks page is NOT among them: see the head of this file. */
 export const CHAT_PARITY_NAV_FILES = [
   "app/builder/page.tsx",
   "components/builder/chat/studio-chat-commands.tsx",
   "lib/studio-chat-commands.ts",
-  "app/(app)/dashboard/page.tsx",
 ]
-/** The one existing file the viewer half did not touch: its strip target is the base. */
-export const CHAT_PARITY_NAV_ONLY_FILES = ["app/(app)/dashboard/page.tsx"]
 /** The viewer half's NEW files this change edits (put back to VIEWER_HEAD; they have no base). */
 export const CHAT_PARITY_NAV_VIEWER_NEW_EDITED = [
   "lib/studio-chat-parity-viewer.ts",
@@ -40,10 +38,6 @@ export const CHAT_PARITY_NAV_EDITS = {
   "components/builder/chat/studio-chat-commands.tsx": [
     ["    menu: <>{menu}<ChatNavAbout /></>, // CHAT-PARITY-NAV: the menu, and the existing About dialog /about opens (closed, it draws nothing)",
      "    menu,"]
-  ],
-  "app/(app)/dashboard/page.tsx": [
-    ["        deps: studioDuplicateDeckDeps(), // CHAT-PARITY-NAV: the deps object moved, unchanged, to lib/studio-duplicate-deck-deps.ts (the Builder's /duplicate-deck uses it too)",
-     "        deps: {\n          fetch: (input, init) => fetch(input, init),\n          layoutBaseUrl: () => getLayoutServiceUrl(),\n          newId: () => crypto.randomUUID(),\n          now: () => new Date(),\n          sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),\n        },"]
   ],
   "lib/studio-chat-parity-viewer.ts": [
     ["export type ParityRun = ViewerRun | { name: 'theme'; preset: { id: string; name: string } } | { name: 'canvas' } | NavRun // CHAT-PARITY-NAV",

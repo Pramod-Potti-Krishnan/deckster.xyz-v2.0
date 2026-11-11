@@ -4,7 +4,7 @@
  *
  *   /open <title>      handleSessionSelectWrapped(id), after matching the title against the deck list (hooks/use-chat-sessions.ts loadSessions); up to 5 matches are menu rows
  *   /decks             the Sessions panel's own toggle (setShowChatHistory)        /decks <words>   the matches, as rows (the panel has no outside filter); a pick opens the deck
- *   /duplicate-deck    runDuplicateDeck for the deck on screen (lib/studio-duplicate-deck.ts; the deps are lib/studio-duplicate-deck-deps.ts, shared with the Decks page); NEXT_PUBLIC_STUDIO_DUPLICATE_DECK
+ *   /duplicate-deck    runDuplicateDeck for the deck on screen (lib/studio-duplicate-deck.ts; the deps are lib/studio-duplicate-deck-deps.ts, the Decks page's own five); NEXT_PUBLIC_STUDIO_DUPLICATE_DECK
  *   /dashboard /themes /templates /intelligence /knowledge /settings /help /shortcuts    router.push to the route the rail and the account menu already link to
  *   /about             the existing About dialog (components/studio-about-dialog.tsx)
  *

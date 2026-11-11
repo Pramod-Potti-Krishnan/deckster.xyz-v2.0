@@ -1,6 +1,7 @@
-// FRONTEND-1, overnight chat parity (11 Nov): the browser deps of "Duplicate a deck", in one place. They are the object the Decks page built inline (app/(app)/dashboard/page.tsx duplicateSession), moved here
-// unchanged so the Builder's /duplicate-deck (lib/studio-chat-parity-nav.ts, behind NEXT_PUBLIC_STUDIO_CHAT_COMMANDS and NEXT_PUBLIC_STUDIO_DUPLICATE_DECK) copies a deck the same way the Decks page does.
-// The Decks page calls studioDuplicateDeckDeps() where it had the object; nothing about what it sends, in what order, or what it shows has changed.
+// FRONTEND-1, overnight chat parity (11 Nov): the browser deps of "Duplicate a deck" for the Builder's /duplicate-deck (lib/studio-chat-parity-nav.ts, behind NEXT_PUBLIC_STUDIO_CHAT_COMMANDS and
+// NEXT_PUBLIC_STUDIO_DUPLICATE_DECK): the same five members the Decks page builds inline (app/(app)/dashboard/page.tsx duplicateSession), so a deck is copied the same way from either place.
+// This is a COPY, not a move: the Decks page is left exactly as it was (older proofs hold its duplicateSession text by exact match, through strips of their own). scripts/test-studio-chat-parity-nav.mjs compares the
+// two member by member, so a change to one that is not made in the other fails there.
 import { LAYOUT_VIEWER_URL_POLICY, getLayoutServiceUrl } from '@/lib/layout-service-client'
 import { evaluateLayoutViewerUrl } from '@/lib/layout-viewer-url-policy'
 import { duplicateTargetFor, runDuplicateDeck, type DuplicateDeckDeps } from '@/lib/studio-duplicate-deck'

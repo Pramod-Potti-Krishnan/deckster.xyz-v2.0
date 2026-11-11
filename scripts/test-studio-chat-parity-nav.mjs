@@ -1,13 +1,13 @@
 // FRONTEND-1 (overnight chat parity, navigation half): proof of the "Go to" slash commands behind NEXT_PUBLIC_STUDIO_CHAT_COMMANDS (the string "true", default off, build-time; it already needs NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell).
-//   lib/studio-chat-parity-nav.ts (the rows, what cannot run and why, the words, the run), lib/studio-duplicate-deck-deps.ts (the deps the Decks page built inline), components/builder/chat/studio-chat-parity-nav-decks.ts (the deck list),
-//   components/builder/chat/studio-chat-parity-nav-about.tsx (the About dialog), marked lines in the composer hook, the Builder page, the Decks page and the viewer half's lib and menu.
+//   lib/studio-chat-parity-nav.ts (the rows, what cannot run and why, the words, the run), lib/studio-duplicate-deck-deps.ts (the deps the Decks page builds inline, copied), components/builder/chat/studio-chat-parity-nav-decks.ts (the deck list),
+//   components/builder/chat/studio-chat-parity-nav-about.tsx (the About dialog), marked lines in the composer hook, the Builder page and the viewer half's lib and menu; the Decks page is left alone.
 //
 //   A. The lib, function by function, in THIS realm: the rows for every trigger (collapsed group, More, search, deck matches, hints, disabled reasons), the unsaved-edits rule, the build rule.
 //   B. The run on FAKE page handles: every command calls its handler / route with the right arguments, says what it SAW (never a change it did not see), opens a NEW TAB while a build runs or edits are unsaved,
 //      /open is disabled while the viewer is dirty, /duplicate-deck never switches to the copy, the viewer half's runParity routes a Go to command here.
 //   C. The deck-list hook (the real hook on the harness's mini React) and the copy through the shared deps (the real runDuplicateDeck on a fake network).
-//   D. The sources: every marked line, the strip puts every file back to the viewer half's head byte for byte (the Decks page to the base), the registry, the taught older proofs read through their marked lines, the routes exist,
-//      the Decks page is the same with the change taken out, no new flag, the COMMITTED diff is this change's files.
+//   D. The sources: every marked line, the strip puts every file back to the viewer half's head byte for byte, the registry, the taught older proofs read through their marked lines, the routes exist, the Decks page is
+//      untouched and the helper's deps equal its inline ones member by member, no new flag, the COMMITTED diff is this change's files.
 //   E. MUTANTS: every one of them must be caught by A-D.
 //
 //   node scripts/test-studio-chat-parity-nav.mjs
@@ -521,13 +521,12 @@ function hookChecks(text, label = 'hook') {
 }
 
 async function sourceChecks() {
-  // the strip: every file back to the viewer half's head, byte for byte (the Decks page: the base)
+  // the strip: every file back to the viewer half's head, byte for byte
   if (hasHead) {
     for (const rel of [...strip.CHAT_PARITY_NAV_FILES, ...strip.CHAT_PARITY_NAV_VIEWER_NEW_EDITED]) {
       const now = read(rel), head = showAt(strip.VIEWER_HEAD, rel)
       ok(now !== head, `${rel}: it is changed`)
       ok(strip.stripChatParityNav(rel, now) === head, `${rel}: the strip puts it back to the viewer half's head, byte for byte`)
-      if (hasBase && strip.CHAT_PARITY_NAV_ONLY_FILES.includes(rel)) ok(strip.stripChatParityNav(rel, now) === showAt(strip.BASE_COMMIT, rel), `${rel}: ...which is the base's file (only this change touches it)`)
       ok(strip.stripChatParityNav(rel, head) === head, `${rel}: the strip leaves the viewer half's head alone`)
       ok(strip.stripChatParityNav(rel, strip.stripChatParityNav(rel, now)) === head, `${rel}: ...and stripping twice changes nothing more`)
       const marked = addedLines(rel).filter(line => MARK.test(line)), unmarked = addedLines(rel).filter(line => !MARK.test(line))
@@ -553,7 +552,7 @@ async function sourceChecks() {
     // the registry-read lines in the older proofs, run: what each proof sees when it reads a file this change touched
     if (hasBase) for (const rel of strip.CHAT_PARITY_NAV_FILES) eq(readThrough('scripts/test-studio-chat-commands.mjs', rel) === showAt(strip.BASE_COMMIT, rel), true, `the chat commands proof reads ${rel} through its registry-read lines (the viewer half's, then this one's) as the base had it`)
     for (const rel of [...strip.CHAT_PARITY_NAV_FILES, ...strip.CHAT_PARITY_NAV_VIEWER_NEW_EDITED, REGISTRY]) ok(readThrough('scripts/test-studio-chat-parity-viewer.mjs', rel) === showAt(strip.VIEWER_HEAD, rel), `the viewer half's proof reads ${rel} as the viewer half had it (its registry-read line)`)
-    for (const rel of ['hooks/use-deckster-websocket-v2.ts', '.env.example', 'package.json', 'lib/studio-chat-commands-wire.ts', 'components/builder/studio-chat-commands.css', 'components/presentation-viewer.tsx', 'components/builder/chat-input.tsx', 'components/builder/chat/studio-chat-clean.tsx', 'lib/studio-chat-clean.ts', 'components/chat-history-sidebar.tsx', 'components/studio-about-dialog.tsx', 'lib/studio-duplicate-deck.ts', 'components/builder/studio-chat-parity-viewer.css']) ok(read(rel) === showAt(strip.VIEWER_HEAD, rel), `${rel}: not touched by this change`)
+    for (const rel of ['hooks/use-deckster-websocket-v2.ts', '.env.example', 'package.json', 'lib/studio-chat-commands-wire.ts', 'components/builder/studio-chat-commands.css', 'components/presentation-viewer.tsx', 'components/builder/chat-input.tsx', 'components/builder/chat/studio-chat-clean.tsx', 'lib/studio-chat-clean.ts', 'components/chat-history-sidebar.tsx', 'components/studio-about-dialog.tsx', 'lib/studio-duplicate-deck.ts', 'components/builder/studio-chat-parity-viewer.css', DASHBOARD]) ok(read(rel) === showAt(strip.VIEWER_HEAD, rel), `${rel}: not touched by this change`)
   } else console.log(`NOTE D  git has no ${strip.VIEWER_HEAD.slice(0, 8)}: the head-identity checks were skipped`)
   pageChecks(read(PAGE))
   hookChecks(read(COMMANDS_UI))
@@ -587,15 +586,18 @@ async function sourceChecks() {
   }
   ok(routeExists('/settings/profile'), '/settings: the page it redirects to exists')
   ok(/redirect\("\/settings\/profile"\)/.test(read('app/(app)/settings/page.tsx')), '/settings: the settings index redirects to Profile')
-  // the Decks page: the same with the change taken out, and the moved block is what the helper holds
+  // the Decks page: NOT touched (older proofs hold its duplicateSession by exact text, through strips of their own), and the helper's deps are its inline deps, member by member
   const dashboard = read(DASHBOARD)
-  ok(/deps: studioDuplicateDeckDeps\(\), \/\/ CHAT-PARITY-NAV/.test(dashboard) && /import \{ studioDuplicateDeckDeps \} from "@\/lib\/studio-duplicate-deck-deps" \/\/ CHAT-PARITY-NAV/.test(dashboard), 'Decks page: the deps object is one marked call, and one marked import')
-  eq(dashboard.split('\n').filter(line => MARK.test(line)).length, 2, 'Decks page: exactly two marked lines')
-  const movedBlock = (strip.CHAT_PARITY_NAV_EDITS[DASHBOARD] || [])[0]?.[1] ?? ''
+  ok(!MARK.test(dashboard) && !/studio-duplicate-deck-deps/.test(dashboard), 'Decks page: no line of this change, no import of the helper')
+  if (hasHead) ok(dashboard === showAt(strip.VIEWER_HEAD, DASHBOARD), 'Decks page: byte for byte the viewer half\'s head (it is not touched)')
+  if (hasBase) ok(dashboard === showAt(strip.BASE_COMMIT, DASHBOARD), 'Decks page: ...which is the base\'s file')
+  const inline = /deps: \{\n((?:\s+\w+: .*\n){5})\s+\},\n/.exec(dashboard)
+  ok(Boolean(inline), 'Decks page: the inline deps object (five members) is where it was')
   const depsText = read(DEPS)
-  for (const member of movedBlock.split('\n').map(line => line.trim()).filter(line => /^[a-zA-Z]+: /.test(line) && line !== 'deps: {')) ok(depsText.includes(member.replace(/,$/, '')), `helper: the member "${member.replace(/,$/, '')}" moved unchanged`)
-  ok(/^\s+deps: \{$/.test(movedBlock.split('\n')[0]) && movedBlock.split('\n').length === 7, 'Decks page: the moved block is the seven-line deps object')
-  ok(dashboard.includes('const target = duplicateTargetFor(presentation, url => evaluateLayoutViewerUrl(url, LAYOUT_VIEWER_URL_POLICY))') && /runDuplicateDeck\(\{\n\s+source: \{ sessionId: presentation\.id, shownTitle, currentStage: presentation\.currentStage, slideCount: presentation\.slideCount \},\n\s+target,/.test(dashboard), 'Decks page: the target rule and the call around the moved block are untouched (base lines)')
+  const members = (inline ? inline[1] : '').split('\n').map(line => line.trim().replace(/,$/, '')).filter(Boolean)
+  eq(members.length, 5, 'Decks page: five inline members')
+  for (const member of members) ok(depsText.includes(`  ${member},`) || depsText.includes(`  ${member}\n`), `helper: the Decks page's member "${member}" is in the helper, the same text`)
+  ok(dashboard.includes('const target = duplicateTargetFor(presentation, url => evaluateLayoutViewerUrl(url, LAYOUT_VIEWER_URL_POLICY))') && /runDuplicateDeck\(\{\n\s+source: \{ sessionId: presentation\.id, shownTitle, currentStage: presentation\.currentStage, slideCount: presentation\.slideCount \},\n\s+target,/.test(dashboard), 'Decks page: the target rule and the call the helper mirrors (the helper\'s duplicateSessionDeck)')
   // the text detection: several words after /open and /decks only; the older rules are untouched
   const cmdLib = read(COMMANDS_LIB)
   ok(cmdLib.includes('const COMMAND_RE = /(^|\\s)\\/([\\w-]*)(?: ([\\w-]*))?$/') && cmdLib.includes('const COMMAND_WORDS_RE = /(^|\\s)\\/(layout|theme) ([^\\n]*)$/i'), 'commands lib: the one-word rule and the viewer half\'s two-name rule are untouched')
@@ -622,10 +624,13 @@ async function sourceChecks() {
   ok(/export function StudioAboutDialog\(\{ open, onOpenChange/.test(read('components/studio-about-dialog.tsx')), 'about: the dialog\'s real signature (a base file)')
   // the committed diff is this change's files (the COMMITTED diff only: a working-tree edit is not read here)
   if (OWN.length && hasHead) {
-    const touched = new Set()
-    for (const sha of OWN) for (const rel of git('diff-tree', '--no-commit-id', '--name-only', '-r', '-m', '--first-parent', sha).split('\n').filter(Boolean)) touched.add(rel)
+    // the COMMITTED diff of the whole change (the viewer half's head to this branch's head): a commit that touched a file and a later one that put it back leave it out, as they leave the tree
+    const touched = new Set(git('diff', '--name-only', strip.VIEWER_HEAD, 'HEAD').split('\n').filter(Boolean))
     const stray = [...touched].filter(rel => !strip.CHAT_PARITY_NAV_SCOPE_FILES.has(rel))
-    eq(stray, [], 'the committed diff of this change\'s commits is its own files (strays: none)')
+    eq(stray, [], 'the committed diff of this change (viewer half\'s head to HEAD) is its own files (strays: none)')
+    ok(!touched.has(DASHBOARD), 'the Decks page is not in the committed diff (the move into the helper was put back: see the strip\'s head)')
+    eq([...strip.CHAT_PARITY_NAV_SCOPE_FILES].filter(rel => !touched.has(rel)), [], 'every file the registry names for this change is in that diff (nothing is named that was not touched)')
+    for (const sha of OWN) ok(git('diff-tree', '--no-commit-id', '--name-only', '-r', '-m', '--first-parent', sha).split('\n').filter(Boolean).every(rel => strip.CHAT_PARITY_NAV_SCOPE_FILES.has(rel) || rel === DASHBOARD), `commit ${sha.slice(0, 8)} touches only this change's files (or the Decks page it put back)`)
     ok(OWN.every(sha => /Co-Authored-By: Claude Opus 5\.5 <noreply@anthropic\.com>/.test(git('log', '-1', '--format=%B', sha))), 'every commit of this change carries the Co-Authored-By line')
     ok(OWN.every(sha => git('log', '-1', '--format=%s', sha).startsWith(strip.CHAT_PARITY_NAV_SUBJECT)), 'every commit of this change has the "Chat parity nav:" subject')
     const parents = git('rev-list', '--parents', '-n', '1', OWN[OWN.length - 1]).trim().split(' ')
@@ -760,7 +765,7 @@ async function mutantsSuite() {
   for (const [name, from, to] of [
     ['the strip forgets the marker', 'CHAT_PARITY_NAV_MARKER_RE = /(?<![\\w-])CHAT-PARITY-NAV(?![\\w-])/', 'CHAT_PARITY_NAV_MARKER_RE = /(?<![\\w-])CHAT-PARITY-NAV-NOT(?![\\w-])/'],
     ['the strip does not put changed lines back', 'const swapped = (CHAT_PARITY_NAV_EDITS[rel] || []).reduce((out, [has, was]) => out.replace(has, () => was), text)', 'const swapped = text'],
-    ['the strip drops the Decks page', '  "app/(app)/dashboard/page.tsx",\n]', ']'],
+    ['the strip drops the Builder page', '  "app/builder/page.tsx",\n', ''],
     ['the strip drops a viewer half file', '  "lib/studio-chat-parity-viewer.ts",\n', ''],
   ]) {
     const mutated = stripText.replace(from, () => to)
@@ -849,6 +854,6 @@ console.log(`PASS C  the deck-list hook on the harness's React, and the copy thr
 const afterC = checks
 await sourceChecks()
 menuChecks()
-console.log(`PASS D  the sources: markers, the strip back to the viewer half's head (the Decks page to the base), the registry, the taught proofs, the routes, no new flag, the committed diff, the menu markup (${checks - afterC} checks)`)
+console.log(`PASS D  the sources: markers, the strip back to the viewer half's head, the Decks page untouched, the registry, the taught proofs, the routes, no new flag, the committed diff, the menu markup (${checks - afterC} checks)`)
 const mutants = await mutantsSuite()
 console.log(`test-studio-chat-parity-nav: ${checks} checks, ${mutants} mutants caught (${OWN.length ? `own commits ${OWN.map(sha => sha.slice(0, 8)).join(', ')}` : 'no own commit yet'})${hasHead ? '' : ' (viewer head not in this clone: some checks skipped)'}`)
