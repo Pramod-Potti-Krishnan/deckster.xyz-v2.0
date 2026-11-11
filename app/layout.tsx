@@ -7,6 +7,7 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { StudioViewerThemeProvider } from '@/components/studio-viewer-theme-provider'
 import { STUDIO_P2_PUBLISH_ENABLED } from '@/lib/studio-p2-publish'
 import { Toaster } from '@/components/ui/toaster'
+import { STUDIO_ANALYTICS_MOUNTS } from '@/lib/studio-analytics-gate' // AUDIT-CONSOLE
 
 const inter = Inter({ subsets: ['latin'] })
 const connectedLocal = process.env.STUDIO_V4_CONNECTED_LOCAL === 'true'
@@ -94,7 +95,7 @@ export default function RootLayout({
             <Toaster />
           </AppThemeProvider>
         </SessionProvider>
-        <Analytics />
+        {STUDIO_ANALYTICS_MOUNTS && <Analytics />}{/* AUDIT-CONSOLE */}
       </body>
     </html>
   )
