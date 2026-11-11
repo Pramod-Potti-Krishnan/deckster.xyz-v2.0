@@ -379,9 +379,9 @@ export function V4PresentPage() {
                   </div>
                   <div className="spawn__cast">
                     <div className="ptile">
-                      <img className="castp" src="/marketing/v4/cast/hana.webp" alt="Hana, a Deckster companion" width="320" height="320" loading="lazy" decoding="async" />
+                      <img className="castp" src="/marketing/v4/cast/lucia.webp" alt="Lucia, a Deckster companion" width="320" height="320" loading="lazy" decoding="async" />
                       <span className="ptile__n">
-                        {"Hana"}
+                        {"Lucia"}
                       </span>
                     </div>
                     <div className="ptile">
@@ -391,9 +391,9 @@ export function V4PresentPage() {
                       </span>
                     </div>
                     <div className="ptile">
-                      <img className="castp" src="/marketing/v4/cast/kofi.webp" alt="Kofi, a Deckster companion" width="320" height="320" loading="lazy" decoding="async" />
+                      <img className="castp" src="/marketing/v4/cast/arjun.webp" alt="Arjun, a Deckster companion" width="320" height="320" loading="lazy" decoding="async" />
                       <span className="ptile__n">
-                        {"Kofi"}
+                        {"Arjun"}
                       </span>
                     </div>
                     <div className="ptile">
@@ -403,9 +403,9 @@ export function V4PresentPage() {
                       </span>
                     </div>
                     <div className="ptile">
-                      <img className="castp" src="/marketing/v4/cast/lucia.webp" alt="Lucia, a Deckster companion" width="320" height="320" loading="lazy" decoding="async" />
+                      <img className="castp" src="/marketing/v4/cast/noor.webp" alt="Noor, a Deckster companion" width="320" height="320" loading="lazy" decoding="async" />
                       <span className="ptile__n">
-                        {"Lucia"}
+                        {"Noor"}
                       </span>
                     </div>
                     <div className="ptile">
@@ -415,15 +415,15 @@ export function V4PresentPage() {
                       </span>
                     </div>
                     <div className="ptile">
-                      <img className="castp" src="/marketing/v4/cast/arjun.webp" alt="Arjun, a Deckster companion" width="320" height="320" loading="lazy" decoding="async" />
-                      <span className="ptile__n">
-                        {"Arjun"}
-                      </span>
-                    </div>
-                    <div className="ptile">
                       <img className="castp" src="/marketing/v4/cast/ziggy.webp" alt="Ziggy, a Deckster companion" width="320" height="320" loading="lazy" decoding="async" />
                       <span className="ptile__n">
                         {"Ziggy"}
+                      </span>
+                    </div>
+                    <div className="ptile">
+                      <img className="castp" src="/marketing/v4/cast/vera.webp" alt="Vera, a Deckster companion" width="320" height="320" loading="lazy" decoding="async" />
+                      <span className="ptile__n">
+                        {"Vera"}
                       </span>
                     </div>
                   </div>

@@ -368,9 +368,9 @@ export function V4BringPage() {
           </div>
           <div className="crack" data-reveal="true" style={{ "--d": "3" } as CSSProperties}>
             <div className="crack__pane crack__pane--flat">
-              <img src="/marketing/v3-uat/slides/deck-07.jpg" alt="A finished slide as a flat picture: Teams Climb Five Levels of Delivery Maturity" width="1280" height="720" loading="lazy" decoding="async" />
+              <img src="/marketing/v4/decks/a2-05-raw.jpg" alt="A slide designed by another AI model, as it arrives" width="1280" height="720" loading="lazy" decoding="async" />
               <span className="crack__tag">
-                {"As it arrives · a picture"}
+                {"As it arrives · made by another AI"}
               </span>
             </div>
             <div className="crack__arrow">
@@ -380,14 +380,15 @@ export function V4BringPage() {
               {"read into Deckster's format"}
             </div>
             <div className="crack__pane">
-              <img src="/marketing/v3-uat/slides/deck-07.jpg" alt="The same slide split into editable parts" width="1280" height="720" loading="lazy" decoding="async" />
+              <img src="/marketing/v4/decks/a2-05.jpg" alt="The same slide in Deckster, split into editable parts" width="1280" height="718" loading="lazy" decoding="async" />
               <span className="crack__tag crack__tag--ok">
                 {"In Deckster · editable"}
               </span>
-              <i className="crack__box" data-r="title" style={{ left: "3%", top: "6.2%", width: "48%", height: "5.8%" } as CSSProperties} />
-              <i className="crack__box" data-r="steps ×5" style={{ left: "3.4%", top: "15.5%", width: "38.6%", height: "68%" } as CSSProperties} />
-              <i className="crack__box" data-r="text" style={{ left: "45.2%", top: "15%", width: "51.2%", height: "65.5%" } as CSSProperties} />
-              <i className="crack__box" data-r="takeaway" style={{ left: "3.4%", top: "87%", width: "93.2%", height: "4.8%" } as CSSProperties} />
+              <i className="crack__box" data-r="title" style={{ left: "4%", top: "7.5%", width: "70%", height: "15%" } as CSSProperties} />
+              <i className="crack__box" data-r="card" style={{ left: "4.5%", top: "23%", width: "29.5%", height: "65%" } as CSSProperties} />
+              <i className="crack__box" data-r="card" style={{ left: "35.2%", top: "23%", width: "29.5%", height: "65%" } as CSSProperties} />
+              <i className="crack__box" data-r="card" style={{ left: "65.8%", top: "23%", width: "29.5%", height: "65%" } as CSSProperties} />
+              <i className="crack__box" data-r="source" style={{ left: "4.5%", top: "90%", width: "62%", height: "6%" } as CSSProperties} />
             </div>
           </div>
           <div className="srcs4" data-reveal="true" style={{ "--d": "4" } as CSSProperties}>

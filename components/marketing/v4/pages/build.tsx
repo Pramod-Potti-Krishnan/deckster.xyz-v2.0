@@ -119,8 +119,8 @@ export function V4BuildPage() {
                   </div>
                   <div className="way__d">
                     <span className="mini">
-                      <img src="/marketing/v3-uat/slides/deck-06.jpg" alt="" width="1280" height="720" />
-                      <i className="mini__sel" data-l="This one" style={{ left: "27%", top: "24%", width: "24%", height: "60%" } as CSSProperties} />
+                      <img src="/marketing/v4/decks/a2-06.jpg" alt="" width="1280" height="718" />
+                      <i className="mini__sel" data-l="This one" style={{ left: "27.6%", top: "33%", width: "13.6%", height: "45%" } as CSSProperties} />
                     </span>
                     <span className="agent">
                       {"Pick any part of a slide, then say what should change"}
@@ -231,14 +231,14 @@ export function V4BuildPage() {
               </div>
               <div className="astage__body">
                 <div className="astage__canvas">
-                  <img src="/marketing/v3-uat/slides/deck-06.jpg" alt="The deck, on screen during the call" width="1280" height="720" />
-                  <i className="astage__sel" data-l="You pointed here" style={{ left: "27%", top: "24%", width: "24%", height: "60%" } as CSSProperties} />
-                  <svg className="astage__cur" style={{ left: "48%", top: "78%" } as CSSProperties} viewBox="0 0 24 24" aria-hidden="true">
+                  <img src="/marketing/v4/decks/a2-06.jpg" alt="The deck, on screen during the call" width="1280" height="718" />
+                  <i className="astage__sel" data-l="You pointed here" style={{ left: "27.6%", top: "33%", width: "13.6%", height: "45%" } as CSSProperties} />
+                  <svg className="astage__cur" style={{ left: "39%", top: "74%" } as CSSProperties} viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M4 3l7 17 2.5-6.5L20 11z" fill="currentColor" />
                   </svg>
                   <div className="astage__pip">
                     <div className="vtile vtile--agent">
-                      <video className="castv" muted loop playsInline preload="none" poster="/marketing/v4/cast/kofi.webp" data-src="/marketing/v4/cast/kofi-talking.webm" width="320" height="320" aria-label="Kofi, a Deckster companion, talking" />
+                      <video className="castv" muted loop playsInline preload="none" poster="/marketing/v4/cast/gabe.webp" data-src="/marketing/v4/cast/gabe-talking.webm" width="320" height="320" aria-label="Gabe, a Deckster companion, talking" />
                       <span className="vtile__n">
                         {"Your agent"}
                       </span>
@@ -257,10 +257,10 @@ export function V4BuildPage() {
               </div>
               <div className="astage__cap">
                 <span className="you">
-                  {"“Make this pyramid four levels, and put ours on top.”"}
+                  {"“Why is August so far ahead? Add a note.”"}
                 </span>
                 <span className="agent">
-                  {"Your agent · on it. Rebuilding the diagram now; the title stays."}
+                  {"Your agent · adding it: the heat wave on 14 August pushed prices to $386 per MWh."}
                 </span>
               </div>
               <div className="astage__modes">
@@ -299,13 +299,13 @@ export function V4BuildPage() {
                   <video className="castv" muted loop playsInline preload="none" poster="/marketing/v4/cast/tao.webp" data-src="/marketing/v4/cast/tao-talking.webm" width="320" height="320" aria-label="Tao, a Deckster companion, talking" />
                 </span>
                 <span className="phone__slide">
-                  <img src="/marketing/v3-uat/slides/deck-06.jpg" alt="" width="1280" height="720" />
+                  <img src="/marketing/v4/decks/a2-01.jpg" alt="" width="1280" height="718" />
                 </span>
                 <span className="phone__cap">
-                  {"“Tighten slide 4.”"}
+                  {"“Open with the 12% beat.”"}
                 </span>
                 <span className="phone__ag">
-                  {"On it. Two lines each now."}
+                  {"Done. It leads the title now."}
                 </span>
                 <span className="phone__btn" />
                 <span className="phone__hint">

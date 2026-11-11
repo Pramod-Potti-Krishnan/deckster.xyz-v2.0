@@ -89,14 +89,14 @@ export function V4HomePage() {
                 </div>
                 <div className="astage__body">
                   <div className="astage__canvas">
-                    <img src="/marketing/v3-uat/slides/deck-06.jpg" alt="The deck, on screen during the call" width="1280" height="720" />
-                    <i className="astage__sel" data-l="You pointed here" style={{ left: "27%", top: "24%", width: "24%", height: "60%" } as CSSProperties} />
-                    <svg className="astage__cur" style={{ left: "48%", top: "78%" } as CSSProperties} viewBox="0 0 24 24" aria-hidden="true">
+                    <img src="/marketing/v4/decks/a2-06.jpg" alt="The deck, on screen during the call" width="1280" height="718" />
+                    <i className="astage__sel" data-l="You pointed here" style={{ left: "27.6%", top: "33%", width: "13.6%", height: "45%" } as CSSProperties} />
+                    <svg className="astage__cur" style={{ left: "39%", top: "74%" } as CSSProperties} viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M4 3l7 17 2.5-6.5L20 11z" fill="currentColor" />
                     </svg>
                     <div className="astage__pip">
                       <div className="vtile vtile--agent">
-                        <video className="castv" muted loop playsInline preload="none" poster="/marketing/v4/cast/hana.webp" data-src="/marketing/v4/cast/hana-talking.webm" width="320" height="320" aria-label="Hana, a Deckster companion, talking" />
+                        <video className="castv" muted loop playsInline preload="none" poster="/marketing/v4/cast/lucia.webp" data-src="/marketing/v4/cast/lucia-talking.webm" width="320" height="320" aria-label="Lucia, a Deckster companion, talking" />
                         <span className="vtile__n">
                           {"Your agent"}
                         </span>
@@ -115,10 +115,10 @@ export function V4HomePage() {
                 </div>
                 <div className="astage__cap">
                   <span className="you">
-                    {"“Make this pyramid four levels, and put ours on top.”"}
+                    {"“Why is August so far ahead? Add a note.”"}
                   </span>
                   <span className="agent">
-                    {"Your agent · on it. Rebuilding the diagram now; the title stays."}
+                    {"Your agent · adding it: the heat wave on 14 August pushed prices to $386 per MWh."}
                   </span>
                 </div>
                 <div className="astage__modes">
@@ -153,16 +153,16 @@ export function V4HomePage() {
                       {"Your agent · on a call"}
                     </span>
                     <span className="phone__face">
-                      <img className="castp" src="/marketing/v4/cast/hana.webp" alt="Hana, a Deckster companion" width="320" height="320" loading="lazy" decoding="async" />
+                      <img className="castp" src="/marketing/v4/cast/lucia.webp" alt="Lucia, a Deckster companion" width="320" height="320" loading="lazy" decoding="async" />
                     </span>
                     <span className="phone__slide">
-                      <img src="/marketing/v3-uat/slides/deck-06.jpg" alt="" width="1280" height="720" />
+                      <img src="/marketing/v4/decks/a2-01.jpg" alt="" width="1280" height="718" />
                     </span>
                     <span className="phone__cap">
-                      {"“Tighten slide 4.”"}
+                      {"“Open with the 12% beat.”"}
                     </span>
                     <span className="phone__ag">
-                      {"On it. Two lines each now."}
+                      {"Done. It leads the title now."}
                     </span>
                     <span className="phone__btn" />
                     <span className="phone__hint">
@@ -178,16 +178,16 @@ export function V4HomePage() {
                       {"Your agent · on a call"}
                     </span>
                     <span className="phone__face">
-                      <video className="castv" muted loop playsInline preload="none" poster="/marketing/v4/cast/hana.webp" data-src="/marketing/v4/cast/hana-talking.webm" width="320" height="320" aria-label="Hana, a Deckster companion, talking" />
+                      <video className="castv" muted loop playsInline preload="none" poster="/marketing/v4/cast/lucia.webp" data-src="/marketing/v4/cast/lucia-talking.webm" width="320" height="320" aria-label="Lucia, a Deckster companion, talking" />
                     </span>
                     <span className="phone__slide">
-                      <img src="/marketing/v3-uat/slides/deck-06.jpg" alt="" width="1280" height="720" />
+                      <img src="/marketing/v4/decks/a2-01.jpg" alt="" width="1280" height="718" />
                     </span>
                     <span className="phone__cap">
-                      {"“Tighten slide 4.”"}
+                      {"“Open with the 12% beat.”"}
                     </span>
                     <span className="phone__ag">
-                      {"On it. Two lines each now."}
+                      {"Done. It leads the title now."}
                     </span>
                     <span className="phone__btn" />
                     <span className="phone__hint">
@@ -298,16 +298,16 @@ export function V4HomePage() {
                 {"On the day it speaks the script you approved, moves the deck along, and answers questions from your slides and documents."}
               </p>
               <span className="cap__demo cap__demo--present">
-                <img src="/marketing/v3-uat/slides/deck-04.jpg" alt="" width="1280" height="720" />
+                <img src="/marketing/v4/decks/a2-04.jpg" alt="" width="1280" height="718" />
                 <span className="presenter">
                   <video className="castv" muted loop playsInline preload="none" poster="/marketing/v4/cast/ollie.webp" data-src="/marketing/v4/cast/ollie-pointing.webm" width="320" height="320" aria-label="Ollie, a Deckster companion, pointing" />
                 </span>
                 <span className="companion companion--left">
                   <span>
                     <span className="k4">
-                      {"Presenting · slide 11"}
+                      {"Presenting · slide 4"}
                     </span>
-                    {"“Six capabilities carry the model.”"}
+                    {"“Wider spreads and two new sites drove the result.”"}
                   </span>
                 </span>
               </span>
@@ -359,9 +359,9 @@ export function V4HomePage() {
                   </div>
                   <div className="spawn__cast">
                     <div className="ptile">
-                      <img className="castp" src="/marketing/v4/cast/hana.webp" alt="Hana, a Deckster companion" width="320" height="320" loading="lazy" decoding="async" />
+                      <img className="castp" src="/marketing/v4/cast/lucia.webp" alt="Lucia, a Deckster companion" width="320" height="320" loading="lazy" decoding="async" />
                       <span className="ptile__n">
-                        {"Hana"}
+                        {"Lucia"}
                       </span>
                     </div>
                     <div className="ptile">
@@ -371,9 +371,9 @@ export function V4HomePage() {
                       </span>
                     </div>
                     <div className="ptile">
-                      <img className="castp" src="/marketing/v4/cast/kofi.webp" alt="Kofi, a Deckster companion" width="320" height="320" loading="lazy" decoding="async" />
+                      <img className="castp" src="/marketing/v4/cast/arjun.webp" alt="Arjun, a Deckster companion" width="320" height="320" loading="lazy" decoding="async" />
                       <span className="ptile__n">
-                        {"Kofi"}
+                        {"Arjun"}
                       </span>
                     </div>
                     <div className="ptile">
