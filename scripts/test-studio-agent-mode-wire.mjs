@@ -483,7 +483,7 @@ function sourceChecks(texts = {}, strip = stripAgentModeWire, shown = {}) {
   // the older proofs: each [has, was] pair carries the registry-read mark and is in the file once; the two subject filters are pure insertions; the shell's one scope line is the one replaced line; the strip puts #607's head back
   for (const rel of PIN_FILES) {
     const shell = rel === 'scripts/test-studio-agent-mode-shell.mjs', baseLines = baseText(rel).split('\n'), nowLines = now(rel).split('\n')
-    for (const [has, was] of ALL_EDITS[rel]) { assert.ok(has.includes(PIN_MARK.replace('// ', '')), `${rel}: the line carries the registry-read mark: ${has.slice(0, 70)}`); assert.equal(count(now(rel), has), 1, `${rel}: in the file once`); assert.equal(was === '', !shell, `${rel}: ${shell ? 'the replaced line' : 'a pure insertion'}`) }
+    for (const [has, was] of ALL_EDITS[rel]) { assert.ok(has.includes(PIN_MARK.replace('// ', '')), `${rel}: the line carries the registry-read mark: ${has.slice(0, 70)}`); assert.equal(now(rel).split('\n').filter(l => l === has.slice(0, -1)).length, 1, `${rel}: in the file once, as a whole line`); assert.equal(was === '', !shell, `${rel}: ${shell ? 'the replaced line' : 'a pure insertion'}`) }
     const only = (a, b) => { const seen = new Map(); for (const l of b) seen.set(l, (seen.get(l) ?? 0) + 1); return a.filter(l => { const n = seen.get(l) ?? 0; if (n > 0) { seen.set(l, n - 1); return false } return true }) }
     assert.equal(only(nowLines, baseLines).length, ALL_EDITS[rel].length, `${rel}: the lines this change has that the base lacks are its pairs'`); assert.equal(only(baseLines, nowLines).length, shell ? 1 : 0, `${rel}: ${shell ? 'exactly one base line is replaced' : 'no base line is lost'}`)
     assert.equal(strip(rel, now(rel)), baseText(rel), `${rel}: the strip puts #607's head back`)
@@ -492,7 +492,7 @@ function sourceChecks(texts = {}, strip = stripAgentModeWire, shown = {}) {
   for (const rel of ['lib/studio-agent-mode.ts', 'package.json', '.env.example', REGISTRY]) assert.equal(strip(rel, baseText(rel)), baseText(rel), `${rel}: not this strip's`)
   assert.equal(strip('x.ts', 7), 7); assert.equal(strip('x.ts', 'a\nb\n'), 'a\nb\n')
   // the hook: each of its added lines, one by one, is where the strip says (a pair removed puts back a line the file kept)
-  for (const rel of APP_FILES) for (const [has] of ALL_EDITS[rel]) assert.equal(count(now(rel), has), 1, `${rel}: the pair's line is in the file exactly once: ${has.slice(0, 70)}`)
+  for (const rel of APP_FILES) for (const [has] of ALL_EDITS[rel]) assert.equal(now(rel).split('\n').filter(l => l === has.slice(0, -1)).length, 1, `${rel}: the pair's line is in the file exactly once (as a whole line, indent included): ${has.slice(0, 70)}`)
   // .env.example: this change touches it not at all (the flag's block is #607's), and #607's block still names the flag once
   assert.equal(git('diff', '--name-only', STACK_BASE, 'HEAD', '--', '.env.example').trim(), '', '.env.example is #607\'s byte for byte (no block of this change)'); assert.equal(count(read('.env.example'), 'NEXT_PUBLIC_AGENT_MODE="false"'), 1)
 }
