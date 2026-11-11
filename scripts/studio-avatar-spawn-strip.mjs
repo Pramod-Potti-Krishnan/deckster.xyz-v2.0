@@ -32,7 +32,7 @@ export const AVATAR_SPAWN_PIN_EDITS = {
   'scripts/test-studio-deck-sync-truth.mjs': [[FIRST_PARENT_LINE, '']],
   'scripts/test-studio-chat-element-edit.mjs': [[FIRST_PARENT_LINE, '']],
 }
-/** Where each taught line goes: right after the last subject filter of the form `!/^…:/` the base proof has: dev's last one now, the agent mode shell's (#607, D94; the line that starts with this text). */
+/** Where each taught line goes: AFTER the dev line that starts with this text (dev's last subject filter of the form `!/^…:/` now, the agent mode shell's: #607, D94). An ORDER, not adjacency: another change's registered subject filter may sit between (a change that merges first). */
 export const AVATAR_SPAWN_PIN_AFTER = "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Agent mode shell:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (AGENT-MODE-SHELL)"
 /** The older proofs this change teaches. */
 export const AVATAR_SPAWN_PIN_FILES = Object.keys(AVATAR_SPAWN_PIN_EDITS)

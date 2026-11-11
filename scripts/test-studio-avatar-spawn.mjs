@@ -630,6 +630,16 @@ const SUBJECT_FILTER = /^ {2}shas\.splice\(0, shas\.length, \.\.\.shas\.filter\(
 const LEGACY_FILES = ['app/builder/page.tsx', 'app/(app)/layout.tsx', 'app/(app)/usage/page.tsx', 'components/layout/studio-rail.tsx', 'lib/studio-voice-call-ui.ts', 'hooks/use-studio-voice-call.ts', 'app/api/account/route.ts', REGISTRY, '.env.example', 'scripts/test-studio-usage-credits-page.mjs']
 /** FRONTEND-1's voice-call proof: dev has the four lines FRONTEND-1 OK'd (#607, D94), so this change must not touch it. Named here for the lane guard's and the scope's mutants: any edit of it, however small, is refused. */
 const VCALL = 'scripts/test-studio-voice-call.mjs'
+/** ORDER, not adjacency: this change's taught line comes AFTER the dev line it was taught after (any position after it); whatever sits between the two is another change's registered subject filter (a subject filter carrying the registry-read mark); the line is there exactly once. A change that merges first lands its filter between the two. */
+const FILTER_ANY = /shas\.filter\(sha => !\/\^/
+function provePinOrder(rel, lines, a = m => m) {
+  const mine = lines.findIndex(line => line.includes(AVATAR_SPAWN_PIN_MARK)), anchorAt = lines.findIndex(line => line.startsWith(AVATAR_SPAWN_PIN_AFTER))
+  assert.equal(lines.filter(line => line.startsWith(AVATAR_SPAWN_PIN_AFTER)).length, 1, a(`${rel}: the dev line it is taught after is there exactly once`))
+  assert.ok(anchorAt > 0 && FILTER_ANY.test(lines[anchorAt]) && baseText(rel).split('\n').includes(lines[anchorAt]), a(`${rel}: that line is a subject filter dev already has`))
+  assert.ok(mine > anchorAt, a(`${rel}: after the agent mode shell's filter (dev's last), not above it`))
+  for (const between of lines.slice(anchorAt + 1, mine)) assert.ok(FILTER_ANY.test(between) && between.includes('// LATER-CHANGES: registry read ('), a(`${rel}: between dev's filter and ours only another change's registered subject filter: ${between.slice(0, 90)}`))
+  assert.equal(lines.filter(line => /shas\.filter\(sha => !\/\^Avatar spawn mock:\//.test(line)).length, 1, a(`${rel}: our line is there exactly once`))
+}
 function proveStrip(strip, readNow = read, later = laterStrips, at = '') {
   const a = m => (at ? `${at}: ${m}` : m)
   assert.deepEqual(Object.keys(AVATAR_SPAWN_EDITS).sort(), [...AVATAR_SPAWN_PIN_FILES].sort(), a('the strip edits the two older proofs it teaches and nothing else (no FRONTEND-1 file, voice-call proof included: dev has its four lines; no app file: new files only)'))
@@ -644,8 +654,7 @@ function proveStrip(strip, readNow = read, later = laterStrips, at = '') {
     const now = later(rel, readNow(rel)), lines = now.split('\n'), marked = lines.filter(line => line.includes(AVATAR_SPAWN_PIN_MARK))
     assert.equal(marked.length, 1, a(`${rel}: one taught line, carrying the registry-read mark`)); assert.equal(`${marked[0]}\n`, AVATAR_SPAWN_PIN_EDITS[rel][0][0]); assert.ok(SUBJECT_FILTER.test(marked[0]), a(`${rel}: the taught line is a subject filter for "Avatar spawn mock:"`))
     assert.ok(AVATAR_SPAWN_PIN_EDITS[rel].every(([, was]) => !was.includes(AVATAR_SPAWN_PIN_MARK)), a('the put-back text has no mark'))
-    const at0 = lines.indexOf(marked[0]); assert.ok(/shas\.filter\(sha => !\/\^/.test(lines[at0 - 1]) && baseText(rel).split('\n').includes(lines[at0 - 1]), a(`${rel}: an insertion right after a subject filter its base already has (the last one of that form)`))
-    assert.ok(lines[at0 - 1].startsWith(AVATAR_SPAWN_PIN_AFTER), a(`${rel}: right after the agent mode shell's filter (dev's last)`)); assert.equal(lines.filter(line => /shas\.filter\(sha => !\/\^Avatar spawn mock:\//.test(line)).length, 1, a(`${rel}: no second filter for this subject`))
+    provePinOrder(rel, lines, a)
     assert.ok(AVATAR_SPAWN_MARKER_RE.test(marked[0]), a('and the line carries the marker as a whole token'))
   }
   // a file it does not own comes back unchanged (also with the lines in it); a longer line that merely ends with a line is not a line; a non-string is returned as it is
@@ -655,7 +664,16 @@ function proveStrip(strip, readNow = read, later = laterStrips, at = '') {
   assert.equal(strip(P, `x${line}`), `x${line}`, a('a line that merely ends with it is not it')); assert.equal(strip(P, `${line.replace(/\n$/, '')}x\n`), `${line.replace(/\n$/, '')}x\n`)
   assert.equal(strip(P, `a\n${line}${line}b\n`), `a\n${line}b\n`, a('a line that is there twice is a merge mistake: only the first goes, the older pins still see the second')); assert.equal(strip(P, 'a\nb\n'), 'a\nb\n', a('a proof without the line is returned as it is'))
 }
-await check('the strip: the two taught proofs put back are the base\'s (dev after D94), byte for byte, idempotent; each taught line is one subject filter with the registry-read mark, right after the agent mode shell\'s filter (dev\'s last); a file it does not own (also with the line in it), a longer line, a non-string and a proof without the line come back as they are; a doubled line is not hidden', () => proveStrip(stripAvatarSpawn))
+await check('the strip: the two taught proofs put back are the base\'s (dev after D94), byte for byte, idempotent; each taught line is one subject filter with the registry-read mark, after the agent mode shell\'s filter (dev\'s last; an order, another change\'s registered filter may sit between); a file it does not own (also with the line in it), a longer line, a non-string and a proof without the line come back as they are; a doubled line is not hidden', () => proveStrip(stripAvatarSpawn))
+
+// LINEAR STACK-style control: a change that merges FIRST (#600) lands its registered subject filter between dev's last one and ours: the order pin still passes, and so does the whole strip once its own strip is told
+const EARLIER = { mark: 'registry read (SYNTHETIC-EARLIER)', line: "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Synthetic earlier:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (SYNTHETIC-EARLIER): a made-up change merged before this one" }
+const withEarlier = (rel, text, count = 1) => { if (!AVATAR_SPAWN_PIN_FILES.includes(rel)) return text; const lines = text.split('\n'); lines.splice(lines.findIndex(l => l.startsWith(AVATAR_SPAWN_PIN_AFTER)) + 1, 0, ...Array(count).fill(EARLIER.line)); return lines.join('\n') }
+const earlierStrip = (rel, text) => (AVATAR_SPAWN_PIN_FILES.includes(rel) && typeof text === 'string' ? text.split('\n').filter(line => !line.includes(EARLIER.mark)).join('\n') : text)
+await check('the taught-line pin is an ORDER check: another change\'s registered subject filter between dev\'s last filter and ours still passes (one or two, read as they are), and the whole strip passes once that change\'s own strip is told', () => {
+  for (const rel of AVATAR_SPAWN_PIN_FILES) for (const count of [1, 2]) { const lines = withEarlier(rel, read(rel), count).split('\n'); assert.equal(lines.filter(l => l.includes(EARLIER.mark)).length, count, 'positive control: the synthetic filter is there'); provePinOrder(rel, lines) }
+  proveStrip(stripAvatarSpawn, rel => withEarlier(rel, read(rel)), earlierStrip, 'an earlier change between')
+})
 
 function proveStripData(draft = AVATAR_SPAWN_DRAFT, stripText = read(STRIP)) {
   assert.doesNotMatch(stripText.replace(/"(?:[^"\\\n]|\\.)*"/g, '""').replace(/'(?:[^'\\\n]|\\.)*'/g, "''").replace(/`[^`]*`/g, '``').replace(/\/\/.*$/gm, ''), /^import |require\(|readFileSync|execFileSync/m, 'the strip is plain data: no imports, nothing read from disk or git')
@@ -966,6 +984,11 @@ await mutant('strip: a taught line put somewhere that is not after the agent mod
   if (rel !== PIN0) return read(rel)
   const lines = read(rel).split('\n'), at = lines.findIndex(l => l.includes(AVATAR_SPAWN_PIN_MARK)), [line] = lines.splice(at, 1); lines.splice(lines.findIndex(l => l.includes('registry read (CHAT-CAPS-META)')) + 1, 0, line); return lines.join('\n')
 }))
+await mutant('strip: a taught line moved ABOVE the agent mode shell\'s filter (directly above it)', () => { const lines = read(PIN0).split('\n'), at = lines.findIndex(l => l.includes(AVATAR_SPAWN_PIN_MARK)), [line] = lines.splice(at, 1); lines.splice(lines.findIndex(l => l.startsWith(AVATAR_SPAWN_PIN_AFTER)), 0, line); provePinOrder(PIN0, lines) })
+await mutant('strip: a line that is not another change\'s registered subject filter between dev\'s filter and ours', () => { const lines = read(PIN1).split('\n'); lines.splice(lines.findIndex(l => l.startsWith(AVATAR_SPAWN_PIN_AFTER)) + 1, 0, "  shas.splice(0, 1) // stray, no filter"); provePinOrder(PIN1, lines) })
+await mutant('strip: a subject filter without the registry-read mark between dev\'s filter and ours', () => { const lines = read(PIN0).split('\n'); lines.splice(lines.findIndex(l => l.startsWith(AVATAR_SPAWN_PIN_AFTER)) + 1, 0, EARLIER.line.replace(' // LATER-CHANGES: registry read (SYNTHETIC-EARLIER)', ' //')); provePinOrder(PIN0, lines) })
+await mutant('strip: our filter line twice (a second copy after the first)', () => { const lines = read(PIN0).split('\n'), at = lines.findIndex(l => l.includes(AVATAR_SPAWN_PIN_MARK)); lines.splice(at + 1, 0, lines[at]); provePinOrder(PIN0, lines) })
+await mutant('strip: the dev line it is taught after is missing (not there to be after)', () => provePinOrder(PIN0, read(PIN0).split('\n').filter(l => !l.startsWith(AVATAR_SPAWN_PIN_AFTER))))
 await mutant('draft: a draft anchor that is not dev\'s line', () => proveStripData(AVATAR_SPAWN_DRAFT.map((d, i) => (i === 3 ? { ...d, anchor: 'import { studioNavLabels } from "@/lib/studio-nav-labels" ' } : d))))
 await mutant('draft: a draft line without the marker', () => proveStripData(AVATAR_SPAWN_DRAFT.map((d, i) => (i === 0 ? { ...d, line: d.line.replace(' // AVATAR-SPAWN', ' //') } : d))))
 await mutant('draft: a draft applied (its file is in the scope)', () => { const d = AVATAR_SPAWN_DRAFT[0]; assert.ok(!AVATAR_SPAWN_SCOPE_FILES.has(d.file), 'positive control: not in scope'); proveStripData(AVATAR_SPAWN_DRAFT.map((x, i) => (i === 0 ? { ...x, file: 'scripts/studio-later-changes.mjs', after: 1 } : x))) })
