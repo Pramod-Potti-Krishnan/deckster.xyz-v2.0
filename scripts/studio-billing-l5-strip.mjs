@@ -10,7 +10,7 @@
 // ".env.example block is the last thing in the file" pins read past this change's block.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = 'eeb78d4f4b7676d75c244746f1edc7da1d269478' // Studio dev (7 Nov), the merge of #598
+export const BASE_COMMIT = '6872a8139f67e7c032f39ec064d0fdfed4e7b616' // Studio dev after D94 (#607 merged, 11 Nov), the base this change is restacked on
 export const BILLING_L5_FLAGS = ['NEXT_PUBLIC_STUDIO_BILLING_PLANS', 'STUDIO_ROUTER_ENTITLEMENTS_PUSH', 'STUDIO_METER_RECEIVER_ENABLED']
 export const BILLING_L5_KEY_NAMES = ['MODEL_ROUTER_BILLING_KEY', 'METER_WEBHOOK_SECRET']
 export const BILLING_L5_MARKER = 'BILLING-L5'
