@@ -169,6 +169,7 @@ import {
   visualTotalAfterCommit,
 } from '@/lib/studio-slide-count-sync'
 import { STUDIO_DECK_SYNC_TRUTH_ENABLED, syncTruthSettledTotals } from '@/lib/studio-deck-sync-truth' // DECK-SYNC-TRUTH (NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH, default off): after a poll the totals are the viewer's own count, not a floor restored too high
+import { STUDIO_PRESENT_EXIT_FIX_ENABLED, presentExitDesynced, leaveBrowserFullscreen } from '@/lib/studio-present-exit' // AUDIT-PRESENT-EXIT
 
 const DEFAULT_BUILD_THEME_SELECTION: BuildThemeSelection = { mode: 'auto' }
 
@@ -3698,6 +3699,7 @@ export function PresentationViewer({
     if (!isCurrent()) return
 
     try {
+      if (presentExitDesynced(STUDIO_PRESENT_EXIT_FIX_ENABLED, isFullscreen, Boolean(document.fullscreenElement))) { await leaveBrowserFullscreen(document); if (!isCurrent()) return; setIsFullscreen(false); return } // AUDIT-PRESENT-EXIT: the page says presenting, the browser says not full screen: Exit leaves Present (the toggle below would ask for fullscreen again)
       if (!document.fullscreenElement) {
         if (studioShell && iframeRef.current) {
           const targetIframe = interaction!.iframe
@@ -3754,7 +3756,7 @@ export function PresentationViewer({
     } catch (error) {
       console.error('❌ Fullscreen error:', error)
     }
-  }, [studioShell, isEditMode, onEditModeChange, isGridActive, isBordersActive, beginStudioViewerInteraction])
+  }, [studioShell, isEditMode, onEditModeChange, isGridActive, isBordersActive, beginStudioViewerInteraction, isFullscreen]) // AUDIT-PRESENT-EXIT: the desync check reads the page's own state
 
   // Debug: Log button states
   useEffect(() => {
