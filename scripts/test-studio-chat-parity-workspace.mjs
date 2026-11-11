@@ -30,6 +30,8 @@ const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
 const strip = await import('./studio-chat-parity-workspace-strip.mjs')
 const viewerStrip = await import('./studio-chat-parity-viewer-strip.mjs')
 const registry = await import('./studio-later-changes.mjs')
+const stripMore = await import('./studio-chat-parity-more-strip.mjs') // LATER-CHANGES: registry read (CHAT-PARITY-MORE): the remaining slash commands (stacked after this change) add marked lines to files this proof reads; it reads them as this change left them
+{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' ? stripMore.stripChatParityMore(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-MORE): every read is the file without the remaining commands' lines (the registry and the proofs that change taught included), as this change left it
 const { createModuleLoader } = await import('./studio-chat-harness/module-loader.mjs')
 
 const LIB = 'lib/studio-chat-parity-workspace.ts'
@@ -314,7 +316,7 @@ const VIEWER_MARK = viewerStrip.CHAT_PARITY_VIEWER_MARKER_RE
 const importLines = text => text.split('\n').filter(line => /^import\s/.test(line))
 const markedOf = text => text.split('\n').filter(line => MARK.test(line)).join('\n')
 const norm = value => value.replace(/\s+/g, ' ').trim()
-const diffLines = (rel, sign) => git('diff', '--no-color', '-U0', baseCommitOf(rel), '--', rel).split('\n').filter(line => (sign === '+' ? /^\+(?!\+\+)/ : /^-(?!--)/).test(line)).map(line => line.slice(1))
+const diffLines = (rel, sign) => git('diff', '--no-color', '-U0', baseCommitOf(rel), '--', rel).split('\n').filter(line => (sign === '+' ? /^\+(?!\+\+)/ : /^-(?!--)/).test(line)).map(line => line.slice(1)).filter(line => !stripMore.CHAT_PARITY_MORE_MARKER_RE.test(line)) // LATER-CHANGES: registry read (CHAT-PARITY-MORE): the remaining commands' marked lines are a later change's
 
 /** The Builder page's part: the gate, the handlers, the effects (a pure function of the page's text: the mutants run it). */
 function pageChecks(text, label = 'page') {
