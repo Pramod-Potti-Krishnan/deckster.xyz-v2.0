@@ -802,43 +802,16 @@ function provePins(readNow = read, at = '', later = laterStrips, strip = stripBi
   assert.ok(registry.LATER_STRIPS.includes(stripBillingL5) && registry.LATER_ENV_BLOCKS.includes(BLOCK) && [...S.BILLING_L5_SCOPE_FILES].every(rel => registry.LATER_CHANGE_FILES.has(rel)), a('the registry holds the strip, the block and every file'))
 }
 await check('the pins: the two older proofs taught get one subject-filter line each, after B63\'s, with the mark (put back they are the base\'s, byte for byte); .env.example has the block once at the end, flags off, keys empty, no foreign variable; no credential shape in a new file; the registry holds it all', () => provePins())
-await check('the strip is plain data: no import, nothing read; it marks no app file; any other file comes back untouched; the marker is a whole token; the scope is the new files, .env.example, the registry, the two taught proofs and the voice-call carry', () => {
+await check('the strip is plain data: no import, nothing read; it marks no app file; any other file comes back untouched; the marker is a whole token; the scope is the new files, .env.example, the registry and the two taught proofs (no FRONTEND-1 file)', () => {
   const text = read('scripts/studio-billing-l5-strip.mjs')
   assert.doesNotMatch(text.replace(/"(?:[^"\\\n]|\\.)*"/g, '""').replace(/'(?:[^'\\\n]|\\.)*'/g, "''").replace(/`[^`]*`/g, '``').replace(/\/\/.*$/gm, ''), /^import |require\(|readFileSync|execFileSync/m, 'no imports, nothing read from disk or git')
   assert.deepEqual(S.BILLING_L5_FILES, []); assert.equal(stripBillingL5('app/(app)/billing/page.tsx', 'x // BILLING-L5\n'), 'x // BILLING-L5\n'); assert.equal(stripBillingL5('scripts/studio-later-changes.mjs', 'abc\n'), 'abc\n'); assert.equal(stripBillingL5(S.BILLING_L5_PIN_FILES[0], 7), 7)
   assert.ok(S.BILLING_L5_MARKER_RE.test('a // BILLING-L5') && !S.BILLING_L5_MARKER_RE.test('a // BILLING-L50') && !S.BILLING_L5_MARKER_RE.test('a // BILLING-L5X') && !S.BILLING_L5_MARKER_RE.test('a // X-BILLING-L5') && !S.BILLING_L5_MARKER_RE.test('a // BILLING-F4F6'))
-  assert.deepEqual([...S.BILLING_L5_SCOPE_FILES].sort(), [...S.BILLING_L5_NEW_FILES, '.env.example', 'scripts/studio-later-changes.mjs', ...S.BILLING_L5_PIN_FILES, 'scripts/test-studio-voice-call.mjs'].sort())
+  assert.deepEqual([...S.BILLING_L5_SCOPE_FILES].sort(), [...S.BILLING_L5_NEW_FILES, '.env.example', 'scripts/studio-later-changes.mjs', ...S.BILLING_L5_PIN_FILES].sort())
   assert.equal(S.BILLING_L5_SUBJECT, 'Billing L5:'); assert.match(BASE_COMMIT, /^[0-9a-f]{40}$/); git('merge-base', '--is-ancestor', BASE_COMMIT, 'HEAD')
 })
-// FRONTEND-1's OK'd voice-call pin edit, carried byte for byte from #603 (21d254c6): its ".env.example block is the last thing in the file" pins read past the blocks registered after theirs.
-const VC = 'scripts/test-studio-voice-call.mjs', REF_603 = '21d254c63537776be851ca96dee30d88f34c174d'
-const vcStrip = await import('./studio-voice-call-strip.mjs')
-/** The two predicates of the voice-call proof (L1543, L1634 on dev), evaluated here on this tree's .env.example: never by running that proof (OPS-2 runs it). */
-function voiceCallPredicates(env, envDiffAdded) {
-  const laterEnvOut = text => registry.LATER_ENV_BLOCKS.slice(registry.LATER_ENV_BLOCKS.indexOf(vcStrip.VOICE_CALL_ENV_BLOCK) + 1).reduce((out, block) => out.replace(`\n${block}`, ''), text) // the carried line's own logic
-  return {
-    oldL1543: env.endsWith(`\n${vcStrip.VOICE_CALL_ENV_BLOCK}`) && vcStrip.VOICE_CALL_ENV_BLOCK.endsWith('\n'),
-    newL1543: laterEnvOut(env).endsWith(`\n${vcStrip.VOICE_CALL_ENV_BLOCK}`) && vcStrip.VOICE_CALL_ENV_BLOCK.endsWith('\n'),
-    newL1634: laterEnvOut(`${envDiffAdded.join('\n')}\n`).trimEnd().endsWith(vcStrip.VOICE_CALL_ENV_BLOCK.trimEnd()),
-  }
-}
-function proveVoiceCallCarry(readNow = read, head = 'HEAD') {
-  const now = readNow(VC), base = baseText(VC), pairs = S.BILLING_L5_FE1_PROOF_OK[VC]
-  assert.deepEqual(S.BILLING_L5_FE1_PROOF_FILES, [VC], 'exactly one FRONTEND-1 file, the voice-call proof')
-  assert.equal(stripBillingL5(VC, now), base, 'put back, the voice-call proof is dev\'s, byte for byte')
-  const diff = lineDiff(base, now), added = diff.filter(l => l.startsWith('+')).map(l => l.slice(1)), removed = diff.filter(l => l.startsWith('-')).map(l => l.slice(1))
-  assert.deepEqual(added, pairs.map(([has]) => has.replace(/\n$/, '')), 'the four lines added are exactly the OK\'d ones, in order')
-  assert.deepEqual(removed, pairs.filter(([, was]) => was).map(([, was]) => was.replace(/\n$/, '')), 'the two lines replaced are exactly the OK\'d ones')
-  for (const line of added) { assert.ok(line.endsWith('// LATER-CHANGES: registry read (UX-FINDINGS-E)'), 'each keeps #603\'s own mark'); assert.ok(!S.BILLING_L5_MARKER_RE.test(line), 'and is not re-marked') }
-  const lines = now.split('\n'); assert.equal(lines[lines.indexOf(S.BILLING_L5_FE1_PROOF_ANCHOR) + 1], added[0], 'the inserted lines sit right after the anchor'); assert.equal(lines[lines.indexOf(S.BILLING_L5_FE1_PROOF_ANCHOR) + 2], added[1])
-  let ref = null; try { ref = git('show', `${REF_603}:${VC}`) } catch { /* #603's commit is not in this clone */ }
-  if (ref !== null) assert.ok(Buffer.from(now).equals(Buffer.from(ref)), 'BYTE-IDENTICAL to the voice-call proof at 21d254c6 (#603)'); else console.log('NOTE voice-call carry: 21d254c6 is not in this clone; checked against the strip\'s pairs only')
-  const env = readNow('.env.example'), envDiff = git('diff', '--unified=0', vcStrip.BASE_COMMIT, head, '--', '.env.example').split('\n').filter(l => /^[-+]/.test(l) && !/^(---|\+\+\+)/.test(l))
-  const p = voiceCallPredicates(env, envDiff.map(l => l.slice(1)))
-  assert.equal(p.oldL1543, false, 'dev\'s L1543 predicate is false with this change\'s block (why the carry is needed)')
-  assert.equal(p.newL1543, true, 'the carried L1543 predicate holds on this tree\'s .env.example'); assert.equal(p.newL1634, true, 'the carried L1634 predicate holds on the committed .env.example diff')
-}
-await check('the voice-call pin carry: the four OK\'d lines of #603, byte for byte (put back, dev\'s file; vs 21d254c6, Buffer-equal); their own mark kept; L1543 and L1634 evaluated on this .env.example: false before the carry, true after', () => proveVoiceCallCarry())
+// FRONTEND-1's voice-call proof: dev has the four lines FRONTEND-1 OK'd (#607, D94), so this change must not touch it: the scope refuses any edit of it, however small (a mutant edits it).
+const VC = 'scripts/test-studio-voice-call.mjs'
 /** The byte-identity evidence of flag off, as sha256 prefixes: what each switch-off path returns or draws. */
 await check('flag-off evidence (sha256/16): the UI draws the empty string, the route answers the same 404 body for every off spelling, the push returns the same skipped outcome', async () => {
   const ui = new Set(SPELLINGS.filter(s => s !== 'true').map(s => sha(renderPlans({ env: s === undefined ? PRICE_IDS : { ...PRICE_IDS, NEXT_PUBLIC_STUDIO_BILLING_PLANS: s }, props: { usageState: READY } }))))
@@ -876,7 +849,7 @@ const scopeOwnCommits = (head, opts) => {
   for (const c of git('rev-list', '--no-merges', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)) assert.doesNotMatch(subjectOf(c), OLDER_PREFIXES, `${c.slice(0, 8)} would be taken for an older change's own commit`)
   return own
 }
-const FOREIGN = ['app/(app)/billing/page.tsx', 'app/api/stripe/create-checkout-session/route.ts', 'app/api/stripe/create-topup-session/route.ts', 'app/api/webhooks/stripe/route.ts', 'app/api/wallet/debit/route.ts', 'lib/wallet.ts', 'lib/billing/wallet-debit-source.ts', 'lib/billing/stripe-webhook.ts', 'lib/auth-options.ts', 'app/api/account/route.ts', 'lib/studio-billing.ts', 'components/billing/UpgradeButton.tsx', 'lib/studio-usage-credits.ts', 'components/studio-usage-credits.tsx', 'app/api/usage/credits/route.ts', 'lib/marketing/homepage-v2-pricing.ts', 'lib/service-url.ts', 'middleware.ts', 'prisma/schema.prisma', 'package.json', 'pnpm-lock.yaml', 'tsconfig.json', 'next.config.mjs']
+const FOREIGN = [VC, 'app/(app)/billing/page.tsx', 'app/api/stripe/create-checkout-session/route.ts', 'app/api/stripe/create-topup-session/route.ts', 'app/api/webhooks/stripe/route.ts', 'app/api/wallet/debit/route.ts', 'lib/wallet.ts', 'lib/billing/wallet-debit-source.ts', 'lib/billing/stripe-webhook.ts', 'lib/auth-options.ts', 'app/api/account/route.ts', 'lib/studio-billing.ts', 'components/billing/UpgradeButton.tsx', 'lib/studio-usage-credits.ts', 'components/studio-usage-credits.tsx', 'app/api/usage/credits/route.ts', 'lib/marketing/homepage-v2-pricing.ts', 'lib/service-url.ts', 'middleware.ts', 'prisma/schema.prisma', 'package.json', 'pnpm-lock.yaml', 'tsconfig.json', 'next.config.mjs']
 const NO_LATER = { files: new Set(), strip: (rel, text) => text }
 const REG = 'scripts/studio-later-changes.mjs', END = '  // one line per later change, above this comment'
 const isMine = line => line.includes('studio-billing-l5-strip.mjs')
@@ -945,7 +918,7 @@ const commitWith = (parent, edits, message) => {
 }
 const TRAILER = '\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>'
 await scopeCheck(`this change's own commits (subject "${S.BILLING_L5_SUBJECT}", found across the line, no merges) exist with the co-author line; none could be taken for an older change's`, () => { scopeOwnCommits(HEAD) })
-await scopeCheck('the committed files are exactly this change\'s: the eight new files, .env.example, the registry, the two taught proofs and the voice-call carry; none of FRONTEND-1\'s billing files, the wallet, the schema, package.json or the lockfile', () => scopeCommittedFiles(HEAD))
+await scopeCheck('the committed files are exactly this change\'s: the eight new files, .env.example, the registry, the two taught proofs; none of FRONTEND-1\'s files (the voice-call proof included), billing files, the wallet, the schema, package.json or the lockfile', () => scopeCommittedFiles(HEAD))
 await scopeCheck('.env.example is the base plus the block at the end; the registry gains exactly its three lines, each the true end of its list, and loses none; flag off every touched old file goes back to the base (sha256/16 printed)', () => { scopeEnvAndRegistry(HEAD); console.log(`     flag-off identity: ${identityEvidence(HEAD).join('; ')}`) })
 const GATE = ON_OWN_LINE ? gateMerge(BASE_COMMIT, HEAD) : null
 await scopeCheck('GATE-SAFE: on a gate-style merge (first parent BASE, second this change\'s head) the scope head is HEAD^2 and the whole scope passes against it; the merged tree is read too', () => {
@@ -962,10 +935,10 @@ const unrelated = ON_OWN_LINE ? commitWith(BASE_COMMIT, { 'unrelated-after-base.
 await scopeCheck('GATE-SAFE after dev moved on: a gate merge whose first parent is past BASE still scopes to this change\'s head and passes', () => {
   const g = gateMerge(unrelated, HEAD); assert.deepEqual(parentsOf(g), [unrelated, HEAD]); assert.equal(scopeHead(g), HEAD); scopeAll(scopeHead(g)); scopeEnvAndRegistry(g); assert.equal(ownOf(g).length, ownOf(HEAD).length)
 })
-await scopeCheck('mutant caught: a stray file in a "Billing L5:" commit, an own commit without the co-author line, an edit to FRONTEND-1\'s billing files, the wallet, the schema or package.json, and a second line in a taught proof fail the scope', () => {
+await scopeCheck('mutant caught: a stray file in a "Billing L5:" commit, an own commit without the co-author line, an edit to FRONTEND-1\'s voice-call proof or billing files, the wallet, the schema or package.json, and a second line in a taught proof fail the scope', () => {
   const stray = commitWith(HEAD, { 'stray-billing-l5.txt': 'stray\n' }, `${S.BILLING_L5_SUBJECT} a stray file${TRAILER}`); assert.doesNotThrow(() => scopeCommittedFiles(HEAD)); assert.throws(() => scopeCommittedFiles(stray), /exactly its scope/)
   const noTrailer = commitWith(HEAD, {}, `${S.BILLING_L5_SUBJECT} no trailer`); assert.throws(() => scopeOwnCommits(noTrailer), error => /^[0-9a-f]{8}$/.test(error.message), 'the commit without the trailer is named')
-  for (const rel of ['app/(app)/billing/page.tsx', 'app/api/webhooks/stripe/route.ts', 'app/api/wallet/debit/route.ts', 'lib/wallet.ts', 'lib/auth-options.ts', 'prisma/schema.prisma', 'package.json']) {
+  for (const rel of [VC, 'app/(app)/billing/page.tsx', 'app/api/webhooks/stripe/route.ts', 'app/api/wallet/debit/route.ts', 'lib/wallet.ts', 'lib/auth-options.ts', 'prisma/schema.prisma', 'package.json']) {
     const foreign = commitWith(HEAD, { [rel]: `${show(HEAD, rel)}\n` }, `${S.BILLING_L5_SUBJECT} touches ${rel}${TRAILER}`); assert.throws(() => scopeCommittedFiles(foreign), /exactly its scope|is not touched/, rel)
   }
   const sneaky = commitWith(HEAD, { [S.BILLING_L5_PIN_FILES[0]]: `${show(HEAD, S.BILLING_L5_PIN_FILES[0])}\n// a second line` }, `${S.BILLING_L5_SUBJECT} a sneaky line${TRAILER}`)
@@ -1101,13 +1074,11 @@ await mutant('the env block turns a flag on', () => provePins(rel => (rel === '.
 await mutant('the env block gains a value for a key', () => provePins(rel => (rel === '.env.example' ? swap(read(rel), 'METER_WEBHOOK_SECRET=\n', 'METER_WEBHOOK_SECRET=abc\n') : read(rel))))
 await mutant('the env block is joined to the last block without a blank line', () => provePins(rel => (rel === '.env.example' ? swap(read(rel), `\n\n${BLOCK.split('\n')[0]}`, `\n${BLOCK.split('\n')[0]}`) : read(rel))))
 await mutant('a secret-shaped literal in a new file', () => provePins(rel => (rel === ROUTE ? `${read(rel)}\nconst k = '${'s' + 'k-'}${'a1'.repeat(12)}'\n` : read(rel))))
-await mutant('the voice-call carry is missing (dev\'s pin left as it was)', () => proveVoiceCallCarry(rel => (rel === VC ? baseText(VC) : read(rel))))
-await mutant('a carried voice-call line differs by one byte', () => proveVoiceCallCarry(rel => (rel === VC ? read(rel).replace('registry read (UX-FINDINGS-E)\n', 'registry read (UX-FINDINGS-E) \n') : read(rel))))
-await mutant('the carry is re-marked BILLING-L5', () => proveVoiceCallCarry(rel => (rel === VC ? read(rel).replace("const laterRegistry = await import('./studio-later-changes.mjs') // LATER-CHANGES: registry read (UX-FINDINGS-E)", "const laterRegistry = await import('./studio-later-changes.mjs') // LATER-CHANGES: registry read (BILLING-L5)") : read(rel))))
 await mutant('credentials in a URL in a test', () => provePins(rel => (rel === 'scripts/test-studio-billing-l5.mjs' ? `${read(rel)}\n// ${'https'}://${'u'}:${'p'}@router.example.test\n` : read(rel))))
 if (ON_OWN_LINE) {
   await mutant('a registry line moved off the true end (a line of its own below it that is not a later change\'s)', () => scopeEnvAndRegistry(HEAD, { files: new Set(), strip: (rel, text) => (rel === REG ? text.replace(`  (await import('./studio-billing-l5-strip.mjs')).stripBillingL5,`, `  (await import('./studio-billing-l5-strip.mjs')).stripBillingL5,\n  'not a registration',`) : text) }))
   await mutant('a registry line moved above a line dev already has', () => scopeEnvAndRegistry(HEAD, { files: new Set(), strip: (rel, text) => { if (rel !== REG) return text; const lines = text.split('\n'), at = lines.findIndex(l => l.includes(').stripBillingL5, // LATER-CHANGE:')); [lines[at - 1], lines[at]] = [lines[at], lines[at - 1]]; return lines.join('\n') } }))
+  await mutant('FRONTEND-1\'s voice-call proof edited in an own commit (dev has its four lines; no exemption: any line is refused)', () => scopeCommittedFiles(commitWith(HEAD, { [VC]: `${show(HEAD, VC)}// a line\n` }, `${S.BILLING_L5_SUBJECT} edits the voice-call proof${TRAILER}`)))
   await mutant('a stray file in an own commit', () => scopeCommittedFiles(commitWith(HEAD, { 'lib/stray-l5.ts': 'x\n' }, `${S.BILLING_L5_SUBJECT} stray${TRAILER}`)))
   await mutant('an own commit without the trailer', () => scopeOwnCommits(commitWith(HEAD, {}, `${S.BILLING_L5_SUBJECT} no trailer`)))
 }

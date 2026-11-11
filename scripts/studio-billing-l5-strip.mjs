@@ -6,8 +6,7 @@
 // work and are proven without them (the preview route /billing/plans, the proof's renders and vm runs).
 // Its marker is BILLING-L5 (a WHOLE token). What this change adds to existing files: .env.example (one block, appended at the true end), the registry (three lines, at the true end of each list) and ONE subject-filter
 // line in each of the two older proofs that read the first-parent commits of BASE..HEAD for their own subjects (the pin table below, tests only, every line carries the registry-read mark), as B62 / B63 did.
-// It also carries FRONTEND-1's OK'd voice-call pin edit from #603 byte for byte (BILLING_L5_FE1_PROOF_OK: four lines of scripts/test-studio-voice-call.mjs, their own UX-FINDINGS-E mark kept), so that its
-// ".env.example block is the last thing in the file" pins read past this change's block.
+// No FRONTEND-1 file is edited: the four lines of scripts/test-studio-voice-call.mjs that FRONTEND-1 OK'd are dev's now (#607, D94), so this change carries nothing there.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs). Plain node, no imports, nothing read from disk or git here.
 
 export const BASE_COMMIT = '6872a8139f67e7c032f39ec064d0fdfed4e7b616' // Studio dev after D94 (#607 merged, 11 Nov), the base this change is restacked on
@@ -72,22 +71,6 @@ export const BILLING_L5_PIN_EDITS = {
   'scripts/test-studio-deck-sync-truth.mjs': [[FIRST_PARENT_LINE, '']],
   'scripts/test-studio-chat-element-edit.mjs': [[FIRST_PARENT_LINE, '']],
 }
-/**
- * FRONTEND-1's voice-call proof with the after-merge edit FRONTEND-1 OK'd, carried BYTE FOR BYTE from #603 (UX findings E, 21d254c6; to-FRONTEND-2.md line 545, FE1-OK-REQUEST-2.md, 8 Nov):
- * its ".env.example block is the last thing in the file" pins (L1543, L1634) read the file past the env blocks registered after theirs, so a later block (this change's) is not an extra.
- * [line now, line before] per edit, whole lines; was = '' for an inserted line. The lines keep #603's own mark (UX-FINDINGS-E). Put back, the proof is dev's, byte for byte. No other line of theirs is edited.
- */
-export const BILLING_L5_FE1_PROOF_OK = {
-  'scripts/test-studio-voice-call.mjs': [
-    ["const laterRegistry = await import('./studio-later-changes.mjs') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", ''],
-    ["const laterEnvOut = text => laterRegistry.LATER_ENV_BLOCKS.slice(laterRegistry.LATER_ENV_BLOCKS.indexOf(strip.VOICE_CALL_ENV_BLOCK) + 1).reduce((out, block) => out.replace(`\\n${block}`, ''), text) // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", ''],
-    ["  ok(laterEnvOut(env).endsWith(`\\n${strip.VOICE_CALL_ENV_BLOCK}`) && strip.VOICE_CALL_ENV_BLOCK.endsWith('\\n'), '.env.example: the block is the last thing in the file, after one blank line') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", "  ok(env.endsWith(`\\n${strip.VOICE_CALL_ENV_BLOCK}`) && strip.VOICE_CALL_ENV_BLOCK.endsWith('\\n'), '.env.example: the block is the last thing in the file, after one blank line')\n"],
-    ["    ok(laterEnvOut(`${envDiff.map(line => line.slice(1)).join('\\n')}\\n`).trimEnd().endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly its block (after ELEMENT-3\\'s two lines)') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", "    ok(envDiff.map(line => line.slice(1)).join('\\n').endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly its block (after ELEMENT-3\\'s two lines)')\n"],
-  ],
-}
-/** The anchor the two inserted voice-call lines go right after. */
-export const BILLING_L5_FE1_PROOF_ANCHOR = "const core = await import('./studio-voice-core-strip.mjs')"
-export const BILLING_L5_FE1_PROOF_FILES = Object.keys(BILLING_L5_FE1_PROOF_OK)
 
 /** Where each taught line goes: right after the last subject filter the base proof has, B63's "Usage credits page:" (the line that starts with this text). */
 export const BILLING_L5_PIN_AFTER = "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Usage credits page:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (USAGE-CREDITS-PAGE)"
@@ -95,11 +78,11 @@ export const BILLING_L5_PIN_AFTER = "  shas.splice(0, shas.length, ...shas.filte
 /** The older proofs this change teaches. */
 export const BILLING_L5_PIN_FILES = Object.keys(BILLING_L5_PIN_EDITS)
 
-/** Every [has, was] pair this change makes, by file: the two taught proofs, then FRONTEND-1's OK'd voice-call pin edit. */
-export const BILLING_L5_EDITS = { ...BILLING_L5_PIN_EDITS, ...BILLING_L5_FE1_PROOF_OK }
+/** Every [has, was] pair this change makes, by file: the two taught proofs (nothing of FRONTEND-1's: dev has their voice-call proof lines). */
+export const BILLING_L5_EDITS = { ...BILLING_L5_PIN_EDITS }
 
-/** Files this change edits that are not app code: .env.example (its block, appended), the registry (three lines: its files, its block, its strip), the older proofs it teaches and the voice-call pin carry. */
-export const BILLING_L5_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', ...BILLING_L5_PIN_FILES, ...BILLING_L5_FE1_PROOF_FILES]
+/** Files this change edits that are not app code: .env.example (its block, appended), the registry (three lines: its files, its block, its strip), and the older proofs it teaches. */
+export const BILLING_L5_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', ...BILLING_L5_PIN_FILES]
 
 /** Every file this change's commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
 export const BILLING_L5_SCOPE_FILES = new Set([...BILLING_L5_FILES, ...BILLING_L5_NEW_FILES, ...BILLING_L5_OWN_EDITS])
@@ -130,7 +113,7 @@ function putBackLine(text, has, was) {
   return at === -1 ? text : text.slice(0, at) + was + text.slice(at + has.length)
 }
 
-/** The file without this change's lines: an older proof this change taught, and the voice-call proof, get their base text back. Any other file is returned as it is (this change marks no line in an app file). Idempotent. */
+/** The file without this change's lines: an older proof this change taught gets its base text back. Any other file is returned as it is (this change marks no line in an app file). Idempotent. */
 export function stripBillingL5(rel, text) {
   if (typeof text !== 'string') return text
   if (!Object.prototype.hasOwnProperty.call(BILLING_L5_EDITS, rel)) return text
