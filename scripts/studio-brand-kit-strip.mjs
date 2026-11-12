@@ -1,4 +1,4 @@
-// FRONTEND-1 (Brand Kit, the Studio caller half; spec streams/pass5/BRAND-KIT-CALLER.md, items BK-C1..BK-C19, with BK-Q1..Q12 at their proposed defaults): ONE flag-off Draft on the Studio dev branch (studio-v4-dev-preparation-code, 6872a813).
+// FRONTEND-1 (Brand Kit, the Studio caller half; spec streams/pass5/BRAND-KIT-CALLER.md, items BK-C1..BK-C19, with BK-Q1..Q12 at their proposed defaults): ONE flag-off Draft on the Studio dev branch (studio-v4-dev-preparation-code, 168f1044, #304 merged; first built on 6872a813).
 // Flag NEXT_PUBLIC_STUDIO_BRAND_KIT: the exact string "true", default off. Off, the two new routes answer 404 before anything is read, no Brand Kit UI is mounted, no request is made, and the eight existing theme proxy fetches are what they were.
 //   - POST /api/brand/extract (new): signed in, approved, the file checked (PNG or JPEG, 4 MiB, magic bytes), a per-person daily cap, ONE paid call to Theme Builder with the server-only key, Theme Builder's answer cleaned and passed on with no-store;
 //   - GET and PUT /api/themes/[id]/brand (new): Director's brand record, signed with the existing entitlement helper, the PUT body checked (Director's six keys only, https logo link, the limits, the eight catalog fonts), an empty record refused unless ?clear=1;
@@ -18,7 +18,7 @@
 // How the older pins reach it: it REGISTERS its files, its .env.example block and its strip (scripts/studio-later-changes.mjs, three lines). The voice-call proof's .env.example pin (21d254c6) already reads the blocks registered after its own, so no edit of it is carried.
 // Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '6872a8139f67e7c032f39ec064d0fdfed4e7b616' // origin/studio-v4-dev-preparation-code (#607 merged), the trunk this change sits on
+export const BASE_COMMIT = '168f10442bafc574a8166c434390180c92506d29' // origin/studio-v4-dev-preparation-code (#304 merged), the trunk this change sits on (restacked from 6872a813, #607 merged: #304's .env.example block, registry lines and taught-proof lines are the base's now)
 export const BRAND_KIT_FLAGS = ['NEXT_PUBLIC_STUDIO_BRAND_KIT']
 export const BRAND_KIT_MARKER = 'BRAND-KIT-CALLER'
 /** The marker as a WHOLE token: BRAND-KIT-CALLER is this change's; BRAND-KIT-CALLER-X and X-BRAND-KIT-CALLER are not. */

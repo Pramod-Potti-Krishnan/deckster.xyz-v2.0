@@ -1,4 +1,4 @@
-// FRONTEND-1: proof of the Brand Kit caller (Studio half; spec streams/pass5/BRAND-KIT-CALLER.md, BK-C1..BK-C19 at BK-Q1..Q12's proposed defaults), ONE flag-off Draft on the Studio dev branch (studio-v4-dev-preparation-code, 6872a813).
+// FRONTEND-1: proof of the Brand Kit caller (Studio half; spec streams/pass5/BRAND-KIT-CALLER.md, BK-C1..BK-C19 at BK-Q1..Q12's proposed defaults), ONE flag-off Draft on the Studio dev branch (studio-v4-dev-preparation-code, 168f1044, #304 merged; first built on 6872a813).
 // Flag NEXT_PUBLIC_STUDIO_BRAND_KIT, the exact string "true", default off. Nothing is called: every service is a stub that records what it was asked, and every secret below is made up at run time and never printed.
 //
 //   node scripts/test-studio-brand-kit.mjs     (plain node, offline: the REAL sources transpiled and run (routes with a stubbed session, database and fetch; the Themes page's kit with a small React host); git is read for the strip, the registry and the scope; no network, no browser)
