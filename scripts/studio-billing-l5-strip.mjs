@@ -9,7 +9,7 @@
 // No FRONTEND-1 file is edited: the four lines of scripts/test-studio-voice-call.mjs that FRONTEND-1 OK'd are dev's now (#607, D94), so this change carries nothing there.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '6872a8139f67e7c032f39ec064d0fdfed4e7b616' // Studio dev after D94 (#607 merged, 11 Nov), the base this change is restacked on
+export const BASE_COMMIT = '62051603d41f7ce7d9dc999b0dbf7525405d684a' // #600's head 62051603 (tree 576859c9 = Studio dev once #600 merges), the head this change is chained on
 export const BILLING_L5_FLAGS = ['NEXT_PUBLIC_STUDIO_BILLING_PLANS', 'STUDIO_ROUTER_ENTITLEMENTS_PUSH', 'STUDIO_METER_RECEIVER_ENABLED']
 export const BILLING_L5_KEY_NAMES = ['MODEL_ROUTER_BILLING_KEY', 'METER_WEBHOOK_SECRET']
 export const BILLING_L5_MARKER = 'BILLING-L5'
