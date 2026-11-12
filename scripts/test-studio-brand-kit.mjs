@@ -847,7 +847,7 @@ function sourceChecks(texts = {}, strip = stripBrandKit, shown = {}) {
   assert.equal(count(now('hooks/use-brand-kit.ts'), 'api-hardening'), 0)
   // the signing lib is imported by all four theme proxies: it must not reach the database (three of them had no database import before); only the extract route imports the cap
   for (const rel of [SERVER]) assert.ok(!/api-hardening|@\/lib\/prisma|next-auth/.test(now(rel).replace(/\/\/.*$/gm, '')), `${rel}: reaches no database and no session`)
-  assert.ok(/@\/lib\/studio-brand-kit-cap/.test(now(EXTRACT)), 'the extract route imports the cap'); for (const rel of [...THEME_PROXY_FILES, BRAND, SERVER]) assert.ok(!/studio-brand-kit-cap/.test(now(rel)), `${rel}: does not import the cap`)
+  assert.ok(/@\/lib\/studio-brand-kit-cap/.test(now(EXTRACT)), 'the extract route imports the cap'); for (const rel of [...THEME_PROXY_FILES, BRAND, SERVER]) assert.ok(!/studio-brand-kit-cap/.test(now(rel).replace(/\/\/.*$/gm, '')), `${rel}: does not import the cap`)
 }
 const ENV_RE = lines => lines.filter(l => l && !l.startsWith('#'))
 function envChecks(texts = {}) {
