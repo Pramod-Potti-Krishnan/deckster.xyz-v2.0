@@ -843,8 +843,9 @@ async function identityNoteChecks(texts = {}) {
       const fetch = (url, init = {}) => { log.push(`${init.method ?? 'GET'} ${url}`); const out = plan(String(url)); if (out.throws) return Promise.reject(out.throws); return Promise.resolve(new Response(out.raw ?? JSON.stringify(out.body ?? {}), { status: out.status })) }
       const w = createWorld({ env: flagEnv(kitFlag), texts, fetch }); const mod = w.load(NOTE), idl = w.load(IDLIB)
       const r = new Root(); r.setElement(h(mod.BrandKitIdentityNote, { open })); r.flush(); for (let i = 0; i < 3; i++) { await tick(); r.flush() }
-      let closedText = null; if (closeAfter) { r.setElement(h(mod.BrandKitIdentityNote, { open: false })); r.flush(); await tick(); r.flush(); closedText = textOf(r.tree) }
-      const out = { log, writes, closedText, text: textOf(r.tree), notes: nodesBy(r.tree, n => n.type === 'p' && n.props?.role === 'note').map(n => n.props), idl }; r.unmount(); return out
+      const text = textOf(r.tree), notes = nodesBy(r.tree, n => n.type === 'p' && n.props?.role === 'note').map(n => n.props); let closedText = null
+      if (closeAfter) { r.setElement(h(mod.BrandKitIdentityNote, { open: false })); r.flush(); await tick(); r.flush(); closedText = textOf(r.tree) }
+      r.unmount(); return { log, writes, closedText, text, notes, idl }
     } finally { globalThis.window = before }
   }
   const plan = (kit, { std = { status: 200, body: { theme: { id: 'theme-9' } } } } = {}) => url => (url === '/api/themes/standard' ? std : url === '/api/themes/theme-9/brand' ? { status: 200, body: { id: 'theme-9', brand: kit } } : { status: 404, body: {} })
