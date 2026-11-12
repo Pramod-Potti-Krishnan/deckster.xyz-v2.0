@@ -672,7 +672,7 @@ const withEarlier = (rel, text, count = 1) => { if (!AVATAR_SPAWN_PIN_FILES.incl
 const earlierStrip = (rel, text) => (AVATAR_SPAWN_PIN_FILES.includes(rel) && typeof text === 'string' ? text.split('\n').filter(line => !line.includes(EARLIER.mark)).join('\n') : text)
 await check('the taught-line pin is an ORDER check: another change\'s registered subject filter between dev\'s last filter and ours still passes (one or two, read as they are), and the whole strip passes once that change\'s own strip is told', () => {
   for (const rel of AVATAR_SPAWN_PIN_FILES) for (const count of [1, 2]) { const lines = withEarlier(rel, read(rel), count).split('\n'); assert.equal(lines.filter(l => l.includes(EARLIER.mark)).length, count, 'positive control: the synthetic filter is there'); provePinOrder(rel, lines) }
-  proveStrip(stripAvatarSpawn, rel => withEarlier(rel, read(rel)), earlierStrip, 'an earlier change between')
+  proveStrip(stripAvatarSpawn, rel => withEarlier(rel, read(rel)), (rel, text) => laterStrips(rel, earlierStrip(rel, text)), 'an earlier change between') // the synthetic change's strip is COMPOSED with the strips of the changes registered after this one (it used to replace them, so a real later change's taught line was never removed)
 })
 
 function proveStripData(draft = AVATAR_SPAWN_DRAFT, stripText = read(STRIP)) {
@@ -718,9 +718,21 @@ function proveRegistryText(regText) {
     assert.ok(reg[at + 1] === END || laterRegistry.has(reg[at + 1]), 'the true end of its list (or followed only by a later change\'s registered line)')
   }
 }
+/** The .env.example text without the blocks of the changes registered AFTER this one (the registry's order; a block comes out with the one blank line that separated it, as the registry takes one out): this change's own file, so "the last one" and the checks next to it hold on a branch stacked after it. */
+function laterEnvBlocksOut(text) {
+  const at = registry.LATER_ENV_BLOCKS.indexOf(AVATAR_SPAWN_ENV_BLOCK); assert.ok(at >= 0, 'the registry holds the block')
+  return registry.LATER_ENV_BLOCKS.slice(at + 1).reduce((out, registered) => {
+    const block = String(registered).replace(/^\n+/, '').replace(/\n+$/, ''); let i = out.indexOf(block)
+    while (i !== -1 && !((i === 0 || out[i - 1] === '\n') && (i + block.length === out.length || out[i + block.length] === '\n'))) i = out.indexOf(block, i + 1)
+    if (i === -1) return out
+    const before = out.slice(0, i), after = out.slice(i + block.length)
+    return /^\n*$/.test(after) ? (before.endsWith('\n\n') ? before.slice(0, -1) : before) : after.startsWith('\n\n') ? before + after.slice(2) : before + after.slice(1)
+  }, text)
+}
 function proveEnv(envText, blockOk = true) {
   assert.equal(registry.stripLaterEnvBlocks('.env.example', envText), registry.stripLaterEnvBlocks('.env.example', baseText('.env.example')), '.env.example is dev\'s plus the registered blocks and nothing else')
-  assert.equal(count(envText, AVATAR_SPAWN_ENV_BLOCK), 1, 'this change\'s block is there exactly once, verbatim'); assert.ok(envText.includes(`\n\n${AVATAR_SPAWN_ENV_BLOCK}`), 'a blank line before the block'); assert.ok(blockOk ? envText.endsWith(AVATAR_SPAWN_ENV_BLOCK) : true, 'the block is the last one')
+  const mine = laterEnvBlocksOut(envText) // what this change left: the blocks registered after it are theirs
+  assert.equal(count(mine, AVATAR_SPAWN_ENV_BLOCK), 1, 'this change\'s block is there exactly once, verbatim'); assert.ok(mine.includes(`\n\n${AVATAR_SPAWN_ENV_BLOCK}`), 'a blank line before the block'); assert.ok(blockOk ? mine.endsWith(AVATAR_SPAWN_ENV_BLOCK) : true, 'the block is the last one (of the blocks up to this change\'s)')
   assert.ok(AVATAR_SPAWN_ENV_BLOCK.includes(`${AVATAR_SPAWN_FLAG}="false"`), 'the flag is documented as off'); assert.equal(AVATAR_SPAWN_ENV_BLOCK.split('\n').filter(l => /^[A-Z_]+=/.test(l)).length, 1, 'one variable'); assert.ok(AVATAR_SPAWN_MARKER_RE.test(AVATAR_SPAWN_ENV_BLOCK))
   assert.doesNotMatch(AVATAR_SPAWN_ENV_BLOCK, SECRET_SHAPE)
 }
