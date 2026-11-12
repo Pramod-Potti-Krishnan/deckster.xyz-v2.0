@@ -13,7 +13,8 @@
 // Older proofs this change teaches (tests only, every line carries the registry-read mark): the two that read the first-parent commits of BASE..HEAD for their own commits' subjects get one more inserted line each, "Brand kit caller:", right after the shell's;
 // the Deck import proof, whose "the minter is imported by the two import routes only" walk gets two more inserted lines (the Brand Kit's server lib and its brand record route, which sign with the same helper and are proved by this change's own proof), right after the compose lib's line;
 // eight Themes-page proofs (font selection, base dropdown, preview canon, the two Atlas Themes proofs, draft ownership, library manage, support access) that held the Themes page or its proxy to a base byte for byte without reading the registry: each now reads that file through stripLaterChanges;
-// and the Presenter details dialog's own proof, which held the dialog to its original byte for byte: it now reads the dialog through stripLaterChanges (two lines, 12 older proofs in all).
+// the Presenter details dialog's own proof, which held the dialog to its original byte for byte: it now reads the dialog through stripLaterChanges (two lines);
+// and the two proofs of FRONTEND-2's that read other changes' files whole (the chat theme export identity, the template library manage scope check): one INSERTED line each, no line of theirs rewritten (14 older proofs in all).
 // How the older pins reach it: it REGISTERS its files, its .env.example block and its strip (scripts/studio-later-changes.mjs, three lines). The voice-call proof's .env.example pin (21d254c6) already reads the blocks registered after its own, so no edit of it is carried.
 // Plain node, no imports, nothing read from disk or git here.
 
@@ -136,6 +137,10 @@ const RM_WRAP = `const read = rel => stripLaterChanges(rel, readMutable(rel)) //
 // the Presenter details dialog's proof reads the dialog's source raw and holds it to its original byte for byte: it now reads the file through stripLaterChanges, so this change's two marked lines (the kit-in-effect note) come out first
 const DLG_NOW = `const source = stripLaterChanges(path, fs.readFileSync(new URL(\`../\${path}\`, import.meta.url), 'utf8')) // ${MARK}: a later change's marked lines come out first\n`
 const DLG_WAS = "const source = fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')\n"
+// FRONTEND-2's ruling (12 Nov): teach the two proofs through this strip, with ONE inserted line each and none of theirs rewritten. The chat theme export identity counts the lines the font selection proof gained against ITS base (budget 5 added, 2 removed; the 5 are taken by earlier changes, and the import this change renames in place needs one removed and two added lines, the registry import being free): its line drops the added lines that carry this change's mark.
+// The template library manage scope check refuses an API file other than the rename's: its line drops from the changed files every file the registry lists (scripts/studio-later-changes.mjs), which includes this change's theme proxies and brand routes.
+const CTE_LINE = "    added.splice(0, added.length, ...added.filter(line => !/LATER-CHANGES: registry read \\(BRAND-KIT-CALLER\\)/.test(line))) // LATER-CHANGES: registry read (BRAND-KIT-CALLER): stacked after #475: the Brand Kit caller (NEXT_PUBLIC_STUDIO_BRAND_KIT) teaches the font-selection proof to read the Themes page through the registry (its library-manage import renamed, a registry import and one wrapper, each marked); those added lines are a later PR's, not this change's\n"
+const TLM_LINE = "    { const later = (await import('./studio-later-changes.mjs')).LATER_CHANGE_FILES; changed.splice(0, changed.length, ...changed.filter(file => !later.has(file))) } // LATER-CHANGES: registry read (BRAND-KIT-CALLER): a file a later change registers (the Brand Kit caller's theme proxies and its brand routes, scripts/studio-later-changes.mjs) is that change's, not the rename's: it is read as a later change before the API proxy check\n"
 export const BRAND_KIT_PIN_EDITS = {
   // two older proofs walk the first-parent line of BASE..HEAD without merges and require every subject on it to be their own: this change's commits (subject "Brand kit caller:") are left out of that line, like every later change's
   'scripts/test-studio-chat-element-edit.mjs': [[PIN_LINE, '']],
@@ -151,12 +156,16 @@ export const BRAND_KIT_PIN_EDITS = {
   'scripts/test-studio-theme-draft-ownership.mjs': [[REG_IMPORT, ''], [CT_NOW, CT_WAS]],
   'scripts/test-studio-theme-library-manage.mjs': [[REG_IMPORT, ''], [RM_NOW, RM_WAS], [RM_WRAP, '']],
   'scripts/test-studio-deck-identity-dialog.mjs': [[REG_IMPORT, ''], [DLG_NOW, DLG_WAS]],
+  'scripts/test-studio-chat-theme-export.mjs': [[CTE_LINE, '']],
+  'scripts/test-studio-template-library-manage.mjs': [[TLM_LINE, '']],
 }
 /** Where the taught lines go: right after the line that starts with this text, per proof. */
 export const BRAND_KIT_PIN_ANCHORS = {
   'scripts/test-studio-chat-element-edit.mjs': "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Agent mode shell:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (AGENT-MODE-SHELL)",
   'scripts/test-studio-deck-sync-truth.mjs': "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Agent mode shell:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (AGENT-MODE-SHELL)",
   'scripts/test-studio-deck-import.mjs': "  text.delete('lib/studio-compose-entitlement.ts')",
+  'scripts/test-studio-chat-theme-export.mjs': "    added.splice(0, added.length, ...added.filter(line => !/CHAT_PARITY_CAPS = \\[\\]/.test(line)))",
+  'scripts/test-studio-template-library-manage.mjs': "    ok(changed.every(file => allowed.has(file)), `this change touches only",
 }
 export const BRAND_KIT_PIN_FILES = Object.keys(BRAND_KIT_PIN_EDITS)
 
