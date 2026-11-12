@@ -842,7 +842,8 @@ function sourceChecks(texts = {}, strip = stripBrandKit, shown = {}) {
   for (const rel of ['lib/studio-brand-kit.ts', 'lib/studio-brand-kit-state.ts', 'hooks/use-brand-kit.ts', 'components/studio-libraries/brand-kit-panel.tsx']) assert.ok(!/server-only|next\/server|next-auth|@\/lib\/prisma|@\/lib\/api-hardening|director-rest-entitlement/.test(now(rel).replace(/\/\/.*$/gm, '')), `${rel}: a client module never reaches the session, the database or the signer`)
   // a client module never imports the server file
   for (const rel of ['lib/studio-brand-kit-state.ts', 'hooks/use-brand-kit.ts', 'components/studio-libraries/brand-kit-panel.tsx']) assert.ok(!/studio-brand-kit-server/.test(now(rel)), `${rel}: does not import the server file`)
-  for (const rel of [...THEME_PROXY_FILES, EXTRACT, BRAND]) assert.ok(/studio-brand-kit-server|restEntitlementHeaders/.test(now(rel)), `${rel}: signs through the helper`)
+  for (const rel of [...THEME_PROXY_FILES, BRAND]) assert.ok(/studio-brand-kit-server|restEntitlementHeaders/.test(now(rel)), `${rel}: signs through the helper`)
+  assert.ok(!/director-rest-entitlement|studio-brand-kit-server|restEntitlementHeaders|X-Deckster/.test(now(EXTRACT)), 'the extract route does not use Director\'s entitlement header: Theme Builder\'s own auth is the server key (do not mix them)')
   assert.equal(count(now('hooks/use-brand-kit.ts'), 'api-hardening'), 0)
   // the signing lib is imported by all four theme proxies: it must not reach the database (three of them had no database import before); only the extract route imports the cap
   for (const rel of [SERVER]) assert.ok(!/api-hardening|@\/lib\/prisma|next-auth/.test(now(rel).replace(/\/\/.*$/gm, '')), `${rel}: reaches no database and no session`)
