@@ -2,16 +2,25 @@
 // carried in the Director WS token (flag DECKSTER_WS_BQ_CLAIM_ENABLED, server env, default off).
 // Keyless and offline: the real route + quota code run against a stubbed database, the real
 // WS hook's refresh function runs against a stubbed socket and fetch. No model, network or secret.
+// Restacked onto Studio dev 9aedba04 (12 Nov): the files this change edits are read through the registry's strips of the changes registered AFTER it (none today), and the last checks prove its
+// strip, its .env.example block and its registry lines (scripts/studio-ws-bq-claim-strip.mjs). The behavioural checks are unchanged; one position check on the hook is now an order check.
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import vm from 'node:vm'
 import nodeCrypto from 'node:crypto'
+import { execFileSync } from 'node:child_process'
 import ts from 'typescript'
+import * as registry from './studio-later-changes.mjs'
+import { BASE_COMMIT, WS_BQ_CLAIM_EDITS, WS_BQ_CLAIM_ENV_BLOCK, WS_BQ_CLAIM_FLAGS, WS_BQ_CLAIM_SCOPE_FILES, stripWsBqClaim } from './studio-ws-bq-claim-strip.mjs'
 
 const ROOT = new URL('..', import.meta.url).pathname
 const plain = value => JSON.parse(JSON.stringify(value))
-const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8')
+const readRaw = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8')
+const applyAll = (list, rel, text) => list.reduce((out, strip) => { const next = typeof strip === 'function' ? strip(rel, out) : out; return typeof next === 'string' ? next : out }, text)
+/** Only the strips of the changes registered AFTER this one, in the registry's order: on a branch stacked after this change a later change's own lines are undone first, so a file reads as this change left it. Nothing while this change is the last registered. */
+const laterStrips = (rel, text) => { const at = registry.LATER_STRIPS.indexOf(stripWsBqClaim); return applyAll(at === -1 ? [] : registry.LATER_STRIPS.slice(at + 1), rel, text) }
+const read = relative => laterStrips(relative, readRaw(relative))
 const settle = async () => { for (let i = 0; i < 20; i++) await new Promise(resolve => setImmediate(resolve)) }
 let checks = 0
 const check = (name, fn) => Promise.resolve(fn()).then(() => { checks++ }, error => { console.error(`FAILED: ${name}`); throw error })
@@ -484,7 +493,7 @@ await check('hook source: the connect-time response sets the claim state and the
   const source = read('hooks/use-deckster-websocket-v2.ts')
   const connectBranch = source.indexOf("protocols = ['deckster.v1', `deckster-auth.${tokenBody.auth_token}`];")
   const setActive = source.indexOf('bqClaimActiveRef.current = tokenBody.bq_claim === true;')
-  assert.ok(connectBranch > 0 && setActive > connectBranch && setActive - connectBranch < 200, 'set right where the token is accepted')
+  assert.ok(connectBranch > 0 && setActive > connectBranch, 'set after the token is accepted (an order check: a later change may add lines between the two)')
   assert.equal(source.split('bqClaimActiveRef.current = body.bq_claim === true;').length, 2, 'set from each refresh response')
   // The hook's import list is unchanged (the evidence harnesses that load the real hook enumerate it).
   assert.doesNotMatch(source, /from '@\/lib\/ws-bq-refresh'/)
@@ -615,6 +624,63 @@ await check('triggers are wired to the real return paths: /redeem after the coup
   assert.match(read('app/api/stripe/create-checkout-session/route.ts'), /\/billing\?success=true/)
   // The effect sits before the billing page's early returns, so it is a legal, unconditional hook.
   assert.ok(billing.indexOf('requestBqClaimRefresh("topup")') < billing.indexOf('if (isLoading || isLoadingSubscription)'))
+})
+
+// --- the registry: this change on a newer Studio dev (the restack), so that the older proofs can still read dev's files ---------
+// The strip puts back, by whole-line runs, every line this change adds to an existing file (scripts/studio-ws-bq-claim-strip.mjs); no line of this change's code is marked or edited for it.
+const baseText = rel => execFileSync('git', ['show', `${BASE_COMMIT}:${rel}`], { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000 })
+const countAtLineStart = (text, needle) => { let n = 0; for (let at = text.indexOf(needle); at !== -1; at = text.indexOf(needle, at + 1)) if (at === 0 || text[at - 1] === '\n') n++; return n }
+/** The block out of .env.example the way the registry takes one out: whole lines, the one blank line that separated it goes too. */
+function removeBlock(text, registered) {
+  const block = String(registered).replace(/^\n+/, '').replace(/\n+$/, ''); let at = text.indexOf(block)
+  while (at !== -1 && !((at === 0 || text[at - 1] === '\n') && (at + block.length === text.length || text[at + block.length] === '\n'))) at = text.indexOf(block, at + 1)
+  if (at === -1) return text
+  const before = text.slice(0, at), after = text.slice(at + block.length)
+  return /^\n*$/.test(after) ? (before.endsWith('\n\n') ? before.slice(0, -1) : before) : after.startsWith('\n\n') ? before + after.slice(2) : before + after.slice(1)
+}
+
+await check('registry strip: every file this change edits goes back to Studio dev\'s text byte for byte and idempotently, and each run it puts back is there exactly once', () => {
+  const edited = ['app/(app)/billing/page.tsx', 'app/(auth)/redeem/page.tsx', 'hooks/use-deckster-websocket-v2.ts', 'app/api/director/ws-token/route.ts', 'app/api/version/route.ts', 'package.json']
+  for (const rel of edited) assert.ok(Object.prototype.hasOwnProperty.call(WS_BQ_CLAIM_EDITS, rel), `${rel} is taught to the strip`)
+  for (const [rel, pairs] of Object.entries(WS_BQ_CLAIM_EDITS)) {
+    const mine = laterStrips(rel, readRaw(rel)) // the file as this change left it
+    const base = baseText(rel)
+    for (const [has] of pairs) {
+      assert.equal(countAtLineStart(mine, has), 1, `${rel}: a run of this change's lines is there exactly once: ${JSON.stringify(has.slice(0, 60))}`)
+      assert.equal(countAtLineStart(base, has), 0, `${rel}: and is not in dev's file: ${JSON.stringify(has.slice(0, 60))}`)
+    }
+    const back = stripWsBqClaim(rel, mine)
+    assert.ok(back === base, `${rel}: with this change's lines put back it is ${BASE_COMMIT.slice(0, 8)}'s text, byte for byte`)
+    assert.ok(stripWsBqClaim(rel, back) === back, `${rel}: stripping twice changes nothing more`)
+    assert.ok(stripWsBqClaim(rel, base) === base, `${rel}: dev's own text comes back as it is`)
+  }
+  assert.equal(stripWsBqClaim('lib/ws-bq-refresh.ts', 'x\n'), 'x\n', 'a file this change only adds is returned as it is')
+  assert.equal(stripWsBqClaim('app/(app)/billing/page.tsx', undefined), undefined)
+})
+
+await check('registry env block: at the true end of .env.example after one blank line, once, the flag documented as "false"; .env.example is dev\'s plus the registered blocks', () => {
+  const env = readRaw('.env.example')
+  const at = registry.LATER_ENV_BLOCKS.indexOf(WS_BQ_CLAIM_ENV_BLOCK)
+  assert.ok(at >= 0, 'the registry holds the block')
+  const mine = registry.LATER_ENV_BLOCKS.slice(at + 1).reduce(removeBlock, env) // a block registered after this one is that change's
+  assert.equal(mine.split(WS_BQ_CLAIM_ENV_BLOCK).length - 1, 1, 'the block is there exactly once, verbatim')
+  assert.ok(mine.includes(`\n\n${WS_BQ_CLAIM_ENV_BLOCK}`), 'after a blank line')
+  assert.ok(mine.endsWith(WS_BQ_CLAIM_ENV_BLOCK), 'the block is the last one (the true end of the file)')
+  assert.ok(WS_BQ_CLAIM_ENV_BLOCK.endsWith('\n') && !WS_BQ_CLAIM_ENV_BLOCK.endsWith('\n\n'))
+  assert.equal(registry.stripLaterEnvBlocks('.env.example', env), registry.stripLaterEnvBlocks('.env.example', baseText('.env.example')), '.env.example is dev\'s plus the registered blocks and nothing else')
+  for (const flag of WS_BQ_CLAIM_FLAGS) {
+    assert.equal(env.split(`\n${flag}="false"\n`).length - 1, 1, `${flag} is documented as off, once`)
+    assert.equal(new RegExp(`^${flag}=(?!"false"$)`, 'm').test(env), false, `${flag} is never set on`)
+  }
+})
+
+await check('registry: this change\'s files, block and strip are registered once each, one line in each of the three lists', () => {
+  assert.equal(registry.LATER_STRIPS.filter(fn => fn === stripWsBqClaim).length, 1, 'the strip, once')
+  assert.equal(registry.LATER_ENV_BLOCKS.filter(block => block === WS_BQ_CLAIM_ENV_BLOCK).length, 1, 'the block, once')
+  for (const rel of WS_BQ_CLAIM_SCOPE_FILES) assert.ok(registry.LATER_CHANGE_FILES.has(rel), `${rel} is in the registry's file list`)
+  const lines = readRaw('scripts/studio-later-changes.mjs').split('\n').filter(line => line.includes("./studio-ws-bq-claim-strip.mjs"))
+  assert.equal(lines.length, 3, 'one registry line in each of the three lists')
+  assert.ok(lines.every(line => line.includes('// LATER-CHANGE: OPS-2, J8.1 WS token bq claim (DECKSTER_WS_BQ_CLAIM_ENABLED)')))
 })
 
 console.log(`${checks} ws bq-claim checks passed`)
