@@ -265,8 +265,21 @@ const UNTOUCHED = [
   'next.config.mjs', 'middleware.ts', 'app/layout.tsx', 'app/not-found.tsx', 'app/legal/terms/page.tsx', 'app/legal/terms/layout.tsx', 'app/legal/privacy/page.tsx', 'app/legal/privacy/layout.tsx', 'app/legal/layout.tsx',
   'app/auth/signin/page.tsx', 'app/auth/signup/page.tsx', 'lib/legal-links.ts', 'app/sitemap.ts', 'vercel.dev.json', 'package.json', 'pnpm-lock.yaml', 'components/layout/Footer.tsx',
 ]
+// The untouched-files check reads through the strips of the changes registered AFTER this one (a later change's own lines in a file this change never touches, package.json's test script line for one). This change registers files and an
+// .env.example block but no strip, so "after it" is read from the registry's text: the change whose files line follows this change's, and every strip from that change's strip line on (the lines of the two lists run in the same order).
+const moduleOf = line => (line.match(/import\('\.\/(studio-[\w-]+-strip\.mjs)'\)/) || [])[1]
+function stripsRegisteredAfterThis() {
+  const reg = fs.readFileSync(path.join(root, REGISTRY), 'utf8').split('\n')
+  const list = name => { const from = reg.findIndex(line => line.startsWith(`export const ${name}`)), to = reg.findIndex((line, i) => i > from && line.includes('one line per later change, above this comment')); return reg.slice(from + 1, to).filter(line => moduleOf(line)) }
+  const files = list('LATER_CHANGE_FILES'), strips = list('LATER_STRIPS'), own = files.findIndex(line => moduleOf(line) === 'studio-legal-short-links-strip.mjs')
+  assert.ok(own >= 0 && strips.length === LATER_STRIPS.length, 'the registry names this change once in its files list, and its strip lines are its strips')
+  const after = new Set(files.slice(own + 1).map(moduleOf)), first = strips.findIndex(line => after.has(moduleOf(line)))
+  return first === -1 ? [] : LATER_STRIPS.slice(first)
+}
+const readOuter = read
 function proveUntouched(at = '') {
   const a = message => (at ? `${at}: ${message}` : message)
+  const laterStrips = stripsRegisteredAfterThis(), read = rel => laterStrips.reduce((out, strip) => { const next = typeof strip === 'function' ? strip(rel, out) : out; return typeof next === 'string' ? next : out }, readOuter(rel)) // this check's own read: the strips of the changes registered after this one, then the module's read
   for (const rel of UNTOUCHED) eq(sha(stripApiHardening(rel, read(rel))), sha(baseOf(rel)), a(`${rel} is the base commit's, byte for byte`))
   for (const rel of [TERMS, PRIVACY, HELPER]) {
     let found = true
