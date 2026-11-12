@@ -888,15 +888,30 @@ function lineDelta(base, now) {
   const removed = []; for (const [l, n] of tally) for (let i = 0; i < n; i++) removed.push(l)
   return { added, removed }
 }
-function sourceChecks(texts = {}, strip = stripBrandKit, shown = {}) {
+/**
+ * A file with EVERY OTHER registered change's lines (and .env.example blocks) taken out, this change's kept: on a restack the changes queued before this one (#600, #606, #605, #621 ...) sit in the same files and tails, and the base (read the same way) and
+ * now are compared as they were without them. Both sides always go through it, so with nothing else stacked it is the identity on what this change added; `extra` is a synthetic strip for the restack self-tests.
+ */
+const OTHER_STRIPS = registry.LATER_STRIPS.filter(fn => typeof fn === 'function' && fn !== stripBrandKit)
+const OTHER_BLOCKS = registry.LATER_ENV_BLOCKS.filter(block => typeof block === 'string' && block !== ENV_BLOCK)
+const sans = (rel, text, extra = []) => {
+  let out = text
+  for (const strip of [...OTHER_STRIPS, ...extra]) { const next = strip(rel, out); if (typeof next === 'string') out = next }
+  if (rel === ENVFILE) for (const block of OTHER_BLOCKS) out = out.replace(`\n${block}`, '')
+  return out
+}
+/** A registry line of another change: the registered shape (a strip module and the marker comment). */
+const REGISTERED = line => line.includes('// LATER-CHANGE:') && /-strip\.mjs/.test(line)
+function sourceChecks(texts = {}, strip = stripBrandKit, shown = {}, extra = []) {
   const now = rel => texts[rel] ?? shown[rel] ?? committed(rel)
+  const gone = (rel, text) => sans(rel, text, extra)
   for (const rel of APP_FILES) {
     const base = baseText(rel), cur = now(rel), pairs = ALL_EDITS[rel]
-    const { added, removed } = lineDelta(base, cur)
+    const { added, removed } = lineDelta(gone(rel, base), gone(rel, cur))
     assert.ok(added.length > 0, `${rel}: lines are added`); for (const line of added) assert.match(line, MARKER_RE, `${rel}: a changed line without the marker: ${line.slice(0, 90)}`)
     assert.equal(added.length, pairs.length, `${rel}: one [has, was] pair per added line`); assert.equal(removed.length, pairs.filter(([, was]) => was !== '').length, `${rel}: one removed base line per rewritten pair (no other base line is lost)`)
     for (const [has, was] of pairs) { assert.ok(MARKER_RE.test(has) && has.endsWith('\n'), `${rel}: the pair line carries the marker`); assert.equal(cur.split('\n').filter(l => l === has.slice(0, -1)).length, 1, `${rel}: the pair's line is in the file exactly once, as a whole line: ${has.slice(0, 70)}`); if (was !== '') { assert.ok(!MARKER_RE.test(was), 'a base line never carries the marker'); assert.equal(base.split('\n').filter(l => l === was.slice(0, -1)).length, 1, `${rel}: the line put back is a base line, once`) } }
-    assert.equal(strip(rel, cur), base, `${rel}: the strip puts the base back byte for byte`); assert.equal(strip(rel, base), base, `${rel}: idempotent on the base`)
+    assert.equal(gone(rel, strip(rel, cur)), gone(rel, base), `${rel}: the strip puts the base back byte for byte (the other changes' lines aside)`); assert.equal(strip(rel, base), base, `${rel}: idempotent on the base`)
   }
   // the older proofs this change teaches: each pair's line carries the registry-read mark and is in the file once; a rewritten pair puts back a base line (once); nothing else changes; the proofs that only get inserted lines have them together right after their anchor
   for (const rel of PIN_FILES) {
@@ -905,9 +920,13 @@ function sourceChecks(texts = {}, strip = stripBrandKit, shown = {}) {
       assert.ok(has.includes(PIN_MARK.replace('// ', '')), `${rel}: the line carries the registry-read mark: ${has.slice(0, 60)}`); assert.equal(cur.split('\n').filter(l => l === has.slice(0, -1)).length, 1, `${rel}: in the file once, as a whole line`)
       if (was !== '') { assert.ok(!MARKER_RE.test(was) && !/BRAND-KIT-CALLER/.test(was), 'a base line never carries the mark'); assert.equal(base.split('\n').filter(l => l === was.slice(0, -1)).length, 1, `${rel}: the line put back is a base line, once`); assert.equal(cur.split('\n').filter(l => l === was.slice(0, -1)).length, 0, `${rel}: and it is no longer in the file`) }
     }
-    const { added, removed } = lineDelta(base, cur); assert.equal(added.length, pairs.length, `${rel}: only this change's lines are added`); assert.equal(removed.length, pairs.filter(([, was]) => was !== '').length, `${rel}: only the rewritten base lines are lost`)
-    if (anchor) { const lines = cur.split('\n'), first = lines.indexOf(pairs[0][0].slice(0, -1)); assert.ok(first > 0 && lines[first - 1].startsWith(anchor), `${rel}: right after its anchor`); pairs.forEach(([has], i) => assert.equal(lines[first + i], has.slice(0, -1), `${rel}: the lines sit together, in order`)) }
-    assert.equal(strip(rel, cur), base, `${rel}: the strip puts the base back byte for byte`); assert.equal(strip(rel, base), base, `${rel}: idempotent on the base`)
+    const { added, removed } = lineDelta(gone(rel, base), gone(rel, cur)); assert.equal(added.length, pairs.length, `${rel}: only this change's lines are added`); assert.equal(removed.length, pairs.filter(([, was]) => was !== '').length, `${rel}: only the rewritten base lines are lost`)
+    // ORDER, not adjacency: the taught lines come AFTER the base line they are taught after (any position after it), whatever sits between the two is another change's registered line (a change queued before this one lands its own taught line there:
+    // the chain #600, #606, #605 and #621 do exactly this), and this change's own lines sit together, in order
+    if (anchor) { const lines = cur.split('\n'), first = lines.indexOf(pairs[0][0].slice(0, -1)), anchorAt = lines.findIndex(l => l.startsWith(anchor)); assert.equal(lines.filter(l => l.startsWith(anchor)).length, 1, `${rel}: the base line it is taught after is there once`); assert.ok(baseText(rel).split('\n').some(l => l.startsWith(anchor)), `${rel}: and it is a base line`)
+      assert.ok(anchorAt >= 0 && first > anchorAt, `${rel}: after its anchor, not above it`); for (const between of lines.slice(anchorAt + 1, first)) assert.ok(between.includes('// LATER-CHANGES: registry read ('), `${rel}: between the anchor and ours only another change's registry-read line: ${between.slice(0, 90)}`)
+      pairs.forEach(([has], i) => assert.equal(lines[first + i], has.slice(0, -1), `${rel}: the lines sit together, in order`)) }
+    assert.equal(gone(rel, strip(rel, cur)), gone(rel, base), `${rel}: the strip puts the base back byte for byte (the other changes' lines aside)`); assert.equal(strip(rel, base), base, `${rel}: idempotent on the base`)
   }
   for (const rel of ['lib/studio-agent-mode.ts', 'package.json', '.env.example', REGISTRY, 'scripts/test-studio-voice-call.mjs']) assert.equal(strip(rel, baseText(rel)), baseText(rel), `${rel}: not this strip's`)
   assert.equal(strip('x.ts', 7), 7); assert.equal(strip('x.ts', 'a\nb\n'), 'a\nb\n')
@@ -930,7 +949,7 @@ function envChecks(texts = {}) {
   const raw = texts[ENVFILE] ?? git('show', `HEAD:${ENVFILE}`), base = baseText(ENVFILE)
   assert.ok(ENV_BLOCK.endsWith('\n') && !ENV_BLOCK.startsWith('\n')); assert.ok(raw.includes(`\n\n${ENV_BLOCK}`), 'the block is in .env.example after one blank line'); assert.equal(count(raw, ENV_BLOCK), 1)
   assert.equal(registry.stripLaterEnvBlocks(ENVFILE, raw), registry.stripLaterEnvBlocks(ENVFILE, base), 'the registry takes the block out and leaves the base\'s file'); assert.ok(later(ENVFILE, raw).endsWith(`\n${ENV_BLOCK}`), 'the block is the last thing, once the blocks registered after it are out')
-  const { added, removed } = lineDelta(base, raw); assert.equal(removed.length, 0, '.env.example: only lines added'); assert.equal(added.filter(l => l !== '').join('\n') + '\n', ENV_BLOCK, '.env.example: exactly this block')
+  const { added, removed } = lineDelta(sans(ENVFILE, base), sans(ENVFILE, raw)); assert.equal(removed.length, 0, '.env.example: only lines added'); assert.equal(added.filter(l => l !== '').join('\n') + '\n', ENV_BLOCK, '.env.example: exactly this block')
   deepEqual(ENV_RE(ENV_BLOCK.split('\n')), ['NEXT_PUBLIC_STUDIO_BRAND_KIT="false"', 'THEME_BUILDER_BRAND_EXTRACT_KEY=', 'STUDIO_BRAND_EXTRACT_DAILY_CAP='], 'three assignments: the flag (off), the server key (empty) and the cap (unset)')
   assert.ok(!/NEXT_PUBLIC_[A-Z_]*KEY/.test(ENV_BLOCK) && !PROD_HOSTS.some(host => ENV_BLOCK.includes(host)) && !SECRET_SHAPE.test(ENV_BLOCK)); assert.ok(/SERVER-ONLY/.test(ENV_BLOCK) && /UAT hosts/.test(ENV_BLOCK) && /Director's brand routes refuse an unsigned call/.test(ENV_BLOCK))
   assert.ok(!/exact "true" enables it/.test(ENV_BLOCK), 'the block does not use the phrase older proofs read'); assert.equal(count(raw, 'NEXT_PUBLIC_STUDIO_BRAND_KIT='), 1); assert.equal(count(raw, 'THEME_BUILDER_BRAND_EXTRACT_KEY='), 1)
@@ -940,12 +959,19 @@ function registryChecks(text = read(REGISTRY), reg = registry) {
   const lines = text.split('\n'), section = i => { for (let k = i; k >= 0; k--) { const m = /^export const (LATER_\w+)/.exec(lines[k]); if (m) return m[1] } return null }
   const own = lines.map((l, i) => [l, i]).filter(([l]) => l.includes('studio-brand-kit-strip.mjs'))
   assert.equal(own.length, 3, 'three registry lines name this change\'s strip module'); deepEqual(own.map(([, i]) => section(i)), ['LATER_CHANGE_FILES', 'LATER_ENV_BLOCKS', 'LATER_STRIPS'], 'one in each list')
-  for (const [line, i] of own) { assert.match(line, /\/\/ LATER-CHANGE: FRONTEND-1, Brand Kit caller/, 'the registry marker'); assert.ok(lines[i - 1].includes('studio-agent-mode-shell-strip.mjs'), 'right after the Agent mode shell\'s line (the end of the stack at the time)'); assert.ok(lines[i + 1] === END || (lines[i + 1].includes('// LATER-CHANGE:') && /-strip\.mjs/.test(lines[i + 1])), 'the true end of its list (or followed only by a later change\'s registered line)') }
+  // ORDER, not adjacency: our line comes AFTER the Agent mode shell's in the same list (the end of the stack at the time), whatever sits between the two is another change's registered line (the changes queued before this one, on a restack), and nothing but a later change's registered line follows
+  for (const [line, i] of own) {
+    assert.match(line, /\/\/ LATER-CHANGE: FRONTEND-1, Brand Kit caller/, 'the registry marker')
+    const list = section(i), shellLine = lines.findIndex((l, k) => k < i && section(k) === list && l.includes('studio-agent-mode-shell-strip.mjs'))
+    assert.ok(shellLine >= 0 && shellLine < i, `after the Agent mode shell's line in ${list}, not above it`)
+    for (const between of lines.slice(shellLine + 1, i)) assert.ok(REGISTERED(between), `between the Agent mode shell's line and ours only another change's registered line: ${between.slice(0, 90)}`)
+    assert.ok(lines[i + 1] === END || REGISTERED(lines[i + 1]), 'the true end of its list (or followed only by a later change\'s registered line)')
+  }
   deepEqual(own.map(([l]) => /\)\.(\w+), \/\//.exec(l)?.[1]), ['BRAND_KIT_SCOPE_FILES', 'BRAND_KIT_ENV_BLOCK', 'stripBrandKit'])
-  const base = baseText(REGISTRY).split('\n'); assert.ok(base.every(l => lines.includes(l)), 'the registry loses no line'); assert.equal(lines.filter(l => !base.includes(l)).filter(l => !l.includes('studio-brand-kit-strip.mjs')).length, 0, 'and gains nothing else')
+  const base = baseText(REGISTRY).split('\n'); assert.ok(base.every(l => lines.includes(l)), 'the registry loses no line'); assert.equal(lines.filter(l => !base.includes(l)).filter(l => !l.includes('studio-brand-kit-strip.mjs')).filter(l => !REGISTERED(l)).length, 0, 'and gains nothing else (but other changes\' registered lines, on a restack)')
   assert.ok(reg.LATER_STRIPS.includes(stripBrandKit) && reg.LATER_ENV_BLOCKS.includes(ENV_BLOCK), 'the strip and the block are registered'); assert.ok([...SCOPE].every(rel => reg.LATER_CHANGE_FILES.has(rel)), 'every scope file is registered')
-  const shellAt = reg.LATER_STRIPS.findIndex(fn => typeof fn === 'function' && fn.name === 'stripAgentModeShell'), ownAt = reg.LATER_STRIPS.indexOf(stripBrandKit); assert.ok(shellAt > 0 && ownAt === shellAt + 1, 'the strip comes right after the Agent mode shell\'s')
-  const envShell = reg.LATER_ENV_BLOCKS.findIndex(b => typeof b === 'string' && b.includes('STUDIO AGENT BUILD SHELL')); assert.equal(reg.LATER_ENV_BLOCKS.indexOf(ENV_BLOCK), envShell + 1, 'the block comes right after the Agent mode shell\'s')
+  const shellAt = reg.LATER_STRIPS.findIndex(fn => typeof fn === 'function' && fn.name === 'stripAgentModeShell'), ownAt = reg.LATER_STRIPS.indexOf(stripBrandKit); assert.ok(shellAt > 0 && ownAt > shellAt, 'the strip comes after the Agent mode shell\'s (another change\'s may sit between)')
+  const envShell = reg.LATER_ENV_BLOCKS.findIndex(b => typeof b === 'string' && b.includes('STUDIO AGENT BUILD SHELL')); assert.ok(envShell >= 0 && reg.LATER_ENV_BLOCKS.indexOf(ENV_BLOCK) > envShell, 'the block comes after the Agent mode shell\'s (another change\'s may sit between)')
   // read through the registry (as the older proofs do), every app file and .env.example are the base's
   for (const rel of APP_FILES) assert.equal(reg.stripLaterChanges(rel, committed(rel)), reg.stripLaterChanges(rel, baseText(rel)), `${rel}: read through the registry it is the base's`)
   assert.equal(reg.stripLaterChanges(ENVFILE, git('show', `HEAD:${ENVFILE}`)), reg.stripLaterChanges(ENVFILE, baseText(ENVFILE)), '.env.example too')
@@ -970,6 +996,28 @@ function scopeChecks() {
   try { deepEqual([...touchedFiles(own)].sort(), before, 'an untracked stray file does not change the files read'); assert.doesNotThrow(() => scopeCheck(own), 'and does not fail the scope check') } finally { fs.rmSync(stray) }
 }
 
+// ---- ROBUST AFTER A KEEP-BOTH RESTACK (FRONTEND-2's review of #624, finding 2): the changes queued before this one (#600, #606, #605, #621) land their registered lines, their taught lines and their .env.example blocks between the base's tails and ours; the checks above are
+// orders, not adjacencies, and read the base through the other changes' strips. Here the stacked state is built in memory: a made-up earlier change sits between the Agent mode shell's lines and ours, in the registry and in each taught proof.
+const SYN_MARK = 'SYNTHETIC-EARLIER'
+const synStrip = (rel, text) => (typeof text === 'string' ? text.split('\n').filter(l => !l.includes(SYN_MARK)).join('\n') : text)
+const SYN_FILTER = `  shas.splice(0, shas.length, ...shas.filter(sha => !/^Synthetic earlier:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (${SYN_MARK}): a made-up change queued before this one`
+const SYN_DELETE = `  text.delete('lib/synthetic-earlier.ts') // LATER-CHANGES: registry read (${SYN_MARK}): a made-up change queued before this one`
+const SYN_REGISTERED = `  (await import('./studio-synthetic-earlier-strip.mjs')).SYNTHETIC_EARLIER, // LATER-CHANGE: FRONTEND-2, a made-up earlier change (${SYN_MARK})`
+const beforeLine = (text, find, line) => { const lines = text.split('\n'), at = lines.findIndex(find); assert.ok(at > 0, 'the line to put another before is there'); lines.splice(at, 0, line); return lines.join('\n') }
+const stackedProofs = (line = SYN_FILTER, deckImportLine = SYN_DELETE) => ({
+  'scripts/test-studio-chat-element-edit.mjs': beforeLine(committed('scripts/test-studio-chat-element-edit.mjs'), l => l.includes('Brand kit caller:'), line),
+  'scripts/test-studio-deck-sync-truth.mjs': beforeLine(committed('scripts/test-studio-deck-sync-truth.mjs'), l => l.includes('Brand kit caller:'), line),
+  'scripts/test-studio-deck-import.mjs': beforeLine(committed('scripts/test-studio-deck-import.mjs'), l => l.includes("text.delete('lib/studio-brand-kit-server.ts')"), deckImportLine),
+})
+const stackedRegistry = (line = SYN_REGISTERED, text = read(REGISTRY)) => text.split('\n').flatMap(l => (l.includes('studio-brand-kit-strip.mjs') ? [line, l] : [l])).join('\n')
+function restackChecks() {
+  sourceChecks(stackedProofs(), stripBrandKit, {}, [synStrip]) // the taught lines come after the anchor, another change's registry-read line between, and the strip still puts the base back
+  registryChecks(stackedRegistry()) // our three lines come after the Agent mode shell's, a registered line of another change between, and the registry gains nothing but it
+  registryChecks(stackedRegistry(SYN_REGISTERED, stackedRegistry(`  (await import('./studio-synthetic-earlier-2-strip.mjs')).SYNTHETIC_EARLIER_2, // LATER-CHANGE: FRONTEND-2, a second made-up earlier change (${SYN_MARK})`))) // two of them
+  assert.throws(() => sourceChecks(stackedProofs('  // an unmarked line of someone else'), stripBrandKit, {}, []), undefined, 'a line between the anchor and ours that is not a registry-read line is refused')
+  assert.throws(() => registryChecks(stackedRegistry('  // not a registered line')), undefined, 'a stray line between the Agent mode shell\'s line and ours is refused')
+}
+
 // ============================================================================================================================================
 // run
 // ============================================================================================================================================
@@ -988,7 +1036,8 @@ await check('I2. deck identity (the hook): the standard theme\'s kit read once a
 await check('I3. the Presenter details dialog: the standard theme\'s kit in effect is SAID (what the deck takes instead, agreeing with the resolver a build uses); nothing stored; flag off, closed, no kit: nothing drawn', () => identityNoteChecks())
 await check('J1. sources: every changed line in an existing file carries the marker; the strip puts the base back byte for byte (8 app files, 12 older proofs); no bucket, no upload route, no migration', () => sourceChecks())
 await check('J2. .env.example: exactly this change\'s block, after one blank line; the registry takes it out; the voice-call pin already reads blocks after its own', () => envChecks())
-await check('J3. the registry: three marked lines at the true end of their lists right after the Agent mode shell\'s; read through it every app file is the base\'s', () => registryChecks())
+await check('J3. the registry: three marked lines at the true end of their lists after the Agent mode shell\'s (another change\'s registered line may sit between); read through it every app file is the base\'s', () => registryChecks())
+await check('J5. robust after a keep-both restack: another change\'s registered lines and taught lines between the Agent mode shell\'s and ours still pass (orders, not adjacencies; the base read through the other changes\' strips); a stray line there does not', () => restackChecks())
 await check('J4. scope, read from the COMMITTED diff only: own commits by subject with the co-author line; every file is this change\'s; no secret-shaped literal; a stray untracked file changes nothing', () => scopeChecks())
 
 // ============================================================================================================================================
@@ -1277,6 +1326,7 @@ await envMutant('env: an extra assignment', t => t + 'EXTRA_THING=1\n')
 await mutant('registry: a line is missing', () => registryChecks(SRC[REGISTRY].split('\n').filter(l => !l.includes('stripBrandKit')).join('\n')))
 await mutant('registry: the env line is missing', () => registryChecks(SRC[REGISTRY].split('\n').filter(l => !l.includes('BRAND_KIT_ENV_BLOCK')).join('\n')))
 await mutant('registry: a base line is lost', () => registryChecks(SRC[REGISTRY].split('\n').filter(l => !l.includes('studio-voice-call-strip.mjs')).join('\n')))
+await mutant('restack: another change\'s taught line that no strip owns is a foreign line (the base is read through the strips only)', () => sourceChecks(stackedProofs(), stripBrandKit, {}, []))
 await mutant('registry: our line is not at the end of its list', () => { const lines = SRC[REGISTRY].split('\n'), at = lines.findIndex(l => l.includes('stripBrandKit')); [lines[at], lines[at - 1]] = [lines[at - 1], lines[at]]; registryChecks(lines.join('\n')) })
 await mutant('registry: the marker comment changed', () => registryChecks(SRC[REGISTRY].replace('// LATER-CHANGE: FRONTEND-1, Brand Kit caller (NEXT_PUBLIC_STUDIO_BRAND_KIT)', '// LATER-CHANGE: FRONTEND-1, wiring')))
 await mutant('registry: the strip is not a function', () => registryChecks(undefined, { ...registry, LATER_STRIPS: registry.LATER_STRIPS.filter(fn => fn !== stripBrandKit) }))
