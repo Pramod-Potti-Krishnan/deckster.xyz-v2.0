@@ -384,11 +384,11 @@ export function V4BringPage() {
               <span className="crack__tag crack__tag--ok">
                 {"In Deckster · editable"}
               </span>
-              <i className="crack__box" data-r="title" style={{ left: "4%", top: "7.5%", width: "70%", height: "15%" } as CSSProperties} />
-              <i className="crack__box" data-r="card" style={{ left: "4.5%", top: "23%", width: "29.5%", height: "65%" } as CSSProperties} />
-              <i className="crack__box" data-r="card" style={{ left: "35.2%", top: "23%", width: "29.5%", height: "65%" } as CSSProperties} />
-              <i className="crack__box" data-r="card" style={{ left: "65.8%", top: "23%", width: "29.5%", height: "65%" } as CSSProperties} />
-              <i className="crack__box" data-r="source" style={{ left: "4.5%", top: "90%", width: "62%", height: "6%" } as CSSProperties} />
+              <i className="crack__box" data-r="title" style={{ left: "3.7%", top: "7%", width: "88.5%", height: "17.5%" } as CSSProperties} />
+              <i className="crack__box" data-r="card" style={{ left: "3.9%", top: "28%", width: "30%", height: "55.5%" } as CSSProperties} />
+              <i className="crack__box" data-r="card" style={{ left: "34.9%", top: "28%", width: "30%", height: "55.5%" } as CSSProperties} />
+              <i className="crack__box" data-r="card" style={{ left: "65.9%", top: "28%", width: "30%", height: "55.5%" } as CSSProperties} />
+              <i className="crack__box" data-r="source" style={{ left: "3.7%", top: "89%", width: "81%", height: "6.8%" } as CSSProperties} />
             </div>
           </div>
           <div className="srcs4" data-reveal="true" style={{ "--d": "4" } as CSSProperties}>
