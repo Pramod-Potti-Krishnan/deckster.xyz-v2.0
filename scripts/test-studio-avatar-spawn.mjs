@@ -641,6 +641,8 @@ function provePinOrder(rel, lines, a = m => m) {
   assert.equal(lines.filter(line => /shas\.filter\(sha => !\/\^Avatar spawn mock:\//.test(line)).length, 1, a(`${rel}: our line is there exactly once`))
 }
 function proveStrip(strip, readNow = read, later = laterStrips, at = '') {
+  const laterOwn = later // LATER-CHANGES: registry read (WS-BQ-CLAIM)
+  later = (rel, text) => laterStrips(rel, laterOwn(rel, text)) // LATER-CHANGES: registry read (WS-BQ-CLAIM): the strips of the changes registered after this one are applied too, whichever stand-in strip a control passes (idempotent when it is laterStrips)
   const a = m => (at ? `${at}: ${m}` : m)
   assert.deepEqual(Object.keys(AVATAR_SPAWN_EDITS).sort(), [...AVATAR_SPAWN_PIN_FILES].sort(), a('the strip edits the two older proofs it teaches and nothing else (no FRONTEND-1 file, voice-call proof included: dev has its four lines; no app file: new files only)'))
   for (const [rel, edits] of Object.entries(AVATAR_SPAWN_EDITS)) {
@@ -718,7 +720,9 @@ function proveRegistryText(regText) {
     assert.ok(reg[at + 1] === END || laterRegistry.has(reg[at + 1]), 'the true end of its list (or followed only by a later change\'s registered line)')
   }
 }
+const laterEnvBlocksOut = text => { const at = registry.LATER_ENV_BLOCKS.indexOf(AVATAR_SPAWN_ENV_BLOCK); return (at === -1 ? [] : registry.LATER_ENV_BLOCKS.slice(at + 1)).reduce((out, registered) => { const block = String(registered).replace(/^\n+/, '').replace(/\n+$/, ''); let i = out.indexOf(block); while (i !== -1 && !((i === 0 || out[i - 1] === '\n') && (i + block.length === out.length || out[i + block.length] === '\n'))) i = out.indexOf(block, i + 1); if (i === -1) return out; const before = out.slice(0, i), after = out.slice(i + block.length); return /^\n*$/.test(after) ? (before.endsWith('\n\n') ? before.slice(0, -1) : before) : after.startsWith('\n\n') ? before + after.slice(2) : before + after.slice(1) }, text) } // LATER-CHANGES: registry read (WS-BQ-CLAIM): the .env.example blocks of the changes registered AFTER this one (the registry's order) come out first, so the block is the last one as this change left the file
 function proveEnv(envText, blockOk = true) {
+  envText = laterEnvBlocksOut(envText) // LATER-CHANGES: registry read (WS-BQ-CLAIM)
   assert.equal(registry.stripLaterEnvBlocks('.env.example', envText), registry.stripLaterEnvBlocks('.env.example', baseText('.env.example')), '.env.example is dev\'s plus the registered blocks and nothing else')
   assert.equal(count(envText, AVATAR_SPAWN_ENV_BLOCK), 1, 'this change\'s block is there exactly once, verbatim'); assert.ok(envText.includes(`\n\n${AVATAR_SPAWN_ENV_BLOCK}`), 'a blank line before the block'); assert.ok(blockOk ? envText.endsWith(AVATAR_SPAWN_ENV_BLOCK) : true, 'the block is the last one')
   assert.ok(AVATAR_SPAWN_ENV_BLOCK.includes(`${AVATAR_SPAWN_FLAG}="false"`), 'the flag is documented as off'); assert.equal(AVATAR_SPAWN_ENV_BLOCK.split('\n').filter(l => /^[A-Z_]+=/.test(l)).length, 1, 'one variable'); assert.ok(AVATAR_SPAWN_MARKER_RE.test(AVATAR_SPAWN_ENV_BLOCK))

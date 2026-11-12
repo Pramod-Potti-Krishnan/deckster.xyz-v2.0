@@ -725,7 +725,7 @@ function removeBlock(text, registered) {
 }
 
 await check('registry strip: every file this change edits goes back to Studio dev\'s text byte for byte and idempotently, and each run it puts back is there exactly once', () => {
-  const edited = ['app/(app)/billing/page.tsx', 'app/(auth)/redeem/page.tsx', 'app/api/director/ws-token/route.ts', 'app/api/version/route.ts', 'package.json', 'scripts/test-studio-billing-f4-f6.mjs', 'scripts/test-studio-billing-l5.mjs', 'scripts/test-studio-chat-element-edit.mjs', 'scripts/test-studio-deck-sync-truth.mjs']
+  const edited = ['app/(app)/billing/page.tsx', 'app/(auth)/redeem/page.tsx', 'app/api/director/ws-token/route.ts', 'app/api/version/route.ts', 'package.json', 'scripts/test-studio-billing-f4-f6.mjs', 'scripts/test-studio-billing-l5.mjs', 'scripts/test-studio-chat-element-edit.mjs', 'scripts/test-studio-deck-sync-truth.mjs', 'scripts/test-studio-avatar-spawn.mjs', 'scripts/test-studio-legal-short-links.mjs']
   for (const rel of edited) assert.ok(Object.prototype.hasOwnProperty.call(WS_BQ_CLAIM_EDITS, rel), `${rel} is taught to the strip by pair`)
   assert.deepEqual([...WS_BQ_CLAIM_MARKED_FILES], ['hooks/use-deckster-websocket-v2.ts'], 'the socket hook is taught by marker, and it is the only file that is')
   assert.ok(!Object.prototype.hasOwnProperty.call(WS_BQ_CLAIM_EDITS, 'hooks/use-deckster-websocket-v2.ts'), 'no pair for the hook')
