@@ -32,7 +32,7 @@ export function V4LearnPage() {
                 {"Deck"}
               </span>
               <h3 className="h3">
-                {"Talk to the Director"}
+                {"Talk to your agent"}
               </h3>
               <p>
                 {"Briefs, plans, outlines, research options, themes, export. The whole-deck conversation."}
@@ -156,7 +156,7 @@ export function V4LearnPage() {
                 {"02 · BRIEF"}
               </span>
               <b>
-                {"Tell the Director"}
+                {"Tell your agent"}
               </b>
               <p>
                 {"One sentence or a full brief. Choose web search, deep research or your knowledge graph."}

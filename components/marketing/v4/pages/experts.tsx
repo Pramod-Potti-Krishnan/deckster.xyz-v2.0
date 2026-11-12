@@ -408,7 +408,7 @@ export function V4ExpertsPage() {
               {"repeats until the slide passes"}
             </div>
           </div>
-          <div className="rules" data-reveal="true" style={{ "--d": "4" } as CSSProperties}>
+          <div className="rules rules--3" data-reveal="true" style={{ "--d": "4" } as CSSProperties}>
             <div className="rule">
               <b>
                 {"A cap, always"}
@@ -420,12 +420,6 @@ export function V4ExpertsPage() {
                 {"No silent fallback"}
               </b>
               {"If it cannot finish, it says so. It never quietly switches to something cheaper."}
-            </div>
-            <div className="rule">
-              <b>
-                {"No deck, credits back"}
-              </b>
-              {"If a build ends without a deck, the credits it used go back to your balance."}
             </div>
             <div className="rule">
               <b>
