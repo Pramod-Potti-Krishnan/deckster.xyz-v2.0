@@ -9,7 +9,8 @@
 // NOT built (needs PK, BK-B5): a logo host (no bucket, no upload route). lib/studio-brand-kit.ts has the typed seam (BrandLogoHost, BRAND_LOGO_HOST = null, a TODO); the UI takes only a logo link the person already has, and the image picked for suggestions is not kept.
 // Every line this change adds to an EXISTING file carries the marker BRAND-KIT-CALLER (matched as a whole token). Most are insertions ([has, was] with was = ''); the REWRITTEN lines (a theme proxy's init, the save button's guard, two lines of the identity hook) put the base's line back.
 // Putting each pair back gives the file at BASE_COMMIT byte for byte. The new files (libs, a hook, routes, a component, a stylesheet, this strip, a proof) have no base text.
-// Older proofs this change teaches (tests only, every line carries the registry-read mark): the two that read the first-parent commits of BASE..HEAD for their own commits' subjects get one more inserted line each, "Brand kit caller:", right after the shell's.
+// Older proofs this change teaches (tests only, every line carries the registry-read mark): the two that read the first-parent commits of BASE..HEAD for their own commits' subjects get one more inserted line each, "Brand kit caller:", right after the shell's;
+// and the Deck import proof, whose "the minter is imported by the two import routes only" walk gets two more inserted lines (the Brand Kit's server lib and its brand record route, which sign with the same helper and are proved by this change's own proof), right after the compose lib's line.
 // How the older pins reach it: it REGISTERS its files, its .env.example block and its strip (scripts/studio-later-changes.mjs, three lines). The voice-call proof's .env.example pin (21d254c6) already reads the blocks registered after its own, so no edit of it is carried.
 // Plain node, no imports, nothing read from disk or git here.
 
@@ -106,13 +107,23 @@ export const BRAND_KIT_EDITS = {
 /** The older proofs this change teaches: [text the proof has now, text it had before] per edit (was = '' for an inserted line). Every line a taught proof has now carries BRAND_KIT_PIN_MARK. */
 export const BRAND_KIT_PIN_MARK = '// LATER-CHANGES: registry read (BRAND-KIT-CALLER)'
 const PIN_LINE = "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Brand kit caller:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (BRAND-KIT-CALLER): on a branch stacked after this change (the Brand Kit caller), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files\n"
+const MINTER_LINES = [
+  "  text.delete('lib/studio-brand-kit-server.ts') // LATER-CHANGES: registry read (BRAND-KIT-CALLER): the Brand Kit's server-only lib (it signs the eight theme proxy fetches and holds the extract cap) also reaches the minter; scripts/test-studio-brand-kit.mjs proves it, and the closure walk above already ran over it\n",
+  "  text.delete('app/api/themes/[id]/brand/route.ts') // LATER-CHANGES: registry read (BRAND-KIT-CALLER): the Brand Kit's brand record route signs its Director calls with the same helper (proved by scripts/test-studio-brand-kit.mjs)\n",
+]
 export const BRAND_KIT_PIN_EDITS = {
   // two older proofs walk the first-parent line of BASE..HEAD without merges and require every subject on it to be their own: this change's commits (subject "Brand kit caller:") are left out of that line, like every later change's
   'scripts/test-studio-chat-element-edit.mjs': [[PIN_LINE, '']],
   'scripts/test-studio-deck-sync-truth.mjs': [[PIN_LINE, '']],
+  // the Deck import proof lists the files that import the entitlement minter (its two routes, and the compose lib it deletes from the list); the Brand Kit's two files that sign are taken out the same way
+  'scripts/test-studio-deck-import.mjs': MINTER_LINES.map(line => [line, '']),
 }
-/** Where the taught line goes: right after the Agent mode shell's subject filter (the line that starts with this text). */
-export const BRAND_KIT_PIN_AFTER = "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Agent mode shell:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (AGENT-MODE-SHELL)"
+/** Where the taught lines go: right after the line that starts with this text, per proof. */
+export const BRAND_KIT_PIN_ANCHORS = {
+  'scripts/test-studio-chat-element-edit.mjs': "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Agent mode shell:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (AGENT-MODE-SHELL)",
+  'scripts/test-studio-deck-sync-truth.mjs': "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Agent mode shell:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (AGENT-MODE-SHELL)",
+  'scripts/test-studio-deck-import.mjs': "  text.delete('lib/studio-compose-entitlement.ts')",
+}
 export const BRAND_KIT_PIN_FILES = Object.keys(BRAND_KIT_PIN_EDITS)
 
 /** Every [has, was] pair this change makes to an existing file, by file: the app files and the two taught proofs. */
