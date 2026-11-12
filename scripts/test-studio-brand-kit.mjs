@@ -291,7 +291,7 @@ async function extractChecks(texts = {}) {
   }
   // the type: exactly one Content-Type, exactly image/png or image/jpeg
   for (const [label, headers] of [['none', {}], ['gif', { 'content-type': 'image/gif' }], ['svg', { 'content-type': 'image/svg+xml' }], ['webp', { 'content-type': 'image/webp' }], ['pdf', { 'content-type': 'application/pdf' }], ['json', { 'content-type': 'application/json' }], ['multipart', { 'content-type': 'multipart/form-data; boundary=x' }], ['a parameter', { 'content-type': 'image/png; charset=binary' }], ['twice', { 'content-type': 'image/png, image/png' }], ['both', { 'content-type': 'image/png, image/jpeg' }]]) {
-    const r = mk(); let pulled = 0; const stream = new ReadableStream({ pull(controller) { pulled++; controller.enqueue(PNG); controller.close() } })
+    const r = mk(); let pulled = 0; const stream = new ReadableStream({ pull(controller) { pulled++; controller.enqueue(PNG); controller.close() } }, { highWaterMark: 0 })
     const res = await r.world.load(EXTRACT).POST(req('http://localhost/api/brand/extract', { method: 'POST', headers, body: stream })); assert.equal(res.status, 415, `Content-Type ${label}: 415`); assert.equal((await bodyOf(res)).json.code, 'type'); assert.equal(r.calls.fetch.length + r.calls.counts.length, 0, `Content-Type ${label}: nothing counted or fetched`); assert.equal(pulled, 0, `Content-Type ${label}: refused before the body is read`)
   }
   { const r = mk(); const res = await post(r, { headers: { 'content-type': ' IMAGE/PNG ' } }); assert.equal(res.status, 200, 'after trim and lower-casing it is image/png (as Theme Builder reads it)') }
@@ -479,7 +479,7 @@ async function stateChecks(texts = {}, env = {}) {
   const fresh = () => st.initialBrandKitState()
   const run = (state, ...actions) => actions.reduce((s, a) => st.reduceBrandKit(s, a), state)
   const FILE = { name: 'logo.png', size: 5000, type: 'image/png' }
-  const RESULT = lib.parseBrandExtract(clone(TB_OK))
+  const RESULT = lib.parseBrandExtract(clone(TB_OK)); assert.ok(RESULT, 'the sample answer reads')
   // pick -> consent (not agreed), a bad file -> error with nothing sent
   assert.equal(run(fresh(), { type: 'pick', file: FILE }).extract.phase, 'consent'); assert.equal(run(fresh(), { type: 'pick', file: FILE }).extract.agreed, false)
   for (const [file, code] of [[{ ...FILE, type: 'image/gif' }, 'type'], [{ ...FILE, size: 9 * 1024 * 1024 }, 'size'], [{ ...FILE, size: 0 }, 'empty']]) deepEqual(run(fresh(), { type: 'pick', file }).extract, { phase: 'error', code })
@@ -491,14 +491,17 @@ async function stateChecks(texts = {}, env = {}) {
   { const calls = []; const inFlight = { current: false }; let release; const gate = new Promise(r => { release = r })
     const deps = { extract: async file => { calls.push(file); await gate; return { ok: true, value: RESULT } }, inFlight }
     let s = run(fresh(), { type: 'pick', file: FILE }, { type: 'agree', agreed: true }); const dispatch = a => { s = st.reduceBrandKit(s, a) }
-    const first = st.runExtraction(deps, s, FILE, dispatch); const second = st.runExtraction(deps, s, FILE, dispatch); assert.equal(await second, 'refused', 'a second click while one is out is refused'); release(); assert.equal(await first, 'done'); assert.equal(calls.length, 1, 'ONE call'); assert.equal(s.extract.phase, 'preview')
+    const stale = s; const first = st.runExtraction(deps, s, FILE, dispatch); const second = st.runExtraction(deps, s, FILE, dispatch); const third = st.runExtraction(deps, stale, FILE, dispatch)
+    assert.equal(await second, 'refused', 'a second click while one is out is refused'); assert.equal(await third, 'refused', 'even one that still holds the state from before the first click (only the in-flight flag stops it)'); release(); assert.equal(await first, 'done'); assert.equal(calls.length, 1, 'ONE call'); assert.equal(s.extract.phase, 'preview'); assert.equal(inFlight.current, false, 'the flag is released when the call ends')
     assert.equal(await st.runExtraction(deps, s, FILE, dispatch), 'refused', 'from the proposal there is nothing to start'); assert.equal(calls.length, 1)
     s = run(fresh(), { type: 'pick', file: FILE }); assert.equal(await st.runExtraction(deps, s, FILE, dispatch), 'refused', 'without consent: no call'); assert.equal(calls.length, 1) }
   // a failure is not retried; each code lands where BK-C8 says
   for (const [code, phase] of [['no_colors', 'no_colors'], ['unavailable', 'unavailable'], ['unconfigured', 'unavailable'], ['cap', 'error'], ['failed', 'error'], ['timeout', 'error'], ['network', 'error'], ['unreadable', 'error']]) {
-    let n = 0; let s = run(fresh(), { type: 'pick', file: FILE }, { type: 'agree', agreed: true }); const out = await st.runExtraction({ extract: async () => { n++; return { ok: false, status: 500, code } }, inFlight: { current: false } }, s, FILE, a => { s = st.reduceBrandKit(s, a) })
-    assert.equal(out, 'failed'); assert.equal(n, 1, `${code}: one call, no retry`); assert.equal(s.extract.phase, phase, `${code} -> ${phase}`); if (phase === 'error') assert.equal(s.extract.code, code)
-    s = run(s, { type: 'pick', file: FILE }); if (phase !== 'unavailable') assert.equal(s.extract.phase, 'consent', 'a retry needs a fresh pick and a fresh consent'); assert.equal(n, 1) }
+    let n = 0; const inFlight = { current: false }; let s = run(fresh(), { type: 'pick', file: FILE }, { type: 'agree', agreed: true }); const dispatch = a => { s = st.reduceBrandKit(s, a) }; const deps = { extract: async () => { n++; return { ok: false, status: 500, code } }, inFlight }
+    const out = await st.runExtraction(deps, s, FILE, dispatch)
+    assert.equal(out, 'failed'); assert.equal(n, 1, `${code}: one call, no retry`); assert.equal(s.extract.phase, phase, `${code} -> ${phase}`); if (phase === 'error') assert.equal(s.extract.code, code); assert.equal(inFlight.current, false, `${code}: the flag is released`)
+    s = run(s, { type: 'pick', file: FILE }); if (phase !== 'unavailable') assert.equal(s.extract.phase, 'consent', 'a retry needs a fresh pick and a fresh consent'); assert.equal(n, 1)
+    if (phase !== 'unavailable') { s = run(s, { type: 'agree', agreed: true }); assert.equal(await st.runExtraction(deps, s, FILE, dispatch), 'failed', `${code}: after a fresh pick and consent the next click is a call (the flag was released)`); assert.equal(n, 2) } }
   { let s = run(fresh(), { type: 'pick', file: FILE }, { type: 'agree', agreed: true }); const out = await st.runExtraction({ extract: async () => { throw new Error('boom') }, inFlight: { current: false } }, s, FILE, a => { s = st.reduceBrandKit(s, a) }); assert.equal(out, 'failed'); assert.equal(s.extract.code, 'network') }
   { let s = run(fresh(), { type: 'pick', file: FILE }, { type: 'agree', agreed: true }, { type: 'extract_start' }); assert.equal(st.reduceBrandKit(s, { type: 'pick', file: FILE }).extract.phase, 'extracting', 'a pick while a call is out changes nothing'); assert.equal(st.reduceBrandKit(s, { type: 'cancel' }).extract.phase, 'extracting', 'and so does Cancel') }
   // the proposal is its own state; the draft is written only by the two apply functions, and only with the originals
@@ -511,6 +514,7 @@ async function stateChecks(texts = {}, env = {}) {
   { const fw = createWorld({ env: { NEXT_PUBLIC_THEME_FONT_SELECTION_ENABLED: 'true' }, texts }), fst = fw.load(STATE); const out = fst.applyExtractedFonts({ mode: 'custom', primary_hex: '#0047ab' }, RESULT); assert.equal(out.font_family_heading, 'Lora'); assert.equal(out.font_family, 'Lato')
     deepEqual(st.applyExtractedFonts({ mode: 'custom', primary_hex: '#0047ab' }, RESULT), { mode: 'custom', primary_hex: '#0047ab' }, 'with the theme-font switch off no font is set') }
   // the form
+  assert.equal(st.brandFormHasContent({ logoUrl: '', footer: '   ', confidentiality: '\t' }), false, 'blanks are not content'); assert.equal(st.brandFormHasContent({ logoUrl: ' ', footer: '', confidentiality: 'x' }), true)
   { const s = run(fresh(), { type: 'form', patch: { footer: 'Acme' } }); assert.equal(s.form.footer, 'Acme'); assert.equal(st.brandFormHasContent(s.form), true); assert.equal(st.brandFormHasContent(fresh().form), false); assert.equal(st.brandFormBlocksSave(run(fresh(), { type: 'form', patch: { logoUrl: 'http://x.test/a.png' } }).form), true); assert.equal(st.brandFormBlocksSave(run(fresh(), { type: 'form', patch: { logoUrl: 'https://x.test/a.png' } }).form), false) }
   // the save: the theme first, then ONE PUT; nothing for an empty form; a partial keeps the theme and retries only the PUT
   const THEME = { id: 'theme-9', name: 'Evergreen', theme_payload: { mode: 'custom', primary_hex: '#0047ab' } }
@@ -524,7 +528,7 @@ async function stateChecks(texts = {}, env = {}) {
     await fst.runBrandSave(async (id, r) => { log.push(clone(r)); return { ok: true, value: r } }, withFonts, { logoUrl: '', footer: 'Acme', confidentiality: '' }); deepEqual(log[0], { footer: 'Acme', heading_font: 'Lora', body_font: 'Lato' }, 'the kit\'s fonts are the SAVED theme\'s (what the server kept)')
     assert.deepEqual(await fst.runBrandSave(async () => assert.fail('sent'), withFonts, { logoUrl: '', footer: '', confidentiality: '' }), { kind: 'skipped' }, 'fonts alone are not a kit: nothing is sent') }
   for (const [code, retryable, kind] of [['unavailable', true, 'partial'], ['director_unreachable', true, 'partial'], ['entitlement', false, 'partial'], ['invalid_brand', false, 'partial'], ['kit_unavailable', false, 'unavailable'], ['theme_not_found', false, 'partial']]) {
-    const log = []; const save = async (id, record) => { log.push(id); return { ok: false, status: 503, code, ...(code === 'entitlement' ? { retryable: false } : {}) } }
+    const log = []; const save = async (id, record) => { log.push(id); return { ok: false, status: 503, code } }
     const out = await st.runBrandSave(save, THEME, { logoUrl: '', footer: 'Acme', confidentiality: '' }); assert.equal(out.kind, kind, code); if (kind === 'partial') { assert.equal(out.code, code); assert.equal(typeof out.retryable, 'boolean') } assert.equal(log.length, 1, `${code}: one PUT, no automatic retry`)
     if (code === 'unavailable') assert.equal(out.retryable, true); if (code === 'theme_not_found') assert.equal(out.retryable, false, 'a theme that is gone is not retried')
   }
@@ -557,11 +561,11 @@ function screen({ env = {}, texts = {}, fetchPlan = () => ({ status: 404, body: 
   const fetch = async (url, init = {}) => { fetchLog.push({ url: String(url), method: init.method ?? 'GET', headers: init.headers, body: init.body }); const out = await fetchPlan(String(url), init); if (out.throws) throw out.throws; return new Response(JSON.stringify(out.body ?? {}), { status: out.status }) }
   const world = createWorld({ env: { ...ENV_ON, ...env }, texts, fetch, stubs: { './library-controls': libraryControls } })
   const mod = world.load(PANEL)
-  const state = { draft: clone(initialDraft), kit: null, draftWrites: 0 }
+  const state = { draft: clone(initialDraft), kit: null, draftWrites: 0, phases: [] }
   const Page = () => {
     const [draft, setDraft] = React.useState(initialDraft)
     const kit = mod.useBrandKitDraft(enabled)
-    state.kit = kit; state.draft = draft
+    state.kit = kit; state.draft = draft; state.phases.push(kit.state.save.phase)
     const patchDraft = next => { state.draftWrites++; setDraft(next) }
     return h(React.Fragment, null,
       kit.enabled ? h(mod.BrandKitStatus, { kit, standardId, selectedId: 'theme-9', busy: false, onSetStandard: () => { state.setStandard = (state.setStandard ?? 0) + 1 } }) : null,
@@ -625,7 +629,9 @@ async function uiChecksIn(texts = {}) {
     const img = nodesBy(s.tree, n => n.type === 'img'); assert.equal(img.length, 1, 'the sample shows the logo'); assert.equal(img[0].props.src, 'https://cdn.example.test/logo.png'); assert.equal(img[0].props.referrerPolicy, 'no-referrer'); s.type('logo', 'http://x.test/a.png'); assert.equal(nodesBy(s.tree, n => n.type === 'img').length, 0, 'an http link is never loaded into the sample') }
   // the save: nothing for an empty form; ONE PUT after the theme; a partial and its retry; the not-switched-on and saved lines
   const THEME = { id: 'theme-9', name: 'Evergreen', theme_payload: { mode: 'custom', primary_hex: '#0047ab' } }
-  { const s = screen({ texts }); await s.kit.saveAfterTheme(THEME); await s.settle(); assert.equal(s.fetchLog.length, 0, 'an empty form: no request at all (and so never a clear)'); assert.equal(s.kit.state.save.phase, 'idle') }
+  { const s = screen({ texts }); await s.kit.saveAfterTheme(THEME); await s.settle(); assert.equal(s.fetchLog.length, 0, 'an empty form: no request at all (and so never a clear)'); assert.equal(s.kit.state.save.phase, 'idle'); assert.ok(!s.state.phases.includes('saving'), 'and no "Saving brand details" flash either')
+    const blank = screen({ texts }); blank.type('footer', '   '); await blank.kit.saveAfterTheme(THEME); await blank.settle(); assert.equal(blank.fetchLog.length, 0, 'a form of blanks sends nothing'); assert.ok(!blank.state.phases.includes('saving')) }
+  { const plan = url => (url.endsWith('/brand') ? { status: 200, body: { id: 'theme-9', brand: { footer: 'Acme' } } } : { status: 404, body: {} }); const s = screen({ texts, fetchPlan: plan }); s.type('footer', 'Acme'); const a = s.kit.saveAfterTheme(THEME), b = s.kit.saveAfterTheme(THEME); await Promise.all([a, b]); await s.settle(); assert.equal(s.fetchLog.length, 1, 'a double click on Save is ONE PUT') }
   { const plan = url => (url.endsWith('/brand') ? { status: 200, body: { id: 'theme-9', brand: { placement: 'top_right', logo_url: 'https://cdn.example.test/logo.png', footer: 'Acme' } } } : { status: 404, body: {} })
     const s = screen({ texts, fetchPlan: plan }); s.type('logo', 'https://cdn.example.test/logo.png'); s.type('footer', 'Acme'); await s.kit.saveAfterTheme(THEME); await s.settle()
     deepEqual(s.fetchLog.map(c => `${c.method} ${c.url}`), ['PUT /api/themes/theme-9/brand'], 'ONE PUT, to the saved theme, and no theme POST from the kit'); deepEqual(JSON.parse(s.fetchLog[0].body), { logo_url: 'https://cdn.example.test/logo.png', placement: 'top_right', footer: 'Acme' }); assert.equal(s.fetchLog[0].headers['Content-Type'], 'application/json')
@@ -633,12 +639,14 @@ async function uiChecksIn(texts = {}) {
     const s2 = screen({ texts, fetchPlan: plan, standardId: 'theme-9' }); s2.type('footer', 'Acme'); s2.type('logo', 'https://cdn.example.test/logo.png'); await s2.kit.saveAfterTheme(THEME); await s2.settle(); assert.ok(textIn(s2.tree).includes(copy.savedStandard('Evergreen'))); assert.equal(hasButton(s2.tree, copy.setStandard), false) }
   { let attempt = 0; const plan = url => (url.endsWith('/brand') ? (++attempt === 1 ? { status: 503, body: { code: 'unavailable', retryable: true } } : { status: 200, body: { id: 'theme-9', brand: { footer: 'Acme' } } }) : { status: 404, body: {} })
     const s = screen({ texts, fetchPlan: plan }); s.type('footer', 'Acme'); await s.kit.saveAfterTheme(THEME); await s.settle(); assert.equal(s.kit.state.save.phase, 'partial'); const t = textIn(s.tree); assert.ok(t.includes('“Evergreen” was saved, but its brand details were not.') && t.includes(lib.BRAND_SAVE_WORDS.unavailable), 'theme saved, brand details not saved, and why'); assert.equal(s.fetchLog.length, 1, 'no automatic retry')
-    assert.ok(hasButton(s.tree, copy.retry)); s.kit.reset?.call; await s.click(copy.retry); deepEqual(s.fetchLog.map(c => `${c.method} ${c.url}`), ['PUT /api/themes/theme-9/brand', 'PUT /api/themes/theme-9/brand'], 'the retry is the same PUT: no theme is created again'); deepEqual(s.fetchLog[0].body, s.fetchLog[1].body); assert.equal(s.kit.state.save.phase, 'saved')
+    assert.ok(hasButton(s.tree, copy.retry)); await s.click(copy.retry); deepEqual(s.fetchLog.map(c => `${c.method} ${c.url}`), ['PUT /api/themes/theme-9/brand', 'PUT /api/themes/theme-9/brand'], 'the retry is the same PUT: no theme is created again'); deepEqual(s.fetchLog[0].body, s.fetchLog[1].body); assert.equal(s.kit.state.save.phase, 'saved')
     // starting a new draft while a retry is pending keeps the retry
     const s3 = screen({ texts, fetchPlan: () => ({ status: 503, body: { code: 'unavailable', retryable: true } }) }); s3.type('footer', 'Acme'); await s3.kit.saveAfterTheme(THEME); await s3.settle(); s3.kit.reset(); await s3.settle(); assert.equal(s3.kit.state.save.phase, 'partial', 'a new draft does not lose the retry'); assert.equal(s3.kit.state.form.footer, '') }
   for (const [code, status, retry] of [['kit_unavailable', 404, false], ['entitlement', 401, false], ['invalid_brand', 422, false], ['theme_not_found', 404, false]]) {
     const s = screen({ texts, fetchPlan: url => (url.endsWith('/brand') ? { status, body: { code } } : { status: 404, body: {} }) }); s.type('footer', 'Acme'); await s.kit.saveAfterTheme(THEME); await s.settle(); assert.equal(hasButton(s.tree, copy.retry), retry, `${code}: retry ${retry}`)
+    await s.kit.retry(); await s.settle(); assert.equal(s.fetchLog.length, 1, `${code}: calling retry anyway sends nothing (it cannot help)`)
     assert.ok(textIn(s.tree).includes(code === 'kit_unavailable' ? copy.notSwitchedOn('Evergreen') : lib.BRAND_SAVE_WORDS[code]), `${code}: its sentence`); assert.equal(s.fetchLog.length, 1) }
+  { let n = 0; const s = screen({ texts, fetchPlan: url => (url.endsWith('/brand') ? (++n === 1 ? { status: 503, body: { code: 'unavailable', retryable: true } } : { status: 200, body: { id: 'theme-9', brand: { footer: 'Acme' } } }) : { status: 404, body: {} }) }); s.type('footer', 'Acme'); await s.kit.saveAfterTheme(THEME); await s.settle(); const a = s.kit.retry(), b = s.kit.retry(); await Promise.all([a, b]); await s.settle(); assert.equal(s.fetchLog.length, 2, 'a double click on the retry is ONE more PUT'); await s.kit.retry(); await s.settle(); assert.equal(s.fetchLog.length, 2, 'and once it is saved there is nothing to retry') }
   { const s = screen({ texts, fetchPlan: () => ({ status: 503, body: { code: 'unavailable', retryable: true } }) }); s.type('footer', 'Acme'); let leaving = 0; const before = globalThis.window; globalThis.window = { addEventListener: (type) => { if (type === 'beforeunload') leaving++ }, removeEventListener() {} }
     try { await s.kit.saveAfterTheme(THEME); await s.settle(); assert.equal(leaving, 1, 'a theme saved without its brand details asks before the page is left') } finally { globalThis.window = before } }
   // the saved details: one read for the one theme; a kit that is off draws nothing
@@ -649,6 +657,26 @@ async function uiChecksIn(texts = {}) {
   // flag off: the hook is inert (nothing started, no listener), and the mounts are not drawn
   { const s = screen({ texts, enabled: false }); assert.equal(s.kit.enabled, false); assert.equal(s.kit.blocksSave, false); assert.equal(s.kit.hasContent, false); await s.kit.saveAfterTheme(THEME); await s.kit.extract(); s.kit.pick(pngFile()); s.kit.agree(true); await s.settle(); assert.equal(s.fetchLog.length, 0, 'nothing is sent with the flag off'); assert.equal(s.kit.state.extract.phase, 'idle'); assert.equal(byAttr(s.tree, 'data-brand-kit').length, 0, 'nothing is drawn'); assert.equal(s.kit.retry.length >= 0, true) }
   const panelSrc = texts[PANEL] ?? read(PANEL); assert.ok(!/localStorage|sessionStorage/.test(panelSrc), 'the kit stores nothing in the browser'); assert.ok(!/NEXT_PUBLIC_[A-Z_]*KEY/.test(panelSrc))
+}
+
+// the hook module's three calls and the one read, on their own
+async function hookChecks(texts = {}) {
+  const log = []; let plan = () => ({ status: 200, body: {} })
+  const world = () => createWorld({ env: ENV_ON, texts, fetch: async (url, init = {}) => { log.push({ url: String(url), method: init.method ?? 'GET', headers: init.headers, body: init.body, cache: init.cache }); const out = plan(String(url), init); if (out.throws) throw out.throws; return new Response(out.raw ?? JSON.stringify(out.body ?? {}), { status: out.status }) } })
+  const mod = world().load(HOOKS)
+  // extraction: the browser pre-check sends nothing; the one request is the file with its own Content-Type
+  for (const [file, code] of [[{ type: 'image/gif', size: 5 }, 'type'], [{ type: 'image/png', size: 5 * 1024 * 1024 }, 'size'], [{ type: 'image/jpeg', size: 0 }, 'empty']]) { log.length = 0; deepEqual(await mod.extractBrand(file), { ok: false, status: 0, code }, `${code}: refused in the browser`); assert.equal(log.length, 0, `${code}: nothing sent`) }
+  { log.length = 0; plan = () => ({ status: 200, body: clone(TB_OK) }); const file = { type: 'image/jpeg', size: 1000 }; const out = await mod.extractBrand(file); assert.equal(out.ok, true); assert.equal(log.length, 1); deepEqual(log[0], { url: '/api/brand/extract', method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: file, cache: 'no-store' }, 'the file as the body, its own Content-Type and nothing else')
+    plan = () => ({ status: 200, body: { theme_payload: { mode: 'custom' } } }); assert.deepEqual(await mod.extractBrand(file), { ok: false, status: 200, code: 'failed' }, 'a 200 that is not the contract is a failure') }
+  for (const [status, body, code] of [[404, {}, 'unavailable'], [401, {}, 'signin'], [429, { code: 'cap' }, 'cap'], [422, { code: 'no_colors' }, 'no_colors'], [502, { code: 'failed' }, 'failed'], [504, { code: 'timeout' }, 'timeout'], [500, { code: 'nonsense' }, 'failed'], [503, { code: 'unavailable' }, 'unavailable']]) { plan = () => ({ status, body }); const out = await mod.extractBrand({ type: 'image/png', size: 100 }); assert.equal(out.ok, false); assert.equal(out.code, code, `${status} ${JSON.stringify(body)} -> ${code}`) }
+  plan = () => ({ throws: new TypeError('x') }); assert.equal((await mod.extractBrand({ type: 'image/png', size: 100 })).code, 'network')
+  // a brand record: read, and PUT as a PUT with the record as JSON; an answer that is not { id, brand } is not trusted
+  log.length = 0; plan = () => ({ status: 200, body: { id: 't 1', brand: { footer: 'x', junk: 1 } } }); deepEqual(await mod.getBrandKit('t 1'), { ok: true, value: { footer: 'x' } }); deepEqual(log[0], { url: '/api/themes/t%201/brand', method: 'GET', headers: undefined, body: undefined, cache: 'no-store' })
+  plan = () => ({ status: 200, body: { id: 't', brand: null } }); deepEqual(await mod.getBrandKit('t'), { ok: true, value: null }); plan = () => ({ status: 200, body: { nope: 1 } }); assert.equal((await mod.getBrandKit('t')).code, 'director_error'); plan = () => ({ status: 404, body: { code: 'kit_unavailable' } }); assert.equal((await mod.getBrandKit('t')).code, 'kit_unavailable'); plan = () => ({ status: 404, body: {} }); assert.equal((await mod.getBrandKit('t')).code, 'kit_unavailable'); plan = () => ({ throws: new TypeError('x') }); assert.equal((await mod.getBrandKit('t')).code, 'director_unreachable')
+  log.length = 0; plan = () => ({ status: 200, body: { id: 't', brand: { footer: 'x' } } }); deepEqual(await mod.saveBrandKit('t', { footer: 'x' }), { ok: true, value: { footer: 'x' } }); deepEqual(log[0], { url: '/api/themes/t/brand', method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: '{"footer":"x"}', cache: 'no-store' })
+  plan = () => ({ status: 200, body: { nope: 1 } }); assert.deepEqual(await mod.saveBrandKit('t', { footer: 'x' }), { ok: false, status: 200, code: 'director_error' }, 'a PUT answer that is not { id, brand } is not trusted')
+  plan = () => ({ status: 503, body: { code: 'entitlement_unavailable', retryable: true } }); deepEqual(await mod.saveBrandKit('t', { footer: 'x' }), { ok: false, status: 503, code: 'entitlement_unavailable', retryable: true }); plan = () => ({ status: 401, body: { code: 'entitlement', retryable: false } }); assert.equal((await mod.saveBrandKit('t', { footer: 'x' })).retryable, false); plan = () => ({ throws: new TypeError('x') }); deepEqual(await mod.saveBrandKit('t', { footer: 'x' }), { ok: false, status: 0, code: 'director_unreachable', retryable: true })
+  assert.ok(!/X-API-Key|X-Deckster|THEME_BUILDER|Authorization/.test((texts[HOOKS] ?? read(HOOKS)).replace(/\/\/.*$/gm, '')), 'the browser code holds no key and never talks to Theme Builder or signs anything')
 }
 
 // the font-switch variant: "Use suggested fonts" is a second explicit click and only with the theme-font switch on
@@ -750,7 +778,7 @@ async function identityHookChecks(texts = {}) {
       const w = createWorld({ env, texts: useBase ? { ...texts, [IDHOOK]: baseText(IDHOOK), [IDLIB]: baseText(IDLIB) } : texts, fetch, stubs: { 'next-auth/react': { useSession: () => ({ data: { user: { name: 'Pat Presenter' } } }) } } })
       const mod = w.load(IDHOOK); const Probe = () => { seen.push(mod.useDeckIdentity()); return null }
       const r = new Root(); r.setElement(h(Probe)); r.flush(); for (let i = 0; i < steps; i++) { await tick(); r.flush() }
-      const out = { log, seen, last: seen.at(-1), first: seen[0] }; r.unmount(); return out
+      r.unmount(); return { log, seen, last: seen.at(-1), first: seen[0], abortedAfter: log.map(c => c.signal?.aborted) }
     } finally { globalThis.window = before }
   }
   const plan = (kit, { std = { status: 200, body: { theme: { id: 'theme-9' } } } } = {}) => url => (url === '/api/themes/standard' ? std : url === '/api/themes/theme-9/brand' ? { status: 200, body: { id: 'theme-9', brand: kit } } : { status: 404, body: {} })
@@ -760,7 +788,7 @@ async function identityHookChecks(texts = {}) {
   // the identity flag off: no identity, no fetch (the kit has nothing to carry)
   for (const identityFlag of [null, 'false', '0']) { const r = await probe({ kitFlag: 'true', identityFlag, plan: plan(KIT) }); assert.equal(r.last, null, `identity flag ${identityFlag}: no deck_identity at all`); assert.equal(r.log.length, 0, 'and nothing is fetched') }
   // both on: the standard theme's kit, once, replaces the browser copy; before it arrives the browser copy is used (a build is never held back)
-  { const r = await probe({ kitFlag: 'true', plan: plan(KIT), steps: 3 }); deepEqual(r.log.map(c => `${c.method} ${c.url}`), ['GET /api/themes/standard', 'GET /api/themes/theme-9/brand'], 'two reads, the standard theme then ITS kit: never one per theme, never the deck\'s own theme'); assert.ok(r.log.every(c => c.signal instanceof AbortSignal), 'with a timeout signal')
+  { const r = await probe({ kitFlag: 'true', plan: plan(KIT), steps: 3 }); deepEqual(r.log.map(c => `${c.method} ${c.url}`), ['GET /api/themes/standard', 'GET /api/themes/theme-9/brand'], 'two reads, the standard theme then ITS kit: never one per theme, never the deck\'s own theme'); assert.ok(r.log.every(c => c.signal instanceof AbortSignal), 'with a timeout signal'); assert.ok(r.abortedAfter.length === 2 && r.abortedAfter.every(Boolean), 'and the read is cancelled when the page is left')
     { const at = r.seen.findIndex(id => id?.company === 'Old Co'), later = r.seen.findIndex(id => id?.company === 'Acme Corp'); assert.ok(at >= 0 && later > at, 'the browser copy is what a build would send until the kit arrives') }; deepEqual(strip(r.last), { presenter: 'Pat Presenter', company: 'Acme Corp', date: '<date>', confidentiality: 'Confidential', logo_url: 'https://cdn.example.test/logo.png', source: 'form' }); assert.ok(r.seen.length >= 2) }
   { const r = await probe({ kitFlag: 'true', plan: plan({ footer: 'Acme Corp' }), steps: 3 }); deepEqual(strip(r.last), { presenter: 'Pat Presenter', company: 'Acme Corp', date: '<date>', source: 'form' }, 'whole record: the browser\'s confidentiality and logo do not come back') }
   for (const [label, p] of [['a kit with no identity fields', plan({ heading_font: 'Lora' })], ['an unset kit', plan(null)], ['no standard theme', plan(KIT, { std: { status: 200, body: { theme: null } } })], ['the standard read failing', plan(KIT, { std: { status: 500, body: {} } })], ['a standard answer that is not JSON', plan(KIT, { std: { status: 200, raw: 'oops' } })], ['the kit being off', url => (url === '/api/themes/standard' ? { status: 200, body: { theme: { id: 'theme-9' } } } : { status: 404, body: { code: 'kit_unavailable' } })], ['the kit read failing', url => (url === '/api/themes/standard' ? { status: 200, body: { theme: { id: 'theme-9' } } } : { status: 503, body: { code: 'unavailable' } })], ['a network error', () => ({ throws: new TypeError('x') })]]) {
@@ -870,6 +898,7 @@ await check('E. the pure half: Theme Builder\'s answer, the brand record, Direct
 await check('F. the state machine and its flows: consent, one click one call, no retry, the draft only by the explicit applies, nothing for an empty form, theme then PUT, partial retries only the PUT', () => stateChecks())
 await check('G. the screen: consent first, the proposal (originals, derived roles, warnings, failing contrast rows, fonts), Use these colours, the form, the sample, save status and retry, saved details, flag off inert', () => uiChecks())
 await check('G2. fonts: "Use suggested fonts" is a second click, only with the theme-font switch on; an edit shows the suggestion it differs from', () => uiFontChecks())
+await check('G3. the hook module: browser pre-check, the one request, answers not on the contract are not trusted, no key, no signature', () => hookChecks())
 await check('H. the page\'s marked lines run: the hook, Save off for a kit detail that cannot be saved, the brand save after the theme save, the reset, every mount gated', () => pageChecks())
 await check('I1. deck identity (pure): the kit replaces the browser copy for all three fields, footer to company, source "form"; no kit gives the browser form back untouched', () => identityLibChecks())
 await check('I2. deck identity (the hook): the standard theme\'s kit read once and fail soft, never held back; flag off is the base hook', () => identityHookChecks())
@@ -884,6 +913,7 @@ await check('J4. scope, read from the COMMITTED diff only: own commits by subjec
 const SRC = Object.fromEntries([EXTRACT, BRAND, SERVER, LIB, STATE, HOOKS, PANEL, WORKSPACE, IDLIB, IDHOOK, ...THEME_PROXY_FILES, REGISTRY, STRIP, ENVFILE].map(rel => [rel, rel === ENVFILE ? git('show', `HEAD:${ENVFILE}`) : read(rel)]))
 const runAll = async (fns, texts) => { for (const fn of fns) await fn(texts) }
 const mut = (label, rel, from, to, fns) => mutant(label, () => runAll(fns, { [rel]: swap(SRC[rel], from, to) }))
+const HK = [t => hookChecks(t)]
 const R = [routeChecks], X = [extractChecks], B = [brandChecks], FO = [flagOffChecks], SG = [signingChecks, flagOffChecks]
 const stateRun = fn => texts => fn(texts), L = [t => libChecks(t)], S = [t => stateChecks(t)], U = [t => uiChecks(t), t => uiFontChecks(t)], PG = [pageChecks]
 
@@ -898,8 +928,7 @@ await mut('extract: the client\'s headers are forwarded', EXTRACT, "headers: { '
 await mut('extract: only the cookie is forwarded too', EXTRACT, "headers: { 'Content-Type': mime, 'X-API-Key': key },", "headers: { 'Content-Type': mime, 'X-API-Key': key, cookie: req.headers.get('cookie') ?? '' },", X)
 await mut('extract: the client\'s key header wins', EXTRACT, "'X-API-Key': key }", "'X-API-Key': req.headers.get('x-api-key') ?? key }", X)
 await mut('extract: a Content-Type parameter is accepted', EXTRACT, "candidate === (types ?? '').trim().toLowerCase()", "candidate === (types ?? '').split(';')[0].trim().toLowerCase()", X)
-await mut('extract: two Content-Types are accepted', EXTRACT, " || (types ?? '').includes(',')", '', X)
-await mut('extract: a missing Content-Type is not refused', EXTRACT, "if (!mime || (types ?? '').includes(',')) return fail(415, 'type')", "if ((types ?? '').includes(',')) return fail(415, 'type')", X)
+await mut('extract: a wrong Content-Type is not refused before the body is read', EXTRACT, "  if (!mime) return fail(415, 'type')\n", '', X)
 await mut('extract: the declared length is not checked', EXTRACT, "  if (declared !== null && (!/^\\d+$/.test(declared) || Number(declared) > BRAND_EXTRACT_MAX_BYTES)) return fail(413, 'size')\n", '', X)
 await mut('extract: the stream is not bounded', EXTRACT, "    if (total > BRAND_EXTRACT_MAX_BYTES) { await reader.cancel(); return null }\n", '', X)
 await mut('extract: the cap is one MiB too generous', EXTRACT, 'if (total > BRAND_EXTRACT_MAX_BYTES)', 'if (total > BRAND_EXTRACT_MAX_BYTES + 1024 * 1024)', X)
@@ -911,7 +940,7 @@ await mut('extract: the key check comes after the slot is taken', EXTRACT, "  co
 await mut('extract: a redirect is followed', EXTRACT, "      redirect: 'error',\n", "      redirect: 'follow',\n", X)
 await mut('extract: no timeout', EXTRACT, "      signal: AbortSignal.timeout(BRAND_EXTRACT_TIMEOUT_MS),\n", '', X)
 await mut('extract: the answer may be cached', EXTRACT, "return NextResponse.json(parsed, { status: 200, headers: NO_STORE })", "return NextResponse.json(parsed, { status: 200 })", X)
-await mut('extract: the 200 body is passed on as it came', EXTRACT, "return NextResponse.json(parsed, { status: 200, headers: NO_STORE })", "return NextResponse.json(await upstream.clone().json(), { status: 200, headers: NO_STORE })", X)
+await mut('extract: the 200 body is passed on uncleaned', EXTRACT, "parsed = parseBrandExtract(await upstream.json())", "parsed = (await upstream.json()) as never", X)
 await mut('extract: an invalid 200 is passed on', EXTRACT, "    if (!parsed) { console.error('[brand-extract] Theme Builder answered 200 with a body that is not the contract'); return fail(502, 'failed') }\n", '', X)
 await mut('extract: Theme Builder\'s own error is passed on', EXTRACT, "    default: return fail(502, 'failed')", "    default: return NextResponse.json(await upstream.json().catch(() => ({})), { status: upstream.status })", X)
 await mut('extract: a 422 is not "no colours"', EXTRACT, "    case 422: return fail(422, 'no_colors')\n", "    case 422: return fail(502, 'failed')\n", X)
@@ -1058,11 +1087,14 @@ await mut('screen: the kit stores in the browser', PANEL, "const THEME_DARK_MODE
 await mut('screen: the hook is live with the flag off', PANEL, "    if (!enabled || !file) return\n", "    if (!file) return\n", U)
 
 // the hook functions
-await mut('hook: extraction sends a different Content-Type', HOOKS, "headers: { 'Content-Type': checked.mime }", "headers: { 'Content-Type': 'application/octet-stream' }", U)
-await mut('hook: extraction sends credentials of its own', HOOKS, "headers: { 'Content-Type': checked.mime }, body", "headers: { 'Content-Type': checked.mime, 'X-API-Key': 'x' }, body", U)
-await mut('hook: extraction skips the browser pre-check', HOOKS, "  if (!checked.ok) return { ok: false, status: 0, code: checked.code }\n", "", U)
-await mut('hook: a saved answer that is not the contract is trusted', HOOKS, "      return read ? { ok: true, value: read.brand } : { ok: false, status: res.status, code: 'director_error' }\n    }\n    const retryable", "      return { ok: true, value: (body as { brand: BrandRecord }).brand }\n    }\n    const retryable", U)
-await mut('hook: the save is a POST', HOOKS, "method: 'PUT', headers: { 'Content-Type': 'application/json' }", "method: 'POST', headers: { 'Content-Type': 'application/json' }", U)
+await mut('hook: extraction sends a different Content-Type', HOOKS, "headers: { 'Content-Type': checked.mime }", "headers: { 'Content-Type': 'application/octet-stream' }",HK)
+await mut('hook: extraction sends credentials of its own', HOOKS, "headers: { 'Content-Type': checked.mime }, body", "headers: { 'Content-Type': checked.mime, 'X-API-Key': 'x' }, body",HK)
+await mut('hook: extraction skips the browser pre-check', HOOKS, "  if (!checked.ok) return { ok: false, status: 0, code: checked.code }\n", "",HK)
+await mut('hook: a saved answer that is not the contract is trusted', HOOKS, "      return read ? { ok: true, value: read.brand } : { ok: false, status: res.status, code: 'director_error' }\n    }\n    const retryable", "      return { ok: true, value: (body as { brand: BrandRecord }).brand }\n    }\n    const retryable",HK)
+await mut('hook: the read is cached by the browser', HOOKS, "const res = await fetch(`/api/themes/${encodeURIComponent(themeId)}/brand`, { cache: 'no-store', signal: init.signal })", "const res = await fetch(`/api/themes/${encodeURIComponent(themeId)}/brand`, { signal: init.signal })", HK)
+await mut('hook: an extraction that does not read is a success', HOOKS, "      return parsed ? { ok: true, value: parsed } : { ok: false, status: res.status, code: 'failed' }", "      return { ok: true, value: parsed as never }", HK)
+await mut('hook: a 401 is not "sign in"', HOOKS, "(res.status === 401 ? 'signin' : 'failed')", "'failed'", HK)
+await mut('hook: the save is a POST', HOOKS, "method: 'PUT', headers: { 'Content-Type': 'application/json' }", "method: 'POST', headers: { 'Content-Type': 'application/json' }",HK)
 
 // the page's marked lines
 await mut('page: Save is not held back for a bad kit detail', WORKSPACE, ' && !operation && !brandKit.blocksSave)', ' && !operation)', PG)
@@ -1103,7 +1135,7 @@ await sourceMutant('source: a changed line without the marker', T_LIST, t => swa
 await sourceMutant('source: an unmarked extra line', WORKSPACE, t => swap(t, "const INITIAL_THEME: BuildThemeSelection = { mode: 'preset', preset_id: 'minimal' }\n", "const INITIAL_THEME: BuildThemeSelection = { mode: 'preset', preset_id: 'minimal' }\nconst EXTRA = 1\n"))
 await sourceMutant('source: a base line rewritten without a pair', WORKSPACE, t => swap(t, "const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === 'true'", "const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === 'true' // BRAND-KIT-CALLER"))
 await sourceMutant('source: a base line lost', WORKSPACE, t => swap(t, "const CUSTOM_FIELDS = [['primary_hex', 'Primary / brand'], ['secondary_hex', 'Secondary'], ['tertiary_hex', 'Tertiary'], ['neutral_hex', 'Neutral']] as const\n", ''))
-await sourceMutant('source: a pair\'s line missing from the file', DECK_ID_LIB_REL(), t => swap(t, "} // BRAND-KIT-CALLER\n", ''))
+await sourceMutant('source: a pair\'s line missing from the file', DECK_ID_LIB_REL(), t => swap(t, "  return { ...(company ? { company } : {}), ...(confidentiality ? { confidentiality } : {}), ...(logoUrl ? { logoUrl } : {}) }; // BRAND-KIT-CALLER\n", ''))
 await sourceMutant('source: the identity hook rewrites an unmarked line', IDHOOK, t => swap(t, "const { data: session } = useSession()\n  const enabled", "const { data: session } = useSession()\n  const enabled /* x */"))
 await sourceMutant('source: the standard proxy unmarked', T_STD, t => swap(t, "import { authOptions } from '@/lib/auth-options'\n", "import { authOptions } from '@/lib/auth-options'\nimport { extra } from '@/lib/extra'\n"))
 function DECK_ID_LIB_REL() { return IDLIB }
@@ -1125,7 +1157,7 @@ await mutant('strip: the marker matches a longer token', () => { assert.ok(MARKE
 const envMutant = (label, edit) => mutant(label, () => envChecks({ [ENVFILE]: edit(SRC[ENVFILE]) }))
 await envMutant('env: the block is missing', t => t.replace(`\n${ENV_BLOCK}`, ''))
 await envMutant('env: the flag is on by default', t => swap(t, 'NEXT_PUBLIC_STUDIO_BRAND_KIT="false"', 'NEXT_PUBLIC_STUDIO_BRAND_KIT="true"'))
-await envMutant('env: the key has a value', t => swap(t, 'THEME_BUILDER_BRAND_EXTRACT_KEY=\n', 'THEME_BUILDER_BRAND_EXTRACT_KEY=abcdefghijklmnopqrstuvwxyz\n'))
+await envMutant('env: the key has a value', t => swap(t, 'THEME_BUILDER_BRAND_EXTRACT_KEY=\n', `THEME_BUILDER_BRAND_EXTRACT_KEY=${'x'.repeat(26)}\n`))
 await envMutant('env: the key is public', t => swap(t, 'THEME_BUILDER_BRAND_EXTRACT_KEY=\n', 'NEXT_PUBLIC_THEME_BUILDER_BRAND_EXTRACT_KEY=\n'))
 await envMutant('env: a base line is lost', t => swap(t, 'NEXT_PUBLIC_AGENT_MODE="false"\n', ''))
 await envMutant('env: an extra assignment', t => t + 'EXTRA_THING=1\n')
