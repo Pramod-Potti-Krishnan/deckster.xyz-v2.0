@@ -185,7 +185,10 @@ export const EMPTY_BRAND_FORM: BrandKitForm = { logoUrl: '', footer: '', confide
 export type BrandRecordField = typeof BRAND_RECORD_KEYS[number]
 export type BrandRecordCheck = { ok: true; record: BrandRecord } | { ok: false; field: BrandRecordField | 'body'; message: string }
 
-/** An https:// URL, up to Director's 2,048 characters, with a host, no credentials and no spaces or control characters. Anything else is not a logo link. */
+/**
+ * An https:// URL, up to Director's 2,048 characters, with a host, no credentials and no spaces or control characters. Anything else is not a logo link.
+ * Any https HOST is accepted, IP literals and localhost included: Studio never fetches the link itself (the sample only draws it in an <img>). Whoever fetches it on a server (Layout, Slide Builder, Downloads: BK-B6) must apply its own address policy.
+ */
 export function cleanBrandLogoUrl(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
   const text = value.trim()

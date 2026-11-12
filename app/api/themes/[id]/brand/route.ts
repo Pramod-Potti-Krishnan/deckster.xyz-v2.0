@@ -97,7 +97,7 @@ export async function PUT(
   } catch {
     return refuse(400, 'bad_request')
   }
-  if (text.length > BRAND_RECORD_MAX_BODY_BYTES) return refuse(413, 'too_large')
+  if (Buffer.byteLength(text, 'utf8') > BRAND_RECORD_MAX_BODY_BYTES) return refuse(413, 'too_large') // bytes, not UTF-16 units (a body of accented text is longer in bytes than it reads)
   let payload: unknown
   try {
     payload = JSON.parse(text)

@@ -421,6 +421,7 @@ async function brandChecks(texts = {}) {
   for (const [label, body] of refused) { const r = mk(); const res = await put(r, JSON.stringify(body)); assert.equal(res.status, 422, `${label}: 422`); assert.equal((await bodyOf(res)).json.code, 'invalid_brand'); assert.equal(r.calls.fetch.length, 0, `${label}: nothing reaches Director`) }
   { const r = mk(); const res = await put(r, 'not json'); assert.equal(res.status, 400); assert.equal(r.calls.fetch.length, 0) }
   { const r = mk(); const res = await put(r, JSON.stringify({ footer: 'x', pad: 'y'.repeat(9000) })); assert.equal(res.status, 413); assert.equal(r.calls.fetch.length, 0) }
+  { const wide = JSON.stringify({ footer: 'x', pad: '\u00e9'.repeat(4100) }); assert.ok(wide.length < 8192 && Buffer.byteLength(wide) > 8192, 'a body under the limit in characters and over it in bytes'); const r = mk(); const res = await put(r, wide); assert.equal(res.status, 413, 'the limit is in BYTES'); assert.equal(r.calls.fetch.length, 0) }
   // an empty record would CLEAR the kit: refused unless the call says so
   for (const body of [{}, { footer: '', logo_url: '' }, { footer: '   ' }]) { const r = mk(); const res = await put(r, body); assert.equal(res.status, 400, `${JSON.stringify(body)}: refused`); assert.equal((await bodyOf(res)).json.code, 'clear_refused'); assert.equal(r.calls.fetch.length, 0) }
   { const r = mk({ upstream: () => ({ status: 200, body: { id: 't-1', brand: null } }) }); const res = await put(r, {}, { url: 'http://localhost/api/themes/t-1/brand?clear=1' }); assert.equal(res.status, 200); assert.equal(r.calls.fetch[0].init.body, '{}', 'an explicit clear sends {}') }
@@ -1118,7 +1119,8 @@ await mut('brand PUT: the body is not checked', BRAND, "  const checked = valida
 await mut('brand PUT: an empty record may clear', BRAND, " && new URL(req.url).searchParams.get('clear') !== '1') return refuse(400, 'clear_refused')", " && false) return refuse(400, 'clear_refused')", B)
 await mut('brand PUT: any request may clear', BRAND, "searchParams.get('clear') !== '1'", "searchParams.get('clear') === null", B)
 await mut('brand PUT: the raw body is forwarded', BRAND, 'body: JSON.stringify(checked.record),', 'body: text,', B)
-await mut('brand PUT: no size limit', BRAND, "  if (text.length > BRAND_RECORD_MAX_BODY_BYTES) return refuse(413, 'too_large')\n", '', B)
+await mut('brand PUT: no size limit', BRAND, "  if (Buffer.byteLength(text, 'utf8') > BRAND_RECORD_MAX_BODY_BYTES) return refuse(413, 'too_large') // bytes, not UTF-16 units (a body of accented text is longer in bytes than it reads)\n", '', B)
+await mut('brand PUT: the limit counts characters, not bytes', BRAND, "Buffer.byteLength(text, 'utf8') > BRAND_RECORD_MAX_BODY_BYTES", 'text.length > BRAND_RECORD_MAX_BODY_BYTES', B)
 await mut('brand: Director\'s text is passed on', BRAND, "  return refuse(classified.status, classified.code, { retryable: classified.retryable })", "  return NextResponse.json(body, { status: r.status })", B)
 await mut('brand: Director\'s 200 is passed on unread', BRAND, "    return read ? NextResponse.json(read, { status: 200, headers: NO_STORE }) : refuse(502, 'director_error')", "    return NextResponse.json(body, { status: 200, headers: NO_STORE })", B)
 await mut('brand: the answer may be cached', BRAND, "    return read ? NextResponse.json(read, { status: 200, headers: NO_STORE })", "    return read ? NextResponse.json(read, { status: 200 })", B)
