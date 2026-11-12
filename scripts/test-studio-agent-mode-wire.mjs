@@ -818,8 +818,9 @@ function sourceChecks(texts = {}, strip = stripAgentModeWire, shown = {}, others
   assert.equal(strip('x.ts', 7), 7); assert.equal(strip('x.ts', 'a\nb\n'), 'a\nb\n')
   // the hook: each of its added lines, one by one, is where the strip says (a pair removed puts back a line the file kept)
   for (const rel of APP_FILES) for (const [has] of ALL_EDITS[rel]) assert.equal(now(rel).split('\n').filter(l => l === has.slice(0, -1)).length, 1, `${rel}: the pair's line is in the file exactly once (as a whole line, indent included): ${has.slice(0, 70)}`)
-  // .env.example: this change touches it not at all (the flag's block is #607's), and #607's block still names the flag once
-  assert.equal(git('diff', '--name-only', STACK_BASE, 'HEAD', '--', '.env.example').trim(), '', '.env.example is #607\'s byte for byte (no block of this change)'); assert.equal(count(read('.env.example'), 'NEXT_PUBLIC_AGENT_MODE="false"'), 1)
+  // .env.example: this change touches it not at all (the flag's block is #607's): read without the registered blocks (#607's, and the changes restacked with this one) it is #607's head's, so a block of this change's own would stay and fail; #607's block still names the flag once
+  const env = texts['.env.example'] ?? committed('.env.example')
+  assert.equal(registry.stripLaterEnvBlocks('.env.example', env), registry.stripLaterEnvBlocks('.env.example', baseText('.env.example')), '.env.example is #607\'s byte for byte once the registered blocks are read out (no block of this change)'); assert.equal(count(env, 'NEXT_PUBLIC_AGENT_MODE="false"'), 1)
 }
 const END = '  // one line per later change, above this comment'
 /** A line another change registered (any change's, as the registry's own convention has them): its strip module and its marker comment. */
@@ -858,7 +859,7 @@ function restackedRegistry() {
 }
 const restackedReg = () => { const shell = registry.LATER_STRIPS.find(fn => typeof fn === 'function' && fn.name === 'stripAgentModeShell'), at = registry.LATER_STRIPS.indexOf(shell); return { ...registry, LATER_STRIPS: [...registry.LATER_STRIPS.slice(0, at + 1), ...chainStrips, ...registry.LATER_STRIPS.slice(at + 1)] } }
 const restackedProofs = () => Object.fromEntries(CHAIN_PINS.map(rel => { const own = ALL_EDITS[rel][0][0]; assert.equal(count(committed(rel), own), 1); return [rel, committed(rel).replace(own, () => CHAIN.map(chainFilter).join('') + own)] }))
-function restackChecks(text = restackedRegistry(), reg = restackedReg(), texts = restackedProofs(), others = chainStrips) {
+function restackChecks(text = restackedRegistry(), reg = restackedReg(), texts = restackedProofs(), others = [...otherStripsOf(), ...chainStrips]) {
   registryChecks(text, reg); sourceChecks(texts, stripAgentModeWire, {}, others)
 }
 
@@ -880,7 +881,9 @@ function scopeChecks() {
   for (const c of own) deepEqual(messageProblems(subjectOf(c), git('log', '-1', '--format=%B', c)), [], `commit ${c.slice(0, 8)}`)
   // what is committed differs from #607's head in the scope files only (a later change stacked after this one is left to its registered files)
   const net = git('diff', '--name-only', `${STACK_BASE}..HEAD`).split('\n').filter(Boolean); deepEqual(net.filter(rel => !SCOPE.has(rel) && !registry.LATER_CHANGE_FILES.has(rel)), [], 'the whole committed diff from #607\'s head is this change\'s scope (or a later change\'s registered files)')
-  for (const rel of ['tests/fixtures/agent_frames_contract.json', 'package.json', 'pnpm-lock.yaml', '.env.example', 'components/builder/message-list.tsx', 'components/builder/chat-input.tsx', 'components/builder/agent-mode/build-mode-picker.tsx', 'scripts/studio-agent-mode-shell-strip.mjs']) assert.ok(!net.includes(rel) || SCOPE.has(rel), `${rel} is #607's / the base's: untouched`)
+  // #607's and the base's files this change does not touch: its own commits never do, and the diff from #607's head shows none of them unless another change registered it (a keep-both restack: the chain's .env.example blocks)
+  const mine = touchedFiles(own)
+  for (const rel of ['tests/fixtures/agent_frames_contract.json', 'package.json', 'pnpm-lock.yaml', '.env.example', 'components/builder/message-list.tsx', 'components/builder/chat-input.tsx', 'components/builder/agent-mode/build-mode-picker.tsx', 'scripts/studio-agent-mode-shell-strip.mjs']) { assert.ok(!mine.has(rel) || SCOPE.has(rel), `${rel} is #607's / the base's: this change's commits do not touch it`); assert.ok(!net.includes(rel) || SCOPE.has(rel) || registry.LATER_CHANGE_FILES.has(rel), `${rel} is #607's / the base's: untouched (or another change's registered file)`) }
   deepEqual(net.filter(rel => rel.startsWith('components/builder/agent-mode/') || rel === 'lib/studio-agent-mode.ts').sort(), [...SHELL_EDITED].sort(), 'of #607\'s card files and words, exactly the ones this change edits in place (the A1 estimate card) differ from #607\'s head, and each is in its scope'); assert.ok(SHELL_EDITED.every(rel => SCOPE.has(rel)))
   for (const rel of NEW_FILES) assert.doesNotMatch(committed(rel), SECRET, `${rel}: no secret-shaped literal`)
   // the working tree is not read: an untracked stray file changes nothing
@@ -1081,7 +1084,9 @@ await mutant('strip: the pair for a handler\'s entry line is missing', async () 
 await mutant('strip: the pair for the voice ref is missing', async () => { const m = await dataModule(swap(STRIP_TEXT, `${stripLine('const agentVoiceModeRef = useRef')}\n`, '')); sourceChecks({}, m.stripAgentModeWire) })
 await mutant('registry: a line is missing', () => registryChecks(read(REGISTRY).split('\n').filter(l => !l.includes('stripAgentModeWire')).join('\n')))
 await mutant('registry: a base line is lost', () => registryChecks(read(REGISTRY).split('\n').filter(l => !l.includes('studio-agent-mode-shell-strip.mjs') || l.includes('wire')).join('\n')))
-await mutant('registry: our line is not at the end of its list', () => { const lines = read(REGISTRY).split('\n'), at = lines.findIndex(l => l.includes('studio-agent-mode-wire-strip.mjs')); [lines[at], lines[at - 1]] = [lines[at - 1], lines[at]]; registryChecks(lines.join('\n')) })
+await mutant('registry: our line is not at the end of its list (the end line comes before it)', () => { const lines = read(REGISTRY).split('\n'), at = lines.findIndex(l => l.includes('studio-agent-mode-wire-strip.mjs')); [lines[at], lines[at + 1]] = [lines[at + 1], lines[at]]; registryChecks(lines.join('\n')) })
+await mutant('registry: our line comes BEFORE #607\'s in its list (an order, not an adjacency)', () => { const lines = read(REGISTRY).split('\n'), at = lines.findIndex(l => l.includes('studio-agent-mode-wire-strip.mjs')), shell = lines.findIndex((l, i) => i < at && l.includes('studio-agent-mode-shell-strip.mjs') && l.includes('SCOPE_FILES')); const [own] = lines.splice(at, 1); lines.splice(shell, 0, own); registryChecks(lines.join('\n')) })
+await mutant('env: a block of this change in .env.example', () => sourceChecks({ '.env.example': `${committed('.env.example')}\n# Agent mode wire (AGENT-MODE-WIRE)\nNEXT_PUBLIC_AGENT_MODE_WIRE=\"false\"\n` }))
 await mutant('registry: a line in the env list (no block exists)', () => { const lines = read(REGISTRY).split('\n'), at = lines.findIndex(l => l.includes('(await import(\'./studio-agent-mode-shell-strip.mjs\')).AGENT_MODE_SHELL_ENV_BLOCK')); lines.splice(at + 1, 0, "  (await import('./studio-agent-mode-wire-strip.mjs')).AGENT_MODE_WIRE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, Agent mode wire"); registryChecks(lines.join('\n')) })
 await mutant('registry: the marker comment changed', () => registryChecks(read(REGISTRY).replace('// LATER-CHANGE: FRONTEND-1, Agent mode wire (', '// LATER-CHANGE: FRONTEND-1, wiring (')))
 // the restack: positive control above (F3); each of these is a restack that must still FAIL
