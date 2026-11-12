@@ -18,6 +18,8 @@ import "@/components/studio-pass3-polish/studio-pass3-polish-e.css" // PASS3-POL
 import { StudioPass3PolishGMount } from "@/components/studio-pass3-polish/studio-pass3-polish-g-mount" // PASS3-POLISH-G (NEXT_PUBLIC_STUDIO_PASS3_POLISH, default off): on iPhone and iPad the viewport meta gets maximum-scale=1, so a focused text control does not zoom the page
 import { STUDIO_PAGE_HEADINGS_ENABLED } from "@/lib/studio-page-headings" // PAGE-HEADINGS (UX-09, NEXT_PUBLIC_STUDIO_PAGE_HEADINGS, default off): one page container and heading style
 import { StudioPageHeadingsMount } from "@/components/studio-page-headings/studio-page-headings-mount" // PAGE-HEADINGS
+import { STUDIO_PAGE_CONSISTENCY_ENABLED } from "@/lib/studio-page-consistency" // PAGE-CONSISTENCY (UX-07 / UX-10, NEXT_PUBLIC_STUDIO_PAGE_CONSISTENCY, default off): Billing on the shell tokens
+import { StudioPageConsistencyMount } from "@/components/studio-page-consistency/studio-page-consistency-mount" // PAGE-CONSISTENCY
 
 /**
  * Shared shell for the authenticated account area (dashboard, settings, billing,
@@ -39,6 +41,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       {STUDIO_PASS3_POLISH_ENABLED && <StudioPass3PolishMount />}{/* PASS3-POLISH */}
       {STUDIO_PASS3_POLISH_ENABLED && <StudioPass3PolishGMount />}{/* PASS3-POLISH-G */}
       {STUDIO_PAGE_HEADINGS_ENABLED && <StudioPageHeadingsMount />}{/* PAGE-HEADINGS */}
+      {STUDIO_PAGE_CONSISTENCY_ENABLED && <StudioPageConsistencyMount />}{/* PAGE-CONSISTENCY */}
     </div>
   )
 }
