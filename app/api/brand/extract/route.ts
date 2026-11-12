@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
   // exactly one Content-Type, exactly image/png or image/jpeg (no parameters): what Theme Builder requires, checked before anything is read
   const types = req.headers.get('content-type')
   const mime = BRAND_EXTRACT_MIME_TYPES.find(candidate => candidate === (types ?? '').trim().toLowerCase())
-  if (!mime || (types ?? '').includes(',')) return fail(415, 'type')
+  if (!mime) return fail(415, 'type')
   const declared = req.headers.get('content-length')
   if (declared !== null && (!/^\d+$/.test(declared) || Number(declared) > BRAND_EXTRACT_MAX_BYTES)) return fail(413, 'size')
 

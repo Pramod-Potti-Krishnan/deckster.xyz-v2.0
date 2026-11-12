@@ -147,7 +147,7 @@ const headerOf = init => { const h = init?.headers ?? {}; const key = Object.key
 // ---- the bytes and Theme Builder's answer, as the contract has it (hand-built to BK-C6's shape; no Theme Builder call) ---------------------------------------------------------------------------------
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), crypto.randomBytes(120)])
 const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), crypto.randomBytes(120)])
-const ROLES = { primary: '#0047ab', primary_dark: '#00306f', secondary: '#d62828', accent: '#f2b400', background: '#ffffff', background_alt: '#f4f7fb', surface: '#eef3fa', border: '#c9d4e5', text_primary: '#0b1a33', text_secondary: '#3b4a63', text_body: '#1d2b45', text_on_dark: '#ffffff', hero_background: '#00306f', hero_text_primary: '#ffffff' }
+const ROLES = { primary: '#0b4ea6', primary_dark: '#00306f', secondary: '#c42323', accent: '#e0a800', background: '#ffffff', background_alt: '#f4f7fb', surface: '#eef3fa', border: '#c9d4e5', text_primary: '#0b1a33', text_secondary: '#3b4a63', text_body: '#1d2b45', text_on_dark: '#ffffff', hero_background: '#00306f', hero_text_primary: '#ffffff' }
 const chk = (foreground_role, foreground_hex, background_role, background_hex, ratio) => ({ foreground_role, foreground_hex, background_role, background_hex, ratio, passes_aa: ratio >= 4.5 })
 const TB_OK = {
   theme_payload: { mode: 'custom', primary_hex: '#0047ab', secondary_hex: '#d62828', tertiary_hex: '#f2b400', font_family_heading: 'Lora', font_family: 'Lato' },
@@ -291,7 +291,8 @@ async function extractChecks(texts = {}) {
   }
   // the type: exactly one Content-Type, exactly image/png or image/jpeg
   for (const [label, headers] of [['none', {}], ['gif', { 'content-type': 'image/gif' }], ['svg', { 'content-type': 'image/svg+xml' }], ['webp', { 'content-type': 'image/webp' }], ['pdf', { 'content-type': 'application/pdf' }], ['json', { 'content-type': 'application/json' }], ['multipart', { 'content-type': 'multipart/form-data; boundary=x' }], ['a parameter', { 'content-type': 'image/png; charset=binary' }], ['twice', { 'content-type': 'image/png, image/png' }], ['both', { 'content-type': 'image/png, image/jpeg' }]]) {
-    const r = mk(); const res = await post(r, { headers }); assert.equal(res.status, 415, `Content-Type ${label}: 415`); assert.equal((await bodyOf(res)).json.code, 'type'); assert.equal(r.calls.fetch.length + r.calls.counts.length, 0, `Content-Type ${label}: nothing counted or fetched`)
+    const r = mk(); let pulled = 0; const stream = new ReadableStream({ pull(controller) { pulled++; controller.enqueue(PNG); controller.close() } })
+    const res = await r.world.load(EXTRACT).POST(req('http://localhost/api/brand/extract', { method: 'POST', headers, body: stream })); assert.equal(res.status, 415, `Content-Type ${label}: 415`); assert.equal((await bodyOf(res)).json.code, 'type'); assert.equal(r.calls.fetch.length + r.calls.counts.length, 0, `Content-Type ${label}: nothing counted or fetched`); assert.equal(pulled, 0, `Content-Type ${label}: refused before the body is read`)
   }
   { const r = mk(); const res = await post(r, { headers: { 'content-type': ' IMAGE/PNG ' } }); assert.equal(res.status, 200, 'after trim and lower-casing it is image/png (as Theme Builder reads it)') }
   // the size: the declared length, then the stream; 4 MiB is the cap and is allowed
@@ -301,6 +302,8 @@ async function extractChecks(texts = {}) {
   }
   { const r = mk(); let pulled = 0; const stream = new ReadableStream({ pull(controller) { pulled++; controller.enqueue(new Uint8Array(1024 * 1024).fill(1)); if (pulled > 40) controller.close() } })
     const res = await r.world.load(EXTRACT).POST(req('http://localhost/api/brand/extract', { method: 'POST', headers: { 'content-type': 'image/png' }, body: stream })); assert.equal(res.status, 413, 'a stream with no length that runs over the cap: 413'); assert.ok(pulled < 12, `and the stream is not read to its end (${pulled} chunks)`); assert.equal(r.calls.fetch.length + r.calls.counts.length, 0) }
+  { const r = mk(); const chunks = [Buffer.concat([PNG, Buffer.alloc(MAX - PNG.length)]), Buffer.alloc(1)]; let at = 0; const stream = new ReadableStream({ pull(controller) { if (at < chunks.length) controller.enqueue(chunks[at++]); else controller.close() } })
+    const res = await r.world.load(EXTRACT).POST(req('http://localhost/api/brand/extract', { method: 'POST', headers: { 'content-type': 'image/png' }, body: stream })); assert.equal(res.status, 413, 'a stream of exactly one byte over the cap: 413'); assert.equal(r.calls.fetch.length + r.calls.counts.length, 0) }
   { const big = Buffer.concat([PNG, Buffer.alloc(MAX - PNG.length)]); const r = mk(); const res = await post(r, { body: big }); assert.equal(res.status, 200, 'exactly 4 MiB is allowed'); assert.equal(Buffer.from(r.calls.fetch[0].init.body).length, MAX) }
   { const r = mk(); const res = await post(r, { body: Buffer.alloc(0) }); assert.equal(res.status, 400); assert.equal((await bodyOf(res)).json.code, 'empty'); assert.equal(r.calls.fetch.length + r.calls.counts.length, 0) }
   // the first bytes must say what the Content-Type says
@@ -312,12 +315,12 @@ async function extractChecks(texts = {}) {
   { const r = mk({ count: () => 9 }); const res = await post(r); assert.equal(res.status, 200); deepEqual(r.calls.order, ['count', 'record', 'fetch'], 'one under the cap: counted, recorded, THEN the one paid call'); deepEqual(r.calls.records[0], ['brand_extract', 'user', USER_ID], 'recorded for this user in the brand_extract bucket'); assert.equal(r.calls.counts[0].subject, USER_ID); assert.equal(r.calls.counts[0].bucket, 'brand_extract'); assert.ok(r.calls.counts[0].since instanceof Date && Date.now() - r.calls.counts[0].since.getTime() < 86_400_000 + 1000, 'today (UTC day) only') }
   { const r = mk({ env: { ...EXTRACT_ENV, STUDIO_BRAND_EXTRACT_DAILY_CAP: '3' }, count: () => 3 }); assert.equal((await post(r)).status, 429, 'the cap follows STUDIO_BRAND_EXTRACT_DAILY_CAP') }
   { const r = mk({ env: { ...EXTRACT_ENV, STUDIO_BRAND_EXTRACT_DAILY_CAP: '3' }, count: () => 2 }); assert.equal((await post(r)).status, 200) }
-  for (const bad of ['0', '101', '-1', 'x', '5.5', '']) { const r = mk({ env: { ...EXTRACT_ENV, STUDIO_BRAND_EXTRACT_DAILY_CAP: bad }, count: () => 10 }); assert.equal((await post(r)).status, 429, `a bad cap setting ${JSON.stringify(bad)} is the default 10`) }
+  for (const bad of ['0', '101', '-1', 'x', '5.5', '0x5', '1e1', '']) { const r = mk({ env: { ...EXTRACT_ENV, STUDIO_BRAND_EXTRACT_DAILY_CAP: bad }, count: () => 10 }); assert.equal((await post(r)).status, 429, `a bad cap setting ${JSON.stringify(bad)} is the default 10`); const r2 = mk({ env: { ...EXTRACT_ENV, STUDIO_BRAND_EXTRACT_DAILY_CAP: bad }, count: () => 6 }); assert.equal((await post(r2)).status, 200, `and ${JSON.stringify(bad)} is not read as a smaller cap`) }
   { const r = mk({ count: () => { throw new Error('db down') } }); const res = await post(r); assert.equal(res.status, 503, 'a count that cannot be read: 503'); assert.equal(r.calls.fetch.length, 0, 'and the paid call is not made (fails closed)') }
   // the one request: exactly Content-Type and X-API-Key, to the configured Theme Builder, with the file's bytes
   for (const [label, type, body, address] of [['png', 'image/png', PNG, UAT_TB], ['jpeg', 'image/jpeg', JPEG, `${UAT_TB}/`]]) {
     const r = mk({ env: { ...EXTRACT_ENV, NEXT_PUBLIC_THEME_BUILDER_URL: address } })
-    const res = await post(r, { body, headers: { 'content-type': type, cookie: 'session=abc', authorization: 'Bearer client-token', 'x-forwarded-for': '203.0.113.9', 'x-mr-user': 'someone', 'x-api-key': 'client-supplied', 'user-agent': 'x', 'x-deckster-entitlement': 'client' } })
+    const res = await post(r, { body, headers: { 'content-type': type, cookie: 'session=abc', authorization: 'Bearer client-token', 'x-forwarded-for': '203.0.113.9', 'x-mr-user': 'someone', 'x-user-id': 'evil', 'x-deckster-user': 'evil', 'x-api-key': 'client-supplied', 'user-agent': 'x', 'x-deckster-entitlement': 'client' } })
     assert.equal(res.status, 200, label); assert.equal(r.calls.fetch.length, 1, `${label}: ONE call to Theme Builder`)
     const { url, init } = r.calls.fetch[0]
     assert.equal(url, `${UAT_TB}/api/theme/v2/brand-extract`, `${label}: the configured UAT host and Theme Builder's path`)
@@ -327,7 +330,11 @@ async function extractChecks(texts = {}) {
     assert.ok(Buffer.from(init.body).equals(body), `${label}: the body is the file's raw bytes (not multipart, not base64)`)
     assert.equal(res.headers.get('cache-control'), 'no-store', `${label}: no-store`)
     assert.ok(!JSON.stringify(await bodyOf(res)).includes(KEY), `${label}: the key is not in the answer`)
+    deepEqual(r.calls.records[0], ['brand_extract', 'user', USER_ID], `${label}: the slot is the SESSION's user's, whatever a header says`); assert.equal(r.calls.counts[0].subject, USER_ID)
   }
+  // the answer is Theme Builder's, CLEANED: upper-case hexes lowercased, an unknown key and a control character gone, the extra text never passed on
+  { const dirty = clone(TB_OK); dirty.theme_payload.primary_hex = '#0047AB'; dirty.preview.source_colors.primary_hex = '#0047AB'; dirty.extra = LEAK; dirty.theme_payload.extra = LEAK; dirty.preview.extra = LEAK; dirty.preview.warnings = [`fine\u0000 ${'x'.repeat(400)}`]
+    const r = mk({ upstream: () => ({ status: 200, body: dirty }) }); const out = await bodyOf(await post(r)); assert.equal(out.json.theme_payload.primary_hex, '#0047ab', 'lowercased'); assert.ok(!out.text.includes(LEAK), 'an unknown key is not passed on'); assert.ok(!out.text.includes('\\u0000') && out.json.preview.warnings[0].length === 300, 'a warning is plain text and bounded') }
   // the answer: Theme Builder's, cleaned: originals untouched, derived roles apart
   { const r = mk(); const res = await post(r); const { json } = await bodyOf(res)
     deepEqual(json.theme_payload, { mode: 'custom', primary_hex: '#0047ab', secondary_hex: '#d62828', tertiary_hex: '#f2b400', font_family_heading: 'Lora', font_family: 'Lato' }, 'theme_payload is the originals and the two catalog fonts, nothing else')
@@ -358,6 +365,12 @@ async function extractChecks(texts = {}) {
 
 // ---- the brand proxy -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 const BRAND_ENV = { ...ENV_ON, DIRECTOR_API_URL: UAT_DIRECTOR, DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED: 'true', DIRECTOR_WS_AUTH_SECRET: SECRET }
+const RECORD_REFUSED = [
+  ['an unknown key', { footer: 'x', colour: '#ffffff' }], ['a colour key (colours never go in this record)', { primary_hex: '#0047ab' }], ['a role colour', { footer: 'x', primary: '#0047ab' }], ['an http logo', { logo_url: 'http://cdn.example.test/logo.png' }], ['a javascript logo', { logo_url: 'javascript:alert(1)' }],
+  ['a data logo', { logo_url: 'data:image/png;base64,AAAA' }], ['a logo with credentials', { logo_url: 'https://user:pw@cdn.example.test/logo.png' }], ['a logo with a space', { logo_url: 'https://cdn.example.test/a b.png' }], ['a logo over 2048', { logo_url: `https://cdn.example.test/${'a'.repeat(2048)}` }],
+  ['a footer over 200', { footer: 'x'.repeat(201) }], ['a confidentiality over 120', { confidentiality: 'x'.repeat(121) }], ['a footer that is not text', { footer: 5 }], ['a font outside the catalog', { heading_font: 'Comic Sans MS' }], ['a font in the wrong case', { body_font: 'lato' }],
+  ['another placement', { placement: 'bottom_left' }], ['an array', ['footer']], ['a string', 'footer'], ['null', null], ['a control character', { footer: 'a\u0000b' }], ['a control character in a confidentiality line', { confidentiality: 'a\u0007b' }],
+]
 const brandCall = (r, method, { id = 't-1', url = `http://localhost/api/themes/${id}/brand`, body, headers = {} } = {}) => r.world.load(BRAND)[method](req(url, { method, body, headers }), { params: Promise.resolve({ id }) })
 const DIRECTOR_BRAND = { id: 't-1', brand: { logo_url: 'https://cdn.example.test/logo.png', placement: 'top_right', footer: 'Acme Corp', confidentiality: 'Confidential', heading_font: 'Lora', body_font: 'Lato' } }
 async function brandChecks(texts = {}) {
@@ -379,18 +392,14 @@ async function brandChecks(texts = {}) {
   { const r = mk(); const res = await put(r, { logo_url: ' https://cdn.example.test/logo.png ', footer: '  Acme   Corp ', confidentiality: 'Confidential', heading_font: 'Lora', body_font: 'Lato', placement: 'top_right' }); assert.equal(res.status, 200)
     const { url, init } = r.calls.fetch[0]; assert.equal(url, `${UAT_DIRECTOR}/api/users/${USER_ID}/themes/t-1/brand`); assert.equal(init.method, 'PUT'); assert.equal(init.headers['Content-Type'], 'application/json'); readEntitlement(headerOf(init), { sub: USER_ID, method: 'PUT' })
     deepEqual(JSON.parse(init.body), { logo_url: 'https://cdn.example.test/logo.png', placement: 'top_right', footer: 'Acme Corp', confidentiality: 'Confidential', heading_font: 'Lora', body_font: 'Lato' }, 'the record is cleaned and in Director\'s order') }
-  const refused = [
-    ['an unknown key', { footer: 'x', colour: '#ffffff' }], ['a colour key (colours never go in this record)', { primary_hex: '#0047ab' }], ['a role colour', { footer: 'x', primary: '#0047ab' }], ['an http logo', { logo_url: 'http://cdn.example.test/logo.png' }], ['a javascript logo', { logo_url: 'javascript:alert(1)' }],
-    ['a data logo', { logo_url: 'data:image/png;base64,AAAA' }], ['a logo with credentials', { logo_url: 'https://user:pw@cdn.example.test/logo.png' }], ['a logo with a space', { logo_url: 'https://cdn.example.test/a b.png' }], ['a logo over 2048', { logo_url: `https://cdn.example.test/${'a'.repeat(2048)}` }],
-    ['a footer over 200', { footer: 'x'.repeat(201) }], ['a confidentiality over 120', { confidentiality: 'x'.repeat(121) }], ['a footer that is not text', { footer: 5 }], ['a font outside the catalog', { heading_font: 'Comic Sans MS' }], ['a font in the wrong case', { body_font: 'lato' }],
-    ['another placement', { placement: 'bottom_left' }], ['an array', ['footer']], ['a string', 'footer'], ['null', null], ['a control character', { footer: 'a\u0000b' }],
-  ]
+  const refused = RECORD_REFUSED
   for (const [label, body] of refused) { const r = mk(); const res = await put(r, JSON.stringify(body)); assert.equal(res.status, 422, `${label}: 422`); assert.equal((await bodyOf(res)).json.code, 'invalid_brand'); assert.equal(r.calls.fetch.length, 0, `${label}: nothing reaches Director`) }
   { const r = mk(); const res = await put(r, 'not json'); assert.equal(res.status, 400); assert.equal(r.calls.fetch.length, 0) }
   { const r = mk(); const res = await put(r, JSON.stringify({ footer: 'x', pad: 'y'.repeat(9000) })); assert.equal(res.status, 413); assert.equal(r.calls.fetch.length, 0) }
   // an empty record would CLEAR the kit: refused unless the call says so
   for (const body of [{}, { footer: '', logo_url: '' }, { footer: '   ' }]) { const r = mk(); const res = await put(r, body); assert.equal(res.status, 400, `${JSON.stringify(body)}: refused`); assert.equal((await bodyOf(res)).json.code, 'clear_refused'); assert.equal(r.calls.fetch.length, 0) }
   { const r = mk({ upstream: () => ({ status: 200, body: { id: 't-1', brand: null } }) }); const res = await put(r, {}, { url: 'http://localhost/api/themes/t-1/brand?clear=1' }); assert.equal(res.status, 200); assert.equal(r.calls.fetch[0].init.body, '{}', 'an explicit clear sends {}') }
+  for (const q of ['clear=0', 'clear=true', 'clear=', 'clear=11', 'Clear=1']) { const r = mk(); const res = await put(r, {}, { url: `http://localhost/api/themes/t-1/brand?${q}` }); assert.equal(res.status, 400, `?${q} is not a clear`); assert.equal(r.calls.fetch.length, 0) }
   { const r = mk({ session: null }); const res = await put(r, { footer: 'x' }); assert.equal(res.status, 401); assert.equal(r.calls.fetch.length, 0) }
   { const denied = Response.json({ error: 'account_pending_approval' }, { status: 403 }); const r = mk({ approved: denied }); const res = await put(r, { footer: 'x' }); assert.equal(res.status, 403); assert.equal(r.calls.fetch.length, 0) }
   // Director's refusals, in Studio's codes (BK-C15), never in Director's text
@@ -425,9 +434,10 @@ function libChecks(texts = {}, env = {}) {
   // the file
   deepEqual(lib.checkBrandExtractFile({ type: 'image/png', size: 1000 }), { ok: true, mime: 'image/png' }); deepEqual(lib.checkBrandExtractFile({ type: 'image/jpeg', size: 4 * 1024 * 1024 }), { ok: true, mime: 'image/jpeg' })
   for (const [file, code] of [[{ type: 'image/gif', size: 5 }, 'type'], [{ type: 'image/svg+xml', size: 5 }, 'type'], [{ type: '', size: 5 }, 'type'], [{ type: 'image/png', size: 0 }, 'empty'], [{ type: 'image/png', size: 4 * 1024 * 1024 + 1 }, 'size'], [{ type: 'image/png' }, 'empty'], [null, 'type']]) deepEqual(lib.checkBrandExtractFile(file), { ok: false, code }, JSON.stringify(file))
+  for (const bytes of [[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x00], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1b, 0x0a], [0x88, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], [0xff, 0xd8, 0x00], [0xff, 0xd9, 0xff]]) assert.equal(lib.sniffBrandImageMime(Uint8Array.from(bytes)), null, `${bytes.join(',')} is not an image`)
   assert.equal(lib.sniffBrandImageMime(PNG), 'image/png'); assert.equal(lib.sniffBrandImageMime(JPEG), 'image/jpeg'); assert.equal(lib.sniffBrandImageMime(Buffer.from('GIF89a....')), null); assert.equal(lib.sniffBrandImageMime(new Uint8Array(0)), null)
   // Theme Builder's answer
-  const parsed = lib.parseBrandExtract(clone(TB_OK))
+  const parsed = lib.parseBrandExtract(clone(TB_OK)); assert.ok(parsed, 'the sample answer reads')
   deepEqual(parsed.theme_payload, TB_OK.theme_payload, 'the originals are Theme Builder\'s hexes, unchanged'); deepEqual(parsed.preview.source_colors, TB_OK.preview.source_colors); deepEqual(parsed.preview.role_colors, ROLES); assert.equal(parsed.preview.contrast_checks.length, 8)
   deepEqual(lib.failingContrast(parsed).map(c => c.foreground_role), ['tertiary_hex'], 'only the row that fails AA fails'); deepEqual(parsed.brand, { heading_font: 'Lora', body_font: 'Lato' })
   for (const key of ['primary_hex', 'secondary_hex', 'tertiary_hex']) assert.notEqual(parsed.theme_payload[key], undefined)
@@ -437,7 +447,8 @@ function libChecks(texts = {}, env = {}) {
   const oddOut = lib.parseBrandExtract(odd); assert.ok(!('font_family' in oddOut.theme_payload) && !('body_font' in oddOut.brand), 'a font outside the 8-family catalog is dropped'); assert.equal(oddOut.preview.warnings[0], 'fine'); assert.equal(oddOut.preview.warnings.length, 2); assert.equal(oddOut.preview.warnings[1].length, 300); assert.ok(!('primary' in oddOut.preview.role_colors), 'a role colour that is not a hex is dropped'); assert.equal(oddOut.preview.contrast_checks.length, 9, 'a bad role name and an out-of-range ratio are dropped')
   assert.equal(oddOut.preview.contrast_checks.at(-1).passes_aa, false, 'passes_aa is the ratio against 4.5, not a flag from outside'); const claimed = clone(TB_OK); claimed.preview.contrast_checks[7].passes_aa = true; assert.equal(lib.parseBrandExtract(claimed).preview.contrast_checks[7].passes_aa, false)
   for (const bad of [null, 'x', [], {}, { theme_payload: null }, { theme_payload: { mode: 'preset', primary_hex: '#000000' } }, { theme_payload: { mode: 'custom' } }, { theme_payload: { mode: 'custom', primary_hex: '#12' } }, { ...clone(TB_OK), preview: { ...clone(TB_OK).preview, source_colors: { secondary_hex: '#000000' } } }]) assert.equal(lib.parseBrandExtract(bad), null, JSON.stringify(bad)?.slice(0, 60))
-  // the brand record
+  // the brand record: every case the proxy refuses, the pure check refuses too
+  for (const [label, body] of RECORD_REFUSED) assert.equal(lib.validateBrandRecord(body).ok, false, `validateBrandRecord refuses ${label}`)
   const ok = r => { const c = lib.validateBrandRecord(r); assert.equal(c.ok, true, JSON.stringify(r)); return c.record }
   deepEqual(ok({ body_font: 'Lato', footer: ' a  b ', logo_url: 'https://x.test/a.png', placement: 'top_right' }), { logo_url: 'https://x.test/a.png', placement: 'top_right', footer: 'a b', body_font: 'Lato' }, 'Director\'s order, text cleaned'); deepEqual(ok({}), {}); deepEqual(ok({ logo_url: '', footer: '' }), {}, 'an empty string is absent')
   assert.equal(lib.cleanBrandLogoUrl('https://user@x.test/a.png'), undefined); assert.equal(lib.cleanBrandLogoUrl('https://'), undefined); assert.equal(lib.cleanBrandLogoUrl(`https://x.test/${'a'.repeat(2030)}`) !== undefined, true, 'under 2,048 is fine'); assert.equal(lib.cleanBrandLogoUrl('//x.test/a.png'), undefined); assert.equal(lib.cleanBrandLogoUrl('HTTPS://X.TEST/a.png'), 'HTTPS://X.TEST/a.png', 'the scheme is case-insensitive (as Director reads it)')

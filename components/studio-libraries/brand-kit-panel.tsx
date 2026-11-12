@@ -149,7 +149,7 @@ export function BrandProposalView({ result, draft, confirmed, fontsApplied, onUs
   const hasFonts = Boolean(heading || body)
   return <div className="sl-bk-proposal" data-brand-kit-proposal={confirmed ? 'confirmed' : 'preview'}>
     <h4>{BRAND_COPY.suggestedHeading}</h4>
-    <p className="sl-helper">{BRAND_COPY.suggestedNote}</p>
+    <p className="sl-helper">{confirmed ? BRAND_COPY.suggestedNoteUsed : BRAND_COPY.suggestedNote}</p>
     <ul className="sl-bk-list" aria-label={BRAND_COPY.suggestedHeading}>
       {BRAND_COLOUR_KEYS.filter(key => result.theme_payload[key]).map(key => {
         const original = result.theme_payload[key] as string

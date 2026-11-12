@@ -320,6 +320,7 @@ export const BRAND_COPY = {
   cancel: 'Cancel',
   suggestedHeading: 'Suggested colours',
   suggestedNote: 'Suggested by AI from your image. Nothing in your draft has changed yet.',
+  suggestedNoteUsed: 'Suggested by AI from your image. These colours are now in your draft; colours you edited are marked.',
   derivedHeading: 'How Studio will draw them',
   derivedNote: 'Derived display colours, for your information. They are never saved, and your colours are never adjusted.',
   useColours: 'Use these colours',
