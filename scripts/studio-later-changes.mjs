@@ -92,6 +92,9 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-voice-core-strip.mjs')).VOICE_CORE_SCOPE_FILES, // LATER-CHANGE: ELEMENT-3, pure Director voice core (NEXT_PUBLIC_STUDIO_VOICE_CALL)
   ...(await import('./studio-voice-call-strip.mjs')).VOICE_CALL_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, W6 P4-20 voice call UI: the call button, the docked companion, push-to-talk, the router speech contract (NEXT_PUBLIC_STUDIO_VOICE_CALL / _VOICE_COMPANION)
   ...(await import('./studio-agent-mode-shell-strip.mjs')).AGENT_MODE_SHELL_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B69 agent mode shell: Studio's build-mode picker and the Agent build cards, new files only, nothing mounted (NEXT_PUBLIC_AGENT_MODE / NEXT_PUBLIC_AUTHOR_MODE_PICKER)
+  ...(await import('./studio-page-consistency-strip.mjs')).PAGE_CONSISTENCY_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, UX-07 / UX-10 Billing and Settings on the Studio shell, one create label (NEXT_PUBLIC_STUDIO_PAGE_CONSISTENCY)
+  ...(await import('./studio-restack-ux-pc-proofs-strip.mjs')).RESTACK_UX_PC_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, restack of FRONTEND-1's page consistency: older proofs read the later changes right after the merge onto newer dev (tests only)
+  ...(await import('./studio-billing-l5-strip.mjs')).BILLING_L5_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B67 L-BILLING Studio half: Plan & credits UI, F3 entitlement push, F4 meter receiver; new files only, owners' lines are drafts (NEXT_PUBLIC_STUDIO_BILLING_PLANS / STUDIO_ROUTER_ENTITLEMENTS_PUSH / STUDIO_METER_RECEIVER_ENABLED)
   ...(await import('./studio-avatar-spawn-strip.mjs')).AVATAR_SPAWN_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B66 AVATAR-SPAWN: the Studio 'Create my avatar' create / pick / delete mock at /studio/companions, new files only, no network (NEXT_PUBLIC_STUDIO_AVATAR_SPAWN)
   // one line per later change, above this comment
 ])
@@ -152,6 +155,8 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-voice-core-strip.mjs')).VOICE_CORE_ENV_BLOCK, // LATER-CHANGE: ELEMENT-3, Director voice opt-in
   (await import('./studio-voice-call-strip.mjs')).VOICE_CALL_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, W6 P4-20 voice call UI (NEXT_PUBLIC_STUDIO_VOICE_COMPANION; the call flag's own line is ELEMENT-3's)
   (await import('./studio-agent-mode-shell-strip.mjs')).AGENT_MODE_SHELL_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B69 agent mode shell (NEXT_PUBLIC_AGENT_MODE / NEXT_PUBLIC_AUTHOR_MODE_PICKER)
+  (await import('./studio-page-consistency-strip.mjs')).PAGE_CONSISTENCY_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, UX-07 / UX-10 page consistency (NEXT_PUBLIC_STUDIO_PAGE_CONSISTENCY)
+  (await import('./studio-billing-l5-strip.mjs')).BILLING_L5_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B67 L-BILLING Studio half (NEXT_PUBLIC_STUDIO_BILLING_PLANS / STUDIO_ROUTER_ENTITLEMENTS_PUSH / STUDIO_METER_RECEIVER_ENABLED / METER_RECEIVER_MODE / ROUTER_ENTITLEMENTS_API_KEY / METER_WEBHOOK_SECRET)
   (await import('./studio-avatar-spawn-strip.mjs')).AVATAR_SPAWN_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B66 AVATAR-SPAWN (NEXT_PUBLIC_STUDIO_AVATAR_SPAWN)
   // one line per later change, above this comment
 ]
@@ -226,6 +231,9 @@ export const LATER_STRIPS = [
   (await import('./studio-voice-core-strip.mjs')).stripVoiceCore, // LATER-CHANGE: ELEMENT-3, voice port compatibility pin
   (await import('./studio-voice-call-strip.mjs')).stripVoiceCall, // LATER-CHANGE: FRONTEND-1, W6 P4-20 voice call UI (NEXT_PUBLIC_STUDIO_VOICE_CALL)
   (await import('./studio-agent-mode-shell-strip.mjs')).stripAgentModeShell, // LATER-CHANGE: FRONTEND-2, B69 agent mode shell (NEXT_PUBLIC_AGENT_MODE)
+  (await import('./studio-page-consistency-strip.mjs')).stripPageConsistency, // LATER-CHANGE: FRONTEND-1, UX-07 / UX-10 page consistency (NEXT_PUBLIC_STUDIO_PAGE_CONSISTENCY)
+  (await import('./studio-restack-ux-pc-proofs-strip.mjs')).stripRestackUxPc, // LATER-CHANGE: FRONTEND-2, restack of FRONTEND-1's page consistency: older proofs read the later changes right after the merge onto newer dev (tests only)
+  (await import('./studio-billing-l5-strip.mjs')).stripBillingL5, // LATER-CHANGE: FRONTEND-2, B67 L-BILLING Studio half (NEXT_PUBLIC_STUDIO_BILLING_PLANS / STUDIO_ROUTER_ENTITLEMENTS_PUSH / STUDIO_METER_RECEIVER_ENABLED)
   (await import('./studio-avatar-spawn-strip.mjs')).stripAvatarSpawn, // LATER-CHANGE: FRONTEND-2, B66 AVATAR-SPAWN (NEXT_PUBLIC_STUDIO_AVATAR_SPAWN)
   // one line per later change, above this comment
 ]

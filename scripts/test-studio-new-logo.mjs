@@ -22,6 +22,7 @@ import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import ts from 'typescript'
 import { sameOrTolerant, stackFileTolerant, stackScope } from './studio-stack-tolerant.mjs'
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (RESTACK-UX-PC): the later changes' lines come out of every file this proof reads
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
@@ -32,7 +33,7 @@ const postcss = nodeRequire('postcss')
 const BASE_COMMIT = process.env.STUDIO_NEW_LOGO_BASE || '661b5b6dd398b3660e4775769b485b36b052498b'
 // The head of this change's own PR (#488), frozen: `git diff --name-only BASE_COMMIT OWN_HEAD` is what the change touches, however many PRs were merged on top of it since.
 const OWN_HEAD = process.env.STUDIO_NEW_LOGO_HEAD || '1f1f8fe7567ba919b6f93441a0c54f383816ed32'
-const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
+const read = rel => stripLaterChanges(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')) // LATER-CHANGES: registry read (RESTACK-UX-PC): the later changes' lines are read out first, innermost
 function baseSource(rel) {
   try {
     execFileSync('git', ['cat-file', '-e', `${BASE_COMMIT}^{commit}`], { cwd: repoRoot, stdio: 'ignore' })
