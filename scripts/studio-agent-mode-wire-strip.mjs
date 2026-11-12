@@ -10,6 +10,9 @@
 //     marked mode "voice" into "standard" (last line). Same pattern: marked pure insertions, [has, was] pairs; with the flags off none of it acts.
 //   - STANDARD IS SAID OUT LOUD (PK ruling, 12 Nov: "both yes"): Director's Agent opt-in is sticky (saved with the session; only an explicit "standard" clears it) and Studio does not read it back, so after a reload a typed send or a click with the picker on Standard (the key was left out)
 //     could still run Agent. On a plan that can hold the opt-in (Pro, Max) a build send with the picker on Standard now carries build_mode "standard" (typedBuildMode, one marked line: the ref the four build sends read); the other plans and the flags off: no key, as today.
+//   - RESET TO STANDARD (PK ruling, 12 Nov): when an Agent run finishes the picker goes back to Standard (agentFinishedRun / agentPickerAfterRun in the pure lib, one marked effect on the page and one marked ref). "Finishes" is the reducer's terminal states, done and failed (a refusal
+//     before admission is a failed run); "stopped" is not over (the run can be resumed) and does not count. Once, on the move to a finished run: never on mount, never again for the same finished run, and a pick made afterwards stays. The next send on Pro and Max then says "standard"
+//     (typedBuildMode), which clears the opt-in Director holds. The first message of a session already carries the picker's mode: it is the typed send of handleSendMessage's unsaved-session branch, one of the four sends that read the ref (nothing to add; the proof pins it).
 // Every line this change adds to an EXISTING file carries the marker AGENT-MODE-WIRE (matched as a whole token). In the hook and the Builder page all of them are pure insertions: NO base line is rewritten (older proofs hold every base line of the page and the hook, in order), so the strip
 // is a list of [has, was] pairs with was = '': putting each pair back gives the file at STACK_BASE (#607's head) byte for byte. The new files (a lib, this strip, a proof) have no base text.
 //   - #607's OWN files, edited in place (PK ruling, 11 Nov: the A1 estimate card is information, not a gate, because the Agent send is the spend click; FRONTEND-2, #607's owner, OK'd the substance): lib/studio-agent-mode.ts (the words), the estimate card, the run cards' mount, the shared button's
@@ -66,6 +69,7 @@ export const AGENT_MODE_WIRE_EDITS = {
     ["  const agentVoiceModeRef = useRef<BuildMode | undefined>(undefined) // AGENT-MODE-WIRE: the build_mode a build send that came from the voice call carries (PK ruling: voice never starts Agent); written each render, never \"agent\"\n", ""],
     ["  const agentCardsRef = useRef<HTMLDivElement>(null) // AGENT-MODE-WIRE: the cards in the chat, to bring a new one into view\n", ""],
     ["  const agentSessionRef = useRef<string | null>(null) // AGENT-MODE-WIRE: the last session the page showed, to tell a move to another session from the first save of a new chat\n", ""],
+    ["  const agentFinishedRef = useRef<string | null>(null) // AGENT-MODE-WIRE: the id of the finished run (done or failed) the page saw last; null at the start, so a page that mounts or reloads idle resets nothing (the picker goes back to Standard when a run finishes, not before)\n", ""],
     ["  const agentPlan = agentPlanOf(user?.tier) // AGENT-MODE-WIRE: the plan the signed-in session carries (read from the database, not from a frame); one that is not free / starter / pro / premium is null, and null keeps Agent disabled\n", ""],
     ["  const buildModeWire = STUDIO_AGENT_MODE_ENABLED ? buildModeOnWire(buildMode, { plan: agentPlan, previous: buildModeFrom }) : undefined // AGENT-MODE-WIRE: the picker's build_mode on the wire (undefined: Standard, and no other was ever picked; the two refs below turn it into the key a typed send and a voice send carry); with the flags off it is undefined and every frame is today's\n", ""],
     ["  agentBuildModeRef.current = STUDIO_AGENT_MODE_ENABLED ? typedBuildMode(buildModeWire, agentPlan) : undefined // AGENT-MODE-WIRE: read at send time by the four build sends below (typed message, outline accept), so a pick is on the very next request and a closure never holds an old mode; PK ruling (12 Nov): Standard on a plan that can have an Agent opt-in (Pro, Max) is sent as an explicit \"standard\" (Director's opt-in is sticky and the picker starts on Standard after a reload), the other plans leave the key out\n", ""],
@@ -75,6 +79,12 @@ export const AGENT_MODE_WIRE_EDITS = {
     ["    if (agentSessionChanged(agentSessionRef.current, currentSessionId)) { dispatchAgentRun(AGENT_WIRE_RESET); setBuildMode('standard'); setBuildModeFrom(undefined) } // AGENT-MODE-WIRE\n", ""],
     ["    agentSessionRef.current = currentSessionId ?? agentSessionRef.current // AGENT-MODE-WIRE\n", ""],
     ["  }, [currentSessionId]) // AGENT-MODE-WIRE\n", ""],
+    ["  useEffect(() => { // AGENT-MODE-WIRE: PK ruling (12 Nov), reset to Standard: when an Agent run finishes (done or failed; a refusal is a failed run; a stopped run is not over, it can be resumed) the picker goes back to Standard, once, on that move only (never on mount); a pick made afterwards stays\n", ""],
+    ["    if (!STUDIO_AGENT_MODE_ENABLED) return // AGENT-MODE-WIRE\n", ""],
+    ["    const finishedBefore = agentFinishedRef.current // AGENT-MODE-WIRE\n", ""],
+    ["    agentFinishedRef.current = agentFinishedRun(agentRun) // AGENT-MODE-WIRE\n", ""],
+    ["    setBuildMode(mode => agentPickerAfterRun(finishedBefore, agentRun, mode)) // AGENT-MODE-WIRE: on Pro and Max the next send then says \"standard\" (typedBuildMode), which clears the Agent opt-in Director holds\n", ""],
+    ["  }, [agentRun]) // AGENT-MODE-WIRE\n", ""],
     ["  const agentCardsViewKey = agentCardsKey(agentRun) // AGENT-MODE-WIRE\n", ""],
     ["  useEffect(() => { if (STUDIO_AGENT_MODE_ENABLED && agentCardsViewKey) agentCardsRef.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }) }, [agentCardsViewKey]) // AGENT-MODE-WIRE: a card that appears or changes (the estimate, a spend check, a failure) is brought into view; a run's steps and totals are not\n", ""],
     ["    sendAgentAnswer, // AGENT-MODE-WIRE\n", ""],
@@ -90,7 +100,7 @@ export const AGENT_MODE_WIRE_EDITS = {
     ["import { AgentRunCards } from '@/components/builder/agent-mode/agent-run-cards' // AGENT-MODE-WIRE\n", ""],
     ["import { BuildModePicker } from '@/components/builder/agent-mode/build-mode-picker' // AGENT-MODE-WIRE\n", ""],
     ["import { STUDIO_AGENT_MODE_ENABLED, agentPlanOf, buildModeOnWire, initialAgentRunState, type BuildMode } from '@/lib/studio-agent-mode' // AGENT-MODE-WIRE\n", ""],
-    ["import { AGENT_WIRE_CONTROL_MARK, AGENT_WIRE_COPY, AGENT_WIRE_RESET, agentCardsKey, agentRunBusy, agentSessionChanged, agentWireReducer, answerAgentCard, typedBuildMode, voiceBuildMode, voiceOriginatedSend } from '@/lib/studio-agent-mode-wire' // AGENT-MODE-WIRE\n", ""],
+    ["import { AGENT_WIRE_CONTROL_MARK, AGENT_WIRE_COPY, AGENT_WIRE_RESET, agentCardsKey, agentFinishedRun, agentPickerAfterRun, agentRunBusy, agentSessionChanged, agentWireReducer, answerAgentCard, typedBuildMode, voiceBuildMode, voiceOriginatedSend } from '@/lib/studio-agent-mode-wire' // AGENT-MODE-WIRE\n", ""],
   ],
 }
 

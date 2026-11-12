@@ -33,6 +33,10 @@
 //  H5. STANDARD IS SAID OUT LOUD (PK ruling, 12 Nov: "both yes"): Director's Agent opt-in is sticky (saved with the session; a message without build_mode leaves it, only an explicit "standard" clears it) and Studio does not read it back, so after a reload the picker
 //     is on Standard while the session may still hold an opt-in. On Pro and Max (Agent flags on) every build send with the picker on Standard (the four sends the page's two handlers make: a typed send, an outline accept, a card's button) carries build_mode "standard"
 //     explicitly, and the hook puts it on the message as it is; Agent picked: "agent"; Author: as it was; a voice send: "standard" (H2); Free, Starter and a plan that is not loaded, and each flag off: no key, byte for byte as before;
+//  J. RESET TO STANDARD and THE FIRST MESSAGE (PK rulings, 12 Nov). J1: when an Agent run finishes (the reducer's terminal states: done, and failed, a refusal before admission included) the picker goes back to Standard; "stopped" is not over (it can be resumed) and does not count; once, on that
+//     move only: never on mount or reload, never again for the same finished run, a pick made afterwards stays; Author and Standard are left alone; the next send on Pro and Max then says "standard" and a session that held an Agent opt-in holds none (H5's model of Director's latch);
+//     flags off, and Free / Starter / a plan not loaded: nothing. J2: the first message (handleSendMessage's unsaved-session branch, run from the page's own lines, and the other two typed sends) carries build_mode inside data, exactly "agent" for a picked Agent on Pro and Max,
+//     "standard" for Standard, no key on Free / Starter / an unloaded plan / each flag off (byte for byte the message without the line), "standard" for a voice first message. Director's reading is cited at the top of J (websocket.py:2762 / :3254 / :3550, agent_mode.py:147).
 //  I. mutants: each is one edit of the real sources, fed to the same checks, and must be caught.
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
@@ -702,6 +706,216 @@ function standardSaidChecks(texts = {}) {
   const hook = texts[HOOK] ?? read(HOOK); assert.equal(count(hook, "build_mode = 'standard'"), 1, 'the hook adds no other place that decides a build_mode (its one voice line is H1\'s)'); assert.equal(count(hook, 'build_mode: options.buildMode'), 1, 'and puts the page\'s mode on the message as it is, once')
 }
 
+// ============================================================================================================================================
+// J. RESET TO STANDARD and THE FIRST MESSAGE (PK rulings, 12 Nov)
+// ============================================================================================================================================
+// RESET TO STANDARD: when an Agent run finishes the picker returns to Standard. "Finishes" is the reducer's terminal states (TERMINAL in lib/studio-agent-mode.ts): done and failed, a refusal before admission (daily_cap, tier, has_content, run_exists: a fresh run_id, no
+// estimate) included. "Stopped" does NOT count: it is not final (an A3 stop or an A4 skip keeps the run open, Resume takes it back to running, the picker is off while it is), so the mode never changes under it, and a resumed run that finishes resets then. Once, on the move TO a
+// finished run: never on mount (the page starts idle, the ref starts null), never again for the frames of the same finished run that follow (an answered A6 card), and a pick made afterwards stays. Since Standard on Pro and Max is sent out loud (H5), the next send after the reset is
+// "standard", and Director's sticky Agent opt-in (src/utils/agent_mode.py latch_build_mode: a message without build_mode leaves it, only an explicit "standard" clears it) is gone.
+// THE FIRST MESSAGE (PK ruling: "FRONTEND-1 adds it to #621"): on Pro and Max with the agent flags on, a person who picked Agent sends the brief, the first message of the session, with build_mode "agent". Director's reading (director-agent1-d6, read-only): handle_user_message
+// takes message_data = data.get('payload', {}) or data.get('data', {}) (src/handlers/websocket.py:2762), msg_data_ext = message_data (:3254), calls agent_mode.latch_build_mode(self, websocket, session, msg_data_ext) (:3550) which reads message.get(author_mode.CONTEXT_KEY)
+// (src/utils/agent_mode.py:147, CONTEXT_KEY = "build_mode", src/utils/author_mode.py:80), lowercases it and latches "agent" (agent_mode.py:28 MODE). So the wire shape is { type: 'user_message', data: { ..., build_mode: 'agent' } }: a key INSIDE data, never top level, a lowercase
+// string. The first message of a new chat is handleSendMessage's unsaved-session branch (the page creates the session, then sendTypedTurn), one of the four sends that read the ref: it carried the key before this ruling, and these checks run that branch's own lines to pin it.
+const ENV_AUTHOR = { ...ENV_VOICE, NEXT_PUBLIC_AUTHOR_MODE_PICKER: 'true' }
+const FINISH_FROM = 'useEffect(() => { // AGENT-MODE-WIRE: PK ruling (12 Nov), reset to Standard', FINISH_TO = '}, [agentRun]) // AGENT-MODE-WIRE'
+const FINISH = text => lineBlock(text, FINISH_FROM, FINISH_TO)
+/** The option object of one typed send of handleSendMessage: from the first `sendTypedTurn({` after the anchor to its closing `})`. `action`: a pending action's text; `first`: the first message of an unsaved (new) session; `resumed`: a message in a session that exists. */
+const SEND_ANCHORS = { action: 'const { action, messageId, timestamp } = submittedAction', first: "console.log('Database session created:', dbSession.id)", resumed: '// Deliver FIRST, then commit to the UI.' }
+function sendLiteral(page, branch) {
+  const lines = page.split('\n'), a = lines.findIndex(l => l.includes(SEND_ANCHORS[branch])); assert.ok(a >= 0, `${branch}: the page has the anchor ${JSON.stringify(SEND_ANCHORS[branch].slice(0, 50))}`)
+  const s = lines.findIndex((l, i) => i > a && /sendTypedTurn\(\{$/.test(l)); assert.ok(s > a, `${branch}: a sendTypedTurn call follows the anchor`)
+  const indent = /^\s*/.exec(lines[s])[0], e = lines.findIndex((l, i) => i > s && l === `${indent}})`); assert.ok(e > s, `${branch}: the call closes`)
+  return `{\n${lines.slice(s + 1, e).join('\n')}\n}`
+}
+const SEND_BRANCHES = ['action', 'first', 'resumed']
+/**
+ * The Builder page, as far as the picker, the run card, the session and a send go: the page's REAL marked lines, run one event at a time over a model of its state (a React state is a variable, an effect runs after the run state changed, as after a render).
+ * `mode` / `from` are the picker's state (buildMode, buildModeFrom), `run` the run card's (the wire's reducer), `finished` the effect's ref, `session` the session effect's ref.
+ */
+function pageSim({ env = ENV_VOICE, texts = {}, plan = 'pro' } = {}) {
+  const rig = voiceRig({ env, texts }), page = texts[PAGE] ?? read(PAGE), wireText = texts[WIRE] ?? read(WIRE)
+  const sim = {
+    rig, plan, mode: 'standard', from: undefined, run: rig.lib.initialAgentRunState(), finished: { current: null }, session: { current: null },
+    /** The finish effect, as the page runs it after a render in which the run state changed (and once on mount). */
+    effect() {
+      let fn = null
+      runFragment(FINISH(page), ['useEffect', 'STUDIO_AGENT_MODE_ENABLED', 'agentFinishedRef', 'agentFinishedRun', 'agentPickerAfterRun', 'agentRun', 'setBuildMode'])(
+        f => { fn = f }, rig.lib.STUDIO_AGENT_MODE_ENABLED, sim.finished, rig.wire.agentFinishedRun, rig.wire.agentPickerAfterRun, sim.run, update => { sim.mode = update(sim.mode) })
+      fn(); return sim
+    },
+    mount() { return sim.effect() },
+    /** A frame from Director (or the person's local answer) for the page's reducer, then the effects. */
+    frame(f) { sim.run = rig.wire.agentWireReducer(sim.run, f); return sim.effect() },
+    /** The picker's chips as drawn now, from the page's real picker line (empty when it is not mounted). */
+    chips() {
+      const p = pagePicker({ env, text: page, wireText, plan, state: sim.run, buildMode: sim.mode })
+      return p === null ? [] : elements(p.element, el => el.props?.['data-build-mode']).map(b => ({ mode: b.props['data-build-mode'], pressed: b.props['aria-pressed'], disabled: b.props.disabled }))
+    },
+    /** A click on a chip: false when it is off (a disabled button takes no click), else the picker's real onChange. */
+    pick(mode) {
+      const p = pagePicker({ env, text: page, wireText, plan, state: sim.run, buildMode: sim.mode })
+      if (p === null) return false
+      const chip = elements(p.element, el => el.props?.['data-build-mode'] === mode)[0]
+      if (!chip || chip.props.disabled) return false
+      chip.props.onClick(); p.spies.from.forEach(v => { sim.from = v }); p.spies.mode.forEach(v => { sim.mode = v }); return true
+    },
+    /** The page's session effect for a move to `next` (null: a new chat), then the finish effect. */
+    move(next) {
+      const e = pageSessionEffect({ env, text: page, wireText, previous: sim.session.current, next })
+      for (const [kind, v] of e.calls) { if (kind === 'dispatch') sim.run = rig.wire.agentWireReducer(sim.run, v); else if (kind === 'mode') sim.mode = v; else sim.from = v }
+      sim.session.current = e.ref; return sim.effect()
+    },
+    /** One send through one of handleSendMessage's three typed branches (its real option object, the real entry line, the hook's real lines); `bus`: as pageSend. */
+    send(branch, words, bus = null, over = {}) {
+      const refs = renderRefs(rig, { buildMode: sim.mode, plan, previous: sim.from })
+      if (bus !== LEAVE_BUS) { rig.ui.disarmVoiceTurn(); if (bus !== null) rig.ui.armVoiceTurn(bus) }
+      const literal = (over.literal ?? sendLiteral)(page, branch)
+      const run = runFragment(`${rig.L.entrySend}\nreturn (${literal})`, ['STUDIO_AGENT_MODE_ENABLED', 'voiceOriginatedSend', 'agentVoiceModeRef', 'agentBuildModeRef', 'messageText', 'researchEnabled', 'webSearchEnabled', 'extendedGenerationEnabled', 'canUseKnowledgeGraph', 'knowledgeGraphEnabled', 'sessionStoreName', 'action', 'buildSendOptions', 'turnContext'])
+      const options = JSON.parse(JSON.stringify(run(rig.lib.STUDIO_AGENT_MODE_ENABLED, rig.wire.voiceOriginatedSend, refs.agentVoiceModeRef, refs.agentBuildModeRef, words, false, false, true, false, false, null, { value: 'accept_plan', label: 'Yes' }, {}, undefined)))
+      const data = hookMessage(rig, options, words)
+      return { options, data, frame: { type: 'user_message', data } }
+    },
+    first(words, bus = null, over = {}) { return sim.send('first', words, bus, over) },
+  }
+  return sim
+}
+const BRIEF = 'Build an 8-slide Q3 product review and roadmap deck for the leadership team.', LATE = "Yes, let's build it!"
+const noKey = (data, why) => { assert.equal('build_mode' in data, false, `${why}: no build_mode key`); assert.equal(/build_mode|"agent"|"standard"/.test(JSON.stringify(data)), false, `${why}: nothing on the message names a build mode`) }
+
+function pickerResetChecks(texts = {}) {
+  const page = texts[PAGE] ?? read(PAGE), wireText = texts[WIRE] ?? read(WIRE)
+  const lib = load(LIB, { env: ENV_ON }), wire = load(WIRE, { env: ENV_ON, texts: { [WIRE]: wireText } })
+  const NEXT = 'agr_ba9876543210', THIRD = 'agr_cc1122334455'
+  const step = wireFrame('agent_step'), done = wireFrame('agent_done'), failed = wireFrame('agent_failed')
+  const stepAs = status => wireFrame('agent_step', { run_status: status })
+  const pressed = sim => sim.chips().filter(c => c.pressed).map(c => c.mode), allOff = sim => sim.chips().every(c => c.disabled === true)
+  // the source: one ref that starts null, one effect that depends on the run state and only sets the mode; it sends nothing and keeps the explicit-reset memory
+  const block = FINISH(page)
+  assert.equal(count(page, 'const agentFinishedRef = useRef<string | null>(null) // AGENT-MODE-WIRE'), 1, 'one ref, which starts null (a page that mounts, or reloads, idle has nothing to reset)')
+  assert.match(block, /\}, \[agentRun\]\) \/\/ AGENT-MODE-WIRE$/, 'the effect runs when the run state changes'); assert.equal(count(block, 'setBuildMode('), 1, 'it sets the mode once'); assert.match(block, /setBuildMode\(mode => agentPickerAfterRun\(finishedBefore, agentRun, mode\)\)/, 'through the lib\'s function, from the mode as it is NOW (a pick made meanwhile is not lost)')
+  assert.doesNotMatch(block, /sendAgentAnswer|sendMessage|sendBuildControl|\.send\(|socket|fetch\(|dispatchAgentRun|setBuildModeFrom|setTimeout|setInterval|answerAgentCard/, 'the effect sends nothing, answers nothing, and keeps the memory of a pick (setBuildModeFrom: the explicit reset)')
+  assert.match(block, /^\s*if \(!STUDIO_AGENT_MODE_ENABLED\) return \/\/ AGENT-MODE-WIRE$/m, 'gated by the one constant')
+  assert.equal(count(page, 'agentPickerAfterRun('), 1); assert.equal(count(page, 'agentFinishedRun('), 1); assert.match(lineWith(page, "from '@/lib/studio-agent-mode-wire'"), /\bagentFinishedRun\b.*\bagentPickerAfterRun\b|\bagentPickerAfterRun\b.*\bagentFinishedRun\b/, 'both imported from the wire lib')
+  const lines = page.split('\n'), at = needle => { const i = lines.findIndex(l => l.includes(needle)); assert.ok(i >= 0, needle); return i }
+  assert.ok(at('React.useReducer(agentWireReducer') < at(FINISH_FROM) && at("const [buildMode, setBuildMode] = useState<BuildMode>('standard')") < at(FINISH_FROM), 'the state it reads and sets is declared above it'); assert.ok(at('}, [currentSessionId]) // AGENT-MODE-WIRE') < at(FINISH_FROM), 'it comes after the session effect')
+
+  // 1. Pro and Max: Agent picked, the first message, a run that goes through every live state (an estimate, running, a spend check, a research offer, paused, STOPPED, resumed): the picker holds Agent (and is off); then DONE: Standard
+  for (const plan of ['pro', 'premium']) {
+    const sim = pageSim({ texts, plan }); sim.mount()
+    assert.equal(sim.mode, 'standard', `${plan}: mounted on Standard (nothing reset anything)`); deepEqual(pressed(sim), ['standard'])
+    sim.mount(); assert.equal(sim.mode, 'standard', `${plan}: an effect that runs twice on mount (StrictMode) changes nothing`)
+    assert.equal(sim.pick('agent'), true); assert.equal(sim.mode, 'agent'); assert.equal(sim.from, 'agent'); deepEqual(pressed(sim), ['agent'])
+    assert.equal(sim.first(BRIEF).data.build_mode, 'agent', `${plan}: the first message carries Agent`)
+    for (const [label, f] of [['an estimate', estimateNow()], ['running', step], ['a spend check (A3)', wireFrame('agent_checkpoint')], ['a research offer (A4)', wireFrame('agent_research_offer')], ['paused', stepAs('paused')], ['STOPPED', stepAs('stopped')], ['a stopped run\'s A4 skip answered', lib.agentAnswered({ runId: RUN, card: 'A4', choice: 'skip' })], ['resumed', stepAs('running')]]) {
+      sim.frame(f); assert.equal(sim.mode, 'agent', `${plan}, ${label}: the picker is still on Agent (the run is not over)`); deepEqual(pressed(sim), ['agent']); assert.equal(allOff(sim), true, `${plan}, ${label}: and off, a run is in progress`)
+    }
+    assert.equal(sim.run.status, 'running'); sim.frame(stepAs('stopped')); assert.equal(sim.run.status, 'stopped'); assert.equal(sim.mode, 'agent', `${plan}: a stopped run is NOT over: no reset (it can be resumed)`)
+    sim.frame(done); assert.equal(sim.run.status, 'done'); assert.equal(sim.mode, 'standard', `${plan}: DONE: the picker is back on Standard`); deepEqual(pressed(sim), ['standard']); assert.equal(sim.chips().every(c => c.disabled === false), true, `${plan}: and usable`)
+    assert.equal(sim.from, 'agent', `${plan}: the memory of the pick stays (going back to Standard is an explicit reset)`)
+    // the next send says "standard" out loud, so the opt-in Director holds is gone: a typed send in each branch, a card's button, a voice send
+    for (const branch of SEND_BRANCHES) { const w = sim.send(branch, 'make slide 3 punchier').data; assert.equal(w.build_mode, 'standard', `${plan}, ${branch}: the next send says "standard"`); assert.equal(latchBuildMode('agent', w), 'standard', `${plan}, ${branch}: a session that held an Agent opt-in holds none after it`); noAgent(w, `${plan} ${branch} after done`) }
+    assert.equal(pageSend(sim.rig, renderRefs(sim.rig, { buildMode: sim.mode, plan, previous: sim.from }), 'action', LATE, { bus: null }).buildMode, 'standard', `${plan}: a click on a card's button says "standard" too`)
+    const spoken = sim.send('resumed', 'yes go ahead', 'yes go ahead').data; assert.equal(spoken.build_mode, 'standard'); assert.equal(spoken.mode, 'voice')
+    // a pick made afterwards stays (the finished run is still on screen, its card answered or not: nothing finishes again)
+    assert.equal(sim.pick('agent'), true); sim.frame(done); sim.frame(wireFrame('agent_step')); sim.frame(lib.agentAnswered({ runId: RUN, card: 'A6', choice: 'stop' })); assert.equal(sim.mode, 'agent', `${plan}: a pick after the finish stays while nothing new finishes`)
+    // the next run: a new estimate (the picker is off), then it finishes: back to Standard again, once more
+    sim.frame(estimateNow({ run_id: NEXT })); assert.equal(sim.mode, 'agent'); assert.equal(allOff(sim), true); sim.frame(wireFrame('agent_step', { run_id: NEXT })); assert.equal(sim.mode, 'agent'); sim.frame(wireFrame('agent_done', { run_id: NEXT })); assert.equal(sim.run.runId, NEXT); assert.equal(sim.mode, 'standard', `${plan}: the second run finishing resets again`)
+  }
+
+  // 2. FAILED, with an estimate and steps before it; then the A6 card answered; a pick afterwards stays
+  for (const plan of ['pro', 'premium']) {
+    const sim = pageSim({ texts, plan }).mount(); sim.pick('agent'); sim.first(BRIEF)
+    sim.frame(estimateNow()); sim.frame(step); assert.equal(sim.mode, 'agent')
+    sim.frame(failed); assert.equal(sim.run.status, 'failed'); assert.equal(sim.mode, 'standard', `${plan}: FAILED: the picker is back on Standard`); deepEqual(pressed(sim), ['standard'])
+    assert.equal(sim.send('first', BRIEF).data.build_mode, 'standard', `${plan}: the next send says "standard"`); assert.equal(latchBuildMode('agent', sim.send('resumed', 'again').data), 'standard')
+    assert.equal(sim.pick('agent'), true); sim.frame(lib.agentAnswered({ runId: RUN, card: 'A6', choice: 'stop' })); assert.equal(sim.run.failure.answered, 'stop'); assert.equal(sim.mode, 'agent', `${plan}: answering the failed run's own card does not finish anything again: the pick stays`)
+  }
+
+  // 3. a refusal before admission has no estimate (the fixture: "A refusal before admission carries a fresh run_id"): idle, then failed. It is a failed run: the picker goes back to Standard; a second refusal after the first does too
+  for (const reason of ['daily_cap', 'tier', 'has_content', 'run_exists']) {
+    const sim = pageSim({ texts }).mount(); sim.pick('agent'); assert.equal(sim.first(BRIEF).data.build_mode, 'agent')
+    sim.frame({ type: 'agent_failed', payload: { run_id: NEXT, reason, charged_credits: 0, credited_back_credits: 0 } }); assert.equal(sim.run.status, 'failed', `${reason}: the card shows`); assert.equal(sim.mode, 'standard', `${reason}: a refusal is a failed run: the picker is back on Standard`)
+    assert.equal(sim.pick('agent'), true); sim.frame({ type: 'agent_failed', payload: { run_id: THIRD, reason, charged_credits: 0, credited_back_credits: 0 } }); assert.equal(sim.run.runId, THIRD); assert.equal(sim.mode, 'standard', `${reason}: the next run's refusal (another run id, after the finished one) resets again`)
+  }
+
+  // 4. stopped and then finished: the reset waits for the end
+  { const sim = pageSim({ texts }).mount(); sim.pick('agent'); sim.frame(estimateNow()); sim.frame(step); sim.frame(stepAs('stopped')); assert.equal(sim.mode, 'agent', 'stopped: the mode stays'); sim.frame(stepAs('running')); assert.equal(sim.mode, 'agent'); sim.frame(done); assert.equal(sim.mode, 'standard', 'a stopped run that was resumed and finished resets then') }
+
+  // 5. NEVER on mount or reload: a page that starts idle has nothing finished; a reloaded page is a new mount on Standard (nothing is kept, nothing is reset); an effect that runs again with the same state resets nothing
+  for (const plan of ['pro', 'premium']) {
+    const reloaded = pageSim({ texts, plan }).mount(); assert.equal(reloaded.mode, 'standard'); assert.equal(reloaded.finished.current, null, 'nothing finished at mount'); assert.equal(reloaded.send('first', BRIEF).data.build_mode, 'standard', `${plan}: a first message after a reload says "standard" (H5), nothing else`)
+    const idle = lib.initialAgentRunState(); for (const mode of ['agent', 'author', 'standard']) assert.equal(wire.agentPickerAfterRun(null, idle, mode), mode, `an idle page (mount) leaves ${mode} as it is`)
+    const sim = pageSim({ texts, plan }).mount(); sim.pick('agent'); sim.frame(done); assert.equal(sim.mode, 'standard'); sim.pick('agent'); sim.effect(); sim.effect(); assert.equal(sim.mode, 'agent', 'the same finished run seen again (an effect re-run, a re-render) resets nothing')
+  }
+  for (const [label, before, state, mode, want] of [
+    ['idle', null, lib.initialAgentRunState(), 'agent', 'agent'],
+    ['an estimate waiting', null, runOf(lib, [estimateNow()]), 'agent', 'agent'], ['running', null, runOf(lib, [estimateNow(), step]), 'agent', 'agent'], ['paused', null, runOf(lib, [estimateNow(), stepAs('paused')]), 'agent', 'agent'], ['stopped', null, runOf(lib, [estimateNow(), stepAs('stopped')]), 'agent', 'agent'],
+    ['done, not seen finished before', null, runOf(lib, [estimateNow(), done]), 'agent', 'standard'], ['failed, not seen finished before', null, runOf(lib, [estimateNow(), failed]), 'agent', 'standard'], ['done, another run was the finished one', 'agr_other', runOf(lib, [estimateNow(), done]), 'agent', 'standard'],
+    ['done, already seen finished', RUN, runOf(lib, [estimateNow(), done]), 'agent', 'agent'], ['failed, already seen finished', RUN, runOf(lib, [estimateNow(), failed]), 'agent', 'agent'],
+    ['done', null, runOf(lib, [estimateNow(), done]), 'standard', 'standard'], ['done', null, runOf(lib, [estimateNow(), done]), 'author', 'author'], ['failed', null, runOf(lib, [estimateNow(), failed]), 'author', 'author'],
+  ]) assert.equal(wire.agentPickerAfterRun(before, state, mode), want, `agentPickerAfterRun(${before}, ${label}, ${mode})`)
+  assert.equal(wire.agentFinishedRun(runOf(lib, [estimateNow(), done])), RUN); assert.equal(wire.agentFinishedRun(runOf(lib, [estimateNow(), failed])), RUN); for (const s of [lib.initialAgentRunState(), runOf(lib, [estimateNow()]), runOf(lib, [estimateNow(), step]), runOf(lib, [estimateNow(), stepAs('paused')]), runOf(lib, [estimateNow(), stepAs('stopped')])]) assert.equal(wire.agentFinishedRun(s), null, `${s.status}: not over`)
+
+  // 6. Author (its own flag) and Standard are not touched: the ruling is about Agent
+  { const sim = pageSim({ env: ENV_AUTHOR, texts }).mount(); assert.equal(sim.pick('author'), true); sim.frame(done); assert.equal(sim.mode, 'author', 'Author stays on Author when a run finishes'); const std = pageSim({ env: ENV_AUTHOR, texts }).mount(); std.frame(done); assert.equal(std.mode, 'standard') }
+
+  // 7. a plan without Agent: the picker cannot hold it, nothing to reset, and no key is ever sent
+  for (const plan of ['free', 'starter', null, 'enterprise']) {
+    const sim = pageSim({ texts, plan }).mount(); assert.equal(sim.pick('agent'), false, `plan ${plan}: Agent cannot be picked`); sim.frame(estimateNow()); sim.frame(done); assert.equal(sim.mode, 'standard')
+    for (const branch of SEND_BRANCHES) noKey(sim.send(branch, 'build it').data, `plan ${plan} ${branch}, after a run`)
+  }
+
+  // 8. another session: the run, the cards and the mode are cleared by the session effect (as before); a finished run of the old session does not reset the new session's pick
+  { const sim = pageSim({ texts }).mount(); sim.move('A'); sim.pick('agent'); sim.frame(estimateNow()); sim.frame(step); sim.frame(done); assert.equal(sim.mode, 'standard'); sim.pick('agent'); sim.move('B'); assert.equal(sim.run.status, 'idle', 'another session: the run is cleared'); assert.equal(sim.mode, 'standard', 'and the pick'); assert.equal(sim.finished.current, null, 'and the finished memory goes with the run'); assert.equal(sim.pick('agent'), true); sim.frame(estimateNow({ run_id: NEXT })); sim.frame(wireFrame('agent_done', { run_id: NEXT })); assert.equal(sim.mode, 'standard', 'the new session\'s own run finishing resets again') }
+
+  // 9. each flag off: the effect does nothing (the mode as it is) and the function changes nothing
+  for (const [name, off] of Object.entries(ENV_OFF)) {
+    const sim = pageSim({ env: { ...off, NEXT_PUBLIC_STUDIO_VOICE_CALL: 'true' }, texts }); assert.equal(sim.rig.lib.STUDIO_AGENT_MODE_ENABLED, false, `${name}: off`)
+    sim.mode = 'agent'; sim.mount(); sim.frame(estimateNow()); sim.frame(done); assert.equal(sim.mode, 'agent', `${name}: the effect does nothing`); assert.equal(sim.finished.current, null, `${name}: it does not even note the run`)
+    assert.equal(sim.rig.wire.agentPickerAfterRun(null, runOf(sim.rig.lib, [estimateNow(), done]), 'agent'), 'agent', `${name}: the function leaves the mode as it is`)
+  }
+  assert.equal(pageSim({ texts }).mount().frame(done).mode, 'standard', 'on, the same lines act (the positive control)')
+}
+
+/** The three typed sends of handleSendMessage, the first message of a new chat among them. */
+function firstMessageChecks(texts = {}) {
+  const page = texts[PAGE] ?? read(PAGE), hook = texts[HOOK] ?? read(HOOK)
+  // the wire shape, Director's reading: build_mode is a key INSIDE data (the same level as text and store_name), written once, by the hook, from the page's option; a lowercase string
+  const hl = hook.split('\n'), msg = hl.findIndex(l => l.includes('const message: UserMessage = {')), end = hl.findIndex((l, i) => i > msg && l === '      };'), spreadAt = hl.findIndex(l => l.includes('...(options?.buildMode && { build_mode: options.buildMode }), // AGENT-MODE-WIRE'))
+  assert.ok(msg > 0 && end > msg && spreadAt > msg && spreadAt < end, 'the key is written inside the user message literal')
+  assert.equal(hl[msg + 1].trim(), "type: 'user_message',"); assert.equal(hl[msg + 2].trim(), 'data: {'); const dataIndent = /^\s*/.exec(hl[msg + 3])[0]; assert.equal(hl[msg + 3].trim(), 'text,'); assert.equal(/^\s*/.exec(hl[spreadAt])[0], dataIndent, 'the key sits in data (at the same level as text), not at the top level of the frame'); assert.ok(/^\s*/.exec(hl[msg + 1])[0].length < dataIndent.length)
+  assert.equal(count(hook, 'build_mode: options.buildMode'), 1, 'one writer of the key'); assert.match(hook, /build_mode\?: 'standard' \| 'author' \| 'agent'; \/\/ AGENT-MODE-WIRE/, 'typed as the three modes Director reads (lowercase)')
+  // where: each of the three typed branches carries the page's ref right after the shared options (the first message of a new chat is the second), before manualDeck
+  for (const branch of SEND_BRANCHES) { const lit = sendLiteral(page, branch).split('\n').map(l => l.trim()), i = lit.indexOf('...buildSendOptions,'); assert.ok(i > 0, `${branch}: spreads the shared options`); assert.equal(lit[i + 1], ATTACH_LINE, `${branch}: carries the build mode right after them`); assert.equal(lit[i + 2], 'manualDeck: turnContext?.manualDeck,', `${branch}: and before the manual deck`) }
+  const lines = page.split('\n'), firstAt = lines.findIndex(l => l.includes(SEND_ANCHORS.first)), unsavedAt = lines.findIndex(l => l.includes('if (isUnsavedSession) {')); assert.ok(unsavedAt > 0 && unsavedAt < firstAt, 'the first-message branch is the one inside `if (isUnsavedSession)`: a new chat creates its session, then sends the brief with its mode')
+  // the values, for the first message of a new chat and the other two typed sends
+  for (const branch of SEND_BRANCHES) for (const plan of ['pro', 'premium']) {
+    const agent = pageSim({ texts, plan }).mount(); assert.equal(agent.pick('agent'), true)
+    const w = agent.send(branch, BRIEF); assert.equal(w.options.buildMode, 'agent', `${plan} ${branch}: the page hands the hook "agent"`); assert.equal(w.frame.data.build_mode, 'agent', `${plan} ${branch}: Agent picked: build_mode "agent" in data`); assert.equal(w.data.mode, undefined, `${plan} ${branch}: a typed turn`)
+    assert.equal((JSON.stringify(w.frame).match(/"build_mode"/g) ?? []).length, 1, `${plan} ${branch}: the key once`); assert.equal(JSON.stringify(w.frame).includes('"build_mode":"agent"'), true)
+    const std = pageSim({ texts, plan }).mount(); assert.equal(std.send(branch, BRIEF).data.build_mode, 'standard', `${plan} ${branch}: Standard, never touched: "standard" (a first message after a reload clears a sticky opt-in)`)
+    const back = pageSim({ texts, plan }).mount(); back.pick('agent'); back.pick('standard'); assert.equal(back.send(branch, BRIEF).data.build_mode, 'standard', `${plan} ${branch}: back to Standard before sending: "standard"`)
+    // voice: the first message by voice (the words armed on the bus): "standard", never "agent", marked voice
+    const voice = agent.send(branch, BRIEF, BRIEF); assert.equal(voice.data.build_mode, 'standard', `${plan} ${branch}: a voice message carries "standard"`); assert.equal(voice.data.mode, 'voice'); noAgent(voice.data, `${plan} ${branch} voice`)
+  }
+  // a plan without Agent, a plan not loaded, an unknown plan: no key at all, Agent picked or not
+  for (const branch of SEND_BRANCHES) for (const plan of ['free', 'starter', null, 'enterprise']) {
+    const sim = pageSim({ texts, plan }).mount(); sim.pick('agent'); sim.mode === 'standard' || assert.fail('Agent cannot be picked')
+    for (const bus of [null, BRIEF]) noKey(sim.send(branch, BRIEF, bus).data, `plan ${plan} ${branch} ${bus === null ? 'typed' : 'voice'}`)
+    sim.mode = 'agent'; sim.from = 'agent'; noKey(sim.send(branch, BRIEF).data, `plan ${plan} ${branch}: even if a stale pick were held`)
+  }
+  // each flag off: no key, and the message is byte for byte the one without the page's attach line
+  for (const [name, off] of Object.entries(ENV_OFF)) for (const branch of SEND_BRANCHES) for (const plan of ['pro', 'premium']) {
+    const sim = pageSim({ env: { ...off, NEXT_PUBLIC_STUDIO_VOICE_CALL: 'true' }, texts, plan }); assert.equal(sim.rig.lib.STUDIO_AGENT_MODE_ENABLED, false); sim.mode = 'agent'; sim.from = 'agent'; assert.equal(sim.rig.wire.typedBuildMode(undefined, plan), undefined, `${name} ${plan}: the lib leaves Standard's key out with the flags off`)
+    const w = sim.send(branch, BRIEF); noKey(w.data, `${name} ${plan} ${branch}`)
+    const base = sim.send(branch, BRIEF, null, { literal: (p, b) => sendLiteral(p, b).split('\n').filter(l => l.trim() !== ATTACH_LINE).join('\n') }); assert.equal(JSON.stringify(w.frame), JSON.stringify(base.frame), `${name} ${plan} ${branch}: byte for byte the message without the line`)
+    for (const bus of [BRIEF]) noKey(sim.send(branch, BRIEF, bus).data, `${name} ${plan} ${branch} voice`)
+  }
+  // a new chat: Agent picked before the first message; the first save assigns the session (null to an id: not a move), so the mode is still there for the next message; a move to another session clears it
+  { const sim = pageSim({ texts }).mount(); sim.pick('agent'); const first = sim.first(BRIEF); assert.equal(first.data.build_mode, 'agent'); sim.move('A'); assert.equal(sim.mode, 'agent', 'the first save of a new chat is not a move'); assert.equal(sim.send('resumed', 'and add a pricing slide').data.build_mode, 'agent'); sim.move('B'); assert.equal(sim.mode, 'standard', 'another session starts on Standard'); assert.equal(sim.first(BRIEF).data.build_mode, 'standard') }
+}
+
 class FakeClock {
   constructor() { this.t = 100000; this.timers = new Map(); this.id = 1 }
   now() { return this.t }
@@ -931,6 +1145,8 @@ await check('H2. a voice accept / a voice-originated send (the picker on Agent, 
 await check('H3. the same lines with each flag off: no mode held, no key sent (voice or typed), the hook\'s line does nothing; on, it acts', () => voiceFlagsOffChecks())
 await check('H4. THROUGH THE REAL CALL: a spoken yes to the plan card and a spoken turn (the real controller, a fake microphone and speech route) put a voice user message on the wire with "standard" (no key below Pro), the click and the typed send beside it carry Agent', () => voiceAcceptChecks())
 await check('H5. STANDARD IS SAID OUT LOUD: with the picker on Standard (a page just loaded, or back from Agent) Pro and Max send build_mode "standard" on a typed send and on a card\'s button, and a session that held an Agent opt-in holds none; Free, Starter, an unknown plan and each flag off send no key; Agent picked sends "agent", Author "author", a voice send "standard"', () => standardSaidChecks())
+await check('J1. RESET TO STANDARD: when an Agent run finishes (done, failed, a refusal before admission) the picker goes back to Standard, once, on that move only: a stopped run is not over (no reset), never on mount or reload, never again for the same finished run, a pick afterwards stays; Author and Standard are left alone; the next send on Pro and Max says "standard" (a sticky Agent opt-in is cleared); Free, Starter, an unloaded plan and each flag off: nothing', () => pickerResetChecks())
+await check('J2. THE FIRST MESSAGE: the first message of a new chat (handleSendMessage\'s unsaved-session branch, and the other two typed sends) carries build_mode inside data: "agent" for a picked Agent on Pro and Max, "standard" for Standard, no key below Pro / unloaded / each flag off (byte for byte), "standard" for a voice first message', () => firstMessageChecks())
 await check('F1. the sources: every line this change adds to the hook and the page carries the marker and is a pure insertion (no base line rewritten or removed); #607\'s four files and its proof, edited in place, have every changed line marked and paired; the strip puts #607\'s head back byte for byte (two app files, #607\'s files and proof, two older proofs); .env.example untouched', () => sourceChecks())
 await check('F2. the registry: two marked lines (files, strips) after #607\'s (in order: changes restacked between them are fine) and at the true end of their lists, none in the env list, nothing lost, nothing gained but registered lines; read through it the hook and the page are the base\'s', () => registryChecks())
 await check('F3. A KEEP-BOTH RESTACK (the changes queued ahead of this one, #600 / #606 / #605, put their registry lines and their subject filters in the same places, before this change\'s): the registry checks and the older-proof checks still pass, the base read through the other strips', () => restackChecks())
@@ -1035,7 +1251,7 @@ await wireMutant('the wire lib fetches', "export const AGENT_WIRE_RESET = 'agent
 
 // no Agent start from voice (H): each is one edit of the real sources, fed to every H check (the paths, the wire, the flags, the real call)
 const TEXT0 = { [PAGE]: PAGE_TEXT, [HOOK]: HOOK_TEXT, [WIRE]: WIRE_TEXT }, text0 = rel => TEXT0[rel] ?? read(rel)
-const voiceMutant = (label, rel, from, to) => mutant(`voice: ${label}`, async () => { const texts = { [rel]: swap(text0(rel), from, to) }; voiceInventoryChecks(texts); voiceChecks(texts); voiceFlagsOffChecks(texts); standardSaidChecks(texts); await voiceAcceptChecks(texts) })
+const voiceMutant = (label, rel, from, to) => mutant(`voice: ${label}`, async () => { const texts = { [rel]: swap(text0(rel), from, to) }; voiceInventoryChecks(texts); voiceChecks(texts); voiceFlagsOffChecks(texts); standardSaidChecks(texts); await voiceAcceptChecks(texts); firstMessageChecks(texts); pickerResetChecks(texts) })
 const GUARD_LINE = lineWith(HOOK_TEXT, "message.data.build_mode === 'agent') message.data.build_mode = 'standard'"), VOICE_FIELDS_LINE = lineWith(HOOK_TEXT, 'addVoiceCallFields(message.data as unknown as Record<string, unknown>, text); // VOICE-CALL')
 const ENTRY_SEND = 'STUDIO_AGENT_MODE_ENABLED && voiceOriginatedSend(messageText) ? agentVoiceModeRef : agentBuildModeRef', ENTRY_ACTION = 'STUDIO_AGENT_MODE_ENABLED && voiceOriginatedSend(action.label) ? agentVoiceModeRef : agentBuildModeRef'
 // the page: the two handlers' entry lines, the voice ref, the four sends
@@ -1052,7 +1268,7 @@ await voiceMutant('the voice ref is never written (it stays empty: no reset of a
 await voiceMutant('the voice ref ignores the plan', PAGE, 'voiceBuildMode(buildModeWire, agentPlan)', "voiceBuildMode(buildModeWire, 'pro')")
 for (const ind of ['          ', '              ', '        ', '            ']) await voiceMutant(`the ${ind.length}-space build send reads the picker's ref, unguarded`, PAGE, `${ind}...buildSendOptions,\n${ind}...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE\n`, `${ind}...buildSendOptions,\n${ind}...(agentBuildModeRef.current ? { buildMode: agentBuildModeRef.current } : {}), // AGENT-MODE-WIRE\n`)
 // Standard is said out loud (H5): each is one edit of the real sources, fed to the H5 checks and the voice checks that read the same lines
-const standardMutant = (label, rel, from, to) => mutant(`standard: ${label}`, () => { const texts = { [rel]: swap(text0(rel), from, to) }; standardSaidChecks(texts); voiceChecks(texts); voiceFlagsOffChecks(texts) })
+const standardMutant = (label, rel, from, to) => mutant(`standard: ${label}`, () => { const texts = { [rel]: swap(text0(rel), from, to) }; standardSaidChecks(texts); voiceChecks(texts); voiceFlagsOffChecks(texts); firstMessageChecks(texts); pickerResetChecks(texts) })
 const TYPED_BODY = "if (!STUDIO_AGENT_MODE_ENABLED || wire !== undefined) return wire\n  return agentEligible(plan) ? 'standard' : undefined", TYPED_REF = 'agentBuildModeRef.current = STUDIO_AGENT_MODE_ENABLED ? typedBuildMode(buildModeWire, agentPlan) : undefined'
 // the wire lib
 await standardMutant('Standard omits the key (the reload gap: a sticky Agent opt-in stays)', WIRE, TYPED_BODY, 'return wire')
@@ -1154,6 +1370,53 @@ await mutant('scope: a stray file in a commit fails the scope check, a commit me
   assert.fail('caught (the scope check is the real tree\'s and passed; the failures above were each expected)')
 })
 await mutant('fixture: a reformatted contract fixture is not the contract the lines are cited from', () => { const lines = FIXTURE_TEXT.split('\n'); lines.splice(10, 0, ''); const shifted = lines.join('\n').split('\n'); assert.match(shifted[CITED.answerBlock - 1], /^  "answer": \{/, 'the cited line is where the answer block is') })
+
+// J. RESET TO STANDARD and THE FIRST MESSAGE (PK rulings, 12 Nov): each is one edit (or two that go together) of the real sources, fed to J's own checks
+const editedTexts = edits => { const texts = {}; for (const [rel, from, to] of edits) texts[rel] = swap(texts[rel] ?? text0(rel), from, to); return texts }
+const resetMutant = (label, ...edits) => mutant(`reset: ${label}`, () => pickerResetChecks(editedTexts(edits)))
+const firstMutant = (label, ...edits) => mutant(`first message: ${label}`, () => firstMessageChecks(editedTexts(edits)))
+const AFTER_RUN = "return STUDIO_AGENT_MODE_ENABLED && finished !== null && finished !== before && mode === 'agent' ? 'standard' : mode", FINISHED_RUN = '(agentRunOver(state) ? state.runId : null)'
+const FIN_SET = 'setBuildMode(mode => agentPickerAfterRun(finishedBefore, agentRun, mode))', FIN_REF = '    agentFinishedRef.current = agentFinishedRun(agentRun) // AGENT-MODE-WIRE\n', FIN_BEFORE = 'const finishedBefore = agentFinishedRef.current', FIN_GUARD = '    if (!STUDIO_AGENT_MODE_ENABLED) return // AGENT-MODE-WIRE\n    const finishedBefore'
+await resetMutant('the picker never goes back to Standard', [WIRE, AFTER_RUN, 'return mode'])
+await resetMutant('the picker goes back to "agent" (the wrong mode)', [WIRE, "&& mode === 'agent' ? 'standard' : mode", "&& mode === 'agent' ? 'agent' : mode"])
+await resetMutant('only a DONE run resets (a failed one leaves Agent picked)', [WIRE, FINISHED_RUN, "(state.status === 'done' ? state.runId : null)"])
+await resetMutant('only a FAILED run resets (a finished one leaves Agent picked)', [WIRE, FINISHED_RUN, "(state.status === 'failed' ? state.runId : null)"])
+await resetMutant('a STOPPED run counts as finished (it can be resumed: the mode changes under it)', [WIRE, FINISHED_RUN, "(agentRunOver(state) || state.status === 'stopped' ? state.runId : null)"])
+await resetMutant('a run that is only paused counts as finished', [WIRE, FINISHED_RUN, "(agentRunOver(state) || state.status === 'paused' ? state.runId : null)"])
+await resetMutant('an estimate that is waiting counts as finished', [WIRE, FINISHED_RUN, "(agentRunOver(state) || state.status === 'estimate' ? state.runId : null)"])
+await resetMutant('any run that has started resets the picker (it does not wait for the end)', [WIRE, FINISHED_RUN, "(state.status !== 'idle' ? state.runId : null)"])
+await resetMutant('it resets on mount (an idle page, no run at all)', [WIRE, AFTER_RUN, "return STUDIO_AGENT_MODE_ENABLED && (finished === null || finished !== before) && mode === 'agent' ? 'standard' : mode"])
+await resetMutant('it resets again for the frames of the same finished run (a pick afterwards is lost)', [WIRE, 'finished !== null && finished !== before &&', 'finished !== null &&'])
+await resetMutant('it resets for the first finished run only', [WIRE, 'finished !== before &&', 'before === null &&'])
+await resetMutant('it resets Author as well', [WIRE, "&& mode === 'agent' ? 'standard' : mode", "&& mode !== 'standard' ? 'standard' : mode"])
+await resetMutant('the flags do not gate it (the effect and the function)', [PAGE, FIN_GUARD, '    const finishedBefore'], [WIRE, 'return STUDIO_AGENT_MODE_ENABLED && finished !== null', 'return finished !== null'])
+await resetMutant('the page resets without the lib\'s rule (every state change)', [PAGE, FIN_SET, "setBuildMode('standard')"])
+await resetMutant('the page never notes the finished run (the same run resets on every change)', [PAGE, FIN_REF, ''])
+await resetMutant('the page notes the run before it asks (nothing is ever "new")', [PAGE, FIN_BEFORE, 'const finishedBefore = agentFinishedRun(agentRun)'])
+await resetMutant('the page sets the mode from a stale copy, not the mode as it is now', [PAGE, FIN_SET, 'setBuildMode(agentPickerAfterRun(finishedBefore, agentRun, buildMode))'])
+await resetMutant('the effect only runs once (it does not follow the run state)', [PAGE, '}, [agentRun]) // AGENT-MODE-WIRE', '}, []) // AGENT-MODE-WIRE'])
+await resetMutant('the effect answers a card', [PAGE, FIN_SET, "sendAgentAnswer({ runId: 'x', card: 'A1', choice: 'cancel' }); " + FIN_SET])
+await resetMutant('the effect forgets that Agent was picked (the explicit reset)', [PAGE, FIN_SET, 'setBuildModeFrom(undefined); ' + FIN_SET])
+// the first message: the page's own lines for each typed send, the hook's key, and the lib's rules, through the first-message checks
+const ATTACH = '...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE'
+const sendIndent = ind => `${ind}...buildSendOptions,\n${ind}${ATTACH}\n`
+await firstMutant('a new chat\'s first message carries no mode (the unsaved-session branch has no line)', [PAGE, sendIndent('              '), '              ...buildSendOptions,\n'])
+await firstMutant('a pending action\'s send carries no mode', [PAGE, sendIndent('          '), '          ...buildSendOptions,\n'])
+await firstMutant('a message in a session that exists carries no mode', [PAGE, sendIndent('        '), '        ...buildSendOptions,\n'])
+await firstMutant('a new chat\'s first message reads the picker\'s ref even for voice', [PAGE, sendIndent('              '), `              ...buildSendOptions,\n              ...(agentBuildModeRef.current ? { buildMode: agentBuildModeRef.current } : {}), // AGENT-MODE-WIRE\n`])
+await firstMutant('a new chat\'s first message always says "agent"', [PAGE, sendIndent('              '), `              ...buildSendOptions,\n              ...({ buildMode: 'agent' }), // AGENT-MODE-WIRE\n`])
+await firstMutant('a new chat\'s first message hands the hook the wrong key', [PAGE, sendIndent('              '), `              ...buildSendOptions,\n              ...(agentModeRef.current ? { build_mode: agentModeRef.current } : {}), // AGENT-MODE-WIRE\n`])
+await firstMutant('the hook writes the wrong key', [HOOK, '...(options?.buildMode && { build_mode: options.buildMode }), // AGENT-MODE-WIRE', '...(options?.buildMode && { buildMode: options.buildMode }), // AGENT-MODE-WIRE'])
+await firstMutant('the hook writes the key at the top level of the frame, beside type and data', [HOOK, '          ...(options?.buildMode && { build_mode: options.buildMode }), // AGENT-MODE-WIRE\n', ''], [HOOK, "        type: 'user_message',\n        data: {\n          text,\n", "        type: 'user_message',\n        ...(options?.buildMode && { build_mode: options.buildMode }), // AGENT-MODE-WIRE\n        data: {\n          text,\n"])
+await firstMutant('the hook writes the value in capitals', [HOOK, '...(options?.buildMode && { build_mode: options.buildMode }), // AGENT-MODE-WIRE', '...(options?.buildMode && { build_mode: String(options.buildMode).toUpperCase() }), // AGENT-MODE-WIRE'])
+await firstMutant('Standard on Pro leaves the key out (a first message after a reload keeps a sticky opt-in)', [WIRE, TYPED_BODY, 'return wire'])
+await firstMutant('Standard says "standard" on a free plan too', [WIRE, TYPED_BODY, "if (!STUDIO_AGENT_MODE_ENABLED || wire !== undefined) return wire\n  return 'standard'"])
+await firstMutant('Standard says "standard" for a plan that is not loaded', [WIRE, TYPED_BODY, "if (!STUDIO_AGENT_MODE_ENABLED || wire !== undefined) return wire\n  return plan === 'pro' || plan === 'premium' || plan === null ? 'standard' : undefined"])
+await firstMutant('the typed ref ignores the plan', [PAGE, 'typedBuildMode(buildModeWire, agentPlan)', "typedBuildMode(buildModeWire, 'pro')"])
+await firstMutant('the flags do not gate the lib\'s Standard', [WIRE, TYPED_BODY, "if (wire !== undefined) return wire\n  return agentEligible(plan) ? 'standard' : undefined"])
+await firstMutant('the voice ref follows the typed one (a voice first message would start Agent)', [PAGE, 'agentVoiceModeRef.current = STUDIO_AGENT_MODE_ENABLED ? voiceBuildMode(buildModeWire, agentPlan) : undefined', 'agentVoiceModeRef.current = agentBuildModeRef.current'])
+await firstMutant('handleSendMessage has no voice guard (a voice first message reads the picker)', [PAGE, ENTRY_SEND, 'agentBuildModeRef'])
+await firstMutant('the first save of a new chat is read as a move (Agent picked is lost before the next message)', [PAGE, 'agentSessionChanged(agentSessionRef.current, currentSessionId)', 'agentSessionRef.current !== currentSessionId'])
 
 console.log(`\n${failed.length ? 'FAILED' : 'PASS'}: ${passed} checks passed, ${failed.length} failed; ${caught} mutants caught, ${missed.length} missed${missed.length ? ` (${missed.join(' | ')})` : ''}`)
 process.exit(failed.length || missed.length ? 1 : 0)

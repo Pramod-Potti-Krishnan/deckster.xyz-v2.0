@@ -1,6 +1,6 @@
 // AGENT-MODE-WIRE (FRONTEND-1, stacked on #607 / AGENT-MODE-SHELL): the pure half of mounting the Agent build shell in the Studio. The Builder page owns the run-card state, the build mode and the plan; the socket hook routes the six agent frames and sends the one
 // answer; this file holds the parts that must be provable without React or a socket: the page's reducer (a frame goes to #607's reducer; a session change clears the run), when the picker is off, the one rule of an answer (only the open card, only on the live
-// socket, only on a click), the words of a failure, and the key that brings a new card into view. It adds nothing of its own to the wire: the frames and their names are #607's (lib/studio-agent-mode.ts, AGENT-1's fixture tests/fixtures/agent_frames_contract.json).
+// socket, only on a click), the words of a failure, the key that brings a new card into view, and when the picker goes back to Standard (a run that is over). It adds nothing of its own to the wire: the frames and their names are #607's (lib/studio-agent-mode.ts, AGENT-1's fixture tests/fixtures/agent_frames_contract.json).
 //
 // Gate: everything is behind NEXT_PUBLIC_AGENT_MODE "true" AND NEXT_PUBLIC_STUDIO_V4_SHELL "true" (#607's STUDIO_AGENT_MODE_ENABLED, the one constant, reused). With either off the page mounts nothing, the hook routes nothing and sends nothing, and the
 // functions here are never reached; the answer rule below refuses on its own too.
@@ -88,4 +88,22 @@ export function voiceBuildMode(wire: BuildMode | undefined, plan: AgentPlan | nu
 export function typedBuildMode(wire: BuildMode | undefined, plan: AgentPlan | null | undefined): BuildMode | undefined {
   if (!STUDIO_AGENT_MODE_ENABLED || wire !== undefined) return wire
   return agentEligible(plan) ? 'standard' : undefined
+}
+
+// ---- RESET TO STANDARD (PK ruling, 12 Nov) -------------------------------------------------------------------------------------------------------------------------------------------------------------
+// An Agent run is one paid job: when it is over, the picker goes back to Standard, so the next message is a plain build unless the person picks Agent again. On Pro and Max Standard is said out loud (typedBuildMode), so that next send also clears the opt-in Director
+// holds for the session (it is sticky, and only an explicit "standard" drops it).
+// "Over" is the reducer's own terminal states, done and failed (TERMINAL in lib/studio-agent-mode.ts: the two it takes no more frames for; agentRunOver above). A refusal before admission (daily_cap, tier, has_content, run_exists) is a failed run and counts, with or without an
+// estimate before it. "Stopped" does NOT count: it is not final, the run can be resumed (an A3 stop or an A4 skip keeps it open, Resume takes it back to running), and the picker is off while it is (agentRunBusy), so the mode never changes under it; a resumed run that
+// finishes resets then. It happens once, on the move TO a finished run: never on mount (the page starts idle), never again for the frames of the same finished run that follow (an answered A6 card), and a pick made afterwards stays until another run finishes.
+/** The id of the run that is over (done or failed), or null while there is none (idle, an estimate waiting, running, paused, stopped). */
+export const agentFinishedRun = (state: AgentRunState): string | null => (agentRunOver(state) ? state.runId : null)
+
+/**
+ * The picker's mode once the page's run state has changed. `before` is the finished run's id the page saw last (null from the start, so a page that mounts idle, or reloads, resets nothing); `mode` is what the picker holds. Agent goes back to Standard only when
+ * a run that was not already finished is finished now; Author and Standard are left as they are. Flags off: the mode as it is.
+ */
+export const agentPickerAfterRun = (before: string | null, state: AgentRunState, mode: BuildMode): BuildMode => {
+  const finished = agentFinishedRun(state)
+  return STUDIO_AGENT_MODE_ENABLED && finished !== null && finished !== before && mode === 'agent' ? 'standard' : mode
 }

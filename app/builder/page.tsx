@@ -699,6 +699,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const agentVoiceModeRef = useRef<BuildMode | undefined>(undefined) // AGENT-MODE-WIRE: the build_mode a build send that came from the voice call carries (PK ruling: voice never starts Agent); written each render, never "agent"
   const agentCardsRef = useRef<HTMLDivElement>(null) // AGENT-MODE-WIRE: the cards in the chat, to bring a new one into view
   const agentSessionRef = useRef<string | null>(null) // AGENT-MODE-WIRE: the last session the page showed, to tell a move to another session from the first save of a new chat
+  const agentFinishedRef = useRef<string | null>(null) // AGENT-MODE-WIRE: the id of the finished run (done or failed) the page saw last; null at the start, so a page that mounts or reloads idle resets nothing (the picker goes back to Standard when a run finishes, not before)
   const agentPlan = agentPlanOf(user?.tier) // AGENT-MODE-WIRE: the plan the signed-in session carries (read from the database, not from a frame); one that is not free / starter / pro / premium is null, and null keeps Agent disabled
   const [pendingManualDeckBuild, setPendingManualDeckBuild] = useState<PendingManualDeckBuild | null>(null)
   const [manualDeckHandoffBusy, setManualDeckHandoffBusy] = useState(false)
@@ -1973,6 +1974,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     if (agentSessionChanged(agentSessionRef.current, currentSessionId)) { dispatchAgentRun(AGENT_WIRE_RESET); setBuildMode('standard'); setBuildModeFrom(undefined) } // AGENT-MODE-WIRE
     agentSessionRef.current = currentSessionId ?? agentSessionRef.current // AGENT-MODE-WIRE
   }, [currentSessionId]) // AGENT-MODE-WIRE
+  useEffect(() => { // AGENT-MODE-WIRE: PK ruling (12 Nov), reset to Standard: when an Agent run finishes (done or failed; a refusal is a failed run; a stopped run is not over, it can be resumed) the picker goes back to Standard, once, on that move only (never on mount); a pick made afterwards stays
+    if (!STUDIO_AGENT_MODE_ENABLED) return // AGENT-MODE-WIRE
+    const finishedBefore = agentFinishedRef.current // AGENT-MODE-WIRE
+    agentFinishedRef.current = agentFinishedRun(agentRun) // AGENT-MODE-WIRE
+    setBuildMode(mode => agentPickerAfterRun(finishedBefore, agentRun, mode)) // AGENT-MODE-WIRE: on Pro and Max the next send then says "standard" (typedBuildMode), which clears the Agent opt-in Director holds
+  }, [agentRun]) // AGENT-MODE-WIRE
   const agentCardsViewKey = agentCardsKey(agentRun) // AGENT-MODE-WIRE
   useEffect(() => { if (STUDIO_AGENT_MODE_ENABLED && agentCardsViewKey) agentCardsRef.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }) }, [agentCardsViewKey]) // AGENT-MODE-WIRE: a card that appears or changes (the estimate, a spend check, a failure) is brought into view; a run's steps and totals are not
   // PASS2D A1 (flag NEXT_PUBLIC_STUDIO_COMPOSER_DRAFT, default off; lib/studio-composer-draft.ts): the unsent composer text is kept per session
@@ -8593,4 +8600,4 @@ import { BuilderQuotaRefusal } from '@/components/billing/builder-quota-refusal'
 import { AgentRunCards } from '@/components/builder/agent-mode/agent-run-cards' // AGENT-MODE-WIRE
 import { BuildModePicker } from '@/components/builder/agent-mode/build-mode-picker' // AGENT-MODE-WIRE
 import { STUDIO_AGENT_MODE_ENABLED, agentPlanOf, buildModeOnWire, initialAgentRunState, type BuildMode } from '@/lib/studio-agent-mode' // AGENT-MODE-WIRE
-import { AGENT_WIRE_CONTROL_MARK, AGENT_WIRE_COPY, AGENT_WIRE_RESET, agentCardsKey, agentRunBusy, agentSessionChanged, agentWireReducer, answerAgentCard, typedBuildMode, voiceBuildMode, voiceOriginatedSend } from '@/lib/studio-agent-mode-wire' // AGENT-MODE-WIRE
+import { AGENT_WIRE_CONTROL_MARK, AGENT_WIRE_COPY, AGENT_WIRE_RESET, agentCardsKey, agentFinishedRun, agentPickerAfterRun, agentRunBusy, agentSessionChanged, agentWireReducer, answerAgentCard, typedBuildMode, voiceBuildMode, voiceOriginatedSend } from '@/lib/studio-agent-mode-wire' // AGENT-MODE-WIRE
