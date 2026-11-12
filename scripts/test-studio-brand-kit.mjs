@@ -530,7 +530,7 @@ async function stateChecks(texts = {}, env = {}) {
     assert.deepEqual(await fst.runBrandSave(async () => assert.fail('sent'), withFonts, { logoUrl: '', footer: '', confidentiality: '' }), { kind: 'skipped' }, 'fonts alone are not a kit: nothing is sent') }
   for (const [code, retryable, kind] of [['unavailable', true, 'partial'], ['director_unreachable', true, 'partial'], ['entitlement', false, 'partial'], ['invalid_brand', false, 'partial'], ['kit_unavailable', false, 'unavailable'], ['theme_not_found', false, 'partial']]) {
     const log = []; const save = async (id, record) => { log.push(id); return { ok: false, status: 503, code } }
-    const out = await st.runBrandSave(save, THEME, { logoUrl: '', footer: 'Acme', confidentiality: '' }); assert.equal(out.kind, kind, code); if (kind === 'partial') { assert.equal(out.code, code); assert.equal(typeof out.retryable, 'boolean') } assert.equal(log.length, 1, `${code}: one PUT, no automatic retry`)
+    const out = await st.runBrandSave(save, THEME, { logoUrl: '', footer: 'Acme', confidentiality: '' }); assert.equal(out.kind, kind, code); if (kind === 'partial') { assert.equal(out.code, code); assert.equal(out.retryable, retryable, `${code}: retryable ${retryable}`) } assert.equal(log.length, 1, `${code}: one PUT, no automatic retry`)
     if (code === 'unavailable') assert.equal(out.retryable, true); if (code === 'theme_not_found') assert.equal(out.retryable, false, 'a theme that is gone is not retried')
   }
   { const out = await st.runBrandSave(async () => { throw new Error('x') }, THEME, { logoUrl: '', footer: 'Acme', confidentiality: '' }); assert.equal(out.kind, 'partial'); assert.equal(out.retryable, true) }
@@ -560,9 +560,11 @@ const pngFile = (extra = {}) => ({ name: 'logo.png', size: 5000, type: 'image/pn
 function screen({ env = {}, texts = {}, fetchPlan = () => ({ status: 404, body: {} }), enabled = true, initialDraft = { mode: 'preset', preset_id: 'minimal' }, standardId = null, name = 'Evergreen' } = {}) {
   const fetchLog = []
   const fetch = async (url, init = {}) => { fetchLog.push({ url: String(url), method: init.method ?? 'GET', headers: init.headers, body: init.body }); const out = await fetchPlan(String(url), init); if (out.throws) throw out.throws; return new Response(JSON.stringify(out.body ?? {}), { status: out.status }) }
-  const world = createWorld({ env: { ...ENV_ON, ...env }, texts, fetch, stubs: { './library-controls': libraryControls } })
+  const actions = [] // every action the kit's reducer is given (the transient "saving" flash is only visible here)
+  const traced = { ...React, useReducer: (reducer, ...rest) => React.useReducer((st, action) => { actions.push(action.type); return reducer(st, action) }, ...rest) }
+  const world = createWorld({ env: { ...ENV_ON, ...env }, texts, fetch, stubs: { './library-controls': libraryControls, react: traced } })
   const mod = world.load(PANEL)
-  const state = { draft: clone(initialDraft), kit: null, draftWrites: 0, phases: [] }
+  const state = { draft: clone(initialDraft), kit: null, draftWrites: 0, phases: [], actions }
   const Page = () => {
     const [draft, setDraft] = React.useState(initialDraft)
     const kit = mod.useBrandKitDraft(enabled)
@@ -630,8 +632,8 @@ async function uiChecksIn(texts = {}) {
     const img = nodesBy(s.tree, n => n.type === 'img'); assert.equal(img.length, 1, 'the sample shows the logo'); assert.equal(img[0].props.src, 'https://cdn.example.test/logo.png'); assert.equal(img[0].props.referrerPolicy, 'no-referrer'); s.type('logo', 'http://x.test/a.png'); assert.equal(nodesBy(s.tree, n => n.type === 'img').length, 0, 'an http link is never loaded into the sample') }
   // the save: nothing for an empty form; ONE PUT after the theme; a partial and its retry; the not-switched-on and saved lines
   const THEME = { id: 'theme-9', name: 'Evergreen', theme_payload: { mode: 'custom', primary_hex: '#0047ab' } }
-  { const s = screen({ texts }); await s.kit.saveAfterTheme(THEME); await s.settle(); assert.equal(s.fetchLog.length, 0, 'an empty form: no request at all (and so never a clear)'); assert.equal(s.kit.state.save.phase, 'idle'); assert.ok(!s.state.phases.includes('saving'), 'and no "Saving brand details" flash either')
-    const blank = screen({ texts }); blank.type('footer', '   '); await blank.kit.saveAfterTheme(THEME); await blank.settle(); assert.equal(blank.fetchLog.length, 0, 'a form of blanks sends nothing'); assert.ok(!blank.state.phases.includes('saving')) }
+  { const s = screen({ texts }); await s.kit.saveAfterTheme(THEME); await s.settle(); assert.equal(s.fetchLog.length, 0, 'an empty form: no request at all (and so never a clear)'); assert.equal(s.kit.state.save.phase, 'idle'); assert.ok(!s.state.actions.includes('save_start'), 'and no "Saving brand details" flash either')
+    const blank = screen({ texts }); blank.type('footer', '   '); await blank.kit.saveAfterTheme(THEME); await blank.settle(); assert.equal(blank.fetchLog.length, 0, 'a form of blanks sends nothing'); assert.ok(!blank.state.actions.includes('save_start')) }
   { const plan = url => (url.endsWith('/brand') ? { status: 200, body: { id: 'theme-9', brand: { footer: 'Acme' } } } : { status: 404, body: {} }); const s = screen({ texts, fetchPlan: plan }); s.type('footer', 'Acme'); const a = s.kit.saveAfterTheme(THEME), b = s.kit.saveAfterTheme(THEME); await Promise.all([a, b]); await s.settle(); assert.equal(s.fetchLog.length, 1, 'a double click on Save is ONE PUT') }
   { const plan = url => (url.endsWith('/brand') ? { status: 200, body: { id: 'theme-9', brand: { placement: 'top_right', logo_url: 'https://cdn.example.test/logo.png', footer: 'Acme' } } } : { status: 404, body: {} })
     const s = screen({ texts, fetchPlan: plan }); s.type('logo', 'https://cdn.example.test/logo.png'); s.type('footer', 'Acme'); await s.kit.saveAfterTheme(THEME); await s.settle()
