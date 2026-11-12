@@ -6,7 +6,8 @@
 // functions here are never reached; the answer rule below refuses on its own too.
 //
 // Never a paid start without a click: nothing here sends at render, on a frame, on a timer or on a reconnect. A card is answered only by the person's click, through answerAgentCard, and a failed send leaves the card open (nothing queued, nothing replayed).
-import { STUDIO_AGENT_MODE_ENABLED, agentAnswerOpenCard, agentAnswered, agentRunReducer, initialAgentRunState, type AgentAnswer, type AgentRunState } from '@/lib/studio-agent-mode'
+import { STUDIO_AGENT_MODE_ENABLED, agentAnswerOpenCard, agentAnswered, agentEligible, agentRunReducer, initialAgentRunState, type AgentAnswer, type AgentPlan, type AgentRunState, type BuildMode } from '@/lib/studio-agent-mode'
+import { voiceCallBus } from '@/lib/studio-voice-call-ui'
 
 /** The one local action the page's reducer takes besides a frame: clear the run (the person is in another session now). */
 export const AGENT_WIRE_RESET = 'agent_wire_reset'
@@ -48,4 +49,21 @@ export function answerAgentCard(state: AgentRunState, answer: AgentAnswer, send:
   if (!send(answer)) { notSent(); return 'not_sent' }
   mark(agentAnswered(answer))
   return 'sent'
+}
+
+// ---- NO AGENT START FROM VOICE (PK ruling, 11 Nov) ----------------------------------------------------------------------------------------------------------------------------------------------------
+// A send that comes from the voice call (a spoken "yes" to the plan card, a turn of words) must never start an Agent run: that takes the person's click, or a typed send with the picker on Agent. The call sends through the page's own two handlers
+// (handleSendMessage for words, handleActionClick for a card's button) and arms the words on the bus (lib/studio-voice-call-ui.ts voiceCallBus.pending) first; the page asks here, at the very top of each handler, whether the words it was just handed are
+// the armed ones, and if so reads the build mode below instead of the picker's. The socket hook adds a last line of its own (a user message marked mode "voice" never carries "agent").
+/** The page's handler was just handed exactly the words the call armed: this send is the call's. Read at the top of the handler, so a call that ends or cancels the turn while the send waits (a new session, a reconnect) does not make it a typed send. */
+export const voiceOriginatedSend = (text: string): boolean => voiceCallBus.pending !== null && voiceCallBus.pending.text === text
+
+/**
+ * The build_mode a build send that came from the voice call carries, given the one the picker holds (`wire`, from buildModeOnWire): never "agent". Director keeps the mode a session was last given (an Agent opt-in is sticky, and saved with the session), so
+ * leaving the key out would leave an opt-in already in force and the spoken "yes" would start the run anyway. For a plan that can have an opt-in (Pro and Max; Agent is never sent for another) the send says "standard", Director's own way to drop it, which
+ * changes nothing when none is held. Another plan: the key stays out, as it always did. Author is not ruled on and stays as it is. With the flags off nothing changes (the picker's mode, which is undefined then).
+ */
+export function voiceBuildMode(wire: BuildMode | undefined, plan: AgentPlan | null | undefined): BuildMode | undefined {
+  if (!STUDIO_AGENT_MODE_ENABLED || wire === 'author') return wire
+  return agentEligible(plan) ? 'standard' : undefined
 }

@@ -23,6 +23,11 @@
 //  F. the sources: every line this change adds to the hook and the page carries the marker and is a pure insertion (no base line is rewritten or removed), the strip puts #607's head back byte for byte (two app files, three older proofs), the registry
 //     (two lines, at the true end of the files and strips lists, none in the env list), .env.example untouched;
 //  G. scope, read from the COMMITTED diff only (never the working tree): own commits by subject, each with the co-author line; the files they touch are this change's scope; a stray untracked file changes nothing;
+//  H. NO AGENT START FROM VOICE (PK ruling, 11 Nov): a voice accept (a spoken yes to the plan card) or any voice-originated send never carries build_mode "agent" and sends no agent frame; a click on the card or a typed send with the picker on Agent still does.
+//     H1 the paths, read from the sources: the voice call's controller is the only sender for the voice (two callbacks, one arming of the bus, one mount, handed the page's two handlers), the Director call is read-only, the guard is at the top of both handlers
+//     (before any await) and the four build sends read the ref it picks; H2 the real marked lines of the page and the hook, run with the real voice bus: "standard" for a plan that can hold Director's sticky Agent opt-in (Pro, Max), no key otherwise, a call that
+//     ends while the send waits, a slip past the page (the hook's own line), Standard / Author, the click and the typed send as before; H3 each flag off: inert; H4 through the REAL VoiceCallController (fake microphone, speaker, clock and speech route):
+//     a spoken yes and a spoken turn, then the click and the typed send beside them;
 //  I. mutants: each is one edit of the real sources, fed to the same checks, and must be caught.
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
@@ -82,7 +87,7 @@ const compile = (file, text) => {
 const localFile = (spec, from) => {
   const base = spec.startsWith('@/') ? spec.slice(2) : spec.startsWith('./') ? path.posix.join(path.posix.dirname(from), spec.slice(2)) : null
   if (base === null) return null
-  for (const ext of ['.ts', '.tsx']) if (fs.existsSync(path.join(root, base + ext))) return base + ext
+  for (const ext of ['.ts', '.tsx', '/index.ts']) if (fs.existsSync(path.join(root, base + ext))) return base + ext
   throw new Error(`unexpected import ${spec} in ${from}`)
 }
 const textsKeys = new WeakMap(), modules = new Map()
@@ -99,7 +104,7 @@ function load(rel, { env = {}, texts = {}, react = React } = {}) {
     const local = localFile(spec, rel)
     return local ? load(local, { env, texts, react }) : nodeRequire(spec)
   }
-  vm.runInNewContext(compile(rel, texts[rel] ?? read(rel)), { module, exports: module.exports, require: req, process: { env: { ...env } }, setTimeout, clearTimeout, fetch: () => assert.fail(`${rel} fetched`) }, { filename: rel })
+  vm.runInNewContext(compile(rel, texts[rel] ?? read(rel)), { module, exports: module.exports, require: req, process: { env: { ...env } }, setTimeout, clearTimeout, AbortController, fetch: () => assert.fail(`${rel} fetched`) }, { filename: rel })
   return module.exports
 }
 const SHELL = { NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' }
@@ -409,9 +414,9 @@ function noAutoStartChecks(texts = {}) {
   for (const status of ['estimate', 'running', 'paused', 'stopped']) assert.equal(wire.agentRunBusy({ ...lib.initialAgentRunState(), status }), true, `${status}: a run is in progress`)
   for (const status of ['idle', 'done', 'failed']) assert.equal(wire.agentRunBusy({ ...lib.initialAgentRunState(), status }), false, `${status}: no run in progress`)
   const busyPicker = pagePicker({ text: page, wireText, plan: 'pro', state: runOf(lib, [estimateNow(), wireFrame('agent_step')]) }); assert.ok(elements(busyPicker.element, el => el.props?.['data-build-mode']).every(b => b.props.disabled === true), 'while a run is in progress the picker is off')
-  // 9. the build mode rides the four build sends and nothing else: each `...buildSendOptions,` is followed by the marked line, and the memo that holds them is untouched
+  // 9. the build mode rides the four build sends and nothing else: each `...buildSendOptions,` is followed by the marked line (which reads the ref its handler's entry line picked: the picker's, or for a voice send the voice's: H), and the memo that holds them is untouched
   const lines = page.split('\n'), at = lines.map((l, i) => (/^\s*\.\.\.buildSendOptions,$/.test(l) ? i : -1)).filter(i => i >= 0); assert.equal(at.length, 4, 'four build sends')
-  for (const i of at) assert.equal(lines[i + 1].trim(), '...(agentBuildModeRef.current ? { buildMode: agentBuildModeRef.current } : {}), // AGENT-MODE-WIRE', `the send at line ${i + 1} carries the build mode`)
+  for (const i of at) assert.equal(lines[i + 1].trim(), ATTACH_LINE, `the send at line ${i + 1} carries the build mode`)
   assert.equal(count(page, 'agentBuildModeRef.current = buildModeWire'), 1, 'the ref is written once per render, from the one buildModeWire')
 }
 
@@ -455,10 +460,228 @@ function pageChecks(texts = {}) {
   for (const w of words) { assert.equal(lib.plainWords(w, 'LEAK'), w, `plain: ${w}`); assert.doesNotMatch(w, /\$|credit|charge|price|cost/i, `no money talk in a transport failure: ${w}`) }
   deepEqual(wire.AGENT_WIRE_CONTROL_MARK, { pause: 'pause_requested', resume: 'resume_requested', stop: 'stop_requested' })
   // the wire lib is pure: its only import is #607's lib, no top-level effect, no network
-  assert.equal(count(wireText, "from '@/lib/studio-agent-mode'"), 1); assert.equal(/^import /m.test(wireText.replace(/^import \{[^}]*\} from '@\/lib\/studio-agent-mode'\n/m, '')), false, 'one import: #607\'s lib'); assert.doesNotMatch(wireText, /fetch\(|XMLHttpRequest|WebSocket|localStorage|sessionStorage|document\.|window\./, 'no network, storage or DOM in the wire lib')
+  assert.equal(count(wireText, "from '@/lib/studio-agent-mode'"), 1); assert.equal(count(wireText, "from '@/lib/studio-voice-call-ui'"), 1); assert.equal(/^import /m.test(wireText.replace(/^import \{[^}]*\} from '@\/lib\/studio-agent-mode'\n/m, '').replace(/^import \{ voiceCallBus \} from '@\/lib\/studio-voice-call-ui'\n/m, '')), false, 'two imports: #607\'s lib and the voice call\'s bus (voiceCallBus, only read: H2);'); assert.doesNotMatch(wireText, /fetch\(|XMLHttpRequest|WebSocket|localStorage|sessionStorage|document\.|window\./, 'no network, storage or DOM in the wire lib')
   // the hook: build_mode is the optional key of a user message and of the send options, and only that; the option type is optional
   assert.match(hook, /build_mode\?: 'standard' \| 'author' \| 'agent'; \/\/ AGENT-MODE-WIRE/); assert.match(hook, /\n  buildMode\?: 'standard' \| 'author' \| 'agent'; \/\/ AGENT-MODE-WIRE/); assert.equal(count(hook, '...(options?.buildMode && { build_mode: options.buildMode }), // AGENT-MODE-WIRE'), 1)
   assert.match(hook, /onAgentFrame\?: \(frame: unknown, owner: \{ sessionId: string \| null; isCurrent: \(\) => boolean \}\) => void; \/\/ AGENT-MODE-WIRE/)
+}
+
+// ============================================================================================================================================
+// H. NO AGENT START FROM VOICE (PK ruling, 11 Nov): a voice accept / a voice-originated send never carries build_mode "agent"; a click or a typed send with the picker on Agent still does
+// ============================================================================================================================================
+// Every voice path, found by reading the voice code (H1 holds the inventory to the files): the call (lib/studio-voice-call-controller.ts) is the ONLY thing that sends for the voice, and it sends through the page's own two handlers, handleSendMessage (words:
+// sendTurn) and handleActionClick (a card's button, "yes" to the plan: sendAction), after arming the words on the bus (armVoiceTurn); the socket hook marks the one user message with those words mode "voice" (addVoiceCallFields). The Director call
+// (hooks/use-studio-director-call.ts, components/builder/voice-interactive/*) is read-only: it points at a card and never answers it, and speech input there is reported unavailable. This change's guard is two lines deep: the page asks at the top of each handler
+// (voiceOriginatedSend) and reads the voice build mode (voiceBuildMode: "standard" for a plan that can hold an Agent opt-in, because Director's opt-in is sticky; else no key); the hook turns "agent" on a message marked mode "voice" into "standard".
+const ENV_VOICE = { ...ENV_ON, NEXT_PUBLIC_STUDIO_VOICE_CALL: 'true' }
+const VOICE_UI = 'lib/studio-voice-call-ui.ts', VOICE_CTL = 'lib/studio-voice-call-controller.ts'
+const ATTACH_LINE = '...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE'
+const voiceLines = (page, hook) => ({
+  wire: lineWith(page, 'const buildModeWire = STUDIO_AGENT_MODE_ENABLED ?'),
+  buildRef: lineWith(page, 'agentBuildModeRef.current = buildModeWire'),
+  ref: lineWith(page, 'agentVoiceModeRef.current = STUDIO_AGENT_MODE_ENABLED'),
+  entrySend: lineWith(page, 'voiceOriginatedSend(messageText)'),
+  entryAction: lineWith(page, 'voiceOriginatedSend(action.label)'),
+  spread: lineWith(hook, '...(options?.buildMode && { build_mode: options.buildMode }), // AGENT-MODE-WIRE'),
+  voiceFields: lineWith(hook, 'addVoiceCallFields(message.data as unknown as Record<string, unknown>, text); // VOICE-CALL'),
+  guard: lineWith(hook, "message.data.build_mode === 'agent') message.data.build_mode = 'standard'"),
+})
+/** The real sources under one env and one set of mutated texts: the page's and the hook's marked lines, and the lib, the wire lib and the voice lib (all three loaded together, so they share ONE voice bus). */
+function voiceRig({ env = ENV_VOICE, texts = {} } = {}) {
+  const page = texts[PAGE] ?? read(PAGE), hook = texts[HOOK] ?? read(HOOK)
+  const rig = { env, texts, page, hook, L: voiceLines(page, hook), lib: load(LIB, { env, texts }), wire: load(WIRE, { env, texts }), ui: load(VOICE_UI, { env, texts }) }
+  rig.ui.disarmVoiceTurn()
+  return rig
+}
+/** The page's per-render lines, run for one picker state: the build mode the picker puts on the wire and the two refs the handlers read. */
+function renderRefs(rig, { buildMode = 'agent', plan = 'pro', previous = buildMode === 'standard' ? undefined : buildMode } = {}) {
+  const refs = { agentBuildModeRef: { current: 'unset' }, agentVoiceModeRef: { current: 'unset' } }
+  runFragment(`${rig.L.wire}\n${rig.L.buildRef}\n${rig.L.ref}`, ['STUDIO_AGENT_MODE_ENABLED', 'buildModeOnWire', 'voiceBuildMode', 'buildMode', 'agentPlan', 'buildModeFrom', 'agentBuildModeRef', 'agentVoiceModeRef'])(
+    rig.lib.STUDIO_AGENT_MODE_ENABLED, rig.lib.buildModeOnWire, rig.wire.voiceBuildMode, buildMode, plan, previous, refs.agentBuildModeRef, refs.agentVoiceModeRef)
+  return refs
+}
+/**
+ * One page handler's send, as far as the build mode goes: the handler's own entry line (asked at its very top) and its own build-mode line, run. `kind`: 'send' (handleSendMessage, `words` are its text) or 'action' (handleActionClick, `words` are the button's label).
+ * `bus`: null = nothing armed (a click or a typed send), a string = the call armed those words just before, LEAVE_BUS = leave the bus as it is (the real controller armed it). Returns the options the handler hands the socket hook.
+ */
+const LEAVE_BUS = Symbol('the bus as the call left it')
+function pageSend(rig, refs, kind, words, { bus = null } = {}) {
+  if (bus !== LEAVE_BUS) { rig.ui.disarmVoiceTurn(); if (bus !== null) rig.ui.armVoiceTurn(bus) }
+  const run = runFragment(`${kind === 'send' ? rig.L.entrySend : rig.L.entryAction}\nreturn ({ ${ATTACH_LINE}\n})`, ['STUDIO_AGENT_MODE_ENABLED', 'voiceOriginatedSend', 'agentVoiceModeRef', 'agentBuildModeRef', 'messageText', 'action'])
+  return JSON.parse(JSON.stringify(run(rig.lib.STUDIO_AGENT_MODE_ENABLED, rig.wire.voiceOriginatedSend, refs.agentVoiceModeRef, refs.agentBuildModeRef, words, { label: words })))
+}
+/** The socket hook's user message for `options`: its real build_mode line, its real voice-fields line (the armed turn is taken here, as in the hook) and this change's real voice line. */
+function hookMessage(rig, options, text, extra = {}) {
+  const data = runFragment(`return ({ text, ...extra, ${rig.L.spread}\n})`, ['options', 'text', 'extra'])(options, text, extra)
+  runFragment(`const message = { data }\n${rig.L.voiceFields}\n${rig.L.guard}`, ['data', 'STUDIO_VOICE_CALL_UI_ENABLED', 'addVoiceCallFields', 'text', 'STUDIO_AGENT_MODE_ENABLED'])(data, rig.ui.STUDIO_VOICE_CALL_UI_ENABLED, rig.ui.addVoiceCallFields, text, rig.lib.STUDIO_AGENT_MODE_ENABLED)
+  return JSON.parse(JSON.stringify(data))
+}
+/** What the page and the hook put on the wire for one send: the handler's options and the user message. */
+const sendOnWire = (rig, refs, kind, words, bus) => { const options = pageSend(rig, refs, kind, words, { bus }); return { options, data: hookMessage(rig, options, words, kind === 'action' ? { action_value: 'accept_plan', action_label: words } : {}) } }
+const noAgent = (data, why) => { assert.notEqual(data.build_mode, 'agent', `${why}: no build_mode "agent"`); assert.equal(/"agent"/.test(JSON.stringify(data)), false, `${why}: nothing on the message says "agent"`) }
+
+const sourceCache = new Map(), readOnce = rel => { if (!sourceCache.has(rel)) sourceCache.set(rel, read(rel)); return sourceCache.get(rel) }
+/** Every source file under `dirs`, as repo-relative paths (.ts / .tsx / .mjs). */
+const sourceFiles = dirs => dirs.flatMap(dir => fs.readdirSync(path.join(root, dir), { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? (entry.name === 'node_modules' || entry.name.startsWith('.') ? [] : sourceFiles([`${dir}/${entry.name}`])) : /\.(tsx?|mjs)$/.test(entry.name) ? [`${dir}/${entry.name}`] : []))
+const VOICE_CALL_FILES = ['hooks/use-studio-voice-call.ts', 'lib/studio-voice-call-browser.ts', 'lib/studio-voice-call-controller.ts', 'lib/studio-voice-call-router.ts', 'lib/studio-voice-call-ui.ts', 'components/builder/voice-call/companion-player.tsx', 'components/builder/voice-call/voice-call-buttons.tsx', 'components/builder/voice-call/voice-call-stage.tsx']
+const DIRECTOR_CALL_FILES = ['hooks/use-studio-director-call.ts', 'components/builder/voice-interactive/director-call.tsx', 'components/builder/voice-interactive/use-director-call.ts', 'lib/studio-voice-interactive.ts', 'lib/studio-voice-owner.ts', 'lib/studio-voice-transcript-provenance.ts', 'lib/studio-director-message-policy.ts']
+
+/** H1: the voice paths, read from the sources: where a voice send can come from, and that the guard sits on each. */
+function voiceInventoryChecks(texts = {}) {
+  const page = texts[PAGE] ?? read(PAGE), hook = texts[HOOK] ?? read(HOOK), src = rel => texts[rel] ?? readOnce(rel)
+  // the call's own files: the one thing that sends for the voice is the controller, through two callbacks, and armVoiceTurn is called there only; no voice file names a build mode, an agent answer or an agent frame
+  const everySource = sourceFiles(['app', 'components', 'hooks', 'lib'])
+  const writers = everySource.filter(rel => { const t = src(rel).split('\n').filter(l => !/export function armVoiceTurn/.test(l)).join('\n'); return /\barmVoiceTurn\(/.test(t) || (rel !== VOICE_UI && /\bvoiceCallBus\.pending\s*=[^=]/.test(t)) })
+  deepEqual(writers, [VOICE_CTL], 'the voice bus is armed by the call\'s controller and by nothing else')
+  assert.equal(count(src(VOICE_CTL), 'this.sendTurn(') + count(src(VOICE_CTL), 'this.sendAction('), 2, 'the controller sends in two places: words (sendTurn) and a card\'s button (sendAction)')
+  assert.equal(count(src(VOICE_CTL), 'armVoiceTurn(words)'), 1, 'it arms the words once, before either')
+  const callers = everySource.filter(rel => /\buseStudioVoiceCall\(/.test(src(rel)) && rel !== 'hooks/use-studio-voice-call.ts'); deepEqual(callers, [PAGE], 'the call hook is mounted by the Builder page only')
+  const mount = lineWith(page, 'const voiceCall = useStudioVoiceCall({'); assert.ok(mount.startsWith('  const voiceCall = useStudioVoiceCall({ enabled: studioShell, sendTurn: text => handleSendMessage(undefined, text), sendAction: handleActionClick, sessionKey: currentSessionId || wsSessionId, connected })'), 'the call is handed the page\'s two handlers, handleSendMessage and handleActionClick, and nothing else that sends')
+  for (const rel of VOICE_CALL_FILES) assert.doesNotMatch(src(rel), /\b(build_?[Mm]ode|agent_answer|sendAgentAnswer|agentAnswerFrame|onAgentFrame)\b/, `${rel}: the call never names a build mode or an agent frame`)
+  assert.equal(count(src('hooks/use-studio-voice-call.ts'), 'sendTurn: text => live.current.sendTurn(text)'), 1)
+  // the Director call (voice-interactive): read-only; it sends nothing, answers nothing and presses nothing
+  for (const rel of DIRECTOR_CALL_FILES) assert.doesNotMatch(src(rel), /\b(sendMessage\w*|sendTurn|sendAction|handleSendMessage|handleActionClick|sendControlMessage|sendBuildControl|requestSubmit|dispatchEvent)\b|\.click\(/, `${rel}: the Director call sends and presses nothing`)
+  const interactive = load('lib/studio-voice-interactive.ts', { env: ENV_VOICE, texts }); assert.equal(interactive.speechInputStatus(undefined).available, false, 'speech input is reported unavailable (no approved speech service)'); assert.equal(interactive.speechInputStatus({ SpeechRecognition: {} }).available, false, '... even where the browser has recognition')
+  // where a voice send turns into a build send: the page's two handlers carry the guard's entry line, once each, before any await, and the four sends read the ref it picks
+  const lines = page.split('\n'), at = needle => { const i = lines.findIndex(l => l.includes(needle)); assert.ok(i >= 0, `a line holds ${needle}`); return i }
+  const sendDecl = at('const handleSendMessage = useCallback(async ('), actionDecl = at('const handleActionClick = useCallback(async (')
+  const entrySend = lines.findIndex(l => l.includes('voiceOriginatedSend(messageText)')), entryAction = lines.findIndex(l => l.includes('voiceOriginatedSend(action.label)'))
+  assert.equal(count(page, 'voiceOriginatedSend('), 2, 'two entry lines'); assert.ok(sendDecl < entrySend && entrySend < actionDecl && actionDecl < entryAction, 'one in each handler, in their order')
+  assert.equal(lines.slice(sendDecl, entrySend).some(l => /\bawait\b/.test(l)), false, 'handleSendMessage: asked before any await (a call that ends while the send waits still leaves it a voice send)'); assert.equal(lines.slice(actionDecl, entryAction).some(l => /\bawait\b/.test(l)), false, 'handleActionClick: the same')
+  const attach = lines.map((l, i) => (/^\s*\.\.\.buildSendOptions,$/.test(l) ? i : -1)).filter(i => i >= 0); assert.equal(attach.length, 4)
+  for (const i of attach) assert.equal(lines[i + 1].trim(), ATTACH_LINE, `the send at line ${i + 1} reads the ref the entry line picks`)
+  assert.ok(attach.slice(0, 3).every(i => i > entrySend && i < actionDecl) && attach[3] > entryAction, 'three sends in handleSendMessage after its entry line, one in handleActionClick after its own')
+  assert.equal(lines.filter(l => /agentBuildModeRef\.current/.test(l)).length, 1, 'the picker\'s ref is read by one line only: the render-time assignment'); assert.equal(lines.filter(l => /agentVoiceModeRef\.current/.test(l)).length, 1, 'the voice ref is written by one line only'); assert.equal(count(page, 'buildMode: agentModeRef.current'), 4)
+  // the hook: one guard line, inside buildUserMessage, after the line that marks the voice turn and before the message is returned
+  const hl = hook.split('\n'), g = hl.findIndex(l => l.includes("message.data.build_mode === 'agent') message.data.build_mode = 'standard'")), f = hl.findIndex(l => l.includes('addVoiceCallFields(message.data as unknown as Record<string, unknown>, text); // VOICE-CALL')), r = hl.findIndex((l, i) => i > f && l.trim() === 'return message;')
+  assert.ok(f > 0 && g === f + 1 && g < r, 'the hook\'s guard line is right after the line that marks the voice turn, before the message is returned'); assert.equal(count(hook, "build_mode = 'standard'"), 1); assert.equal(count(hook, 'build_mode: options.buildMode'), 1, 'the one place the hook puts a build_mode on a message')
+}
+
+/** H2: what goes on the wire, for the picker on Agent and the other states, with the real lines run. */
+function voiceChecks(texts = {}) {
+  const rig = voiceRig({ texts }), SAY = "Yes, let's build it!", WORDS = 'yes please, go ahead and build it'
+  const PAIRS = [['send', WORDS], ['action', SAY]]
+  // 1. the picker is on Agent, on a plan that has it
+  for (const plan of ['pro', 'premium']) {
+    const refs = renderRefs(rig, { buildMode: 'agent', plan })
+    assert.equal(refs.agentBuildModeRef.current, 'agent', `${plan}: the picker's mode is Agent`); assert.equal(refs.agentVoiceModeRef.current, 'standard', `${plan}: the voice mode is "standard", never the picker's`)
+    for (const [kind, words] of PAIRS) {
+      // (b) an explicit click (the card's button) or a typed send, nothing armed: still Agent, and not a voice turn
+      const click = sendOnWire(rig, refs, kind, words, null)
+      assert.equal(click.options.buildMode, 'agent', `${plan} ${kind}: a click / typed send hands the hook "agent"`); assert.equal(click.data.build_mode, 'agent', `${plan} ${kind}: ... and it is on the wire`); assert.equal(click.data.mode, undefined, `${plan} ${kind}: ... as a typed turn`)
+      // (a) the same words, armed by the call: a voice turn that carries "standard", never "agent", and still says it is voice
+      const voice = sendOnWire(rig, refs, kind, words, words)
+      assert.equal(voice.options.buildMode, 'standard', `${plan} ${kind}: the voice send hands the hook "standard"`); assert.equal(voice.data.build_mode, 'standard', `${plan} ${kind}: ... and that is on the wire`); assert.equal(voice.data.mode, 'voice'); assert.ok(voice.data.client_caps.includes('voice1')); assert.equal(voice.data.text, words); noAgent(voice.data, `${plan} ${kind} voice`)
+      if (kind === 'action') { assert.equal(voice.data.action_value, 'accept_plan', 'the spoken yes is still the card\'s own button: its value goes'); assert.equal(voice.data.action_label, words) }
+      // the call armed other words (a turn of its own): THIS send is a typed one and keeps the picker's mode
+      assert.equal(sendOnWire(rig, refs, kind, words, 'a different sentence').data.build_mode, 'agent', `${plan} ${kind}: the guard is for the call's own words, not for every send while a call is on`)
+      // the call ends or cancels the turn while the handler waits (a new session, a reconnect, an interruption): the handler asked at its top, so what it sends is still the voice send's: not Agent
+      const options = pageSend(rig, refs, kind, words, { bus: words }); rig.ui.disarmVoiceTurn(); const late = hookMessage(rig, options, words)
+      assert.equal(options.buildMode, 'standard', `${plan} ${kind}: asked before the wait`); assert.equal(late.build_mode, 'standard', `${plan} ${kind}: the call ended before the message was built: still not Agent`); assert.equal(late.mode, undefined, `${plan} ${kind}: (it is no longer marked voice: the page's line is what held)`)
+      // the hook's own last line, for a send that got past the page (a handler with no entry line): marked voice, "agent" becomes "standard"; not marked voice, it stays
+      rig.ui.disarmVoiceTurn(); rig.ui.armVoiceTurn(words); const slipped = hookMessage(rig, { buildMode: 'agent' }, words)
+      assert.equal(slipped.mode, 'voice'); assert.equal(slipped.build_mode, 'standard', `${plan} ${kind}: the hook turns a voice turn's "agent" into "standard"`); noAgent(slipped, `${plan} ${kind} slipped`)
+      rig.ui.disarmVoiceTurn(); assert.equal(hookMessage(rig, { buildMode: 'agent' }, words).build_mode, 'agent', `${plan} ${kind}: a typed message's "agent" is left alone`)
+      for (const other of ['standard', 'author']) { rig.ui.armVoiceTurn(words); assert.equal(hookMessage(rig, { buildMode: other }, words).build_mode, other, `${plan}: a voice turn's "${other}" is left alone (only "agent" is turned)`) }
+      // the voice turn is taken once: the next message with the same words is typed again
+      rig.ui.armVoiceTurn(words); hookMessage(rig, {}, words); assert.equal(hookMessage(rig, { buildMode: 'agent' }, words).build_mode, 'agent', 'the armed turn is spent by its own message')
+    }
+  }
+  // 2. a plan that cannot have Agent (the picker cannot hold it, Studio never sends it): the voice send has no key at all, and neither does a typed one
+  for (const plan of ['free', 'starter', null, 'enterprise']) {
+    const refs = renderRefs(rig, { buildMode: 'agent', plan }); assert.equal(refs.agentBuildModeRef.current, undefined, `plan ${plan}: no Agent on the wire`); assert.equal(refs.agentVoiceModeRef.current, undefined, `plan ${plan}: ... nor for voice`)
+    for (const [kind, words] of PAIRS) for (const bus of [null, words]) { const w = sendOnWire(rig, refs, kind, words, bus); assert.equal('build_mode' in w.data, false, `plan ${plan} ${kind}: no build_mode key`); noAgent(w.data, `plan ${plan} ${kind}`) }
+  }
+  // 3. the picker is on Standard on a plan that has Agent: typed sends are as they were (no key; after Agent was picked once, the explicit reset), and a voice send always says "standard" (Director's opt-in is sticky and saved: a session reloaded with Standard picked can still hold one)
+  for (const [previous, typedWire] of [[undefined, undefined], ['agent', 'standard']]) {
+    const refs = renderRefs(rig, { buildMode: 'standard', plan: 'pro', previous })
+    for (const [kind, words] of PAIRS) {
+      const typed = sendOnWire(rig, refs, kind, words, null); assert.equal(typed.data.build_mode, typedWire, `Standard (was ${previous}) ${kind}: a typed send is as it was`)
+      const voice = sendOnWire(rig, refs, kind, words, words); assert.equal(voice.data.build_mode, 'standard', `Standard (was ${previous}) ${kind}: a voice send says "standard"`); assert.equal(voice.data.mode, 'voice'); noAgent(voice.data, `Standard ${kind}`)
+    }
+  }
+  // 4. Author (its own flag; the ruling is about Agent): unchanged, by voice or by typing, and never "agent"
+  const author = voiceRig({ env: { ...ENV_VOICE, NEXT_PUBLIC_AUTHOR_MODE_PICKER: 'true' }, texts }), arefs = renderRefs(author, { buildMode: 'author', plan: 'pro' })
+  assert.equal(arefs.agentBuildModeRef.current, 'author'); assert.equal(arefs.agentVoiceModeRef.current, 'author', 'Author is not ruled on: the voice send keeps it')
+  for (const [kind, words] of PAIRS) for (const bus of [null, words]) assert.equal(sendOnWire(author, arefs, kind, words, bus).data.build_mode, 'author', `Author ${kind}: ${bus === null ? 'typed' : 'voice'}`)
+  // 5. the pure functions
+  const { wire } = rig
+  for (const text of ['x', WORDS]) { rig.ui.disarmVoiceTurn(); assert.equal(wire.voiceOriginatedSend(text), false, 'nothing armed: not a voice send'); rig.ui.armVoiceTurn(WORDS); assert.equal(wire.voiceOriginatedSend(text), text === WORDS, `armed ${JSON.stringify(WORDS)}: ${JSON.stringify(text)}`); rig.ui.disarmVoiceTurn() }
+  assert.equal(wire.voiceOriginatedSend(''), false)
+  for (const [w, plan, want] of [['agent', 'pro', 'standard'], ['agent', 'premium', 'standard'], [undefined, 'pro', 'standard'], ['standard', 'premium', 'standard'], ['agent', 'free', undefined], [undefined, 'starter', undefined], [undefined, null, undefined], [undefined, undefined, undefined], ['author', 'pro', 'author'], ['author', 'free', 'author']]) assert.equal(wire.voiceBuildMode(w, plan), want, `voiceBuildMode(${w}, ${plan})`)
+  for (const w of ['agent', 'standard', 'author', undefined]) for (const plan of ['free', 'starter', 'pro', 'premium', null, undefined]) assert.notEqual(wire.voiceBuildMode(w, plan), 'agent', `voiceBuildMode(${w}, ${plan}) is never "agent"`)
+  // 6. the wire lib reads the bus, never writes it
+  const wireText = texts[WIRE] ?? read(WIRE); assert.doesNotMatch(wireText.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, ''), /voiceCallBus\.(?!pending\b)|voiceCallBus\.pending\s*=[^=]|armVoiceTurn|disarmVoiceTurn|takeVoiceTurn/, 'the wire lib only reads voiceCallBus.pending')
+}
+/** H3: flags off, for each flag: the guard's lines are inert (no ref holds a mode, no send carries a key, the hook's line leaves a message as it is). */
+function voiceFlagsOffChecks(texts = {}) {
+  for (const [name, off] of Object.entries(ENV_OFF)) {
+    const rig = voiceRig({ env: { ...off, NEXT_PUBLIC_STUDIO_VOICE_CALL: 'true' }, texts }), refs = renderRefs(rig, { buildMode: 'agent', plan: 'pro' })
+    assert.equal(rig.lib.STUDIO_AGENT_MODE_ENABLED, false, `${name}: off`); assert.equal(refs.agentBuildModeRef.current, undefined, `${name}: the picker's mode is undefined`); assert.equal(refs.agentVoiceModeRef.current, undefined, `${name}: the voice mode is undefined`)
+    for (const [kind, words] of [['send', 'yes build it'], ['action', 'Yes!']]) for (const bus of [null, words]) { const w = sendOnWire(rig, refs, kind, words, bus); assert.equal('build_mode' in w.data, false, `${name} ${kind}: no key, voice or typed`); assert.equal(w.options.buildMode, undefined) }
+    rig.ui.armVoiceTurn('x'); assert.equal(hookMessage(rig, { buildMode: 'agent' }, 'x').build_mode, 'agent', `${name}: the hook's line does nothing with the flags off`); rig.ui.disarmVoiceTurn()
+    assert.equal(rig.wire.voiceBuildMode('agent', 'pro'), 'agent', `${name}: the function itself changes nothing`)
+  }
+  const on = voiceRig({ texts }); on.ui.armVoiceTurn('x'); assert.equal(hookMessage(on, { buildMode: 'agent' }, 'x').build_mode, 'standard', 'on: the same line acts (the positive control)'); on.ui.disarmVoiceTurn()
+}
+
+class FakeClock {
+  constructor() { this.t = 100000; this.timers = new Map(); this.id = 1 }
+  now() { return this.t }
+  set(fn, ms) { const id = this.id++; this.timers.set(id, { id, fn, at: this.t + ms }); return id }
+  clear(id) { this.timers.delete(id) }
+  async advance(ms) {
+    const target = this.t + ms
+    for (;;) {
+      const next = [...this.timers.values()].filter(timer => timer.at <= target).sort((a, b) => a.at - b.at || a.id - b.id)[0]
+      if (!next) break
+      this.timers.delete(next.id); this.t = Math.max(this.t, next.at); next.fn(); await settle()
+    }
+    this.t = target; await settle()
+  }
+}
+const macro = () => new Promise(resolve => setImmediate(resolve))
+const settle = async () => { for (let i = 0; i < 4; i++) { await Promise.resolve(); await macro() } }
+const PLAN_CARD = [{ label: "Yes, let's build it!", value: 'accept_plan', primary: true, requires_input: false }, { label: "I'd like to make changes", value: 'reject_plan', primary: false, requires_input: false }]
+/** A real voice call (the REAL controller, with a fake microphone, speaker, clock and speech route) in front of the page's and the hook's real lines. `said`: what the speech route hears, one transcript per turn. */
+function voiceCall(rig, refs, said) {
+  const clock = new FakeClock(), queue = [...said], sent = []
+  const env = {
+    secureContext: () => true, hasMic: () => true,
+    openMic: async () => ({ level: () => 0, setMuted() {}, record: () => ({ stop: async () => ({ blob: { size: 5 }, durationMs: 1200, peak: 0.2 }), cancel() {} }), close() {} }),
+    createPlayer: () => ({ play() {}, stop() {}, level: () => 0, prime() {} }),
+    now: () => clock.now(), setTimer: (fn, ms) => clock.set(fn, ms), clearTimer: id => clock.clear(id), reducedMotion: () => true, macApp: () => false, mac: () => false,
+  }
+  const port = { transcribe: async () => ({ text: queue.length ? queue.shift() : '', costUsd: null }), speak: async () => ({ audio: { size: 1 }, costUsd: null }) }
+  let ctl = null
+  // the page's two handlers, as far as the build mode goes (the real entry line and the real build-mode line), and the hook's real lines; the "sent" tap is the hook's, once a user message marked mode "voice" went out
+  const sendTurn = async text => { const w = sendOnWire(rig, refs, 'send', text, LEAVE_BUS); sent.push(w.data); if (w.data.mode === 'voice') ctl.onSent(text) }
+  const sendAction = async action => { const w = sendOnWire(rig, refs, 'action', action.label, LEAVE_BUS); sent.push(w.data); if (w.data.mode === 'voice') ctl.onSent(action.label) }
+  ctl = new (load(VOICE_CTL, { env: rig.env, texts: rig.texts }).VoiceCallController)({ env, port, sendTurn, sendAction, isConnected: () => true })
+  return {
+    ctl, sent, clock,
+    start: async () => { await ctl.startCall(); await settle() },
+    card: async (actions = PLAN_CARD) => { ctl.onFrame({ type: 'action_request', session_id: 's1', message_id: 'plan-card', payload: { prompt_text: 'Does this structure work for you?', actions } }); await settle() },
+    talk: async () => { ctl.pttDown(); await settle(); await clock.advance(1250); await ctl.pttUp(); await settle() },
+  }
+}
+/** H4: a spoken "yes" to the plan card, and a turn of spoken words, through the REAL call: the user messages that go out, with the picker on Agent. */
+async function voiceAcceptChecks(texts = {}) {
+  for (const [plan, want] of [['pro', 'standard'], ['premium', 'standard'], ['free', undefined]]) {
+    const rig = voiceRig({ texts }), refs = renderRefs(rig, { buildMode: 'agent', plan })
+    // a spoken yes, with a plan card open: the card's own button, as a voice turn
+    const yes = voiceCall(rig, refs, ['yes']); await yes.start(); await yes.card(); await yes.talk()
+    assert.equal(yes.sent.length, 1, `${plan}: one user message went out for the spoken yes`); const [m] = yes.sent
+    assert.equal(m.mode, 'voice', `${plan}: it is a voice turn`); assert.equal(m.action_value, 'accept_plan', `${plan}: it is the plan card's accept button`); assert.equal(m.build_mode, want, `${plan}: build_mode ${want === undefined ? 'omitted' : `"${want}"`}`); noAgent(m, `${plan} spoken yes`)
+    assert.equal(yes.ctl.getSnapshot().notice, null, `${plan}: the call saw the send go out (no "not sent" notice)`)
+    // a turn of spoken words
+    const words = voiceCall(rig, refs, ['make the deck a little longer']); await words.start(); await words.talk()
+    assert.equal(words.sent.length, 1, `${plan}: one user message for the spoken words`); assert.equal(words.sent[0].mode, 'voice'); assert.equal(words.sent[0].text, 'make the deck a little longer'); assert.equal(words.sent[0].build_mode, want); noAgent(words.sent[0], `${plan} spoken words`)
+    // the positive control: the person's own click on the same button, and a typed send, on the same page state, still carry Agent (on a plan that has it)
+    const click = sendOnWire(rig, refs, 'action', PLAN_CARD[0].label, null), typed = sendOnWire(rig, refs, 'send', 'build it', null)
+    for (const w of [click, typed]) assert.equal(w.data.build_mode, plan === 'free' ? undefined : 'agent', `${plan}: a click or a typed send carries the picker's mode`)
+    assert.equal(rig.ui.voiceCallBus.pending, null, `${plan}: nothing stays armed`)
+  }
 }
 
 // ============================================================================================================================================
@@ -547,6 +770,10 @@ await check('B. each of the six agent frames, as Director sends it ({ type, payl
 await check('C. THE ANSWER FRAME is the contract\'s: every card and choice of AGENT-1\'s fixture goes out as exactly { type: "agent_answer", data: { run_id, card, choice } } (the fixture\'s example byte for byte), once, on an open socket only; never queued, retried or replayed', () => answerChecks())
 await check('D. NO PAID START WITHOUT A CLICK: frames, renders, the picker and expiry send nothing; one click is one frame on its own card; an answered, expired, foreign or unoffered card sends nothing; a socket that is not live leaves the card open and says so with the next step; Agent is off below Pro, with no plan and while a run is in progress; one caller of sendAgentAnswer', () => noAutoStartChecks())
 await check('E. the page: gated mounts and options, the plan from the session (never a frame), the cards in the chat after the messages and the picker above the composer, the session effect, the lib\'s reducer / key / words', () => pageChecks())
+await check('H1. NO AGENT START FROM VOICE, the paths: the voice call is the only thing that sends for the voice (two callbacks, one arming of the bus, one mount); the Director call is read-only; the guard sits at the top of both handlers it reaches, before any await, and the four build sends read the ref it picks; the hook\'s line is right after the one that marks the voice turn', () => voiceInventoryChecks())
+await check('H2. a voice accept / a voice-originated send (the picker on Agent, Pro and Max) carries "standard", never "agent", and no agent frame; a click or a typed send still carries "agent"; the call ending while the send waits, a slip past the page, another plan, Standard, Author', () => voiceChecks())
+await check('H3. the same lines with each flag off: no mode held, no key sent (voice or typed), the hook\'s line does nothing; on, it acts', () => voiceFlagsOffChecks())
+await check('H4. THROUGH THE REAL CALL: a spoken yes to the plan card and a spoken turn (the real controller, a fake microphone and speech route) put a voice user message on the wire with "standard" (no key below Pro), the click and the typed send beside it carry Agent', () => voiceAcceptChecks())
 await check('F1. the sources: every line this change adds to the hook and the page carries the marker and is a pure insertion (no base line rewritten or removed); the strip puts #607\'s head back byte for byte (two app files, three older proofs); .env.example untouched', () => sourceChecks())
 await check('F2. the registry: two marked lines (files, strips) at the true end of their lists right after #607\'s, none in the env list, nothing lost; read through it the hook and the page are the base\'s', () => registryChecks())
 await check('G. scope, read from the COMMITTED diff only: the own commits (by subject) carry the co-author line; every file they touch is this change\'s scope; the whole diff from #607\'s head is nothing else; a stray untracked file changes nothing', () => scopeChecks())
@@ -612,7 +839,7 @@ await pageMutant('the session effect resets on the first save of a new chat', 'a
 await pageMutant('the session effect never resets', 'if (agentSessionChanged(agentSessionRef.current, currentSessionId)) {', 'if (false) {')
 await pageMutant('the session effect keeps the picked mode', 'dispatchAgentRun(AGENT_WIRE_RESET); setBuildMode(\'standard\'); setBuildModeFrom(undefined) }', 'dispatchAgentRun(AGENT_WIRE_RESET) }')
 await pageMutant('the session effect runs with the flag off', 'if (!STUDIO_AGENT_MODE_ENABLED) return // AGENT-MODE-WIRE', '')
-await pageMutant('one build send loses the build mode', '          ...buildSendOptions,\n          ...(agentBuildModeRef.current ? { buildMode: agentBuildModeRef.current } : {}), // AGENT-MODE-WIRE\n          manualDeck: turnContext?.manualDeck,', '          ...buildSendOptions,\n          manualDeck: turnContext?.manualDeck,')
+await pageMutant('one build send loses the build mode', '          ...buildSendOptions,\n          ...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE\n          manualDeck: turnContext?.manualDeck,', '          ...buildSendOptions,\n          manualDeck: turnContext?.manualDeck,')
 await pageMutant('the build mode ref is never written', 'agentBuildModeRef.current = buildModeWire // AGENT-MODE-WIRE', 'void buildModeWire // AGENT-MODE-WIRE')
 await pageMutant('the cards sit outside the scroll area (before the message list)', "{STUDIO_AGENT_MODE_ENABLED && agentRun.status !== 'idle' ? <div ref={agentCardsRef}", "{STUDIO_AGENT_MODE_ENABLED && agentRun.status !== 'idle' && false ? <div ref={agentCardsRef}")
 await pageMutant('an auto answer: Start is sent by an effect when an estimate arrives', "  const agentCardsViewKey = agentCardsKey(agentRun) // AGENT-MODE-WIRE\n", "  const agentCardsViewKey = agentCardsKey(agentRun) // AGENT-MODE-WIRE\n  useEffect(() => { if (agentRun.status === 'estimate' && agentRun.runId) sendAgentAnswer({ runId: agentRun.runId, card: 'A1', choice: 'start' }) }, [agentRun.status]) // AGENT-MODE-WIRE\n")
@@ -641,6 +868,50 @@ await wireMutant('the control mark names the wrong request', "stop: 'stop_reques
 await wireMutant('the wire lib reads a flag itself', "export const AGENT_WIRE_RESET = 'agent_wire_reset'", "export const AGENT_WIRE_RESET = 'agent_wire_reset'\nexport const X = process.env.NEXT_PUBLIC_AGENT_MODE === 'true'")
 await wireMutant('the wire lib fetches', "export const AGENT_WIRE_RESET = 'agent_wire_reset'", "export const AGENT_WIRE_RESET = 'agent_wire_reset'\nvoid fetch('/x')")
 
+// no Agent start from voice (H): each is one edit of the real sources, fed to every H check (the paths, the wire, the flags, the real call)
+const TEXT0 = { [PAGE]: PAGE_TEXT, [HOOK]: HOOK_TEXT, [WIRE]: WIRE_TEXT }, text0 = rel => TEXT0[rel] ?? read(rel)
+const voiceMutant = (label, rel, from, to) => mutant(`voice: ${label}`, async () => { const texts = { [rel]: swap(text0(rel), from, to) }; voiceInventoryChecks(texts); voiceChecks(texts); voiceFlagsOffChecks(texts); await voiceAcceptChecks(texts) })
+const GUARD_LINE = lineWith(HOOK_TEXT, "message.data.build_mode === 'agent') message.data.build_mode = 'standard'"), VOICE_FIELDS_LINE = lineWith(HOOK_TEXT, 'addVoiceCallFields(message.data as unknown as Record<string, unknown>, text); // VOICE-CALL')
+const ENTRY_SEND = 'STUDIO_AGENT_MODE_ENABLED && voiceOriginatedSend(messageText) ? agentVoiceModeRef : agentBuildModeRef', ENTRY_ACTION = 'STUDIO_AGENT_MODE_ENABLED && voiceOriginatedSend(action.label) ? agentVoiceModeRef : agentBuildModeRef'
+// the page: the two handlers' entry lines, the voice ref, the four sends
+await voiceMutant('handleSendMessage has no guard (every send reads the picker\'s mode)', PAGE, ENTRY_SEND, 'agentBuildModeRef')
+await voiceMutant('handleActionClick has no guard (a spoken yes presses the button with Agent)', PAGE, ENTRY_ACTION, 'agentBuildModeRef')
+await voiceMutant('handleSendMessage\'s guard never fires', PAGE, ENTRY_SEND, 'STUDIO_AGENT_MODE_ENABLED && false ? agentVoiceModeRef : agentBuildModeRef')
+await voiceMutant('handleActionClick\'s guard never fires', PAGE, ENTRY_ACTION, 'STUDIO_AGENT_MODE_ENABLED && false ? agentVoiceModeRef : agentBuildModeRef')
+await voiceMutant('the guard is inverted in handleSendMessage (voice words read the picker\'s mode, typed ones the voice\'s)', PAGE, ENTRY_SEND, 'STUDIO_AGENT_MODE_ENABLED && voiceOriginatedSend(messageText) ? agentBuildModeRef : agentVoiceModeRef')
+await voiceMutant('the guard is inverted in handleActionClick', PAGE, ENTRY_ACTION, 'STUDIO_AGENT_MODE_ENABLED && voiceOriginatedSend(action.label) ? agentBuildModeRef : agentVoiceModeRef')
+await voiceMutant('handleSendMessage asks after an await (a call that ends while the send waits is not caught)', PAGE, '    if (!messageText) return\n    const agentModeRef', '    if (!messageText) return\n    await Promise.resolve()\n    const agentModeRef')
+await voiceMutant('handleActionClick asks after an await', PAGE, "answerKey: string = actionRequestMessageId) => {\n    const agentModeRef", "answerKey: string = actionRequestMessageId) => {\n    await Promise.resolve()\n    const agentModeRef")
+await voiceMutant('the voice ref is the picker\'s mode', PAGE, 'agentVoiceModeRef.current = STUDIO_AGENT_MODE_ENABLED ? voiceBuildMode(buildModeWire, agentPlan) : undefined', 'agentVoiceModeRef.current = buildModeWire')
+await voiceMutant('the voice ref is never written (it stays empty: no reset of a sticky opt-in)', PAGE, 'agentVoiceModeRef.current = STUDIO_AGENT_MODE_ENABLED ? voiceBuildMode(buildModeWire, agentPlan) : undefined', 'void agentVoiceModeRef')
+await voiceMutant('the voice ref ignores the plan', PAGE, 'voiceBuildMode(buildModeWire, agentPlan)', "voiceBuildMode(buildModeWire, 'pro')")
+for (const ind of ['          ', '              ', '        ', '            ']) await voiceMutant(`the ${ind.length}-space build send reads the picker's ref, unguarded`, PAGE, `${ind}...buildSendOptions,\n${ind}...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE\n`, `${ind}...buildSendOptions,\n${ind}...(agentBuildModeRef.current ? { buildMode: agentBuildModeRef.current } : {}), // AGENT-MODE-WIRE\n`)
+// the hook
+await voiceMutant('the hook has no voice line', HOOK, GUARD_LINE + '\n', '')
+await voiceMutant('the hook\'s voice line is inverted (it turns "standard" into "standard" only for typed messages)', HOOK, ".mode === 'voice' && message.data.build_mode === 'agent'", ".mode !== 'voice' && message.data.build_mode === 'agent'")
+await voiceMutant('the hook\'s voice line turns only "standard" (the wrong mode)', HOOK, "message.data.build_mode === 'agent') message.data.build_mode = 'standard'", "message.data.build_mode === 'standard') message.data.build_mode = 'standard'")
+await voiceMutant('the hook\'s voice line drops the key instead of resetting', HOOK, "message.data.build_mode === 'agent') message.data.build_mode = 'standard'", "message.data.build_mode === 'agent') delete message.data.build_mode")
+await voiceMutant('the hook\'s voice line sits before the line that marks the voice turn (the message is not voice yet)', HOOK, VOICE_FIELDS_LINE + '\n' + GUARD_LINE, GUARD_LINE + '\n' + VOICE_FIELDS_LINE)
+await voiceMutant('the hook\'s voice line ignores the flags', HOOK, 'if (STUDIO_AGENT_MODE_ENABLED && (message.data as unknown as Record<string, unknown>).mode === \'voice\'', 'if ((message.data as unknown as Record<string, unknown>).mode === \'voice\'')
+// the wire lib
+await voiceMutant('voiceOriginatedSend is always false', WIRE, 'voiceCallBus.pending !== null && voiceCallBus.pending.text === text', 'false')
+await voiceMutant('voiceOriginatedSend is always true (a typed send while a call is on reads the voice mode)', WIRE, 'voiceCallBus.pending !== null && voiceCallBus.pending.text === text', 'true')
+await voiceMutant('voiceOriginatedSend takes any armed words, not the handler\'s own', WIRE, 'voiceCallBus.pending !== null && voiceCallBus.pending.text === text', 'voiceCallBus.pending !== null')
+await voiceMutant('voiceOriginatedSend spends the armed turn (the hook then cannot mark it voice)', WIRE, 'export const voiceOriginatedSend = (text: string): boolean => voiceCallBus.pending !== null && voiceCallBus.pending.text === text', 'export const voiceOriginatedSend = (text: string): boolean => { const hit = voiceCallBus.pending !== null && voiceCallBus.pending.text === text; voiceCallBus.pending = null; return hit }')
+await voiceMutant('voiceBuildMode passes the picker\'s mode through', WIRE, "return agentEligible(plan) ? 'standard' : undefined", 'return wire')
+await voiceMutant('voiceBuildMode leaves the key out for everyone (a sticky Agent opt-in stays)', WIRE, "return agentEligible(plan) ? 'standard' : undefined", 'return undefined')
+await voiceMutant('voiceBuildMode sends "standard" for every plan', WIRE, "return agentEligible(plan) ? 'standard' : undefined", "return 'standard'")
+await voiceMutant('voiceBuildMode rewrites Author too', WIRE, "if (!STUDIO_AGENT_MODE_ENABLED || wire === 'author') return wire", 'if (!STUDIO_AGENT_MODE_ENABLED) return wire')
+await voiceMutant('voiceBuildMode ignores the flags', WIRE, "if (!STUDIO_AGENT_MODE_ENABLED || wire === 'author') return wire", "if (wire === 'author') return wire")
+await voiceMutant('voiceBuildMode says "agent" for a plan that has it', WIRE, "return agentEligible(plan) ? 'standard' : undefined", "return agentEligible(plan) ? 'agent' : undefined")
+// the real call and the paths
+await voiceMutant('the call stops arming the words on the bus (the page cannot tell a voice send)', VOICE_CTL, '    armVoiceTurn(words)\n', '')
+await voiceMutant('a second place arms the bus', 'hooks/use-studio-voice-call.ts', 'const noopSubscribe = () => () => {}', "const noopSubscribe = () => () => {}\nconst armElsewhere = () => armVoiceTurn('x')")
+await voiceMutant('the call names a build mode', VOICE_CTL, 'private readonly sendTurn:', "private readonly build_mode = 'agent'\n  private readonly sendTurn:")
+await voiceMutant('the Director call sends', 'hooks/use-studio-director-call.ts', '/** Shared projection only', 'void sendMessage\n/** Shared projection only')
+await voiceMutant('the Director call presses a card', 'components/builder/voice-interactive/use-director-call.ts', 'export function useDirectorCall', 'const pressCard = (el: HTMLElement) => el.click()\nexport function useDirectorCall')
+await voiceMutant('the call is mounted with a third handler that sends', PAGE, 'sendAction: handleActionClick,', 'sendAction: handleActionClick, sendExtra: handleSendMessage,')
+
 // the strip and the registry
 const stripLine = needle => { const found = STRIP_TEXT.split('\n').filter(line => line.includes(needle)); assert.equal(found.length, 1, `the strip has one line with ${needle}`); return found[0] }
 const dataModule = text => import(`data:text/javascript;base64,${Buffer.from(text).toString('base64')}`)
@@ -651,6 +922,9 @@ await mutant('strip: a pair for the page is missing', async () => { const m = aw
 await mutant('strip: a pair puts back a changed line (the shell proof\'s)', async () => { const m = await dataModule(swap(STRIP_TEXT, "assert.equal(git('diff', '--stat'", "assert.equal(git('diff', '--shortstat'")); sourceChecks({}, m.stripAgentModeWire) })
 await mutant('strip: a subject filter pair is missing (the element-edit proof)', async () => { const m = await dataModule(swap(STRIP_TEXT, "  'scripts/test-studio-chat-element-edit.mjs': [[PIN_LINE, '']],\n", '')); sourceChecks({}, m.stripAgentModeWire) })
 await mutant('strip: the base is not #607\'s head (a line of #607\'s taken for ours)', () => { const text = baseText(HOOK).replace('\n', '\n// AGENT-MODE-WIRE a line that was never added\n'); assert.equal(stripAgentModeWire(HOOK, text), baseText(HOOK), 'a line the strip does not know is left in, so the base is not restored') })
+await mutant('strip: the pair for the hook\'s voice line is missing', async () => { const m = await dataModule(swap(STRIP_TEXT, `${stripLine("message.data.build_mode === 'agent') message.data.build_mode = 'standard'")}\n`, '')); sourceChecks({}, m.stripAgentModeWire) })
+await mutant('strip: the pair for a handler\'s entry line is missing', async () => { const m = await dataModule(swap(STRIP_TEXT, `${stripLine('voiceOriginatedSend(messageText)')}\n`, '')); sourceChecks({}, m.stripAgentModeWire) })
+await mutant('strip: the pair for the voice ref is missing', async () => { const m = await dataModule(swap(STRIP_TEXT, `${stripLine('const agentVoiceModeRef = useRef')}\n`, '')); sourceChecks({}, m.stripAgentModeWire) })
 await mutant('registry: a line is missing', () => registryChecks(read(REGISTRY).split('\n').filter(l => !l.includes('stripAgentModeWire')).join('\n')))
 await mutant('registry: a base line is lost', () => registryChecks(read(REGISTRY).split('\n').filter(l => !l.includes('studio-agent-mode-shell-strip.mjs') || l.includes('wire')).join('\n')))
 await mutant('registry: our line is not at the end of its list', () => { const lines = read(REGISTRY).split('\n'), at = lines.findIndex(l => l.includes('studio-agent-mode-wire-strip.mjs')); [lines[at], lines[at - 1]] = [lines[at - 1], lines[at]]; registryChecks(lines.join('\n')) })

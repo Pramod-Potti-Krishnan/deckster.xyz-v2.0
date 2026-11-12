@@ -696,6 +696,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const [buildModeFrom, setBuildModeFrom] = useState<BuildMode | undefined>(undefined) // AGENT-MODE-WIRE: set once the person picked Author or Agent, so that going back to Standard is sent as an explicit reset
   const [agentRun, dispatchAgentRun] = React.useReducer(agentWireReducer, undefined, initialAgentRunState) // AGENT-MODE-WIRE: the run card's state (#607's reducer: Director's agent frames and the person's answers); idle with the flags off, and then never touched
   const agentBuildModeRef = useRef<BuildMode | undefined>(undefined) // AGENT-MODE-WIRE: the build_mode the next build request carries (undefined omits the key); written each render from the picker, the flags and the plan
+  const agentVoiceModeRef = useRef<BuildMode | undefined>(undefined) // AGENT-MODE-WIRE: the build_mode a build send that came from the voice call carries (PK ruling: voice never starts Agent); written each render, never "agent"
   const agentCardsRef = useRef<HTMLDivElement>(null) // AGENT-MODE-WIRE: the cards in the chat, to bring a new one into view
   const agentSessionRef = useRef<string | null>(null) // AGENT-MODE-WIRE: the last session the page showed, to tell a move to another session from the first save of a new chat
   const agentPlan = agentPlanOf(user?.tier) // AGENT-MODE-WIRE: the plan the signed-in session carries (read from the database, not from a frame); one that is not free / starter / pro / premium is null, and null keeps Agent disabled
@@ -852,6 +853,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   }, [deckIdentity])
   const buildModeWire = STUDIO_AGENT_MODE_ENABLED ? buildModeOnWire(buildMode, { plan: agentPlan, previous: buildModeFrom }) : undefined // AGENT-MODE-WIRE: the build_mode a request carries; undefined omits the key, so with the flags off every frame is today's
   agentBuildModeRef.current = buildModeWire // AGENT-MODE-WIRE: read at send time by the four build sends below (typed message, outline accept), so a pick is on the very next request and a closure never holds an old mode
+  agentVoiceModeRef.current = STUDIO_AGENT_MODE_ENABLED ? voiceBuildMode(buildModeWire, agentPlan) : undefined // AGENT-MODE-WIRE: the same, for a send that came from the voice call: "standard" for a plan that can have an Agent opt-in (Director's is sticky; this drops it), else no key; never "agent"
   const buildSendOptions = useMemo(
     () => ({
       ...templateSendOptions,
@@ -6098,6 +6100,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     if (e) e.preventDefault()
     const messageText = (messageOverride ?? inputMessage).trim()
     if (!messageText) return
+    const agentModeRef = STUDIO_AGENT_MODE_ENABLED && voiceOriginatedSend(messageText) ? agentVoiceModeRef : agentBuildModeRef // AGENT-MODE-WIRE: PK ruling, a voice turn never starts Agent: asked here, before any await, whether these are the words the voice call armed; the sends below read the mode from this ref
     const submittedDraft = inputMessage
     const submittedAction = pendingActionInput
     const submittedActionRevision = pendingActionIntentRef.current.revision
@@ -6271,7 +6274,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           actionValue: action.value,
           actionLabel: action.label,
           ...buildSendOptions,
-          ...(agentBuildModeRef.current ? { buildMode: agentBuildModeRef.current } : {}), // AGENT-MODE-WIRE
+          ...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE
           manualDeck: turnContext?.manualDeck,
         })
         if (!success || !isCurrentSubmission()) return
@@ -6351,7 +6354,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               fileUpload: !!sessionStoreName,
               storeName: sessionStoreName,
               ...buildSendOptions,
-              ...(agentBuildModeRef.current ? { buildMode: agentBuildModeRef.current } : {}), // AGENT-MODE-WIRE
+              ...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE
               manualDeck: turnContext?.manualDeck,
             })
             if (!success || !isCurrentSubmission()) return
@@ -6455,7 +6458,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         fileUpload: !!sessionStoreName,
         storeName: sessionStoreName,
         ...buildSendOptions,
-        ...(agentBuildModeRef.current ? { buildMode: agentBuildModeRef.current } : {}), // AGENT-MODE-WIRE
+        ...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE
         manualDeck: turnContext?.manualDeck,
       })
 
@@ -6847,6 +6850,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
   // Handle action button clicks
   const handleActionClick = useCallback(async (action: ActionRequest['payload']['actions'][0], actionRequestMessageId: string, answerKey: string = actionRequestMessageId) => {
+    const agentModeRef = STUDIO_AGENT_MODE_ENABLED && voiceOriginatedSend(action.label) ? agentVoiceModeRef : agentBuildModeRef // AGENT-MODE-WIRE: the same for a card's button: a spoken "yes" is this click with the call's words armed, and it sends "standard", not the picker's Agent
     const origin = { ...questionSubmissionScopeRef.current }
     const isCurrentSubmission = () => (
       questionSubmissionScopeRef.current.active &&
@@ -6890,7 +6894,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             actionValue: action.value,
             actionLabel: action.label,
             ...buildSendOptions,
-            ...(agentBuildModeRef.current ? { buildMode: agentBuildModeRef.current } : {}), // AGENT-MODE-WIRE
+            ...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE
           }, undefined, isCurrentSubmission)
         } catch {
           // Reconnect can reject as well as refuse; preserve the native retry UI.
@@ -8589,4 +8593,4 @@ import { BuilderQuotaRefusal } from '@/components/billing/builder-quota-refusal'
 import { AgentRunCards } from '@/components/builder/agent-mode/agent-run-cards' // AGENT-MODE-WIRE
 import { BuildModePicker } from '@/components/builder/agent-mode/build-mode-picker' // AGENT-MODE-WIRE
 import { STUDIO_AGENT_MODE_ENABLED, agentPlanOf, buildModeOnWire, initialAgentRunState, type BuildMode } from '@/lib/studio-agent-mode' // AGENT-MODE-WIRE
-import { AGENT_WIRE_CONTROL_MARK, AGENT_WIRE_COPY, AGENT_WIRE_RESET, agentCardsKey, agentRunBusy, agentSessionChanged, agentWireReducer, answerAgentCard } from '@/lib/studio-agent-mode-wire' // AGENT-MODE-WIRE
+import { AGENT_WIRE_CONTROL_MARK, AGENT_WIRE_COPY, AGENT_WIRE_RESET, agentCardsKey, agentRunBusy, agentSessionChanged, agentWireReducer, answerAgentCard, voiceBuildMode, voiceOriginatedSend } from '@/lib/studio-agent-mode-wire' // AGENT-MODE-WIRE
