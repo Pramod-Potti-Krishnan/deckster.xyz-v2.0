@@ -80,7 +80,7 @@ export const AGENT_MODE_WIRE_EDITS = {
     ["    agentSessionRef.current = currentSessionId ?? agentSessionRef.current // AGENT-MODE-WIRE\n", ""],
     ["  }, [currentSessionId]) // AGENT-MODE-WIRE\n", ""],
     ["  useEffect(() => { // AGENT-MODE-WIRE: PK ruling (12 Nov), reset to Standard: when an Agent run finishes (done or failed; a refusal is a failed run; a stopped run is not over, it can be resumed) the picker goes back to Standard, once, on that move only (never on mount); a pick made afterwards stays\n", ""],
-    ["    if (!STUDIO_AGENT_MODE_ENABLED) return // AGENT-MODE-WIRE\n", ""],
+    ["    if (!STUDIO_AGENT_MODE_ENABLED) return // AGENT-MODE-WIRE: nothing finishes with the flags off\n", ""],
     ["    const finishedBefore = agentFinishedRef.current // AGENT-MODE-WIRE\n", ""],
     ["    agentFinishedRef.current = agentFinishedRun(agentRun) // AGENT-MODE-WIRE\n", ""],
     ["    setBuildMode(mode => agentPickerAfterRun(finishedBefore, agentRun, mode)) // AGENT-MODE-WIRE: on Pro and Max the next send then says \"standard\" (typedBuildMode), which clears the Agent opt-in Director holds\n", ""],
