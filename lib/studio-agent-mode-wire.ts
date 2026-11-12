@@ -6,16 +6,25 @@
 // functions here are never reached; the answer rule below refuses on its own too.
 //
 // Never a paid start without a click: nothing here sends at render, on a frame, on a timer or on a reconnect. A card is answered only by the person's click, through answerAgentCard, and a failed send leaves the card open (nothing queued, nothing replayed).
-import { STUDIO_AGENT_MODE_ENABLED, agentAnswerOpenCard, agentAnswered, agentEligible, agentRunReducer, initialAgentRunState, type AgentAnswer, type AgentPlan, type AgentRunState, type BuildMode } from '@/lib/studio-agent-mode'
+import { STUDIO_AGENT_MODE_ENABLED, agentAnswerOpenCard, agentAnswered, agentEligible, agentRunReducer, initialAgentRunState, readAgentFrame, type AgentAnswer, type AgentPlan, type AgentRunState, type BuildMode } from '@/lib/studio-agent-mode'
 import { voiceCallBus } from '@/lib/studio-voice-call-ui'
 
 /** The one local action the page's reducer takes besides a frame: clear the run (the person is in another session now). */
 export const AGENT_WIRE_RESET = 'agent_wire_reset'
 
-/** The page's reducer: 'reset' clears the run (an idle state comes back as the same object, so nothing re-renders); anything else is a frame or a local answer for #607's reducer, which refuses what it does not take (the same state comes back). */
+/** A run that is over (done or failed): its card stays on screen until the next run replaces it, but it takes no more frames of its own. */
+const agentRunOver = (state: AgentRunState): boolean => state.status === 'done' || state.status === 'failed'
+
+/**
+ * The page's reducer: 'reset' clears the run (an idle state comes back as the same object, so nothing re-renders); anything else is a frame or a local answer for #607's reducer, which refuses what it does not take (the same state comes back).
+ * One addition to the frame path: once a run is over (done or failed), #607's reducer reads every frame of ANOTHER run as stale and drops it, but the next run's first frame is not always an estimate: a refusal before admission (daily_cap, has_content,
+ * run_exists, the fixture's "A refusal before admission carries a fresh run_id") has none, and would show nothing under the finished run's card. So a frame whose run_id differs from the finished run's is read from a clean state (an estimate gives
+ * the same result as before); a late frame of the finished run itself is still refused as stale, and a run that is live (running, paused, stopped, or an estimate waiting) is untouched: another run's frame is still refused there.
+ */
 export function agentWireReducer(state: AgentRunState, action: unknown): AgentRunState {
   if (action === AGENT_WIRE_RESET) return state.status === 'idle' && state.runId === null ? state : initialAgentRunState()
-  return agentRunReducer(state, action)
+  const frame = agentRunOver(state) ? readAgentFrame(action) : null
+  return agentRunReducer(frame !== null && frame.payload.run_id !== state.runId ? initialAgentRunState() : state, action)
 }
 
 /** A run is in progress (an estimate waiting, running, paused, or stopped and resumable): the build mode must not change under it (Director would stop it as "mode changed"). */

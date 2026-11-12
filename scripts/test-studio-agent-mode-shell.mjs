@@ -8,16 +8,16 @@
 //  A. flags off: every component renders the empty string, for every mis-spelled flag and with the shell off; the Author option shows only with its flag, Agent only with its flag; the frame allow-list is empty off and the six types on;
 //  B. the reducer over a scripted sequence (estimate, steps, checkpoint, done) and a failure path (steps, failed, credit back); the meter never exceeds the cap in display; state is not lost on an unknown or wrong frame (the same object comes back);
 //     another run's frame, a stale frame after done / failed, a second run while one is live, a credit total that goes down: all refused; the reducer is pure; padded fields are ignored; a server string that would leak is replaced;
-//  C. credits only: the markup and the text of every state of every card, and of the picker, hold no "token", "provider", "margin", "$" (nor USD, cost, price, model, router or model names; the one allowed "cost" is A1's label "Estimated cost"), also with foreign fields and leaking words fed in;
+//  C. credits only: the markup and the text of every state of every card, and of the picker, hold no "token", "provider", "margin", "$" (nor USD, cost, price, model, router or model names; the one allowed "cost" is A1's label "Estimated cost"), also with foreign fields and leaking words fed in; // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
 //  D. the picker: Free and Starter (and a plan not known) see Agent disabled with a plain reason; Pro and Max can pick it; Author only with its flag; build_mode on the wire (omitted unless chosen and allowed; an explicit "standard" only when switching back);
-//  E. the cards: nothing is sent at render, every card answers only on a click and with exactly its answer, an answered card is off, A1 is information (no Start; one Stop that sends cancel), A3 Continue and Finish now, A4 Add and Skip, A6 NEVER a silent fallback (a fallback is
+//  E. the cards: nothing is sent at render, every card answers only on a click and with exactly its answer, an answered card is off, A1 is information (no Start; one Stop that sends cancel), A3 Continue and Finish now, A4 Add and Skip, A6 NEVER a silent fallback (a fallback is // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
 //     an explicit button, with its price, and with none offered the one button is OK); no card carries data-director-action-id (a voice "yes" cannot answer a paid card);
 //  F. the strip, the env block, the registry (three lines) and the drafts: not applied (the committed diff leaves the hook and the page alone), each anchor is the dev line it names, a pure insertion except one replace, and the result parses;
 //  G. scope over the COMMITTED diff, GATE-SAFE (own commits by subject across `rev-list --no-merges BASE..head`, HEAD^2 on the gate's merge, no hash-object --stdin), each with the co-author line;
 //  H. ROBUST AFTER MERGE and a LINEAR STACK (a later change directly on this head adds registered-shape registry lines below ours and a subject filter beside ours; an unregistered file in that commit still fails);
 //  J. THE CONTRACT: the fixture is AGENT-1's byte for byte (git blob id, size); every frame example is read with exactly the fixture's field names, required and optional fields and wrong types behave as its flags say; the answer envelope,
 //     the card ids and the choices (A1 start / cancel, A3 continue / stop, A4 add / skip, A6 fallback / stop) equal the fixture's; each of the 13 step labels and 3 + 3 states is read; each of the 50 reason codes has one plain credits-only sentence
-//     and an unknown code says "Something went wrong."; every card is driven from the fixture's own examples; the estimate card does not read expires_at (no Start to expire; the lib's own guard still refuses a late start); a run stopped before an A3 / A4 card stays open and goes back to running on the
+//     and an unknown code says "Something went wrong."; every card is driven from the fixture's own examples; the estimate card does not read expires_at (no Start to expire; the lib's own guard still refuses a late start); a run stopped before an A3 / A4 card stays open and goes back to running on the // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
 //     answer; an answer goes out only on a live socket and is never queued or replayed (the drafted hook lines are run against fake sockets);
 //  I. mutants are caught (each is one edit of the real sources, fed to the same checks).
 import assert from 'node:assert/strict'
@@ -262,8 +262,8 @@ await check('the reducer: the scripted success (estimate, steps, checkpoint, don
 
 // ===== C. credits only =============================================================================================================================
 console.log('C. credits only')
-/** No currency, USD, cost, price, token, model, provider, margin, router or model name, in markup or text. The one allowed use of the word is A1's label "Estimated cost" (PK's words; the figures after it are credits). */
-const LEAK = /\$|\busd\b|_usd\b|dollar|\bcosts\b|(?<!Estimated )\bcost\b|\bprices?\b|per[ -]token|\btokens?\b|\bmodels?\b|\bproviders?\b|openrouter|\bmargin\b|\bcents?\b|\brouter\b|\b(gpt|claude|gemini|llama|sonnet|opus|haiku)\b/i
+/** No currency, USD, cost, price, token, model, provider, margin, router or model name, in markup or text. The one allowed use of the word is A1's label "Estimated cost" (PK's words; the figures after it are credits). */ // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+const LEAK = /\$|\busd\b|_usd\b|dollar|\bcosts\b|(?<!Estimated )\bcost\b|\bprices?\b|per[ -]token|\btokens?\b|\bmodels?\b|\bproviders?\b|openrouter|\bmargin\b|\bcents?\b|\brouter\b|\b(gpt|claude|gemini|llama|sonnet|opus|haiku)\b/i // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
 function proveLeaks(texts = {}) {
   const lib = libOf(ENV_BOTH, texts), rows = allMarkup(ENV_BOTH, texts)
   assert.equal(rows.length, Object.keys(allStates(lib)).length * CARD_VIEWS.length + 21, 'every state of every card and every plan of the picker is drawn')
@@ -282,11 +282,11 @@ function proveLeaks(texts = {}) {
 }
 await check('credits only: the markup and the text of every state of every card, the composite and the picker (every plan) hold no $, USD, cost, price, token, model, provider, margin or model name; foreign fields and leaking server words fed in change nothing; every word the lib can say is clean', () => proveLeaks())
 await check('positive controls: the leak pattern catches each kind of word it is for, the cards really draw credits, and the figures read as credits', () => {
-  for (const word of ['$5', '5 USD', 'cost_usd', 'the cost', 'costs', 'Estimated costs', 'Estimated cost in $5', 'a price', 'per token', '3 tokens', 'the model', 'provider', 'openrouter', 'margin', '500 cents', 'the router', 'gpt', 'Sonnet', 'Opus']) assert.match(word, LEAK, word)
-  for (const word of ['credits', 'Estimated cost', '480 of 600 credits', 'Continue with up to 120 more credits', 'Agent build', 'Pro and Max', 'Charged 300 credits.']) assert.doesNotMatch(word, LEAK, word)
+  for (const word of ['$5', '5 USD', 'cost_usd', 'the cost', 'costs', 'Estimated costs', 'Estimated cost in $5', 'a price', 'per token', '3 tokens', 'the model', 'provider', 'openrouter', 'margin', '500 cents', 'the router', 'gpt', 'Sonnet', 'Opus']) assert.match(word, LEAK, word) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+  for (const word of ['credits', 'Estimated cost', '480 of 600 credits', 'Continue with up to 120 more credits', 'Agent build', 'Pro and Max', 'Charged 300 credits.']) assert.doesNotMatch(word, LEAK, word) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
   const lib = libOf(); const s = run(lib, SCRIPT_OK.slice(0, 6))
   assert.match(textOf(html('cards', 'AgentRunCards', { state: s })), /480 of 600 credits.*Reading your outline.*Looking for a matching template.*Researching slides 3 to 5.*Working.*480 of 600 credits used\. Continue with up to 120 more credits, or stop now\?/)
-  assert.match(textOf(html('cards', 'AgentRunCards', { state: run(lib, [est()]) })), /^Agent build Estimated cost: About 470 credits · cap 600 credits · Running Stop$/)
+  assert.match(textOf(html('cards', 'AgentRunCards', { state: run(lib, [est()]) })), /^Agent build Estimated cost: About 470 credits · cap 600 credits · Running Stop$/) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
   assert.match(textOf(html('cards', 'AgentRunCards', { state: run(lib, SCRIPT_FAIL) })), /The agent stopped at step 3\. The build reached its credit cap\. Charged 300 credits\. 300 credits credited back\. No slides were built\. OK$/)
   assert.match(textOf(html('cards', 'AgentRunCards', { state: run(lib, [est(), checkF(), offerF()]) })), /Deeper research on slides 3–5 adds about 40 credits\. Add it\? Add research Stop here$/)
 })
@@ -335,13 +335,13 @@ function proveCards(texts = {}) {
   // nothing is sent at render, for any card and any state; no card can be answered by a voice "yes"
   for (const [name, state] of Object.entries(S)) for (const [file, comp] of CARD_VIEWS) { tree(file, comp, props(state), { texts }); const m = html(file, comp, props(state), { texts }); assert.doesNotMatch(m, /data-director-action-id/, `${comp} / ${name}: no data-director-action-id (the voice call reads the cards that have one)`) }
   deepEqual(calls, [], 'a render sends nothing'); deepEqual(controls, [])
-  // A1 is INFORMATION, not a gate (PK ruling: the Agent send is the spend click): no Start; one Stop, and it sends exactly A1 cancel (the wire contract is unchanged)
-  const a1 = buttonsOf('estimate', 'AgentEstimateCard', S.estimate); deepEqual(a1.answers.map(b => b.props['data-agent-choice']), ['cancel'], 'one button, and it is not a Start'); deepEqual(a1.all.map(b => b.props['data-agent-choice']), ['cancel']); assert.equal(a1.answers[0].props['data-primary'], undefined, 'Stop is not the primary button'); for (const b of a1.answers) b.props.onClick()
-  deepEqual(calls.splice(0), [answer('A1', 'cancel')], 'a click on Stop sends exactly A1 cancel'); deepEqual(a1.answers.map(b => b.props.disabled), [false])
-  assert.match(textOf(html('estimate', 'AgentEstimateCard', { state: S.estimate }, { texts })), /^Agent build Estimated cost: About 470 credits · cap 600 credits · Running Stop$/, 'the card reads as information, with the one Stop'); assert.doesNotMatch(html('estimate', 'AgentEstimateCard', { state: S.estimate }, { texts }), /data-agent-choice="start"|>Start<|>Cancel</, 'no Start (and no Cancel) button')
-  deepEqual(buttonsOf('estimate', 'AgentEstimateCard', S['estimate answered']).answers.map(b => [b.props.disabled, b.props['data-answered']]), [[true, undefined]], 'once the estimate is answered Stop is off')
-  deepEqual(buttonsOf('estimate', 'AgentEstimateCard', { ...S.estimate, estimate: { ...S.estimate.estimate, answered: 'cancel' } }).answers.map(b => [b.props.disabled, b.props['data-answered']]), [[true, 'true']], 'a taken Stop is off and marked')
-  assert.equal(html('estimate', 'AgentEstimateCard', { state: S.estimate }, { texts }).includes('It may stop at the cap.'), false); assert.match(textOf(html('estimate', 'AgentEstimateCard', { state: S['estimate over the cap'] }, { texts })), /Estimated cost: About 900 credits · cap 600 credits · Running It may stop at the cap\./)
+  // A1 is INFORMATION, not a gate (PK ruling: the Agent send is the spend click): no Start; one Stop, and it sends exactly A1 cancel (the wire contract is unchanged) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+  const a1 = buttonsOf('estimate', 'AgentEstimateCard', S.estimate); deepEqual(a1.answers.map(b => b.props['data-agent-choice']), ['cancel'], 'one button, and it is not a Start'); deepEqual(a1.all.map(b => b.props['data-agent-choice']), ['cancel']); assert.equal(a1.answers[0].props['data-primary'], undefined, 'Stop is not the primary button'); for (const b of a1.answers) b.props.onClick() // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+  deepEqual(calls.splice(0), [answer('A1', 'cancel')], 'a click on Stop sends exactly A1 cancel'); deepEqual(a1.answers.map(b => b.props.disabled), [false]) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+  assert.match(textOf(html('estimate', 'AgentEstimateCard', { state: S.estimate }, { texts })), /^Agent build Estimated cost: About 470 credits · cap 600 credits · Running Stop$/, 'the card reads as information, with the one Stop'); assert.doesNotMatch(html('estimate', 'AgentEstimateCard', { state: S.estimate }, { texts }), /data-agent-choice="start"|>Start<|>Cancel</, 'no Start (and no Cancel) button') // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+  deepEqual(buttonsOf('estimate', 'AgentEstimateCard', S['estimate answered']).answers.map(b => [b.props.disabled, b.props['data-answered']]), [[true, undefined]], 'once the estimate is answered Stop is off') // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+  deepEqual(buttonsOf('estimate', 'AgentEstimateCard', { ...S.estimate, estimate: { ...S.estimate.estimate, answered: 'cancel' } }).answers.map(b => [b.props.disabled, b.props['data-answered']]), [[true, 'true']], 'a taken Stop is off and marked') // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+  assert.equal(html('estimate', 'AgentEstimateCard', { state: S.estimate }, { texts }).includes('It may stop at the cap.'), false); assert.match(textOf(html('estimate', 'AgentEstimateCard', { state: S['estimate over the cap'] }, { texts })), /Estimated cost: About 900 credits · cap 600 credits · Running It may stop at the cap\./) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
   for (const state of [S.running, S.done, S.idle, S.checkpoint, S['failed, no deck, credited back']]) assert.equal(html('estimate', 'AgentEstimateCard', { state }, { texts }), '', 'the estimate card is for the estimate only')
   // the run card: steps, meter, Pause / Resume / Stop
   const running = buttonsOf('run', 'AgentRunCard', S.running); deepEqual(running.controls.map(b => b.props['data-agent-control']), ['pause', 'stop']); for (const b of running.controls) b.props.onClick(); deepEqual(controls.splice(0), ['pause', 'stop']); deepEqual(running.answers, [])
@@ -450,14 +450,14 @@ await check('the contract: every fixture example is read with exactly the fixtur
 
 /** Every card driven from the fixture's own examples, in the order a run goes: the words, the buttons, the answers a click makes (each equal to the fixture's envelope), the state after each. */
 function proveExamples(texts = {}) {
-  const lib = libOf(ENV_BOTH, texts), R = lib.agentRunReducer, calls = [], onAnswer = a => calls.push(a)
+  const lib = libOf(ENV_BOTH, texts), R = lib.agentRunReducer, calls = [], onAnswer = a => calls.push(a) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
   const choicesOf = (file, comp, props) => { const t = tree(file, comp, { ...props, onAnswer }, { texts }); return elements(t, el => el.props?.['data-agent-choice']) }
   const click = (file, comp, props) => { const buttons = choicesOf(file, comp, props); for (const b of buttons) b.props.onClick(); return buttons.map(b => b.props['data-agent-choice']) }
   const frames = calls => calls.map(c => lib.agentAnswerFrame(c))
-  // A1, the estimate: "Estimated cost: About N credits · cap M credits · Running", one Stop (it sends cancel)
+  // A1, the estimate: "Estimated cost: About N credits · cap M credits · Running", one Stop (it sends cancel) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
   let s = R(lib.initialAgentRunState(), EX_FRAME('agent_estimate')); assert.equal(s.status, 'estimate'); assert.equal(s.runId, RUN); deepEqual(s.estimate, { credits: 470, expiresAt: '2026-11-09T12:05:00Z', answered: null }); assert.equal(s.capCredits, 600)
-  assert.match(textOf(html('cards', 'AgentRunCards', { state: s }, { texts })), /^Agent build Estimated cost: About 470 credits · cap 600 credits · Running Stop$/)
-  deepEqual(click('estimate', 'AgentEstimateCard', { state: s }), ['cancel'], 'A1: one Stop (the fixture\'s expires_at is long past: the card does not read it)'); deepEqual(frames(calls.splice(0)), [{ type: 'agent_answer', data: { run_id: RUN, card: 'A1', choice: 'cancel' } }])
+  assert.match(textOf(html('cards', 'AgentRunCards', { state: s }, { texts })), /^Agent build Estimated cost: About 470 credits · cap 600 credits · Running Stop$/) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+  deepEqual(click('estimate', 'AgentEstimateCard', { state: s }), ['cancel'], 'A1: one Stop (the fixture\'s expires_at is long past: the card does not read it)'); deepEqual(frames(calls.splice(0)), [{ type: 'agent_answer', data: { run_id: RUN, card: 'A1', choice: 'cancel' } }]) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
   // the step: the label in plain words, both states, the run's totals
   s = R(s, EX_FRAME('agent_step')); assert.equal(s.status, 'running'); deepEqual(s.steps, [{ n: 4, label: 'Rebuilding slide 4', stepState: 'running' }]); assert.equal(s.usedCredits, 340); assert.equal(s.capCredits, 600); assert.equal(s.estimate, null)
   assert.match(textOf(html('run', 'AgentRunCard', { state: s }, { texts })), /340 of 600 credits Rebuilding slide 4 Working Pause Stop/)
@@ -481,30 +481,31 @@ function proveExamples(texts = {}) {
 }
 await check('every card driven from the fixture\'s own examples, in the order a run goes (A1 estimate with its expires_at, step, A3, A4, A6 with its fallback offer, done): the words, the buttons, and each answer a click makes equals the fixture\'s envelope', () => proveExamples())
 
-/** The estimate card is information (PK ruling: the Agent send is the spend click): it does not read the estimate's expires_at. Past it, ahead of it, or none: the same card with the one Stop on, no timer and no hook. The lib's own rule (estimateExpired, and the answer guard that refuses a late A1 start but never a cancel) is unchanged. */
-function proveEstimateInfo(texts = {}) {
+/** The estimate card is information (PK ruling: the Agent send is the spend click): it does not read the estimate's expires_at. Past it, ahead of it, or none: the same card with the one Stop on, no timer and no hook. The lib's own rule (estimateExpired, and the answer guard that refuses a late A1 start but never a cancel) is unchanged. */ // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+function proveEstimateInfo(texts = {}) { // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
   const lib = libOf(ENV_BOTH, texts), S = allStates(lib), T0 = Date.parse(EX('agent_estimate').expires_at), state = S['estimate with an expiry'], calls = [], onAnswer = a => calls.push(a)
+  // LATER-CHANGES: registry read (AGENT-MODE-WIRE): #607's view / start / cancel closures (the card read a clock) are not here: the estimate card does not read expires_at
   assert.equal(lib.estimateExpired('2026-11-09T12:05:00Z', T0 - 1), false); assert.equal(lib.estimateExpired('2026-11-09T12:05:00Z', T0), true, 'at the instant it has passed'); assert.equal(lib.estimateExpired('2026-11-09T12:05:00Z', T0 + 1), true)
   for (const none of [undefined, null, '', 'not a date', 7]) assert.equal(lib.estimateExpired(none, T0 + 1e9), false, `no usable expires_at: never expired (${JSON.stringify(none)})`)
-  // the card is the same with an expiry long past (the fixture's), far ahead, or none: Stop is on and one click sends A1 cancel
-  const card = (st, extra = {}) => html('estimate', 'AgentEstimateCard', { state: st, onAnswer, ...extra }, { texts }), stop = st => byProp(tree('estimate', 'AgentEstimateCard', { state: st, onAnswer }, { texts }), 'data-agent-choice', 'cancel')[0]
-  for (const [label, st] of [['an expiry long past', state], ['no expiry', S.estimate], ['an expiry far ahead', run(lib, [est({ expires_at: '2999-01-01T00:00:00Z' })])]]) {
-    assert.match(textOf(card(st)), /^Agent build Estimated cost: About 470 credits · cap 600 credits · Running Stop$/, `${label}: the same card`); assert.equal(card(st).includes('expired'), false, `${label}: no expired line`); assert.doesNotMatch(card(st), /data-agent-choice="start"/, `${label}: no Start`)
-    assert.equal(stop(st).props.disabled, false, `${label}: Stop is on`); stop(st).props.onClick(); deepEqual(calls.splice(0), [answer('A1', 'cancel')], `${label}: a click on Stop sends A1 cancel`)
+  // the card is the same with an expiry long past (the fixture's), far ahead, or none: Stop is on and one click sends A1 cancel // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+  const card = (st, extra = {}) => html('estimate', 'AgentEstimateCard', { state: st, onAnswer, ...extra }, { texts }), stop = st => byProp(tree('estimate', 'AgentEstimateCard', { state: st, onAnswer }, { texts }), 'data-agent-choice', 'cancel')[0] // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+  for (const [label, st] of [['an expiry long past', state], ['no expiry', S.estimate], ['an expiry far ahead', run(lib, [est({ expires_at: '2999-01-01T00:00:00Z' })])]]) { // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+    assert.match(textOf(card(st)), /^Agent build Estimated cost: About 470 credits · cap 600 credits · Running Stop$/, `${label}: the same card`); assert.equal(card(st).includes('expired'), false, `${label}: no expired line`); assert.doesNotMatch(card(st), /data-agent-choice="start"/, `${label}: no Start`) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+    assert.equal(stop(st).props.disabled, false, `${label}: Stop is on`); stop(st).props.onClick(); deepEqual(calls.splice(0), [answer('A1', 'cancel')], `${label}: a click on Stop sends A1 cancel`) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
   }
-  assert.equal(card(state, { now: T0 + 1 }), card(state), 'a clock handed in changes nothing'); assert.doesNotMatch(textOf(html('cards', 'AgentRunCards', { state, now: T0 + 1 }, { texts })), /expired|ask again/i, 'the composite says nothing about an expiry either')
-  // the lib's guard is as it was: a start is refused from the expiry on (it can only come from outside the card now), a cancel never
-  assert.equal(lib.agentAnswerOpenCard(state, answer('A1', 'start'), T0 - 1), true); assert.equal(lib.agentAnswerOpenCard(state, answer('A1', 'start'), T0), false); assert.equal(lib.agentAnswerOpenCard(state, answer('A1', 'cancel'), T0 + 1e6), true, 'a cancel is never expiry-gated')
-  // no timer and no hook: every hook is counted and every effect is run, with the timers spied; a draw for an expiry still ahead sets none
-  const hooks = { n: 0 }, spy = { ...stubReact, __tag: 'spy', useState: init => { hooks.n++; return [typeof init === 'function' ? init() : init, () => {}] }, useEffect: fn => { hooks.n++; fn() } }
-  const mod = load(FILE.estimate, { env: ENV_BOTH, texts, react: spy }), saved = { ...timers }, log = []
+  assert.equal(card(state, { now: T0 + 1 }), card(state), 'a clock handed in changes nothing'); assert.doesNotMatch(textOf(html('cards', 'AgentRunCards', { state, now: T0 + 1 }, { texts })), /expired|ask again/i, 'the composite says nothing about an expiry either') // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+  // the lib's guard is as it was: a start is refused from the expiry on (it can only come from outside the card now), a cancel never // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+  assert.equal(lib.agentAnswerOpenCard(state, answer('A1', 'start'), T0 - 1), true); assert.equal(lib.agentAnswerOpenCard(state, answer('A1', 'start'), T0), false); assert.equal(lib.agentAnswerOpenCard(state, answer('A1', 'cancel'), T0 + 1e6), true, 'a cancel is never expiry-gated') // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+  // no timer and no hook: every hook is counted and every effect is run, with the timers spied; a draw for an expiry still ahead sets none // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+  const hooks = { n: 0 }, spy = { ...stubReact, __tag: 'spy', useState: init => { hooks.n++; return [typeof init === 'function' ? init() : init, () => {}] }, useEffect: fn => { hooks.n++; fn() } } // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+  const mod = load(FILE.estimate, { env: ENV_BOTH, texts, react: spy }), saved = { ...timers }, log = [] // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
   try {
-    timers.set = (...a) => { log.push(['set', a[1]]); return 7 }; timers.clear = id => log.push(['clear', id])
-    for (const st of [state, S.estimate, S['estimate answered'], run(lib, [est({ expires_at: new Date(Date.now() + 5000).toISOString() })])]) { hooks.n = 0; const el = mod.AgentEstimateCard({ state: st, onAnswer }); el.type(el.props); assert.equal(hooks.n, 0, 'the estimate card uses no React hook') }
-    deepEqual(log, [], 'and sets no timer')
+    timers.set = (...a) => { log.push(['set', a[1]]); return 7 }; timers.clear = id => log.push(['clear', id]) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+    for (const st of [state, S.estimate, S['estimate answered'], run(lib, [est({ expires_at: new Date(Date.now() + 5000).toISOString() })])]) { hooks.n = 0; const el = mod.AgentEstimateCard({ state: st, onAnswer }); el.type(el.props); assert.equal(hooks.n, 0, 'the estimate card uses no React hook') } // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+    deepEqual(log, [], 'and sets no timer') // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
   } finally { Object.assign(timers, saved) }
 }
-await check('the estimate is information, not a gate: the card does not read expires_at (an expiry long past, far ahead or none: the same card, Stop on, one click sends A1 cancel, no expired line, no timer, no hook); the lib guard still refuses a late start and never a cancel', () => proveEstimateInfo())
+await check('the estimate is information, not a gate: the card does not read expires_at (an expiry long past, far ahead or none: the same card, Stop on, one click sends A1 cancel, no expired line, no timer, no hook); the lib guard still refuses a late start and never a cancel', () => proveEstimateInfo()) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
 
 /** Reducer note 1 (AGENT-1, 9 Nov): an A3 / A4 card arrives AFTER run_status "stopped": the run is stopped and resumable while the card shows, the run card stays open, and answering goes back to running. "stopped" is final only when no card follows. */
 function proveStopped(texts = {}) {
@@ -557,7 +558,7 @@ function proveAnswerPath(texts = {}, drafts = AGENT_MODE_SHELL_DRAFTS) {
 }
 await check('reducer note 2: an answer goes out only through agentAnswerSendable on a socket that is open now, never queued, retried or replayed after a reconnect (the drafted hook line H7 run against fake sockets); the card is marked answered only after a send (P7), and only for the card that is open', () => proveAnswerPath())
 
-async function proveShell(texts = {}) { proveFlags(texts); proveReducer(texts); proveLeaks(texts); provePicker(texts); proveCards(texts); proveContract(texts); proveExamples(texts); proveEstimateInfo(texts); proveStopped(texts); proveAnswerPath(texts) }
+async function proveShell(texts = {}) { proveFlags(texts); proveReducer(texts); proveLeaks(texts); provePicker(texts); proveCards(texts); proveContract(texts); proveExamples(texts); proveEstimateInfo(texts); proveStopped(texts); proveAnswerPath(texts) } // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
 
 
 // ===== F. the strip, the env block, the registry, the drafts =========================================================================================
@@ -857,7 +858,7 @@ await mutant('B: a server step label is not cleaned', () => proveShell(lib('labe
 await mutant('B: a padded payload passes through the parse', () => proveShell(lib("return { type: 'agent_step', payload: { run_id, step, label:", "return { type: 'agent_step', payload: { ...p, run_id, step, label:")))
 await mutant('B: a silent fallback in the reducer (failed with a fallback offered goes on running)', () => proveShell(lib("return { ...base, status: 'failed', estimate: null, pending: null, failure:", "return { ...base, status: p.fallback_credits !== undefined ? 'running' : 'failed', estimate: null, pending: null, failure:")))
 await mutant('B: the answer frame loses the choice', () => proveShell(lib('data: { run_id: answer.runId, card: answer.card, choice: answer.choice }', 'data: { run_id: answer.runId, card: answer.card }')))
-await mutant('C: a leak word in the Stop button ("$")', () => proveShell(lib("  stop: 'Stop',", "  stop: 'Stop ($)',")))
+await mutant('C: a leak word in the Stop button ("$")', () => proveShell(lib("  stop: 'Stop',", "  stop: 'Stop ($)',"))) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
 await mutant('C: a leak word in the meter label ("tokens")', () => proveShell(lib("creditsUsed: 'Credits used',", "creditsUsed: 'Tokens used',")))
 await mutant('C: a currency sign in the estimate', () => proveShell(lib('`About ${formatCredits(est)} · cap ${formatCredits(cap)}`', '`About $${formatCredits(est)} · cap ${formatCredits(cap)}`')))
 await mutant('C: credits drawn as dollars', () => proveShell(lib("return `${n.toLocaleString('en-US')} ${n === 1 ? 'credit' : 'credits'}`", "return `$${n.toLocaleString('en-US')}`")))
@@ -886,7 +887,7 @@ await mutant('E: a colour literal in the card frame', () => proveShell(comp('fra
 await mutant('E: a finished run keeps its controls', () => proveShell(comp('run', 'const live = state.status === "running" || state.status === "paused" || state.status === "stopped"', 'const live = true')))
 await mutant('B: the meter fill is not held to the cap', () => proveShell(comp('run', '${Math.round(meterFraction(state.usedCredits, cap) * 100)}%', '${Math.round((cap ? state.usedCredits / cap : 0) * 100)}%')))
 await mutant('B: the meter value is not held to the cap', () => proveShell(comp('run', 'aria-valuenow={cap === null ? undefined : shown}', 'aria-valuenow={cap === null ? undefined : state.usedCredits}')))
-await mutant('E: the estimate card has no Stop', () => proveShell(comp('estimate', '<AgentActionButton choice="cancel" answered={answered} onClick={() => onAnswer?.({ runId, card: "A1", choice: "cancel" })}>{AGENT_COPY.stop}</AgentActionButton>', '')))
+await mutant('E: the estimate card has no Stop', () => proveShell(comp('estimate', '<AgentActionButton choice="cancel" answered={answered} onClick={() => onAnswer?.({ runId, card: "A1", choice: "cancel" })}>{AGENT_COPY.stop}</AgentActionButton>', ''))) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
 const draftsWith = (i, over) => AGENT_MODE_SHELL_DRAFTS.map((d, j) => (j === i ? { ...d, ...over } : d))
 // the contract (J): the reader, the card ids and choices, the reason words, the stopped run, the answer path, the fixture itself
 await mutant('J: a reader still using estimate_low', () => proveShell(lib('const est = credits(p.est_credits), cap = credits(p.cap_credits), expires =', 'const est = credits(p.estimate_low), cap = credits(p.cap_credits), expires =')))
@@ -919,19 +920,19 @@ await mutant('J: the estimate expiry is ignored by the guard', () => proveShell(
 await mutant('J: the estimate expiry is ignored by the reader (a bad date accepted)', () => proveShell(lib('Number.isFinite(Date.parse(v)) ? v : null', 'true ? v : null')))
 await mutant('J: the estimate never expires', () => proveShell(lib('return Number.isFinite(at) && nowMs >= at', 'return false')))
 await mutant('J: the estimate expires one instant late', () => proveShell(lib('return Number.isFinite(at) && nowMs >= at', 'return Number.isFinite(at) && nowMs > at')))
-const STOP_BUTTON = '<AgentActionButton choice="cancel" answered={answered} onClick={() => onAnswer?.({ runId, card: "A1", choice: "cancel" })}>{AGENT_COPY.stop}</AgentActionButton>'
-await mutant('J: a Start button comes back on the estimate card', () => proveShell(comp('estimate', STOP_BUTTON, '<AgentActionButton choice="start" primary answered={answered} onClick={() => onAnswer?.({ runId, card: "A1", choice: "start" })}>Start</AgentActionButton>' + STOP_BUTTON)))
-await mutant('J: a Cancel button comes back beside Stop', () => proveShell(comp('estimate', STOP_BUTTON, STOP_BUTTON + '<AgentActionButton choice="cancel" answered={answered} onClick={() => onAnswer?.({ runId, card: "A1", choice: "cancel" })}>Cancel</AgentActionButton>')))
-await mutant('J: the Stop sends start', () => proveShell(comp('estimate', 'card: "A1", choice: "cancel" })}>{AGENT_COPY.stop}', 'card: "A1", choice: "start" })}>{AGENT_COPY.stop}')))
-await mutant('J: the Stop sends another card\'s answer (A3)', () => proveShell(comp('estimate', 'card: "A1", choice: "cancel" })}>{AGENT_COPY.stop}', 'card: "A3", choice: "stop" })}>{AGENT_COPY.stop}')))
-await mutant('J: the Stop is always off', () => proveShell(comp('estimate', 'answered={answered} onClick={() => onAnswer?.({ runId, card: "A1", choice: "cancel" })}', 'answered={answered} disabled onClick={() => onAnswer?.({ runId, card: "A1", choice: "cancel" })}')))
-await mutant('J: the Stop can be taken again once answered', () => proveShell(comp('estimate', 'choice="cancel" answered={answered} onClick', 'choice="cancel" answered={null} onClick')))
-await mutant('J: "Running" is dropped from the estimate line', () => proveShell(comp('estimate', ' · ${AGENT_COPY.estimateRunning}`', '`')))
-await mutant('J: "Estimated cost" is dropped from the estimate line', () => proveShell(comp('estimate', '`${AGENT_COPY.estimateLabel}: ${formatEstimate(credits, cap)}', '`${formatEstimate(credits, cap)}')))
-await mutant('J: the word "Running" changes in the copy', () => proveShell(lib("estimateRunning: 'Running',", "estimateRunning: 'Waiting',")))
-await mutant('J: a leak word beside the label (a currency sign)', () => proveShell(lib("estimateLabel: 'Estimated cost',", "estimateLabel: 'Estimated cost in $',")))
-await mutant('J: the label says "price" instead of "cost" (a leak word)', () => proveShell(lib("estimateLabel: 'Estimated cost',", "estimateLabel: 'Estimated price',")))
-await mutant('J: the estimate card keeps a timer (a hook comes back)', () => proveShell(comp('estimate', '  return (\n    <AgentCardFrame kind="estimate"', '  React.useEffect(() => { const t = setTimeout(() => {}, 1000); return () => clearTimeout(t) }, [])\n  return (\n    <AgentCardFrame kind="estimate"')))
+const STOP_BUTTON = '<AgentActionButton choice="cancel" answered={answered} onClick={() => onAnswer?.({ runId, card: "A1", choice: "cancel" })}>{AGENT_COPY.stop}</AgentActionButton>' // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+await mutant('J: a Start button comes back on the estimate card', () => proveShell(comp('estimate', STOP_BUTTON, '<AgentActionButton choice="start" primary answered={answered} onClick={() => onAnswer?.({ runId, card: "A1", choice: "start" })}>Start</AgentActionButton>' + STOP_BUTTON))) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+await mutant('J: a Cancel button comes back beside Stop', () => proveShell(comp('estimate', STOP_BUTTON, STOP_BUTTON + '<AgentActionButton choice="cancel" answered={answered} onClick={() => onAnswer?.({ runId, card: "A1", choice: "cancel" })}>Cancel</AgentActionButton>'))) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+await mutant('J: the Stop sends start', () => proveShell(comp('estimate', 'card: "A1", choice: "cancel" })}>{AGENT_COPY.stop}', 'card: "A1", choice: "start" })}>{AGENT_COPY.stop}'))) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+await mutant('J: the Stop sends another card\'s answer (A3)', () => proveShell(comp('estimate', 'card: "A1", choice: "cancel" })}>{AGENT_COPY.stop}', 'card: "A3", choice: "stop" })}>{AGENT_COPY.stop}'))) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+await mutant('J: the Stop is always off', () => proveShell(comp('estimate', 'answered={answered} onClick={() => onAnswer?.({ runId, card: "A1", choice: "cancel" })}', 'answered={answered} disabled onClick={() => onAnswer?.({ runId, card: "A1", choice: "cancel" })}'))) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+await mutant('J: the Stop can be taken again once answered', () => proveShell(comp('estimate', 'choice="cancel" answered={answered} onClick', 'choice="cancel" answered={null} onClick'))) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+await mutant('J: "Running" is dropped from the estimate line', () => proveShell(comp('estimate', ' · ${AGENT_COPY.estimateRunning}`', '`'))) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+await mutant('J: "Estimated cost" is dropped from the estimate line', () => proveShell(comp('estimate', '`${AGENT_COPY.estimateLabel}: ${formatEstimate(credits, cap)}', '`${formatEstimate(credits, cap)}'))) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+await mutant('J: the word "Running" changes in the copy', () => proveShell(lib("estimateRunning: 'Running',", "estimateRunning: 'Waiting',"))) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+await mutant('J: a leak word beside the label (a currency sign)', () => proveShell(lib("estimateLabel: 'Estimated cost',", "estimateLabel: 'Estimated cost in $',"))) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+await mutant('J: the label says "price" instead of "cost" (a leak word)', () => proveShell(lib("estimateLabel: 'Estimated cost',", "estimateLabel: 'Estimated price',"))) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
+await mutant('J: the estimate card keeps a timer (a hook comes back)', () => proveShell(comp('estimate', '  return (\n    <AgentCardFrame kind="estimate"', '  React.useEffect(() => { const t = setTimeout(() => {}, 1000); return () => clearTimeout(t) }, [])\n  return (\n    <AgentCardFrame kind="estimate"'))) // LATER-CHANGES: registry read (AGENT-MODE-WIRE)
 await mutant('J: the estimate card still shows a range (the old words)', () => proveShell(lib('`About ${formatCredits(est)} · cap ${formatCredits(cap)}`', '`About ${formatCredits(est)}–${formatCredits(est + 1)} · cap ${formatCredits(cap)}`')))
 await mutant('J: the A3 sentence says finish again', () => proveShell(lib('more ${Math.ceil(more) === 1 ? \'credit\' : \'credits\'}, or stop now?`', 'more ${Math.ceil(more) === 1 ? \'credit\' : \'credits\'}, or finish now?`')))
 await mutant('J: a model name in the A3 stop button', () => proveShell(lib("checkpointStop: 'Stop now',", "checkpointStop: 'Stop Claude',")))

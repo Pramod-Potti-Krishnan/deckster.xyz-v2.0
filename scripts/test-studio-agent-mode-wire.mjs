@@ -19,9 +19,11 @@
 //     an answered card, another run's card and an A6 fallback that was not offered send nothing; a socket that is not live leaves the card open and says so
 //     with the next step; Agent is disabled below Pro, a plan that is not loaded, and while a run is in progress; sendAgentAnswer has exactly one caller;
 //  E. the page: every mount and option is gated, the plan comes from the signed-in session (never a frame), the four build sends carry build_mode, a session change clears the run and the mode and the first save of a new chat does not, a failure to send
-//     (an answer or a Pause / Resume / Stop) is said in plain words with the next step, and the lib's own functions;
-//  F. the sources: every line this change adds to the hook and the page carries the marker and is a pure insertion (no base line is rewritten or removed), the strip puts #607's head back byte for byte (two app files, three older proofs), the registry
-//     (two lines, at the true end of the files and strips lists, none in the env list), .env.example untouched;
+//     (an answer or a Pause / Resume / Stop) is said in plain words with the next step, and the lib's own functions; once a run is done or failed, another run's frame (a refusal before admission has no estimate: daily_cap, has_content, run_exists,
+//     tier) reads from a clean state and shows, a late frame of the finished run is still stale, and a live run still refuses another run's frame;
+//  F. the sources: every line this change adds to the hook and the page carries the marker and is a pure insertion (no base line is rewritten or removed); #607's own four files and its proof, edited in place (the A1 estimate card is information), have EVERY
+//     changed line marked and paired (a line of #607's is never rewritten unmarked); the strip puts #607's head back BYTE FOR BYTE (two app files, #607's files and proof, two older proofs); the registry (two lines, after #607's and at the true end of the
+//     files and strips lists, none in the env list; ORDER checks, never adjacency, the older files read through the other changes' strips, so a keep-both restack of the changes queued ahead of this one still passes: F3), .env.example untouched;
 //  G. scope, read from the COMMITTED diff only (never the working tree): own commits by subject, each with the co-author line; the files they touch are this change's scope; a stray untracked file changes nothing;
 //  H. NO AGENT START FROM VOICE (PK ruling, 11 Nov): a voice accept (a spoken yes to the plan card) or any voice-originated send never carries build_mode "agent" and sends no agent frame; a click on the card or a typed send with the picker on Agent still does.
 //     H1 the paths, read from the sources: the voice call's controller is the only sender for the voice (two callbacks, one arming of the bus, one mount, handed the page's two handlers), the Director call is read-only, the guard is at the top of both handlers
@@ -454,6 +456,29 @@ function pageChecks(texts = {}) {
   assert.strictEqual(wire.agentWireReducer(idle, wire.AGENT_WIRE_RESET), idle, 'reset on an idle state: the same object (no re-render)'); deepEqual(wire.agentWireReducer(running, wire.AGENT_WIRE_RESET), idle, 'reset clears a run'); assert.equal(wire.agentWireReducer(running, 'agent_wire_reset').status, 'idle')
   for (const junk of [undefined, null, 'x', 7, {}, { type: 'agent_unknown', payload: {} }, { type: 'agent_step', payload: {} }]) assert.strictEqual(wire.agentWireReducer(running, junk), running, `a frame the reducer does not take gives the same state: ${JSON.stringify(junk)}`)
   deepEqual(wire.agentWireReducer(idle, estimateNow()), lib.agentRunReducer(idle, estimateNow()), 'a frame goes to #607\'s reducer as it is')
+  // THE NEXT RUN AFTER A FINISHED ONE (review of #621, MAJOR 2): once a run is done or failed, a frame for ANOTHER run is the next run's: its refusal before admission (the fixture: "A refusal before admission carries a fresh run_id") has no estimate and must show
+  const NEXT = 'agr_ba9876543210', refusal = (reason, over = {}) => ({ type: 'agent_failed', payload: { run_id: NEXT, reason, charged_credits: 0, credited_back_credits: 0, ...over } })
+  const done = runOf(lib, [estimateNow(), wireFrame('agent_step'), wireFrame('agent_done')]), failedRun = runOf(lib, [estimateNow(), wireFrame('agent_step'), wireFrame('agent_failed')])
+  assert.equal(done.status, 'done'); assert.equal(failedRun.status, 'failed')
+  for (const [label, finished] of [['done', done], ['failed', failedRun]]) {
+    for (const reason of ['daily_cap', 'has_content', 'run_exists', 'tier']) {
+      const shown = wire.agentWireReducer(finished, refusal(reason)); assert.equal(shown.status, 'failed', `${label}, then a fresh-id ${reason} refusal: it shows`); assert.equal(shown.runId, NEXT, `${label}, then ${reason}: the card is the new run's`)
+      assert.equal(shown.failure.reason, lib.agentReasonWords(reason), `${label}, then ${reason}: the reason in plain words`); assert.equal(shown.failure.answered, null); deepEqual(shown.steps, [], `${label}, then ${reason}: nothing of the finished run is left on the card`); assert.equal(shown.doneSlides, null)
+      assert.notEqual(wire.agentCardsKey(shown), wire.agentCardsKey(finished), `${label}, then ${reason}: the chat is told (the key changes)`); assert.equal(wire.agentRunBusy(shown), false, `${label}, then ${reason}: the picker is free`)
+    }
+    assert.equal(wire.agentWireReducer(finished, refusal('daily_cap')).failure.reason, "You have reached today's credit limit for Agent build.", 'the daily limit is said in plain words')
+    // the next run's estimate gives what #607's reducer gives (it already opened a new run after done or failed), and a frame of the finished run itself is still stale
+    deepEqual(wire.agentWireReducer(finished, estimateNow({ run_id: NEXT })), lib.agentRunReducer(finished, estimateNow({ run_id: NEXT })), `${label}, then the next run's estimate: as #607's reducer has it`)
+    for (const stale of [wireFrame('agent_step'), wireFrame('agent_checkpoint'), wireFrame('agent_failed'), wireFrame('agent_done')]) assert.strictEqual(wire.agentWireReducer(finished, stale), finished, `${label}, then a late ${stale.type} of the finished run: still stale, the same state`)
+    // a local answer is not a frame of another run
+    assert.strictEqual(wire.agentWireReducer(finished, lib.agentAnswered({ runId: NEXT, card: 'A6', choice: 'stop' })), finished, `${label}: an answer for another run changes nothing`); assert.strictEqual(wire.agentWireReducer(finished, { type: 'agent_unknown', payload: { run_id: NEXT } }), finished, `${label}: a frame the reader does not take is the same state`)
+    assert.equal(wire.agentWireReducer(wire.agentWireReducer(finished, refusal('daily_cap')), wire.AGENT_WIRE_RESET).status, 'idle', `${label}: a session change still clears it`)
+  }
+  // a run that is NOT over still refuses another run's frame (one run at a time; the card is not swapped under a live run)
+  for (const [label, live] of [['an estimate waiting', runOf(lib, [estimateNow()])], ['running', running], ['paused', runOf(lib, [estimateNow(), wireFrame('agent_step', { run_status: 'paused' })])], ['stopped', runOf(lib, [estimateNow(), wireFrame('agent_step', { run_status: 'stopped' })])]]) {
+    assert.strictEqual(wire.agentWireReducer(live, refusal('daily_cap')), live, `${label}: another run's refusal is refused, the same state`); assert.strictEqual(wire.agentWireReducer(live, wireFrame('agent_done', { run_id: NEXT })), live, `${label}: another run's done is refused`)
+  }
+  assert.equal(wire.agentWireReducer(idle, refusal('daily_cap')).status, 'failed', 'from idle a refusal shows (as before)')
   assert.equal(wire.agentCardsKey(idle), ''); const k1 = wire.agentCardsKey(runOf(lib, [estimateNow()])), k2 = wire.agentCardsKey(running), k3 = wire.agentCardsKey(runOf(lib, [estimateNow(), wireFrame('agent_step'), wireFrame('agent_checkpoint')]))
   assert.ok(k1 && k2 && k3 && new Set([k1, k2, k3]).size === 3, 'the key changes when a card appears or goes')
   assert.equal(wire.agentCardsKey(runOf(lib, [estimateNow(), wireFrame('agent_step')])), wire.agentCardsKey(runOf(lib, [estimateNow(), wireFrame('agent_step'), wireFrame('agent_step', { step: 2, label: 'Building slide 2', credits_used: 500 })])), 'a run\'s progress (another step, more credits used) does not pull the chat')
@@ -745,28 +770,51 @@ function insertionsOf(base, now) {
   for (const line of n) { if (p < b.length && line === b[p]) p++; else added.push(line) }
   return { added, baseKept: p === b.length }
 }
-function sourceChecks(texts = {}, strip = stripAgentModeWire, shown = {}) {
-  const now = rel => texts[rel] ?? shown[rel] ?? committed(rel)
+const SHELL_PROOF = 'scripts/test-studio-agent-mode-shell.mjs'
+/** The strips of every OTHER change the registry holds after #607's. A keep-both restack puts a later change's lines in a file before (or after) this change's: the chain's #600 / #606 / #605 add subject filters to the same two older proofs, in the registry's tails. Read through those strips a file is #607's head
+ *  plus this change's own lines, whatever order the lines sit in. On this branch there are none, and the checks are as they were. */
+const otherStripsOf = (reg = registry) => { const at = reg.LATER_STRIPS.findIndex(fn => typeof fn === 'function' && fn.name === 'stripAgentModeShell'); return at === -1 ? [] : reg.LATER_STRIPS.slice(at + 1).filter(fn => fn !== stripAgentModeWire) }
+const readThrough = (rel, text, others) => others.reduce((out, fn) => { const next = typeof fn === 'function' ? fn(rel, out) : out; return typeof next === 'string' ? next : out }, text)
+/** `small` is `big` with lines left out: every line of `small` is in `big`, in order (greedy is exact for a subsequence). */
+const isSubsequence = (small, big) => { let p = 0; for (const line of big) if (p < small.length && line === small[p]) p++; return p === small.length }
+const wholeLines = text => (text === '' ? [] : text.endsWith('\n') ? text.slice(0, -1).split('\n') : text.split('\n'))
+function sourceChecks(texts = {}, strip = stripAgentModeWire, shown = {}, others = otherStripsOf()) {
+  // every file is read through the other changes' strips (none on this branch): on a keep-both restack their lines are theirs, and the base is #607's head either way
+  const now = rel => readThrough(rel, texts[rel] ?? shown[rel] ?? committed(rel), others), base = rel => readThrough(rel, baseText(rel), others)
+  const only = (a, b) => { const seen = new Map(); for (const l of b) seen.set(l, (seen.get(l) ?? 0) + 1); return a.filter(l => { const n = seen.get(l) ?? 0; if (n > 0) { seen.set(l, n - 1); return false } return true }) }
+  const onceAtLineStart = (text, block) => ('\n' + text).split('\n' + block).length - 1 === 1
   // the two app files: every added line carries the marker, none is a rewrite, the strip gives #607's head back byte for byte
   for (const rel of APP_FILES) {
-    const { added, baseKept } = insertionsOf(baseText(rel), now(rel)); assert.ok(baseKept, `${rel}: every base line is kept, in order (this change rewrites and removes none)`)
+    const { added, baseKept } = insertionsOf(base(rel), now(rel)); assert.ok(baseKept, `${rel}: every base line is kept, in order (this change rewrites and removes none)`)
     assert.ok(added.length > 0, `${rel}: lines are added`); for (const line of added) assert.match(line, MARKER_RE, `${rel}: an added line without the marker: ${line.slice(0, 90)}`)
     assert.equal(added.length, ALL_EDITS[rel].length, `${rel}: one [has, was] pair per added line`); for (const [has, was] of ALL_EDITS[rel]) { assert.equal(was, '', `${rel}: a pure insertion`); assert.ok(MARKER_RE.test(has) && has.endsWith('\n'), `${rel}: the pair line carries the marker`) }
-    assert.equal(strip(rel, now(rel)), baseText(rel), `${rel}: the strip puts #607's head back byte for byte`); assert.equal(strip(rel, baseText(rel)), baseText(rel), `${rel}: idempotent on the base`)
+    assert.equal(strip(rel, now(rel)), base(rel), `${rel}: the strip puts #607's head back byte for byte`); assert.equal(strip(rel, base(rel)), base(rel), `${rel}: idempotent on the base`)
     assert.equal(count(now(rel), 'AGENT-MODE-WIRE') >= added.length, true)
   }
-  // the older proofs: each [has, was] pair carries the registry-read mark and is in the file once; the two subject filters are pure insertions; the shell's one scope line is the one replaced line; the strip puts #607's head back
-  for (const rel of PIN_FILES) {
-    const shell = rel === 'scripts/test-studio-agent-mode-shell.mjs', baseLines = baseText(rel).split('\n'), nowLines = now(rel).split('\n')
-    for (const [has, was] of ALL_EDITS[rel]) { assert.ok(has.includes(PIN_MARK.replace('// ', '')), `${rel}: the line carries the registry-read mark: ${has.slice(0, 70)}`); assert.equal(now(rel).split('\n').filter(l => l === has.slice(0, -1)).length, 1, `${rel}: in the file once, as a whole line`); assert.equal(was === '', !shell, `${rel}: ${shell ? 'the replaced line' : 'a pure insertion'}`) }
-    const only = (a, b) => { const seen = new Map(); for (const l of b) seen.set(l, (seen.get(l) ?? 0) + 1); return a.filter(l => { const n = seen.get(l) ?? 0; if (n > 0) { seen.set(l, n - 1); return false } return true }) }
-    if (!shell) { assert.equal(only(nowLines, baseLines).length, ALL_EDITS[rel].length, `${rel}: the lines this change has that the base lacks are its pairs'`); assert.equal(only(baseLines, nowLines).length, 0, `${rel}: no base line is lost`) }
-    // #607's proof is also edited in place by this change (the A1 estimate card is information): its one registered line is still the line the strip puts back (a line #607 had, once), and the strip does exactly that and nothing else
-    else for (const [has, was] of ALL_EDITS[rel]) { assert.equal(baseLines.filter(l => l === was.slice(0, -1)).length, 1, `${rel}: the line the strip puts back is a line #607's proof had, once`); assert.equal(nowLines.filter(l => l === was.slice(0, -1)).length, 0, `${rel}: and the file has it no more (it is the replaced line)`) }
-    assert.equal(strip(rel, now(rel)), shell ? ALL_EDITS[rel].reduce((text, [has, was]) => text.replace(has, () => was), now(rel)) : baseText(rel), `${rel}: the strip puts ${shell ? 'its one registered line' : '#607\'s head'} back`)
+  // #607's own files and proof, edited IN PLACE (PK ruling: the A1 estimate card is information, not a gate; FRONTEND-2, #607's owner, OK'd the substance): the same rule as the hook and the page, read strictly. EVERY line that is not #607's carries the marker (a line of #607's is never
+  // rewritten without it), every line of every pair carries it, each pair is in the file once, and the strip puts #607's head back BYTE FOR BYTE
+  for (const rel of [...SHELL_EDITED, SHELL_PROOF]) {
+    const proof = rel === SHELL_PROOF, nowText = now(rel), baseLines = base(rel).split('\n'), nowLines = nowText.split('\n'), pairs = ALL_EDITS[rel]
+    assert.ok(pairs.length > 0, `${rel}: it has pairs`); assert.equal(base(rel).includes('AGENT-MODE-WIRE'), false, `${rel}: #607's head has none of this change's marker`)
+    assert.ok(isSubsequence(nowLines.filter(l => !MARKER_RE.test(l)), baseLines), `${rel}: every line without the marker is a line of #607's, in order (nothing of #607's is rewritten, added or removed without the marker)`)
+    for (const [has, was] of pairs) {
+      assert.ok(has !== '' && has.endsWith('\n') && (was === '' || was.endsWith('\n')), `${rel}: the pair is whole lines`)
+      for (const line of wholeLines(has)) { assert.match(line, MARKER_RE, `${rel}: a pair line without the marker: ${line.slice(0, 90)}`); if (proof) assert.ok(line.includes(PIN_MARK.replace('// ', '')), `${rel}: a line of #607's proof carries the registry-read mark: ${line.slice(0, 70)}`) }
+      assert.ok(onceAtLineStart(nowText, has), `${rel}: the pair's lines are in the file once, from the start of a line: ${has.slice(0, 70)}`)
+      for (const line of wholeLines(was)) assert.equal(MARKER_RE.test(line), false, `${rel}: what a pair puts back is #607's, not ours`)
+    }
+    assert.equal(nowLines.filter(l => MARKER_RE.test(l)).length, pairs.reduce((n, [has]) => n + wholeLines(has).length, 0), `${rel}: every marked line is in a pair (and in one only)`)
+    assert.equal(strip(rel, nowText), base(rel), `${rel}: the strip puts #607's head back byte for byte (nothing weaker: no line is left registered only)`); assert.equal(strip(rel, base(rel)), base(rel), `${rel}: idempotent on the base`)
+  }
+  // the two older proofs taught a subject filter (pure insertions): each pair carries the registry-read mark, is in the file once, and nothing else differs from #607's head once the other changes' lines are read out
+  for (const rel of PIN_FILES.filter(r => r !== SHELL_PROOF)) {
+    const baseLines = base(rel).split('\n'), nowLines = now(rel).split('\n')
+    for (const [has, was] of ALL_EDITS[rel]) { assert.ok(has.includes(PIN_MARK.replace('// ', '')), `${rel}: the line carries the registry-read mark: ${has.slice(0, 70)}`); assert.equal(nowLines.filter(l => l === has.slice(0, -1)).length, 1, `${rel}: in the file once, as a whole line`); assert.equal(was, '', `${rel}: a pure insertion`) }
+    assert.equal(only(nowLines, baseLines).length, ALL_EDITS[rel].length, `${rel}: the lines this change has that #607's head lacks (the other changes' read out) are its pairs'`); assert.equal(only(baseLines, nowLines).length, 0, `${rel}: no base line is lost`)
+    assert.equal(strip(rel, now(rel)), base(rel), `${rel}: the strip puts #607's head back`)
   }
   // the strip: other files untouched, no line of another file is claimed, the pairs are whole lines
-  for (const rel of ['lib/studio-agent-mode.ts', 'package.json', '.env.example', REGISTRY]) assert.equal(strip(rel, baseText(rel)), baseText(rel), `${rel}: not this strip's`)
+  for (const rel of ['package.json', '.env.example', REGISTRY]) assert.equal(strip(rel, baseText(rel)), baseText(rel), `${rel}: not this strip's`)
   assert.equal(strip('x.ts', 7), 7); assert.equal(strip('x.ts', 'a\nb\n'), 'a\nb\n')
   // the hook: each of its added lines, one by one, is where the strip says (a pair removed puts back a line the file kept)
   for (const rel of APP_FILES) for (const [has] of ALL_EDITS[rel]) assert.equal(now(rel).split('\n').filter(l => l === has.slice(0, -1)).length, 1, `${rel}: the pair's line is in the file exactly once (as a whole line, indent included): ${has.slice(0, 70)}`)
@@ -774,17 +822,44 @@ function sourceChecks(texts = {}, strip = stripAgentModeWire, shown = {}) {
   assert.equal(git('diff', '--name-only', STACK_BASE, 'HEAD', '--', '.env.example').trim(), '', '.env.example is #607\'s byte for byte (no block of this change)'); assert.equal(count(read('.env.example'), 'NEXT_PUBLIC_AGENT_MODE="false"'), 1)
 }
 const END = '  // one line per later change, above this comment'
+/** A line another change registered (any change's, as the registry's own convention has them): its strip module and its marker comment. */
+const registeredLine = l => /\/\/ LATER-CHANGE: /.test(l) && /-strip\.mjs/.test(l)
+// ORDER, never adjacency: a keep-both restack puts the changes queued ahead of this one (#600, #606, #605) between #607's line and this change's, so each check asks only whether this change's line comes AFTER #607's in the same list, is followed by
+// registered lines only until the end of the list, and whether the registry gained anything that is neither this change's nor another change's registered line
 function registryChecks(text = read(REGISTRY), reg = registry) {
   const lines = text.split('\n'), section = i => { for (let k = i; k >= 0; k--) { const m = /^export const (LATER_\w+)/.exec(lines[k]); if (m) return m[1] } return null }
   const own = lines.map((l, i) => [l, i]).filter(([l]) => l.includes('studio-agent-mode-wire-strip.mjs'))
   assert.equal(own.length, 2, 'two registry lines name this change\'s strip module'); deepEqual(own.map(([, i]) => section(i)), ['LATER_CHANGE_FILES', 'LATER_STRIPS'], 'one in the files list and one in the strips list; the env list gets none (no block)')
-  for (const [line, i] of own) { assert.match(line, /\/\/ LATER-CHANGE: FRONTEND-1, Agent mode wire/, 'the registry marker'); assert.ok(lines[i - 1].includes('studio-agent-mode-shell-strip.mjs'), 'right after #607\'s line (the end of the stack at the time)'); assert.ok(lines[i + 1] === END || lines[i + 1].includes('// LATER-CHANGE:') && /-strip\.mjs/.test(lines[i + 1]), 'the true end of its list (or followed only by a later change\'s registered line)') }
+  for (const [line, i] of own) {
+    assert.match(line, /\/\/ LATER-CHANGE: FRONTEND-1, Agent mode wire/, 'the registry marker')
+    const shellAt = lines.findIndex((l, k) => l.includes('studio-agent-mode-shell-strip.mjs') && section(k) === section(i)); assert.ok(shellAt !== -1 && shellAt < i, `after #607's line in the same list (line ${i + 1}; changes restacked between them are fine, a line before it is not)`)
+    let k = i + 1; while (k < lines.length && lines[k] !== END) { assert.ok(registeredLine(lines[k]), `the true end of its list: only another change's registered line may follow it (line ${k + 1}: ${lines[k].slice(0, 80)})`); k++ }
+    assert.equal(lines[k], END, 'the list ends at the registry\'s own end line')
+  }
   assert.deepEqual(own.map(([l]) => /\)\.(\w+), \/\//.exec(l)?.[1]), ['AGENT_MODE_WIRE_SCOPE_FILES', 'stripAgentModeWire'])
-  const base = baseText(REGISTRY).split('\n'); assert.ok(base.every(l => lines.includes(l)), 'the registry loses no line'); assert.equal(lines.filter(l => !base.includes(l)).filter(l => !l.includes('studio-agent-mode-wire-strip.mjs')).length, 0, 'and gains nothing else')
+  const base = baseText(REGISTRY).split('\n'); assert.ok(base.every(l => lines.includes(l)), 'the registry loses no line'); assert.equal(lines.filter(l => !base.includes(l)).filter(l => !l.includes('studio-agent-mode-wire-strip.mjs')).filter(l => !registeredLine(l)).length, 0, 'and gains nothing else (the registered lines of changes restacked with this one are theirs)')
   assert.ok(reg.LATER_STRIPS.includes(stripAgentModeWire), 'the strip is registered'); assert.ok([...SCOPE].every(rel => reg.LATER_CHANGE_FILES.has(rel)), 'every scope file is registered')
-  const shellAt = reg.LATER_STRIPS.findIndex(fn => typeof fn === 'function' && fn.name === 'stripAgentModeShell'), ownAt = reg.LATER_STRIPS.indexOf(stripAgentModeWire); assert.ok(shellAt > 0 && ownAt === shellAt + 1, 'the strip comes right after #607\'s')
+  const shellAt = reg.LATER_STRIPS.findIndex(fn => typeof fn === 'function' && fn.name === 'stripAgentModeShell'), ownAt = reg.LATER_STRIPS.indexOf(stripAgentModeWire); assert.ok(shellAt > 0 && ownAt > shellAt, 'the strip comes after #607\'s (changes restacked between them are fine)')
   // read through the registry (as the older proofs do), the hook and the page are #607's head's
   for (const rel of APP_FILES) assert.equal(reg.stripLaterChanges(rel, committed(rel)), reg.stripLaterChanges(rel, baseText(rel)), `${rel}: read through the registry it is the base's`)
+}
+
+/** Three changes queued ahead of this one, as a keep-both restack lays them out (the chain first, this change's lines after): each registers a files line and a strips line, and adds one subject filter to each of the two older proofs. They are modelled, not read from the chain. */
+const CHAIN = ['one', 'two', 'three'], CHAIN_PINS = ['scripts/test-studio-chat-element-edit.mjs', 'scripts/test-studio-deck-sync-truth.mjs']
+const chainFilter = name => `  shas.splice(0, shas.length, ...shas.filter(sha => !/^Chain ${name}:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (CHAIN-${name.toUpperCase()}): a change queued ahead of this one\n`
+const chainStrips = CHAIN.map(name => { const f = chainFilter(name); const fn = (rel, text) => (CHAIN_PINS.includes(rel) && typeof text === 'string' ? text.replace(f, '') : text); Object.defineProperty(fn, 'name', { value: `stripChain${name}` }); return fn })
+function restackedRegistry() {
+  const lines = read(REGISTRY).split('\n'), out = []
+  for (const line of lines) {
+    if (line.includes('studio-agent-mode-wire-strip.mjs')) for (const name of CHAIN) out.push(line.includes('SCOPE_FILES') ? `  ...(await import('./studio-chain-${name}-strip.mjs')).CHAIN_SCOPE_FILES, // LATER-CHANGE: CHAIN, change ${name}, queued ahead of the Agent mode wire` : `  (await import('./studio-chain-${name}-strip.mjs')).stripChain${name}, // LATER-CHANGE: CHAIN, change ${name}, queued ahead of the Agent mode wire`)
+    out.push(line)
+  }
+  return out.join('\n')
+}
+const restackedReg = () => { const shell = registry.LATER_STRIPS.find(fn => typeof fn === 'function' && fn.name === 'stripAgentModeShell'), at = registry.LATER_STRIPS.indexOf(shell); return { ...registry, LATER_STRIPS: [...registry.LATER_STRIPS.slice(0, at + 1), ...chainStrips, ...registry.LATER_STRIPS.slice(at + 1)] } }
+const restackedProofs = () => Object.fromEntries(CHAIN_PINS.map(rel => { const own = ALL_EDITS[rel][0][0]; assert.equal(count(committed(rel), own), 1); return [rel, committed(rel).replace(own, () => CHAIN.map(chainFilter).join('') + own)] }))
+function restackChecks(text = restackedRegistry(), reg = restackedReg(), texts = restackedProofs(), others = chainStrips) {
+  registryChecks(text, reg); sourceChecks(texts, stripAgentModeWire, {}, others)
 }
 
 // ============================================================================================================================================
@@ -827,8 +902,9 @@ await check('H2. a voice accept / a voice-originated send (the picker on Agent, 
 await check('H3. the same lines with each flag off: no mode held, no key sent (voice or typed), the hook\'s line does nothing; on, it acts', () => voiceFlagsOffChecks())
 await check('H4. THROUGH THE REAL CALL: a spoken yes to the plan card and a spoken turn (the real controller, a fake microphone and speech route) put a voice user message on the wire with "standard" (no key below Pro), the click and the typed send beside it carry Agent', () => voiceAcceptChecks())
 await check('H5. STANDARD IS SAID OUT LOUD: with the picker on Standard (a page just loaded, or back from Agent) Pro and Max send build_mode "standard" on a typed send and on a card\'s button, and a session that held an Agent opt-in holds none; Free, Starter, an unknown plan and each flag off send no key; Agent picked sends "agent", Author "author", a voice send "standard"', () => standardSaidChecks())
-await check('F1. the sources: every line this change adds to the hook and the page carries the marker and is a pure insertion (no base line rewritten or removed); the strip puts #607\'s head back byte for byte (two app files, three older proofs); .env.example untouched', () => sourceChecks())
-await check('F2. the registry: two marked lines (files, strips) at the true end of their lists right after #607\'s, none in the env list, nothing lost; read through it the hook and the page are the base\'s', () => registryChecks())
+await check('F1. the sources: every line this change adds to the hook and the page carries the marker and is a pure insertion (no base line rewritten or removed); #607\'s four files and its proof, edited in place, have every changed line marked and paired; the strip puts #607\'s head back byte for byte (two app files, #607\'s files and proof, two older proofs); .env.example untouched', () => sourceChecks())
+await check('F2. the registry: two marked lines (files, strips) after #607\'s (in order: changes restacked between them are fine) and at the true end of their lists, none in the env list, nothing lost, nothing gained but registered lines; read through it the hook and the page are the base\'s', () => registryChecks())
+await check('F3. A KEEP-BOTH RESTACK (the changes queued ahead of this one, #600 / #606 / #605, put their registry lines and their subject filters in the same places, before this change\'s): the registry checks and the older-proof checks still pass, the base read through the other strips', () => restackChecks())
 await check('G. scope, read from the COMMITTED diff only: the own commits (by subject) carry the co-author line; every file they touch is this change\'s scope; the whole diff from #607\'s head is nothing else; a stray untracked file changes nothing', () => scopeChecks())
 
 // ============================================================================================================================================
@@ -909,7 +985,13 @@ await wireMutant('the answer is sent twice', "  mark(agentAnswered(answer))\n  r
 await wireMutant('the answer rule reads the clock wrongly (the expiry is ignored)', 'agentAnswerOpenCard(state, answer, nowMs)', 'agentAnswerOpenCard(state, answer, 0)')
 await wireMutant('the reset does not clear a run', 'return state.status === \'idle\' && state.runId === null ? state : initialAgentRunState()', 'return state')
 await wireMutant('the reset always makes a new state (a re-render for nothing)', 'return state.status === \'idle\' && state.runId === null ? state : initialAgentRunState()', 'return initialAgentRunState()')
-await wireMutant('the reducer drops a frame', 'return agentRunReducer(state, action)', 'return state')
+await wireMutant('the reducer drops a frame', 'return agentRunReducer(frame !== null && frame.payload.run_id !== state.runId ? initialAgentRunState() : state, action)', 'return state')
+await wireMutant('a finished run reads another run\'s frame as stale again (the refusal after done shows nothing)', 'frame !== null && frame.payload.run_id !== state.runId ? initialAgentRunState() : state', 'state')
+await wireMutant('a finished run takes a late frame of its own run as a new one', 'frame !== null && frame.payload.run_id !== state.runId ? initialAgentRunState() : state', 'frame !== null ? initialAgentRunState() : state')
+await wireMutant('a run that is live is reset by another run\'s frame', 'const frame = agentRunOver(state) ? readAgentFrame(action) : null', 'const frame = readAgentFrame(action)')
+await wireMutant('only a done run lets the next run\'s frame in (a failed one does not)', "state.status === 'done' || state.status === 'failed'", "state.status === 'done'")
+await wireMutant('only a failed run lets the next run\'s frame in (a done one does not)', "state.status === 'done' || state.status === 'failed'", "state.status === 'failed'")
+await wireMutant('a stopped run counts as over', "state.status === 'done' || state.status === 'failed'", "state.status === 'done' || state.status === 'failed' || state.status === 'stopped'")
 await wireMutant('a stopped run is not "in progress"', "|| state.status === 'paused' || state.status === 'stopped'", "|| state.status === 'paused'")
 await wireMutant('an estimate is not "in progress"', "state.status === 'estimate' || state.status === 'running'", "state.status === 'running'")
 await wireMutant('a move to another session is not a move', 'previous !== null && previous !== next', 'false')
@@ -1002,6 +1084,25 @@ await mutant('registry: a base line is lost', () => registryChecks(read(REGISTRY
 await mutant('registry: our line is not at the end of its list', () => { const lines = read(REGISTRY).split('\n'), at = lines.findIndex(l => l.includes('studio-agent-mode-wire-strip.mjs')); [lines[at], lines[at - 1]] = [lines[at - 1], lines[at]]; registryChecks(lines.join('\n')) })
 await mutant('registry: a line in the env list (no block exists)', () => { const lines = read(REGISTRY).split('\n'), at = lines.findIndex(l => l.includes('(await import(\'./studio-agent-mode-shell-strip.mjs\')).AGENT_MODE_SHELL_ENV_BLOCK')); lines.splice(at + 1, 0, "  (await import('./studio-agent-mode-wire-strip.mjs')).AGENT_MODE_WIRE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, Agent mode wire"); registryChecks(lines.join('\n')) })
 await mutant('registry: the marker comment changed', () => registryChecks(read(REGISTRY).replace('// LATER-CHANGE: FRONTEND-1, Agent mode wire (', '// LATER-CHANGE: FRONTEND-1, wiring (')))
+// the restack: positive control above (F3); each of these is a restack that must still FAIL
+await mutant('restack: a subject filter nobody registered (a chain line no strip reads out) is not this change\'s', () => restackChecks(undefined, undefined, Object.fromEntries(CHAIN_PINS.map(rel => [rel, restackedProofs()[rel].replace(chainFilter('three'), chainFilter('three') + chainFilter('four'))]))))
+await mutant('restack: a line in the registry that is neither this change\'s nor a registered change\'s', () => restackChecks(restackedRegistry().replace(/^(.*studio-agent-mode-wire-strip\.mjs.*SCOPE_FILES.*)$/m, "  console.log('stray registry line')\n$1")))
+await mutant('restack: this change\'s strip is registered BEFORE #607\'s (not an order)', () => { const reg = restackedReg(), list = reg.LATER_STRIPS.filter(fn => fn !== stripAgentModeWire), at = list.findIndex(fn => typeof fn === 'function' && fn.name === 'stripAgentModeShell'); list.splice(at, 0, stripAgentModeWire); restackChecks(undefined, { ...reg, LATER_STRIPS: list }) })
+await mutant('restack: a line that is not a registered change\'s follows this change\'s at the end of its list', () => restackChecks(restackedRegistry().replace(/^(.*studio-agent-mode-wire-strip\.mjs.*stripAgentModeWire.*)$/m, "$1\n  console.log('after ours')")))
+await mutant('restack: the chain\'s lines are not read out of the older proof (a base line is lost behind them, or a line is left)', () => restackChecks(undefined, undefined, undefined, []))
+// #607's own files and proof, edited in place: nothing weaker than a byte for byte strip, and every changed line marked
+const SHELL_CARD = 'components/builder/agent-mode/agent-estimate-card.tsx', SHELL_WORDS = 'lib/studio-agent-mode.ts'
+await mutant('in place: a pair for #607\'s estimate card is missing (the strip leaves a line of ours in it)', async () => { const m = await dataModule(swap(STRIP_TEXT, `${stripLine('line is not here, the card does not read expires_at')}\n`, '')); sourceChecks({}, m.stripAgentModeWire) })
+await mutant('in place: a pair for #607\'s words is missing', async () => { const m = await dataModule(swap(STRIP_TEXT, `${stripLine("estimateRunning: 'Running', // AGENT-MODE-WIRE")}\n`, '')); sourceChecks({}, m.stripAgentModeWire) })
+await mutant('in place: a pair for #607\'s proof is missing (the weak path: "its one registered line")', async () => { const m = await dataModule(swap(STRIP_TEXT, `${stripLine('a Start button comes back on the estimate card')}\n`, '')); sourceChecks({}, m.stripAgentModeWire) })
+await mutant('in place: a line of #607\'s card is rewritten without the marker', () => sourceChecks({ [SHELL_CARD]: swap(read(SHELL_CARD), 'import { AgentActionButton, AgentActions, AgentCardFrame, AgentCardText, type AgentCardCallbacks } from "./agent-card-parts"\n', 'import { AgentActionButton, AgentActions, AgentCardFrame, AgentCardText, type AgentCardCallbacks } from "./agent-card-parts-x"\n') }))
+await mutant('in place: a line of ours in #607\'s card is not marked (the Stop button)', () => sourceChecks({ [SHELL_CARD]: swap(read(SHELL_CARD), '{AGENT_COPY.stop}</AgentActionButton>{/* AGENT-MODE-WIRE */}', '{AGENT_COPY.stop}</AgentActionButton>') }))
+await mutant('in place: a line of ours in #607\'s words is not marked', () => sourceChecks({ [SHELL_WORDS]: swap(read(SHELL_WORDS), "estimateRunning: 'Running', // AGENT-MODE-WIRE", "estimateRunning: 'Running',") }))
+await mutant('in place: a marked line of ours that no pair puts back (an extra line in the card)', () => sourceChecks({ [SHELL_CARD]: swap(read(SHELL_CARD), 'import React from "react"\n', 'import React from "react"\nvoid 0 // AGENT-MODE-WIRE\n') }))
+await mutant('in place: a line of #607\'s is removed from the card without a trace', () => sourceChecks({ [SHELL_CARD]: swap(read(SHELL_CARD), '"use client"\n\n', '') }))
+await mutant('in place: a line of #607\'s proof is changed without the mark', () => sourceChecks({ [SHELL_PROOF]: swap(read(SHELL_PROOF), 'const count = (text, needle) => text.split(needle).length - 1\n', 'const count = (text, needle) => text.split(needle).length - 2\n') }))
+await mutant('in place: a changed line of #607\'s proof carries the marker but not the registry-read mark', () => sourceChecks({ [SHELL_PROOF]: swap(read(SHELL_PROOF), 'function proveEstimateInfo(texts = {}) { // LATER-CHANGES: registry read (AGENT-MODE-WIRE)\n', 'function proveEstimateInfo(texts = {}) { // AGENT-MODE-WIRE\n') }))
+await mutant('in place: a line of #607\'s proof is removed without a trace', () => sourceChecks({ [SHELL_PROOF]: swap(read(SHELL_PROOF), 'const count = (text, needle) => text.split(needle).length - 1\n', '') }))
 await mutant('scope: a stray file in a commit fails the scope check, a commit message without the subject or the co-author line is named; a polluted working tree is not read', () => {
   const own = ownCommits(); assert.doesNotThrow(() => scopeCheck(own), 'the real tree passes')
   assert.throws(() => scopeCheck(own, ['stray-agent-mode-wire.txt']), undefined, 'a stray file fails the scope check')

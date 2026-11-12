@@ -34,8 +34,8 @@ export const AGENT_COPY = {
   agentNote: 'Pro and Max',
   reasonPlan: 'Agent build is on Pro and Max plans.',
   reasonUnknownPlan: 'Your plan is not loaded yet.',
-  estimateLabel: 'Estimated cost',
-  estimateRunning: 'Running',
+  estimateLabel: 'Estimated cost', // AGENT-MODE-WIRE
+  estimateRunning: 'Running', // AGENT-MODE-WIRE
   estimateMayCap: 'It may stop at the cap.',
   pause: 'Pause',
   resume: 'Resume',
@@ -45,6 +45,7 @@ export const AGENT_COPY = {
   statusPaused: 'Paused',
   statusStopped: 'Stopped. Your slides are kept.',
   statusDone: 'Done',
+  // AGENT-MODE-WIRE: #607's estimateExpired words are not here, the estimate card has no Start to expire
   checkpointContinue: 'Continue',
   checkpointStop: 'Stop now',
   researchAdd: 'Add research',
@@ -66,7 +67,7 @@ export function formatCredits(value: unknown): string {
   const n = typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.ceil(value) : 0
   return `${n.toLocaleString('en-US')} ${n === 1 ? 'credit' : 'credits'}`
 }
-/** A1: "About 470 credits · cap 600 credits" (the frame's one est_credits figure and its cap); the card says it as "Estimated cost: ... · Running" (AGENT_COPY.estimateLabel / estimateRunning). */
+/** A1: "About 470 credits · cap 600 credits" (the frame's one est_credits figure and its cap); the card says it as "Estimated cost: ... · Running" (AGENT_COPY.estimateLabel / estimateRunning). */ // AGENT-MODE-WIRE
 export function formatEstimate(est: number, cap: number): string {
   return `About ${formatCredits(est)} · cap ${formatCredits(cap)}`
 }
