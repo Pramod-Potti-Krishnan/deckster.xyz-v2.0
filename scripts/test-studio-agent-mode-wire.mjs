@@ -28,6 +28,9 @@
 //     (before any await) and the four build sends read the ref it picks; H2 the real marked lines of the page and the hook, run with the real voice bus: "standard" for a plan that can hold Director's sticky Agent opt-in (Pro, Max), no key otherwise, a call that
 //     ends while the send waits, a slip past the page (the hook's own line), Standard / Author, the click and the typed send as before; H3 each flag off: inert; H4 through the REAL VoiceCallController (fake microphone, speaker, clock and speech route):
 //     a spoken yes and a spoken turn, then the click and the typed send beside them;
+//  H5. STANDARD IS SAID OUT LOUD (PK ruling, 12 Nov: "both yes"): Director's Agent opt-in is sticky (saved with the session; a message without build_mode leaves it, only an explicit "standard" clears it) and Studio does not read it back, so after a reload the picker
+//     is on Standard while the session may still hold an opt-in. On Pro and Max (Agent flags on) every build send with the picker on Standard (the four sends the page's two handlers make: a typed send, an outline accept, a card's button) carries build_mode "standard"
+//     explicitly, and the hook puts it on the message as it is; Agent picked: "agent"; Author: as it was; a voice send: "standard" (H2); Free, Starter and a plan that is not loaded, and each flag off: no key, byte for byte as before;
 //  I. mutants: each is one edit of the real sources, fed to the same checks, and must be caught.
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
@@ -417,7 +420,7 @@ function noAutoStartChecks(texts = {}) {
   // 9. the build mode rides the four build sends and nothing else: each `...buildSendOptions,` is followed by the marked line (which reads the ref its handler's entry line picked: the picker's, or for a voice send the voice's: H), and the memo that holds them is untouched
   const lines = page.split('\n'), at = lines.map((l, i) => (/^\s*\.\.\.buildSendOptions,$/.test(l) ? i : -1)).filter(i => i >= 0); assert.equal(at.length, 4, 'four build sends')
   for (const i of at) assert.equal(lines[i + 1].trim(), ATTACH_LINE, `the send at line ${i + 1} carries the build mode`)
-  assert.equal(count(page, 'agentBuildModeRef.current = buildModeWire'), 1, 'the ref is written once per render, from the one buildModeWire')
+  assert.equal(count(page, 'agentBuildModeRef.current = STUDIO_AGENT_MODE_ENABLED ? typedBuildMode(buildModeWire, agentPlan) : undefined'), 1, 'the ref is written once per render, from the one buildModeWire, through the plan (H5)')
 }
 
 // ============================================================================================================================================
@@ -478,7 +481,7 @@ const VOICE_UI = 'lib/studio-voice-call-ui.ts', VOICE_CTL = 'lib/studio-voice-ca
 const ATTACH_LINE = '...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE'
 const voiceLines = (page, hook) => ({
   wire: lineWith(page, 'const buildModeWire = STUDIO_AGENT_MODE_ENABLED ?'),
-  buildRef: lineWith(page, 'agentBuildModeRef.current = buildModeWire'),
+  buildRef: lineWith(page, 'agentBuildModeRef.current = '),
   ref: lineWith(page, 'agentVoiceModeRef.current = STUDIO_AGENT_MODE_ENABLED'),
   entrySend: lineWith(page, 'voiceOriginatedSend(messageText)'),
   entryAction: lineWith(page, 'voiceOriginatedSend(action.label)'),
@@ -496,8 +499,8 @@ function voiceRig({ env = ENV_VOICE, texts = {} } = {}) {
 /** The page's per-render lines, run for one picker state: the build mode the picker puts on the wire and the two refs the handlers read. */
 function renderRefs(rig, { buildMode = 'agent', plan = 'pro', previous = buildMode === 'standard' ? undefined : buildMode } = {}) {
   const refs = { agentBuildModeRef: { current: 'unset' }, agentVoiceModeRef: { current: 'unset' } }
-  runFragment(`${rig.L.wire}\n${rig.L.buildRef}\n${rig.L.ref}`, ['STUDIO_AGENT_MODE_ENABLED', 'buildModeOnWire', 'voiceBuildMode', 'buildMode', 'agentPlan', 'buildModeFrom', 'agentBuildModeRef', 'agentVoiceModeRef'])(
-    rig.lib.STUDIO_AGENT_MODE_ENABLED, rig.lib.buildModeOnWire, rig.wire.voiceBuildMode, buildMode, plan, previous, refs.agentBuildModeRef, refs.agentVoiceModeRef)
+  runFragment(`${rig.L.wire}\n${rig.L.buildRef}\n${rig.L.ref}`, ['STUDIO_AGENT_MODE_ENABLED', 'buildModeOnWire', 'typedBuildMode', 'voiceBuildMode', 'buildMode', 'agentPlan', 'buildModeFrom', 'agentBuildModeRef', 'agentVoiceModeRef'])(
+    rig.lib.STUDIO_AGENT_MODE_ENABLED, rig.lib.buildModeOnWire, rig.wire.typedBuildMode, rig.wire.voiceBuildMode, buildMode, plan, previous, refs.agentBuildModeRef, refs.agentVoiceModeRef)
   return refs
 }
 /**
@@ -592,11 +595,11 @@ function voiceChecks(texts = {}) {
     const refs = renderRefs(rig, { buildMode: 'agent', plan }); assert.equal(refs.agentBuildModeRef.current, undefined, `plan ${plan}: no Agent on the wire`); assert.equal(refs.agentVoiceModeRef.current, undefined, `plan ${plan}: ... nor for voice`)
     for (const [kind, words] of PAIRS) for (const bus of [null, words]) { const w = sendOnWire(rig, refs, kind, words, bus); assert.equal('build_mode' in w.data, false, `plan ${plan} ${kind}: no build_mode key`); noAgent(w.data, `plan ${plan} ${kind}`) }
   }
-  // 3. the picker is on Standard on a plan that has Agent: typed sends are as they were (no key; after Agent was picked once, the explicit reset), and a voice send always says "standard" (Director's opt-in is sticky and saved: a session reloaded with Standard picked can still hold one)
-  for (const [previous, typedWire] of [[undefined, undefined], ['agent', 'standard']]) {
+  // 3. the picker is on Standard on a plan that has Agent: a typed send and a voice send both say "standard" (Director's opt-in is sticky and saved: a session reloaded with Standard picked can still hold one; the typed send used to leave the key out: H5)
+  for (const previous of [undefined, 'agent']) {
     const refs = renderRefs(rig, { buildMode: 'standard', plan: 'pro', previous })
     for (const [kind, words] of PAIRS) {
-      const typed = sendOnWire(rig, refs, kind, words, null); assert.equal(typed.data.build_mode, typedWire, `Standard (was ${previous}) ${kind}: a typed send is as it was`)
+      const typed = sendOnWire(rig, refs, kind, words, null); assert.equal(typed.data.build_mode, 'standard', `Standard (was ${previous}) ${kind}: a typed send says "standard" too`)
       const voice = sendOnWire(rig, refs, kind, words, words); assert.equal(voice.data.build_mode, 'standard', `Standard (was ${previous}) ${kind}: a voice send says "standard"`); assert.equal(voice.data.mode, 'voice'); noAgent(voice.data, `Standard ${kind}`)
     }
   }
@@ -623,6 +626,55 @@ function voiceFlagsOffChecks(texts = {}) {
     assert.equal(rig.wire.voiceBuildMode('agent', 'pro'), 'agent', `${name}: the function itself changes nothing`)
   }
   const on = voiceRig({ texts }); on.ui.armVoiceTurn('x'); assert.equal(hookMessage(on, { buildMode: 'agent' }, 'x').build_mode, 'standard', 'on: the same line acts (the positive control)'); on.ui.disarmVoiceTurn()
+}
+
+/** Director's rule as the ruling states it (agent_mode.latch_build_mode): a message without build_mode leaves the mode a session holds; an explicit one replaces it. A model, so the proof can show what a reloaded session ends up holding. */
+const latchBuildMode = (held, data) => ('build_mode' in data ? data.build_mode : held)
+/** H5: STANDARD IS SAID OUT LOUD (PK ruling, 12 Nov): with the picker on Standard, Pro and Max send build_mode "standard" on every build send; the other plans and the flags off send no key; Agent and Author are as they were. The page's real lines and the hook's real lines, run. */
+function standardSaidChecks(texts = {}) {
+  const rig = voiceRig({ texts }), WORDS = 'build me a deck about the harbour', SAY = "Yes, let's build it!"
+  const PAIRS = [['send', WORDS], ['action', SAY]]
+  // 1. Pro and Max, the picker on Standard: never another picked (a page just loaded or reloaded: the picker starts on Standard), and back from Agent (an explicit reset, as before). The typed send and the click carry "standard", the hook puts it on the message, and a session that held an Agent opt-in ends up holding none
+  for (const plan of ['pro', 'premium']) for (const previous of [undefined, 'agent']) {
+    const refs = renderRefs(rig, { buildMode: 'standard', plan, previous })
+    assert.equal(refs.agentBuildModeRef.current, 'standard', `${plan} (was ${previous}): the ref a typed send reads is "standard"`)
+    for (const [kind, words] of PAIRS) {
+      const typed = sendOnWire(rig, refs, kind, words, null)
+      assert.equal(typed.options.buildMode, 'standard', `${plan} (was ${previous}) ${kind}: the handler hands the hook "standard"`); assert.equal(typed.data.build_mode, 'standard', `${plan} (was ${previous}) ${kind}: ... and it is on the message`); assert.equal(typed.data.mode, undefined, `${plan} ${kind}: a typed turn`); noAgent(typed.data, `${plan} ${kind} typed Standard`)
+      assert.equal(latchBuildMode('agent', typed.data), 'standard', `${plan} (was ${previous}) ${kind}: a session that held an Agent opt-in holds none after this send`)
+      const voice = sendOnWire(rig, refs, kind, words, words); assert.equal(voice.data.build_mode, 'standard', `${plan} ${kind}: a voice send still says "standard"`); assert.equal(voice.data.mode, 'voice')
+    }
+  }
+  // 2. Free, Starter, a plan that is not loaded or not known: Standard sends no key at all, typed or by voice, as before (Agent is never sent for them, so there is no opt-in to clear)
+  for (const plan of ['free', 'starter', null, 'enterprise']) {
+    const refs = renderRefs(rig, { buildMode: 'standard', plan })
+    assert.equal(refs.agentBuildModeRef.current, undefined, `plan ${plan}: no mode on the ref`); assert.equal(refs.agentVoiceModeRef.current, undefined, `plan ${plan}: ... nor on the voice ref`)
+    for (const [kind, words] of PAIRS) for (const bus of [null, words]) { const w = sendOnWire(rig, refs, kind, words, bus); assert.equal('build_mode' in w.data, false, `plan ${plan} ${kind}: no build_mode key (${bus === null ? 'typed' : 'voice'})`); assert.equal(w.options.buildMode, undefined, `plan ${plan} ${kind}: the handler hands the hook nothing`) }
+  }
+  // 3. Agent picked: "agent" for a typed send and a click on Pro and Max (the person's own Agent send), "standard" for a voice send (H2); a plan without Agent: no key
+  for (const plan of ['pro', 'premium']) {
+    const refs = renderRefs(rig, { buildMode: 'agent', plan })
+    for (const [kind, words] of PAIRS) { assert.equal(sendOnWire(rig, refs, kind, words, null).data.build_mode, 'agent', `${plan} ${kind}: Agent picked, typed`); assert.equal(sendOnWire(rig, refs, kind, words, words).data.build_mode, 'standard', `${plan} ${kind}: Agent picked, voice`) }
+  }
+  // 4. Author (its own flag; not part of the ruling): "author" on every plan that can pick it, typed or by voice; and Standard picked after Author on a plan without Agent is the explicit reset it always was
+  const author = voiceRig({ env: { ...ENV_VOICE, NEXT_PUBLIC_AUTHOR_MODE_PICKER: 'true' }, texts })
+  for (const plan of ['free', 'pro', 'premium']) { const refs = renderRefs(author, { buildMode: 'author', plan }); for (const [kind, words] of PAIRS) for (const bus of [null, words]) assert.equal(sendOnWire(author, refs, kind, words, bus).data.build_mode, 'author', `Author ${plan} ${kind}: ${bus === null ? 'typed' : 'voice'}`) }
+  for (const plan of ['free', 'starter']) { const refs = renderRefs(author, { buildMode: 'standard', plan, previous: 'author' }); for (const [kind, words] of PAIRS) assert.equal(sendOnWire(author, refs, kind, words, null).data.build_mode, 'standard', `${plan} ${kind}: back to Standard from Author: the explicit reset, as before`) }
+  // 5. each flag off: no mode held, no key, typed or by voice, whatever the plan (the lines are inert), and the function itself changes nothing
+  for (const [name, off] of Object.entries(ENV_OFF)) {
+    const flagsOff = voiceRig({ env: { ...off, NEXT_PUBLIC_STUDIO_VOICE_CALL: 'true' }, texts }); assert.equal(flagsOff.lib.STUDIO_AGENT_MODE_ENABLED, false, `${name}: off`)
+    for (const plan of ['pro', 'premium']) {
+      const refs = renderRefs(flagsOff, { buildMode: 'standard', plan }); assert.equal(refs.agentBuildModeRef.current, undefined, `${name} ${plan}: no mode on the ref`)
+      for (const [kind, words] of PAIRS) for (const bus of [null, words]) { const w = sendOnWire(flagsOff, refs, kind, words, bus); assert.equal('build_mode' in w.data, false, `${name} ${plan} ${kind}: no key, byte for byte as today`); assert.equal(w.options.buildMode, undefined) }
+    }
+    assert.equal(flagsOff.wire.typedBuildMode(undefined, 'pro'), undefined, `${name}: the function leaves Standard's key out`); assert.equal(flagsOff.wire.typedBuildMode('agent', 'pro'), 'agent', `${name}: ... and everything else as it is`)
+  }
+  // 6. the pure function: [wire, plan, want]
+  const { wire } = rig
+  for (const [w, plan, want] of [[undefined, 'pro', 'standard'], [undefined, 'premium', 'standard'], ['standard', 'pro', 'standard'], ['standard', 'premium', 'standard'], ['agent', 'pro', 'agent'], ['agent', 'premium', 'agent'], ['author', 'pro', 'author'], ['author', 'premium', 'author'], ['author', 'free', 'author'], ['standard', 'free', 'standard'], ['standard', 'starter', 'standard'], [undefined, 'free', undefined], [undefined, 'starter', undefined], [undefined, null, undefined], [undefined, undefined, undefined], [undefined, 'enterprise', undefined]]) assert.equal(wire.typedBuildMode(w, plan), want, `typedBuildMode(${w}, ${plan})`)
+  // 7. the source: one line writes the typed ref, through typedBuildMode with the plan, and the page imports it
+  const page = texts[PAGE] ?? read(PAGE), writes = page.split('\n').filter(l => /agentBuildModeRef\.current\s*=[^=]/.test(l)); assert.equal(writes.length, 1, 'one line writes the typed ref'); assert.match(writes[0], /typedBuildMode\(buildModeWire, agentPlan\)/, 'from the picker\'s wire mode and the signed-in plan'); assert.equal(count(page, 'typedBuildMode,'), 1, 'imported from the wire lib, once')
+  const hook = texts[HOOK] ?? read(HOOK); assert.equal(count(hook, "build_mode = 'standard'"), 1, 'the hook adds no other place that decides a build_mode (its one voice line is H1\'s)'); assert.equal(count(hook, 'build_mode: options.buildMode'), 1, 'and puts the page\'s mode on the message as it is, once')
 }
 
 class FakeClock {
@@ -774,6 +826,7 @@ await check('H1. NO AGENT START FROM VOICE, the paths: the voice call is the onl
 await check('H2. a voice accept / a voice-originated send (the picker on Agent, Pro and Max) carries "standard", never "agent", and no agent frame; a click or a typed send still carries "agent"; the call ending while the send waits, a slip past the page, another plan, Standard, Author', () => voiceChecks())
 await check('H3. the same lines with each flag off: no mode held, no key sent (voice or typed), the hook\'s line does nothing; on, it acts', () => voiceFlagsOffChecks())
 await check('H4. THROUGH THE REAL CALL: a spoken yes to the plan card and a spoken turn (the real controller, a fake microphone and speech route) put a voice user message on the wire with "standard" (no key below Pro), the click and the typed send beside it carry Agent', () => voiceAcceptChecks())
+await check('H5. STANDARD IS SAID OUT LOUD: with the picker on Standard (a page just loaded, or back from Agent) Pro and Max send build_mode "standard" on a typed send and on a card\'s button, and a session that held an Agent opt-in holds none; Free, Starter, an unknown plan and each flag off send no key; Agent picked sends "agent", Author "author", a voice send "standard"', () => standardSaidChecks())
 await check('F1. the sources: every line this change adds to the hook and the page carries the marker and is a pure insertion (no base line rewritten or removed); the strip puts #607\'s head back byte for byte (two app files, three older proofs); .env.example untouched', () => sourceChecks())
 await check('F2. the registry: two marked lines (files, strips) at the true end of their lists right after #607\'s, none in the env list, nothing lost; read through it the hook and the page are the base\'s', () => registryChecks())
 await check('G. scope, read from the COMMITTED diff only: the own commits (by subject) carry the co-author line; every file they touch is this change\'s scope; the whole diff from #607\'s head is nothing else; a stray untracked file changes nothing', () => scopeChecks())
@@ -840,7 +893,7 @@ await pageMutant('the session effect never resets', 'if (agentSessionChanged(age
 await pageMutant('the session effect keeps the picked mode', 'dispatchAgentRun(AGENT_WIRE_RESET); setBuildMode(\'standard\'); setBuildModeFrom(undefined) }', 'dispatchAgentRun(AGENT_WIRE_RESET) }')
 await pageMutant('the session effect runs with the flag off', 'if (!STUDIO_AGENT_MODE_ENABLED) return // AGENT-MODE-WIRE', '')
 await pageMutant('one build send loses the build mode', '          ...buildSendOptions,\n          ...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE\n          manualDeck: turnContext?.manualDeck,', '          ...buildSendOptions,\n          manualDeck: turnContext?.manualDeck,')
-await pageMutant('the build mode ref is never written', 'agentBuildModeRef.current = buildModeWire // AGENT-MODE-WIRE', 'void buildModeWire // AGENT-MODE-WIRE')
+await pageMutant('the build mode ref is never written', 'agentBuildModeRef.current = STUDIO_AGENT_MODE_ENABLED ? typedBuildMode(buildModeWire, agentPlan) : undefined // AGENT-MODE-WIRE', 'void buildModeWire // AGENT-MODE-WIRE')
 await pageMutant('the cards sit outside the scroll area (before the message list)', "{STUDIO_AGENT_MODE_ENABLED && agentRun.status !== 'idle' ? <div ref={agentCardsRef}", "{STUDIO_AGENT_MODE_ENABLED && agentRun.status !== 'idle' && false ? <div ref={agentCardsRef}")
 await pageMutant('an auto answer: Start is sent by an effect when an estimate arrives', "  const agentCardsViewKey = agentCardsKey(agentRun) // AGENT-MODE-WIRE\n", "  const agentCardsViewKey = agentCardsKey(agentRun) // AGENT-MODE-WIRE\n  useEffect(() => { if (agentRun.status === 'estimate' && agentRun.runId) sendAgentAnswer({ runId: agentRun.runId, card: 'A1', choice: 'start' }) }, [agentRun.status]) // AGENT-MODE-WIRE\n")
 await mutant('page: a base line rewritten', () => sourceChecks({ [PAGE]: swap(PAGE_TEXT, '    [templateSendOptions, buildThemeSelection, deckIdentity],', '    [templateSendOptions, buildThemeSelection, deckIdentity, buildMode],') }))
@@ -870,7 +923,7 @@ await wireMutant('the wire lib fetches', "export const AGENT_WIRE_RESET = 'agent
 
 // no Agent start from voice (H): each is one edit of the real sources, fed to every H check (the paths, the wire, the flags, the real call)
 const TEXT0 = { [PAGE]: PAGE_TEXT, [HOOK]: HOOK_TEXT, [WIRE]: WIRE_TEXT }, text0 = rel => TEXT0[rel] ?? read(rel)
-const voiceMutant = (label, rel, from, to) => mutant(`voice: ${label}`, async () => { const texts = { [rel]: swap(text0(rel), from, to) }; voiceInventoryChecks(texts); voiceChecks(texts); voiceFlagsOffChecks(texts); await voiceAcceptChecks(texts) })
+const voiceMutant = (label, rel, from, to) => mutant(`voice: ${label}`, async () => { const texts = { [rel]: swap(text0(rel), from, to) }; voiceInventoryChecks(texts); voiceChecks(texts); voiceFlagsOffChecks(texts); standardSaidChecks(texts); await voiceAcceptChecks(texts) })
 const GUARD_LINE = lineWith(HOOK_TEXT, "message.data.build_mode === 'agent') message.data.build_mode = 'standard'"), VOICE_FIELDS_LINE = lineWith(HOOK_TEXT, 'addVoiceCallFields(message.data as unknown as Record<string, unknown>, text); // VOICE-CALL')
 const ENTRY_SEND = 'STUDIO_AGENT_MODE_ENABLED && voiceOriginatedSend(messageText) ? agentVoiceModeRef : agentBuildModeRef', ENTRY_ACTION = 'STUDIO_AGENT_MODE_ENABLED && voiceOriginatedSend(action.label) ? agentVoiceModeRef : agentBuildModeRef'
 // the page: the two handlers' entry lines, the voice ref, the four sends
@@ -886,6 +939,25 @@ await voiceMutant('the voice ref is the picker\'s mode', PAGE, 'agentVoiceModeRe
 await voiceMutant('the voice ref is never written (it stays empty: no reset of a sticky opt-in)', PAGE, 'agentVoiceModeRef.current = STUDIO_AGENT_MODE_ENABLED ? voiceBuildMode(buildModeWire, agentPlan) : undefined', 'void agentVoiceModeRef')
 await voiceMutant('the voice ref ignores the plan', PAGE, 'voiceBuildMode(buildModeWire, agentPlan)', "voiceBuildMode(buildModeWire, 'pro')")
 for (const ind of ['          ', '              ', '        ', '            ']) await voiceMutant(`the ${ind.length}-space build send reads the picker's ref, unguarded`, PAGE, `${ind}...buildSendOptions,\n${ind}...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE\n`, `${ind}...buildSendOptions,\n${ind}...(agentBuildModeRef.current ? { buildMode: agentBuildModeRef.current } : {}), // AGENT-MODE-WIRE\n`)
+// Standard is said out loud (H5): each is one edit of the real sources, fed to the H5 checks and the voice checks that read the same lines
+const standardMutant = (label, rel, from, to) => mutant(`standard: ${label}`, () => { const texts = { [rel]: swap(text0(rel), from, to) }; standardSaidChecks(texts); voiceChecks(texts); voiceFlagsOffChecks(texts) })
+const TYPED_BODY = "if (!STUDIO_AGENT_MODE_ENABLED || wire !== undefined) return wire\n  return agentEligible(plan) ? 'standard' : undefined", TYPED_REF = 'agentBuildModeRef.current = STUDIO_AGENT_MODE_ENABLED ? typedBuildMode(buildModeWire, agentPlan) : undefined'
+// the wire lib
+await standardMutant('Standard omits the key (the reload gap: a sticky Agent opt-in stays)', WIRE, TYPED_BODY, 'return wire')
+await standardMutant('Standard omits the key for everyone', WIRE, TYPED_BODY, "if (!STUDIO_AGENT_MODE_ENABLED || wire !== undefined) return wire\n  return undefined")
+await standardMutant('Standard sends the key on a free plan too', WIRE, TYPED_BODY, "if (!STUDIO_AGENT_MODE_ENABLED || wire !== undefined) return wire\n  return 'standard'")
+await standardMutant('Standard sends the key on Pro only (not Max)', WIRE, TYPED_BODY, "if (!STUDIO_AGENT_MODE_ENABLED || wire !== undefined) return wire\n  return plan === 'pro' ? 'standard' : undefined")
+await standardMutant('Standard sends the key on an unknown plan (a plan not loaded yet)', WIRE, TYPED_BODY, "if (!STUDIO_AGENT_MODE_ENABLED || wire !== undefined) return wire\n  return plan === 'free' || plan === 'starter' ? undefined : 'standard'")
+await standardMutant('Author is rewritten to "standard"', WIRE, TYPED_BODY, "if (!STUDIO_AGENT_MODE_ENABLED || wire === 'agent' || wire === 'standard') return wire\n  return agentEligible(plan) ? 'standard' : undefined")
+await standardMutant('Agent is rewritten to "standard"', WIRE, TYPED_BODY, "if (!STUDIO_AGENT_MODE_ENABLED || wire === 'author' || wire === 'standard') return wire\n  return agentEligible(plan) ? 'standard' : undefined")
+await standardMutant('a plan without Agent loses an explicit mode (Author, or the reset after it)', WIRE, TYPED_BODY, "if (!STUDIO_AGENT_MODE_ENABLED || wire !== undefined) return agentEligible(plan) ? wire : undefined\n  return agentEligible(plan) ? 'standard' : undefined")
+await standardMutant('the function ignores the flags', WIRE, TYPED_BODY, "if (wire !== undefined) return wire\n  return agentEligible(plan) ? 'standard' : undefined")
+await standardMutant('the function says "agent"', WIRE, TYPED_BODY, "if (!STUDIO_AGENT_MODE_ENABLED || wire !== undefined) return wire\n  return agentEligible(plan) ? 'agent' : undefined")
+// the page: the one line that writes the typed ref
+await standardMutant('the typed ref is the picker\'s raw mode (Standard omits the key)', PAGE, TYPED_REF, 'agentBuildModeRef.current = buildModeWire')
+await standardMutant('the typed ref ignores the plan (a free plan sends the key)', PAGE, 'typedBuildMode(buildModeWire, agentPlan)', "typedBuildMode(buildModeWire, 'pro')")
+await standardMutant('the typed ref rewrites Author', PAGE, 'typedBuildMode(buildModeWire, agentPlan)', "typedBuildMode(buildModeWire === 'author' ? undefined : buildModeWire, agentPlan)")
+await standardMutant('the voice ref follows the typed one (voice would start Agent)', PAGE, 'agentVoiceModeRef.current = STUDIO_AGENT_MODE_ENABLED ? voiceBuildMode(buildModeWire, agentPlan) : undefined', 'agentVoiceModeRef.current = STUDIO_AGENT_MODE_ENABLED ? typedBuildMode(buildModeWire, agentPlan) : undefined')
 // the hook
 await voiceMutant('the hook has no voice line', HOOK, GUARD_LINE + '\n', '')
 await voiceMutant('the hook\'s voice line is inverted (it turns "standard" into "standard" only for typed messages)', HOOK, ".mode === 'voice' && message.data.build_mode === 'agent'", ".mode !== 'voice' && message.data.build_mode === 'agent'")
@@ -898,12 +970,12 @@ await voiceMutant('voiceOriginatedSend is always false', WIRE, 'voiceCallBus.pen
 await voiceMutant('voiceOriginatedSend is always true (a typed send while a call is on reads the voice mode)', WIRE, 'voiceCallBus.pending !== null && voiceCallBus.pending.text === text', 'true')
 await voiceMutant('voiceOriginatedSend takes any armed words, not the handler\'s own', WIRE, 'voiceCallBus.pending !== null && voiceCallBus.pending.text === text', 'voiceCallBus.pending !== null')
 await voiceMutant('voiceOriginatedSend spends the armed turn (the hook then cannot mark it voice)', WIRE, 'export const voiceOriginatedSend = (text: string): boolean => voiceCallBus.pending !== null && voiceCallBus.pending.text === text', 'export const voiceOriginatedSend = (text: string): boolean => { const hit = voiceCallBus.pending !== null && voiceCallBus.pending.text === text; voiceCallBus.pending = null; return hit }')
-await voiceMutant('voiceBuildMode passes the picker\'s mode through', WIRE, "return agentEligible(plan) ? 'standard' : undefined", 'return wire')
-await voiceMutant('voiceBuildMode leaves the key out for everyone (a sticky Agent opt-in stays)', WIRE, "return agentEligible(plan) ? 'standard' : undefined", 'return undefined')
-await voiceMutant('voiceBuildMode sends "standard" for every plan', WIRE, "return agentEligible(plan) ? 'standard' : undefined", "return 'standard'")
+await voiceMutant('voiceBuildMode passes the picker\'s mode through', WIRE, "if (!STUDIO_AGENT_MODE_ENABLED || wire === 'author') return wire\n  return agentEligible(plan) ? 'standard' : undefined", "if (!STUDIO_AGENT_MODE_ENABLED || wire === 'author') return wire\n  return wire")
+await voiceMutant('voiceBuildMode leaves the key out for everyone (a sticky Agent opt-in stays)', WIRE, "if (!STUDIO_AGENT_MODE_ENABLED || wire === 'author') return wire\n  return agentEligible(plan) ? 'standard' : undefined", "if (!STUDIO_AGENT_MODE_ENABLED || wire === 'author') return wire\n  return undefined")
+await voiceMutant('voiceBuildMode sends "standard" for every plan', WIRE, "if (!STUDIO_AGENT_MODE_ENABLED || wire === 'author') return wire\n  return agentEligible(plan) ? 'standard' : undefined", "if (!STUDIO_AGENT_MODE_ENABLED || wire === 'author') return wire\n  return 'standard'")
 await voiceMutant('voiceBuildMode rewrites Author too', WIRE, "if (!STUDIO_AGENT_MODE_ENABLED || wire === 'author') return wire", 'if (!STUDIO_AGENT_MODE_ENABLED) return wire')
 await voiceMutant('voiceBuildMode ignores the flags', WIRE, "if (!STUDIO_AGENT_MODE_ENABLED || wire === 'author') return wire", "if (wire === 'author') return wire")
-await voiceMutant('voiceBuildMode says "agent" for a plan that has it', WIRE, "return agentEligible(plan) ? 'standard' : undefined", "return agentEligible(plan) ? 'agent' : undefined")
+await voiceMutant('voiceBuildMode says "agent" for a plan that has it', WIRE, "if (!STUDIO_AGENT_MODE_ENABLED || wire === 'author') return wire\n  return agentEligible(plan) ? 'standard' : undefined", "if (!STUDIO_AGENT_MODE_ENABLED || wire === 'author') return wire\n  return agentEligible(plan) ? 'agent' : undefined")
 // the real call and the paths
 await voiceMutant('the call stops arming the words on the bus (the page cannot tell a voice send)', VOICE_CTL, '    armVoiceTurn(words)\n', '')
 await voiceMutant('a second place arms the bus', 'hooks/use-studio-voice-call.ts', 'const noopSubscribe = () => () => {}', "const noopSubscribe = () => () => {}\nconst armElsewhere = () => armVoiceTurn('x')")

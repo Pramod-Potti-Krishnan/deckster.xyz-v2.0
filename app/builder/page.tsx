@@ -851,8 +851,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   useEffect(() => {
     deckIdentityRef.current = deckIdentity
   }, [deckIdentity])
-  const buildModeWire = STUDIO_AGENT_MODE_ENABLED ? buildModeOnWire(buildMode, { plan: agentPlan, previous: buildModeFrom }) : undefined // AGENT-MODE-WIRE: the build_mode a request carries; undefined omits the key, so with the flags off every frame is today's
-  agentBuildModeRef.current = buildModeWire // AGENT-MODE-WIRE: read at send time by the four build sends below (typed message, outline accept), so a pick is on the very next request and a closure never holds an old mode
+  const buildModeWire = STUDIO_AGENT_MODE_ENABLED ? buildModeOnWire(buildMode, { plan: agentPlan, previous: buildModeFrom }) : undefined // AGENT-MODE-WIRE: the picker's build_mode on the wire (undefined: Standard, and no other was ever picked; the two refs below turn it into the key a typed send and a voice send carry); with the flags off it is undefined and every frame is today's
+  agentBuildModeRef.current = STUDIO_AGENT_MODE_ENABLED ? typedBuildMode(buildModeWire, agentPlan) : undefined // AGENT-MODE-WIRE: read at send time by the four build sends below (typed message, outline accept), so a pick is on the very next request and a closure never holds an old mode; PK ruling (12 Nov): Standard on a plan that can have an Agent opt-in (Pro, Max) is sent as an explicit "standard" (Director's opt-in is sticky and the picker starts on Standard after a reload), the other plans leave the key out
   agentVoiceModeRef.current = STUDIO_AGENT_MODE_ENABLED ? voiceBuildMode(buildModeWire, agentPlan) : undefined // AGENT-MODE-WIRE: the same, for a send that came from the voice call: "standard" for a plan that can have an Agent opt-in (Director's is sticky; this drops it), else no key; never "agent"
   const buildSendOptions = useMemo(
     () => ({
@@ -8593,4 +8593,4 @@ import { BuilderQuotaRefusal } from '@/components/billing/builder-quota-refusal'
 import { AgentRunCards } from '@/components/builder/agent-mode/agent-run-cards' // AGENT-MODE-WIRE
 import { BuildModePicker } from '@/components/builder/agent-mode/build-mode-picker' // AGENT-MODE-WIRE
 import { STUDIO_AGENT_MODE_ENABLED, agentPlanOf, buildModeOnWire, initialAgentRunState, type BuildMode } from '@/lib/studio-agent-mode' // AGENT-MODE-WIRE
-import { AGENT_WIRE_CONTROL_MARK, AGENT_WIRE_COPY, AGENT_WIRE_RESET, agentCardsKey, agentRunBusy, agentSessionChanged, agentWireReducer, answerAgentCard, voiceBuildMode, voiceOriginatedSend } from '@/lib/studio-agent-mode-wire' // AGENT-MODE-WIRE
+import { AGENT_WIRE_CONTROL_MARK, AGENT_WIRE_COPY, AGENT_WIRE_RESET, agentCardsKey, agentRunBusy, agentSessionChanged, agentWireReducer, answerAgentCard, typedBuildMode, voiceBuildMode, voiceOriginatedSend } from '@/lib/studio-agent-mode-wire' // AGENT-MODE-WIRE

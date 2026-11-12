@@ -67,3 +67,16 @@ export function voiceBuildMode(wire: BuildMode | undefined, plan: AgentPlan | nu
   if (!STUDIO_AGENT_MODE_ENABLED || wire === 'author') return wire
   return agentEligible(plan) ? 'standard' : undefined
 }
+
+// ---- STANDARD IS SAID OUT LOUD (PK ruling, 12 Nov: "both yes") -----------------------------------------------------------------------------------------------------------------------------------------
+// Director's Agent opt-in is sticky: it is saved with the session, and a message without build_mode leaves it as it was (only an explicit "standard" clears it). The Studio does not read the opt-in back, and the picker starts on Standard after a reload, so a typed send or a click
+// with Standard picked, which used to leave the key out, could still run Agent on a session that held an opt-in. The picker is the person's word: on a plan that can hold the opt-in (Pro, Max) a build send with the picker on Standard now says so.
+/**
+ * The build_mode a typed send or a click on a card's button carries, given the one the picker puts on the wire (`wire`, from buildModeOnWire): Agent and Author as picked; Standard (the key left out, because the person never picked another) says "standard" for a plan that can have an Agent
+ * opt-in (Pro, Max), which clears one Director holds and changes nothing when none is held. Free, Starter and a plan that is not loaded: the key stays out, as it always did (Agent is never sent for them, so there is nothing to clear). A reset after Author or Agent is "standard" already.
+ * Flags off: the picker's mode, which is undefined then (every frame is today's).
+ */
+export function typedBuildMode(wire: BuildMode | undefined, plan: AgentPlan | null | undefined): BuildMode | undefined {
+  if (!STUDIO_AGENT_MODE_ENABLED || wire !== undefined) return wire
+  return agentEligible(plan) ? 'standard' : undefined
+}
