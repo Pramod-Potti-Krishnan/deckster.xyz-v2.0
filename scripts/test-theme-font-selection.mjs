@@ -185,6 +185,7 @@ function userMessageBuilder(rootDir, overrides = {}) {
   context.CHAT_ELEMENT_EDIT_ENABLED = false // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT), stacked after #475: NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT's one flag-gated caps line in buildUserMessage (#522), off here like the other flags
   context.STUDIO_CHAT_COMMANDS_ENABLED = false // LATER-CHANGES: registry read (CHAT-COMMANDS), stacked after #475: NEXT_PUBLIC_STUDIO_CHAT_COMMANDS's two flag-gated lines in buildUserMessage (#532), off here like the other flags
   context.CHAT_PARITY_CAPS = [] // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): NEXT_PUBLIC_STUDIO_CHAT_PARITY_*'s one flag-gated line in buildUserMessage (themes1 / identity1 / templates1), empty (all off) here
+  context.STUDIO_AGENT_MODE_ENABLED = false // LATER-CHANGES: registry read (AGENT-MODE-WIRE), stacked after #475: NEXT_PUBLIC_AGENT_MODE / NEXT_PUBLIC_STUDIO_V4_SHELL's one flag name in buildUserMessage (the voice turn that never starts an Agent run), off here like the other flags
   vm.runInNewContext(js, context)
   // The frame the socket would send for `buildSendOptions` ({ theme, ... }), exactly as JSON.stringify writes it.
   return (theme, extra = {}) => {

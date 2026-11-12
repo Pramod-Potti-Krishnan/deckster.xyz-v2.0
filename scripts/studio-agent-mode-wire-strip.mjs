@@ -18,7 +18,8 @@
 //   - #607's OWN files, edited in place (PK ruling, 11 Nov: the A1 estimate card is information, not a gate, because the Agent send is the spend click; FRONTEND-2, #607's owner, OK'd the substance): lib/studio-agent-mode.ts (the words), the estimate card, the run cards' mount, the shared button's
 //     comment (AGENT_MODE_WIRE_SHELL_EDITS), and #607's own proof (its pairs are in AGENT_MODE_WIRE_PIN_EDITS). The same rule, read strictly: every changed or added line carries the marker (a trailing comment; a JSX comment after a JSX child; in the proof the registry-read mark, which holds it),
 //     a line that went leaves a marked comment line in its place, a block that became fewer or more lines is one pair, and the strip puts #607's head back BYTE FOR BYTE (the proof checks exactly that, for every one of these files).
-// Older proofs this change teaches (tests only, every line carries the registry-read mark): the two that read the first-parent commits of BASE..HEAD for their own commits' subjects get one more inserted line each, "Agent mode wire:", right after the shell's; and #607's own proof (above), whose
+// Older proofs this change teaches (tests only, every line carries the registry-read mark): the two that read the first-parent commits of BASE..HEAD for their own commits' subjects get one more inserted line each, "Agent mode wire:", right after the shell's; two more, ONE marked pure insertion each (gate NEW 1, 12 Nov): the font-selection proof's frame-builder sandbox (scripts/test-theme-font-selection.mjs) defines STUDIO_AGENT_MODE_ENABLED, off (the hook's voice guard names it free there), and chat-theme-export (scripts/test-studio-chat-theme-export.mjs) reads
+// that line out of the added-lines budget it holds the font-selection proof to (5, used up on dev) with one splice line; and #607's own proof (above), whose
 // scope check held the hook and the Builder page to the base byte for byte ("the drafts are not applied": the one line that applies them now reads them past the later changes' strips, so it is a REPLACED line, a pair like the rest). How the older pins reach it: it REGISTERS its files and its strip
 // (scripts/studio-later-changes.mjs, two lines: the env-block list gets none, this change adds no block).
 // Plain node, no imports, nothing read from disk or git here.
@@ -142,10 +143,17 @@ export const AGENT_MODE_WIRE_SHELL_EDITS = {
 /** The older proofs this change teaches: [text the proof has now, text it had before] per edit (was = '' for an inserted line). Every line the proof has now that this change added carries AGENT_MODE_WIRE_PIN_MARK. */
 export const AGENT_MODE_WIRE_PIN_MARK = '// LATER-CHANGES: registry read (AGENT-MODE-WIRE)'
 const PIN_LINE = "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Agent mode wire:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (AGENT-MODE-WIRE): on a branch stacked after this change (the Agent build wire, on the Agent build shell), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files\n"
+// the font-selection proof runs the hook's frame builder (buildUserMessage) in a vm sandbox with only the names it knows: the voice guard line (STUDIO_AGENT_MODE_ENABLED) is one more free name there, so one inserted line defines it (off); and chat-theme-export reads that proof's
+// diff against the base with a budget of added lines (5, used up on dev), so one inserted splice line in it takes this change's registry-read line out of that count (never a removed line)
+const FONT_SELECTION_LINE = "  context.STUDIO_AGENT_MODE_ENABLED = false // LATER-CHANGES: registry read (AGENT-MODE-WIRE), stacked after #475: NEXT_PUBLIC_AGENT_MODE / NEXT_PUBLIC_STUDIO_V4_SHELL's one flag name in buildUserMessage (the voice turn that never starts an Agent run), off here like the other flags\n"
+const THEME_EXPORT_LINE = "    added.splice(0, added.length, ...added.filter(line => !/LATER-CHANGES: registry read \\(AGENT-MODE-WIRE\\)/.test(line))) // LATER-CHANGES: registry read (AGENT-MODE-WIRE), stacked after #475: the Agent build wire (NEXT_PUBLIC_AGENT_MODE / NEXT_PUBLIC_STUDIO_V4_SHELL) names its one flag in the font-selection sandbox with one inserted line (context.STUDIO_AGENT_MODE_ENABLED = false); that line is a later PR's, not this change's\n"
 export const AGENT_MODE_WIRE_PIN_EDITS = {
   // two older proofs walk the first-parent line of BASE..HEAD without merges and require every subject on it to be their own: this change's commits (subject "Agent mode wire:") are left out of that line, like every later change's
   'scripts/test-studio-chat-element-edit.mjs': [[PIN_LINE, '']],
   'scripts/test-studio-deck-sync-truth.mjs': [[PIN_LINE, '']],
+  // two more pure insertions, one line each (their pairs follow the same rule: registry-read mark, in the file once as a whole line, nothing else differs from #607's head): the font-selection proof's sandbox names the agent flag, chat-theme-export's identity loop leaves that line out of its added-lines budget
+  'scripts/test-theme-font-selection.mjs': [[FONT_SELECTION_LINE, '']],
+  'scripts/test-studio-chat-theme-export.mjs': [[THEME_EXPORT_LINE, '']],
   // #607's own proof, edited in place (PK ruling, 11 Nov: the A1 estimate card is information, not a gate): EVERY changed or added line carries the registry-read mark with this change's marker, and the strip puts #607's head back byte for byte. The first entry is the scope
   // line that held the hook and the Builder page to the base byte for byte: it now reads them past the later changes' strips. A deleted line leaves a marked comment line in its place (the pair puts the deleted line back); a block that became fewer or more lines is one pair.
   'scripts/test-studio-agent-mode-shell.mjs': [
@@ -184,7 +192,7 @@ export const AGENT_MODE_WIRE_PIN_EDITS = {
 export const AGENT_MODE_WIRE_PIN_AFTER = "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Agent mode shell:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (AGENT-MODE-SHELL)"
 export const AGENT_MODE_WIRE_PIN_FILES = Object.keys(AGENT_MODE_WIRE_PIN_EDITS)
 
-/** Every [has, was] pair this change makes to an existing file, by file: the two app files, the four of #607's files edited in place and the three taught proofs (one of them #607's own). */
+/** Every [has, was] pair this change makes to an existing file, by file: the two app files, the four of #607's files edited in place and the five taught proofs (one of them #607's own). */
 export const AGENT_MODE_WIRE_ALL_EDITS = { ...AGENT_MODE_WIRE_EDITS, ...AGENT_MODE_WIRE_SHELL_EDITS, ...AGENT_MODE_WIRE_PIN_EDITS }
 
 /** Files this change edits that are not app code: the registry (two lines: its files and its strip) and the older proofs it teaches. */
