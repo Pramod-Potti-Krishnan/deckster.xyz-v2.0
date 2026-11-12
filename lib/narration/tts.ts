@@ -10,9 +10,20 @@
  *
  * `MediaProvider` exists so that if OpenRouter ever stops being the right
  * gateway, the thing that gets replaced is this file and nothing else.
+ *
+ * With NARRATION_VIA_ROUTER on, the same call goes to the model router instead
+ * (see model-router.ts); the body is the same, only the address and headers differ.
  */
 
 import { getVoice, type NarrationVoice } from './voices'
+import {
+  callModel,
+  routerSettings,
+  ROUTER_LOOKUP_TIMEOUT_MS,
+  ROUTER_SPEECH_TIMEOUT_MS,
+  type NarrationCallContext,
+  type NarrationServedBy,
+} from './model-router'
 
 const OPENROUTER_SPEECH_URL = 'https://openrouter.ai/api/v1/audio/speech'
 
@@ -32,10 +43,13 @@ export interface SynthesisResult {
   firstAudioSeconds: number
   /** Exact for PCM (bytes ÷ rate); null for mp3, which needs a probe. */
   durationSeconds: number | null
+  /** Only set when NARRATION_VIA_ROUTER tried the router: where the audio actually came from.
+   *  The billed-cost lookup follows it. Absent means a direct OpenRouter call, as before. */
+  servedBy?: NarrationServedBy
 }
 
 export interface MediaProvider {
-  synthesize(text: string, voice: NarrationVoice): Promise<SynthesisResult>
+  synthesize(text: string, voice: NarrationVoice, context?: NarrationCallContext): Promise<SynthesisResult>
 }
 
 export class SynthesisError extends Error {
@@ -50,13 +64,20 @@ export class SynthesisError extends Error {
 }
 
 export function isNarrationConfigured(): boolean {
-  return Boolean(process.env.OPENROUTER_API_KEY)
+  // Either key will do while NARRATION_VIA_ROUTER is on and both exist.
+  return Boolean(process.env.OPENROUTER_API_KEY) || routerSettings() !== null
 }
 
 class OpenRouterSpeechProvider implements MediaProvider {
-  async synthesize(text: string, voice: NarrationVoice): Promise<SynthesisResult> {
+  async synthesize(
+    text: string,
+    voice: NarrationVoice,
+    context?: NarrationCallContext
+  ): Promise<SynthesisResult> {
     const key = process.env.OPENROUTER_API_KEY
-    if (!key) {
+    // Null unless NARRATION_VIA_ROUTER is on and the router is configured.
+    const router = routerSettings()
+    if (!key && !router) {
       throw new SynthesisError('OPENROUTER_API_KEY is not configured', null, voice.id)
     }
     const trimmed = text.trim()
@@ -66,23 +87,40 @@ class OpenRouterSpeechProvider implements MediaProvider {
 
     const started = Date.now()
     let response: Response
+    let servedBy: NarrationServedBy = 'direct'
     try {
-      response = await fetch(OPENROUTER_SPEECH_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${key}`,
-        },
-        body: JSON.stringify({
-          model: voice.model,
-          input: trimmed,
-          voice: voice.providerVoice,
-          // Per-voice, not global: Gemini rejects mp3 outright and is the only
-          // one that does. Carrying the quirk in the voice row keeps every
-          // caller from having to know about it.
-          response_format: voice.responseFormat,
-        }),
+      const requestBody = JSON.stringify({
+        model: voice.model,
+        input: trimmed,
+        voice: voice.providerVoice,
+        // Per-voice, not global: Gemini rejects mp3 outright and is the only
+        // one that does. Carrying the quirk in the voice row keeps every
+        // caller from having to know about it.
+        response_format: voice.responseFormat,
       })
+      const routed = await callModel({
+        router,
+        path: '/v1/audio/speech',
+        task: 'studio.narration_tts',
+        context,
+        body: requestBody,
+        direct: key
+          ? {
+              url: OPENROUTER_SPEECH_URL,
+              init: {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${key}`,
+                },
+                body: requestBody,
+              },
+            }
+          : null,
+        timeoutMs: ROUTER_SPEECH_TIMEOUT_MS,
+      })
+      response = routed.response
+      servedBy = routed.servedBy
     } catch (error) {
       throw new SynthesisError(
         `Could not reach the speech service: ${error instanceof Error ? error.message : 'unknown'}`,
@@ -123,14 +161,19 @@ class OpenRouterSpeechProvider implements MediaProvider {
         voice.responseFormat === 'pcm'
           ? audio.byteLength / (PCM_SAMPLE_RATE * PCM_BYTES_PER_SAMPLE)
           : null,
+      ...(router ? { servedBy } : {}),
     }
   }
 }
 
 export const mediaProvider: MediaProvider = new OpenRouterSpeechProvider()
 
-export function synthesize(text: string, voiceId: string): Promise<SynthesisResult> {
-  return mediaProvider.synthesize(text, getVoice(voiceId))
+export function synthesize(
+  text: string,
+  voiceId: string,
+  context?: NarrationCallContext
+): Promise<SynthesisResult> {
+  return mediaProvider.synthesize(text, getVoice(voiceId), context)
 }
 
 /**
@@ -142,14 +185,31 @@ export function synthesize(text: string, voiceId: string): Promise<SynthesisResu
  * record lags the response slightly, and never failing the render over it is
  * the right trade.
  */
-export async function billedCostUsd(generationId: string | null): Promise<number | null> {
+export async function billedCostUsd(
+  generationId: string | null,
+  /** From the synthesis result: audio that fell back to OpenRouter is looked up there, not on the router. */
+  servedBy?: NarrationServedBy
+): Promise<number | null> {
   const key = process.env.OPENROUTER_API_KEY
-  if (!generationId || !key) return null
+  const router = servedBy === 'direct' ? null : routerSettings()
+  if (!generationId || (!key && !router)) return null
   try {
-    const response = await fetch(
-      `https://openrouter.ai/api/v1/generation?id=${encodeURIComponent(generationId)}`,
-      { headers: { Authorization: `Bearer ${key}` } }
-    )
+    // Routed: the router's /v1/generation. No fallback here: a generation made through the router is
+    // not on the direct key's account, and the caller already treats null as "use the measured rate".
+    const response = router
+      ? (
+          await callModel({
+            router,
+            path: `/v1/generation?id=${encodeURIComponent(generationId)}`,
+            task: null,
+            direct: null,
+            timeoutMs: ROUTER_LOOKUP_TIMEOUT_MS,
+          })
+        ).response
+      : await fetch(
+          `https://openrouter.ai/api/v1/generation?id=${encodeURIComponent(generationId)}`,
+          { headers: { Authorization: `Bearer ${key}` } }
+        )
     if (!response.ok) return null
     const body = (await response.json()) as { data?: { total_cost?: number } }
     return body?.data?.total_cost ?? null

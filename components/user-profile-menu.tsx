@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useStudioAboutReplay } from "@/components/builder/studio-introduction"
 import { StudioAboutDialog } from "@/components/studio-about-dialog"
+import { VersionHistoryMenuItem } from "@/components/version-history-menu-item" // VERSION-HISTORY-V2
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -33,7 +34,10 @@ import {
 import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
 import { StudioNavigationHint } from "@/components/layout/studio-navigation-hint"
+import { StudioProfileMenuP2 } from "@/components/user-profile-menu-p2"
+import { STUDIO_P2_POLISH_ENABLED } from "@/lib/studio-p2-polish"
 import "./user-profile-studio-v4.css"
+import { studioPhoneMenuCloseFocus } from "@/lib/studio-phone-polish" // PHONE-POLISH
 
 // ---------------------------------------------------------------------------
 // Inline quota bar — shows daily + weekly remaining % as thin progress bars
@@ -119,17 +123,23 @@ function UsageRemaining({ data, isExpanded, onToggle }: { data: QuotaSnapshot; i
 // Main component
 // ---------------------------------------------------------------------------
 
-export function UserProfileMenu({ studioLabels = false, studioPalette = false, sessionUsage }: { studioLabels?: boolean; studioPalette?: boolean; sessionUsage?: ReactNode } = {}) {
+export function UserProfileMenu({ studioLabels = false, studioPalette = false, sessionUsage, returnFocusOnClose = true /* PHONE-POLISH */ }: { studioLabels?: boolean; studioPalette?: boolean; sessionUsage?: ReactNode; returnFocusOnClose?: boolean /* PHONE-POLISH */ } = {}) {
   const { user, logout, isLoading } = useAuth()
   const router = useRouter()
   const { theme, setTheme } = useTheme()
   const [isOpen, setIsOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
   const accountTrigger = useRef<HTMLButtonElement>(null)
+  const menuCloseFocus = returnFocusOnClose === false ? (event: Event) => studioPhoneMenuCloseFocus(event, accountTrigger.current, document.activeElement) : undefined // PHONE-POLISH: set only by the phone More sheet (flag on); undefined everywhere else, so Radix returns the focus to the avatar as it always did
   const aboutReplay = useStudioAboutReplay({ onOpenChange: setAboutOpen, restoreFocus: () => accountTrigger.current?.focus() })
   const [quota, setQuota] = useState<QuotaSnapshot | null>(null)
+  // NEXT_PUBLIC_STUDIO_P2_POLISH (PP-6): the last quota read failed. Only set with the flag on, so the capacity card can say "Usage unavailable" instead of silently not being there.
+  const [quotaFailed, setQuotaFailed] = useState(false)
   const [isUsageExpanded, setIsUsageExpanded] = useState(false)
   const studioProfile = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && studioPalette
+  // PASS2 PRO-02/03/04/05/06/07/08/10 (NEXT_PUBLIC_STUDIO_P2_PROFILE_MENU, default off, only where the Studio account presentation is on): the mockup's menu body.
+  const p2Menu = studioProfile && process.env.NEXT_PUBLIC_STUDIO_P2_PROFILE_MENU === 'true'
+  const versionHistoryRow = process.env.NEXT_PUBLIC_STUDIO_VERSION_HISTORY_V2 === 'true' ? <VersionHistoryMenuItem key="version-history" chevron={p2Menu} /> : null // VERSION-HISTORY-V2: exact flag; the row itself renders nothing unless a deck is on screen (Studio), so never on the library pages
 
   // Fetch quota when dropdown opens (lightweight GET, cached by React state)
   const fetchQuota = useCallback(async () => {
@@ -145,9 +155,11 @@ export function UserProfileMenu({ studioLabels = false, studioPalette = false, s
           caps: data.caps,
           spent: data.spent,
         })
-      }
+        if (STUDIO_P2_POLISH_ENABLED) setQuotaFailed(false)
+      } else if (STUDIO_P2_POLISH_ENABLED) setQuotaFailed(true)
     } catch {
       // Non-fatal — dropdown still works without bars
+      if (STUDIO_P2_POLISH_ENABLED) setQuotaFailed(true)
     }
   }, [])
 
@@ -205,7 +217,8 @@ export function UserProfileMenu({ studioLabels = false, studioPalette = false, s
           </Button>
         </DropdownMenuTrigger>
       </StudioNavigationHint>
-      <DropdownMenuContent data-studio-v4-profile={studioPalette ? "true" : undefined} data-studio-profile-fidelity={studioProfile ? "true" : undefined} side={studioProfile ? "right" : undefined} sideOffset={studioProfile ? 8 : undefined} align="end" className="w-64">
+      {p2Menu ? <StudioProfileMenuP2 name={user.name} email={user.email} image={user.image} initials={userInitials} tierLabel={quota?.tierLabel} sessionTier={user.tier} quotaFailed={quotaFailed} sessionUsage={sessionUsage} quota={quota} theme={theme} onTheme={setTheme} onNavigate={handleNavigation} onAbout={() => { setIsOpen(false); setAboutOpen(true) }} onLogout={handleLogout} {...(versionHistoryRow ? { versionHistoryRow /* VERSION-HISTORY-V2 */ } : {})} {...(menuCloseFocus ? { onCloseAutoFocus: menuCloseFocus } : {}) /* PHONE-POLISH */} /> : (
+      <DropdownMenuContent data-studio-v4-profile={studioPalette ? "true" : undefined} data-studio-profile-fidelity={studioProfile ? "true" : undefined} side={studioProfile ? "right" : undefined} sideOffset={studioProfile ? 8 : undefined} align="end" className="w-64" {...(menuCloseFocus ? { onCloseAutoFocus: menuCloseFocus } : {}) /* PHONE-POLISH */}>
         <DropdownMenuLabel data-studio-profile-identity={studioProfile ? "true" : undefined} className="font-normal">
           <div className="flex flex-col space-y-1">
             <div className="flex items-center gap-2">
@@ -243,6 +256,7 @@ export function UserProfileMenu({ studioLabels = false, studioPalette = false, s
           <Settings className="mr-2 h-4 w-4" />
           <span>Settings</span>
         </DropdownMenuItem>
+        {versionHistoryRow}{/* VERSION-HISTORY-V2: null with the flag off, so no node */}
 
         <DropdownMenuItem data-studio-v4-profile-role="item" onClick={toggleTheme}>
           {theme === "dark" ? (
@@ -279,6 +293,7 @@ export function UserProfileMenu({ studioLabels = false, studioPalette = false, s
           <span>Sign Out</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
+      )}
     </DropdownMenu>
     {process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && <StudioAboutDialog open={aboutOpen} onOpenChange={setAboutOpen} onCloseAutoFocus={aboutReplay.onCloseAutoFocus} onReplay={aboutReplay.intro ? aboutReplay.requestFromAbout : undefined} replayEnabled={aboutReplay.intro?.availableIgnoringOwnAboutModal} />}
     </>

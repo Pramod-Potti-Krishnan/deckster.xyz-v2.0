@@ -1,3 +1,4 @@
+import { announceQuotaRefusal, isStudioQuotaScreensOn, walletPrecheckAllows } from '@/lib/studio-billing-usage' // BILLING-F5-USAGE
 import { useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from './use-auth';
 import { composerThemeFromSync, composerThemeSyncBlocked, readComposerAdoption, type ComposerAdoption } from '@/lib/composer-theme-policy';
@@ -5,8 +6,25 @@ import { useSessionCache, CachedSessionState } from './use-session-cache';
 import { debugLog } from '@/lib/debug-log'
 import { CHAT_DIRECTIVES, CHAT_MENTIONS } from '@/lib/mdc-flags'
 import { parseSlideMentions } from '@/lib/mdc-mentions';
+// NEXT_PUBLIC_CHAT_ELEMENT_REFINE (default off): refine an element from chat; the cap, the reference and element_refine_directive.
+import { CHAT_ELEMENT_REFINE_ENABLED, ELEMENT_REFINE_DIRECTIVE_TYPE, addChatElementRefineFields, elementRefineDirectiveId } from '@/lib/chat-element-refine-wire';
+import { CHAT_ELEMENT_EDIT_ENABLED, addChatElementEditCaps, elementEditResultFrame, routeElementEditFrame, routeNotesUpdatedFrame } from '@/lib/chat-element-edit-wire'; // CHAT-ELEMENT-EDIT (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off): edit an element from chat and refresh the notes; the caps, the element_edit frame and deck_mutation notes_updated
 import type { BuildThemeSelection } from '@/lib/theme-builder';
 import type { TemplateOverrides } from '@/lib/template-mode';
+// NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (each default off): change the theme / export from chat; the caps and the two directives.
+import { CHAT_THEME_EXPORT_CAPS, chatThemeExportDirectiveKind, themeExportDirectiveId } from '@/lib/chat-theme-export-wire';
+import { CHAT_PARITY_CAPS, CHAT_PARITY_NOTES_FIELDS_EVENT, STUDIO_CHAT_PARITY_ANY_ENABLED, addChatParityCaps, chatParityBus, chatParityNotesFields, chatParityRequestId, chatParityResultFrame, isChatParityRequestFrame } from '@/lib/studio-chat-parity'; // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_*, each default off): the group caps and Director's studio_action request
+// NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4c, default off): Director's job_update frames and sync_response.payload.jobs go to the page's ledger.
+import { STUDIO_JOB_LEDGER_ENABLED, JOB_UPDATE_TYPE, jobLedgerRow, jobLedgerRows } from '@/lib/studio-job-ledger';
+import { STUDIO_BULK_EDIT_UNDO_ENABLED, STUDIO_CHAT_UNDO_ENABLED, BULK_EDIT_UNDO_CLIENT_CAPS, addBulkEditUndoCaps, normaliseDeckRestored } from '@/lib/studio-bulk-edit-wire'; // BULK-EDIT-UNDO (flags NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO, default off)
+import { bulkEditUndoContext, routeStudioBulkEditUndoFrame } from '@/lib/studio-bulk-edit-store'; // BULK-EDIT-UNDO
+import { STUDIO_CHAT_COMMANDS_ENABLED, addChatCommandsFields, chatCommandsSent } from '@/lib/studio-chat-commands-wire'; // CHAT-COMMANDS (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, default off): the picked @ references, the / command hint and the mentions2 / commands1 caps
+import { STUDIO_TEMPLATE_MATCH_ENABLED, isTemplateMatchMessage } from '@/lib/studio-template-match'; // STUDIO-TEMPLATE-MATCH (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH, default off): the matched template's capability, the two sends and Director's template_match frame
+import { addTemplateMatchCap, templateMatchBaseCaps } from '@/lib/studio-template-match-wire'; // STUDIO-TEMPLATE-MATCH
+import { templateMatchFrameReceived, templateMatchSocketOpened } from '@/hooks/use-studio-template-match'; // STUDIO-TEMPLATE-MATCH
+import { STUDIO_FLOW_AMEND_ENABLED, STUDIO_FLOW_FOCUS_ENABLED, flowBus, isFlowFocusFrameType, isFlowSettledPhase, takeFlowInstructions } from '@/lib/studio-flow-control'; // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_FOCUS / _FLOW_AMEND, default off)
+import { STUDIO_CHAT_CAPS_META_ENABLED, chatCapsSyncReceived } from '@/lib/studio-chat-caps'; // CHAT-CAPS-META (NEXT_PUBLIC_STUDIO_CHAT_CAPS_META, default off): Director's sync_response chat_capabilities, read into a read-only snapshot
+import { STUDIO_VOICE_CALL_UI_ENABLED, addVoiceCallFields, isVoiceCallFrameType, voiceCallBus } from '@/lib/studio-voice-call-ui'; // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL, default off)
 import type { ManualDeckContext } from '@/lib/manual-deck-workflow';
 import type { DeckFooterConfig, DeckIdentity } from '@/lib/deck-identity';
 import {
@@ -36,6 +54,7 @@ import {
   resolveDirectorReconnectPlan,
   shouldReconnectDirectorOnOnline,
 } from '@/lib/director-reconnect-policy';
+import { STUDIO_ONE_LIVE_TAB_ENABLED, isDirectorSupersededClose } from '@/lib/studio-one-live-tab';
 import {
   buildControlEndpointFromWsUrl,
   createBuildControlRequestId,
@@ -399,6 +418,16 @@ export interface ThemeSyncMessage {
     presentation_id?: string | null;
     theme_session_id?: string | null;
     error?: string | null;
+  } | {
+    // THEME-RESET-ON-RECONNECT-P1 (Director DIRECTOR_THEME_RESTORE_ON_CONNECT_ENABLED): the session's stored theme, sent
+    // once per connect before the history replay and the greeting. `theme` is always present (null: nothing stored). Types
+    // only: the reducer still just logs theme_sync; the page adopts it (NEXT_PUBLIC_STUDIO_THEME_RESTORE).
+    request_id: string;
+    status: 'restored';
+    presentation_id?: string | null;
+    theme: Record<string, unknown> | null;
+    applied: boolean;
+    desired_status?: 'syncing' | 'applied' | 'failed' | null;
   };
 }
 
@@ -631,6 +660,11 @@ export type ControlMessage =
   | {
       type: 'template_ingest_cancel';
       data: { job_id: string };
+    }
+  // NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4c): run a failed / timed-out Director job again (a frame-route row's retry.job_id; the user's click only).
+  | {
+      type: 'job_retry';
+      data: { job_id: string };
     };
 
 export interface SetThemeMessage {
@@ -731,8 +765,21 @@ export interface UseDecksterWebSocketV2Options {
   onSlideBuilt?: (message: SlideBuilt, owner?: DirectorTransportOwner) => void;
   // MDC P4 (K3): Director instructs a capable client to start a new session.
   onSessionDirective?: (payload: import('@/types/mdc').SessionDirectivePayload) => void;
+  // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT: run Director's theme_directive / export_directive. Unused with both flags off.
+  onThemeExportDirective?: (message: import('@/lib/chat-theme-export-wire').ThemeExportDirectiveMessage, owner: import('@/lib/chat-theme-export-wire').ThemeExportDirectiveOwner) => void;
   // MDC P8 (K5): run an element generation through the FE panel pipeline.
   onElementDirective?: (payload: import('@/types/mdc').ElementDirectivePayload) => void;
+  // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: run Director's element_refine_directive (refine one element from chat), and the selected
+  // element a send names (null when none). Both unused with the flag off.
+  onElementRefineDirective?: (message: import('@/lib/chat-element-refine-wire').ElementRefineDirectiveMessage, owner: import('@/lib/chat-element-refine-wire').ElementRefineDirectiveOwner) => void;
+  getChatElementReference?: () => import('@/lib/chat-element-refine-wire').ChatElementReference | null;
+  // CHAT-ELEMENT-EDIT: run Director's element_edit (one edit of one element), and the Notes panel refresh of deck_mutation notes_updated. Both unused with the flag off.
+  onElementEditDirective?: (message: import('@/lib/chat-element-edit-wire').ElementEditDirectiveMessage, owner: import('@/lib/chat-element-edit-wire').ElementEditDirectiveOwner) => void; // CHAT-ELEMENT-EDIT
+  onNotesUpdated?: (update: import('@/lib/chat-element-edit-wire').NotesUpdated, owner: { sessionId: string | null; isCurrent: () => boolean }) => void; // CHAT-ELEMENT-EDIT
+  // NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4c): Director's job rows for this socket's session (a job_update frame's row; sync_response's
+  // jobs list, possibly []). Never rendered in chat. Unused with the flag off.
+  onJobUpdate?: (row: import('@/lib/studio-job-ledger').JobLedgerRow, owner: import('@/lib/studio-job-ledger').JobLedgerOwner) => void;
+  onJobsSync?: (rows: import('@/lib/studio-job-ledger').JobLedgerRow[], owner: import('@/lib/studio-job-ledger').JobLedgerOwner) => void;
   onSlideComposeReady?: (message: SlideComposeReady) => void;
   onSlideComposeFailed?: (message: SlideComposeFailed) => void;
   onTemplateIngestReady?: (message: TemplateIngestReady) => void;
@@ -761,6 +808,12 @@ const getDirectorWsUrl = () => requireServiceUrl('Director', [
 ], { protocols: ['ws:', 'wss:'], urlType: 'endpoint' });
 const BUILD_CONTROL_HTTP_TIMEOUT_MS = 4000;
 const COMPOSER_LIBRARY_ENABLED = process.env.NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED === 'true';
+// PASS2-J3 P0: Director answers a NEW session with its blank deck (presentation_init) and never a sync_response, so the
+// composer theme policy above stayed unresolved and every set_theme / Add Element was refused for the whole session.
+// On (exact "true", default off): the session's first blank deck frame on a socket with no sync_response resolves the
+// policy as "no adoption". A Composer adoption (use result, cached marker or sync) is never unlocked.
+const STUDIO_NEW_SESSION_THEME_POLICY_ENABLED = COMPOSER_LIBRARY_ENABLED
+  && process.env.NEXT_PUBLIC_STUDIO_NEW_SESSION_THEME_POLICY === 'true';
 
 // How long a send will wait for a closed socket to come back before it gives
 // up and tells the user. Long enough to cover ordinary reconnect churn,
@@ -1763,6 +1816,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         }
         wsRef.current = ws;
         const isCurrentSocket = () => wsRef.current === ws && isCurrentAttempt();
+        // New-session theme policy: an existing session's socket gets sync_response before any deck frame.
+        let socketSyncResponseSeen = false;
 
         ws.onopen = () => {
           if (!isCurrentSocket()) {
@@ -1797,6 +1852,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
           // Start heartbeat to keep connection alive
           startHeartbeat(ws);
+          if (STUDIO_TEMPLATE_MATCH_ENABLED) templateMatchSocketOpened({ sessionId: socketSessionId, userId: userIdRef.current || null, socket: { send: message => { if (wsRef.current !== ws || ws.readyState !== WebSocket.OPEN) return false; try { ws.send(JSON.stringify(message)); return true } catch { return false } }, caps: templateMatchBaseCaps } }); // STUDIO-TEMPLATE-MATCH: the user's auto-apply preference goes out on every connect, here, before any user_message can be sent on this socket. Off: nothing.
 
           setState(prev => ({
             ...prev,
@@ -1880,6 +1936,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 ...(rawMessage.type === 'error' && typeof payload.detail === 'string' ? { detail: payload.detail } : {}),
                 ...(rawMessage.type === 'auth_expired' && typeof payload.discarded_message_type === 'string' ? { discardedMessageType: payload.discarded_message_type } : {}),
               };
+              if (rawMessage.type === 'error') announceQuotaRefusal(payload.code); // BILLING-F5-USAGE: Director D1 QUOTA_EXCEEDED / PLAN_REQUIRED -> the Builder's refusal screen (off: no-op)
               const previousNotice = transportNoticeRef.current;
               if (previousNotice?.requiresResend && previousNotice.sessionId === socketSessionId) {
                 // A later transport error is new information, not proof that the
@@ -1907,14 +1964,80 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             }
 
             const parsedMessage = normalizeDirectorMessageFrame(rawMessage) as DirectorMessage & { type?: unknown };
+            // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT: Director's theme_directive / export_directive (each only with its own flag on)
+            // unlocks the turn and goes to the page's runner, here, ahead of the allowlist, so it never reaches the reducer, the transcript or
+            // the cache. Flags off: chatThemeExportDirectiveKind is null, and the frame is an unknown type, dropped below as before.
+            if (chatThemeExportDirectiveKind(parsedMessage.type)) {
+              clearAwaitReply();
+              if (themeExportDirectiveId(parsedMessage)) {
+                transportCallbacksRef.current.onThemeExportDirective?.(
+                  parsedMessage as unknown as import('@/lib/chat-theme-export-wire').ThemeExportDirectiveMessage,
+                  { sessionId: socketSessionId, isCurrent: isCurrentSocket },
+                );
+              }
+              return;
+            }
             // Client replay provenance is assigned only after owned terminal
             // state validates the wire frame; never accept a supplied marker.
             delete (parsedMessage as DirectorMessage & { clientOutlineReplayOf?: string; clientTerminalOutlineRevisionOf?: string }).clientOutlineReplayOf;
             delete (parsedMessage as DirectorMessage & { clientTerminalOutlineRevisionOf?: string }).clientTerminalOutlineRevisionOf;
+            // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: Director's element_refine_directive unlocks the turn and goes to the page's runner, here,
+            // ahead of the allowlist, so it never reaches the reducer, the transcript or the cache. Flag off: unknown, dropped below as before.
+            if (CHAT_ELEMENT_REFINE_ENABLED && (parsedMessage.type as unknown) === ELEMENT_REFINE_DIRECTIVE_TYPE) {
+              clearAwaitReply();
+              if (elementRefineDirectiveId(parsedMessage)) {
+                transportCallbacksRef.current.onElementRefineDirective?.(
+                  parsedMessage as unknown as import('@/lib/chat-element-refine-wire').ElementRefineDirectiveMessage,
+                  { sessionId: socketSessionId, isCurrent: isCurrentSocket },
+                );
+              }
+              return;
+            }
+            // CHAT-ELEMENT-EDIT (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off): Director's element_edit unlocks the turn and goes to the page's runner, here, ahead of the allowlist, so it
+            // CHAT-ELEMENT-EDIT: never reaches the reducer, the transcript or the cache (lib/chat-element-edit-wire.ts). Flag off: unknown, dropped below as before.
+            if (CHAT_ELEMENT_EDIT_ENABLED && routeElementEditFrame(parsedMessage, { sessionId: socketSessionId, isCurrent: isCurrentSocket, unlockTurn: clearAwaitReply, onDirective: transportCallbacksRef.current.onElementEditDirective })) return; // CHAT-ELEMENT-EDIT
+            if (STUDIO_TEMPLATE_MATCH_ENABLED && isTemplateMatchMessage(parsedMessage)) { if (parsedMessage.session_id === socketSessionId) templateMatchFrameReceived(parsedMessage, socketSessionId); return } // STUDIO-TEMPLATE-MATCH: Director's template_match is a state tick (it does not unlock the turn): it goes to the store, here, ahead of the allowlist, never to the reducer, the transcript or the cache. Off: unknown, dropped below as before.
+            // CHAT-PARITY (any NEXT_PUBLIC_STUDIO_CHAT_PARITY_* flag on): Director's studio_action unlocks the turn and goes to the page's runner, here, ahead of the allowlist,
+            // CHAT-PARITY: so it never reaches the reducer, the transcript or the cache; a frame with no request id is dropped unanswered. Every flag off: unknown, dropped below as before.
+            if (STUDIO_CHAT_PARITY_ANY_ENABLED && isChatParityRequestFrame(parsedMessage)) { // CHAT-PARITY
+              clearAwaitReply(); // CHAT-PARITY
+              if (chatParityRequestId(parsedMessage)) chatParityBus.request?.(parsedMessage as unknown as import('@/lib/studio-chat-parity').ChatParityRequestFrame, { sessionId: socketSessionId, isCurrent: isCurrentSocket }); // CHAT-PARITY
+              return; // CHAT-PARITY
+            } // CHAT-PARITY
+            // NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4c): Director's job_update (a state tick: it does not unlock the turn) goes to the page's ledger,
+            // here, ahead of the allowlist, so it never reaches the reducer, the transcript or the cache; sync_response's jobs go there too,
+            // and that frame then carries on as before. Only this socket's session. Flag off: job_update is unknown, dropped below as before.
+            if (STUDIO_JOB_LEDGER_ENABLED && (parsedMessage.type as unknown) === JOB_UPDATE_TYPE) {
+              const row = parsedMessage.session_id === socketSessionId ? jobLedgerRow(parsedMessage.payload) : null;
+              if (row) transportCallbacksRef.current.onJobUpdate?.(row, { sessionId: socketSessionId, isCurrent: isCurrentSocket });
+              return;
+            }
+            if (STUDIO_JOB_LEDGER_ENABLED && parsedMessage.type === 'sync_response' && parsedMessage.session_id === socketSessionId) {
+              const rows = jobLedgerRows((parsedMessage.payload as { jobs?: unknown } | null | undefined)?.jobs);
+              if (rows) transportCallbacksRef.current.onJobsSync?.(rows, { sessionId: socketSessionId, isCurrent: isCurrentSocket });
+            }
+            // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_FOCUS, default off): the stage follows the slide Director built or changed. The frames that name a slide (isFlowFocusFrameType) are shown to the page's flow hook here
+            // FLOW-CONTROL: (flowBus.focus), for this socket's session only, ahead of every other handling: deck_mutation (a restored deck too: its raw deck_restored, which the checks below drop unless chat undo is on),
+            // FLOW-CONTROL: change_recorded (which the bulk-edit route below consumes), slide_built, slide_ready and slide_update. It drops a message_id it has seen. Nothing else changes: the frame carries on exactly as before.
+            if (STUDIO_FLOW_FOCUS_ENABLED && isFlowFocusFrameType(parsedMessage.type) && parsedMessage.session_id === socketSessionId && isCurrentSocket()) flowBus.focus?.(parsedMessage); // FLOW-CONTROL
+            // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_AMEND, default off): every build_phase is shown to the flow hook first (steer_pending, applied_to, settled). `settled` is a phase the narration does not know (it would read
+            // FLOW-CONTROL: as "running"), so that frame goes no further. Every other build_phase carries on exactly as before.
+            if (STUDIO_FLOW_AMEND_ENABLED && parsedMessage.type === 'build_phase') { if (parsedMessage.session_id === socketSessionId && isCurrentSocket()) flowBus.phase?.(parsedMessage.payload); if (isFlowSettledPhase(parsedMessage.payload)) return; } // FLOW-CONTROL
+            // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL, default off): the call is shown the frames that say what Director is doing (status_update, build_phase, build_event, slide_progress, chat_message, slide_built, slide_failed, action_request), for this socket's session only. The frame carries on exactly as before.
+            if (STUDIO_VOICE_CALL_UI_ENABLED && isVoiceCallFrameType(parsedMessage.type) && parsedMessage.session_id === socketSessionId && isCurrentSocket()) voiceCallBus.frame?.(parsedMessage); // VOICE-CALL
+            // BULK-EDIT-UNDO (NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO, default off): Director's chat lines (the Undo chip's anchor), the bulk-edit confirm (its chip titles) and its receipts and summary,
+            // BULK-EDIT-UNDO: change_recorded and undo_result go to this tab's store (lib/studio-bulk-edit-store.ts), here, ahead of the allowlist. The frames it takes (receipts, summary, change_recorded, undo_result) stop
+            // BULK-EDIT-UNDO: here: they never reach the reducer, the transcript or the cache, and they do not unlock the turn. Director sends them only to a client that advertised bulk_edit1 / undo1 (the caps below, flag on only),
+            // BULK-EDIT-UNDO: so a frame is its own capability, with or without a sync_response. Every other frame carries on as before. Flags off: nothing is routed.
+            if (STUDIO_BULK_EDIT_UNDO_ENABLED && routeStudioBulkEditUndoFrame(parsedMessage, bulkEditUndoContext(socketSessionId, deckMutationOwnerRef.current, slideStructureRef.current, isCurrentSocket())) === 'consumed') return; // BULK-EDIT-UNDO
+            if (STUDIO_CHAT_UNDO_ENABLED) normaliseDeckRestored(parsedMessage); // BULK-EDIT-UNDO: an undo's deck_mutation {mutation:"deck_restored"} is read as a whole-viewer refresh (slide_replaced, restored:true) before the checks below; flag off: untouched, ignored as before
             if (!isKnownDirectorMessageType(parsedMessage.type)) {
               return;
             }
 
+            // CHAT-ELEMENT-EDIT: deck_mutation of kind notes_updated (Director wrote a slide's notes) goes to the page, which refreshes the Notes panel; every other mutation carries on below, untouched. Flag off: not looked at.
+            if (CHAT_ELEMENT_EDIT_ENABLED && typeof window !== 'undefined' && parsedMessage.session_id === socketSessionId && deckMutationOwnerRef.current.presentationId === (parsedMessage.payload as { presentation_id?: unknown } | undefined)?.presentation_id && chatParityNotesFields(parsedMessage.payload).length > 0) window.dispatchEvent(new CustomEvent(CHAT_PARITY_NOTES_FIELDS_EVENT, { detail: { presentationId: (parsedMessage.payload as { presentation_id: string }).presentation_id, slideIndex: (parsedMessage.payload as { slide_index: number }).slide_index, fields: chatParityNotesFields(parsedMessage.payload) } })); // CHAT-PARITY (rows 106 / 108): the script / references fields this notes_updated names, raised before #522's route (whose reload follows); the Notes panel lets those drafts go
+            if (CHAT_ELEMENT_EDIT_ENABLED && routeNotesUpdatedFrame(parsedMessage, { sessionId: socketSessionId, isCurrent: isCurrentSocket, displayed: deckMutationOwnerRef.current, onNotesUpdated: transportCallbacksRef.current.onNotesUpdated })) return; // CHAT-ELEMENT-EDIT
             if (parsedMessage.type === 'deck_mutation') {
               const message = parsedMessage as import('@/types/mdc').DeckMutationMessage;
               const payload = message.payload;
@@ -2036,6 +2159,19 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 displayedSession: sessionIdRef.current,
               });
             }
+
+            // New-session theme policy, captured at dispatch in frame order: a blank deck frame that arrives before any
+            // sync_response on this socket is Director's new-session branch (no adoption can exist on its blank deck).
+            const newSessionBlankFrame = STUDIO_NEW_SESSION_THEME_POLICY_ENABLED && !socketSyncResponseSeen && !blockedIngress
+              && (message.type === 'presentation_init' || (message.type === 'slide_update' && Boolean(message.payload?.is_blank)));
+            if (STUDIO_NEW_SESSION_THEME_POLICY_ENABLED && message.type === 'sync_response') socketSyncResponseSeen = true;
+            const resolveNewSessionThemePolicy = (prev: UseDecksterWebSocketV2State, newState: UseDecksterWebSocketV2State) => {
+              if (!newSessionBlankFrame || prev.composerThemeResolved || prev.composerAdoption ||
+                  socketSessionId !== sessionIdRef.current ||
+                  (message.session_id && message.session_id !== sessionIdRef.current)) return;
+              newState.composerThemeResolved = true;
+              composerThemeRef.current = { sessionId: sessionIdRef.current, composerAdoption: null, composerThemeResolved: true };
+            };
 
             setStateWithCache(prev => {
               // React can apply this publication after the dispatching socket
@@ -2161,6 +2297,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   break;
 
                 case 'sync_response':
+                  if (STUDIO_CHAT_CAPS_META_ENABLED) chatCapsSyncReceived(message.payload, { frameSessionId: message.session_id, socketSessionId, currentSessionId: sessionIdRef.current, isCurrent: isCurrentSocket }); // CHAT-CAPS-META: this socket's current-session sync replaces the read-only snapshot (lib/studio-chat-caps.ts: legacy true or C-D1 {confirm, client_directive}); nothing is sent and no state changes. Off: not read
                   if (COMPOSER_LIBRARY_ENABLED && socketSessionId === sessionIdRef.current &&
                       (!message.session_id || message.session_id === sessionIdRef.current)) {
                     const themeState = composerThemeFromSync(message.payload.composer_adoption, message.payload.presentation_id, Boolean(blockedIngress));
@@ -2339,6 +2476,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                       newState.deckOwnerSessionId = sessionIdRef.current;
                       newState.slideStructure = null;
                       newState.slideCount = null;
+                      resolveNewSessionThemePolicy(prev, newState);
 
                       debugLog('✅ Blank presentation ready - all editing tools now active');
 
@@ -2450,6 +2588,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                       newState.deckOwnerSessionId = sessionIdRef.current;
                       newState.slideStructure = null;
                       newState.slideCount = null;
+                      resolveNewSessionThemePolicy(prev, newState);
 
                       debugLog('✅ Blank presentation ready - all editing tools now active');
 
@@ -2969,6 +3108,17 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           wsRef.current = null;
           buildControlTokenRef.current = null;
           clearAuthRefreshTimer();
+          // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB (default off): Director keeps one live socket per session and closed this one
+          // (4000 "New connection opened") because the session was opened in another tab. Reconnecting would only evict that
+          // tab in turn, so this tab stops here: no timer, no ping, no frame. The user takes the session back with connect().
+          // Studio's own 4000 closes (heartbeat) carry other reasons and keep their backoff, as does every other close.
+          if (STUDIO_ONE_LIVE_TAB_ENABLED && isDirectorSupersededClose(event)) {
+            debugLog('📑 Director closed this socket: the session is open in another tab; not reconnecting');
+            clearReconnectTimer();
+            reconnectPausedForOfflineRef.current = false;
+            setReconnectStatus('superseded', reconnectAttemptsRef.current);
+            return;
+          }
           scheduleReconnect(`close:${event.code}`);
         };
       })();
@@ -3071,7 +3221,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         !reconnectOnErrorRef.current ||
         manualDisconnectRef.current ||
         !connectionDesiredRef.current ||
-        reconnectStatusRef.current === 'exhausted'
+        reconnectStatusRef.current === 'exhausted' ||
+        // A tab Director handed over to another tab has nothing to resume when the network returns.
+        reconnectStatusRef.current === 'superseded'
       ) {
         return;
       }
@@ -3326,6 +3478,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           // MDC K6 (P4): advertise client capabilities on every message so the
           // Director only sends the new frame types to capable clients.
           ...(CHAT_DIRECTIVES && { client_caps: ['mdc1'] }),
+          // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT: theme1 / export1 after mdc1. Both off: the list is empty and nothing is added.
+          ...(CHAT_THEME_EXPORT_CAPS.length > 0 && { client_caps: [...(CHAT_DIRECTIVES ? ['mdc1'] : []), ...CHAT_THEME_EXPORT_CAPS] }),
           // MDC K1 (P6): typed slide references parsed from @[Slide N: …]
           // mention tokens (v1: slides only, §12-Q5).
           ...(options?.displayText ? { display_text: options.displayText } : {}),
@@ -3338,6 +3492,13 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           })()),
         },
       };
+      // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: element_refine1 in client_caps, and the selected element as one reference. Off: nothing.
+      if (CHAT_ELEMENT_REFINE_ENABLED) addChatElementRefineFields(message.data as unknown as Record<string, unknown>, transportCallbacksRef.current.getChatElementReference?.() ?? null);
+      if (CHAT_ELEMENT_EDIT_ENABLED) addChatElementEditCaps(message.data as unknown as Record<string, unknown>); // CHAT-ELEMENT-EDIT: element_edit1 / notes1 in client_caps, after the other caps. Off: nothing.
+      if (BULK_EDIT_UNDO_CLIENT_CAPS.length > 0) addBulkEditUndoCaps(message.data as unknown as Record<string, unknown>); // BULK-EDIT-UNDO: bulk_edit1 / undo1 in client_caps, each with its own flag. Off: nothing.
+      if (STUDIO_CHAT_COMMANDS_ENABLED) addChatCommandsFields(message.data as unknown as Record<string, unknown>, text); // CHAT-COMMANDS: mentions2 / commands1 in client_caps, the picked file / template / theme references whose token is still in the text, and the command hint. Off: nothing.
+      if (CHAT_PARITY_CAPS.length > 0) addChatParityCaps(message.data as unknown as Record<string, unknown>); // CHAT-PARITY: themes1 / identity1 / templates1, after #522's element_edit1 / notes1, the bulk-edit caps and #532's mentions2 / commands1: the last caps line in client_caps, each with its own flag. Off: nothing.
+      if (typeof STUDIO_VOICE_CALL_UI_ENABLED !== 'undefined' && STUDIO_VOICE_CALL_UI_ENABLED) addVoiceCallFields(message.data as unknown as Record<string, unknown>, text); // VOICE-CALL: only the one armed voice turn (its exact words) gets data.mode "voice" and the cap voice1, after every other cap. Off, or any other message: nothing. (The typeof lets the older proofs that run buildUserMessage in a bare sandbox read this line without naming the flag there.)
       return message;
     };
 
@@ -3348,6 +3509,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
 
     try {
       const message = buildUserMessage();
+      if (STUDIO_TEMPLATE_MATCH_ENABLED) addTemplateMatchCap(message.data as unknown as Record<string, unknown>); // STUDIO-TEMPLATE-MATCH: template_match1, LAST in client_caps (after every other cap, on the built message). Off: nothing.
       const effectiveStoreName = message.data.store_name;
 
       debugLog(
@@ -3357,6 +3519,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}, use_knowledge_graph=${message.data.use_knowledge_graph ?? false}, theme=${message.data.theme?.mode ?? 'none'}, template_overrides=${message.data.element_overrides ? Object.keys(message.data.element_overrides).length : 0}, action=${message.data.action_value ?? 'none'}, manual_deck=${message.data.manual_deck?.policy ?? 'none'}, identity=${message.data.deck_identity ? 'yes' : 'no'}, handoff=${message.data.handoff_idempotency_key ? 'yes' : 'no'}]`
       );
       wsRef.current.send(JSON.stringify(message));
+      if (STUDIO_VOICE_CALL_UI_ENABLED && (message.data as unknown as Record<string, unknown>).mode === 'voice') voiceCallBus.sent?.(text); // VOICE-CALL: Director has the voice turn
+      if (STUDIO_CHAT_COMMANDS_ENABLED) chatCommandsSent(text); // CHAT-COMMANDS: the picks and the command this message used are spent. Off: nothing.
       const turnSequence = ++sentTurnSequenceRef.current;
       const key = message.data.handoff_idempotency_key;
       const lifecycle = turnSubmissionLifecycleRef.current;
@@ -3407,6 +3571,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     timeoutMs: number = SEND_RECONNECT_TIMEOUT_MS,
     isCurrentRequest?: () => boolean,
   ): Promise<boolean> => {
+    if (isStudioQuotaScreensOn() && !(await walletPrecheckAllows())) return false; // BILLING-F5-USAGE: F4 pre-build check (404 = allowed)
     const origin = { ...turnSubmissionLifecycleRef.current };
     const isCurrentTurn = () => (
       turnSubmissionLifecycleRef.current.active &&
@@ -3424,6 +3589,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       if (socketSessionRef.current !== origin.sessionId) return false;
       return sendMessage(text, storeName, fileCount, options);
     }
+
+    // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: a tab Director handed over to another tab does not reconnect to send (that would evict the
+    // live tab); fail at once instead of waiting out the reconnect window. The page tells the user and offers "Use here".
+    if (STUDIO_ONE_LIVE_TAB_ENABLED && reconnectStatusRef.current === 'superseded') return false;
 
     debugLog('🔌 Send requested on a closed socket — reconnecting first');
     ensureConnected();
@@ -3461,6 +3630,26 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       return false;
     }
   }, []);
+  // CHAT-ELEMENT-EDIT: report an element_edit outcome (ok:true means saved) on the socket that delivered it. Unused with the flag off.
+  const sendElementEditResult = useCallback((data: import('@/lib/chat-element-edit-wire').ElementEditResultData): boolean => { // CHAT-ELEMENT-EDIT
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) { // CHAT-ELEMENT-EDIT
+      console.error('❌ Cannot send element_edit_result: WebSocket not connected'); // CHAT-ELEMENT-EDIT
+      return false; // CHAT-ELEMENT-EDIT
+    } // CHAT-ELEMENT-EDIT
+    try { // CHAT-ELEMENT-EDIT
+      wsRef.current.send(JSON.stringify(elementEditResultFrame(data))); // CHAT-ELEMENT-EDIT
+      return true; // CHAT-ELEMENT-EDIT
+    } catch (error) { // CHAT-ELEMENT-EDIT
+      console.error('Failed to send element_edit_result:', error); // CHAT-ELEMENT-EDIT
+      return false; // CHAT-ELEMENT-EDIT
+    } // CHAT-ELEMENT-EDIT
+  }, []); // CHAT-ELEMENT-EDIT
+  // CHAT-PARITY: report a studio_action outcome back to the Director (lib/studio-chat-parity.ts chatParityResult); the frame is built there so the names live in one place.
+  const sendChatParityResult = useCallback((data: import('@/lib/studio-chat-parity').ChatParityResultData): boolean => { // CHAT-PARITY
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return false; // CHAT-PARITY
+    try { wsRef.current.send(JSON.stringify(chatParityResultFrame(data))); return true; } catch { return false; } // CHAT-PARITY
+  }, []); // CHAT-PARITY
+  chatParityBus.send = sendChatParityResult // CHAT-PARITY: the page's runner answers through the bus (lib/studio-chat-parity.ts)
 
   const sendControlMessage = useCallback((type: ControlMessage['type'], data?: { job_id: string }): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
@@ -3509,6 +3698,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   // Requires Director BUILD_CONTROL_ENABLED; the ack is the resulting
   // build_phase frame (paused/building/stopped).
   const sendBuildControl = useCallback((action: BuildControlData['action'], buildId?: string): string | null => {
+    const instructions = takeFlowInstructions(); // FLOW-CONTROL: what the flow hook left for this one request (a resume with the user's changes), taken once
     const requestId = createBuildControlRequestId(
       typeof globalThis.crypto?.randomUUID === 'function'
         ? globalThis.crypto.randomUUID.bind(globalThis.crypto)
@@ -3532,6 +3722,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       user_id: requestUserId,
       action,
       ...(buildId ? { build_id: buildId } : {}),
+      ...(instructions ? { instructions } : {}), // FLOW-CONTROL
       request_id: requestId,
       ...(requestControlToken ? { control_token: requestControlToken } : {}),
     };
@@ -3558,6 +3749,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           data: {
             action,
             ...(buildId ? { build_id: buildId } : {}),
+            ...(instructions ? { instructions } : {}), // FLOW-CONTROL
             request_id: requestId,
             session_id: requestSessionId,
             user_id: requestUserId,
@@ -4079,6 +4271,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     sendMessage,
     sendMessageWhenConnected,
     sendElementDirectiveResult,
+    sendElementEditResult, // CHAT-ELEMENT-EDIT
     sendControlMessage,
     applyTemplateIngestReady,
     sendThemeSelection,

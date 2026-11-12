@@ -3,12 +3,13 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import { readAtlasBaseline } from './atlas-witness-baseline.mjs'
 import ts from 'typescript'
+import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 
 // Native callbacks and native confirmation props extracted as AST. No save,
 // account or service request is made; deferred results are local test inputs.
 const root=new URL('../',import.meta.url), file='components/studio-libraries/themes-workspace.tsx'
 const rootURL=root
-const currentText=fs.readFileSync(new URL(file,root),'utf8')
+const currentText=stripLaunchWording(file,fs.readFileSync(new URL(file,root),'utf8'))
 const originalText=readAtlasBaseline(`4894987:${file}`)
 const parse=text=>ts.createSourceFile('themes.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX)
 const current=parse(currentText), original=parse(originalText)
@@ -30,6 +31,7 @@ function harness(root=current,{owner=null,ready=true,flag='true',busy=false,dirt
   accountScope:{current:owner===null?null:{owner,ready,current:{current:{owner,ready}}}},accountReady:owner===null||ready,
   process:{env:{NEXT_PUBLIC_STUDIO_V4_SHELL:flag}},studioShell:flag==='true',
   saveTheme:args=>{events.push(['save',JSON.parse(JSON.stringify(args))]);return d.promise},
+  themeFontsEqual:()=>true, // J4-FONTS: save() compares fonts only with the flag on; flag off it is always true
  }
  for(const [setter,key]of[['setName','name'],['setDescription','description'],['setDraft','draft'],['setDirty','dirty'],['setMode','mode'],['setThemes','themes'],['setSelectedId','selectedId'],['setNotice','notice'],['setActionError','actionError'],['setLoading','loading'],['setOperation','operation'],['setCompareBase','compareBase'],['setReplacePrompt','replacePrompt']])c[setter]=value=>{c[key]=typeof value==='function'?value(c[key]):value;events.push([setter,c[key]])}
  const confirm=find(root,n=>ts.isJsxAttribute(n)&&n.name.getText(root)==='onClick'&&n.initializer?.getText(root).includes('loadDraft(replacePrompt)'))
@@ -98,7 +100,26 @@ for(const root of [original,current]){
 // The current callbacks above still execute these guards in every behavior case.
 // Exact read try/catch is separately exercised by account-boundary refusal replay.
 assert.equal(currentText.split('if (!mounted.current || !accountIsCurrent()) return; ').length - 1,3,'Only patchDraft/name/description guards normalized')
-const restored=currentText
+// J4-FONTS (reviewed): the only fieldset additions are the flag-gated pickers and the flag-gated sentence; flag off both are today's markup.
+const fontPickers="            {THEME_FONT_SELECTION_ENABLED && draft.mode !== 'auto' && <FontFields draft={draft} onChange={patchDraft} />}\n"
+const fontSentence="{THEME_FONT_SELECTION_ENABLED ? 'Website extraction and AI theme chat are not connected in this workspace. Colors and fonts above are editable now.' : 'Website extraction, font editing, and AI theme chat are not connected in this workspace. Colors above are editable now.'}"
+const baseSentence='Website extraction, font editing, and AI theme chat are not connected in this workspace. Colors above are editable now.'
+assert.equal(currentText.split(fontPickers).length-1,1,'Only the picker line added');assert.equal(currentText.split(fontSentence).length-1,1,'Only the sentence gated')
+// P2C (reviewed): the palette-mode select and the custom-palette default come from the import-free lib/studio-theme-dark-toggle.ts; with the flag off
+// (the default) each renders and computes today's markup and value (proven in test-studio-theme-dark-toggle.mjs). Normalized back here for the equality.
+const p2cSwaps=[
+ ['value={paletteModeSelectValue(draft, THEME_DARK_MODE)}',"value={draft.palette_mode || 'both'}"],
+ ['{paletteModeChoices(THEME_DARK_MODE).map(choice => <option key={choice.value} value={choice.value}>{choice.label}</option>)}','<option value="light">Light</option><option value="dark">Dark</option><option value="both">Both</option>'],
+ ['palette_mode: customEntryPaletteMode(draft, THEME_DARK_MODE)',"palette_mode: draft.palette_mode || 'both'"],
+]
+for(const [changed] of p2cSwaps)assert.equal(currentText.split(changed).length-1,1,'P2C: '+changed.slice(0,48)+' appears once')
+const unP2c=code=>p2cSwaps.reduce((out,[changed,original])=>out.replaceAll(changed,original),code)
+// PASS2D 6b (NEXT_PUBLIC_STUDIO_THEME_BASE_DROPDOWN): the one line that holds the flag-gated dropdown beside the native select it replaces, and the comment above it. Turned back
+// into the select here for the equality; test-studio-theme-base-dropdown.mjs proves the dropdown itself.
+const unBase6b = code => code.replace(/ *\{\/\* PASS2D 6b[^\n]*\*\/\}\n/, '').replace(/\{STUDIO_THEME_BASE_DROPDOWN_ENABLED \? <BaseThemePicker [^\n]*? \/> : (<label className="sl-field">Base theme<select[^\n]*<\/select><\/label>)\}\n/, '$1\n')
+const restored=unBase6b(unP2c(currentText))
+ .replace(fontPickers,'')
+ .replace(fontSentence,baseSentence)
  .replace("    // A previously opened confirmation can outlive the click that starts save.\n    if (!mounted.current || !accountCanStart() || busy.current) return\n",'')
  .replace("const requestDraft = (source: SavedThemeProfile | 'blank') => { if (!mounted.current || !accountCanStart() || busy.current) return; if (dirty)","const requestDraft = (source: SavedThemeProfile | 'blank') => { if (dirty)")
  .replaceAll('if (!mounted.current || !accountIsCurrent()) return; ', '')

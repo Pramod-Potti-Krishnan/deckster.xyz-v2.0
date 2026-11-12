@@ -1,0 +1,75 @@
+/* NEXT_PUBLIC_STUDIO_DECK_IMPORT (default off): the "Import a PowerPoint" button above the Decks page and its dialog, in the Studio shell's palette. Every rule hangs on a marker
+   that exists only when the flag renders these elements, so with the flag off this file changes no page. */
+[data-studio-v4-shell="true"] [data-studio-deck-import-bar="true"] {
+  max-width: 1440px; margin: 0 auto; padding: 18px 28px 0; display: flex; justify-content: flex-end;
+}
+[data-studio-v4-shell="true"] [data-studio-deck-import-bar="true"] + [data-studio-decks] { padding-top: 14px; }
+[data-studio-deck-import-open="true"] {
+  border: 1px solid var(--ss-line, #dde5e2); border-radius: 7px; background: var(--ss-panel, #fff); color: var(--ss-text, #243438); font-size: 12px; box-shadow: none; white-space: nowrap;
+}
+[data-studio-deck-import-open="true"]:hover:not(:disabled) { color: var(--ss-teal, #1f6f72); border-color: var(--ss-teal, #1f6f72); background: var(--ss-surface, #f5f7f6); }
+[data-studio-deck-import-open="true"]:focus-visible { outline: 2px solid var(--ss-accent, #6a4fc0); outline-offset: 2px; box-shadow: none; }
+
+/* The dialog is a portal: it carries its own tokens, light and dark. */
+[data-studio-deck-import-dialog="true"], [data-studio-deck-import-note="true"] {
+  --sdi-panel: #fff; --sdi-surface: #f5f7f6; --sdi-line: #d6e1dc; --sdi-text: #243438; --sdi-muted: #566965;
+  --sdi-teal: #1f6f72; --sdi-accent: #6a4fc0; --sdi-accent-hover: #593eac; --sdi-danger: #a52c28; --sdi-error-bg: #fff5f3;
+}
+[data-studio-deck-import-dialog="true"] {
+  width: min(520px, calc(100vw - 24px)); max-width: none; max-height: calc(100dvh - 32px);
+  display: flex; flex-direction: column; overflow: hidden; gap: 14px; padding: 18px;
+  background: var(--sdi-panel); color: var(--sdi-text); border: 1px solid var(--sdi-line); border-radius: 12px; box-shadow: 0 14px 44px rgb(10 26 24 / 20%);
+}
+.dark [data-studio-deck-import-dialog="true"], .dark [data-studio-deck-import-note="true"] {
+  --sdi-panel: #1b2426; --sdi-surface: #222d30; --sdi-line: #334245; --sdi-text: #e2ebe8; --sdi-muted: #a0b1ad;
+  --sdi-teal: #83c4bd; --sdi-accent: #b4a0f2; --sdi-accent-hover: #c8b9f6; --sdi-danger: #ffb3a9; --sdi-error-bg: #322728;
+}
+[data-studio-deck-import-header="true"] { flex-shrink: 0; text-align: left; padding-right: 26px; gap: 6px; }
+[data-studio-deck-import-header="true"] h2 { color: var(--sdi-text); font-size: 17px; line-height: 24px; }
+[data-studio-deck-import-header="true"] p { color: var(--sdi-muted); font-size: 12px; line-height: 20px; overflow-wrap: anywhere; }
+[data-studio-deck-import-body="true"] { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 4px; display: flex; flex-direction: column; gap: 12px; }
+[data-studio-deck-import-body="true"] > div { display: grid; gap: 10px; min-width: 0; }
+[data-studio-deck-import-body="true"] > div > * { margin: 0; }
+[data-studio-deck-import-choose="true"] { padding: 12px; border: 1px solid var(--sdi-line); border-radius: 8px; background: var(--sdi-surface); }
+[data-studio-deck-import-dialog="true"] label { color: var(--sdi-text); font-size: 12px; line-height: 20px; }
+[data-studio-deck-import-dialog="true"] input[type=file] { min-width: 0; width: 100%; color: var(--sdi-muted); font-size: 12px; line-height: 22px; border-radius: 5px; }
+[data-studio-deck-import-dialog="true"] input::file-selector-button { margin-right: 8px; border: 1px solid var(--sdi-line); border-radius: 5px; background: var(--sdi-panel); color: var(--sdi-text); padding: 4px 9px; font-size: 12px; cursor: pointer; }
+[data-studio-deck-import-hint="true"], [data-studio-deck-import-detail="true"], [data-studio-deck-import-count="true"] { color: var(--sdi-muted); font-size: 11px; line-height: 18px; overflow-wrap: anywhere; }
+[data-studio-deck-import-words="true"] { display: flex; align-items: flex-start; gap: 8px; color: var(--sdi-text); font-size: 13px; line-height: 20px; overflow-wrap: anywhere; }
+[data-studio-deck-import-words="true"] svg { flex-shrink: 0; margin-top: 3px; color: var(--sdi-accent); }
+[data-studio-deck-import-working="true"], [data-studio-deck-import-ready="true"] { padding: 12px; border: 1px solid var(--sdi-line); border-radius: 8px; background: var(--sdi-surface); }
+[data-studio-deck-import-meter="true"] { height: 6px; border-radius: 3px; background: var(--sdi-line); overflow: hidden; }
+[data-studio-deck-import-meter="true"] > span { display: block; height: 100%; background: var(--sdi-accent); transition: width .3s ease; }
+[data-studio-deck-import-banner="true"] { color: var(--sdi-text); font-size: 12px; line-height: 20px; font-weight: 600; }
+[data-studio-deck-import-changes="true"] { margin: 0; padding-left: 18px; max-height: 180px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; color: var(--sdi-muted); font-size: 12px; line-height: 19px; }
+[data-studio-deck-import-changes="true"] li { margin: 2px 0; overflow-wrap: anywhere; }
+[data-studio-deck-import-error="true"] { border-left: 3px solid var(--sdi-danger); border-radius: 6px; padding: 8px 10px; background: var(--sdi-error-bg); color: var(--sdi-danger); font-size: 12px; line-height: 19px; overflow-wrap: anywhere; }
+[data-studio-deck-import-actions="true"] { display: flex; flex-wrap: wrap; gap: 8px; }
+[data-studio-deck-import-dialog="true"] button { border-radius: 6px; white-space: normal; height: auto; min-height: 32px; padding: 6px 12px; font-size: 12px; line-height: 18px; box-shadow: none; }
+[data-studio-deck-import-action="start"], [data-studio-deck-import-action="open"], [data-studio-deck-import-action="retry"] { background: var(--sdi-accent); color: #fff; border: 1px solid var(--sdi-accent); width: fit-content; }
+.dark [data-studio-deck-import-action="start"], .dark [data-studio-deck-import-action="open"], .dark [data-studio-deck-import-action="retry"] { color: #1b2426; }
+[data-studio-deck-import-action="start"]:hover:not(:disabled), [data-studio-deck-import-action="open"]:hover:not(:disabled), [data-studio-deck-import-action="retry"]:hover:not(:disabled) { background: var(--sdi-accent-hover); border-color: var(--sdi-accent-hover); }
+[data-studio-deck-import-action="another"] { border: 1px solid var(--sdi-line); background: var(--sdi-panel); color: var(--sdi-text); }
+[data-studio-deck-import-action="another"]:hover:not(:disabled) { color: var(--sdi-teal); border-color: var(--sdi-teal); background: var(--sdi-surface); }
+[data-studio-deck-import-dialog="true"] :is(button, input, [tabindex]):focus-visible { outline: 2px solid var(--sdi-accent); outline-offset: 2px; box-shadow: none; }
+[data-studio-deck-import-dialog="true"] button:disabled { opacity: .6; cursor: not-allowed; }
+[data-studio-deck-import-dialog="true"] > button:last-child { right: 12px; top: 12px; padding: 4px; min-height: 24px; color: var(--sdi-muted); opacity: 1; }
+
+/* Contract section 3: the note in the Builder's chat column for an imported deck (drawn by the Builder page, in flow like the copied-from note; the page gives it its margins). */
+[data-studio-deck-import-note="true"] {
+  box-sizing: border-box; min-width: 0; max-width: 100%; display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px;
+  background: var(--sdi-panel); color: var(--sdi-text); border: 1px solid var(--sdi-line); border-left: 3px solid var(--sdi-accent); border-radius: 8px;
+}
+[data-studio-deck-import-note="true"] > svg { flex-shrink: 0; margin-top: 2px; color: var(--sdi-accent); }
+[data-studio-deck-import-note="true"] > div { min-width: 0; flex: 1; }
+[data-studio-deck-import-note="true"] strong { display: block; font-size: 12px; line-height: 18px; font-weight: 600; }
+[data-studio-deck-import-note="true"] p { margin: 2px 0 0; color: var(--sdi-muted); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
+[data-studio-deck-import-note-dismiss="true"] {
+  flex-shrink: 0; border: 1px solid var(--sdi-line); border-radius: 6px; background: var(--sdi-panel); color: var(--sdi-text); padding: 4px 10px; font-size: 12px; line-height: 18px; cursor: pointer; white-space: nowrap;
+}
+[data-studio-deck-import-note-dismiss="true"]:hover { color: var(--sdi-teal); border-color: var(--sdi-teal); background: var(--sdi-surface); }
+[data-studio-deck-import-note-dismiss="true"]:focus-visible { outline: 2px solid var(--sdi-accent); outline-offset: 2px; }
+@media (max-width: 420px) { [data-studio-deck-import-note="true"] { flex-wrap: wrap; } }
+@media (max-width: 640px) { [data-studio-v4-shell="true"] [data-studio-deck-import-bar="true"] { padding: 14px 16px 0; } }
+@media (max-width: 420px) { [data-studio-deck-import-dialog="true"] { padding: 16px; max-height: calc(100dvh - 24px); } }
+@media (prefers-reduced-motion: reduce) { [data-studio-deck-import-meter="true"] > span { transition: none; } }

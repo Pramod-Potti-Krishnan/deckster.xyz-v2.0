@@ -1,0 +1,21 @@
+/* PASS2-DIRECTOR-CHAT PR D, item 8 (flag NEXT_PUBLIC_STUDIO_CHAT_ANSWERED_CHOICE): an answered ask shows which option was chosen, as the
+   accepted v4 mockup's answered ask does (the picked option in the teal "selected" treatment with a check).
+   Every rule is keyed to [data-studio-chat-answered] / [data-studio-chat-chosen], attributes MessageList's answered card carries only
+   with the flag on, Studio shell only and only when the user's own reply names one of its options. With the flag off, or when nothing
+   can be named, none of this matches anything. The buttons stay disabled: the card is a record, not a control. */
+[data-studio-v4-shell="true"] [data-studio-chat-answered] button[data-studio-chat-chosen] {
+  opacity: 1; border-color: var(--ss-teal); color: var(--ss-text); font-weight: 600;
+  background: color-mix(in srgb, var(--ss-teal) 12%, var(--ss-panel));
+}
+[data-studio-v4-shell="true"] [data-studio-chat-answered] button[data-studio-chat-chosen] > svg { flex: none; margin-left: 4px; color: var(--ss-teal); }
+[data-studio-v4-shell="true"] [data-studio-chat-answered] button:disabled:not([data-studio-chat-chosen]) { opacity: .55; }
+/* A picked question-card answer: the mockup's selected chip (teal outline, soft fill, bold, a check) in place of the plain list line. */
+[data-studio-v4-shell="true"] [data-studio-chat-answered] li[data-studio-chat-chosen] {
+  display: flex; align-items: center; gap: 5px; width: fit-content; max-width: 100%; margin: 3px 0; padding: 1px 10px;
+  border: 1px solid var(--ss-teal); border-radius: 999px; color: var(--ss-text); font-weight: 600;
+  background: color-mix(in srgb, var(--ss-teal) 12%, var(--ss-panel));
+}
+[data-studio-v4-shell="true"] [data-studio-chat-answered] li[data-studio-chat-chosen] > svg { flex: none; color: var(--ss-teal); }
+@media (forced-colors: active) {
+  [data-studio-v4-shell="true"] [data-studio-chat-answered] button[data-studio-chat-chosen] { border-color: Highlight; }
+}

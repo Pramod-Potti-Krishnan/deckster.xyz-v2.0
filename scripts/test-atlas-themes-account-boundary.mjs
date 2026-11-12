@@ -3,16 +3,35 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import { readAtlasBaseline } from './atlas-witness-baseline.mjs'
 import ts from 'typescript'
+import { stripLibraryManage } from './studio-library-manage-strip.mjs'
+import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 
 // Actual Themes leaf callbacks, native payload, preview helpers and safe handoff
 // props. Deferred receipts are local fixtures; all external operations refuse.
 const root = new URL('../', import.meta.url), file = 'components/studio-libraries/themes-workspace.tsx'
-const source = fs.readFileSync(new URL(file, root), 'utf8')
+const source = stripLibraryManage(file, stripLaunchWording(file, fs.readFileSync(new URL(file, root), 'utf8'))) // FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE / NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE): that change's lines are not part of what this pin holds (scripts/studio-library-manage-strip.mjs)
 // Preserve the actual editable schema/palette algorithms. Only the two text
 // handlers gain a live owner guard; normalize that intentional guard for equality.
 const baseline = readAtlasBaseline(`a8a0667:${file}`)
+// J4-FONTS (reviewed): the only fieldset additions are the flag-gated pickers and the flag-gated sentence; flag off both are today's markup.
+const fontPickers = "            {THEME_FONT_SELECTION_ENABLED && draft.mode !== 'auto' && <FontFields draft={draft} onChange={patchDraft} />}\n"
+const fontSentence = "{THEME_FONT_SELECTION_ENABLED ? 'Website extraction and AI theme chat are not connected in this workspace. Colors and fonts above are editable now.' : 'Website extraction, font editing, and AI theme chat are not connected in this workspace. Colors above are editable now.'}"
+const baseSentence = 'Website extraction, font editing, and AI theme chat are not connected in this workspace. Colors above are editable now.'
+assert.equal(source.split(fontPickers).length - 1, 1, 'Only the picker line added'); assert.equal(source.split(fontSentence).length - 1, 1, 'Only the sentence gated')
+// P2C (reviewed): the palette-mode select and the custom-palette default come from the import-free lib/studio-theme-dark-toggle.ts; with the flag off
+// (the default) each renders and computes today's markup and value (proven in test-studio-theme-dark-toggle.mjs). Normalized back here for the equality.
+const p2cSwaps = [
+  ['value={paletteModeSelectValue(draft, THEME_DARK_MODE)}', "value={draft.palette_mode || 'both'}"],
+  ['{paletteModeChoices(THEME_DARK_MODE).map(choice => <option key={choice.value} value={choice.value}>{choice.label}</option>)}', '<option value="light">Light</option><option value="dark">Dark</option><option value="both">Both</option>'],
+  ['palette_mode: customEntryPaletteMode(draft, THEME_DARK_MODE)', "palette_mode: draft.palette_mode || 'both'"],
+]
+for (const [changed] of p2cSwaps) assert.equal(source.split(changed).length - 1, 1, `P2C: ${changed.slice(0, 48)} appears once`)
+const unP2c = code => p2cSwaps.reduce((out, [changed, original]) => out.replaceAll(changed, original), code)
 const ast = code => ts.createSourceFile('themes.tsx', code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
-const currentAst = ast(source.replaceAll('if (!mounted.current || !accountIsCurrent()) return; ', '')), priorAst = ast(baseline)
+// PASS2D 6b (NEXT_PUBLIC_STUDIO_THEME_BASE_DROPDOWN): the one line that holds the flag-gated dropdown beside the native select it replaces, and the comment above it. Turned back
+// into the select here for the equality; test-studio-theme-base-dropdown.mjs proves the dropdown itself.
+const unBase6b = code => code.replace(/ *\{\/\* PASS2D 6b[^\n]*\*\/\}\n/, '').replace(/\{STUDIO_THEME_BASE_DROPDOWN_ENABLED \? <BaseThemePicker [^\n]*? \/> : (<label className="sl-field">Base theme<select[^\n]*<\/select><\/label>)\}\n/, '$1\n')
+const currentAst = ast(unBase6b(unP2c(source.replaceAll('if (!mounted.current || !accountIsCurrent()) return; ', '').replaceAll(fontPickers, '').replaceAll(fontSentence, baseSentence)))), priorAst = ast(baseline)
 const findNode = (node,predicate) => { if(predicate(node))return node;let result;ts.forEachChild(node,child=>{if(!result)result=findNode(child,predicate)});return result }
 const printer=ts.createPrinter({removeComments:true})
 for(const predicate of [node=>ts.isFunctionDeclaration(node)&&node.name?.text==='ColorField',node=>ts.isJsxElement(node)&&node.openingElement.tagName.getText()==='fieldset',...['changePreset','setOverride'].map(name=>node=>ts.isVariableDeclaration(node)&&node.name.getText()===name)]){
@@ -32,11 +51,14 @@ const plain = v => JSON.parse(JSON.stringify(v))
 const deferred = () => { let resolve, reject; const promise = new Promise((r, j) => { resolve = r; reject = j }); return { promise, resolve, reject } }
 function load(path, imports = {}) {
   const mod = { exports: {} }
-  vm.runInNewContext(compile(fs.readFileSync(new URL(path, root), 'utf8')), { module: mod, exports: mod.exports, URLSearchParams, require: name => { assert.ok(name in imports, name); return imports[name] }, fetch: refuse })
+  vm.runInNewContext(compile(stripLaunchWording(path, fs.readFileSync(new URL(path, root), 'utf8'))), { module: mod, exports: mod.exports, URLSearchParams, require: name => { assert.ok(name in imports, name); return imports[name] }, fetch: refuse })
   return mod.exports
 }
 const builder = load('lib/theme-builder.ts')
-const preview = load('components/studio-libraries/theme-preview.tsx', { '@/lib/theme-builder': builder, 'react/jsx-runtime': { jsx, jsxs: jsx } })
+const themeFonts = load('lib/theme-fonts.ts') // J4-FONTS: import-free helper the workspace now imports (flag off here)
+const darkToggle = load('lib/studio-theme-dark-toggle.ts') // P2C: import-free helper the workspace now imports (flag off here)
+// PASS2D 5: the preview reads an import-free helper for Theme Builder's canon palettes; it is only called when a palette map is passed, which these tests never do (flag off)
+const preview = load('components/studio-libraries/theme-preview.tsx', { '@/lib/theme-builder': builder, '@/lib/studio-theme-preview-canon': load('lib/studio-theme-preview-canon.ts'), 'react/jsx-runtime': { jsx, jsxs: jsx } })
 const a = { id: 'local-A', name: 'Local A', description: 'A description', theme_payload: { mode: 'preset', preset_id: 'minimal', color_overrides: { accent: '#aabbcc' } }, is_standard: false }
 const b = { id: 'local-B', name: 'Local B', description: 'B description', theme_payload: { mode: 'custom', primary_hex: '#112233', palette_mode: 'both', color_overrides: { private_color: '#445566' } }, is_standard: true }
 const receipt = { ...a, name: 'Normalized A', theme_payload: { ...a.theme_payload, color_overrides: { accent: '#abcdef' } }, is_standard: true, updated_at: '2026-10-03T12:00:00Z' }
@@ -57,12 +79,16 @@ function harness({ owner = 'account-A', ready = true, current = { current: { own
   }
   const accountHelper = load('components/studio-libraries/library-account-boundary.tsx', { react, 'react/jsx-runtime': { jsx, jsxs: jsx }, '@/hooks/use-auth': { useAuth: refuse } })
   if (initialList) api.listThemes = initialList
-  const imports = { './themes-fidelity.css': {}, react, 'react/jsx-runtime': { jsx, jsxs: jsx }, '@/hooks/use-theme-profiles': { useThemeProfiles: () => stableApi }, '@/lib/theme-builder': builder, './theme-preview': preview,
+  const imports = { './themes-fidelity.css': {}, react, 'react/jsx-runtime': { jsx, jsxs: jsx }, '@/hooks/use-theme-profiles': { useThemeProfiles: () => stableApi }, '@/lib/theme-builder': builder, '@/lib/theme-fonts': themeFonts, '@/lib/studio-theme-dark-toggle': darkToggle, './theme-preview': preview,
     '@/lib/studio-inspector-focus': { keepStudioScrollFocusVisible: refuse }, './library-account-boundary': accountHelper, './studio-workflow-action': { StudioWorkflowAction: 'StudioWorkflowAction' },
     './library-controls': Object.fromEntries(['FittedLibraryStage', 'LibraryLoading', 'LibraryNotice', 'LibrarySearch', 'LibraryWorkspace', 'MetadataDisclosure', 'ReadValue', 'StudioWorkflowLink'].map(n => [n, n])),
     'lucide-react': Object.fromEntries(['ArrowRight', 'Check', 'Copy', 'Palette', 'RefreshCw', 'RotateCcw', 'Save', 'Star'].map(n => [n, n])),
   }
   imports['./library-controls'].libraryDate = String
+  // PASS2D 6b: the flag-gated base-theme dropdown (default off, so never drawn here; proven in test-studio-theme-base-dropdown.mjs)
+  Object.assign(imports, { './base-theme-picker': { BaseThemePicker: 'BaseThemePicker' }, '@/lib/studio-theme-base-dropdown': { STUDIO_THEME_BASE_DROPDOWN_ENABLED: false } })
+  // PASS2D 5: the flag-gated canon preview palettes (default off: the hook answers undefined; proven in test-studio-theme-preview-canon.mjs)
+  imports['./use-canon-preview-palettes'] = { useCanonPreviewPalettes: () => undefined }
   const mod = { exports: {} }, context = { module: mod, exports: mod.exports, process: { env: { NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' } }, window: { addEventListener() {}, removeEventListener() {} }, fetch: refuse, require: name => { assert.ok(name in imports, name); return imports[name] } }
   const point = '  return <LibraryWorkspace'
   assert.equal(source.split(point).length, 2)

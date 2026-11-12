@@ -65,7 +65,15 @@ export interface StudioFormatInspectorProps {
 
 interface StudioAIContentDraft { prompt: string; tone: string | null; style: string | null; revision: number; unconfirmed?: boolean }
 interface StudioAIContentDraftEntry { elementId: string; presentationId: string; slideIndex: number; sessionId?: string | null; draft: StudioAIContentDraft }
-type Tab = 'content' | 'appearance' | 'arrange'
+type Tab = 'content' | 'appearance' | 'box' | 'arrange'
+/** NEXT_PUBLIC_STUDIO_ARRANGE (exact 'true', default off; pairs with Layout !260): the Arrange tab's Order, Align, Position, Size and Lock, in slide pixels (lib/studio-arrange.ts admits them). */ // STUDIO-ARRANGE
+export const STUDIO_ARRANGE = process.env.NEXT_PUBLIC_STUDIO_ARRANGE === 'true' // STUDIO-ARRANGE
+const studioArrangeNotYet = (target: StudioFormatTarget) => target.kind === 'element' && ['shape', 'table'].includes(String(target.elementType)) // STUDIO-ARRANGE: Layout's autosave does not store shapes and tables
+/** Lock stays disabled ("Not available yet") until Layout lets a locked element be selected again: the inspector closes when Layout autosaves (about 2.5 s after a change) and a locked element is pointer-events: none, so it could never be unlocked from here. An element already locked (by chat) still shows Unlock. A later Layout follow-up turns this on. */ // STUDIO-ARRANGE
+export const STUDIO_ARRANGE_LOCK_ENABLED = false // STUDIO-ARRANGE
+/** R6: NEXT_PUBLIC_STUDIO_TEXTBOX_PADDING_REACHABLE_ENABLED (exact 'true', default off). An editable text box gets its own "Box"
+ *  tab (padding, fill, border) instead of burying Box under Appearance, below Typography, Alignment and Theme colors. */
+export const STUDIO_TEXTBOX_PADDING_REACHABLE = process.env.NEXT_PUBLIC_STUDIO_TEXTBOX_PADDING_REACHABLE_ENABLED === 'true'
 const validTarget = (target: StudioFormatTarget | null): target is StudioFormatTarget => Boolean(target
   && target.selectionOwner && typeof target.selectionOwner === 'object' && !Array.isArray(target.selectionOwner)
   && typeof target.elementId === 'string' && target.elementId && target.elementId === target.elementId.trim()
@@ -162,7 +170,7 @@ export function StudioFormatInspector(props: StudioFormatInspectorProps) {
   return <div data-studio-v4-shell="true" className="h-full min-h-0 min-w-0"><section data-studio-v4-panel="inspector-format" aria-label="Format selected element"
     className="relative flex h-full min-h-0 min-w-0 flex-col bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-100">
     <header data-studio-v4-panel-header className="flex shrink-0 items-center justify-between border-b px-4 py-3">
-      <div className="min-w-0"><h2>Format</h2><p>{target?.kind === 'editable-text' ? 'Selected text' : target?.kind === 'textbox-shell' ? 'Selected graphic box' : target ? 'Selected element' : 'No element selected'}</p></div>
+      <div className="min-w-0"><h2>Format</h2><p>{target?.kind === 'editable-text' ? (STUDIO_TEXTBOX_PADDING_REACHABLE ? 'Selected text box' : 'Selected text') : target?.kind === 'textbox-shell' ? 'Selected graphic box' : target ? 'Selected element' : 'No element selected'}</p></div>
       <button type="button" onClick={props.onClose} aria-label="Close Format inspector" className="rounded-md p-2"><X size={16}/></button>
     </header>
     {props.busy && <p role="status" className="px-4 py-2 text-xs">Formatting is unavailable while generation is in progress.</p>}
@@ -174,7 +182,8 @@ export function StudioFormatInspector(props: StudioFormatInspectorProps) {
 
 function InspectorControls({ target, send, disabled, readRevision, contentDraft, externalBusy }: { readRevision: number; target: StudioFormatTarget; send: (action: string, params: Record<string, any>) => Promise<any>; disabled: boolean; contentDraft: StudioAIContentDraft | null; externalBusy: boolean }) {
   const [tab, setTab] = useState<Tab>(target.kind === 'editable-text' ? 'content' : target.kind === 'textbox-shell' ? 'appearance' : 'arrange')
-  const tabs: Tab[] = target.kind === 'editable-text' ? ['content', 'appearance', 'arrange'] : target.kind === 'textbox-shell' ? ['appearance', 'arrange'] : ['arrange']
+  const boxTab = STUDIO_TEXTBOX_PADDING_REACHABLE && target.kind === 'editable-text'
+  const tabs: Tab[] = target.kind === 'editable-text' ? (boxTab ? ['content', 'appearance', 'box', 'arrange'] : ['content', 'appearance', 'arrange']) : target.kind === 'textbox-shell' ? ['appearance', 'arrange'] : ['arrange']
   const supported = (catalog: readonly StudioFormatCommand[]) => catalog.every(command => target.supportedCommands.includes(command))
   const content = target.kind === 'editable-text' && supported(STUDIO_FORMAT_COMMANDS.content)
   const nativeProperties = target.properties && target.properties.elementId === target.elementId
@@ -184,7 +193,7 @@ function InspectorControls({ target, send, disabled, readRevision, contentDraft,
   return <>
     <div role="tablist" aria-label="Selected element properties" className="flex shrink-0 gap-1 border-b px-3 py-2">
       {tabs.map(value=><button key={value} type="button" role="tab" aria-selected={tab === value} onClick={()=>setTab(value)}
-        className="min-w-0 flex-1 rounded-md px-2 py-2 text-xs font-medium" style={tab === value ? { background: 'var(--sp-active)', color: 'var(--sp-ink)' } : { color: 'var(--sp-muted)' }}>{value === 'content' ? 'Content' : value === 'appearance' ? 'Appearance' : 'Arrange'}</button>)}
+        className="min-w-0 flex-1 rounded-md px-2 py-2 text-xs font-medium" style={tab === value ? { background: 'var(--sp-active)', color: 'var(--sp-ink)' } : { color: 'var(--sp-muted)' }}>{value === 'content' ? 'Content' : value === 'appearance' ? 'Appearance' : value === 'box' ? 'Box' : 'Arrange'}</button>)}
     </div>
     <div data-studio-v4-panel-fields className="min-h-0 flex-1 overflow-y-auto">
       {target.kind === 'editable-text' && <>
@@ -196,8 +205,12 @@ function InspectorControls({ target, send, disabled, readRevision, contentDraft,
         <div role="tabpanel" aria-label="Appearance" hidden={tab !== 'appearance'}>
           <CompactAppearance key={`appearance-${readRevision}`} target={target} send={send} disabled={disabled}/>
           <ThemeColors key={`theme-${readRevision}`} target={target} send={send} disabled={disabled}/>
-          <BoxControls key={`box-${readRevision}`} target={{...target,box:target.box ?? {padding:target.formatting?.padding,backgroundColor:target.formatting?.backgroundColor}}} send={send} disabled={disabled}/>
+          {!boxTab && <BoxControls key={`box-${readRevision}`} target={{...target,box:target.box ?? {padding:target.formatting?.padding,backgroundColor:target.formatting?.backgroundColor}}} send={send} disabled={disabled}/>}
         </div>
+        {boxTab && <div role="tabpanel" aria-label="Box" hidden={tab !== 'box'}>
+          <p className="px-4 pt-3 text-xs">Box properties affect the whole text box. The text inside keeps its own formatting.</p>
+          <BoxControls key={`box-${readRevision}`} target={{...target,box:target.box ?? {padding:target.formatting?.padding,backgroundColor:target.formatting?.backgroundColor}}} send={send} disabled={disabled}/>
+        </div>}
       </>}
       {target.kind === 'textbox-shell' && <div role="tabpanel" aria-label="Appearance" hidden={tab !== 'appearance'}>
         <p className="px-4 pt-3 text-xs">Box properties affect the surrounding container. Text and artwork inside it keep their rendered appearance.</p>
@@ -205,8 +218,10 @@ function InspectorControls({ target, send, disabled, readRevision, contentDraft,
         <ThemeColors key={`theme-${readRevision}`} target={target} send={send} disabled={disabled}/>
       </div>}
       <div role="tabpanel" aria-label="Arrange" hidden={tab !== 'arrange'}>
+        {STUDIO_ARRANGE && (nativeProperties || studioArrangeNotYet(target)) ? <StudioArrange key={`arrange-${readRevision}`} target={target} properties={nativeProperties} send={send} disabled={disabled}/> : <>{/* STUDIO-ARRANGE: the Studio Arrange controls; otherwise the panel as it was */}
         {!arrange && <p className="px-4 pt-3 text-xs" role="status">Arrangement is unavailable until native properties and commands are confirmed for this selection.</p>}
         {nativeProperties && <fieldset disabled={disabled || !arrange} className="min-w-0 border-0 p-0"><ArrangeTab properties={nativeProperties} elementId={target.elementId} onSendCommand={send} isApplying={disabled || !arrange}/></fieldset>}
+        </>}{/* STUDIO-ARRANGE */}
       </div>
     </div>
   </>
@@ -374,3 +389,41 @@ function ThemeColors({ target, send, disabled }: { target: StudioFormatTarget; s
     })}
   </div>
 }
+// STUDIO-ARRANGE (NEXT_PUBLIC_STUDIO_ARRANGE): the v4 inspector's Arrange controls, sent through the inspector's own admitted send
+function StudioArrange({ target, properties, send, disabled }: { target: StudioFormatTarget; properties: BaseElementProperties | null; send: (action: string, params: Record<string, any>) => Promise<any>; disabled: boolean }) { // STUDIO-ARRANGE: Order, Align, Position, Size and Lock (slide pixels, Layout snaps to its 12 px grid); Rotate, Flip and classes not yet
+  const notYet = studioArrangeNotYet(target) // STUDIO-ARRANGE
+  const allowed = (command: StudioFormatCommand) => !disabled && !notYet && Boolean(properties) && target.supportedCommands.includes(command) // STUDIO-ARRANGE: only what lib/studio-arrange.ts admitted
+  const [draft, setDraft] = useState({ x: String(properties?.position.x ?? ''), y: String(properties?.position.y ?? ''), width: String(properties?.size.width ?? ''), height: String(properties?.size.height ?? '') }) // STUDIO-ARRANGE
+  const [keepRatio, setKeepRatio] = useState(false) // STUDIO-ARRANGE
+  const call = (action: StudioFormatCommand, params: Record<string, unknown>) => { if (allowed(action)) void send(action, { elementId: target.elementId, ...params }) } // STUDIO-ARRANGE
+  const typed = (field: keyof typeof draft) => { const text = draft[field].trim(), number = Number(text); return text !== '' && Number.isFinite(number) ? number : null } // STUDIO-ARRANGE
+  const commitPosition = (axis: 'x' | 'y') => { const next = typed(axis); if (!properties || next === null || next === properties.position[axis]) return; call('positionElement', { x: axis === 'x' ? next : properties.position.x, y: axis === 'y' ? next : properties.position.y }) } // STUDIO-ARRANGE
+  const commitSize = (side: 'width' | 'height') => { const next = typed(side); if (!properties || next === null || next <= 0 || next === properties.size[side]) return; call('resizeElement', { [side]: next, ...(keepRatio ? { maintainAspectRatio: true } : {}) }) } // STUDIO-ARRANGE
+  const tap = 'min-h-[44px] md:min-h-0 rounded-md border px-2 py-1.5 text-xs' // STUDIO-ARRANGE: 44 px targets on phones; the inspector's own size elsewhere
+  const field = 'min-h-[44px] md:min-h-0 w-full border px-2 py-1.5' // STUDIO-ARRANGE
+  const hint = notYet ? 'Not available yet' : 'Not read' // STUDIO-ARRANGE
+  if (properties?.locked && !notYet) return <div data-studio-arrange-v4="locked" className="space-y-3 p-4"><p className="text-xs" role="status">This element is locked. Unlock it to arrange it.</p>{/* STUDIO-ARRANGE */}
+    <button type="button" className={tap} disabled={!allowed('lockElement')} onClick={() => call('lockElement', { locked: false })}>Unlock</button></div> // STUDIO-ARRANGE: a locked element shows only Unlock
+  return <div data-studio-arrange-v4={notYet ? 'not-yet' : 'on'} className="space-y-4 p-4">{/* STUDIO-ARRANGE */}
+    {notYet && <p className="text-xs" role="status">Not available yet for shapes and tables.</p>}{/* STUDIO-ARRANGE */}
+    <h3 className="text-xs font-semibold">Order</h3>{/* STUDIO-ARRANGE */}
+    <div className="flex flex-wrap gap-1">{([['sendToBack', 'Send to back'], ['sendBackward', 'Send backward'], ['bringForward', 'Bring forward'], ['bringToFront', 'Bring to front']] as const).map(([command, label]) => <button key={command} type="button" className={tap} disabled={!allowed(command)} onClick={() => call(command, {})}>{label}</button>)}</div>{/* STUDIO-ARRANGE */}
+    <h3 className="text-xs font-semibold">Align to slide</h3>{/* STUDIO-ARRANGE */}
+    <div className="flex flex-wrap gap-1">{(['left', 'center', 'right'] as const).map(horizontal => <button key={horizontal} type="button" aria-label={`Align to slide ${horizontal}`} className={tap} disabled={!allowed('alignElement')} onClick={() => call('alignElement', { horizontal })}>{horizontal}</button>)}</div>{/* STUDIO-ARRANGE */}
+    <div className="flex flex-wrap gap-1">{(['top', 'middle', 'bottom'] as const).map(vertical => <button key={vertical} type="button" aria-label={`Align to slide ${vertical}`} className={tap} disabled={!allowed('alignElement')} onClick={() => call('alignElement', { vertical })}>{vertical}</button>)}</div>{/* STUDIO-ARRANGE */}
+    <h3 className="text-xs font-semibold">Position (slide px)</h3>{/* STUDIO-ARRANGE */}
+    <div className="grid grid-cols-2 gap-2">{(['x', 'y'] as const).map(axis => <label key={axis} className="space-y-1 text-xs"><span>{axis === 'x' ? 'X' : 'Y'}</span><input type="number" aria-label={axis === 'x' ? 'Horizontal position in slide pixels' : 'Vertical position in slide pixels'} className={field} value={draft[axis]} placeholder={hint} disabled={!allowed('positionElement')} onChange={event => setDraft(previous => ({ ...previous, [axis]: event.target.value }))} onBlur={() => commitPosition(axis)}/></label>)}</div>{/* STUDIO-ARRANGE */}
+    <h3 className="text-xs font-semibold">Size (slide px)</h3>{/* STUDIO-ARRANGE */}
+    <div className="grid grid-cols-2 gap-2">{(['width', 'height'] as const).map(side => <label key={side} className="space-y-1 text-xs"><span>{side === 'width' ? 'Width' : 'Height'}</span><input type="number" min={1} aria-label={side === 'width' ? 'Width in slide pixels' : 'Height in slide pixels'} className={field} value={draft[side]} placeholder={hint} disabled={!allowed('resizeElement')} onChange={event => setDraft(previous => ({ ...previous, [side]: event.target.value }))} onBlur={() => commitSize(side)}/></label>)}</div>{/* STUDIO-ARRANGE */}
+    <label className="flex min-h-[44px] items-center gap-2 text-xs md:min-h-0"><input type="checkbox" checked={keepRatio} disabled={!allowed('resizeElement')} onChange={event => setKeepRatio(event.target.checked)}/>Keep proportions</label>{/* STUDIO-ARRANGE */}
+    <p className="text-xs">Slide pixels of the 1920 × 1080 slide. Positions and sizes snap to the 12 px grid and stay on the slide.</p>{/* STUDIO-ARRANGE */}
+    <h3 className="text-xs font-semibold">Lock</h3>{/* STUDIO-ARRANGE */}
+    <button type="button" className={tap} aria-label={STUDIO_ARRANGE_LOCK_ENABLED ? undefined : 'Lock unavailable'} disabled={!STUDIO_ARRANGE_LOCK_ENABLED || !allowed('lockElement')} onClick={() => { if (STUDIO_ARRANGE_LOCK_ENABLED) call('lockElement', { locked: true }) }}>Lock</button>{/* STUDIO-ARRANGE */}
+    {!STUDIO_ARRANGE_LOCK_ENABLED && <p className="text-xs" role="status">Not available yet: a locked element cannot be selected again to unlock it.</p>}{/* STUDIO-ARRANGE */}
+    <h3 className="text-xs font-semibold">Rotate, flip and style classes</h3>{/* STUDIO-ARRANGE */}
+    <label className="block text-xs">Rotate<input aria-label="Rotate unavailable" disabled placeholder="Not available yet" className={`mt-1 ${field}`}/></label>{/* STUDIO-ARRANGE */}
+    <div className="flex flex-wrap gap-1"><button type="button" aria-label="Flip horizontally unavailable" disabled className={tap}>Flip horizontal</button><button type="button" aria-label="Flip vertically unavailable" disabled className={tap}>Flip vertical</button></div>{/* STUDIO-ARRANGE */}
+    <label className="block text-xs">CSS classes<input aria-label="Element CSS classes unavailable" disabled placeholder="Not available yet" className={`mt-1 ${field}`}/></label>{/* STUDIO-ARRANGE */}
+    <p className="text-xs" role="status">Rotate, flip and style classes are not available yet.</p>{/* STUDIO-ARRANGE */}
+  </div> // STUDIO-ARRANGE
+} // STUDIO-ARRANGE

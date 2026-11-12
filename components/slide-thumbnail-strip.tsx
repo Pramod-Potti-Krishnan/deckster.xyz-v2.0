@@ -29,10 +29,24 @@ import {
 import { getSlideMenuActions, slideMenuHasAnyAction } from '@/lib/slide-thumbnail-menu'
 import { SLIDE_LAYOUTS, SlideLayoutId } from './slide-layout-picker'
 import { buildSlideComposeVisualOrder } from '@/lib/slide-compose-async'
+import { slideTitleLabel } from '@/lib/studio-slide-title-label'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
+import { STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED, railLivePreviewCandidate } from '@/lib/rail-live-preview'
+import { RailLivePreview } from './rail-live-preview'
+import { StudioThumbnailLagCue } from './studio-thumbnail-lag-cue' // NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD (default off): the "May lag" cue on a card that shows its slide's last good preview
+import { STUDIO_SLIDE_RAIL_V2, slideRailV2Number } from '@/lib/studio-slide-rail-v2'
+import { STUDIO_RAIL_LAYOUT_LABELS, railLayoutName } from '@/lib/studio-rail-layout-label'
+import { STUDIO_RAIL_ADD_SLIDE } from '@/lib/studio-rail-add-slide'
+import type { RailBuildPlaceholder } from '@/lib/studio-rail-build-count' // RAIL-SLIDES-1-MIDBUILD
+import { RailBuildPlaceholderCard } from './studio-rail-build-placeholder' // RAIL-SLIDES-1-MIDBUILD
+import { RailAddSlideButton, type RailAddSlideProps } from './studio-rail-add-slide'
 import './studio-thumbnails.css'
+import { STUDIO_TEMPLATE_MATCH_ENABLED } from '@/lib/studio-template-match' // STUDIO-TEMPLATE-MATCH
+import { StudioTemplateMatchChip } from '@/components/builder/studio-template-match-chip' // STUDIO-TEMPLATE-MATCH
 
 const STUDIO_THUMBNAILS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+/** PASS2 rail v2 (flag NEXT_PUBLIC_STUDIO_SLIDE_RAIL_V2, default off): Studio shell only; its look is all in studio-thumbnails.css. */
+const RAIL_V2 = STUDIO_SLIDE_RAIL_V2 && STUDIO_THUMBNAILS
 
 
 function ThumbnailActionHint({ label, children }: { label: string; children: React.ReactElement }) {
@@ -82,7 +96,14 @@ export interface SlideThumbnail {
   actualSlideIndex?: number
   title?: string
   content?: string
+  /** PASS2B G20 (NEXT_PUBLIC_STUDIO_RAIL_LAYOUT_LABELS): the slide's layout from Layout's inventory; an untitled slide is named by it. */
+  layout?: string | null
   thumbnailUrl?: string
+  /** F8/S-03 (rail identity flag only): `pending` = a preview is expected, shown as a spinner instead of "No preview". */
+  thumbnailStatus?: 'fresh' | 'stale' | 'pending' | 'none'
+  thumbnailLag?: 'content' | 'theme' // NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD: set only when `thumbnailUrl` is the slide's last good preview and not a fresh one; the card adds a "may lag" cue (content: edits since the capture, theme: a new deck theme)
+  /** RAIL-SLIDES-1-MIDBUILD: set only on the inert rows the viewer adds while a build fills the deck (NEXT_PUBLIC_STUDIO_RAIL_BUILD_COUNT). */
+  buildPlaceholder?: RailBuildPlaceholder // RAIL-SLIDES-1-MIDBUILD
 }
 
 export interface SlideComposeThumbnailJob {
@@ -98,6 +119,9 @@ export interface SlideComposeThumbnailJob {
   errors?: string[]
   onRetry?: (jobId: string) => void
   onSelect?: (jobId: string) => void
+  /** J2-SILENT-FAIL (flag NEXT_PUBLIC_STUDIO_COMPOSE_JOB_FAILSAFE_ENABLED): plain words under an error card, and Dismiss. Absent = today's card. */
+  failureCaption?: string
+  onDismiss?: (jobId: string) => void
 }
 
 export interface SlideThumbnailStripProps {
@@ -119,6 +143,20 @@ export interface SlideThumbnailStripProps {
   totalSlides?: number
   composeJobs?: SlideComposeThumbnailJob[]
   onRefineSlide?: (target: SlideRefineTarget) => void
+  /** F8/S-03: rows come from Layout's slide inventory, so React keys them by slide_id (a moved
+   *  slide keeps its node and image) instead of by position. Default false = today's keys. */
+  keyBySlideId?: boolean
+  /** F9-A (flag NEXT_PUBLIC_STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED): the deck's approved Layout viewer URL. A card whose inventory
+   *  status is `none` (no preview will ever come), or `pending` / `stale` for 15 s with no thumbnail URL, shows a live view-only mini-preview
+   *  of its slide instead of "No preview". Ignored when the flag is off. */
+  livePreviewViewerUrl?: string | null
+  /** PASS2B G21 (flag NEXT_PUBLIC_STUDIO_RAIL_ADD_SLIDE, Studio shell, vertical rail only): the footer's "+ Add slide" button, given by the viewer
+   *  (it owns the Add Slide panel's handler and the toolbar's gating). Ignored when the flag is off. */
+  addSlide?: RailAddSlideProps
+  /** RAIL-SLIDES-1-MIDBUILD (NEXT_PUBLIC_STUDIO_RAIL_BUILD_COUNT): inert rows after the real ones while a build fills the deck, one per planned slide the frame lacks. Absent = today's strip. */
+  buildPlaceholders?: RailBuildPlaceholder[] // RAIL-SLIDES-1-MIDBUILD
+  /** RAIL-SLIDES-1-MIDBUILD: the heading's number only. The delete / select-all / reorder guards keep reading the real total. */
+  headingTotal?: number // RAIL-SLIDES-1-MIDBUILD
 }
 
 /**
@@ -151,6 +189,11 @@ export function SlideThumbnailStrip({
   totalSlides,
   composeJobs = [],
   onRefineSlide,
+  keyBySlideId = false,
+  livePreviewViewerUrl = null,
+  addSlide,
+  buildPlaceholders, // RAIL-SLIDES-1-MIDBUILD
+  headingTotal, // RAIL-SLIDES-1-MIDBUILD
 }: SlideThumbnailStripProps) {
   const [draggedSlide, setDraggedSlide] = useState<number | null>(null)
   const [dropTarget, setDropTarget] = useState<number | null>(null)
@@ -236,7 +279,7 @@ export function SlideThumbnailStrip({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [currentSlide, onDeleteSlide, onDeleteSlides, selectedSlides, slidesTotal, isProcessing, onSelectionChange])
 
-  if (slides.length === 0 && composeJobs.length === 0) {
+  if (slides.length === 0 && composeJobs.length === 0 && !buildPlaceholders?.length) { // RAIL-SLIDES-1-MIDBUILD
     return null
   }
 
@@ -245,6 +288,8 @@ export function SlideThumbnailStrip({
 
   const composeInsertJobs = composeJobs.filter(job => job.kind !== 'refine')
   const orderedItems = buildSlideComposeVisualOrder(slides, composeInsertJobs)
+  const placeholderBase = orderedItems.length // RAIL-SLIDES-1-MIDBUILD: the inert rows follow the real ones in the same list, so the rendered tree keeps its shape
+  if (buildPlaceholders?.length) orderedItems.push(...buildPlaceholders.map((placeholder, offset) => ({ kind: 'slide' as const, slide: { slideNumber: placeholder.slideNumber, buildPlaceholder: placeholder }, layoutIndex: slides.length + offset, visualIndex: placeholderBase + offset, visualNumber: placeholderBase + offset + 1 }))) // RAIL-SLIDES-1-MIDBUILD
 
   const isRefineTargetBusy = (slide: SlideThumbnail, slideIndex: number) => {
     return composeJobs.some(job => {
@@ -315,10 +360,22 @@ export function SlideThumbnailStrip({
             "px-2 py-1.5 text-[10px] leading-tight text-left line-clamp-2 w-full",
             isError ? "bg-white text-red-700" : "bg-white text-purple-800"
           )}>
-            {isError ? STUDIO_THUMBNAILS && !job.onRetry ? 'Compose failed' : 'Retry compose' : title}
+            {isError ? job.failureCaption ?? (STUDIO_THUMBNAILS && !job.onRetry ? 'Compose failed' : 'Retry compose') : title}
           </div>
         </button>
         {STUDIO_THUMBNAILS && isError && <ThumbnailFailureDetails slideNumber={visualNumber} kind="compose" reason={errorText || 'Slide Composer failed'} />}
+        {isError && job.onDismiss && (
+          <div data-compose-failsafe-actions="true" className="mt-1 flex w-28 items-center justify-between gap-1 text-[10px] font-medium">
+            {job.onRetry && (
+              <button type="button" data-compose-failsafe-action="retry" aria-label={`Retry slide ${visualNumber}`}
+                onClick={() => job.onRetry?.(job.jobId)}
+                className="rounded px-1.5 py-0.5 text-red-700 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-purple-500">Retry</button>
+            )}
+            <button type="button" data-compose-failsafe-action="dismiss" aria-label={`Dismiss failed slide ${visualNumber}`}
+              onClick={() => job.onDismiss?.(job.jobId)}
+              className="rounded px-1.5 py-0.5 text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500">Dismiss</button>
+          </div>
+        )}
       </div>
     )
   }
@@ -409,8 +466,10 @@ export function SlideThumbnailStrip({
   }
 
   const renderThumbnail = (slide: SlideThumbnail, visualNumber: number) => {
+    if (slide.buildPlaceholder) return <RailBuildPlaceholderCard key={`build-placeholder-${slide.slideNumber}`} placeholder={slide.buildPlaceholder} studio={STUDIO_THUMBNAILS} railV2={RAIL_V2} /> // RAIL-SLIDES-1-MIDBUILD
     const realSlideNumber = slide.slideNumber
     const slideIndex = realSlideNumber - 1  // 0-based index
+    const itemKey = keyBySlideId && slide.slideId ? `slide-${slide.slideId}` : realSlideNumber
     const isActive = visualNumber === currentSlide
     const isSelected = selectedSlides.includes(slideIndex)
     const isDragging = draggedSlide === realSlideNumber
@@ -420,9 +479,13 @@ export function SlideThumbnailStrip({
     const isRefining = refineJob?.status === 'building'
     const canRefine = Boolean(onRefineSlide)
     const isRefineDisabled = isItemProcessing || isRefineTargetBusy(slide, slideIndex)
-    const displayTitle = !slide.title || /^Slide \d+$/i.test(slide.title)
+    const baseTitle = !slide.title || /^Slide \d+$/i.test(slide.title)
       ? `Slide ${visualNumber}`
-      : slide.title
+      : slideTitleLabel(slide.title)
+    // PASS2B G20 (flag NEXT_PUBLIC_STUDIO_RAIL_LAYOUT_LABELS, Studio shell only): an untitled slide reads as its layout's friendly name.
+    // The refine target below keeps baseTitle, as before.
+    const layoutTitle = STUDIO_RAIL_LAYOUT_LABELS && STUDIO_THUMBNAILS && (!slide.title || /^Slide \d+$/i.test(slide.title)) ? railLayoutName(slide.layout) : null
+    const displayTitle = layoutTitle ?? baseTitle
     const titleText = isRefining ? (refineJob.lastProgressText || 'Refining slide') : displayTitle
     const thumbnailUrl = slide.thumbnailUrl?.trim()
 
@@ -520,7 +583,7 @@ export function SlideThumbnailStrip({
             onRefineSlide?.({
               slide_id: slide.slideId ?? null,
               slide_index: slideIndex,
-              title: displayTitle,
+              title: baseTitle,
             })
           }}
           disabled={isRefineDisabled}
@@ -615,7 +678,11 @@ export function SlideThumbnailStrip({
               />
             ) : (
               <>
-                {STUDIO_THUMBNAILS && <span className="studio-thumbnail-placeholder-label">No preview</span>}
+                {STUDIO_THUMBNAILS && slide.thumbnailStatus === 'pending' ? (
+                  <span className="studio-thumbnail-placeholder-label" data-studio-thumbnail-pending="true" role="status" aria-label="Preview loading">
+                    <Loader2 className="inline h-2.5 w-2.5 animate-spin" aria-hidden /> Preview loading
+                  </span>
+                ) : STUDIO_THUMBNAILS && <span className="studio-thumbnail-placeholder-label">No preview</span>}
                 <div className={cn(
                   "h-1 w-3/4 rounded-sm",
                   isActive ? "bg-blue-400 dark:bg-blue-500" : "bg-slate-300 dark:bg-slate-600"
@@ -636,6 +703,7 @@ export function SlideThumbnailStrip({
                 <Loader2 className="h-4 w-4 animate-spin" />
               </div>
             )}
+            {STUDIO_TEMPLATE_MATCH_ENABLED && <StudioTemplateMatchChip slideNumber={visualNumber} />}{/* STUDIO-TEMPLATE-MATCH (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH, default off): the source chip inside the thumbnail, bottom-left; off, never drawn */}
             {/* Canvas v2 P4: no number badge over the image — the preview keeps
                 the slide's exact 16:9; the number lives in the row below. */}
           </div>
@@ -662,9 +730,9 @@ export function SlideThumbnailStrip({
                 ? "text-blue-700 dark:text-blue-300"
                 : "text-slate-500 dark:text-slate-400"
             )}>
-              {visualNumber}
+              {RAIL_V2 ? slideRailV2Number(visualNumber) : visualNumber}
             </span>
-            <span className={cn(
+            <span title={RAIL_V2 ? titleText : undefined} className={cn(
               "min-w-0 text-[10px] leading-tight line-clamp-2",
               isActive
                 ? "text-blue-900 font-medium dark:text-blue-200"
@@ -711,13 +779,22 @@ export function SlideThumbnailStrip({
         {STUDIO_THUMBNAILS && refineJob?.status === 'error' && (
           <ThumbnailFailureDetails slideNumber={visualNumber} kind="refine" reason={refineJob.errors?.filter(Boolean).join('; ') || 'Refinement failed'} />
         )}
+        {STUDIO_THUMBNAILS && slide.thumbnailLag && thumbnailUrl && !isRefining && <StudioThumbnailLagCue reason={slide.thumbnailLag} />}{/* NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD (default off): "May lag" over a preview that is the slide's last good one; a sibling of the button, over the preview's corner, no pointer events */}
+        {/* F9-A: live mini-preview for a card that will never get a thumbnail. The last child of the card, so no existing
+            sibling changes position; a sibling of the button, not inside it (an iframe is not valid button content). It
+            lies over the preview area and takes no pointer events, so the card's click, drag and keyboard behaviour stay
+            the button's. A refining card keeps its own spinner. */}
+        {STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED && STUDIO_THUMBNAILS && livePreviewViewerUrl && !isRefining
+          && railLivePreviewCandidate({ thumbnailStatus: slide.thumbnailStatus, thumbnailUrl }) && (
+          <RailLivePreview viewerUrl={livePreviewViewerUrl} slideIndex={slideIndex} status={slide.thumbnailStatus === 'none' ? 'none' : 'pending'} />
+        )}
       </div>
     )
 
     // Wrap with context menu if CRUD actions are available
     if (hasCrudActions) {
       return (
-        <ContextMenu key={realSlideNumber}>
+        <ContextMenu key={itemKey}>
           <ContextMenuTrigger asChild>
             {thumbnailContent}
           </ContextMenuTrigger>
@@ -735,7 +812,7 @@ export function SlideThumbnailStrip({
       )
     }
 
-    return <React.Fragment key={realSlideNumber}>{thumbnailContent}</React.Fragment>
+    return <React.Fragment key={itemKey}>{thumbnailContent}</React.Fragment>
   }
 
   return (
@@ -743,6 +820,7 @@ export function SlideThumbnailStrip({
       ref={containerRef}
       data-studio-v4-shell={STUDIO_THUMBNAILS}
       data-studio-thumbnail-strip={STUDIO_THUMBNAILS}
+      data-studio-rail-v2={RAIL_V2 ? 'true' : undefined}
       data-orientation={orientation}
       role={STUDIO_THUMBNAILS ? 'region' : undefined}
       aria-label={STUDIO_THUMBNAILS ? 'Slide thumbnails' : undefined}
@@ -755,7 +833,7 @@ export function SlideThumbnailStrip({
         className
       )}
     >
-      {STUDIO_THUMBNAILS && <div className="studio-thumbnail-heading"><strong>Slides</strong><span title={`${slidesTotal} slides${selectedSlides.length ? ` · ${selectedSlides.length} selected` : ''}`}>{selectedSlides.length > 1 ? `${selectedSlides.length} selected` : slidesTotal}</span></div>}
+      {STUDIO_THUMBNAILS && <div className="studio-thumbnail-heading"><strong>Slides</strong><span title={`${headingTotal ?? slidesTotal} slides${selectedSlides.length ? ` · ${selectedSlides.length} selected` : ''}`}>{selectedSlides.length > 1 ? `${selectedSlides.length} selected` : headingTotal ?? slidesTotal}</span></div>}
       <div data-studio-thumbnail-list={STUDIO_THUMBNAILS} className={cn(
         isVertical
           ? "flex flex-col items-center gap-2 overflow-y-auto h-full pt-2 pb-12 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200"
@@ -767,6 +845,7 @@ export function SlideThumbnailStrip({
             : renderThumbnail(item.slide, item.visualNumber)
         )}
       </div>
+      {STUDIO_RAIL_ADD_SLIDE && STUDIO_THUMBNAILS && isVertical && addSlide ? <RailAddSlideButton {...addSlide} /> : null}
     </div>
   )
 }

@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 import { kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
+import { composeEntitlementHeaders } from '@/lib/studio-compose-entitlement'
+import { COMPOSE_BODY_KEYS, isApiHardeningEnabled, pickAllowedKeys, requireApprovedUser, requireSessionOwner } from '@/lib/api-hardening'
 
 export const maxDuration = 300
 
@@ -20,6 +22,9 @@ function directorBaseUrl(): string {
 }
 
 export async function POST(req: NextRequest) {
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): approved users only, read from the DB. Off, this returns null and nothing changes.
+  const notApproved = await requireApprovedUser()
+  if (notApproved) return notApproved
   if (process.env.NEXT_PUBLIC_SLIDE_COMPOSER_ENABLED !== 'true') {
     return NextResponse.json(
       { error: 'Slide Composer is disabled' },
@@ -41,6 +46,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): the session (and presentation) must be the caller's own. Off, null.
+  const notOwner = await requireSessionOwner(sessionUser?.id, body.session_id, body.presentation_id)
+  if (notOwner) return notOwner
+
   const research = body.research
   const useKnowledgeGraph = Boolean(
     research &&
@@ -50,6 +59,8 @@ export async function POST(req: NextRequest) {
   )
 
   let effectiveUserId = userId
+  // STUDIO_COMPOSE_ENTITLEMENT_ENABLED (default off, stacked on #475): the id the signed header may carry. Only the session's own id (never the e-mail fallback above) or the KG gate's id.
+  let canonicalUserId: string | null = sessionUser?.id || null
   let directorHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
   }
@@ -61,18 +72,23 @@ export async function POST(req: NextRequest) {
     const gate = await requireKgEntitled()
     if (gate.error) return gate.error
     effectiveUserId = gate.userId
+    canonicalUserId = gate.userId
     directorHeaders = kgHeaders(directorHeaders)
   }
 
   const payload = {
-    ...body,
+    // Hardening on: only the keys the Studio sends are forwarded (no caller-chosen extras such as user_id overrides).
+    ...(isApiHardeningEnabled() ? pickAllowedKeys(body, COMPOSE_BODY_KEYS) : body),
     user_id: effectiveUserId,
   }
+
+  // STUDIO_COMPOSE_ENTITLEMENT_ENABLED (stacked on #475): the signed X-Deckster-Entitlement Director !535 needs to bind this compose to its user. {} unless the flag is on, the id is canonical and valid.
+  const entitlement = composeEntitlementHeaders(payload.user_id, canonicalUserId)
 
   try {
     const response = await fetch(`${directorBaseUrl()}/api/v1/slides/compose-one`, {
       method: 'POST',
-      headers: directorHeaders,
+      headers: { ...directorHeaders, ...entitlement },
       body: JSON.stringify(payload),
       cache: 'no-store',
     })

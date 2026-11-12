@@ -1,0 +1,165 @@
+{
+  "what": "The outbound request of the REAL app/api/slides/compose/route.ts (POST to Director /api/v1/slides/compose-one) for DIRECTOR-2's !535 (DIRECTOR_ROUTER_COMPOSE_BIND_USER_ENABLED), produced by scripts/test-studio-compose-entitlement.mjs with getServerSession and fetch stubbed.",
+  "flag": "STUDIO_COMPOSE_ENTITLEMENT_ENABLED (server env, exact \"true\", default off); it also needs DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED \"true\" and DIRECTOR_WS_AUTH_SECRET (the shared helper's rules)",
+  "header": "X-Deckster-Entitlement: <payload_b64>.<signature_b64>, both base64url without padding; payload_b64 = base64url(payload_json); signature_b64 = HMAC-SHA256 over the literal \"deckster-rest-v1.\" + payload_b64 keyed with DIRECTOR_WS_AUTH_SECRET",
+  "redacted": "The signature is redacted to its length. The secret in the run is random and never recorded. iat is fixed (1790000000) so the file is deterministic: to replay, re-sign payload_json with your own test secret and a fresh iat/exp (exp - iat is 120).",
+  "how_director_checks": "Binds only when the header verifies (typ rest, m POST, sub == body user_id) and clean_id(sub) == sub (director-v4.0 src/utils/mr_context.py:84,101-111).",
+  "cases": [
+    {
+      "case": "canonical_session_id",
+      "why": "flag on, the session has a canonical id: header minted",
+      "env": {
+        "STUDIO_COMPOSE_ENTITLEMENT_ENABLED": "true",
+        "DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED": "true",
+        "DIRECTOR_WS_AUTH_SECRET": "<set at run time, not recorded>"
+      },
+      "request": {
+        "url": "https://director.example.test/api/v1/slides/compose-one",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Deckster-Entitlement": "<base64url of payload_json: 131 chars>.<HMAC-SHA256, base64url, 43 chars, redacted>"
+        },
+        "body": {
+          "slide_type": "content",
+          "prompt": "A slide about onboarding",
+          "insert_after_index": 1,
+          "user_id": "clx9Kq2m0000AbCd1234efGh",
+          "research": {
+            "use_knowledge_graph": false
+          }
+        }
+      },
+      "entitlement_claim": {
+        "v": 1,
+        "typ": "rest",
+        "sub": "clx9Kq2m0000AbCd1234efGh",
+        "iat": 1790000000,
+        "exp": 1790000120,
+        "m": "POST"
+      },
+      "payload_json": "{\"v\":1,\"typ\":\"rest\",\"sub\":\"clx9Kq2m0000AbCd1234efGh\",\"iat\":1790000000,\"exp\":1790000120,\"m\":\"POST\"}",
+      "bound_by_director_535": true
+    },
+    {
+      "case": "kg_gate_id",
+      "why": "flag on, the Knowledge-Graph branch: sub is the gate id",
+      "env": {
+        "STUDIO_COMPOSE_ENTITLEMENT_ENABLED": "true",
+        "DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED": "true",
+        "DIRECTOR_WS_AUTH_SECRET": "<set at run time, not recorded>"
+      },
+      "request": {
+        "url": "https://director.example.test/api/v1/slides/compose-one",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Deckster-Entitlement": "<base64url of payload_json: 120 chars>.<HMAC-SHA256, base64url, 43 chars, redacted>"
+        },
+        "body": {
+          "slide_type": "content",
+          "prompt": "A slide about onboarding",
+          "insert_after_index": 1,
+          "user_id": "gate_user.7f3a:2",
+          "research": {
+            "use_knowledge_graph": true
+          }
+        }
+      },
+      "entitlement_claim": {
+        "v": 1,
+        "typ": "rest",
+        "sub": "gate_user.7f3a:2",
+        "iat": 1790000000,
+        "exp": 1790000120,
+        "m": "POST"
+      },
+      "payload_json": "{\"v\":1,\"typ\":\"rest\",\"sub\":\"gate_user.7f3a:2\",\"iat\":1790000000,\"exp\":1790000120,\"m\":\"POST\"}",
+      "bound_by_director_535": true
+    },
+    {
+      "case": "email_only_session",
+      "why": "flag on, the session has no id (the body carries the e-mail, as today): no header, so Director binds nothing",
+      "env": {
+        "STUDIO_COMPOSE_ENTITLEMENT_ENABLED": "true",
+        "DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED": "true",
+        "DIRECTOR_WS_AUTH_SECRET": "<set at run time, not recorded>"
+      },
+      "request": {
+        "url": "https://director.example.test/api/v1/slides/compose-one",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "slide_type": "content",
+          "prompt": "A slide about onboarding",
+          "insert_after_index": 1,
+          "user_id": "person@example.test",
+          "research": {
+            "use_knowledge_graph": false
+          }
+        }
+      },
+      "entitlement_claim": null,
+      "payload_json": null,
+      "bound_by_director_535": false
+    },
+    {
+      "case": "id_fails_clean_id",
+      "why": "flag on, a session id with a space (fails Director's clean_id): no header",
+      "env": {
+        "STUDIO_COMPOSE_ENTITLEMENT_ENABLED": "true",
+        "DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED": "true",
+        "DIRECTOR_WS_AUTH_SECRET": "<set at run time, not recorded>"
+      },
+      "request": {
+        "url": "https://director.example.test/api/v1/slides/compose-one",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "slide_type": "content",
+          "prompt": "A slide about onboarding",
+          "insert_after_index": 1,
+          "user_id": "gate id",
+          "research": {
+            "use_knowledge_graph": false
+          }
+        }
+      },
+      "entitlement_claim": null,
+      "payload_json": null,
+      "bound_by_director_535": false
+    },
+    {
+      "case": "flag_off",
+      "why": "flag off: byte-for-byte today's request",
+      "env": {
+        "STUDIO_COMPOSE_ENTITLEMENT_ENABLED": null,
+        "DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED": "true",
+        "DIRECTOR_WS_AUTH_SECRET": "<set at run time, not recorded>"
+      },
+      "request": {
+        "url": "https://director.example.test/api/v1/slides/compose-one",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "slide_type": "content",
+          "prompt": "A slide about onboarding",
+          "insert_after_index": 1,
+          "user_id": "clx9Kq2m0000AbCd1234efGh",
+          "research": {
+            "use_knowledge_graph": false
+          }
+        }
+      },
+      "entitlement_claim": null,
+      "payload_json": null,
+      "bound_by_director_535": false
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+{
+  "calls": [
+    {
+      "args": [{"mode":"auto"},"synthetic-uuid-0001","blank-topicless",true],
+      "at": 1500,
+      "name": "hook.sendThemeSelection",
+      "step": 2
+    },
+    {"args":[{"type":"sync_response"}],"at":2000,"name":"page.onMessage","step":3},
+    {
+      "args": [{"request_id":"restore:sess-topicless:none","status":"restored","type":"theme_sync"}],
+      "at": 2000,
+      "name": "page.onMessage",
+      "step": 3
+    },
+    {"args":[{"type":"chat_message"}],"at":2000,"name":"page.onMessage","step":3},
+    {
+      "args": [{"request_id":"synthetic-uuid-0001","status":"syncing","type":"theme_sync"}],
+      "at": 2500,
+      "name": "page.onMessage",
+      "step": 4
+    },
+    {
+      "args": [{"request_id":"synthetic-uuid-0001","status":"applied","type":"theme_sync"}],
+      "at": 2500,
+      "name": "page.onMessage",
+      "step": 4
+    },
+    {"args":[{"mode":"preset","preset_id":"minimal"}],"at":29000,"name":"page.handleBuildThemeChange","step":8},
+    {"args":[],"at":29000,"name":"page.saveSessionOnFirstAction","step":8},
+    {
+      "args": [{"mode":"preset","preset_id":"minimal"},"synthetic-uuid-0002","blank-topicless",true],
+      "at": 29000,
+      "name": "hook.sendThemeSelection",
+      "step": 8
+    },
+    {
+      "args": [{"request_id":"synthetic-uuid-0002","status":"syncing","type":"theme_sync"}],
+      "at": 30000,
+      "name": "page.onMessage",
+      "step": 10
+    },
+    {
+      "args": [{"request_id":"synthetic-uuid-0002","status":"applied","type":"theme_sync"}],
+      "at": 30000,
+      "name": "page.onMessage",
+      "step": 10
+    }
+  ],
+  "checkpoints": [
+    {
+      "activeBuildThemeProfile": null,
+      "buildThemeSelection": {"mode":"auto"},
+      "connection": {"connected":true,"generation":1,"sockets":1},
+      "deck": {"effectivePresentationId":"blank-topicless","presentationId":"blank-topicless"},
+      "label": "restored null",
+      "messages": ["db-director-0 | chat_message","msg_hist_d59b57373ca0 | chat_message"],
+      "setThemeSent": [{"at":1500,"socket":0,"theme":{"mode":"auto"}}],
+      "themeSelectionChangedLocally": false,
+      "themeSync": {
+        "error": null,
+        "presentationId": "blank-topicless",
+        "requestId": "synthetic-uuid-0001",
+        "status": "applied",
+        "themeFingerprint": "{\"mode\":\"auto\"}"
+      },
+      "toasts": 0,
+      "virtualMs": 28000
+    },
+    {
+      "activeBuildThemeProfile": null,
+      "buildThemeSelection": {"mode":"preset","preset_id":"minimal"},
+      "connection": {"connected":true,"generation":1,"sockets":1},
+      "deck": {"effectivePresentationId":"blank-topicless","presentationId":"blank-topicless"},
+      "label": "user picked Minimal",
+      "messages": ["db-director-0 | chat_message","msg_hist_d59b57373ca0 | chat_message"],
+      "setThemeSent": [
+        {"at":1500,"socket":0,"theme":{"mode":"auto"}},
+        {"at":29000,"socket":0,"theme":{"mode":"preset","preset_id":"minimal"}}
+      ],
+      "themeSelectionChangedLocally": false,
+      "themeSync": {
+        "error": null,
+        "presentationId": "blank-topicless",
+        "requestId": "synthetic-uuid-0002",
+        "status": "applied",
+        "themeFingerprint": "{\"mode\":\"preset\",\"preset_id\":\"minimal\"}"
+      },
+      "toasts": 0,
+      "virtualMs": 30500
+    }
+  ],
+  "diagnostics": {"blockedNetwork":[],"console":[],"uncaught":[]},
+  "notes": []
+}

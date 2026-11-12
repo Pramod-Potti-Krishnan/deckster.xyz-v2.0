@@ -3,8 +3,12 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 import { getStripe } from '@/lib/stripe/stripe'
 import { getOrCreateStripeCustomer } from '@/lib/stripe/stripe-utils'
+import { billingCycleForPrice } from '@/lib/billing/security' // BILLING-SECURITY
+import { PAYMENTS_OPEN_SOON_BODY, PAYMENTS_OPEN_SOON_STATUS, STUDIO_PAYMENTS_OPEN_SOON_ENABLED } from '@/lib/studio-payments-open-soon'
 
 export async function POST(req: NextRequest) {
+  // NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON (default off): no payment can start. Refused before the session, the Stripe customer or Stripe is touched, so a stale page cannot open a checkout.
+  if (STUDIO_PAYMENTS_OPEN_SOON_ENABLED) return NextResponse.json({ ...PAYMENTS_OPEN_SOON_BODY }, { status: PAYMENTS_OPEN_SOON_STATUS, headers: { 'Cache-Control': 'no-store' } })
   try {
     const session = await getServerSession(authOptions)
 
@@ -12,7 +16,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { priceId, billingCycle } = await req.json()
+    // BILLING-SECURITY begin checkout-cycle
+    // B9: the billing cycle is derived from the validated price id on the server, never taken from the request body.
+    const { priceId } = await req.json()
+    const billingCycle = billingCycleForPrice(priceId, { monthly: process.env.STRIPE_PRO_MONTHLY_PRICE_ID, yearly: process.env.STRIPE_PRO_YEARLY_PRICE_ID }) ?? 'monthly'
+    // BILLING-SECURITY end checkout-cycle
 
     // Validate price ID
     const validPriceIds = [

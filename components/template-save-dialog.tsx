@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import { mergeTemplateRetryAcknowledgement } from '@/lib/template-retry-acknowledgement'
+import { templateSaveReason } from '@/lib/studio-template-save-reasons'
 import {
   isTemplateGenerationReady,
   templateGenerationStatus,
@@ -27,6 +28,8 @@ import {
 } from '@/hooks/use-templates'
 
 const STUDIO_TEMPLATE_FLOW = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+/** PASS2B J5-09: the id of the line under Save that says why it is greyed (NEXT_PUBLIC_STUDIO_TEMPLATE_SAVE_REASONS; absent with the flag off). */
+const SAVE_REASON_ID = 'template-save-reason'
 
 function TemplateFlowBody({ children }: { children: ReactNode }) {
   return STUDIO_TEMPLATE_FLOW ? <div className="studio-template-flow-body">{children}</div> : <Fragment>{children}</Fragment>
@@ -399,6 +402,9 @@ export function TemplateSaveDialog({
     }
   }
 
+  // PASS2B J5-09 (flag off: always null): the first unmet reason Save is disabled for.
+  const saveReason = templateSaveReason({ name, sessionId, sourcePresentationId, loading })
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent portalContainer={STUDIO_TEMPLATE_FLOW && open && typeof document !== 'undefined' ? document.fullscreenElement : undefined} data-studio-v4-shell={STUDIO_TEMPLATE_FLOW ? "true" : undefined} data-studio-template-flow={STUDIO_TEMPLATE_FLOW ? "save" : undefined} data-studio-v4-dialog={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'template-save' : undefined}>
@@ -500,10 +506,12 @@ export function TemplateSaveDialog({
           <Button
             onClick={() => void handleSave()}
             disabled={loading || !name.trim() || !sessionId || !sourcePresentationId}
+            {...(saveReason ? { 'aria-describedby': SAVE_REASON_ID } : {})}
           >
             {loading && !(STUDIO_TEMPLATE_FLOW && visibleStudioObservation?.status === 'refreshing') ? 'Saving…' : 'Save Template'}
           </Button>
         </DialogFooter>
+        {saveReason && <p id={SAVE_REASON_ID} className="mt-2 text-right text-xs text-slate-500 dark:text-slate-400">{saveReason}</p>}
       </DialogContent>
     </Dialog>
   )

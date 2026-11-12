@@ -1,3 +1,4 @@
+import { serviceUrl, textLabsEnv } from './service-url-harness.mjs'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
@@ -20,10 +21,11 @@ function loadTypeScriptModule(url) {
   vm.runInNewContext(compiled.outputText, {
     module: mod,
     exports: mod.exports,
-    process: { env: {} },
+    process: { env: { ...textLabsEnv } },
     fetch: () => { throw new Error('Unexpected fetch') },
     FormData,
     require: id => {
+        if (id === '@/lib/service-url') return serviceUrl
       const aliases = {
         '@/types/textlabs': '../types/textlabs.ts',
         '@/lib/element-semantic-type': '../lib/element-semantic-type.ts',

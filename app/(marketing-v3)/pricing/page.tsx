@@ -5,10 +5,17 @@ import { FooterV3 } from "@/components/marketing/v3/FooterV3"
 import { SlideChip } from "@/components/marketing/v3/SlideChip"
 import { TrackedLink } from "@/components/marketing/v3/BuildCta"
 import { PRICING_TIERS } from "@/lib/marketing/homepage-v2-pricing"
+import { studioLandingTiers } from "@/lib/studio-billing"
+import { studioUatMarketing } from "@/components/marketing/v3-uat/flag"
+import { uatMarketingMetadata } from "@/components/marketing/v3-uat/pages/metadata"
+import { UatPricingPage } from "@/components/marketing/v3-uat/pages/pricing"
 
 const copy = V3_CONTENT.pages.pricing
+// PASS2 ACC-14 (NEXT_PUBLIC_STUDIO_P2_ACCOUNT, default off): the plan words come from the shared plan list (PRICING_TIERS), the list Billing reads too. Off: the copy as written.
+const STUDIO_P2_ACCOUNT = process.env.NEXT_PUBLIC_STUDIO_P2_ACCOUNT === "true"
 
-export const metadata: Metadata = {
+// UAT marketing flag (default off; components/marketing/v3-uat/flag.ts): with it on this page is the UAT design (components/marketing/v3-uat). Off: the page below, as it was.
+export const metadata: Metadata = studioUatMarketing.on ? uatMarketingMetadata.pricing : {
   title: { absolute: copy.metadata.title },
   alternates: { canonical: "/pricing" },
 }
@@ -20,6 +27,7 @@ const tierEvent = {
 } as const
 
 export default function PricingV3Page() {
+  if (studioUatMarketing.on) return <UatPricingPage />
   return (
     <main>
       <section className="slide slide--paper" id="start" data-snap="slide" data-slide-label={copy.start.label} data-label={copy.start.label}>
@@ -31,7 +39,7 @@ export default function PricingV3Page() {
             <p className="lede balance" data-reveal style={{ "--d": 2 } as CSSProperties}>{copy.start.lede}</p>
           </div>
           <div className="tiers" data-reveal style={{ "--d": 3 } as CSSProperties}>
-            {copy.start.tiers.map((tier) => {
+            {studioLandingTiers(copy.start.tiers, PRICING_TIERS, STUDIO_P2_ACCOUNT).map((tier) => {
               const existing = PRICING_TIERS.find((item) => item.id === tier.id)!
               return (
                 <div key={tier.id} className={`tier${tier.id === "pro" ? " tier--hi" : ""}`}>

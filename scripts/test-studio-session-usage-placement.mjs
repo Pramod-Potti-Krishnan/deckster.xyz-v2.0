@@ -32,6 +32,7 @@ function component(path, flag, initial = []) {
       if (id === 'next/navigation') return { usePathname: () => '/builder', useRouter: () => ({ push: () => { calls++ } }) }
       if (id === 'next-themes') return { useTheme: () => ({ theme: 'dark', setTheme: () => { calls++ } }) }
       if (id === '@/lib/utils') return { cn: (...args) => args.filter(Boolean).join(' ') }
+      if (id === '@/lib/studio-p2-polish') return { STUDIO_P2_POLISH_ENABLED: false } // the Pass 2 polish flag, off here (scripts/test-studio-p2-polish.mjs)
       if (id === 'next/link') return { default: 'Link' }
       if (id === 'lucide-react') return new Proxy({}, { get: (_target, key) => key })
       if (id.endsWith('.css')) return {}

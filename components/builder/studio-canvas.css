@@ -24,6 +24,17 @@
 [data-studio-v4-shell="true"] [data-studio-v4-authoring-controls] button[title="Add an element"]:not(:disabled):is(:hover,[data-state="open"]) { background: var(--ss-accent-soft); color: var(--ss-accent); }
 [data-studio-v4-shell="true"] [data-studio-v4-authoring-controls] button:is([aria-label="Mode"],[aria-label="Show"]) { color: var(--ss-muted); }
 [data-studio-v4-shell="true"] [data-studio-v4-authoring-controls] > div > [aria-hidden="true"] { height: 16px; background: var(--ss-line); }
+/* PASS2 #5 (NEXT_PUBLIC_STUDIO_TOOLBAR_CLEANUP): Present closes the authoring strip as the filled ink action, as in the mockup's island.
+   Every rule here needs [data-studio-toolbar-present], which only exists with the flag on. */
+[data-studio-v4-shell="true"] [data-studio-v4-authoring-controls] button[data-studio-toolbar-present="true"] { background: var(--ss-action); color: var(--ss-on-action); padding: 0 10px; }
+[data-studio-v4-shell="true"] [data-studio-v4-authoring-controls] button[data-studio-toolbar-present="true"]:not(:disabled):hover { background: var(--ss-action-hover); color: var(--ss-on-action); }
+[data-studio-v4-shell="true"] [data-studio-v4-authoring-controls] button[data-studio-toolbar-present="true"]:disabled { background: var(--ss-action); color: var(--ss-on-action); }
+/* Present adds one control to a strip that already scrolls sideways when the stage is narrow, so the quiet helpers fold to icons from
+   600 px of strip (the base folds them at 560 px) and Present never sits half clipped at the strip's edge. */
+@container studio-authoring (max-width: 600px) {
+  [data-studio-v4-shell="true"] [data-studio-v4-authoring-controls]:has(button[data-studio-toolbar-present="true"]) button[data-studio-v4-secondary] { width: 30px; padding-inline: 0; gap: 0; }
+  [data-studio-v4-shell="true"] [data-studio-v4-authoring-controls]:has(button[data-studio-toolbar-present="true"]) button[data-studio-v4-secondary] span { display: none; }
+}
 /* Size against this strip's allocation, excluding the thumbnail column. */
 @container studio-authoring (max-width: 560px) {
   [data-studio-v4-shell="true"] [data-studio-v4-authoring-controls] button[data-studio-v4-secondary] { width: 30px; padding-inline: 0; gap: 0; }
@@ -114,10 +125,13 @@
 [data-studio-v4-shell="true"] [data-studio-slide-controls="true"] button span { font-size: 11px; }
 [data-studio-v4-shell="true"] [data-studio-slide-controls="true"] button svg { width: 14px; height: 14px; stroke-width: 1.8; }
 [data-studio-v4-shell="true"] [data-studio-slide-controls="true"] button:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; }
+/* PASS2 #5: with Present moved to the authoring strip, the footer keeps only the slide position. */
+[data-studio-v4-shell="true"] [data-studio-slide-controls="true"][data-studio-position-only="true"] { padding: 3px 10px; }
 
 @container studio-canvas (max-width: 560px) {
   [data-studio-v4-shell="true"] [data-studio-slide-controls="true"] { padding-left:3px; gap:0; }
   [data-studio-v4-shell="true"] [data-studio-slide-controls="true"] > span { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+  [data-studio-v4-shell="true"] [data-studio-slide-controls="true"][data-studio-position-only="true"] { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
   [data-studio-v4-shell="true"] [data-studio-canvas-brand="true"] .studio-canvas-intro-replay { width:22px; padding:2px; }
   [data-studio-v4-shell="true"] [data-studio-canvas-brand="true"] .studio-canvas-intro-replay > span,
   [data-studio-v4-shell="true"] [data-studio-canvas-brand="true"] > a > span { display:none; }

@@ -1,0 +1,107 @@
+[
+  {
+    "checkpoint": "01-working",
+    "hookMessageIds": ["msg-greeting","msg-think-1"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"thinking_msg-think-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "02-status-error",
+    "hookMessageIds": ["msg-greeting","msg-think-1"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"thinking_msg-think-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "03-transport-error-notice",
+    "hookMessageIds": ["msg-greeting","msg-think-1"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"thinking_msg-think-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "04-auth-expired-resend-needed",
+    "hookMessageIds": ["msg-greeting","msg-think-1"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"thinking_msg-think-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "05-refresh-failed",
+    "hookMessageIds": ["msg-greeting","msg-think-1"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"thinking_msg-think-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "06-after-resend",
+    "hookMessageIds": ["msg-greeting","msg-think-1"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"thinking_msg-think-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "07-recovered",
+    "hookMessageIds": ["msg-greeting","msg-think-1","msg-think-2","msg-plan","msg_plan_confirm_synthetic-session-error-retry"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"thinking_msg-think-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"thinking_msg-think-2","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-plan","role":null,"tag":"div"},
+      {
+        "action": null,
+        "buttons": 2,
+        "empty": false,
+        "inputs": 0,
+        "key": "msg_plan_confirm_synthetic-session-error-retry",
+        "role": null,
+        "tag": "div"
+      },
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "08-final",
+    "hookMessageIds": ["msg-greeting","msg-think-1","msg-think-2","msg-plan","msg_plan_confirm_synthetic-session-error-retry"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"thinking_msg-think-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"thinking_msg-think-2","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-plan","role":null,"tag":"div"},
+      {
+        "action": null,
+        "buttons": 2,
+        "empty": false,
+        "inputs": 0,
+        "key": "msg_plan_confirm_synthetic-session-error-retry",
+        "role": null,
+        "tag": "div"
+      },
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  }
+]

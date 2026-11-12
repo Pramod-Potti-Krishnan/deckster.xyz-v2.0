@@ -1,7 +1,9 @@
+import { serviceUrl } from './service-url-harness.mjs'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-CLEAN)
 
 // Actual mention filtering, native leaf and composer; no effects/service calls run.
 let flag = 'true', refs = []
@@ -9,7 +11,9 @@ const refuse = () => { throw new Error('Mention fixture refuses every service op
 const jsx = (type, props, key) => ({ type, props, key })
 const nodes = value => Array.isArray(value) ? value.flatMap(nodes) : !value || typeof value !== 'object' ? [] : [value, ...nodes(value.props?.children)]
 const imports = {
-  react: { useState: value => [value, () => {}], useRef: current => { const ref = { current }; refs.push(ref); return ref }, useEffect() {}, useCallback: callback => callback },
+  '@/lib/service-url': serviceUrl,
+  './studio-composer-hint': { StudioComposerHint: 'StudioComposerHint' },
+  react: { default: { Fragment: 'Fragment' }, useState: value => [value, () => {}], useRef: current => { const ref = { current }; refs.push(ref); return ref }, useEffect() {}, useCallback: callback => callback },
   'react/jsx-runtime': { jsx, jsxs: jsx },
   'lucide-react': Object.fromEntries(['Layers','Globe','SlidersHorizontal','Paperclip','ArrowUp','Square','Loader2','Search','Brain','LayoutTemplate','Palette','Save','Star','Trash2','X','CheckCircle2','AlertCircle'].map(name => [name,name])),
   '@/components/ui/button': { Button: 'Button' }, '@/components/ui/textarea': { Textarea: 'textarea' }, '@/components/ui/switch': { Switch: 'Switch' }, '@/components/file-chip': { FileChip: 'FileChip' },
@@ -20,10 +24,11 @@ const imports = {
   '@/hooks/use-templates': { isTemplateGenerationReady: () => false, templateGenerationUnavailableReason: () => '' },
   '@/hooks/use-theme-profiles': { useThemeProfiles: () => ({ loading: false, error: null, listThemes: refuse, saveTheme: refuse, setStandardTheme: refuse, clearStandardTheme: refuse, deleteTheme: refuse }) },
   './template-picker': { TemplatePicker: 'TemplatePicker' }, './studio-director.css': {},
+  '@/lib/studio-composer-popups': { nextComposerPopup: refuse, keepPopupOpenForDropdownList: refuse }, // PASS2-COMPOSER-POPUPS: flag off here, never called
   './studio-theme-menu': { StudioThemeMenu: 'StudioThemeMenu' },
 }
 function load(relative) {
-  const source = fs.readFileSync(new URL(relative, import.meta.url), 'utf8')
+  const source = stripLaterChanges(relative.replace(/^\.\.\//, ''), fs.readFileSync(new URL(relative, import.meta.url), 'utf8')) // LATER-CHANGES: registry read (CHAT-CLEAN): a registered later change's marked lines (chat clean's imports in chat-input.tsx) come out before the allow-list sees the file
   const result = ts.transpileModule(source, { reportDiagnostics: true, compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } })
   assert.equal((result.diagnostics || []).filter(item => item.category === ts.DiagnosticCategory.Error).length, 0)
   const mod = { exports: {} }

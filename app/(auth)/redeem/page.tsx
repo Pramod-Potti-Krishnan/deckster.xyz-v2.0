@@ -9,6 +9,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Sparkles, Ticket, LogOut, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { requestBqClaimRefresh } from '@/lib/ws-bq-refresh'
+import dynamic from 'next/dynamic' // REDEEM-V4
+// REDEEM-V4 (NEXT_PUBLIC_STUDIO_REDEEM_V4, exact "true", default off): the flag is tested here, around the import(), so with it off the build drops the Studio view and its stylesheet and this page is as it was.
+const StudioRedeemV4 = process.env.NEXT_PUBLIC_STUDIO_REDEEM_V4 === 'true' ? dynamic(() => import('@/components/studio-redeem').then((mod) => mod.StudioRedeemView)) : null // REDEEM-V4
 
 const PLAN_LABELS: Record<string, string> = {
   starter: 'Starter',
@@ -98,6 +101,7 @@ function RedeemContent() {
     }
   }
 
+  if (StudioRedeemV4 && status === 'loading') return <StudioRedeemV4 phase="loading" /> // REDEEM-V4
   if (status === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -117,6 +121,7 @@ function RedeemContent() {
     success && selectedPlan && success.tier !== selectedPlan
       ? PLAN_LABELS[success.tier] ?? success.tier
       : null
+  if (StudioRedeemV4) return <StudioRedeemV4 phase="form" email={session.user?.email} planLabel={planLabel} success={success} successLabel={success ? PLAN_LABELS[success.tier] ?? success.tier : null} tierMismatch={tierMismatch} code={code} setCode={setCode} error={error} setError={setError} isRedeeming={isRedeeming} onSubmit={handleRedeem} onSignOut={() => signOut({ callbackUrl: '/' })} /> // REDEEM-V4
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50 dark:from-purple-950/20 dark:via-blue-950/20 dark:to-pink-950/20 flex flex-col">
@@ -220,6 +225,7 @@ function RedeemContent() {
 }
 
 export default function RedeemPage() {
+  if (StudioRedeemV4) return <Suspense fallback={<StudioRedeemV4 phase="loading" />}><RedeemContent /></Suspense> // REDEEM-V4
   return (
     <Suspense
       fallback={

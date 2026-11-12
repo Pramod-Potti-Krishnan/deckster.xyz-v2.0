@@ -4,6 +4,7 @@ import * as React from "react"
 import * as TabsPrimitive from "@radix-ui/react-tabs"
 
 import { cn } from "@/lib/utils"
+import { deckTabsLabel } from "@/lib/studio-pass3-polish-d" // PASS3-POLISH-D (NEXT_PUBLIC_STUDIO_PASS3_POLISH, default off): the Decks tab list gets an accessible name
 
 const Tabs = TabsPrimitive.Root
 
@@ -18,6 +19,7 @@ const TabsList = React.forwardRef<
       className
     )}
     {...props}
+    {...deckTabsLabel(props)} /* PASS3-POLISH-D */
   />
 ))
 TabsList.displayName = TabsPrimitive.List.displayName

@@ -1,0 +1,26 @@
+{"kind":"handshake","socket":0,"url":"wss://director.synthetic.invalid/ws?session_id=synthetic-session-one-live-tab-c&user_id=synthetic-user-01&skip_history=false&message_count=0&build_control_capability=1","subprotocols":0,"at":500}
+{"kind":"handshake","socket":1,"url":"wss://director.synthetic.invalid/ws?session_id=synthetic-session-one-live-tab-c&user_id=synthetic-user-01&skip_history=true&message_count=3&build_control_capability=1","subprotocols":0,"at":6500}
+{"kind":"handshake","socket":2,"url":"wss://director.synthetic.invalid/ws?session_id=synthetic-session-one-live-tab-c&user_id=synthetic-user-01&skip_history=true&message_count=3&build_control_capability=1","subprotocols":0,"at":11500}
+{"kind":"handshake","socket":3,"url":"wss://director.synthetic.invalid/ws?session_id=synthetic-session-one-live-tab-c&user_id=synthetic-user-01&skip_history=true&message_count=3&build_control_capability=1","subprotocols":0,"at":46500}
+{"kind":"handshake","socket":4,"url":"wss://director.synthetic.invalid/ws?session_id=synthetic-session-one-live-tab-c&user_id=synthetic-user-01&skip_history=true&message_count=3&build_control_capability=1","subprotocols":0,"at":81500}
+{"kind":"handshake","socket":5,"url":"wss://director.synthetic.invalid/ws?session_id=synthetic-session-one-live-tab-c&user_id=synthetic-user-01&skip_history=true&message_count=3&build_control_capability=1","subprotocols":0,"at":116500}
+{"kind":"handshake","socket":6,"url":"wss://director.synthetic.invalid/ws?session_id=synthetic-session-one-live-tab-c&user_id=synthetic-user-01&skip_history=true&message_count=3&build_control_capability=1","subprotocols":0,"at":151500}
+{"kind":"handshake","socket":7,"url":"wss://director.synthetic.invalid/ws?session_id=synthetic-session-one-live-tab-c&user_id=synthetic-user-01&skip_history=true&message_count=3&build_control_capability=1","subprotocols":0,"at":186500}
+{"kind":"json:user_message","n":0,"socket":0,"at":3000,"sha256":"1de1a252b5e473f11fb61b747621c8939fe36b50e22e3ed8539647119c42f08d","bytes":"{\"type\":\"user_message\",\"data\":{\"text\":\"Build a short deck about ocean currents\",\"store_name\":null,\"deep_research\":false,\"web_search\":false,\"extended_generation\":true,\"file_upload\":false,\"use_knowledge_graph\":false}}"}
+{"kind":"heartbeat","n":1,"socket":2,"at":27500,"sha256":"758d61f26a44448384e5c4468a0dcb7a2abe456067b0f7b505bc28b9411fe931","bytes":"ping"}
+{"kind":"heartbeat","n":2,"socket":2,"at":42500,"sha256":"758d61f26a44448384e5c4468a0dcb7a2abe456067b0f7b505bc28b9411fe931","bytes":"ping"}
+{"kind":"heartbeat","n":3,"socket":3,"at":63000,"sha256":"758d61f26a44448384e5c4468a0dcb7a2abe456067b0f7b505bc28b9411fe931","bytes":"ping"}
+{"kind":"heartbeat","n":4,"socket":3,"at":78000,"sha256":"758d61f26a44448384e5c4468a0dcb7a2abe456067b0f7b505bc28b9411fe931","bytes":"ping"}
+{"kind":"heartbeat","n":5,"socket":4,"at":98000,"sha256":"758d61f26a44448384e5c4468a0dcb7a2abe456067b0f7b505bc28b9411fe931","bytes":"ping"}
+{"kind":"heartbeat","n":6,"socket":4,"at":113000,"sha256":"758d61f26a44448384e5c4468a0dcb7a2abe456067b0f7b505bc28b9411fe931","bytes":"ping"}
+{"kind":"heartbeat","n":7,"socket":5,"at":133000,"sha256":"758d61f26a44448384e5c4468a0dcb7a2abe456067b0f7b505bc28b9411fe931","bytes":"ping"}
+{"kind":"heartbeat","n":8,"socket":5,"at":148000,"sha256":"758d61f26a44448384e5c4468a0dcb7a2abe456067b0f7b505bc28b9411fe931","bytes":"ping"}
+{"kind":"heartbeat","n":9,"socket":6,"at":168000,"sha256":"758d61f26a44448384e5c4468a0dcb7a2abe456067b0f7b505bc28b9411fe931","bytes":"ping"}
+{"kind":"heartbeat","n":10,"socket":6,"at":183000,"sha256":"758d61f26a44448384e5c4468a0dcb7a2abe456067b0f7b505bc28b9411fe931","bytes":"ping"}
+{"kind":"server-close","socket":0,"code":1006,"reason":"","at":5000}
+{"kind":"server-close","socket":1,"code":1006,"reason":"","at":8500}
+{"kind":"server-close","socket":2,"code":4000,"reason":"Director heartbeat timeout","at":45000}
+{"kind":"server-close","socket":3,"code":1011,"reason":"internal error","at":80000}
+{"kind":"server-close","socket":4,"code":4000,"reason":"","at":115000}
+{"kind":"server-close","socket":5,"code":4000,"reason":"new connection opened","at":150000}
+{"kind":"server-close","socket":6,"code":1000,"reason":"New connection opened","at":185000}

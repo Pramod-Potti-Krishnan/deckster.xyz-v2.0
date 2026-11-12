@@ -48,6 +48,8 @@ function harness(studio = true) {
       if (id === '@/lib/last-builder-session') return { lastBuilderSessionKey: owner => `deckster:last_session_id:${owner}` }
       if (id === '@/lib/layout-service-client') return { LAYOUT_VIEWER_URL_POLICY: {} }
       if (id === '@/lib/layout-viewer-url-policy') return { evaluateLayoutViewerUrl: () => ({ status: 'empty' }) }
+      // PASS2B G56 (NEXT_PUBLIC_STUDIO_CREATE_WORD, default off): the create-button helper; off it returns the caller's own word.
+      if (id === '@/lib/studio-create-word') return { studioCreateLabel: (_enabled, original) => original }
       return new Proxy({}, { get: (_, key) => String(key) })
     },
     fetch() { requests++; throw new Error('No services are permitted in this offline witness') },

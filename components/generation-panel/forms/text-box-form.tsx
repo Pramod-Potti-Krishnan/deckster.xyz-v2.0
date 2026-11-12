@@ -26,6 +26,13 @@ import { ToggleRow } from '../shared/toggle-row'
 import { useDeckThemePalette } from '@/hooks/use-deck-theme-palette'
 import { effectiveTextGeometry } from '@/lib/textbox-geometry-mode'
 import {
+  TEXTBOX_REQUEST_FIDELITY_ENABLED,
+  textBoxConfigForRequest,
+  textBoxManualGeometryForRequest,
+  typedTextBoxCardLimit,
+  typedTextBoxCardNoun,
+} from '@/lib/textbox-request-fidelity'
+import {
   isTextBoxCountViable,
   isTextBoxLayoutViable,
   resolveTextBoxLayout,
@@ -109,6 +116,7 @@ export interface TextBoxControlsDraft {
   roleContext: string | null
   structure: 'auto' | TextBoxStructure
   count: number
+  countAuto?: boolean
   layoutChoice: TextBoxLayoutChoice
   gridCols: number
   multiBoxColorMode: NonNullable<TextBoxFormData['multiBoxColorMode']>
@@ -181,6 +189,11 @@ function readSavedTextBoxGenerationConfig(value: unknown) {
     prompt: typeof source.prompt === 'string' ? source.prompt : undefined,
     structure: stringValue(source.structure, STRUCTURE_VALUES, 'auto'),
     count: Math.max(1, Math.min(6, Math.round(numberValue(source.count, 1)))),
+    // Configs saved before the fidelity flag carry only a numeric count; a single
+    // box was the old default rather than a recorded choice.
+    countAuto: TEXTBOX_REQUEST_FIDELITY_ENABLED
+      ? booleanValue(source.countAuto, numberValue(source.count, 1) <= 1)
+      : false,
     layoutChoice: stringValue(source.layoutChoice, LAYOUT_CHOICE_VALUES, 'auto'),
     gridCols: Math.max(1, Math.min(6, Math.round(numberValue(source.gridCols, 2)))),
     multiBoxColorMode: stringValue(source.multiBoxColorMode, MULTI_BOX_COLOR_VALUES, 'SAME'),
@@ -227,7 +240,7 @@ function OptionalNumberInput({
 }
 
 export function TextBoxForm({
-  onSubmit,
+  onSubmit: onSubmitDirect,
   registerSubmit,
   presentationId,
   elementContext,
@@ -250,6 +263,7 @@ export function TextBoxForm({
   const [targetValue, setTargetValue] = useState(initialControls?.targetValue ?? BODY_TEXT_AUTO_SLOT)
   const [structure, setStructure] = useState<'auto' | TextBoxStructure>(initialControls?.structure ?? initialSaved?.structure ?? 'auto')
   const [count, setCount] = useState(initialControls?.count ?? initialSaved?.count ?? 1)
+  const [countAuto, setCountAuto] = useState(initialControls?.countAuto ?? initialSaved?.countAuto ?? TEXTBOX_REQUEST_FIDELITY_ENABLED)
   const [layoutChoice, setLayoutChoice] = useState<TextBoxLayoutChoice>(initialControls?.layoutChoice ?? initialSaved?.layoutChoice ?? 'auto')
   const [gridCols, setGridCols] = useState(initialControls?.gridCols ?? initialSaved?.gridCols ?? 2)
   const [multiBoxColorMode, setMultiBoxColorMode] = useState<NonNullable<TextBoxFormData['multiBoxColorMode']>>(initialControls?.multiBoxColorMode ?? initialSaved?.multiBoxColorMode ?? 'SAME')
@@ -303,6 +317,7 @@ export function TextBoxForm({
       const saved = readSavedTextBoxGenerationConfig(existingTextTarget?.generationConfig)
       setStructure(saved?.structure ?? 'auto')
       setCount(saved?.count ?? 1)
+      setCountAuto(saved?.countAuto ?? TEXTBOX_REQUEST_FIDELITY_ENABLED)
       setLayoutChoice(saved?.layoutChoice ?? 'auto')
       setGridCols(saved?.gridCols ?? 2)
       setMultiBoxColorMode(saved?.multiBoxColorMode ?? 'SAME')
@@ -452,6 +467,15 @@ export function TextBoxForm({
   const isAccessory = slotKind === 'accessory'
   const isStructuralText = !isBodyText && !isSystemManaged && !isAccessory
 
+  // Fidelity (flag): a typed family is ONE element of N cards and holds a limited number of them.
+  const typedCardLimit = TEXTBOX_REQUEST_FIDELITY_ENABLED && isBodyText ? typedTextBoxCardLimit(structure) : null
+  useEffect(() => {
+    if (typedCardLimit !== null && count > typedCardLimit) {
+      setCount(typedCardLimit)
+      setLayoutChoice('auto')
+    }
+  }, [count, typedCardLimit])
+
   const updateTextboxOverride = useCallback(<K extends keyof TextBoxConfig>(field: K, value: TextBoxConfig[K] | undefined) => {
     setTextboxOverrides(previous => {
       const next = { ...previous }
@@ -580,7 +604,8 @@ export function TextBoxForm({
     onDraftChange?.({
       prompt, showAdvanced,
       textBoxControls: {
-        targetValue, roleContext: roleContextRef.current, structure, count, layoutChoice, gridCols,
+        targetValue, roleContext: roleContextRef.current, structure, count,
+        ...(TEXTBOX_REQUEST_FIDELITY_ENABLED ? { countAuto } : {}), layoutChoice, gridCols,
         multiBoxColorMode, textboxOverrides, geometryMode, manualGeometryOverrides, zIndex,
         positionModified, paddingModified, paddingConfig, positionConfig, geometryEdited,
         geometryContext: geometryContextRef.current,
@@ -588,10 +613,35 @@ export function TextBoxForm({
           content: showContent, positioning: showPositioning, padding: showPadding },
       },
     })
-  }, [onDraftChange, prompt, showAdvanced, targetValue, roleContext, elementContext, structure, count,
+  }, [onDraftChange, prompt, showAdvanced, targetValue, roleContext, elementContext, structure, count, countAuto,
     layoutChoice, gridCols, multiBoxColorMode, textboxOverrides, geometryMode, manualGeometryOverrides,
     zIndex, positionModified, paddingModified, paddingConfig, positionConfig, geometryEdited,
     showInstances, showBoxDesign, showHeading, showContent, showPositioning, showPadding])
+
+  // Request fidelity (flag): the submit boundary sends only what the selected role
+  // exposes and no count the user never chose. handleSubmit itself is untouched.
+  // In a Sequential element the per-box item count is the number of steps (request fidelity flag).
+  const stepsLabelled = TEXTBOX_REQUEST_FIDELITY_ENABLED && structure === 'SEQUENTIAL'
+
+  const onSubmit = useCallback((formData: TextLabsFormData) => {
+    if (!TEXTBOX_REQUEST_FIDELITY_ENABLED || formData.componentType !== 'TEXT_BOX') {
+      onSubmitDirect(formData)
+      return
+    }
+    const geometry = effectiveTextGeometry(geometryMode, textBoxManualGeometryForRequest(manualGeometryOverrides, { isBodyText }))
+    onSubmitDirect({
+      ...formData,
+      ...(isBodyText && countAuto ? { countAuto: true } : {}),
+      ...(isBodyText && typedCardLimit !== null && formData.count > 1 ? { cardsInOneElement: true } : {}),
+      // Text Labs reads multi_box_color_mode only for separate COMPOSE boxes, never for one typed element.
+      ...(isBodyText && typedCardLimit !== null ? { multiBoxColorMode: undefined } : {}),
+      layout: isBodyText ? formData.layout : 'horizontal',
+      geometryMode: geometry.geometryMode,
+      manualGeometryOverrides: geometry.manualGeometryOverrides,
+      textboxConfig: textBoxConfigForRequest(textboxOverrides, { isBodyText, structure }),
+      generationConfig: { ...formData.generationConfig, countAuto },
+    })
+  }, [countAuto, geometryMode, isBodyText, manualGeometryOverrides, onSubmitDirect, structure, textboxOverrides, typedCardLimit])
 
   const handleSubmit = useCallback(() => {
     const bodyCount = isBodyText ? count : 1
@@ -672,6 +722,36 @@ export function TextBoxForm({
 
   useEffect(() => registerSubmit(handleSubmit), [handleSubmit, registerSubmit])
 
+  // One piece of state, one or two controls: Advanced > Instances always, plus a
+  // quick control beside Body structure when the request-fidelity flag is on.
+  const renderCountSelect = (ariaLabel: string) => (
+    <select
+      aria-label={ariaLabel}
+      value={TEXTBOX_REQUEST_FIDELITY_ENABLED && countAuto ? 'auto' : count}
+      onChange={event => {
+        if (TEXTBOX_REQUEST_FIDELITY_ENABLED) {
+          const auto = event.target.value === 'auto'
+          setCountAuto(auto)
+          setCount(auto ? 1 : Number(event.target.value))
+        } else {
+          setCount(Number(event.target.value))
+        }
+        setLayoutChoice('auto')
+      }}
+      className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
+    >
+      {TEXTBOX_REQUEST_FIDELITY_ENABLED && <option value="auto">Auto</option>}
+      {Array.from({ length: 6 }, (_, index) => index + 1).map(value => {
+        const overLimit = typedCardLimit !== null && value > typedCardLimit
+        return (
+          <option key={value} value={value} disabled={!feasibleCounts.includes(value) || overLimit}>
+            {value}{overLimit ? ` — max ${typedCardLimit}` : !feasibleCounts.includes(value) ? ' — resize needed' : ''}
+          </option>
+        )
+      })}
+    </select>
+  )
+
   const showTitleValue = textboxOverrides.show_title === undefined
     ? 'auto'
     : textboxOverrides.show_title ? 'show' : 'hide'
@@ -723,6 +803,21 @@ export function TextBoxForm({
             <option value="auto">Auto</option>
             {STRUCTURE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
+          {TEXTBOX_REQUEST_FIDELITY_ENABLED && (
+            <label className="block space-y-1">
+              <span className="text-[10px] text-slate-500">{typedCardLimit !== null ? 'Cards' : 'Boxes'}</span>
+              {renderCountSelect('Text box count')}
+              <span className="block text-[9px] leading-4 text-slate-400">
+                {typedCardLimit !== null
+                  ? countAuto
+                    ? `Auto follows your prompt (for example "five steps"; one card if it names none). Pick a number to force that many cards, up to ${typedCardLimit}.`
+                    : `One ${STRUCTURE_OPTIONS.find(option => option.value === structure)?.label ?? 'typed'} element with ${count} ${count === 1 ? 'card' : typedTextBoxCardNoun(structure)}. Arrangement and colours are under Advanced.`
+                  : countAuto
+                    ? 'Auto follows your prompt (one box if it names none). Pick a number to force that many boxes or cards.'
+                    : `Exactly ${count} ${count === 1 ? 'box' : 'boxes'}. Arrangement and colours are under Advanced.`}
+              </span>
+            </label>
+          )}
           {structure === 'simple' && (
             <div className="grid grid-cols-2 gap-2">
               <label className="space-y-1">
@@ -916,21 +1011,7 @@ export function TextBoxForm({
                 <div className="grid grid-cols-2 gap-2">
                   <label className="space-y-1">
                     <span className="text-[10px] text-slate-500">Count</span>
-                    <select
-                      aria-label="Text box count"
-                      value={count}
-                      onChange={event => {
-                        setCount(Number(event.target.value))
-                        setLayoutChoice('auto')
-                      }}
-                      className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
-                    >
-                      {Array.from({ length: 6 }, (_, index) => index + 1).map(value => (
-                        <option key={value} value={value} disabled={!feasibleCounts.includes(value)}>
-                          {value}{!feasibleCounts.includes(value) ? ' — resize needed' : ''}
-                        </option>
-                      ))}
-                    </select>
+                    {renderCountSelect(TEXTBOX_REQUEST_FIDELITY_ENABLED ? 'Advanced text box count' : 'Text box count')}
                   </label>
                   <label className="space-y-1">
                     <span className="text-[10px] text-slate-500">Arrangement</span>
@@ -991,7 +1072,7 @@ export function TextBoxForm({
                   </div>
                 )}
 
-                {count > 1 && (
+                {count > 1 && typedCardLimit === null && (
                   <label className="space-y-1">
                     <span className="text-[10px] text-slate-500">Multi-box color style</span>
                     <select
@@ -1010,6 +1091,7 @@ export function TextBoxForm({
                 <p className="text-[9px] leading-4 text-slate-400">
                   Feasible choices use the live {area.position_width}×{area.position_height} container. Auto resolves to {resolvedLayout.layout}
                   {resolvedLayout.layout === 'grid' ? ` (${resolvedLayout.gridColumns}×${resolvedLayout.gridRows})` : ''}.
+                  {TEXTBOX_REQUEST_FIDELITY_ENABLED && countAuto && ' Count follows your prompt; pick a number to force that many boxes.'}
                 </p>
               </div>
             </CollapsibleSection>
@@ -1275,9 +1357,9 @@ export function TextBoxForm({
             <CollapsibleSection title="Content" isOpen={showContent} onToggle={() => setShowContent(value => !value)}>
               <div className="space-y-2.5">
                 <label className="space-y-1">
-                  <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">Items / Box</span>
+                  <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">{stepsLabelled ? 'Steps' : 'Items / Box'}</span>
                   <select
-                    aria-label="Items per box"
+                    aria-label={stepsLabelled ? 'Steps' : 'Items per box'}
                     value={geometryMode === 'MANUAL' && manualGeometryOverrides.items_per_box
                       ? String(manualGeometryOverrides.items_per_box)
                       : 'auto'}

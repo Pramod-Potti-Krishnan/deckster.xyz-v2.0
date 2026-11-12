@@ -1,0 +1,252 @@
+--- a/app/builder/page.tsx
++++ b/app/builder/page.tsx
+@@ -177,6 +177,7 @@
+   waitForAuthoritativeTheme,
+   type ThemeSyncRequestResult,
+   type ThemeSyncState,
++  type ElementThemePreflightRetry,
+ } from '@/lib/theme-sync'
+ import {
+   buildSessionHandoffRequest,
+@@ -3189,7 +3190,7 @@
+     return { ok: true, requestId, themeFingerprint }
+   }, [clearThemeSyncTimeout, commitThemeSync, sendThemeSelection])
+ 
+-  const ensureThemeReady = useCallback(async (targetPresentationId: string) => {
++  const ensureThemeReady = useCallback(async (targetPresentationId: string, retry?: ElementThemePreflightRetry) => {
+     if (themeSyncTargetRef.current.composerThemeBlocked) {
+       return { ready: false, code: 'failed', error: themeSyncTargetRef.current.composerThemeFrozen
+         ? 'This template keeps its stored source theme.'
+@@ -3225,6 +3226,31 @@
+         error: current.error
+           || 'This theme selection is pending. Reconnect so Director can apply it before generating themed elements.',
+       } as const
++    }
++
++    // Only an explicit Retry of this failed handshake may request fresh
++    // authority. Existing local-theme/composer/template guards still apply.
++    if (
++      process.env.NEXT_PUBLIC_ELEMENT_THEME_PREFLIGHT_RECOVERY_ENABLED === 'true'
++      && retry
++      && retry.presentationId === targetPresentationId
++      && retry.themeFingerprint === desiredFingerprint
++      && current.presentationId === retry.presentationId
++      && current.themeFingerprint === retry.themeFingerprint
++      && current.requestId === retry.requestId
++      && current.status === 'failed'
++    ) {
++      const requested = requestThemeSyncForPresentation(targetPresentationId)
++      if (!requested.ok) return { ready: false, code: requested.code, error: requested.error } as const
++      return waitForAuthoritativeTheme({
++        presentationId: targetPresentationId,
++        themeFingerprint: desiredFingerprint,
++        getSyncState: getThemeSyncSnapshot,
++        isConnected: () => themeSyncTargetRef.current.isReady,
++        requestSync: requestThemeSyncForPresentation,
++        timeoutMs: THEME_SYNC_TIMEOUT_MS,
++        captureFailureSync: true,
++      })
+     }
+ 
+     // A theme mutation already accepted by Director must finish (or fail)
+@@ -3260,6 +3286,7 @@
+         isConnected: () => themeSyncTargetRef.current.isReady,
+         requestSync: requestThemeSyncForPresentation,
+         timeoutMs: THEME_SYNC_TIMEOUT_MS,
++        captureFailureSync: process.env.NEXT_PUBLIC_ELEMENT_THEME_PREFLIGHT_RECOVERY_ENABLED === 'true',
+       })
+     }
+ 
+--- a/hooks/use-textlabs-generation.ts
++++ b/hooks/use-textlabs-generation.ts
+@@ -40,6 +40,7 @@
+   type ThemeGenerationAuthority,
+   type ThemeReadinessResult,
+   type ThemeSyncState,
++  type ElementThemePreflightRetry,
+ } from '@/lib/theme-sync'
+ import { restoreBlankElementAfterFailure } from '@/lib/blank-element-recovery'
+ import { TEXTBOX_REQUEST_FIDELITY_ENABLED, textBoxResponseNotices } from '@/lib/textbox-request-fidelity'
+@@ -168,7 +169,7 @@
+   researchUserId?: string | null
+   researchCapabilities: ElementResearchCapabilities
+   getThemeSyncSnapshot: () => ThemeSyncState
+-  ensureThemeReady: (presentationId: string) => Promise<ThemeReadinessResult>
++  ensureThemeReady: (presentationId: string, retry?: ElementThemePreflightRetry) => Promise<ThemeReadinessResult>
+   toast: (opts: { title: string; description: string }) => void
+ }
+ 
+@@ -310,6 +311,39 @@
+   }
+   const renderPresentationTarget = activePresentationTargetRef.current
+ 
++  const themePreflightRecoveryEnabled = process.env.NEXT_PUBLIC_ELEMENT_THEME_PREFLIGHT_RECOVERY_ENABLED === 'true'
++  const themePreflightFailureRef = useRef<{
++    authority: ElementThemePreflightRetry
++    epoch: number
++    blankElementId: string
++    error: string
++  } | null>(null)
++  const recoveryTheme = themePreflightRecoveryEnabled ? getThemeSyncSnapshot() : null
++  useEffect(() => {
++    const failure = themePreflightFailureRef.current
++    if (!themePreflightRecoveryEnabled || !failure || !recoveryTheme) return
++    if (
++      presentationId !== failure.authority.presentationId
++      || renderPresentationTarget.epoch !== failure.epoch
++      || generationPanel.blankElementId !== failure.blankElementId
++      || !generationPanel.isOpen || generationPanel.mode !== 'generate'
++      || generationPanel.error !== failure.error
++      || recoveryTheme.requestId !== failure.authority.requestId
++      || recoveryTheme.presentationId !== failure.authority.presentationId
++      || recoveryTheme.themeFingerprint !== failure.authority.themeFingerprint
++    ) {
++      themePreflightFailureRef.current = null
++      return
++    }
++    if (recoveryTheme.status === 'applied' && !generationPanel.isGenerating) {
++      const notice = 'Deck theme is now ready. Try again to generate this element.'
++      if (failure.error !== notice) {
++        failure.error = notice
++        generationPanel.setError(notice)
++      }
++    }
++  }, [themePreflightRecoveryEnabled, recoveryTheme, presentationId, renderPresentationTarget.epoch, generationPanel])
++
+   const handleGenerate = useCallback(async (
+     formData: TextLabsFormData,
+     submitIntent: ElementGenerationSubmitIntent = 'generate',
+@@ -392,6 +426,14 @@
+       : `blank:${invocation ? 'direct' : generationPanel.blankElementId ?? 'direct'}`
+     if (activeGenerationKeysRef.current.has(generationKey)) return failureOutcome('Another generation is already active for this element.')
+     activeGenerationKeysRef.current.add(generationKey)
++    const failedPreflight = themePreflightFailureRef.current
++    const themeRetry = themePreflightRecoveryEnabled && submitIntent === 'retry'
++      && failedPreflight?.epoch === expectedPresentationTarget.epoch
++      && failedPreflight.authority.presentationId === expectedPresentationTarget.presentationId
++      && failedPreflight.blankElementId === generationPanel.blankElementId
++      && failedPreflight.error === generationPanel.error
++      ? failedPreflight.authority : undefined
++    themePreflightFailureRef.current = null
+ 
+     // Lock this panel's submit path before the async geometry lookup so a
+     // double-click cannot start two concurrent swaps for the same placeholder.
+@@ -566,7 +608,9 @@
+     if (requestedThemePresentationId) {
+       let readiness: ThemeReadinessResult
+       try {
+-        readiness = await ensureThemeReady(requestedThemePresentationId)
++        readiness = themeRetry
++          ? await ensureThemeReady(requestedThemePresentationId, themeRetry)
++          : await ensureThemeReady(requestedThemePresentationId)
+       } catch (error) {
+         readiness = {
+           ready: false,
+@@ -581,7 +625,26 @@
+         return failureOutcome()
+       }
+       if (!readiness.ready) {
++        // Pin the handshake that actually failed, rather than a later snapshot
++        // that could already name another request or a just-arrived Applied ACK.
++        const failedTheme = themePreflightRecoveryEnabled ? readiness.sync : null
++        if (
++          blankId && !refineContext
++          && (readiness.code === 'timeout' || readiness.code === 'failed')
++          && (readiness.code === 'timeout' || failedTheme?.error === readiness.error)
++          && failedTheme?.presentationId === requestedThemePresentationId
++          && failedTheme.requestId && failedTheme.themeFingerprint
++          && (failedTheme.status === 'syncing' || failedTheme.status === 'failed')
++        ) {
++          themePreflightFailureRef.current = {
++            authority: { presentationId: requestedThemePresentationId, requestId: failedTheme.requestId, themeFingerprint: failedTheme.themeFingerprint },
++            epoch: expectedPresentationTarget.epoch,
++            blankElementId: blankId,
++            error: readiness.error,
++          }
++        }
+         setGenerationError(readiness.error)
++
+         toast({
+           title: 'Deck theme not ready',
+           description: readiness.error,
+--- a/lib/element-generation-timeout.ts
++++ b/lib/element-generation-timeout.ts
+@@ -7,6 +7,9 @@
+ export const FAST_ELEMENT_GENERATION_TIMEOUT_MS = 30_000
+ export const PLANNED_ELEMENT_GENERATION_TIMEOUT_MS = 150_000
+ export const INFOGRAPHIC_GENERATION_TIMEOUT_MS = 300_000
++// Aggregate browser budget, including session acquisition and typed planning;
++// downstream clients retain their own shorter per-call timeout.
++export const TEXTBOX_PLANNED_GENERATION_TIMEOUT_MS = 180_000
+ 
+ const DIAGRAM_SUBTYPES = new Set<TextLabsDiagramRequestType>([
+   'CODE_DISPLAY',
+@@ -41,6 +44,11 @@
+ ): number {
+   if (componentType === 'INFOGRAPHIC') return INFOGRAPHIC_GENERATION_TIMEOUT_MS
+   if (isDiagramGenerationType(componentType)) return PLANNED_ELEMENT_GENERATION_TIMEOUT_MS
++  if (
++    process.env.NEXT_PUBLIC_TEXTBOX_PLANNED_TIMEOUT_ENABLED === 'true'
++    && componentType === 'TEXT_BOX'
++    && researchMode === 'off'
++  ) return TEXTBOX_PLANNED_GENERATION_TIMEOUT_MS
+   return researchMode === 'off'
+     ? FAST_ELEMENT_GENERATION_TIMEOUT_MS
+     : PLANNED_ELEMENT_GENERATION_TIMEOUT_MS
+--- a/lib/theme-sync.ts
++++ b/lib/theme-sync.ts
+@@ -10,6 +10,13 @@
+   error: string | null
+ }
+ 
++/** The failed authoritative handshake an explicit element Retry may recover. */
++export interface ElementThemePreflightRetry {
++  presentationId: string
++  themeFingerprint: string
++  requestId: string
++}
++
+ export type ThemeReadinessFailureCode =
+   | 'disconnected'
+   | 'failed'
+@@ -28,7 +35,7 @@
+       source: 'director' | 'layout' | 'neutral'
+       notice?: string
+     }
+-  | { ready: false; code: ThemeReadinessFailureCode; error: string }
++  | { ready: false; code: ThemeReadinessFailureCode; error: string; sync?: ThemeSyncState }
+ 
+ export interface PersistedThemeProbe {
+   source: 'layout' | 'neutral'
+@@ -51,6 +58,7 @@
+   pollIntervalMs?: number
+   now?: () => number
+   delay?: (milliseconds: number) => Promise<void>
++  captureFailureSync?: boolean
+ }
+ 
+ export const IDLE_THEME_SYNC: ThemeSyncState = {
+@@ -280,6 +288,7 @@
+   pollIntervalMs = 50,
+   now = Date.now,
+   delay = wait,
++  captureFailureSync = false,
+ }: WaitForAuthoritativeThemeOptions): Promise<ThemeReadinessResult> {
+   const initial = getSyncState()
+   if (
+@@ -373,6 +382,7 @@
+         ready: false,
+         code: 'failed',
+         error: current.error || 'Director could not apply the selected deck theme. Reapply it, then generate again.',
++        ...(captureFailureSync ? { sync: { ...current } } : {}),
+       }
+     }
+     if (now() - startedAt >= timeoutMs) {
+@@ -380,6 +390,7 @@
+         ready: false,
+         code: 'timeout',
+         error: 'Theme application timed out. Reapply the deck theme or reconnect, then generate again.',
++        ...(captureFailureSync ? { sync: { ...current } } : {}),
+       }
+     }
+ 

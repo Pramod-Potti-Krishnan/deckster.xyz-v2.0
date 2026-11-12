@@ -1,6 +1,7 @@
-import type { DirectorMessage, ActionRequest } from '@/hooks/use-deckster-websocket-v2'
+import type { DirectorMessage, ActionRequest, PresentationURL, SlideUpdate } from '@/hooks/use-deckster-websocket-v2'
 import type { DirectorTranscriptEntry } from '@/lib/director-transcript'
 import { directorHistoryTimestamp } from '@/lib/director-chat-history'
+import { STUDIO_ASK_CARD_IDENTITY_ENABLED, isApprovalGate, isAskAnswered } from '@/lib/director-ask-identity'
 
 const transportFields = new Set(['preview_url', 'presentation_url', 'url', 'preview_presentation_id', 'presentation_id'])
 
@@ -21,10 +22,15 @@ function outlineIdentity(message: DirectorMessage): { presentationId: string; co
   const presentationId = payload.metadata?.preview_presentation_id || payload.preview_presentation_id
     || payload.strawman?.preview_presentation_id || payload.presentation_id
   if (typeof presentationId !== 'string' || !presentationId.trim()) return null
+  return { presentationId, content: outlineContent(payload) }
+}
+
+// Every outline field except the viewer transport aliases, canonical.
+function outlineContent(payload: Record<string, any>): string {
   const content = Object.fromEntries(Object.entries(payload).filter(([key]) => !transportFields.has(key))
     .map(([key, value]) => [key, (key === 'metadata' || key === 'strawman') && value && typeof value === 'object'
       ? Object.fromEntries(Object.entries(value).filter(([field]) => !transportFields.has(field))) : value]))
-  return { presentationId, content: JSON.stringify(canonical(content)) }
+  return JSON.stringify(canonical(content))
 }
 
 // The native completed reconnect reconstructs narrative from saved notes, or
@@ -144,16 +150,92 @@ export function projectVerifiedOutlineReplay<T extends DirectorMessage>(
 
 export type HistoricalActionStatus = 'answered' | 'earlier'
 
+/** Reload fix R1/R2 (RUN-1 J1). Exact "true" enables it; default off, and then every status below is exactly today's. */
+export const STUDIO_HISTORY_ACTION_STATUS_ENABLED = process.env.NEXT_PUBLIC_STUDIO_HISTORY_ACTION_STATUS_ENABLED === 'true'
+
+/** A user turn of the transcript (a `UserChatMessage` fits). `timestamp` is epoch ms. */
+export interface HistoricalUserTurn {
+  readonly text?: string
+  readonly timestamp?: number
+}
+
+// The transcript orders a Director frame by its client arrival time when it has one (a replayed gate is re-stamped
+// on arrival, so it sorts after the turns that preceded the replay), else by its own timestamp.
+function transcriptTime(message: DirectorMessage): number {
+  const arrival = (message as DirectorMessage & { clientTimestamp?: unknown }).clientTimestamp
+  return typeof arrival === 'number' && Number.isFinite(arrival) ? arrival : directorHistoryTimestamp(message.timestamp)
+}
+
+function userReplies(messages: readonly DirectorMessage[], userTurns: readonly HistoricalUserTurn[]): { at: number; text: string }[] {
+  const replies: { at: number; text: string }[] = []
+  for (const turn of userTurns) {
+    if (typeof turn.timestamp === 'number' && Number.isFinite(turn.timestamp)) replies.push({ at: turn.timestamp, text: turn.text ?? '' })
+  }
+  // A user turn the Director replayed into the frame list is a persisted turn as well. It keeps its ORIGINAL time (the
+  // transcript sorts user entries by the frame timestamp); its arrival stamp (clientTimestamp) only says when the replay landed.
+  for (const message of messages) {
+    if (message.type !== 'chat_message' || (message as DirectorMessage & { role?: string }).role !== 'user') continue
+    const at = directorHistoryTimestamp(message.timestamp)
+    if (Number.isFinite(at)) replies.push({ at, text: String((message.payload as { text?: unknown } | undefined)?.text ?? '') })
+  }
+  return replies
+}
+
 /** Only native workflow gates have a proven successor: plan -> outline and
- * outline -> final. Arbitrary current questions/retry/edit choices remain live. */
+ * outline -> final. Arbitrary current questions/retry/edit choices remain live.
+ *
+ * With STUDIO_HISTORY_ACTION_STATUS_ENABLED and the transcript's user turns, a card is also 'answered' once a user turn
+ * follows it (after a reload nothing else records the answer). That is the only evidence: a deck, a position in the list
+ * or a later Director frame never retires a card, so a pending question, plan gate or "Generate final deck" stays live.
+ * A native gate is answered by its own button echo (the turn text is one of its labels); free text sent while it is
+ * pending is not an answer. Pure: it never writes `answeredIds`.
+ *
+ * With STUDIO_ASK_CARD_IDENTITY_ENABLED an answer belongs to the ask instance, not to a reused id, and only the newest approval
+ * gate of a session can stay live. (The build lock lives in lockApprovalGateStatuses, applied by the callers.) */
 export function historicalActionStatuses(
   messages: readonly DirectorMessage[],
   answeredIds: ReadonlySet<string>,
+  userTurns?: readonly HistoricalUserTurn[],
+): Map<string, HistoricalActionStatus> {
+  const statuses = baseHistoricalActionStatuses(messages, answeredIds, userTurns)
+  if (STUDIO_ASK_CARD_IDENTITY_ENABLED) retireSupersededApprovalGates(messages, statuses)
+  return statuses
+}
+
+// Supersession (NEW-E1). Director re-sends the outline gate under a new id on every reconnect while the outline is unapproved,
+// so a restored session holds several. Every approval gate older than the newest of its session is an earlier step. A card
+// without a usable time never compares as older, so it cannot be retired by accident.
+function retireSupersededApprovalGates(
+  messages: readonly DirectorMessage[],
+  statuses: Map<string, HistoricalActionStatus>,
+): void {
+  const bySession = new Map<string, { id: string; time: number }[]>()
+  for (const message of messages) {
+    if (message.type !== 'action_request' || !isApprovalGate((message as ActionRequest).payload?.actions)) continue
+    const gates = bySession.get(message.session_id ?? '') ?? []
+    gates.push({ id: message.message_id, time: transcriptTime(message) })
+    bySession.set(message.session_id ?? '', gates)
+  }
+  for (const gates of bySession.values()) {
+    let newest: { id: string; time: number } | undefined
+    for (const gate of gates) if (Number.isFinite(gate.time) && (!newest || gate.time >= newest.time)) newest = gate
+    for (const gate of gates) {
+      if (statuses.has(gate.id)) continue
+      // An id is judged by its newest entry: two entries of ONE id are one ask, never each other's successor.
+      if (newest && gate.id !== newest.id && Number.isFinite(gate.time)) statuses.set(gate.id, 'earlier')
+    }
+  }
+}
+
+function baseHistoricalActionStatuses(
+  messages: readonly DirectorMessage[],
+  answeredIds: ReadonlySet<string>,
+  userTurns?: readonly HistoricalUserTurn[],
 ): Map<string, HistoricalActionStatus> {
   const statuses = new Map<string, HistoricalActionStatus>()
   for (const message of messages) {
     if (message.type !== 'action_request') continue
-    if (answeredIds.has(message.message_id)) { statuses.set(message.message_id, 'answered'); continue }
+    if (isAskAnswered(answeredIds, message)) { statuses.set(message.message_id, 'answered'); continue }
     const actions = (message as ActionRequest).payload.actions
     const planGate = actions.some(action => action.value === 'accept_plan')
     const outlineGate = actions.some(action => action.value === 'accept_strawman')
@@ -177,5 +259,95 @@ export function historicalActionStatuses(
       }
     }
   }
+  if (!STUDIO_HISTORY_ACTION_STATUS_ENABLED || !userTurns) return statuses
+  const replies = userReplies(messages, userTurns)
+  for (const message of messages) {
+    if (message.type !== 'action_request' || statuses.has(message.message_id)) continue
+    const at = transcriptTime(message)
+    const actions = (message as ActionRequest).payload?.actions ?? []
+    const nativeGate = actions.some(action => action.value === 'accept_plan' || action.value === 'accept_strawman')
+    const labels = new Set(actions.map(action => action.label.trim()))
+    // A card or a turn without a usable time (NaN) never compares as earlier, so it cannot be answered by accident.
+    if (replies.some(reply => reply.at > at && (!nativeGate || labels.has(reply.text.trim())))) statuses.set(message.message_id, 'answered')
+  }
   return statuses
+}
+
+/** PASS2 #4: outline review on the canvas (NEXT_PUBLIC_STUDIO_OUTLINE_CANVAS). Exact "true" enables it; default off, and then
+ * nothing below runs. Declared here so the transcript (MessageList) reads it without a new dependency; lib/studio-outline-canvas
+ * re-exports it for the canvas. */
+export const STUDIO_OUTLINE_CANVAS_ENABLED = process.env.NEXT_PUBLIC_STUDIO_OUTLINE_CANVAS === 'true'
+
+/** A real outline (not the blank deck's initialisation frame): a full slide_update with at least one slide. */
+export function isOutlineFrame(message: DirectorMessage | null | undefined): message is SlideUpdate {
+  if (!message || message.type !== 'slide_update') return false
+  const payload = (message as SlideUpdate).payload as SlideUpdate['payload'] | undefined
+  return Boolean(payload && typeof payload === 'object' && payload.is_blank !== true
+    && (payload.operation === undefined || payload.operation === 'full_update')
+    && Array.isArray(payload.slides) && payload.slides.length > 0)
+}
+
+/** How an outline card in chat relates to the outline on the canvas (flag on, only while the canvas shows one).
+ *  'canvas': the canvas shows this outline. Either it is the very frame, or a copy with the same content: while the outline waits
+ *    for approval Director re-sends it under a new id on every reconnect (websocket.py _replay_strawman_review), the transcript
+ *    draws only the first copy of a user turn (coalesceOutlineStateReplays), and the canvas pairs the live gate with the newest copy.
+ *  'earlier': an older outline with different content (a refinement, or the outline Director re-sent changed after a failed
+ *    build). The canvas outline replaced it.
+ *  null: nothing on the canvas, a later outline or another session's. Content is compared as coalescing compares it: every
+ *  outline field except the viewer transport aliases. */
+export function outlineCanvasRelation(
+  card: DirectorMessage,
+  canvas: DirectorMessage | null | undefined,
+  canvasId: string | null | undefined,
+): 'canvas' | 'earlier' | null {
+  if (!canvasId) return null
+  if (card.message_id === canvasId) return 'canvas'
+  if (!canvas || !isOutlineFrame(card) || !isOutlineFrame(canvas)) return null
+  if (card.session_id && canvas.session_id && card.session_id !== canvas.session_id) return null
+  if (outlineContent(card.payload as Record<string, any>) === outlineContent(canvas.payload as Record<string, any>)) return 'canvas'
+  const time = transcriptTime(card), canvasTime = transcriptTime(canvas)
+  return Number.isFinite(time) && Number.isFinite(canvasTime) && time <= canvasTime ? 'earlier' : null
+}
+
+/** The deck an outline frame points at, read in the WebSocket hook's order. */
+export function outlineDeckIdentity(message: SlideUpdate): { id: string | null; url: string | null } {
+  const payload = (message.payload ?? {}) as Record<string, any>
+  const text = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null)
+  return {
+    id: text(payload.metadata?.preview_presentation_id) ?? text(payload.preview_presentation_id)
+      ?? text(payload.strawman?.preview_presentation_id) ?? text(payload.presentation_id),
+    url: text(payload.preview_url) ?? text(payload.metadata?.preview_url) ?? text(payload.strawman?.preview_url) ?? text(payload.url),
+  }
+}
+
+/** A Director reconnect to a BUILT session re-sends the deck's structure as a fresh slide_update (new id, the reconnect's
+ * timestamp; Director websocket.py: "the frame is idempotent state, not a review surface"). Studio persisted it and drew it as a
+ * new outline card, so after a reload it sorted below "Your presentation is ready" and "What would you like to do next?".
+ * With the flag on, an outline frame for a deck the transcript already completed (an earlier presentation_url frame with the same
+ * deck id or URL) is not drawn, provided an earlier outline frame exists, so the outline never disappears from the chat.
+ * Display only: the WebSocket state still takes the frame. Entries arrive sorted; returns the SAME array when nothing is dropped. */
+export function hideBuiltDeckStructureResends<T extends { messageType: string }>(entries: T[]): T[] {
+  const completedIds = new Set<string>()
+  const completedUrls = new Set<string>()
+  let outlineSeen = false
+  let dropped = false
+  const kept = entries.filter(entry => {
+    if (entry.messageType !== 'bot') return true
+    const message = entry as unknown as DirectorMessage
+    if (message.type === 'presentation_url') {
+      const payload = ((message as PresentationURL).payload ?? {}) as Partial<PresentationURL['payload']>
+      if (typeof payload.presentation_id === 'string' && payload.presentation_id.trim()) completedIds.add(payload.presentation_id.trim())
+      if (typeof payload.url === 'string' && payload.url.trim()) completedUrls.add(payload.url.trim())
+      return true
+    }
+    if (!isOutlineFrame(message)) return true
+    const { id, url } = outlineDeckIdentity(message)
+    if (outlineSeen && ((id !== null && completedIds.has(id)) || (url !== null && completedUrls.has(url)))) {
+      dropped = true
+      return false
+    }
+    outlineSeen = true
+    return true
+  })
+  return dropped ? kept : entries
 }

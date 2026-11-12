@@ -1,0 +1,180 @@
+{
+ "name": "director-flag-off-new-session",
+ "description": "Director's restore flag off, a new session: initial theme_sync, the blank deck (presentation_init), the greeting; no restored frame. Flag on: nothing is sent until the greeting, which is the fallback signal; then today's socket-ready {mode:auto} goes out once. Base / flag off: the same {mode:auto} as soon as the blank deck is known.",
+ "source": "Director 50772ff connect handler via THEME-2 support module (generator in the evidence folder), sha256 17410d071e9c1b29da3fdb7c9363a672be636825765a5ebf3358d68740c06c84 (new_off: both Director flags off)",
+ "session": {
+  "id": "sess-new-off",
+  "userId": "synthetic-user-01"
+ },
+ "ackTemplate": [
+  {
+   "type": "theme_sync",
+   "session_id": "sess-themed-cl",
+   "timestamp": "2026-10-13T23:09:31.689734Z",
+   "payload": {
+    "request_id": "__REQ__",
+    "status": "syncing",
+    "presentation_id": "deck-themed-cl",
+    "theme": {
+     "mode": "auto"
+    }
+   }
+  },
+  {
+   "type": "theme_sync",
+   "session_id": "sess-themed-cl",
+   "timestamp": "2026-10-13T23:09:31.689741Z",
+   "payload": {
+    "request_id": "__REQ__",
+    "status": "applied",
+    "presentation_id": "deck-themed-cl",
+    "theme": {
+     "mode": "auto"
+    },
+    "theme_session_id": "ts-ack"
+   }
+  }
+ ],
+ "steps": [
+  {
+   "op": "ensureConnected"
+  },
+  {
+   "op": "open"
+  },
+  {
+   "op": "frame",
+   "frame": {
+    "type": "theme_sync",
+    "session_id": "sess-new-off",
+    "timestamp": "2026-10-13T23:09:31.686629Z",
+    "payload": {
+     "request_id": "initial:blank-pres-1",
+     "status": "applied",
+     "presentation_id": "blank-pres-1",
+     "theme": {
+      "mode": "auto"
+     },
+     "theme_session_id": "theme-sess-1"
+    }
+   }
+  },
+  {
+   "op": "frame",
+   "frame": {
+    "message_id": "msg_ceff72f3",
+    "session_id": "sess-new-off",
+    "timestamp": "2026-10-13T23:09:31.686692Z",
+    "type": "presentation_init",
+    "role": "assistant",
+    "payload": {
+     "operation": "full_update",
+     "metadata": {
+      "main_title": "Untitled Presentation",
+      "overall_theme": "",
+      "design_suggestions": "",
+      "target_audience": "",
+      "presentation_duration": 0,
+      "preview_url": "https://layout.example.com/p/blank-pres-1",
+      "preview_presentation_id": "blank-pres-1"
+     },
+     "slides": [
+      {
+       "slide_id": "blank_slide_1",
+       "slide_number": 1,
+       "slide_type": "title_slide",
+       "title": "",
+       "subtitle": "",
+       "narrative": "",
+       "key_points": [],
+       "variant_id": "H1s",
+       "service": "text",
+       "purpose": "title_slide",
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": null,
+       "container_layout": null,
+       "speaker_notes": null
+      }
+     ],
+     "affected_slides": null,
+     "is_blank": true
+    }
+   }
+  },
+  {
+   "op": "checkpoint",
+   "label": "blank deck, no restore"
+  },
+  {
+   "op": "expect",
+   "on": {
+    "setTheme": 0,
+    "gatePhase": "waiting"
+   },
+   "off": {
+    "setTheme": 1,
+    "lastSetTheme": {
+     "mode": "auto"
+    }
+   }
+  },
+  {
+   "op": "frame",
+   "frame": {
+    "message_id": "msg_b8224827",
+    "session_id": "sess-new-off",
+    "timestamp": "2026-10-13T23:09:31.689532Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Hello! I'm your presentation assistant. I can help you create professional presentations. What topic would you like to present on?",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  },
+  {
+   "op": "checkpoint",
+   "label": "greeting: fallback"
+  },
+  {
+   "op": "expect",
+   "on": {
+    "setTheme": 1,
+    "lastSetTheme": {
+     "mode": "auto"
+    },
+    "gatePhase": "fallback"
+   },
+   "off": {
+    "setTheme": 1
+   }
+  },
+  {
+   "op": "themeAck"
+  },
+  {
+   "op": "checkpoint",
+   "label": "auto applied"
+  },
+  {
+   "op": "expect",
+   "on": {
+    "setTheme": 1,
+    "themeSyncStatus": "applied"
+   },
+   "off": {
+    "setTheme": 1,
+    "themeSyncStatus": "applied"
+   }
+  }
+ ],
+ "env": {
+  "NEXT_PUBLIC_LAYOUT_SERVICE_URL": "https://layout.example.com"
+ }
+}

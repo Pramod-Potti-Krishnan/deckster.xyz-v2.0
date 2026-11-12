@@ -1,0 +1,117 @@
+{
+  "case": "01-delete-ok",
+  "user_message": {
+    "text": "Delete this chart",
+    "client_caps": [
+      "mdc1",
+      "element_edit1",
+      "notes1",
+      "undo1"
+    ],
+    "references": [
+      {
+        "kind": "element",
+        "element_id": "chart_c3",
+        "element_type": "CHART",
+        "slide_index": 2,
+        "slide_id": "L2",
+        "label": "Chart \u00b7 slide 3"
+      }
+    ]
+  },
+  "decision": {
+    "action_type": "edit_element",
+    "reasoning": "scripted",
+    "confidence": 0.95,
+    "requires_approval": false,
+    "target_slide_indices": [
+      2
+    ],
+    "edit_op": "delete"
+  },
+  "frames_in": [
+    {
+      "type": "element_edit_result",
+      "payload": {
+        "directive_id": "ele_2b48e91d20b3",
+        "ok": true
+      }
+    }
+  ],
+  "frames_out": [
+    [
+      {
+        "message_id": "msg_eedit_0d0080ad",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:21:57.839442Z",
+        "type": "element_edit",
+        "role": "assistant",
+        "payload": {
+          "directive_id": "ele_2b48e91d20b3",
+          "session_id": "s_e2e",
+          "presentation_id": "pres-e2e",
+          "slide_id": "L2",
+          "slide_index": 2,
+          "element_id": "chart_c3",
+          "op": "delete"
+        }
+      },
+      {
+        "message_id": "msg_7da0f5b1",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:21:57.841225Z",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Deleting the chart on slide 3.",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      }
+    ],
+    [
+      {
+        "message_id": "msg_48529c69",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:21:57.846384Z",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Done. The chart on slide 3 is deleted.",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      },
+      {
+        "message_id": "msg_chg_5c8db248",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:21:57.853414Z",
+        "type": "change_recorded",
+        "role": "assistant",
+        "payload": {
+          "change_id": "chg_128c2adb1ca5",
+          "label": "Edited the chart on slide 3",
+          "kind": "element_edited",
+          "presentation_id": "pres-e2e",
+          "undoable": true,
+          "anchor_message_id": "msg_48529c69"
+        }
+      }
+    ]
+  ],
+  "chat_lines": [
+    "Deleting the chart on slide 3.",
+    "Done. The chart on slide 3 is deleted."
+  ],
+  "layout_calls": [
+    "GET /api/presentations/pres-e2e",
+    "PUT /api/presentations/pres-e2e",
+    "GET /api/presentations/pres-e2e/versions",
+    "GET /api/presentations/pres-e2e",
+    "GET /api/presentations/pres-e2e/versions"
+  ]
+}

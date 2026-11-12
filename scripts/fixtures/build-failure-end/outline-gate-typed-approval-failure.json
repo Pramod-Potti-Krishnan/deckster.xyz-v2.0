@@ -1,0 +1,596 @@
+{
+ "name": "build-failure-end",
+ "description": "E2E-2 Pass A, session c51e789c (27 Oct 01:57Z): a typed outline approval falls through to the legacy invoke_tools, its tools fail, Director answers with one chat message. Studio kept \"Building your slides... 0 of 5 built\" with Pause / Stop.",
+ "source": {
+  "director": "Director uat 32e929a6 (streams/director2/build-failure-frames/FINDINGS.md, a $0 code read by DIRECTOR-2); the same functions in the director2-approval worktree: src/handlers/websocket.py _handle_invoke_tools (6301-6355: _send_status \"Generating presentation content...\" 6314, the honest-replies chat 6346-6350), _send_chat (6987), _send_status (10396), _send_token_usage (11081); src/models/websocket_messages.py create_status_update (1075), create_chat_message (950), create_token_usage (1433).",
+  "shapes": "the outline slide_update and the approval card are Director's recorded frames from scripts/fixtures/build-resume/j7-stop-resume.json (real Director code, keyless), with E2E-2's five slide titles; the status_update, chat_message and token_usage are built with those create_* helpers' field names; the failure text is E2E-2's (RESULTS.md line 19); token counts are synthetic.",
+  "derived": "pause_ack / resume_ack: the recorded stop acknowledgement of the J7 fixture (a build_phase for the same build id) with phase \"paused\" / \"building\"; Director's real pause and resume acknowledgements are the same frame type.",
+  "recording": "DIRECTOR-2's offline recording of this turn had not landed when this was written; the frame order here is its FINDINGS.md."
+ },
+ "session": {
+  "id": "synthetic-5e2675b8",
+  "userId": "synthetic-user"
+ },
+ "frames": {
+  "outline": [
+   {
+    "message_id": "msg_bfe_outline",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T01:57:30.100000Z",
+    "type": "slide_update",
+    "role": "assistant",
+    "payload": {
+     "operation": "full_update",
+     "metadata": {
+      "main_title": "Cutting food waste with smarter ordering",
+      "overall_theme": "professional",
+      "design_suggestions": "",
+      "target_audience": "general",
+      "presentation_duration": 15,
+      "preview_url": "https://layout.synthetic.invalid/p/synthetic-5e2675b8-outline",
+      "preview_presentation_id": "synthetic-5e2675b8-outline"
+     },
+     "slides": [
+      {
+       "slide_id": "s1",
+       "slide_number": 1,
+       "slide_type": "content",
+       "title": "Cutting Food Waste With Smarter Ordering",
+       "subtitle": null,
+       "narrative": "Key content about Cutting Food Waste With Smarter Ordering",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      },
+      {
+       "slide_id": "s2",
+       "slide_number": 2,
+       "slide_type": "content",
+       "title": "Precision Ordering",
+       "subtitle": null,
+       "narrative": "Key content about Precision Ordering",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      },
+      {
+       "slide_id": "s3",
+       "slide_number": 3,
+       "slide_type": "content",
+       "title": "The Three-Step Protocol",
+       "subtitle": null,
+       "narrative": "Key content about The Three-Step Protocol",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      },
+      {
+       "slide_id": "s4",
+       "slide_number": 4,
+       "slide_type": "content",
+       "title": "The Risks of Cutting Orders Too Deep",
+       "subtitle": null,
+       "narrative": "Key content about The Risks of Cutting Orders Too Deep",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      },
+      {
+       "slide_id": "s5",
+       "slide_number": 5,
+       "slide_type": "content",
+       "title": "Next Steps",
+       "subtitle": null,
+       "narrative": "Key content about Next Steps",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      }
+     ],
+     "affected_slides": null,
+     "is_blank": false
+    }
+   },
+   {
+    "message_id": "msg_bfe_outline_card",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T01:57:31.100000Z",
+    "type": "action_request",
+    "role": "assistant",
+    "payload": {
+     "prompt_text": "Does this outline look good, or would you like to make changes?",
+     "actions": [
+      {
+       "label": "Looks perfect!",
+       "value": "accept_strawman",
+       "primary": true,
+       "requires_input": false
+      },
+      {
+       "label": "Make some changes",
+       "value": "request_refinement",
+       "primary": false,
+       "requires_input": false
+      }
+     ]
+    }
+   }
+  ],
+  "failing_turn": [
+   {
+    "message_id": "msg_bfe_status",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T01:57:42.100000Z",
+    "type": "status_update",
+    "role": "assistant",
+    "payload": {
+     "status": "thinking",
+     "text": "Generating presentation content...",
+     "progress": null,
+     "estimated_time": null
+    }
+   },
+   {
+    "message_id": "msg_bfe_failure",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T01:57:48.100000Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "I couldn't finish generating the content: text.generate hero title, text.generate content, text.generate hero closing didn't complete, so the presentation isn't ready yet and I haven't marked it as built. You can ask me to try again.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   },
+   {
+    "message_id": "msg_bfe_usage",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-27T01:57:48.100000Z",
+    "type": "token_usage",
+    "role": "assistant",
+    "payload": {
+     "turn": {
+      "tokens_in": 1500,
+      "tokens_out": 120,
+      "total_tokens": 1620,
+      "cached_tokens_in": 0,
+      "reasoning_tokens": 0,
+      "per_stage": []
+     },
+     "session": {
+      "tokens_in": 21665,
+      "tokens_out": 3220,
+      "total_tokens": 24885,
+      "cached_tokens_in": 0,
+      "reasoning_tokens": 0,
+      "per_stage": []
+     },
+     "coverage": "partial",
+     "action_type": "invoke_tools"
+    }
+   }
+  ],
+  "pause_ack": [
+   {
+    "message_id": "msg_bfe_pause_ack",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.628998Z",
+    "type": "build_phase",
+    "role": "assistant",
+    "payload": {
+     "build_id": "bld_46a5295c9574",
+     "phase": "paused",
+     "label": "Paused",
+     "slide_count": 3,
+     "slides_done": 0,
+     "auto_proceed": null,
+     "presentation_id": null,
+     "control_request_id": "synthetic-stop-request-1"
+    }
+   }
+  ],
+  "resume_ack": [
+   {
+    "message_id": "msg_bfe_resume_ack",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.628998Z",
+    "type": "build_phase",
+    "role": "assistant",
+    "payload": {
+     "build_id": "bld_46a5295c9574",
+     "phase": "building",
+     "label": "Building your slides…",
+     "slide_count": 3,
+     "slides_done": 0,
+     "auto_proceed": null,
+     "presentation_id": null,
+     "control_request_id": "synthetic-stop-request-1"
+    }
+   }
+  ]
+ },
+ "scenarios": {
+  "typed-approval-fails": [
+   {
+    "op": "ensureConnected"
+   },
+   {
+    "op": "open"
+   },
+   {
+    "op": "frames",
+    "from": "outline",
+    "comment": "the outline (5 slides) and the approval card ('Does this outline look good?')"
+   },
+   {
+    "op": "expect",
+    "label": "outline gate",
+    "off/off": {
+     "phase": "awaiting_user",
+     "active": true
+    },
+    "off/on": {
+     "phase": "awaiting_user",
+     "active": true
+    }
+   },
+   {
+    "op": "checkpoint",
+    "label": "outline gate"
+   },
+   {
+    "op": "typed",
+    "text": "Looks perfect, go ahead.",
+    "comment": "not the exact J1 phrase: Director falls through to the legacy invoke_tools"
+   },
+   {
+    "op": "frames",
+    "from": "failing_turn",
+    "start": 0,
+    "end": 1,
+    "comment": "status_update thinking \"Generating presentation content...\" (sent before the tools run)"
+   },
+   {
+    "op": "expect",
+    "label": "the status is on screen: building (both)",
+    "off/off": {
+     "phase": "building",
+     "active": true,
+     "ribbon": true,
+     "button": "Stop"
+    },
+    "off/on": {
+     "phase": "building",
+     "active": true,
+     "ribbon": true,
+     "button": "Stop"
+    }
+   },
+   {
+    "op": "checkpoint",
+    "label": "status on screen"
+   },
+   {
+    "op": "advance",
+    "ms": 7000,
+    "comment": "the tools run (7 s on E2E-2's run)"
+   },
+   {
+    "op": "frames",
+    "from": "failing_turn",
+    "start": 1,
+    "comment": "the failure chat_message, then token_usage; no terminal frame"
+   },
+   {
+    "op": "expect",
+    "label": "after the failure reply",
+    "off/off": {
+     "phase": "building",
+     "active": true,
+     "ribbon": true,
+     "button": "Stop"
+    },
+    "off/on": {
+     "phase": "idle",
+     "active": false,
+     "ribbon": false,
+     "noButton": "Stop"
+    }
+   },
+   {
+    "op": "advance",
+    "ms": 150000,
+    "comment": "two and a half minutes later (E2E-2 pressed Stop at +2 min 17 s)"
+   },
+   {
+    "op": "expect",
+    "label": "two and a half minutes later",
+    "off/off": {
+     "phase": "building",
+     "active": true,
+     "ribbon": true,
+     "button": "Stop"
+    },
+    "off/on": {
+     "phase": "idle",
+     "active": false,
+     "ribbon": false,
+     "noButton": "Stop"
+    }
+   },
+   {
+    "op": "checkpoint",
+    "label": "end"
+   }
+  ],
+  "real-build-after-the-failure": [
+   {
+    "op": "ensureConnected"
+   },
+   {
+    "op": "open"
+   },
+   {
+    "op": "frames",
+    "from": "outline",
+    "comment": "the outline (5 slides) and the approval card ('Does this outline look good?')"
+   },
+   {
+    "op": "expect",
+    "label": "outline gate",
+    "off/off": {
+     "phase": "awaiting_user",
+     "active": true
+    },
+    "off/on": {
+     "phase": "awaiting_user",
+     "active": true
+    }
+   },
+   {
+    "op": "typed",
+    "text": "Looks perfect, go ahead.",
+    "comment": "not the exact J1 phrase: Director falls through to the legacy invoke_tools"
+   },
+   {
+    "op": "frames",
+    "from": "failing_turn",
+    "start": 0,
+    "end": 1,
+    "comment": "status_update thinking \"Generating presentation content...\" (sent before the tools run)"
+   },
+   {
+    "op": "expect",
+    "label": "the status is on screen: building (both)",
+    "off/off": {
+     "phase": "building",
+     "active": true,
+     "ribbon": true,
+     "button": "Stop"
+    },
+    "off/on": {
+     "phase": "building",
+     "active": true,
+     "ribbon": true,
+     "button": "Stop"
+    }
+   },
+   {
+    "op": "advance",
+    "ms": 7000,
+    "comment": "the tools run (7 s on E2E-2's run)"
+   },
+   {
+    "op": "frames",
+    "from": "failing_turn",
+    "start": 1,
+    "comment": "the failure chat_message, then token_usage; no terminal frame"
+   },
+   {
+    "op": "expect",
+    "label": "after the failure reply",
+    "off/off": {
+     "phase": "building",
+     "active": true,
+     "ribbon": true,
+     "button": "Stop"
+    },
+    "off/on": {
+     "phase": "idle",
+     "active": false,
+     "ribbon": false,
+     "noButton": "Stop"
+    }
+   },
+   {
+    "op": "advance",
+    "ms": 150000,
+    "comment": "two and a half minutes later (E2E-2 pressed Stop at +2 min 17 s)"
+   },
+   {
+    "op": "expect",
+    "label": "two and a half minutes later",
+    "off/off": {
+     "phase": "building",
+     "active": true,
+     "ribbon": true,
+     "button": "Stop"
+    },
+    "off/on": {
+     "phase": "idle",
+     "active": false,
+     "ribbon": false,
+     "noButton": "Stop"
+    }
+   },
+   {
+    "op": "typed",
+    "text": "Try again."
+   },
+   {
+    "op": "frames",
+    "from": "j7_live_stop",
+    "end": 12,
+    "comment": "a real build: typed build_phase frames, the status, Slide Builder hand-off (the J7 recording)"
+   },
+   {
+    "op": "expect",
+    "label": "a real build after the failure",
+    "off/off": {
+     "phase": "building",
+     "active": true,
+     "ribbon": true,
+     "button": "Stop"
+    },
+    "off/on": {
+     "phase": "building",
+     "active": true,
+     "ribbon": true,
+     "button": "Stop"
+    }
+   },
+   {
+    "op": "checkpoint",
+    "label": "end"
+   }
+  ],
+  "pause-and-resume-a-real-build": [
+   {
+    "op": "ensureConnected"
+   },
+   {
+    "op": "open"
+   },
+   {
+    "op": "frames",
+    "from": "j7_live_stop",
+    "end": 12,
+    "comment": "planning, outline, content generation, Slide Builder hand-off, slide 1 starts rendering"
+   },
+   {
+    "op": "expect",
+    "label": "building",
+    "off/off": {
+     "phase": "building",
+     "ribbon": true,
+     "button": "Pause"
+    },
+    "off/on": {
+     "phase": "building",
+     "ribbon": true,
+     "button": "Pause"
+    }
+   },
+   {
+    "op": "click",
+    "text": "Pause"
+   },
+   {
+    "op": "ack",
+    "from": "pause_ack",
+    "index": 0
+   },
+   {
+    "op": "expect",
+    "label": "paused",
+    "off/off": {
+     "phase": "paused",
+     "ribbon": true,
+     "button": "Resume"
+    },
+    "off/on": {
+     "phase": "paused",
+     "ribbon": true,
+     "button": "Resume"
+    }
+   },
+   {
+    "op": "advance",
+    "ms": 30000
+   },
+   {
+    "op": "expect",
+    "label": "still paused 30 s later",
+    "off/off": {
+     "phase": "paused",
+     "ribbon": true,
+     "button": "Resume"
+    },
+    "off/on": {
+     "phase": "paused",
+     "ribbon": true,
+     "button": "Resume"
+    }
+   },
+   {
+    "op": "click",
+    "text": "Resume"
+   },
+   {
+    "op": "ack",
+    "from": "resume_ack",
+    "index": 0
+   },
+   {
+    "op": "expect",
+    "label": "resumed",
+    "off/off": {
+     "phase": "building",
+     "ribbon": true,
+     "button": "Stop"
+    },
+    "off/on": {
+     "phase": "building",
+     "ribbon": true,
+     "button": "Stop"
+    }
+   },
+   {
+    "op": "checkpoint",
+    "label": "end"
+   }
+  ]
+ }
+}

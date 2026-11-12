@@ -1,0 +1,63 @@
+/* NEXT_PUBLIC_STUDIO_INTELLIGENCE_POLISH. Everything here styles markup that exists only with the flag on (the sp-ip-* classes), or is scoped to
+   [data-intelligence-polish], which only the flagged page carries. With the flag off no element matches, so the page is unchanged. */
+.sp-ip-bar { flex-wrap: wrap; gap: 8px 16px; }
+.sp-ip-bar-end { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px 10px; margin-left: auto; }
+.sp-ip-scope-group { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; min-width: 0; }
+.sp-ip-scope { border-radius: 10px; background: var(--sp-panel); }
+.sp-ip-scope button { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 4px 13px; border-radius: 7px; font-weight: 600; }
+.sp-ip-scope button[aria-pressed="true"] { background: var(--sp-active); }
+.sp-ip-scope button:disabled { opacity: .55; }
+.sp-ip-scope-note { color: var(--sp-muted); font-size: 10px; }
+.sp-ip-readiness-trigger { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border: 1px solid var(--sp-line); border-radius: 9px; background: var(--sp-panel); color: var(--sp-text); font-size: 11px; font-weight: 600; white-space: nowrap; }
+.sp-ip-readiness-trigger > svg:first-child { color: var(--sp-accent); }
+.sp-ip-readiness-trigger small { padding: 2px 6px; border-radius: 6px; background: var(--sp-active); color: var(--sp-muted); font-size: 10px; font-weight: 500; }
+.sp-ip-readiness-trigger[data-open="true"] { border-color: var(--sp-accent); }
+.sp-ip-readiness-trigger[data-open="true"] > svg:last-child { transform: rotate(180deg); }
+.sp-ip-pill[data-state="kept"] svg { color: var(--sp-teal); }
+.sp-ip-pill[data-state="session"] { border-color: color-mix(in srgb, #ba7950 55%, var(--sp-line)); color: var(--sp-text); }
+.sp-ip-pill[data-state="session"] svg { color: #ba7950; }
+.sp-ip-pill > span { background: var(--sp-muted); opacity: .55; }
+.sp-ip-popup { position: fixed; z-index: 1500; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--sp-line); border-radius: 14px; background: var(--sp-panel); color: var(--sp-text); box-shadow: 0 18px 65px #172c3030; }
+.sp-ip-popup > header { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 12px; padding: 16px 18px; background: var(--sp-panel); border-bottom: 1px solid var(--sp-line); }
+.sp-ip-popup > header > div { flex: 1; min-width: 0; }
+.sp-ip-popup > header h2 { font-size: 16px; font-weight: 600; letter-spacing: -.3px; margin-bottom: 3px; }
+.sp-ip-popup > header p { color: var(--sp-muted); font-size: 11px; line-height: 1.4; }
+.sp-ip-popup-mark { display: grid; place-items: center; flex-shrink: 0; width: 38px; height: 38px; border-radius: 11px; background: var(--sp-active); color: var(--sp-accent); }
+.sp-ip-popup-body { padding: 16px 18px 18px; }
+.sp-ip-popup-summary { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.sp-ip-popup-summary strong { font-size: 12px; }
+.sp-ip-popup-summary span { color: var(--sp-muted); font-size: 10px; }
+.sp-ip-collections { border: 1px solid var(--sp-line); border-radius: 10px; overflow: hidden; }
+.sp-ip-collections section { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: start; gap: 11px; padding: 13px 12px; border-bottom: 1px solid var(--sp-line); }
+.sp-ip-collections section:last-child { border-bottom: 0; }
+.sp-ip-collections section > svg { margin-top: 2px; color: var(--sp-muted); }
+.sp-ip-collections strong { display: block; font-size: 12px; }
+.sp-ip-collections section > div span { display: block; margin-top: 3px; color: var(--sp-muted); font-size: 10px; line-height: 1.5; }
+.sp-ip-collections small { color: var(--sp-muted); font-size: 10px; white-space: nowrap; }
+.sp-ip-popup-note { margin: 12px 0 !important; color: var(--sp-muted); font-size: 10px; line-height: 1.6; }
+.sp-ip-popup-details { border-top: 1px solid var(--sp-line); padding-top: 11px; }
+.sp-ip-popup-details summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; font-size: 11px; list-style: none; }
+.sp-ip-popup-details summary::-webkit-details-marker { display: none; }
+.sp-ip-popup-details[open] summary > svg { transform: rotate(180deg); }
+.sp-ip-popup-details p { margin: 9px 0 0; color: var(--sp-muted); font-size: 10px; line-height: 1.65; }
+.sp-ip-managed { margin-top: 12px; border: 1px solid var(--sp-line); border-radius: 10px; background: var(--sp-panel); overflow: hidden; }
+.sp-ip-managed summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 14px; cursor: pointer; list-style: none; }
+.sp-ip-managed summary::-webkit-details-marker { display: none; }
+.sp-ip-managed summary > span { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+.sp-ip-managed summary strong { font-weight: 600; }
+.sp-ip-managed summary small { color: var(--sp-muted); font-size: 10px; font-weight: 400; }
+.sp-ip-managed[open] summary > svg { transform: rotate(180deg); }
+.sp-ip-managed-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 14px; border-top: 1px solid var(--sp-line); }
+.sp-ip-managed-grid > div { min-width: 0; }
+.sp-ip-managed-grid svg { color: var(--sp-muted); }
+.sp-ip-managed-grid h3 { margin: 7px 0 3px; font-size: 11px; font-weight: 600; }
+.sp-ip-managed-grid p { color: var(--sp-muted); font-size: 10px; line-height: 1.5; }
+[data-intelligence-polish] .sp-draft-actions .sp-feedback { margin-left: 0; }
+.sp-ip-scope button:focus-visible, .sp-ip-readiness-trigger:focus-visible { outline-offset: 2px; }
+@media (max-width: 620px) {
+  .sp-ip-bar-end { margin-left: 0; justify-content: flex-start; }
+  .sp-ip-readiness-trigger { justify-content: center; }
+  .sp-ip-managed-grid { grid-template-columns: minmax(0, 1fr); }
+  .sp-ip-collections section { grid-template-columns: 20px minmax(0, 1fr); }
+  .sp-ip-collections small { grid-column: 2; }
+}

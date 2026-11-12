@@ -7,11 +7,25 @@ import { FALLBACK_THEME_PRESETS, isCanonicalThemePresetId, isValidThemeHex, norm
 import { FittedLibraryStage, LibraryLoading, LibraryNotice, LibrarySearch, LibraryWorkspace, MetadataDisclosure, ReadValue, libraryDate, type LibraryMode } from './library-controls'
 import { THEME_TOKENS, ThemePreview, ThemeSwatches, themePreviewPalette, type ThemeSpecimen } from './theme-preview'
 import { StudioWorkflowAction } from './studio-workflow-action'
+import { BaseThemePicker } from './base-theme-picker'
+import { STUDIO_THEME_BASE_DROPDOWN_ENABLED } from '@/lib/studio-theme-base-dropdown'
+import { useCanonPreviewPalettes } from './use-canon-preview-palettes'
 import { libraryAccountCanStart, libraryAccountIsCurrent, useStudioLibraryAccount } from './library-account-boundary'
 import { keepStudioScrollFocusVisible } from '@/lib/studio-inspector-focus'
+import { THEME_FONT_FAMILIES, THEME_FONT_SELECTION_ENABLED, ensureThemeFontStylesheet, setThemeFont, themeFontCss, themeFontRefusal, themeFontsEqual, type ThemeFontField } from '@/lib/theme-fonts'
+import { customEntryPaletteMode, paletteModeChoices, paletteModeSelectValue, themeDarkModeEnabled } from '@/lib/studio-theme-dark-toggle'
+// FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE): rename / delete on a saved theme's row.
+import { ManagedLibraryRow, type ManagedRowChild } from './library-manage'
+import { BUSY_TEXT, isUserOwnedLibraryItem, runLibraryDelete, runLibraryRename, selectionAfterRemoval } from '@/lib/studio-library-manage'
 import './themes-fidelity.css'
 
 const INITIAL_THEME: BuildThemeSelection = { mode: 'preset', preset_id: 'minimal' }
+// P2C (NEXT_PUBLIC_THEME_DARK_MODE_ENABLED, exact "true", default off): the palette-mode choices are the build panel's Light and Dark (no "Both"), from the same helper.
+const THEME_DARK_MODE = themeDarkModeEnabled(process.env.NEXT_PUBLIC_THEME_DARK_MODE_ENABLED)
+// FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE, exact "true", default off, read at build time): the person's own saved themes get a ⋮ menu with Rename and Delete (lib/studio-library-manage.ts). Off: the rows are exactly as before.
+const THEME_LIBRARY_MANAGE = process.env.NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE === 'true'
+// NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
+const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === 'true'
 const CUSTOM_FIELDS = [['primary_hex', 'Primary / brand'], ['secondary_hex', 'Secondary'], ['tertiary_hex', 'Tertiary'], ['neutral_hex', 'Neutral']] as const
 
 function revealStudioThemeColor(target: EventTarget | null, group: HTMLElement | null, invalid: boolean) {
@@ -44,8 +58,22 @@ function ColorField({ label, value, fallback, onChange, onReset }: {
   </div>
 }
 
+// J4-FONTS: heading and body pickers (NEXT_PUBLIC_THEME_FONT_SELECTION_ENABLED). "Theme default" clears the field, so it is
+// absent from the saved theme and the base theme keeps its own font. Mounted only with the flag on, so it owns its stylesheet effect.
+function FontFields({ draft, onChange }: { draft: BuildThemeSelection; onChange: (next: BuildThemeSelection) => void }) {
+  useEffect(() => { ensureThemeFontStylesheet() }, [])
+  const picker = (field: ThemeFontField, label: string) => {
+    const chosen = draft[field]
+    return <label className="sl-field">{label}<select value={chosen ?? ''} style={chosen ? { fontFamily: themeFontCss(chosen) } : undefined} onChange={event => onChange(setThemeFont(draft, field, event.target.value))}>
+      <option value="">Theme default</option>{THEME_FONT_FAMILIES.map(family => <option key={family} value={family} style={{ fontFamily: themeFontCss(family) }}>{family}</option>)}
+    </select></label>
+  }
+  return <><div className="sl-two-fields" data-theme-font-fields="true">{picker('font_family_heading', 'Heading font')}{picker('font_family', 'Body font')}</div>
+    <p className="sl-helper">Theme default keeps the base theme&apos;s own font. Your picks apply to new presentations built with this theme.</p></>
+}
+
 export function ThemesWorkspace() {
-  const { listThemes, saveTheme, setStandardTheme, clearStandardTheme } = useThemeProfiles()
+  const { error: profilesError, listThemes, saveTheme, setStandardTheme, clearStandardTheme, renameTheme, deleteTheme } = useThemeProfiles()
   const account = useStudioLibraryAccount()
   const accountScope = useRef(account)
   accountScope.current = account
@@ -129,12 +157,17 @@ export function ThemesWorkspace() {
   const selected = themes?.find(theme => theme.id === selectedId)
   const standard = themes?.find(theme => theme.is_standard)
   const activeSelection = mode === 'create' ? draft : selected?.theme_payload
-  const palette = themePreviewPalette(draft)
+  // PASS2D 5 (NEXT_PUBLIC_STUDIO_THEME_PREVIEW_CANON, default off): Theme Builder's own canon palettes for the preview; undefined with the flag off, and then nothing below differs.
+  const canon = useCanonPreviewPalettes()
+  const canonProp = canon ? { canon } : {}
+  const palette = themePreviewPalette(draft, canon)
   const filtered = themes?.filter(theme => `${theme.name} ${theme.description || ''}`.toLowerCase().includes(query.toLowerCase()) && (filter === 'all' || theme.is_standard)) ?? []
   const hasFilters = Boolean(query || filter !== 'all')
   const unknownBase = Boolean(activeSelection?.preset_id && !isCanonicalThemePresetId(normalizeThemePresetId(activeSelection.preset_id)))
   const invalidColors = Object.values(draft.color_overrides || {}).some(value => !isValidThemeHex(value)) || (draft.mode === 'custom' && (!isValidThemeHex(draft.primary_hex) || CUSTOM_FIELDS.slice(1).some(([key]) => draft[key] !== undefined && !isValidThemeHex(draft[key]))))
   const duplicateName = themes?.some(theme => theme.name.toLowerCase() === name.trim().toLowerCase())
+  // A font Director refuses (422) names the allowed families; show that instead of the generic "not confirmed" text.
+  const fontRefusal = actionError ? themeFontRefusal(profilesError) : null
   const canSave = Boolean(name.trim() && draft.mode !== 'auto' && !invalidColors && !duplicateName && !operation)
   const patchDraft = (next: BuildThemeSelection) => { if (!mounted.current || !accountIsCurrent()) return; setDraft(next); setDirty(true); setActionError(''); setNotice(''); setCompareBase(false) }
 
@@ -153,12 +186,15 @@ export function ThemesWorkspace() {
     const request = ++operationRequest.current
     listRequest.current += 1; setLoading(false)
     busy.current = true; setOperation('save'); setActionError(''); setNotice('')
+    const sentDraft = draft
     try {
       const result = await saveTheme({ name: name.trim(), description: description.trim(), theme: draft, setStandard: false })
       if (!mounted.current || request !== operationRequest.current || !accountIsCurrent(requestAccount)) return
       if (!result?.id || !result.theme_payload) { setActionError('The save was not confirmed. Your draft is still here. Refresh the library before retrying to check whether it was saved.'); return }
       setThemes(current => [...(current ?? []).filter(theme => theme.id !== result.id), result]); setSelectedId(result.id); setDirty(false); setMode('library')
-      setNotice(`“${result.name}” was saved to your library. Choose it in Studio when you are ready to use it.`)
+      // A server that has not enabled theme fonts saves the colors and drops the fonts; say so instead of implying they were kept.
+      const fontsKept = themeFontsEqual(sentDraft, result.theme_payload)
+      setNotice(`“${result.name}” was saved to your library. Choose it in Studio when you are ready to use it.${fontsKept ? '' : ' The server did not keep the font choice, so it was saved without fonts.'}`)
     } catch {
       if (mounted.current && request === operationRequest.current && accountIsCurrent(requestAccount)) setActionError('The save was not confirmed. Your draft is still here. Refresh the library before retrying to check whether it was saved.')
     } finally {
@@ -198,6 +234,29 @@ export function ThemesWorkspace() {
     }
   }
 
+  // NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE: rename / delete one saved theme. lib/studio-library-manage.ts runs it (optimistic rename with rollback; delete leaves the list only once Director confirms); ./library-manage.tsx draws the menu, the field and the dialog. Never called with the flag off.
+  const manageDeps = () => { const scope = accountScope.current; return { getItems: () => themes, setItems: setThemes, isCurrent: () => mounted.current && accountIsCurrent(scope) } }
+  const manageRename = async (theme: SavedThemeProfile, nextName: string) => {
+    if (!mounted.current || !accountCanStart() || busy.current) return { ok: false as const, message: BUSY_TEXT }
+    listRequest.current += 1; setLoading(false) // a library read already in flight must not put the old name back over the new one
+    setActionError(''); setNotice('')
+    const result = await runLibraryRename('theme', { ...manageDeps(), commit: (id, name) => renameTheme(id, name) }, theme.id, nextName)
+    if (result.ok && result.name !== theme.name && mounted.current) setNotice(`“${theme.name}” is now “${result.name}”.`)
+    return result
+  }
+  const manageDelete = async (theme: SavedThemeProfile) => {
+    if (!mounted.current || !accountCanStart() || busy.current) return { ok: false as const, message: BUSY_TEXT }
+    listRequest.current += 1; setLoading(false)
+    const before = themes ?? []
+    setActionError(''); setNotice('')
+    const result = await runLibraryDelete('theme', { ...manageDeps(), commit: id => deleteTheme(id) }, theme.id)
+    if (result.ok && mounted.current) { setSelectedId(current => selectionAfterRemoval(before, theme.id, current)); setCompareBase(false); setNotice(`“${theme.name}” was deleted from your library.`) }
+    return result
+  }
+  const manageRow = (theme: SavedThemeProfile, row: ManagedRowChild) => THEME_LIBRARY_MANAGE && isUserOwnedLibraryItem(theme)
+    ? <ManagedLibraryRow key={theme.id} kind="theme" name={theme.name} isStandard={Boolean(theme.is_standard)} disabled={!accountReady || loading || Boolean(operation)} otherNames={(themes ?? []).filter(item => item.id !== theme.id).map(item => item.name)} onRename={nextName => manageRename(theme, nextName)} onDelete={() => manageDelete(theme)}>{row}</ManagedLibraryRow>
+    : row
+
   const changePreset = (id: string) => {
     if (id === 'auto') { const retained = selectCanonicalThemePreset(draft, draft.preset_id || 'corporate_light'); patchDraft({ mode: 'auto', harmony_preference: draft.harmony_preference, palette_mode: draft.palette_mode, color_overrides: retained.color_overrides }); return }
     patchDraft(selectCanonicalThemePreset(draft, id))
@@ -213,7 +272,7 @@ export function ThemesWorkspace() {
   return <LibraryWorkspace introScreen={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && account !== null ? "brand" : undefined} introAutoStart={true} introEnabled={accountReady} workspaceId="themes" title={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'Themes & brand' : 'Themes'} description={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && account !== null ? 'A reusable visual identity. Your story structure stays separate.' : 'A visual identity you can return to. Explore, customize, and make it yours.'} mode={mode} onModeChange={setMode}>
     <div className="sl-context" data-studio-themes-fidelity={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && account !== null ? 'true' : undefined}><Palette size={15} /><span>{standard ? <>Standard for new presentations: <strong>{standard.name}</strong></> : 'No saved standard · new presentations use the session default'}</span><span>Preview selection only</span></div>
     {!accountReady && <LibraryNotice>Verifying your account. Your draft and last loaded themes stay here; saving, refresh, standard changes, and Studio handoffs are paused.</LibraryNotice>}
-    {notice && <LibraryNotice>{notice}</LibraryNotice>}{actionError && <LibraryNotice error>{actionError}</LibraryNotice>}
+    {notice && <LibraryNotice>{notice}</LibraryNotice>}{actionError && <LibraryNotice error>{fontRefusal ? `Theme not saved: ${fontRefusal}. Your draft is still here.` : actionError}</LibraryNotice>}
     {replacePrompt && <div className="sl-confirm" role="alert"><span>Replace your unsaved theme draft?</span><button type="button" disabled={!accountReady || Boolean(operation)} onClick={() => loadDraft(replacePrompt)}>Discard & continue</button><button type="button" onClick={() => setReplacePrompt(null)}>Keep draft</button></div>}
     <div className="sl-split">
       <aside className="sl-side">
@@ -223,26 +282,28 @@ export function ThemesWorkspace() {
             <label className="sl-field">Theme name<input value={name} placeholder="e.g. Evergreen studio" onChange={event => { if (!mounted.current || !accountIsCurrent()) return; setName(event.target.value); setDirty(true); setNotice('') }} maxLength={150} /></label>
             {duplicateName && <p className="sl-field-error">A saved theme has this name. Choose a new name for this copy.</p>}
             <label className="sl-field">Description<textarea rows={2} value={description} placeholder="The identity behind your next story" onChange={event => { if (!mounted.current || !accountIsCurrent()) return; setDescription(event.target.value); setDirty(true) }} /></label>
-            <label className="sl-field">Base theme<select value={draft.mode === 'auto' ? 'auto' : draft.preset_id || 'corporate_light'} onChange={event => changePreset(event.target.value)}><option value="auto">Auto / session default</option>{FALLBACK_THEME_PRESETS.map(theme => <option key={theme.preset_id} value={theme.preset_id}>{theme.name}</option>)}{draft.preset_id && !FALLBACK_THEME_PRESETS.some(theme => theme.preset_id === draft.preset_id) && <option value={draft.preset_id}>{draft.preset_id} (saved base)</option>}</select></label>
-            <div className="sl-segment" aria-label="Color approach"><button type="button" aria-pressed={draft.mode !== 'custom'} onClick={() => changePreset(draft.preset_id || 'corporate_light')}>Theme-linked</button><button type="button" aria-pressed={draft.mode === 'custom'} onClick={() => patchDraft({ ...draft, mode: 'custom', primary_hex: draft.primary_hex || palette.primary, harmony_preference: draft.harmony_preference || 'auto', palette_mode: draft.palette_mode || 'both' })}>Custom palette</button></div>
+            {/* PASS2D 6b (NEXT_PUBLIC_STUDIO_THEME_BASE_DROPDOWN, default off): the deck dialog's searchable dropdown in place of the native select; same choices, same handler. */}
+            {STUDIO_THEME_BASE_DROPDOWN_ENABLED ? <BaseThemePicker draft={draft} locked={Boolean(operation)} onSelect={changePreset} /> : <label className="sl-field">Base theme<select value={draft.mode === 'auto' ? 'auto' : draft.preset_id || 'corporate_light'} onChange={event => changePreset(event.target.value)}><option value="auto">Auto / session default</option>{FALLBACK_THEME_PRESETS.map(theme => <option key={theme.preset_id} value={theme.preset_id}>{theme.name}</option>)}{draft.preset_id && !FALLBACK_THEME_PRESETS.some(theme => theme.preset_id === draft.preset_id) && <option value={draft.preset_id}>{draft.preset_id} (saved base)</option>}</select></label>}
+            <div className="sl-segment" aria-label="Color approach"><button type="button" aria-pressed={draft.mode !== 'custom'} onClick={() => changePreset(draft.preset_id || 'corporate_light')}>Theme-linked</button><button type="button" aria-pressed={draft.mode === 'custom'} onClick={() => patchDraft({ ...draft, mode: 'custom', primary_hex: draft.primary_hex || palette.primary, harmony_preference: draft.harmony_preference || 'auto', palette_mode: customEntryPaletteMode(draft, THEME_DARK_MODE) })}>Custom palette</button></div>
             {draft.mode === 'auto' && <p className="sl-helper">Auto is resolved by Director in Studio. Choose a preset or custom palette to save a reusable theme.</p>}
             {draft.mode === 'custom' && <><div className="sl-colors">{CUSTOM_FIELDS.map(([key, label]) => <ColorField key={key} label={label} value={draft[key]} fallback={palette[key.replace('_hex', '')]} onChange={value => patchDraft({ ...draft, [key]: value || undefined })} onReset={() => patchDraft({ ...draft, [key]: undefined })} />)}</div>
-              <div className="sl-two-fields"><label className="sl-field">Color harmony<select value={draft.harmony_preference || 'auto'} onChange={event => patchDraft({ ...draft, harmony_preference: event.target.value as BuildThemeSelection['harmony_preference'] })}>{['auto', 'monochrome', 'analogous', 'complementary', 'triadic'].map(value => <option key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</option>)}</select></label><label className="sl-field">Palette mode<select value={draft.palette_mode || 'both'} onChange={event => patchDraft({ ...draft, palette_mode: event.target.value as BuildThemeSelection['palette_mode'] })}><option value="light">Light</option><option value="dark">Dark</option><option value="both">Both</option></select></label></div></>}
+              <div className="sl-two-fields"><label className="sl-field">Color harmony<select value={draft.harmony_preference || 'auto'} onChange={event => patchDraft({ ...draft, harmony_preference: event.target.value as BuildThemeSelection['harmony_preference'] })}>{['auto', 'monochrome', 'analogous', 'complementary', 'triadic'].map(value => <option key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</option>)}</select></label><label className="sl-field">Palette mode<select value={paletteModeSelectValue(draft, THEME_DARK_MODE)} onChange={event => patchDraft({ ...draft, palette_mode: event.target.value as BuildThemeSelection['palette_mode'] })}>{paletteModeChoices(THEME_DARK_MODE).map(choice => <option key={choice.value} value={choice.value}>{choice.label}</option>)}</select></label></div></>}
+            {THEME_FONT_SELECTION_ENABLED && draft.mode !== 'auto' && <FontFields draft={draft} onChange={patchDraft} />}
             <details className="sl-disclosure"><summary>Individual colors <span>{Object.keys(draft.color_overrides || {}).length} overrides</span></summary><p className="sl-helper">Explicit colors stay yours when changing the base. Reset a color to follow the theme again.</p><div className="sl-colors">{THEME_TOKENS.map(([token, label]) => <ColorField key={token} label={label} value={draft.color_overrides?.[token]} fallback={palette[token]} onChange={value => setOverride(token, value)} onReset={() => setOverride(token)} />)}{Object.keys(draft.color_overrides || {}).filter(key => !THEME_TOKENS.some(([token]) => token === key)).map(key => <ColorField key={key} label={key} value={draft.color_overrides?.[key]} fallback="#64748b" onChange={value => setOverride(key, value)} onReset={() => setOverride(key)} />)}</div></details>
-            <p className="sl-helper">Website extraction, font editing, and AI theme chat are not connected in this workspace. Colors above are editable now.</p>
+            <p className="sl-helper">{LAUNCH_WORDING ? (THEME_FONT_SELECTION_ENABLED ? 'Colors and fonts above are editable.' : 'Colors above are editable.') : THEME_FONT_SELECTION_ENABLED ? 'Website extraction and AI theme chat are not connected in this workspace. Colors and fonts above are editable now.' : 'Website extraction, font editing, and AI theme chat are not connected in this workspace. Colors above are editable now.'}</p>
           </fieldset></div>
           <div className="sl-side-footer"><button type="button" className="sl-primary" onClick={() => void save()} disabled={!canSave || !accountReady}><Save size={15} />{operation === 'save' ? 'Saving…' : 'Save reusable theme'}</button><span>{dirty ? 'Unsaved draft · kept while switching tabs' : 'Choose colors to begin'}</span></div>
         </> : <>
           <div className="sl-side-heading"><div className="sl-section-line"><h2>Your themes</h2><button type="button" className="sl-icon-button" aria-label="Refresh themes" disabled={!accountReady || loading || Boolean(operation)} onClick={() => void refresh()}><RefreshCw size={15} /></button></div><LibrarySearch label="Search saved themes" value={query} onChange={setQuery} /><div className="sl-segment sl-library-filters" aria-label="Theme library filter"><button type="button" aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>All themes</button><button type="button" aria-pressed={filter === 'standard'} onClick={() => setFilter('standard')}><Star size={12} />Standard</button></div><p className="sl-result-count" role="status">{loading ? themes === null ? 'Loading library…' : 'Refreshing library…' : themes === null ? 'Library not loaded' : `${filtered.length} ${filtered.length === 1 ? 'theme' : 'themes'}${hasFilters ? ' match' : ' in your library'}`}</p></div>
           {listError && <LibraryNotice error>{listError}{themes && <p>Showing the last loaded library. Refresh to check for updates.</p>}</LibraryNotice>}
-          <div className="sl-library-list">{loading && themes === null ? <LibraryLoading /> : filtered.length ? filtered.map(theme => <button type="button" className="sl-record" key={theme.id} aria-pressed={selectedId === theme.id} onClick={() => { setSelectedId(theme.id); setActionError(''); setCompareBase(false) }}><ThemeSwatches selection={theme.theme_payload} /><span><strong>{theme.name}</strong><small>{theme.description || `${theme.theme_payload.mode === 'custom' ? 'Custom' : 'Saved'} palette`}</small></span>{theme.is_standard && <Star size={14} aria-label="Standard theme" />}</button>) : <div className="sl-empty"><Palette size={24} /><h3>{listError && themes === null ? 'Library unavailable' : hasFilters ? filter === 'standard' && !query ? 'No standard in this view' : 'No matching themes' : listError ? 'Library unavailable' : 'Your identity starts here.'}</h3><p>{listError && themes === null ? 'Refresh to load your saved themes.' : hasFilters ? filter === 'standard' && !query ? 'Preview a saved theme and choose Set as standard for future presentations.' : 'Try another name or description, or clear the filters.' : listError ? 'Refresh to try again. Your draft is still available in Create.' : 'Create a palette and save it here for your next presentation.'}</p>{listError && themes === null ? <button type="button" className="sl-button" disabled={!accountReady || loading} onClick={() => void refresh()}>Retry library</button> : hasFilters ? <button type="button" className="sl-button" onClick={() => { setQuery(''); setFilter('all') }}>Show all themes</button> : listError ? <button type="button" className="sl-button" disabled={!accountReady || loading} onClick={() => void refresh()}>Retry library</button> : <button type="button" className="sl-button" onClick={() => setMode('create')}>Create a theme</button>}</div>}</div>
+          <div className="sl-library-list">{loading && themes === null ? <LibraryLoading /> : filtered.length ? filtered.map(theme => manageRow(theme, <button type="button" className="sl-record" key={theme.id} aria-pressed={selectedId === theme.id} onClick={() => { setSelectedId(theme.id); setActionError(''); setCompareBase(false) }}><ThemeSwatches selection={theme.theme_payload} {...canonProp} /><span><strong>{theme.name}</strong><small>{theme.description || `${theme.theme_payload.mode === 'custom' ? 'Custom' : 'Saved'} palette`}</small></span>{theme.is_standard && <Star size={14} aria-label="Standard theme" />}</button>)) : <div className="sl-empty"><Palette size={24} /><h3>{listError && themes === null ? 'Library unavailable' : hasFilters ? filter === 'standard' && !query ? 'No standard in this view' : 'No matching themes' : listError ? 'Library unavailable' : 'Your identity starts here.'}</h3><p>{listError && themes === null ? 'Refresh to load your saved themes.' : hasFilters ? filter === 'standard' && !query ? 'Preview a saved theme and choose Set as standard for future presentations.' : 'Try another name or description, or clear the filters.' : listError ? 'Refresh to try again. Your draft is still available in Create.' : 'Create a palette and save it here for your next presentation.'}</p>{listError && themes === null ? <button type="button" className="sl-button" disabled={!accountReady || loading} onClick={() => void refresh()}>Retry library</button> : hasFilters ? <button type="button" className="sl-button" onClick={() => { setQuery(''); setFilter('all') }}>Show all themes</button> : listError ? <button type="button" className="sl-button" disabled={!accountReady || loading} onClick={() => void refresh()}>Retry library</button> : <button type="button" className="sl-button" onClick={() => setMode('create')}>Create a theme</button>}</div>}</div>
           <div className="sl-side-footer"><p className="sl-helper">Selecting a theme here opens its preview. It does not restyle a deck or change your standard.</p></div>
         </>}
       </aside>
       <section className="sl-preview-panel" aria-label="Theme preview">
         <div className="sl-preview-heading"><div><p className="sl-eyebrow">{mode === 'create' ? 'YOUR DESIGN PREVIEW' : 'SAVED THEME'}</p><h2>{mode === 'create' ? name || 'Your visual identity' : selected?.name || 'Choose your visual identity'}</h2></div><span className="sl-badge">{mode === 'create' ? 'Unsaved preview' : selected?.is_standard ? 'Your standard' : 'Preview'}</span></div>
         <div className="sl-preview-tabs" aria-label="Preview specimen">{(['title', 'data', 'content'] as const).map(value => <button type="button" key={value} aria-pressed={specimen === value} onClick={() => setSpecimen(value)}>{value === 'title' ? 'Title slide' : value === 'data' ? 'Data story' : 'Content'}</button>)}</div>
-        <FittedLibraryStage>{activeSelection ? <ThemePreview selection={compareBase ? { mode: 'preset', preset_id: activeSelection.preset_id } : activeSelection} specimen={specimen} name={mode === 'create' ? name : selected?.name || ''} /> : <div className="sl-preview-empty"><Palette size={34} /><h3>Your theme, in context.</h3><p>Select a saved theme or create one to preview title, data, and content slides.</p></div>}</FittedLibraryStage>
+        <FittedLibraryStage>{activeSelection ? <ThemePreview selection={compareBase ? { mode: 'preset', preset_id: activeSelection.preset_id } : activeSelection} specimen={specimen} name={mode === 'create' ? name : selected?.name || ''} {...canonProp} /> : <div className="sl-preview-empty"><Palette size={34} /><h3>Your theme, in context.</h3><p>Select a saved theme or create one to preview title, data, and content slides.</p></div>}</FittedLibraryStage>
         {activeSelection && <div className="sl-preview-caption"><span>{unknownBase ? 'Reference base' : activeSelection.mode === 'auto' ? 'Auto reference palette' : 'Palette guide'} · sample content</span><button type="button" onClick={() => setCompareBase(value => !value)} aria-pressed={compareBase}>{compareBase ? <Check size={13} /> : <RotateCcw size={13} />}{compareBase ? 'Showing base colors' : 'Compare base colors'}</button></div>}
         <div className="sl-preview-bottom">
           {mode === 'library' && selected && <div className="sl-actions"><StudioWorkflowAction action="theme" itemId={selected.id} canStart={canContinueInStudio} className="sl-primary" disabled={!accountReady || Boolean(operation)}>Choose theme in Studio</StudioWorkflowAction><button type="button" className="sl-button" disabled={!accountReady || Boolean(operation)} onClick={() => requestDraft(selected)}><Copy size={14} />Customize a copy</button><button type="button" className="sl-button" disabled={!accountReady || Boolean(operation)} onClick={() => void changeStandard()}><Star size={14} />{operation === 'standard' ? 'Updating…' : selected.is_standard ? 'Clear standard' : 'Set as standard'}</button></div>}
@@ -252,7 +313,7 @@ export function ThemesWorkspace() {
             <div className="sl-theme-support-content" data-studio-theme-support-region={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'true' : undefined} tabIndex={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 0 : undefined} role={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'region' : undefined} aria-label={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'Theme details and use' : undefined}>
               {activeSelection && <p className="sl-helper">{activeSelection.mode === 'auto' ? 'Auto is resolved from the Studio session; this specimen shows reference colors only. ' : ''}Harmony, typography, and component treatments are resolved by Theme Builder when used in Studio.</p>}
               {unknownBase && <LibraryNotice>This saved base has no local palette specimen. The preview uses reference base colors with your explicit color settings; Studio resolves the actual theme.</LibraryNotice>}
-              {mode === 'library' && selected && <><p className="sl-helper">Studio opens the theme picker for you to choose. Build settings stay locked after generation starts.</p><dl className="sl-read-grid"><ReadValue label="Description" value={selected.description} /><ReadValue label="Palette type" value={selected.theme_payload.mode} /><ReadValue label="Base theme" value={selected.theme_payload.preset_id || 'Service-resolved'} /><ReadValue label="Color harmony" value={selected.theme_payload.harmony_preference || 'Service default'} /><ReadValue label="Palette mode" value={selected.theme_payload.palette_mode || 'Service default'} /><ReadValue label="Explicit token overrides" value={String(Object.keys(selected.theme_payload.color_overrides || {}).length)} /><ReadValue label="Created (UTC)" value={libraryDate(selected.created_at)} /><ReadValue label="Updated (UTC)" value={libraryDate(selected.updated_at)} /><ReadValue label="Recorded uses" value={typeof selected.usage_count === 'number' ? String(selected.usage_count) : undefined} /></dl><MetadataDisclosure label="Complete saved theme settings" value={selected.theme_payload} /></>}
+              {mode === 'library' && selected && <><p className="sl-helper">Studio opens the theme picker for you to choose. Build settings stay locked after generation starts.</p><dl className="sl-read-grid"><ReadValue label="Description" value={selected.description} /><ReadValue label="Palette type" value={selected.theme_payload.mode} /><ReadValue label="Base theme" value={selected.theme_payload.preset_id || 'Service-resolved'} /><ReadValue label="Color harmony" value={selected.theme_payload.harmony_preference || 'Service default'} /><ReadValue label="Palette mode" value={selected.theme_payload.palette_mode || 'Service default'} />{THEME_FONT_SELECTION_ENABLED && <><ReadValue label="Heading font" value={selected.theme_payload.font_family_heading || 'Theme default'} /><ReadValue label="Body font" value={selected.theme_payload.font_family || 'Theme default'} /></>}<ReadValue label="Explicit token overrides" value={String(Object.keys(selected.theme_payload.color_overrides || {}).length)} /><ReadValue label="Created (UTC)" value={libraryDate(selected.created_at)} /><ReadValue label="Updated (UTC)" value={libraryDate(selected.updated_at)} /><ReadValue label="Recorded uses" value={typeof selected.usage_count === 'number' ? String(selected.usage_count) : undefined} /></dl><MetadataDisclosure label="Complete saved theme settings" value={selected.theme_payload} /></>}
               <div className="sl-workflow-link"><div><strong>Continue in Studio</strong><p>Use the theme picker in Studio to select a saved theme for an eligible presentation.</p></div><StudioWorkflowAction action="theme" canStart={canContinueInStudio} disabled={!accountReady}>Back to {process.env.NEXT_PUBLIC_STUDIO_V4_LABELS === 'true' ? 'Studio' : 'builder'}</StudioWorkflowAction><ArrowRight size={14} aria-hidden="true" /></div>
             </div>
           </details>

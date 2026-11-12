@@ -27,6 +27,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
+// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): /agents is a redirect (next.config.mjs), so with the flag on the two links to it on an agent page are not shown, and the not-found page's link goes to /experts, where /agents redirects to. The links to the agent pages (/agents/<agent>) stay. Off: the page as it was.
+const STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';
+
 const iconMap = {
   Sparkles,
   PenTool,
@@ -58,11 +61,11 @@ export default function AgentDetailPage() {
             The agent you&apos;re looking for doesn&apos;t exist.
           </p>
           <Link
-            href="/agents"
+            href={STUDIO_P2_DOCS ? '/experts' : '/agents'}
             className="inline-flex items-center gap-2 text-primary hover:underline"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to Agents
+            {STUDIO_P2_DOCS ? 'Back to Experts' : 'Back to Agents'}
           </Link>
         </div>
         <Footer />
@@ -119,17 +122,19 @@ export default function AgentDetailPage() {
                   Try {agent.name} in the builder
                 </Link>
               </Button>
-              <Button
-                asChild
-                size="lg"
-                variant="outline"
-                className="border-white/30 bg-white/10 text-white hover:bg-white/20"
-              >
-                <Link href="/agents">
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  All agents
-                </Link>
-              </Button>
+              {!STUDIO_P2_DOCS && (
+                <Button
+                  asChild
+                  size="lg"
+                  variant="outline"
+                  className="border-white/30 bg-white/10 text-white hover:bg-white/20"
+                >
+                  <Link href="/agents">
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    All agents
+                  </Link>
+                </Button>
+              )}
             </div>
           </div>
         </section>
@@ -328,14 +333,16 @@ export default function AgentDetailPage() {
                     Start creating
                   </Link>
                 </Button>
-                <Button
-                  asChild
-                  size="lg"
-                  variant="outline"
-                  className="border-white/30 bg-white/10 text-white hover:bg-white/20"
-                >
-                  <Link href="/agents">View all agents</Link>
-                </Button>
+                {!STUDIO_P2_DOCS && (
+                  <Button
+                    asChild
+                    size="lg"
+                    variant="outline"
+                    className="border-white/30 bg-white/10 text-white hover:bg-white/20"
+                  >
+                    <Link href="/agents">View all agents</Link>
+                  </Button>
+                )}
               </div>
             </div>
           </div>

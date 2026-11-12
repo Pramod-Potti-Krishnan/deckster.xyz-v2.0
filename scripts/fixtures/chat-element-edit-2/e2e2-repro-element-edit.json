@@ -1,0 +1,45 @@
+{
+  "source": "E2E-2 repro 27 Oct 17:25Z, session 57f9e99a (Studio dev), relayed by FRONTEND-2 to B32. Copied from the message that carried it; nothing here was fetched from a live service by this change.",
+  "session_id": "57f9e99a-8d63-4af9-90cb-68a320157b16",
+  "deck": {
+    "presentation_id": "1343a54f-7b1c-4a68-9ff5-6448600628bd",
+    "viewer_url_path": "/p/1343a54f-7b1c-4a68-9ff5-6448600628bd",
+    "slide_count_shown": 5,
+    "open_slide": "Slide 2 / 5"
+  },
+  "incoming_frame": {
+    "type": "element_edit",
+    "payload": {
+      "directive_id": "ele_f9808dad509f",
+      "presentation_id": "1343a54f-7b1c-4a68-9ff5-6448600628bd",
+      "slide_id": "slide_7f86d3817444",
+      "slide_index": 1,
+      "element_id": "image_95d79040",
+      "op": "order",
+      "order": "back"
+    }
+  },
+  "studio_answer_recorded": { "ok": false, "error_code": "SLIDE_CHANGED", "same_millisecond": true },
+  "earlier_directives_answered_slide_changed": [
+    { "directive_id": "ele_8f402bf8305f", "at": "17:20:39Z", "user_said": "Move the image on slide 2 to the top right" },
+    { "directive_id": "ele_98c0edeb96f2", "at": "17:21:22Z", "user_said": "Delete the image on slide 2" }
+  ],
+  "layout_slide_ids_observed": { "1": "slide_53be7c850f85", "2": "slide_7f86d3817444", "3": "slide_f9db90aa0e93" },
+  "layout_slide_ids_not_captured": ["4", "5"],
+  "synthetic_slide_ids_for_slides_4_and_5": ["slide_0a1b2c3d4e5f", "slide_5f4e3d2c1b0a"],
+  "studio_session_slide_id_for_slide_2": "9ebccd93-6807-4940-97dd-5734feae5703",
+  "synthetic_session_slide_ids_for_the_other_slides": [
+    "3c9d1f7a-2b44-4e0a-9a61-0d5f8e7b1c20",
+    "9ebccd93-6807-4940-97dd-5734feae5703",
+    "b1a2c3d4-e5f6-4788-99aa-bbccddeeff00",
+    "5d6e7f80-9a1b-4c2d-8e3f-405162738495",
+    "e4f5a6b7-c8d9-4e0f-a1b2-c3d4e5f60718"
+  ],
+  "stale_reference": {
+    "kind": "element",
+    "element_id": "slide_7f86d3817444_textbox_7a06ae7b",
+    "element_type": "TEXT_BOX",
+    "note": "a title text box that Edit Mode materialised; Undo removed it; Studio kept sending it as user_message.references[0] until a reload"
+  },
+  "synthetic_note": "Slides 4 and 5 of the Layout deck, the other session slide ids and the viewer's reply bodies are not in the E2E-2 message: the test builds them (marked synthetic here and in the test), on the recorded shapes of scripts/fixtures/chat-element-edit/layout-transcripts.json."
+}

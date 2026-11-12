@@ -10,14 +10,20 @@ import { Gallery } from "@/components/marketing/v3/home/Gallery"
 import { Pricing } from "@/components/marketing/v3/home/Pricing"
 import { Begin } from "@/components/marketing/v3/home/Begin"
 import { V3_CONTENT } from "@/lib/marketing/v3-content"
+import { uatMarketingMetadata } from "@/components/marketing/v3-uat/pages/metadata"
 
-export const metadata: Metadata = {
+// NEXT_PUBLIC_STUDIO_UAT_MARKETING (default off): with the flag on this page is the UAT design (components/marketing/v3-uat). Off: the page below, as it was.
+export const metadata: Metadata = process.env.NEXT_PUBLIC_STUDIO_UAT_MARKETING === "true" ? uatMarketingMetadata.home : {
   title: { absolute: V3_CONTENT.metadata.title },
   description: V3_CONTENT.metadata.description,
   alternates: { canonical: "/" },
 }
 
-export default function MarketingV3HomePage() {
+export default async function MarketingV3HomePage() {
+  if (process.env.NEXT_PUBLIC_STUDIO_UAT_MARKETING === "true") {
+    const { UatHomePage } = await import("@/components/marketing/v3-uat/pages/home")
+    return <UatHomePage />
+  }
   return (
     <main>
       <Start />

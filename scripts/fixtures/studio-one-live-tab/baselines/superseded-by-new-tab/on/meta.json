@@ -1,0 +1,15 @@
+{
+  "diagnostics": {
+    "blockedNetwork": [],
+    "console": [{"level":"warn","text":"🔌 WebSocket connection closed <object>"}],
+    "fetches": [{"method":"GET","url":"/api/director/ws-token?session_id=synthetic-session-one-live-tab-a"}],
+    "sockets": 1,
+    "timersLeft": 0,
+    "uncaughtTimerErrors": [],
+    "windowOpens": []
+  },
+  "fixture": "superseded-by-new-tab",
+  "fixtureSha": "13f62b05cdc7d409",
+  "profile": "studio",
+  "schema": 1
+}

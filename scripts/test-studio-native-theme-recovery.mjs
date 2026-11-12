@@ -1,3 +1,4 @@
+import { serviceUrl } from './service-url-harness.mjs'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
@@ -107,8 +108,10 @@ function harness(options = {}) {
     return new Promise((resolve, reject) => requests.push({ url, options, resolve, reject, done: false }))
   }
   const imports = {
+    '@/lib/service-url': serviceUrl,
+    './studio-composer-hint': { StudioComposerHint: 'StudioComposerHint' },
     react, 'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
-    '@/lib/config': { config: { api: { themeBuilderUrl: 'https://fixture.invalid' } }, features: { enableFileUploads: true } },
+    '@/lib/config': { getThemeBuilderUrl: () => serviceUrl.requireServiceUrl('Theme Builder', [{ name: 'NEXT_PUBLIC_THEME_BUILDER_URL', value: 'https://fixture.invalid' }]), config: { api: { themeBuilderUrl: 'https://fixture.invalid' } }, features: { enableFileUploads: true } },
 
     '@/lib/mdc-flags': { CHAT_MENTIONS: true }, '@/hooks/use-templates': { isTemplateGenerationReady: () => false, templateGenerationUnavailableReason: () => '' },
   }

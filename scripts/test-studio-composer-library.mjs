@@ -4,12 +4,21 @@ import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 import ts from 'typescript'
 import postcss from 'postcss'
+import { stripTemplateProgress } from './studio-template-progress-strip.mjs'
 
 const path = 'components/builder/composer-library-dialog.tsx'
-const source = fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
-const original = execFileSync('git', ['show', `4ae12a9:${path}`], { encoding: 'utf8' })
+// NEXT_PUBLIC_STUDIO_TEMPLATE_PROGRESS (default off): its lines in the dialog are taken out first, as the sibling pins do (the way J2-04's status lines are); scripts/test-studio-template-progress.mjs proves them.
+const source = stripTemplateProgress(path, fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'))
+const original = execFileSync('git', ['show', `49053ce:${path}`], { encoding: 'utf8' })
 const css = fs.readFileSync(new URL('../components/builder/studio-composer-library.css', import.meta.url), 'utf8')
 postcss.parse(css)
+// BASE-J5 (long brief): the import-free helper is loaded for real; the generic @/lib/ Proxy below would return its names.
+const longBriefHelper = (() => {
+  const module = { exports: {} }
+  vm.runInNewContext(ts.transpileModule(fs.readFileSync(new URL('../lib/composer-long-brief.ts', import.meta.url), 'utf8'),
+    { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module, exports: module.exports })
+  return module.exports
+})()
 // Pin the reviewed pre-adaptation source: native attributes/wrapper are the only change.
 const start = source.indexOf('  const body = <>\n'), end = source.indexOf('  </>\n\n  return (', start)
 assert(start > 0 && end > start)
@@ -17,7 +26,54 @@ const body = source.slice(start + '  const body = <>\n'.length, end)
 let restored = source.slice(0, start) + source.slice(end + '  </>\n\n'.length)
 restored = restored.replace(/        \{studioShell \? <div data-studio-composer-body="true" tabIndex=\{0\} role="region" aria-label="Template upload and library">\{body\}<\/div> : body\}\n/, body)
 restored = restored.replace(/ (?:data-studio-composer[\w-]*|tabIndex|aria-label|role)=\{studioShell \? [^}]+ : undefined\}/g, '')
+// BASE-J5 (ditto): the flag-gated "Rebuild from own content" action is the only addition to the reviewed classic source.
+for (const addition of [
+  /import \{ COMPOSER_DITTO_MODE \} from '@\/lib\/composer-ditto'\n/,
+  /  const dittoEnabled = process\.env\.NEXT_PUBLIC_COMPOSER_STAGE1B_DITTO_ENABLED === 'true'\n/,
+  /  \/\/ Stage 1B G3: rebuild[\s\S]*?\n  }\n\n/,
+  /                    \{dittoEnabled && <Button[^\n]*\n/,
+]) { assert(addition.test(restored), String(addition)); restored = restored.replace(addition, '') }
 restored = restored.replace("import './studio-composer-library.css'\n", '').replace("  const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'\n", '')
+// BASE-J5 (long brief): the flag-gated limit is the only other change to the reviewed classic source.
+for (const [addition, classic] of [
+  ["import { composerBriefLengthValid, composerBriefLimitMessage, composerBriefMax } from '@/lib/composer-long-brief'\n", ''],
+  ["  const longBriefEnabled = process.env.NEXT_PUBLIC_COMPOSER_LONG_BRIEF_ENABLED === 'true'\n", ''],
+  ['!composerBriefLengthValid(brief, longBriefEnabled)', '(brief.trim().length < 20 || brief.trim().length > 4000)'],
+  ['setError(composerBriefLimitMessage(longBriefEnabled))', "setError('Describe the new presentation in 20 to 4,000 characters.')"],
+  ['maxLength={composerBriefMax(longBriefEnabled)}', 'maxLength={4000}'],
+]) { assert(restored.includes(addition), addition); restored = restored.replace(addition, classic) }
+// PASS2-COMPOSER-POPUPS fix: the optional request from the composer's template popup (the page passes it only with
+// NEXT_PUBLIC_STUDIO_COMPOSER_POPUPS_V2 on) and the two effects that run it through the existing handlers are the only other addition.
+for (const [addition, classic] of [
+  [/import type \{ ComposerLibraryRequest \} from '@\/lib\/studio-composer-popups'\n/, ''],
+  [/export function ComposerLibraryDialog\(\{ open, onOpenChange, request = null, onRequestTaken \}: \{\n  open: boolean\n  onOpenChange: \(open: boolean\) => void\n  \/\*\* PASS2-COMPOSER-POPUPS fix: [^\n]*\*\/\n  request\?: ComposerLibraryRequest \| null\n  onRequestTaken\?: \(\) => void\n\}\) \{/,
+    'export function ComposerLibraryDialog({ open, onOpenChange }: {\n  open: boolean\n  onOpenChange: (open: boolean) => void\n}) {'],
+  [/  \/\/ PASS2-COMPOSER-POPUPS fix \(only the page passes `request`[\s\S]*?\n  \}, \[pickedRequest\]\)[^\n]*\n\n/, ''],
+]) { assert(addition.test(restored), String(addition)); restored = restored.replace(addition, classic) }
+// NEXT_PUBLIC_STUDIO_COMPOSER_JOB_RECOVERY (default off): the flag-gated job-recovery notice (its import, state, the stored record's `retry`,
+// the poll's stale/failed ending, Retry/Dismiss and the notice in the progress slot) is the only other addition. Its behaviour, and the flag-off
+// identity of the tree and of every request and write, are proved in scripts/test-studio-composer-job-recovery.mjs.
+for (const [addition, classic] of [
+  [/\/\/ NEXT_PUBLIC_STUDIO_COMPOSER_JOB_RECOVERY \(default off\)[^\n]*\nimport \{\n[^\n]*\n\} from '@\/lib\/composer-library'\n/, ''],
+  [/; retry\?: ComposerRetryAction \| null \}/, ' }'],
+  [/  \/\/ NEXT_PUBLIC_STUDIO_COMPOSER_JOB_RECOVERY \(exact "true"[^\n]*\n(?:  [^\n]*\n){4}  const retryRecord = [^\n]*\n/, ''],
+  [/    let stopped: ComposerJobRecovery \| null = null\n    const polling = waitForComposerJob\(/, '    const job = await waitForComposerJob('],
+  [/      \/\/ NEXT_PUBLIC_STUDIO_COMPOSER_JOB_RECOVERY: a failed job[^\n]*\n      if \(jobRecoveryEnabled && [^\n]*\n/, ''],
+  [/    \/\/ Flag on: that ending shows the notice[^\n]*\n    const job = await \(jobRecoveryEnabled \? polling\.catch\([\s\S]*?\n    \}\) : polling\)\n    if \(!job\) return\n/, ''],
+  [/    setRecovery\(null\) \/\/ flag on: [^\n]*\n/, ''],
+  [/    if \(jobRecoveryEnabled\) uploadRetryFile\.current = selected\n/, ''],
+  [/kind: 'upload', \.\.\.retryRecord\(\{ action: 'upload' \}\) \}/, "kind: 'upload' }"],
+  [/kind: 'use',\n        \.\.\.retryRecord\(brief \? [^\n]*\) \}, signal\)/, "kind: 'use' }, signal)"],
+  [/  \/\/ NEXT_PUBLIC_STUDIO_COMPOSER_JOB_RECOVERY: the notice for a stored job[\s\S]*?\n  <\/div>\n\n/, ''],
+  [/\{recoveryNotice \?\? \(progress && (<p [\s\S]*?<\/p>)\)\}/, '{progress && $1}'],
+]) { assert(addition.test(restored), String(addition)); restored = restored.replace(addition, classic) }
+// PASS2B G38 (NEXT_PUBLIC_STUDIO_TEMPLATE_DISPLAY_NAMES, default off): the template row draws its name through one wrapper (its title already carries the
+// full name); the import and the wrapper's definition are the only other additions. scripts/test-studio-template-display-names.mjs proves the rest.
+for (const [addition, classic] of [
+  ["import { studioTemplateShownName } from '@/lib/studio-template-display-name'\n", ''],
+  [/\/\/ PASS2B G38 \(NEXT_PUBLIC_STUDIO_TEMPLATE_DISPLAY_NAMES[^\n]*\nconst TEMPLATE_DISPLAY_NAMES = [^\n]*\nconst displayName = [^\n]*\n/, ''],
+  ['title={template.name}>{displayName(template.name)}</p>', 'title={template.name}>{template.name}</p>'],
+]) { assert(typeof addition === 'string' ? restored.includes(addition) : addition.test(restored), String(addition)); restored = restored.replace(addition, classic) }
 assert.equal(restored, original, 'Every original handler/effect/payload/condition/default/copy and classic markup must remain exact')
 
 let actions = 0
@@ -44,6 +100,8 @@ function runtime(text, flag, topicFlag, auth, initial) {
         composerRequest() { actions++; throw new Error('No service allowed') }, waitForComposerJob() { actions++; throw new Error('No jobs allowed') },
         requireComposerServiceUrl() { actions++; throw new Error('No service configuration allowed') },
       }
+      if (id === '@/lib/composer-long-brief') return longBriefHelper
+      if (id === '@/lib/studio-template-display-name') return { studioTemplateShownName: name => name } // PASS2B G38: reached only for a name drawn through displayName(); flag NEXT_PUBLIC_STUDIO_TEMPLATE_DISPLAY_NAMES is off here, so the stored name comes back as it is.
       if (id === '@/lib/utils') return { cn: (...args) => args.filter(Boolean).join(' ') }
       if (id.endsWith('.css')) return {}
       if (id.startsWith('@/components/') || id.startsWith('@/lib/') || id === 'lucide-react') return new Proxy({}, { get: (_target, key) => key })
@@ -70,11 +128,21 @@ function canonical(tree) {
   return [{ type: tree.type, props, children: canonical(tree.props.children) }]
 }
 const find = (tree, predicate) => { const matches = all(tree, predicate); assert.equal(matches.length, 1); return matches[0] }
+// NEXT_PUBLIC_STUDIO_COMPOSER_JOB_RECOVERY: the "Upload template" button's callback is the upload handler itself, so its source text carries the
+// handler's two flag-gated statements (remember the chosen file; add the stored record's `retry`). Each must be there exactly once and is the
+// only difference from the reviewed callback; the flag-off behaviour (no file kept, no `retry` written) is proved in test-studio-composer-job-recovery.mjs.
+const JOB_RECOVERY_FRAGMENTS = ['if (jobRecoveryEnabled) uploadRetryFile.current = selected; ', ", ...retryRecord({ action: 'upload' })"]
+function withoutJobRecovery(text) {
+  for (const fragment of JOB_RECOVERY_FRAGMENTS) { assert.equal(text.split(fragment).length, 2, fragment); text = text.replace(fragment, '') }
+  return text
+}
 let cases = 0
 for (const flag of ['true', 'false', undefined, '1']) for (const topic of ['true', 'false']) for (const auth of [true, false]) for (const busy of [true, false]) {
   const initial = [templates, false, busy, 'Supplied preparing status', 'Complete supplied failed-read detail '.repeat(30), { name: 'valid.pptx', size: 1024 }, 'A meaningful local presentation brief', 'supplied-one']
   const run = runtime(source, flag, topic, auth, initial), tree = run.render({ open: true, onOpenChange() {} })
-  assert.equal(run.effects.length, 1)
+  // The open effect, plus the PASS2-COMPOSER-POPUPS fix's two request effects, which do nothing without a request (checked below).
+  assert.equal(run.effects.length, 3)
+  for (const effect of run.effects.slice(1)) assert.equal(effect.fn(), undefined)
   assert.equal(all(tree, item => item.type === 'Button' && visible(item) === 'Use original').length, 3)
   assert.equal(all(tree, item => item.type === 'Button' && visible(item) === 'New topic').length, topic === 'true' ? 3 : 0)
   assert(visible(tree).includes(templates[0].name)); const readable = visible(tree).replace(/\s+/g, ' '); assert(readable.includes('6 slides')); assert(readable.includes('8 slides')); assert(readable.includes('0 slides'))
@@ -87,7 +155,7 @@ for (const flag of ['true', 'false', undefined, '1']) for (const topic of ['true
     assert.equal(all(tree, item => item.props['data-studio-composer-record']).length, 3)
   } else {
     const before = runtime(original, flag, topic, auth, initial).render({ open: true, onOpenChange() {} })
-    assert.equal(JSON.stringify(canonical(tree)), JSON.stringify(canonical(before)), 'Classic trees/callbacks are exact with the fragment flattened')
+    assert.equal(withoutJobRecovery(JSON.stringify(canonical(tree))), JSON.stringify(canonical(before)), 'Classic trees/callbacks are exact with the fragment flattened')
   }
   let closed = 0
   const closeTree = run.render({ open: true, onOpenChange() { closed++ } })
@@ -101,7 +169,7 @@ for (const loading of [true, false]) {
 }
 const local = runtime(source, 'true', 'true', true, [templates, false, false, null, null, null, '', null])
 let tree = local.render({ open: true, onOpenChange() {} })
-find(tree, item => item.props['data-studio-composer-record'] === 'supplied-one').props.children[0].props.children[1].props.children[1].props.onClick()
+all(find(tree, item => item.props['data-studio-composer-record'] === 'supplied-one'), item => item.type === 'Button' && visible(item) === 'New topic')[0].props.onClick()
 tree = local.render({ open: true, onOpenChange() {} })
 const brief = find(tree, item => item.props.id === 'composer-new-brief'); assert.equal(brief.props.maxLength, 4000)
 brief.props.onChange({ target: { value: 'Local unsent brief retained in the native field' } }); tree = local.render({ open: true, onOpenChange() {} })

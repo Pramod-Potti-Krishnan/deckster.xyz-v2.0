@@ -13,6 +13,7 @@ import {
   getLayoutViewerOrigin,
   isTrustedLayoutViewerMessage,
 } from '@/lib/layout-viewer-messaging'
+import type { ChatParityMasterOp, ChatParityMasterResult } from '@/lib/studio-chat-parity' // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY): a chat footer / logo request runs this panel's own path (types only: the bus is loaded inside the flag-gated effect, so the older proofs' sandboxes see no new import)
 
 // Data models matching backend API
 interface FooterConfig {
@@ -667,6 +668,39 @@ export function PresentationSettingsPanel({
     }
   }
 
+  // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY): one chat op at a time on the bus. Stages: `fill` once the panel is open and its own read is ready (the fields are set as if typed, through the
+  // CHAT-PARITY: same setters and draft marks), `save` on the next render (the Save button's own handleSave writes and closes), `saving` until the panel closed (ok) or the save stopped with it open (failed);
+  // CHAT-PARITY: a logo generation runs the Generate button's own handler first and continues once the generated file is in the field. A read error or the deadline ends the op honestly. Flag off: nothing is registered.
+  const chatParityOn = process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY === 'true' // CHAT-PARITY: read inline, so a proof that evaluates this file with a fake process sees nothing
+  const chatOpRef = useRef<{ op: ChatParityMasterOp; deadline: number; stage: 'fill' | 'generate' | 'generating' | 'save' | 'saving'; resolve: (result: ChatParityMasterResult) => void } | null>(null) // CHAT-PARITY
+  useEffect(() => { // CHAT-PARITY
+    if (!chatParityOn) return // CHAT-PARITY
+    let bus: typeof import('@/lib/studio-chat-parity').chatParityBus | null = null // CHAT-PARITY
+    void import('@/lib/studio-chat-parity').then(mod => { bus = mod.chatParityBus; bus.master = (op, deadline) => new Promise(resolve => { if (chatOpRef.current && chatOpRef.current.deadline > Date.now()) { resolve({ ok: false, error: 'busy' }); return } chatOpRef.current = { op, deadline, stage: 'fill', resolve }; mod.chatParityBus.openMaster?.() }) }) // CHAT-PARITY
+    return () => { if (bus) bus.master = null; chatOpRef.current?.resolve({ ok: false, error: 'viewer_unavailable' }); chatOpRef.current = null } // CHAT-PARITY
+  }, [chatParityOn]) // CHAT-PARITY
+  const chatReadReady = isOpen && !isLoading && (!studio || studioKnown()) // CHAT-PARITY
+  const chatReadFailed = isOpen && studio && studioRead.lifetime === studioLifetime && studioRead.status === 'error' // CHAT-PARITY
+  useEffect(() => { // CHAT-PARITY
+    const run = chatOpRef.current; if (!chatParityOn || !run) return // CHAT-PARITY
+    const end = (result: ChatParityMasterResult) => { chatOpRef.current = null; run.resolve(result) } // CHAT-PARITY
+    if (Date.now() > run.deadline) { end({ ok: false, error: 'timeout' }); return } // CHAT-PARITY
+    if (chatReadFailed) { end({ ok: false, error: 'viewer_unavailable' }); return } // CHAT-PARITY
+    if (run.stage === 'fill') { // CHAT-PARITY
+      if (!chatReadReady) return // CHAT-PARITY
+      const op = run.op // CHAT-PARITY
+      if (op.kind === 'footer') { studioMarkDraft('footerTemplate', 'footerTitle', 'footerDate', 'footerAuthor'); setFooterTemplate(op.template ?? (footerTemplate || FOOTER_TEMPLATES[3].template)); if (op.title !== undefined) setFooterTitle(op.title); if (op.date !== undefined) setFooterDate(op.date); if (op.author !== undefined) setFooterAuthor(op.author); setHasChanges(true); run.stage = 'save' } // CHAT-PARITY
+      else if (op.kind === 'clear_footer') { studioMarkDraft('footerTemplate', 'footerTitle', 'footerDate', 'footerAuthor'); setFooterTemplate(''); setFooterTitle(''); setFooterDate(''); setFooterAuthor(''); setHasChanges(true); run.stage = 'save' } // CHAT-PARITY
+      else if (op.kind === 'logo') { studioMarkDraft('logoUrl', 'logoAltText', 'logoFileName'); setLogoUrl(op.image_url); setLogoAltText(op.alt_text ?? 'Logo'); setLogoFileName(op.image_url.split('/').pop() || 'logo.png'); setHasChanges(true); run.stage = 'save' } // CHAT-PARITY
+      else if (op.kind === 'remove_logo') { handleRemoveLogo(); run.stage = 'save' } // CHAT-PARITY
+      else { setShowLogoPrompt(true); setLogoPrompt(op.prompt); run.stage = 'generate' } // CHAT-PARITY
+      return // CHAT-PARITY
+    } // CHAT-PARITY
+    if (run.stage === 'generate') { if (run.op.kind !== 'generate_logo' || logoPrompt !== run.op.prompt || isGeneratingLogo) return; run.stage = 'generating'; void handleGenerateLogo(); return } // CHAT-PARITY
+    if (run.stage === 'generating') { if (isGeneratingLogo) return; if (logoFileName === 'ai-generated-logo.png' && logoUrl) { run.stage = 'save' } else { end({ ok: false, error: 'generate_failed' }); return } } // CHAT-PARITY
+    if (run.stage === 'save') { if (isSaving) return; run.stage = 'saving'; void handleSave(); return } // CHAT-PARITY
+    if (run.stage === 'saving') { if (!isOpen) end({ ok: true }); else if (!isSaving && hasChanges) end({ ok: false, error: 'write_failed' }) } // CHAT-PARITY
+  }) // CHAT-PARITY
   if (!isOpen) return null
 
   return (

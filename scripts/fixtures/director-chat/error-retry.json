@@ -1,0 +1,30 @@
+{
+  "name": "error-retry",
+  "description": "Failed turn: status_update error, structured transport error, auth_expired with a discarded user_message, refresh failure, then a clean resend that clears the notice and recovers.",
+  "session": {"id":"synthetic-session-error-retry","userId":"synthetic-user-01"},
+  "steps": [
+    {"op":"ensureConnected"},
+    {"op":"open"},
+    {"op":"frame","frame":{"message_id":"msg-greeting","session_id":"synthetic-session-error-retry","timestamp":"2026-10-05T12:00:01Z","type":"chat_message","role":"assistant","payload":{"text":"Hello! What would you like to build today?","sub_title":null,"list_items":null,"format":"markdown"}}},
+    {"op":"typed","text":"Build a deck about ocean currents"},
+    {"op":"frame","frame":{"message_id":"msg-think-1","session_id":"synthetic-session-error-retry","timestamp":"2026-10-05T12:00:02Z","type":"chat_message","role":"assistant","payload":{"text":"Analyzing presentation strategy...","sub_title":null,"list_items":null,"format":"text","ephemeral":true}}},
+    {"op":"frame","frame":{"message_id":"msg-status-1","session_id":"synthetic-session-error-retry","timestamp":"2026-10-05T12:00:03Z","type":"status_update","role":"assistant","payload":{"status":"generating","text":"Drafting your outline","progress":35,"estimated_time":null}}},
+    {"op":"checkpoint","label":"working"},
+    {"op":"frame","frame":{"message_id":"msg-status-2","session_id":"synthetic-session-error-retry","timestamp":"2026-10-05T12:00:04Z","type":"status_update","role":"assistant","payload":{"status":"error","text":"Something went wrong while building your deck.","progress":null,"estimated_time":null}}},
+    {"op":"checkpoint","label":"status error"},
+    {"op":"frame","frame":{"type":"error","timestamp":"2026-10-05T12:00:05Z","payload":{"code":"PROCESSING_FAILED","message":"Director could not finish this turn.","detail":"Synthetic processing detail"}}},
+    {"op":"checkpoint","label":"transport error notice"},
+    {"op":"frame","frame":{"type":"auth_expired","timestamp":"2026-10-05T12:00:06Z","payload":{"code":"WS_AUTH_EXPIRED","message":"Your secure connection expired.","discarded_message_type":"user_message"}}},
+    {"op":"checkpoint","label":"auth expired, resend needed"},
+    {"op":"frame","frame":{"type":"auth_refresh_failed","timestamp":"2026-10-05T12:00:07Z","payload":{"code":"WS_AUTH_REFRESH_REJECTED","message":"Could not refresh the secure connection."}}},
+    {"op":"checkpoint","label":"refresh failed"},
+    {"op":"typed","text":"Build a deck about ocean currents","comment":"user resends the same turn"},
+    {"op":"expect","outbound":2},
+    {"op":"checkpoint","label":"after resend"},
+    {"op":"frame","frame":{"type":"auth_refreshed","timestamp":"2026-10-05T12:00:08Z","payload":{"expires_at":1790000000}}},
+    {"op":"frame","frame":{"message_id":"msg-think-2","session_id":"synthetic-session-error-retry","timestamp":"2026-10-05T12:00:09Z","type":"chat_message","role":"assistant","payload":{"text":"Analyzing presentation strategy...","sub_title":null,"list_items":null,"format":"text","ephemeral":true}}},
+    {"op":"frame","frame":{"message_id":"msg-plan","session_id":"synthetic-session-error-retry","timestamp":"2026-10-05T12:00:10Z","type":"chat_message","role":"assistant","payload":{"text":"Here is the plan.","sub_title":null,"list_items":null,"format":"markdown"}}},
+    {"op":"frame","frame":{"message_id":"msg_plan_confirm_synthetic-session-error-retry","session_id":"synthetic-session-error-retry","timestamp":"2026-10-05T12:00:11Z","type":"action_request","role":"assistant","payload":{"prompt_text":"Does this structure work for you?","actions":[{"label":"Yes, let's build it!","value":"accept_plan","primary":true,"requires_input":false},{"label":"I'd like to make changes","value":"reject_plan","primary":false,"requires_input":false}]}}},
+    {"op":"checkpoint","label":"recovered"}
+  ]
+}

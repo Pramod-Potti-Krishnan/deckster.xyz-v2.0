@@ -1,0 +1,99 @@
+[
+  {"args":[{"message_id":"msg-greeting","type":"chat_message"}],"name":"hook.onMessage","step":2},
+  {
+    "args": [
+      "I need a deck about ocean currents",
+      0,
+      {
+        "deepResearch": false,
+        "extendedGeneration": true,
+        "fileUpload": false,
+        "storeName": null,
+        "useKnowledgeGraph": false,
+        "webSearch": false
+      }
+    ],
+    "name": "page.sendTypedTurn",
+    "step": 3
+  },
+  {
+    "args": [
+      {
+        "message_id": "synthetic-uuid-0001",
+        "payload": {"text":"I need a deck about ocean currents"},
+        "type": "chat_message"
+      },
+      "I need a deck about ocean currents"
+    ],
+    "name": "page.persistence.queueMessage",
+    "step": 3
+  },
+  {"args":[{"message_id":"msg-think-1","type":"chat_message"}],"name":"hook.onMessage","step":4},
+  {"args":[{"message_id":"msg-questions-1","type":"action_request"}],"name":"hook.onMessage","step":5},
+  {
+    "args": [
+      "Who is the audience: General public\nHow technical should it be: Mostly plain language with one chart\nHow long is the talk: 10 minutes",
+      "Answers: General public · Mostly plain language with one chart · 10 minutes"
+    ],
+    "name": "ml.onSubmitAnswers",
+    "step": 14
+  },
+  {
+    "args": [
+      {
+        "message_id": "user-qa-1791201607500",
+        "payload": {"text":"Answers: General public · Mostly plain language with one chart · 10 minutes"},
+        "session_id": "synthetic-session-ask-card",
+        "timestamp": "2026-10-05T12:00:07.500Z",
+        "type": "chat_message"
+      },
+      "Answers: General public · Mostly plain language with one chart · 10 minutes"
+    ],
+    "name": "page.persistence.queueMessage",
+    "step": 14
+  },
+  {"args":[{"message_id":"msg-plan","type":"chat_message"}],"name":"hook.onMessage","step":18},
+  {
+    "args": [{"message_id":"msg_plan_confirm_synthetic-session-ask-card","type":"action_request"}],
+    "name": "hook.onMessage",
+    "step": 19
+  },
+  {
+    "args": [
+      {"label":"I'd like to make changes","primary":false,"requires_input":false,"value":"reject_plan"},
+      "msg_plan_confirm_synthetic-session-ask-card",
+      "msg_plan_confirm_synthetic-session-ask-card"
+    ],
+    "name": "ml.onActionClick",
+    "step": 21
+  },
+  {
+    "args": [
+      {
+        "message_id": "synthetic-uuid-0002",
+        "payload": {"action_label":"I'd like to make changes","action_value":"reject_plan","text":"I'd like to make changes"},
+        "session_id": "synthetic-session-ask-card",
+        "timestamp": "2026-10-05T12:00:10.500Z",
+        "type": "chat_message"
+      },
+      "I'd like to make changes"
+    ],
+    "name": "page.persistence.queueMessage",
+    "step": 21
+  },
+  {
+    "args": [{"message_id":"msg_plan_confirm_synthetic-session-ask-card","type":"action_request"}],
+    "name": "hook.onMessage",
+    "step": 24
+  },
+  {"args":[{"message_id":"msg-adjust-1","type":"action_request"}],"name":"hook.onMessage","step":26},
+  {
+    "args": [
+      {"label":"Add a slide","primary":true,"requires_input":true,"value":"add_slide"},
+      "msg-adjust-1",
+      "msg-adjust-1"
+    ],
+    "name": "ml.onActionClick",
+    "step": 28
+  }
+]

@@ -9,6 +9,7 @@ import {
   ExternalLink,
   User,
   ChevronDown,
+  Check,
 } from "lucide-react"
 import { FileChip, type UploadedFile } from "@/components/file-chip"
 import {
@@ -28,10 +29,12 @@ import {
   coalesceCertifiedStudioGreetingPrefix,
   type InferredGreetingPrefixCertificate,
 } from '@/lib/studio-greeting-lifecycle'
+import { latchOpeningGreetings, NO_HIDDEN_GREETINGS, studioWelcomeTrimOn } from '@/lib/studio-welcome-trim' // STUDIO-WELCOME-TRIM
 import { deduplicateDirectorTranscript, type DirectorTranscriptEntry } from "@/lib/director-transcript"
 import { classifyDirectorMessage, getDirectorActionPolicy } from "@/lib/studio-director-message-policy"
 import { directorHistoryTimestamp } from "@/lib/director-chat-history"
-import { coalesceOutlineStateReplays, presentTerminalOutlineRevisions, type HistoricalActionStatus, type OutlineHistoryStatus } from "@/lib/director-history-presentation"
+import { askAnswerKey, lockApprovalGatePolicy } from "@/lib/director-ask-identity"
+import { coalesceOutlineStateReplays, presentTerminalOutlineRevisions, STUDIO_OUTLINE_CANVAS_ENABLED, hideBuiltDeckStructureResends, outlineCanvasRelation, type HistoricalActionStatus, type OutlineHistoryStatus } from "@/lib/director-history-presentation"
 import {
   attachmentsFromPayload,
   type UserChatMessage,
@@ -40,14 +43,32 @@ import { shouldShowBuildWorkingPulse } from "@/lib/build-progress-visibility"
 import { hasLiveTrackedEphemeralMessage } from "@/lib/slide-compose-async"
 import { LAYOUT_VIEWER_URL_POLICY } from "@/lib/layout-service-client"
 import { evaluateLayoutViewerUrl } from "@/lib/layout-viewer-url-policy"
+import { viewOnlyIfEnabled } from "@/lib/present-view-only"
 // MDC (P2): flag-gated clarity rendering — flag-off keeps the exact legacy JSX.
 import { QuestionCard } from "@/components/builder/chat/question-card"
 import { CHAT_CLARITY, CHAT_QUESTIONS } from "@/lib/mdc-flags"
 import type { QuestionSet } from "@/types/mdc"
 import { shouldRerouteEphemeral } from "@/lib/build-narration-heuristics"
-import { StudioWelcome, type StudioDirectorConnectionState, type StudioPresentationContext } from "@/components/builder/chat/studio-welcome"
+import { StudioWelcome, StudioFirstRunStarters, type StudioDirectorConnectionState, type StudioPresentationContext, type StudioWelcomeGreeting } from "@/components/builder/chat/studio-welcome"
 import { StudioOutlineCard } from "@/components/builder/chat/studio-outline-card"
+import { STUDIO_STRAWMAN_CHAT_ENABLED } from "@/lib/studio-strawman-chat" // STRAWMAN-CHAT
+import { StudioRecoveryCard } from "@/components/builder/chat/studio-recovery-card"
+import { studioChatRecoveryCard, type StudioChatRecoveryInput } from "@/lib/studio-chat-recovery"
+import { findAnsweredChoice, suggestionKey, type AnsweredChoice } from "@/lib/studio-chat-answered-choice"
+import { StudioBulkEditRow } from "@/components/builder/chat/studio-bulk-edit-card" // BULK-EDIT-UNDO
+import { StudioUndoChip } from "@/components/builder/chat/studio-undo-chip" // BULK-EDIT-UNDO
+import { STUDIO_BULK_EDIT_ENABLED, STUDIO_CHAT_UNDO_ENABLED } from "@/lib/studio-bulk-edit-wire" // BULK-EDIT-UNDO
+import { bulkEditAskDecision, chooseBulkEdit, sendStudioUndo } from "@/lib/studio-bulk-edit-store" // BULK-EDIT-UNDO
+import { noteStudioChatLines } from "@/lib/studio-bulk-edit-store" // CHAT-UNDO-V2
 import "./studio-director.css"
+import "./studio-chat-polish.css"
+import "./studio-chat-answered.css"
+import "./studio-chat-composer.css"
+import { StudioChatCleanJob } from "@/components/builder/chat/studio-chat-clean" // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN, default off)
+import type { ChatCleanThreadProps } from "@/lib/studio-chat-clean" // CHAT-CLEAN
+import "./studio-chat-clean.css" // CHAT-CLEAN: every rule keyed to [data-studio-chat-clean], an attribute the chat column carries only with the flag on
+import { STUDIO_CHAT_CLEAN_ORDER_ENABLED, chatCleanHiddenNoteId, chatCleanLastGateId, chatCleanNotePlan, chatCleanRowTime } from "@/lib/studio-chat-clean-order" // CHAT-CLEAN-ORDER (NEXT_PUBLIC_STUDIO_CHAT_CLEAN_ORDER, default off)
+import { StudioChatCleanNotesAt, StudioChatCleanOrderTail } from "@/components/builder/chat/studio-chat-clean-order" // CHAT-CLEAN-ORDER
 
 export interface MessageListProps {
   sessionId?: string | null
@@ -64,7 +85,11 @@ export interface MessageListProps {
   userMessageContentMapRef: React.RefObject<Map<string, string>>
   hasSeenWelcomeRef: React.RefObject<boolean>
   answeredActionsRef: React.RefObject<Set<string>>
-  onActionClick: (action: ActionRequest['payload']['actions'][0], messageId: string) => void
+  /** Third argument: the key under which the owner records the answer to THIS ask (the bare id unless
+   * NEXT_PUBLIC_STUDIO_ASK_CARD_IDENTITY_ENABLED, then id + the frame's timestamp). */
+  onActionClick: (action: ActionRequest['payload']['actions'][0], messageId: string, answerKey?: string) => void
+  /** Approval gates stay inactive while a build runs, is stopped or is over (flag NEXT_PUBLIC_STUDIO_ASK_CARD_IDENTITY_ENABLED only). */
+  askGatesLocked?: boolean
   // MDC (P2/P3): sends a composed answer through the normal chat send path.
   // Optional — when absent, structured question rendering falls back to plain.
   onSubmitAnswers?: (text: string, displayText?: string) => void
@@ -74,6 +99,13 @@ export interface MessageListProps {
   connectionState?: StudioDirectorConnectionState
   /** Supplied open-artifact context for local empty-chat guidance only. */
   presentationContext?: StudioPresentationContext
+  /** PASS2 #2 (NEXT_PUBLIC_STUDIO_FIRST_RUN_V2): the small row of stage actions the first-run welcome carries under its starters. */
+  studioFirstRunActions?: React.ReactNode
+  /** PASS2 #2 fix-forward (NEXT_PUBLIC_STUDIO_FIRST_RUN_V2, J2 pass-2 P1): an existing session's history is still being fetched, so "nothing has been said yet"
+   *  is not yet known. While true no welcome is drawn (first-run or plain); the page's loading states carry the wait. Passed only with the flag on. */
+  studioRestoring?: boolean
+  /** PASS2B G01 (NEXT_PUBLIC_STUDIO_WELCOME_POLISH): the signed-in user's display name for the welcome's time-of-day greeting. Passed only with the flag on. */
+  studioWelcomeGreeting?: StudioWelcomeGreeting
   messagesEndRef: React.RefObject<HTMLDivElement | null>
   // Rich strawman: per-slide context keyed by slide_index. Drives narrative_role chip + key_message subtitle.
   slideContextByIndex?: Record<number, SlideContextItem> | null
@@ -89,6 +121,12 @@ export interface MessageListProps {
   // thinking-stream is rerouted to the canvas + DirectorPresence and never
   // renders in chat. False/undefined = today's behavior, byte-for-byte.
   suppressEphemeral?: boolean
+  /** PASS2 #4 (NEXT_PUBLIC_STUDIO_OUTLINE_CANVAS): message_id of the outline frame the canvas is showing. Undefined when off. */
+  studioOutlineOnCanvas?: string | null
+  /** PASS2-DIRECTOR-CHAT PR D, item 7 (NEXT_PUBLIC_STUDIO_CHAT_RECOVERY): facts the page already holds (the transport notice, the hook's
+   *  reconnect status, whether the last status was an error), read only, to word the recovery card. Undefined when the flag is off. */
+  studioRecovery?: StudioChatRecoveryInput
+  studioChatClean?: ChatCleanThreadProps // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN): the build narration, the thread notes and the composer's mode for the inline job card; passed only with the flag on
 }
 
 // Keep the native pre component identity stable across transcript/status rerenders.
@@ -132,15 +170,24 @@ function EvidenceBadge({ context }: { context?: SlideContextItem }) {
   )
 }
 
-function HistoricalActionCard({ message, status, studio }: { message: ActionRequest; status: HistoricalActionStatus; studio: boolean }) {
+function HistoricalActionCard({ message, status, studio, chosen }: { message: ActionRequest; status: HistoricalActionStatus; studio: boolean; chosen?: AnsweredChoice }) {
   const questions = (message.payload as { question_set?: QuestionSet }).question_set
+  // PASS2-DIRECTOR-CHAT PR D, item 8: `chosen` is passed only with NEXT_PUBLIC_STUDIO_CHAT_ANSWERED_CHOICE on and only when the user's own reply
+  // names an option (lib/studio-chat-answered-choice). Absent, every spread below adds nothing and every child is exactly what it was.
+  const mark = (picked: boolean | undefined) => picked ? { 'data-studio-chat-chosen': 'true' } : undefined
   return (
-    <div data-studio-director-ask={studio ? 'history' : undefined} data-studio-director-history-action={studio ? status : undefined} data-director-action-id={message.message_id} aria-label="Earlier Director choices">
+    <div data-studio-director-ask={studio ? 'history' : undefined} data-studio-director-history-action={studio ? status : undefined} data-director-action-id={message.message_id} aria-label="Earlier Director choices" {...(chosen ? { 'data-studio-chat-answered': 'true' } : undefined)}>
       <p data-studio-director-part="heading" className="text-[10px] text-muted-foreground">{status === 'answered' ? 'Answered' : 'Earlier step'}</p>
       <p data-studio-director-part="prompt" className="text-xs whitespace-pre-wrap mb-2">{message.payload.prompt_text}</p>
       {questions?.intro && <p className="text-xs whitespace-pre-wrap">{questions.intro}</p>}
-      {questions?.questions?.map(question => <div key={question.id} className="text-xs mb-2"><p>{question.text}</p><ul>{question.suggestions?.map((suggestion, index) => <li key={index}>{suggestion.label}</li>)}</ul></div>)}
-      <div className="flex flex-wrap gap-1.5">{message.payload.actions.map((action, index) => <Button key={index} data-studio-director-option={studio ? 'action' : undefined} size="sm" variant="outline" disabled>{action.label}</Button>)}</div>
+      {questions?.questions?.map(question => <div key={question.id} className="text-xs mb-2"><p>{question.text}</p><ul>{question.suggestions?.map((suggestion, index) => {
+        const picked = chosen?.suggestions.includes(suggestionKey(question.id, suggestion.label))
+        return <li key={index} {...mark(picked)}>{picked ? <>{suggestion.label}<Check className="h-3 w-3" aria-hidden="true" /><span className="sr-only"> (your choice)</span></> : suggestion.label}</li>
+      })}</ul></div>)}
+      <div className="flex flex-wrap gap-1.5">{message.payload.actions.map((action, index) => {
+        const picked = chosen?.actionIndex === index
+        return <Button key={index} data-studio-director-option={studio ? 'action' : undefined} size="sm" variant="outline" disabled {...(picked ? { ...mark(true), 'aria-pressed': true } : undefined)}>{picked ? <>{action.label}<Check className="h-3 w-3" aria-hidden="true" /></> : action.label}</Button>
+      })}</div>
     </div>
   )
 }
@@ -156,10 +203,14 @@ export function MessageList({
   hasSeenWelcomeRef,
   answeredActionsRef,
   onActionClick,
+  askGatesLocked,
   onSubmitAnswers,
   onDraftPrompt,
   connectionState,
   presentationContext,
+  studioFirstRunActions,
+  studioRestoring,
+  studioWelcomeGreeting,
   messagesEndRef,
   slideContextByIndex,
   ephemeralFadeToken,
@@ -168,8 +219,21 @@ export function MessageList({
   currentStatus,
   isGeneratingFinal = false,
   suppressEphemeral,
+  studioOutlineOnCanvas,
+  studioRecovery,
+  studioChatClean, // CHAT-CLEAN
 }: MessageListProps) {
   const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+  // PASS2 #4: off, no outline card receives these props, so it renders exactly as before. On, every card the canvas outline stands
+  // for (the frame itself or a re-sent copy with the same content) folds to the summary, and an older, different outline folds too,
+  // marked as replaced (lib/director-history-presentation outlineCanvasRelation).
+  const canvasOutline = STUDIO_OUTLINE_CANVAS_ENABLED && studioOutlineOnCanvas
+    ? messages.find(message => message.message_id === studioOutlineOnCanvas) ?? null : null
+  const outlineCanvasProps = (message: SlideUpdate) => {
+    if (!STUDIO_OUTLINE_CANVAS_ENABLED) return undefined
+    const relation = outlineCanvasRelation(message, canvasOutline, studioOutlineOnCanvas)
+    return { onCanvas: relation === 'canvas', canvasSuperseded: relation === 'earlier', outlineLabel: true, deckSlideCount: presentationContext?.slideCount ?? null }
+  }
   const greetingProjectionRef = useRef<{
     receipt: StudioFrontendTranscriptReceipt | null
     revision: number
@@ -179,27 +243,51 @@ export function MessageList({
     certificate: InferredGreetingPrefixCertificate | null
   }>({ receipt: null, revision: 0, eligibleIds: new Set(), userIntentSeen: false, nonIntroSeen: false, certificate: null })
 
-  const { historicalActions, activeActionIds } = getDirectorActionPolicy(messages, answeredActionsRef.current, sessionId)
+  const { historicalActions, activeActionIds } = lockApprovalGatePolicy(
+    getDirectorActionPolicy(messages, answeredActionsRef.current, sessionId, userMessages), messages, askGatesLocked)
   // Old card callbacks may survive a parent history transition. Validate at
   // interaction time against render-current IDs rather than a captured list.
   const activeActionsRef = useRef(activeActionIds)
   activeActionsRef.current = activeActionIds
+  const messagesRef = useRef(messages)
+  messagesRef.current = messages
+  // The answer is recorded against the ask instance on screen, not against an id a later ask may re-use.
+  const answerKeyFor = (messageId: string) => {
+    const ask = messagesRef.current.find(message => message.type === 'action_request' && message.message_id === messageId)
+    return ask ? askAnswerKey(ask) : messageId
+  }
   const onCurrentActionClick = (action: ActionRequest['payload']['actions'][0], messageId: string) => {
-    if (!activeActionsRef.current.has(messageId) || answeredActionsRef.current.has(messageId)) return
-    onActionClick(action, messageId)
+    const answerKey = answerKeyFor(messageId)
+    if (!activeActionsRef.current.has(messageId) || answeredActionsRef.current.has(answerKey)) return
+    onActionClick(action, messageId, answerKey)
   }
   const currentAnswerSubmit = (messageId: string) => onSubmitAnswers
     ? (text: string, displayText?: string) => {
-        if (activeActionsRef.current.has(messageId) && !answeredActionsRef.current.has(messageId)) onSubmitAnswers(text, displayText)
+        if (activeActionsRef.current.has(messageId) && !answeredActionsRef.current.has(answerKeyFor(messageId))) onSubmitAnswers(text, displayText)
       }
     : undefined
-  const isEmptyStudioConversation = studio && userMessages.length === 0 && messages.every(message =>
-    message.type === 'slide_update' && (message as SlideUpdate).payload.is_blank === true
+  // BULK-EDIT-UNDO (flags NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO, default off): Director's whole-deck edit card and the Undo chip. Both send through onActionClick, the page's one answer path (user_message.data.action_value).
+  const bulkEditChoose = (action: ActionRequest['payload']['actions'][0], messageId: string) => chooseBulkEdit(action, messageId, { active: activeActionsRef.current, answered: answeredActionsRef.current, answerKey: answerKeyFor(messageId), send: onActionClick }) // BULK-EDIT-UNDO
+  const undoChange = (changeId: string, messageId: string) => sendStudioUndo(sessionId, changeId, messageId, { answered: answeredActionsRef.current, send: onActionClick }) // BULK-EDIT-UNDO
+  // PASS2 #2 (flag NEXT_PUBLIC_STUDIO_FIRST_RUN_V2, default off): Director's opening greeting alone is still a first run, so the
+  // welcome holds once Director has said hello. Off, only a blank-deck notice (or nothing) counts, exactly as before.
+  const firstRunV2 = studio && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true'
+  // J2 pass-2 P1 (same flag): a transcript with no user turn is also what an existing session looks like for the moment its history is loading.
+  // The page says so (studioRestoring); until it is confirmed new or restored, no "nothing here yet" welcome is drawn. An open deck's own
+  // welcome ("What would you like to change?", presentationContext) is true whatever the history says, so it stays. Off, firstRunV2 is false.
+  const restoringSession = firstRunV2 && studioRestoring === true && !presentationContext
+  const isEmptyStudioConversation = studio && !restoringSession && userMessages.length === 0 && messages.every(message =>
+    ((message.type === 'slide_update' && (message as SlideUpdate).payload.is_blank === true)
+      || (firstRunV2 && message.type === 'chat_message' && (message as V2ChatMessage).payload.text === DIRECTOR_522_INITIAL_GREETING))
       && !classifyDirectorMessage(message, {
         userMessageIds: userMessageIdsRef.current,
         userMessageContentMap: userMessageContentMapRef.current,
       }).isUserMessage,
   )
+  // STUDIO-WELCOME-TRIM (flag NEXT_PUBLIC_STUDIO_WELCOME_TRIM, first-run welcome only, default off; lib/studio-welcome-trim.ts): Director's opening greeting is not drawn. A greeting seen while the conversation is still the empty first run (the answer just above,
+  // STUDIO-WELCOME-TRIM: no open deck) is remembered by id and stays hidden for as long as it is in the transcript, so the first message does not bring it back above that message. A greeting never seen empty (a restored history, an open deck, a same-text reply after a user turn) is drawn as today.
+  const trimGreetingsRef = useRef<ReadonlySet<string>>(NO_HIDDEN_GREETINGS) // STUDIO-WELCOME-TRIM
+  const trimmedGreetingIds = firstRunV2 && studioWelcomeTrimOn() ? (trimGreetingsRef.current = latchOpeningGreetings(trimGreetingsRef.current, messages, isEmptyStudioConversation && !presentationContext)) : NO_HIDDEN_GREETINGS // STUDIO-WELCOME-TRIM
   // Thinking-stream fade-out: when slide_update lands, fade tracked ephemeral
   // chat bubbles to opacity 0 over 300ms then unmount them on the next tick.
   const [fadingIds, setFadingIds] = useState<Set<string>>(new Set())
@@ -396,9 +484,11 @@ export function MessageList({
         studioPresented = presentTerminalOutlineRevisions(coalesceOutlineStateReplays([...projected]))
       }
     }
+    if (trimmedGreetingIds.size > 0) studioPresented = studioPresented.filter(entry => entry.messageType === 'user' || !trimmedGreetingIds.has((entry as DirectorMessage).message_id)) // STUDIO-WELCOME-TRIM: the hidden opening greeting is not drawn; the raw transcript is untouched
     // Preserve the legacy welcome policy outside Studio. Studio uses a bounded
     // display prefix; raw messages still drive history/actions/persistence.
-    const filtered = studio ? [...studioPresented] : presented.filter((item, index) => {
+    // PASS2 #4 (flag on, Studio only): a built deck's structure re-sent on reconnect is state, not a new outline card.
+    const filtered = studio ? (STUDIO_OUTLINE_CANVAS_ENABLED ? hideBuiltDeckStructureResends([...studioPresented]) : [...studioPresented]) : presented.filter((item, index) => {
       if (item.messageType === 'bot') {
         const msg = item as DirectorMessage;
         if (msg.type === 'chat_message') {
@@ -530,7 +620,7 @@ export function MessageList({
     }
 
     return processedMessages;
-  }, [userMessages, messages, ephemeralMessageIds, userMessageIdsRef, userMessageContentMapRef, hasSeenWelcomeRef, answeredActionsRef, suppressEphemeral, studio, sessionId, studioFrontendTranscriptReceipt, studioGreetingSafety]);
+  }, [userMessages, messages, ephemeralMessageIds, userMessageIdsRef, userMessageContentMapRef, hasSeenWelcomeRef, answeredActionsRef, suppressEphemeral, studio, sessionId, studioFrontendTranscriptReceipt, studioGreetingSafety, trimmedGreetingIds]); // STUDIO-WELCOME-TRIM
 
   const hasVisibleThinkingStream = processedMessages.some((item) => {
     if (item.messageType !== 'bot') return false
@@ -545,6 +635,37 @@ export function MessageList({
     narrationOwnsChat: !!suppressEphemeral,
   })
 
+  // CHAT-UNDO-V2 (NEXT_PUBLIC_STUDIO_CHAT_UNDO, default off): tell the Undo chip's store which Director lines are in the chat, so a chip goes under its change's own anchor line (Director's anchor_message_id, else the replayed
+  // CHAT-UNDO-V2: anchor_history_id) and never under a line that is not here. Read-only on the list; the chips below draw in this same pass.
+  if (STUDIO_CHAT_UNDO_ENABLED && studio) noteStudioChatLines(sessionId, processedMessages, removedIds) // CHAT-UNDO-V2
+
+  const welcomeBusy = isGeneratingFinal || currentStatus?.status === 'thinking' || currentStatus?.status === 'generating'
+
+  // PASS2-DIRECTOR-CHAT PR B (flag NEXT_PUBLIC_STUDIO_CHAT_POLISH, Studio shell only, default off): DIRECTOR / YOU speaker labels and a
+  // tinted user turn, a 13px Director body, a lighter thinking row. Presentation only: on, each message root below gains one
+  // data-studio-chat-polish attribute and studio-chat-polish.css does the rest. Off, this is undefined and spreading it adds nothing,
+  // so the markup, the keys and every handler are exactly what they were.
+  const chatPolish = (kind: 'message' | 'thinking' = 'message') => studio && process.env.NEXT_PUBLIC_STUDIO_CHAT_POLISH === 'true' ? { 'data-studio-chat-polish': kind } : undefined
+
+  // PASS2-DIRECTOR-CHAT PR D, item 8 (flag NEXT_PUBLIC_STUDIO_CHAT_ANSWERED_CHOICE, Studio shell only, default off): an answered ask shows the option
+  // the user chose. Read at render from the list already sorted above: the next user turn after the ask names the option (lib/studio-chat-answered-
+  // choice). It writes nothing (no state, no ref) and never changes whether a card is answered or live; off, this returns undefined and spreading
+  // it adds nothing.
+  const answeredChoice = studio && process.env.NEXT_PUBLIC_STUDIO_CHAT_ANSWERED_CHOICE === 'true'
+  const answeredChoiceProps = (index: number, ask: ActionRequest, status: HistoricalActionStatus) => {
+    if (!answeredChoice || status !== 'answered') return undefined
+    const chosen = findAnsweredChoice(processedMessages, index, ask)
+    return chosen ? { chosen } : undefined
+  }
+
+  // PASS2-DIRECTOR-CHAT PR D, item 7 (flag NEXT_PUBLIC_STUDIO_CHAT_RECOVERY, Studio shell only, default off): a calm card at the end of the transcript
+  // when something interrupted Director. Words only, from facts the page passes down read-only; the card has no button, so the existing message box
+  // stays the only resend. Off, this is null and nothing is rendered.
+  const recoveryCard = studio && process.env.NEXT_PUBLIC_STUDIO_CHAT_RECOVERY === 'true' ? studioChatRecoveryCard(studioRecovery) : null
+  // CHAT-CLEAN-ORDER (NEXT_PUBLIC_STUDIO_CHAT_CLEAN_ORDER, default off; lib/studio-chat-clean-order.ts): the thread's notes (stopped / paused / resumed, the user's directions) are drawn between the rows, where they happened, and the tail's working line is kept honest. Off, this is null and nothing below it renders or changes.
+  const chatCleanOrder = STUDIO_CHAT_CLEAN_ORDER_ENABLED && studio && studioChatClean ? { thread: studioChatClean, plan: chatCleanNotePlan(processedMessages.map(row => ({ kind: row.messageType === 'user' ? 'user' as const : 'bot' as const, time: chatCleanRowTime(row) })), studioChatClean.notes, chatCleanHiddenNoteId(studioChatClean.notes, studioChatClean.composer.mode)) } : null // CHAT-CLEAN-ORDER
+  if (chatCleanOrder) studioChatClean = undefined // CHAT-CLEAN-ORDER: the tail below is drawn by StudioChatCleanOrderTail instead; the prop's own line then renders nothing
+
   return (
     <>
       {isEmptyStudioConversation && (
@@ -552,13 +673,15 @@ export function MessageList({
           onDraftPrompt={onDraftPrompt}
           connectionState={connectionState}
           presentationContext={presentationContext}
-          busy={isGeneratingFinal || currentStatus?.status === 'thinking' || currentStatus?.status === 'generating'}
+          busy={welcomeBusy}
+          {...(firstRunV2 ? { firstRun: true } : {})}
+          {...(studioWelcomeGreeting ? { greeting: studioWelcomeGreeting } : {})}
         />
       )}
       {processedMessages.map((item, index) => {
         if (item.messageType === 'user') {
           return (
-            <div key={item.id} data-studio-director-message={studio ? "user" : undefined} className="flex gap-3 justify-end animate-in fade-in duration-200">
+            <div key={item.id} data-studio-director-message={studio ? "user" : undefined} className="flex gap-3 justify-end animate-in fade-in duration-200" {...chatPolish()}>
               <div className="flex-1 max-w-[85%] text-right">
                 <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">You</p>
                 <p className="text-xs text-gray-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap break-words">{item.text}</p>
@@ -594,6 +717,7 @@ export function MessageList({
         const msg = item as any;
         return (
           <React.Fragment key={msg.message_id || msg.id}>
+            {chatCleanOrder?.plan.before[index] ? <StudioChatCleanNotesAt notes={chatCleanOrder.plan.before[index]} /> : null}{/* CHAT-CLEAN-ORDER: notes that happened just before this row */}
             {(() => {
               if (msg.type === 'combined_strawman') {
                 const { slideUpdate, presentationUrl, actionRequest } = msg;
@@ -602,7 +726,7 @@ export function MessageList({
                   : null
 
                 return (
-                  <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200">
+                  <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200" {...chatPolish()}>
                     <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
                       <Sparkles className="h-3 w-3 text-white" />
                     </div>
@@ -610,7 +734,7 @@ export function MessageList({
                       <p data-studio-director-part="speaker" className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
 
                       {/* Slide Structure Card */}
-                      {studio && slideUpdate ? <StudioOutlineCard payload={slideUpdate.payload} historyStatus={slideUpdate.clientOutlineHistoryStatus} contextByIndex={slideContextByIndex} renderEvidence={(context) => <EvidenceBadge context={context} />} /> : (
+                      {studio && slideUpdate ? <StudioOutlineCard payload={slideUpdate.payload} historyStatus={slideUpdate.clientOutlineHistoryStatus} contextByIndex={slideContextByIndex} renderEvidence={(context) => <EvidenceBadge context={context} />} {...outlineCanvasProps(slideUpdate)} /> : (
                       <div data-studio-director-part="outline" className="mt-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-800">
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className="text-sm">📊</span>
@@ -662,7 +786,7 @@ export function MessageList({
                             disabled={presentationUrlDecision?.status !== 'allowed'}
                             onClick={() => {
                               if (presentationUrlDecision?.status === 'allowed') {
-                                window.open(presentationUrlDecision.url, '_blank', 'noopener,noreferrer')
+                                window.open(viewOnlyIfEnabled(presentationUrlDecision.url), '_blank', 'noopener,noreferrer')
                               }
                             }}
                           >
@@ -673,7 +797,7 @@ export function MessageList({
                       )}
 
                       {/* Action Buttons — MDC (P2): card treatment behind CHAT_CLARITY */}
-                      {actionRequest && historicalActions.has(actionRequest.message_id) && <HistoricalActionCard message={actionRequest} status={historicalActions.get(actionRequest.message_id)!} studio={studio} />}
+                      {actionRequest && historicalActions.has(actionRequest.message_id) && <HistoricalActionCard message={actionRequest} status={historicalActions.get(actionRequest.message_id)!} studio={studio} {...answeredChoiceProps(index, actionRequest, historicalActions.get(actionRequest.message_id)!)} />}
                       {(CHAT_CLARITY || studio) && actionRequest && !historicalActions.has(actionRequest.message_id) && (
                         <div className="mt-3">
                           <QuestionCard
@@ -723,7 +847,7 @@ export function MessageList({
                 const canExpand = visibleMessages.length > 1
 
                 return (
-                  <div data-studio-director-message={studio ? "director" : undefined} className={`flex gap-3 animate-in fade-in duration-200 transition-opacity duration-300 ${isFading ? 'opacity-0' : ''}`}>
+                  <div data-studio-director-message={studio ? "director" : undefined} className={`flex gap-3 animate-in fade-in duration-200 transition-opacity duration-300 ${isFading ? 'opacity-0' : ''}`} {...chatPolish('thinking')}>
                     <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
                       <Sparkles className="h-3 w-3 text-white" />
                     </div>
@@ -780,7 +904,7 @@ export function MessageList({
                 if (removedIds.has(chatMsg.message_id)) return null
                 const isFading = fadingIds.has(chatMsg.message_id)
                 return (
-                  <div data-studio-director-message={studio ? "director" : undefined} className={`flex gap-3 animate-in fade-in duration-200 transition-opacity duration-300 ${isFading ? 'opacity-0' : ''}`}>
+                  <div data-studio-director-message={studio ? "director" : undefined} className={`flex gap-3 animate-in fade-in duration-200 transition-opacity duration-300 ${isFading ? 'opacity-0' : ''}`} {...chatPolish()}>
                     <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
                       <Sparkles className="h-3 w-3 text-white" />
                     </div>
@@ -819,17 +943,21 @@ export function MessageList({
                           ))}
                         </ul>
                       )}
+                      {STUDIO_CHAT_UNDO_ENABLED && studio && <StudioUndoChip sessionId={sessionId} messageId={chatMsg.message_id} undo={undoChange} />}{/* BULK-EDIT-UNDO: the Undo chip (default off) */}
                     </div>
                   </div>
                 )
               } else if (msg.type === 'action_request') {
                 const actionMsg = msg as ActionRequest
+                const bulkAsk = STUDIO_BULK_EDIT_ENABLED && studio ? bulkEditAskDecision(actionMsg) : null // BULK-EDIT-UNDO
+                if (bulkAsk?.kind === 'hidden') return null // BULK-EDIT-UNDO: a bulk_edit_confirm that does not validate draws nothing
+                if (bulkAsk?.kind === 'card') return <StudioBulkEditRow ask={actionMsg} model={bulkAsk.model} sessionId={sessionId} status={historicalActions.get(actionMsg.message_id)} chosenValue={actionMsg.payload.actions[findAnsweredChoice(processedMessages, index, actionMsg)?.actionIndex ?? -1]?.value ?? null} choose={bulkEditChoose} rowProps={chatPolish()} /> // BULK-EDIT-UNDO
                 if (historicalActions.has(actionMsg.message_id)) {
-                  return <HistoricalActionCard message={actionMsg} status={historicalActions.get(actionMsg.message_id)!} studio={studio} />
+                  return <HistoricalActionCard message={actionMsg} status={historicalActions.get(actionMsg.message_id)!} studio={studio} {...answeredChoiceProps(index, actionMsg, historicalActions.get(actionMsg.message_id)!)} />
                 }
                 if (CHAT_CLARITY || studio) {
                   return (
-                    <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200">
+                    <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200" {...chatPolish()}>
                       <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
                         <Sparkles className="h-3 w-3 text-white" />
                       </div>
@@ -879,14 +1007,15 @@ export function MessageList({
               } else if (msg.type === 'slide_update') {
                 const slideMsg = msg as SlideUpdate & { clientOutlineHistoryStatus?: OutlineHistoryStatus }
                 if (studio && slideMsg.payload.is_blank === true) return null
+                if (STUDIO_STRAWMAN_CHAT_ENABLED && studio) return null // STRAWMAN-CHAT: no outline card in the chat (F-08, PK 31 Oct), so no empty Director row for it either; Director's one line and its buttons are their own rows
                 return (
-                  <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200">
+                  <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200" {...chatPolish()}>
                     <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
                       <Sparkles className="h-3 w-3 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p data-studio-director-part="speaker" className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
-                      {studio ? <StudioOutlineCard payload={slideMsg.payload} historyStatus={slideMsg.clientOutlineHistoryStatus} contextByIndex={slideContextByIndex} renderEvidence={(context) => <EvidenceBadge context={context} />} /> : (
+                      {studio ? <StudioOutlineCard payload={slideMsg.payload} historyStatus={slideMsg.clientOutlineHistoryStatus} contextByIndex={slideContextByIndex} renderEvidence={(context) => <EvidenceBadge context={context} />} {...outlineCanvasProps(slideMsg)} /> : (
                       <div data-studio-director-part="outline" className="mt-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-800">
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className="text-sm">📊</span>
@@ -940,11 +1069,15 @@ export function MessageList({
               }
               return null
             })()}
+            {chatCleanOrder?.plan.after[index] ? <StudioChatCleanNotesAt notes={chatCleanOrder.plan.after[index]} /> : null}{/* CHAT-CLEAN-ORDER: notes that happened just after this row */}
           </React.Fragment>
         )
       })}
+      {isEmptyStudioConversation && firstRunV2 && !presentationContext && (
+        <StudioFirstRunStarters onDraftPrompt={onDraftPrompt} busy={welcomeBusy}>{studioFirstRunActions}</StudioFirstRunStarters>
+      )}
       {showWorkingPulse && (
-        <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200">
+        <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200" {...chatPolish('thinking')}>
           <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
             <Sparkles className="h-3 w-3 text-white" />
           </div>
@@ -965,7 +1098,15 @@ export function MessageList({
           </div>
         </div>
       )}
-      <div ref={messagesEndRef} />
+      {chatCleanOrder ? <StudioChatCleanOrderTail {...chatCleanOrder.thread} notes={chatCleanOrder.plan.tail} gate={chatCleanLastGateId(messages)} currentStatus={currentStatus} /> : null}{/* CHAT-CLEAN-ORDER: the notes after the last row and the job card, with the stale working line closed */}
+      {studioChatClean ? <StudioChatCleanJob {...studioChatClean} currentStatus={currentStatus} /> : null}{/* CHAT-CLEAN: the notes and the inline job card (or Director's one status line) at the end of the thread; off, null */}
+      {/* PR D (recovery flag on): the card shares the end anchor's slot, so with the flag off the child list is exactly the base's. */}
+      {recoveryCard ? (
+        <>
+          <StudioRecoveryCard card={recoveryCard} />
+          <div ref={messagesEndRef} />
+        </>
+      ) : <div ref={messagesEndRef} />}
     </>
   )
 }

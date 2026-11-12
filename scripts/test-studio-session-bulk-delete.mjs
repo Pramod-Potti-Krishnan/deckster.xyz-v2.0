@@ -63,6 +63,7 @@ function fixture({ studio = true, currentSessionId = 'alpha', outcomes = [], cac
     './ui/input': { Input: 'Input' },
     './ui/checkbox': { Checkbox: 'Checkbox' },
     './delete-confirm-modal': { DeleteConfirmModal: 'DeleteConfirmModal' },
+    '@/lib/studio-create-word': { studioCreateLabel: (_unified, original) => original }, // PASS2B G56 (00cb07f): the flag is off here, so the call site's own word
     './ui/alert-dialog': Object.fromEntries(['AlertDialog', 'AlertDialogAction', 'AlertDialogContent', 'AlertDialogDescription', 'AlertDialogFooter', 'AlertDialogHeader', 'AlertDialogTitle'].map(name => [name, name])),
     './studio-session-history.css': {},
   }

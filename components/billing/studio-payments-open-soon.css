@@ -1,0 +1,12 @@
+/* NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON (default off). Every rule is scoped to html[data-studio-payments-soon="true"], which hooks/use-studio-payments-open-soon.ts sets only with the flag on,
+   and every rule starts from an attribute the pass sets on a gated control (or on the credit-pack grid), so nothing of a plan's name, price, status or renewal can be reached from here.
+   The DOM pass only sets attributes (React owns the nodes); this sheet is how a gated control looks: greyed and still, and, for a "label" control, saying "Payments open soon" where its label was. */
+html[data-studio-payments-soon="true"] [data-studio-payments-soon-gate="1"] { opacity: .55; pointer-events: none; cursor: not-allowed; }
+/* The label is swapped without touching it: its text is drawn at size 0 (the colour, font and padding of the control stay its own, so the new words wear the control's own colour in either theme),
+   its icons are not drawn, and ::after draws the line. */
+html[data-studio-payments-soon="true"] [data-studio-payments-soon-gate="1"][data-studio-payments-soon-kind="label"] { font-size: 0 !important; line-height: 0 !important; }
+html[data-studio-payments-soon="true"] [data-studio-payments-soon-gate="1"][data-studio-payments-soon-kind="label"] > * { display: none !important; }
+html[data-studio-payments-soon="true"] [data-studio-payments-soon-gate="1"][data-studio-payments-soon-kind="label"]::after { content: "Payments open soon"; font-size: 11px; line-height: 16px; font-weight: 500; white-space: nowrap; }
+html[data-studio-payments-soon="true"] [data-studio-payments-soon-gate="1"][data-studio-v4-profile-role="upgrade"]::after { font-size: 10px; }
+/* The credit packs keep their prices; the grid says the line once, after its last pack, across the whole row. */
+html[data-studio-payments-soon="true"] [data-studio-payments-soon-group="1"]::after { content: "Payments open soon"; grid-column: 1 / -1; font-size: 11px; line-height: 16px; opacity: .7; }

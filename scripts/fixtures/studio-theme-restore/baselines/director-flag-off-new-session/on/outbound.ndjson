@@ -1,0 +1,3 @@
+{"handshake":0,"at":500,"url":"wss://director.synthetic.invalid/ws?session_id=sess-new-off&user_id=synthetic-user-01&skip_history=false&message_count=0&build_control_capability=1"}
+{"socket":0,"at":3500,"data":"{\"type\":\"set_theme\",\"data\":{\"request_id\":\"synthetic-uuid-0001\",\"theme\":{\"mode\":\"auto\"},\"presentation_id\":\"blank-pres-1\"}}"}
+{"close":0,"code":1005,"reason":""}

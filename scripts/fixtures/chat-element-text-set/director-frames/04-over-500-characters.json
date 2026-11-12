@@ -1,0 +1,31 @@
+{
+  "note": "501 characters between the quotes: nothing is sent, the Director answers honestly (the value here is 501 letter a).",
+  "user_message": {
+    "type": "user_message",
+    "data": {
+      "text": "Change this to \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"",
+      "client_caps": [
+        "mdc1",
+        "element_edit1",
+        "element_text1",
+        "element_refine1"
+      ],
+      "references": [
+        {
+          "kind": "element",
+          "element_id": "textbox_a1",
+          "element_type": "TEXT_BOX",
+          "slide_index": 2,
+          "slide_id": "L2",
+          "label": "Text · slide 3"
+        }
+      ]
+    }
+  },
+  "model_decision": "refine_element (the live model's pick; the Director overrides it)",
+  "director_frames": [],
+  "director_chat_lines": [
+    "A text box can take up to 500 characters from chat, so nothing was changed. Send a shorter text."
+  ],
+  "studio_replies": []
+}

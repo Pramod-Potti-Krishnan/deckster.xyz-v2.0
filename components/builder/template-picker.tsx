@@ -2,8 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, CheckCircle2, LayoutTemplate, Loader2, RotateCw, Search, X } from 'lucide-react'
+import { AlertTriangle, ArrowRight, CheckCircle2, LayoutTemplate, Loader2, Plus, RotateCw, Search, X } from 'lucide-react'
 import './studio-template-picker.css'
+import { ThemeDropdownPicker, type ThemeDropdownCopy, type ThemeDropdownOption } from '@/components/theme-dropdown-picker'
+import {
+  DECKSTER_PROVIDED_TEMPLATES, composerTemplateActions, composerTemplateSlideCount, keepPopupOpenForDropdownList, loadComposerTemplates, templateLibraryTarget,
+  type ComposerLibraryRequest, type ComposerTemplateAction,
+} from '@/lib/studio-composer-popups'
+import type { ComposerTemplate } from '@/lib/composer-library'
 import { StudioComposerHint } from './studio-composer-hint'
 import {
   DropdownMenu,
@@ -15,6 +21,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
+import { studioTemplateShownName, studioTemplateTitleProps } from '@/lib/studio-template-display-name'
 import { mergeTemplateRetryAcknowledgement } from '@/lib/template-retry-acknowledgement'
 import {
   isTemplateGenerationReady,
@@ -26,9 +33,20 @@ import {
   type TemplateSelection,
   type TemplateSnapshot,
 } from '@/hooks/use-templates'
+import { STUDIO_TEMPLATE_MATCH_ENABLED } from '@/lib/studio-template-match' // STUDIO-TEMPLATE-MATCH
+import { StudioTemplateAutoApplyCheck } from '@/components/builder/studio-template-auto-apply-check' // STUDIO-TEMPLATE-MATCH
 
 type TemplatePickerMode = 'generation' | 'review'
 const STUDIO_SHELL = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+// PASS2B G38 (NEXT_PUBLIC_STUDIO_TEMPLATE_DISPLAY_NAMES, default off): templates are drawn by a short display name; the full stored name stays in a tooltip and in every payload.
+const TEMPLATE_DISPLAY_NAMES = process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_DISPLAY_NAMES === 'true'
+const displayName = (name: string) => studioTemplateShownName(name, TEMPLATE_DISPLAY_NAMES)
+const nameTitle = (name: string) => studioTemplateTitleProps(name, TEMPLATE_DISPLAY_NAMES)
+// PASS2-COMPOSER-POPUPS fix (flag on only): the Templates page works only with saved templates connected (the page's own rule), and the
+// composer library's actions follow the library dialog's flags. Read here as the dialog and the page read them.
+const TEMPLATES_PAGE_ENABLED = process.env.NEXT_PUBLIC_TEMPLATE_BUILDER_ENABLED === 'true'
+const COMPOSER_DITTO_ENABLED = process.env.NEXT_PUBLIC_COMPOSER_STAGE1B_DITTO_ENABLED === 'true'
+const COMPOSER_NEW_TOPIC_ENABLED = process.env.NEXT_PUBLIC_COMPOSER_STAGE1B_NEW_TOPIC_ENABLED === 'true'
 
 interface TemplatePickerProps {
   onSelect: (template: TemplateSelection) => void
@@ -37,6 +55,17 @@ interface TemplatePickerProps {
   mode?: TemplatePickerMode
   onOpenLibrary?: () => void
   showSavedTemplates?: boolean
+  /** PASS2-COMPOSER-POPUPS (flag NEXT_PUBLIC_STUDIO_COMPOSER_POPUPS_V2, set by the composer): the popup is two dropdowns, "Deckster templates" and "My templates". */
+  dropdowns?: boolean
+  /** PASS2-COMPOSER-POPUPS: the composer owns the open-state, so only one composer popup is open at a time. Absent: the picker keeps its own. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  /** PASS2-COMPOSER-POPUPS: the template the composer has locked in, shown as the chosen value of "My templates". */
+  selectedTemplateId?: string | null
+  /** PASS2-COMPOSER-POPUPS fix: runs a composer library action (Use original, Rebuild, New topic) in the library dialog. Absent: no composer library. */
+  onComposerAction?: (request: ComposerLibraryRequest) => void
+  /** PASS2-COMPOSER-POPUPS fix: the signed-in identity, read as the library dialog reads it (id, else email). Without it nothing is listed. */
+  composerUserId?: string | null
 }
 
 interface TemplatePickerContentProps {
@@ -46,7 +75,48 @@ interface TemplatePickerContentProps {
   mode?: TemplatePickerMode
   preferredTemplateId?: string | null
   standalone?: boolean
+  /** PASS2-COMPOSER-POPUPS: draw the composer popup (two dropdowns and the library actions) instead of the search box and cards. */
+  dropdowns?: ComposerTemplateDropdowns
 }
+
+/** What the composer's template popup needs beyond the records: the chosen template, the lock, and the two actions below the dropdowns. */
+export interface ComposerTemplateDropdowns {
+  selectedTemplateId: string | null
+  locked: boolean
+  /** False when saved templates are not enabled in this environment: the popup then offers only the two actions. */
+  savedTemplates: boolean
+  onClose: () => void
+  /** The existing upload flow (the composer library dialog); absent when the environment has none. */
+  onNewTemplate?: () => void
+  /** PASS2-COMPOSER-POPUPS fix: "Template library" opens the composer library dialog; absent when the environment has none. */
+  onLibrary?: () => void
+  /** PASS2-COMPOSER-POPUPS fix: the composer library's own templates, listed in "My templates" with the library dialog's actions. */
+  composer?: ComposerTemplateList
+}
+
+/** PASS2-COMPOSER-POPUPS fix: the composer library's list as the template popup shows it, and what its actions do. */
+export interface ComposerTemplateList {
+  /** null until the first answer. */
+  templates: ComposerTemplate[] | null
+  loading: boolean
+  error: string | null
+  /** As the library dialog reads it; without it nothing is loaded and the actions are off, as the dialog's buttons are. */
+  userId: string | null
+  /** The template picked in "My templates", whose actions are shown. */
+  chosenId: string | null
+  onChoose: (id: string | null) => void
+  actions: { action: ComposerTemplateAction; label: string }[]
+  onAction: (request: ComposerLibraryRequest) => void
+  refresh: () => void
+}
+
+const DECKSTER_TEMPLATES_COPY: ThemeDropdownCopy = { label: 'Deckster templates', help: null, placeholder: 'Search Deckster templates', singular: 'template', plural: 'templates', groups: false, none: 'No Deckster templates yet.' }
+const MY_TEMPLATES_COPY: ThemeDropdownCopy = { label: 'My templates', help: null, placeholder: 'Search your templates', singular: 'template', plural: 'templates', groups: false, none: 'No saved templates yet.' }
+// PASS2-COMPOSER-POPUPS fix: why a list is empty, in plain words, under the control (never a blank control).
+const DECKSTER_TEMPLATES_EMPTY = 'Deckster has no ready-made templates yet. Templates you upload are listed under My templates.'
+const SAVED_TEMPLATES_EMPTY = 'No saved templates yet. Build a deck and use Save as Template to add one.'
+/** Composer library options carry this prefix in the merged "My templates" list, so they can never be mistaken for a saved template. */
+const COMPOSER_OPTION = 'composer:'
 
 export function TemplatePickerContent({
   onSelect,
@@ -55,6 +125,7 @@ export function TemplatePickerContent({
   mode = 'generation',
   preferredTemplateId = null,
   standalone = false,
+  dropdowns,
 }: TemplatePickerContentProps) {
   const { toast } = useToast()
   const { listTemplates, loading, reoptimizeTemplate, watchTemplateStatus } = useTemplates()
@@ -316,6 +387,121 @@ export function TemplatePickerContent({
     }
   }
 
+  if (STUDIO_SHELL && dropdowns) {
+    // PASS2-COMPOSER-POPUPS: the same records, selection handler, readiness rules, retry and watchers as the cards below; only the picture changes.
+    const optionOf = (template: SavedTemplate): ThemeDropdownOption => {
+      const ready = isTemplateGenerationReady(template)
+      const slides = template.slide_count != null ? `${template.slide_count} slides` : 'Saved template'
+      const note = template.description || templateGenerationUnavailableReason(template)
+      return { id: template.id, name: displayName(template.name), hint: displayName(template.name) !== template.name ? `${template.name} · ${note}` : note, swatches: [], current: false,
+        sub: `${slides} · ${templateGenerationStatusLabel(template)}`, search: `${template.name} ${template.description || ''}`, muted: mode === 'generation' && !ready }
+    }
+    const mine = (templates ?? []).map(optionOf)
+    const deckster: ThemeDropdownOption[] = DECKSTER_PROVIDED_TEMPLATES.map(item => ({ id: item.id, name: item.name, hint: item.description ?? '', swatches: [], current: false,
+      sub: item.slideCount != null ? `${item.slideCount} slides` : '', search: `${item.name} ${item.description ?? ''}` }))
+    const choose = (id: string) => {
+      const template = templates?.find(item => item.id === id)
+      if (!template) return
+      handleTemplateClick(template)
+      // As with the menu rows before: a template that can be used closes the popup; one that is not ready explains why and stays.
+      if (mode !== 'generation' || isTemplateGenerationReady(template)) dropdowns.onClose()
+    }
+    const attention = (templates ?? []).filter(template => ['failed', 'needs_cleanup'].includes(templateGenerationStatus(template)))
+    const loadingFirst = refreshing && templates === null
+    // PASS2-COMPOSER-POPUPS fix: with the composer library, "My templates" lists its templates first (the uploads the library dialog shows),
+    // then any saved templates. A composer template is picked in the list and then used through the library dialog's own actions; a saved
+    // template is chosen exactly as before. "Template library" opens the working library, never a page that is disabled here.
+    const composer = dropdowns.composer
+    const library = templateLibraryTarget({ composerLibrary: Boolean(dropdowns.onLibrary), templatesPage: TEMPLATES_PAGE_ENABLED })
+    const composerOptions: ThemeDropdownOption[] = (composer?.templates ?? []).map(template => ({ id: `${COMPOSER_OPTION}${template.id}`, name: displayName(template.name), hint: template.name,
+      swatches: [], current: false, sub: `${composerTemplateSlideCount(template)} slides`, search: template.name }))
+    // A locked deck still offers the composer templates (each one opens a new deck, as in the library dialog), but no saved ones.
+    const savedOptions = dropdowns.savedTemplates && !(composer && dropdowns.locked) ? mine : []
+    const myOptions = composer ? [...composerOptions, ...savedOptions] : mine
+    const chosen = composer?.templates?.find(template => template.id === composer.chosenId) ?? null
+    const chooseMine = (id: string) => {
+      if (composer && composerOptions.some(option => option.id === id)) composer.onChoose(id.slice(COMPOSER_OPTION.length))
+      else { composer?.onChoose(null); choose(id) }
+    }
+    // Why "My templates" is empty, if it is. With the composer library: signed out, failed, still loading, or nothing uploaded yet.
+    const savedPending = dropdowns.savedTemplates && !dropdowns.locked && templates === null && !listError
+    const composerState = !composer || myOptions.length > 0 ? null : !composer.userId ? 'signed-out' as const
+      : composer.templates === null && composer.error ? 'failed' as const : composer.templates === null || savedPending ? 'loading' as const : 'empty' as const
+    const myEmpty = !composer ? (dropdowns.savedTemplates && templates !== null && templates.length === 0 && !listError ? SAVED_TEMPLATES_EMPTY : null)
+      : composerState === 'signed-out' ? 'Sign in to see your templates.'
+        : composerState === 'failed' ? `Your templates could not be loaded: ${composer.error} Use Refresh to try again.`
+          : composerState === 'loading' ? 'Loading your templates…'
+            : composerState === 'empty' ? dropdowns.onNewTemplate ? 'You have no templates yet. Upload a PowerPoint with New template… and it is listed here.' : 'You have no templates yet.'
+              : null
+    const myPlaceholder = composerState === 'loading' ? 'Loading your templates…' : composerState === 'failed' ? 'Library unavailable' : composerState ? 'No templates yet' : MY_TEMPLATES_COPY.placeholder
+    const refreshBusy = refreshing || Boolean(retryingId) || Boolean(composer?.loading)
+    const refreshButton = <button type="button" className="stcd-icon-button" aria-label={composer ? 'Refresh templates' : 'Refresh saved templates'} disabled={refreshBusy}
+      onClick={() => { if (!composer || dropdowns.savedTemplates) void refresh(); composer?.refresh() }}><RotateCw size={13} aria-hidden="true" className={refreshing || composer?.loading ? 'stcd-spin' : undefined} /></button>
+    // PASS2B G39 (NEXT_PUBLIC_STUDIO_EMPTY_CATALOG_HIDE, default off): no Deckster catalog exists yet, so with the flag on the empty "Deckster templates" block
+    // (a disabled dropdown and its explanation) is not drawn until the list has an entry. Off, or with a catalog, the block is the base's.
+    const hideEmptyDeckster = process.env.NEXT_PUBLIC_STUDIO_EMPTY_CATALOG_HIDE === 'true' && deckster.length === 0
+    const decksterField = hideEmptyDeckster ? null : <div className="stcd-field" data-studio-template-dd="deckster">
+      <ThemeDropdownPicker options={deckster} selectedId={null} locked={dropdowns.locked || deckster.length === 0} onSelect={choose}
+        copy={deckster.length === 0 ? { ...DECKSTER_TEMPLATES_COPY, placeholder: 'No Deckster templates yet' } : DECKSTER_TEMPLATES_COPY} />
+      {deckster.length === 0 && <p className="stcd-empty" data-studio-template-empty="deckster">{DECKSTER_TEMPLATES_EMPTY}</p>}
+    </div>
+    return <section data-studio-template-dropdowns="true" aria-label={label} className="stcd">
+      <div className="stcd-heading">
+        <strong>{label}</strong>
+        {refreshButton}
+        <button type="button" className="stcd-icon-button" data-studio-template-action="close" aria-label="Close template options" onClick={dropdowns.onClose}><X size={14} aria-hidden="true" /></button>
+      </div>
+      {STUDIO_TEMPLATE_MATCH_ENABLED && <StudioTemplateAutoApplyCheck />}{/* STUDIO-TEMPLATE-MATCH (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH, default off): the one check at the top of the pop-up, "Use my best-matching template", ticked by default; off, never drawn */}
+      {!composer && dropdowns.savedTemplates && <>
+      {dropdowns.locked && <p className="stcd-note">Template selection is locked for this deck.</p>}
+      {decksterField}
+      <div className="stcd-field" data-studio-template-dd="mine">
+        <ThemeDropdownPicker options={mine} selectedId={dropdowns.selectedTemplateId} locked={dropdowns.locked || loadingFirst || (templates === null && Boolean(listError))} onSelect={choose}
+          copy={{ ...MY_TEMPLATES_COPY, placeholder: loadingFirst ? 'Loading your templates…' : templates === null && listError ? 'Library unavailable' : MY_TEMPLATES_COPY.placeholder }} />
+        {myEmpty && <p className="stcd-empty" data-studio-template-empty="mine">{myEmpty}</p>}
+      </div>
+      </>}
+      {composer && <>
+      {dropdowns.savedTemplates && dropdowns.locked && <p className="stcd-note">Saved templates are locked for this deck.</p>}
+      {decksterField}
+      <div className="stcd-field" data-studio-template-dd="mine">
+        <ThemeDropdownPicker options={myOptions} selectedId={chosen ? `${COMPOSER_OPTION}${chosen.id}` : dropdowns.selectedTemplateId} locked={myOptions.length === 0} onSelect={chooseMine}
+          copy={{ ...MY_TEMPLATES_COPY, none: 'No templates yet.', placeholder: myPlaceholder }} />
+        {myEmpty && <p className="stcd-empty" role="status" data-studio-template-empty="mine">{myEmpty}</p>}
+        {composer.error && composer.templates !== null && <p className="stcd-note stcd-error" role="alert">Your templates could not be refreshed: {composer.error} Showing the last loaded list.</p>}
+      </div>
+      {chosen && <div className="stcd-composer" role="group" aria-label={`What to do with ${displayName(chosen.name)}`} data-studio-template-composer={chosen.id}>
+        <p className="stcd-composer-name"><strong {...nameTitle(chosen.name)}>{displayName(chosen.name)}</strong> · {composerTemplateSlideCount(chosen)} slides</p>
+        <div className="stcd-composer-actions">
+          {composer.actions.map(({ action, label: actionLabel }) => <button key={action} type="button" data-studio-template-composer-action={action} disabled={!composer.userId}
+            onClick={() => composer.onAction({ action, template: chosen })}>{actionLabel}</button>)}
+        </div>
+        <p className="stcd-hint">Each opens a new deck; the template library shows its progress.</p>
+      </div>}
+      </>}
+      {dropdowns.savedTemplates && listError && <p className="stcd-note stcd-error" role="alert">{listError}{templates !== null && ' Showing the last loaded records; their status may have changed.'}</p>}
+      {dropdowns.savedTemplates && attention.length > 0 && <div className="stcd-attention" role="group" aria-label="Templates that need attention">
+        {attention.map(template => {
+          const errors = [template.blueprint_enrichment_error, template.template_purity_error].filter(Boolean).join(' · ')
+          return <div key={template.id} className="stcd-attention-row">
+            <div className="stcd-attention-head">
+              <span><strong {...nameTitle(template.name)}>{displayName(template.name)}</strong> · {templateGenerationStatusLabel(template)}</span>
+              <button type="button" className="stcd-retry" disabled={Boolean(retryingId)} onClick={() => void retryNative(template)}><RotateCw size={11} aria-hidden="true" />{retryingId === template.id ? 'Requesting…' : 'Retry'}</button>
+            </div>
+            <small>{templateGenerationUnavailableReason(template)}{errors ? ` Current diagnostics: ${errors}` : ''}{previousErrors[template.id]?.length ? ` Previous attempt: ${previousErrors[template.id].join(' · ')}` : ''}</small>
+            {watchNotices[template.id] && <small role="status">{watchNotices[template.id]}</small>}
+          </div>
+        })}
+      </div>}
+      {dropdowns.savedTemplates && <p className="stcd-hint">{mode === 'review' ? 'Review does not start generation.' : 'Readiness and build locks still apply.'}</p>}
+      <div className="stcd-footer">
+        {library === 'dialog' && <button type="button" data-studio-template-action="library" onClick={dropdowns.onLibrary}>Template library <ArrowRight size={12} aria-hidden="true" /></button>}
+        {library === 'page' && <Link href="/studio/templates" data-studio-template-action="library" onClick={dropdowns.onClose}>Template library <ArrowRight size={12} aria-hidden="true" /></Link>}
+        {dropdowns.onNewTemplate && <button type="button" data-studio-template-action="new" onClick={dropdowns.onNewTemplate}><Plus size={12} aria-hidden="true" />New template…</button>}
+      </div>
+    </section>
+  }
+
   if (STUDIO_SHELL) {
     const matches = templates?.filter(template => `${template.name} ${template.description || ''}`.toLowerCase().includes(query.trim().toLowerCase())) ?? []
     const preferred = templates?.find(template => template.id === preferredTemplateId)
@@ -324,13 +510,13 @@ export function TemplatePickerContent({
       const ready = isTemplateGenerationReady(template)
       const status = templateGenerationStatus(template)
       const errors = [template.blueprint_enrichment_error, template.template_purity_error].filter(Boolean).join(' · ')
-      return <><span className="stp-mini" aria-hidden="true"><i /><i /><i /></span><span className="stp-copy"><span className="stp-title">{template.name}</span><span className="stp-description">{template.slide_count != null ? `${template.slide_count} slides` : 'Saved template'}{template.description ? ` · ${template.description}` : ''}</span><span className="stp-status" data-status={status}>{ready ? <CheckCircle2 size={12} /> : status === 'optimizing' ? <Loader2 size={12} /> : <AlertTriangle size={12} />}{templateGenerationStatusLabel(template)}</span>{!ready && <span className="stp-reason">{mode === 'review' ? 'Review available. ' : ''}{templateGenerationUnavailableReason(template)}</span>}{errors && <span className="stp-reason break-words">Current diagnostics: {errors}</span>}{Boolean(previousErrors[template.id]?.length) && <span className="stp-reason break-words">Previous attempt: {previousErrors[template.id].join(' · ')}</span>}{watchNotices[template.id] && <span className="stp-reason" role="status">{watchNotices[template.id]}</span>}{template.id === preferredTemplateId && <span className="stp-preferred">From your library · not applied</span>}</span></>
+      return <><span className="stp-mini" aria-hidden="true"><i /><i /><i /></span><span className="stp-copy"><span className="stp-title" {...nameTitle(template.name)}>{displayName(template.name)}</span><span className="stp-description">{template.slide_count != null ? `${template.slide_count} slides` : 'Saved template'}{template.description ? ` · ${template.description}` : ''}</span><span className="stp-status" data-status={status}>{ready ? <CheckCircle2 size={12} /> : status === 'optimizing' ? <Loader2 size={12} /> : <AlertTriangle size={12} />}{templateGenerationStatusLabel(template)}</span>{!ready && <span className="stp-reason">{mode === 'review' ? 'Review available. ' : ''}{templateGenerationUnavailableReason(template)}</span>}{errors && <span className="stp-reason break-words">Current diagnostics: {errors}</span>}{Boolean(previousErrors[template.id]?.length) && <span className="stp-reason break-words">Previous attempt: {previousErrors[template.id].join(' · ')}</span>}{watchNotices[template.id] && <span className="stp-reason" role="status">{watchNotices[template.id]}</span>}{template.id === preferredTemplateId && <span className="stp-preferred">From your library · not applied</span>}</span></>
     }
     const refreshControl = standalone ? <button type="button" className="stp-icon-button" aria-label="Refresh saved templates" disabled={refreshing || Boolean(retryingId)} onClick={() => void refresh()}><RotateCw size={14} /></button> : <DropdownMenuItem className="stp-icon-button" aria-label="Refresh saved templates" disabled={refreshing || Boolean(retryingId)} onSelect={event => { event.preventDefault(); void refresh() }}><RotateCw size={14} /></DropdownMenuItem>
     return <section data-studio-template-picker="true" data-standalone={standalone ? 'true' : undefined} aria-label={label}>
       <div className="stp-heading"><div><strong>{label}</strong><p>{mode === 'review' ? 'Inspect saved structure, including templates that are not ready to generate.' : 'Choose verified reusable structure for the next build.'}</p></div>{refreshControl}</div>
       <div className="stp-search"><Search size={15} aria-hidden="true" /><input ref={searchInput} aria-label="Search saved templates" placeholder="Find a story structure" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key.length === 1 || ['Backspace', 'Delete', 'Home', 'End', 'ArrowLeft', 'ArrowRight'].includes(event.key)) event.stopPropagation() }} />{query && <button type="button" aria-label="Clear saved template search" onClick={() => { setQuery(''); searchInput.current?.focus() }}><X size={14} /></button>}</div>
-      {preferred && <div className="stp-notice"><strong>From your library: {preferred.name}</strong><p>Highlighted only. This template has not been selected or applied.{query && !matches.some(template => template.id === preferred.id) ? ' Clear your search to see it.' : ''}</p></div>}
+      {preferred && <div className="stp-notice"><strong {...nameTitle(preferred.name)}>From your library: {displayName(preferred.name)}</strong><p>Highlighted only. This template has not been selected or applied.{query && !matches.some(template => template.id === preferred.id) ? ' Clear your search to see it.' : ''}</p></div>}
       {requestedMissing && <div className="stp-notice">The requested template is not in this available saved-template list. Refresh, or open the full library to find its current workflow.</div>}
       {listError && <div className="stp-notice stp-error" role="alert">{listError}{templates !== null && <p>Showing the last loaded records; their status may have changed.</p>}</div>}
       <p className="stp-count" role="status">{refreshing ? templates === null ? 'Loading saved templates…' : 'Refreshing saved templates…' : templates === null ? 'Library not loaded' : `${matches.length} ${matches.length === 1 ? 'template' : 'templates'}${query ? ' match' : ' available'}`}</p>
@@ -438,13 +624,73 @@ export function TemplatePickerContent({
 }
 
 /**
+ * PASS2-COMPOSER-POPUPS fix (flag on only): the template popup's body, with the composer library's list. The list is the library dialog's own
+ * request, made under the dialog's rule (while open, and only for a signed-in user); the actions are handed to the dialog, which runs them
+ * with its own handlers. Without a composer library (`onComposerAction` absent) nothing is requested and the body is the saved-template one.
+ */
+export function ComposerTemplatePopupBody({ onSelect, open, mode, showSavedTemplates, selectionLocked, selectedTemplateId, onClose, onOpenLibrary,
+  onComposerAction, composerUserId }: {
+  onSelect: (template: TemplateSelection) => void
+  open: boolean
+  mode: TemplatePickerMode
+  showSavedTemplates: boolean
+  selectionLocked: boolean
+  selectedTemplateId: string | null
+  onClose: () => void
+  onOpenLibrary?: () => void
+  onComposerAction?: (request: ComposerLibraryRequest) => void
+  composerUserId: string | null
+}) {
+  const [templates, setTemplates] = useState<ComposerTemplate[] | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [chosenId, setChosenId] = useState<string | null>(null)
+  const listRequest = useRef(0)
+  const refresh = useCallback(async () => {
+    const request = ++listRequest.current
+    setLoading(true)
+    setError(null)
+    try {
+      const listed = await loadComposerTemplates()
+      if (request === listRequest.current) setTemplates(listed)
+    } catch (reason) {
+      if (request === listRequest.current) setError(reason instanceof Error ? reason.message : 'Could not load templates.')
+    } finally {
+      if (request === listRequest.current) setLoading(false)
+    }
+  }, [])
+  const listing = Boolean(onComposerAction && open && composerUserId)
+  useEffect(() => {
+    if (!listing) return
+    void refresh()
+    return () => { listRequest.current += 1; setLoading(false) }
+  }, [listing, refresh])
+
+  const composer: ComposerTemplateList | undefined = onComposerAction ? {
+    templates, loading, error, userId: composerUserId, chosenId, onChoose: setChosenId,
+    actions: composerTemplateActions({ ditto: COMPOSER_DITTO_ENABLED, newTopic: COMPOSER_NEW_TOPIC_ENABLED }),
+    onAction: request => { setChosenId(null); onClose(); onComposerAction(request) },
+    refresh: () => { if (composerUserId) void refresh() },
+  } : undefined
+  return <TemplatePickerContent onSelect={onSelect} isOpen={open && showSavedTemplates} mode={mode} label="Reuse a template"
+    dropdowns={{ selectedTemplateId, locked: selectionLocked, savedTemplates: showSavedTemplates, onClose,
+      onNewTemplate: onOpenLibrary ? () => { onClose(); onOpenLibrary() } : undefined,
+      onLibrary: onOpenLibrary ? () => { onClose(); onOpenLibrary() } : undefined,
+      composer }} />
+}
+
+/**
  * In-chat template picker — a sibling of the attach button. Click → lists the
  * user's saved templates → selecting one "locks it in" (handled by the parent,
  * which then carries template_mode/template_id on the next send). See
  * TEMPLATE_PLAN.md §6 (retrieval = in-chat control beside attach).
  */
-export function TemplatePicker({ onSelect, disabled, selectionLocked = false, mode = 'generation', onOpenLibrary, showSavedTemplates = true }: TemplatePickerProps) {
-  const [open, setOpen] = useState(false)
+export function TemplatePicker({ onSelect, disabled, selectionLocked = false, mode = 'generation', onOpenLibrary, showSavedTemplates = true,
+  dropdowns = false, open: controlledOpen, onOpenChange, selectedTemplateId = null, onComposerAction, composerUserId = null }: TemplatePickerProps) {
+  const [ownOpen, setOwnOpen] = useState(false)
+  // Without the composer's V2 flag nothing is passed in: the open-state is the picker's own, as before.
+  const open = controlledOpen ?? ownOpen
+  const setOpen = controlledOpen === undefined ? setOwnOpen : (next: boolean) => onOpenChange?.(next)
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -461,6 +707,17 @@ export function TemplatePicker({ onSelect, disabled, selectionLocked = false, mo
         </button>
       </DropdownMenuTrigger>
       </StudioComposerHint>
+      {dropdowns && STUDIO_SHELL ? (
+        <DropdownMenuContent align="start" data-studio-composer-menu="template" data-studio-composer-dd="true" data-studio-v4-chrome={process.env.NEXT_PUBLIC_STUDIO_V4_TOKENS === 'true' ? 'true' : undefined} data-studio-v4-menu="template" className="studio-template-popover"
+          onEscapeKeyDown={keepPopupOpenForDropdownList}
+          onKeyDownCapture={event => {
+            // Native Tab traversal inside the form-like popup must run before Radix menu key handling (as in the theme popup).
+            if (event.key === 'Tab') event.stopPropagation()
+          }}>
+          <ComposerTemplatePopupBody onSelect={onSelect} open={open} mode={mode} showSavedTemplates={showSavedTemplates} selectionLocked={selectionLocked}
+            selectedTemplateId={selectedTemplateId} onClose={() => setOpen(false)} onOpenLibrary={onOpenLibrary} onComposerAction={onComposerAction} composerUserId={composerUserId} />
+        </DropdownMenuContent>
+      ) : (
       <DropdownMenuContent align="start" className="w-64">
         {onOpenLibrary && <DropdownMenuItem onSelect={() => { setOpen(false); onOpenLibrary() }}>
           <LayoutTemplate className="mr-2 h-4 w-4" /> Template library
@@ -470,6 +727,7 @@ export function TemplatePicker({ onSelect, disabled, selectionLocked = false, mo
           ? <DropdownMenuItem disabled>Template selection is locked for this deck</DropdownMenuItem>
           : <TemplatePickerContent onSelect={onSelect} isOpen={open} mode={mode} />)}
       </DropdownMenuContent>
+      )}
     </DropdownMenu>
   )
 }

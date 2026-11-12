@@ -3,6 +3,8 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 import ts from 'typescript'
+// FRONTEND-2 Pass 3 (NEXT_PUBLIC_CHAT_ELEMENT_REFINE) added flag-gated lines to the hook; with them taken out it is the file this pin holds it to.
+import { stripChatElementRefine } from './studio-chat-element-refine-strip.mjs'
 
 // Execute native useGenerationPanel methods/state and the actual Add Element
 // callback/lifecycle. All Layout responses are supplied local values; there is
@@ -45,7 +47,8 @@ const BASELINE_REF = '61b97c6c19a4a8560e92da9d52425d260d9c3a28'
 const baselineHook = parse('before.ts', execFileSync('git', ['show', `${BASELINE_REF}:hooks/use-textlabs-generation.ts`], { encoding: 'utf8' }))
 const callback = declaration(hook, 'handleOpenPanel').arguments[0]
 const baselineCallback = declaration(baselineHook, 'handleOpenPanel').arguments[0]
-assert.equal(print(declaration(hook, 'handleGenerate'), hook), print(declaration(baselineHook, 'handleGenerate'), baselineHook), 'generation callback stays exact native source')
+const hookWithoutChatRefine = parse('hooks/use-textlabs-generation.ts', stripChatElementRefine('hooks/use-textlabs-generation.ts', read('hooks/use-textlabs-generation.ts'))) // NEXT_PUBLIC_CHAT_ELEMENT_REFINE
+assert.equal(print(declaration(hookWithoutChatRefine, 'handleGenerate'), hookWithoutChatRefine), print(declaration(baselineHook, 'handleGenerate'), baselineHook), 'generation callback stays exact native source')
 const mutationPayload = (node, source) => find(node, n => ts.isCallExpression(n) && n.expression.getText(source) === 'layoutServiceApis.sendElementCommand').arguments[1]
 assert.equal(print(mutationPayload(callback, hook), hook), print(mutationPayload(baselineCallback, baselineHook), baselineHook), 'all native insertion payload keys/values stay exact')
 const defaults = find(client, node => ts.isFunctionDeclaration(node) && node.name?.text === 'getDefaultSize')
@@ -88,6 +91,7 @@ function harness(studio, send = async () => ({ success: true, elementId: 'suppli
     generationHookMountedRef: { current: true }, placeholderMountRevisionRef: { current: 0 },
     activePresentationTargetRef: { current: { presentationId: 'presentation-A', epoch: 0 } },
     pendingPlaceholderAddsRef: { current: new Set() }, placeholderSequenceRef: { current: 0 },
+    freeSpotRef: { current: null }, // PASS2D: the free-spot hand-over (NEXT_PUBLIC_STUDIO_ELEMENT_FREE_SPOT); null = the native column 2, row 4
     freshDiagramAttemptHandoffsRef: { current: new Map() },
     generationPanel: panel.render(),
     ...pure('types/textlabs.ts'), ...pure('lib/element-geometry.ts'),

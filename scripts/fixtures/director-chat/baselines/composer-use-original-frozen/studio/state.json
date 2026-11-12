@@ -1,0 +1,289 @@
+{
+  "checkpoints": [
+    {
+      "checkpoint": "01-composer-deck-adopted",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": null,
+        "finalId": "synthetic-composer-deck-01",
+        "finalUrl": "https://layout.synthetic.invalid/p/synthetic-composer-deck-01",
+        "hasStrawman": true,
+        "isBlank": false,
+        "owner": "synthetic-session-use-original",
+        "presentationId": "synthetic-composer-deck-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-composer-deck-01",
+        "slideContextIndexes": null,
+        "slideCount": 3,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": "COMPLETE"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "composer deck adopted",
+      "messages": [],
+      "messagesSha": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "page": {
+        "answeredActions": [],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": [],
+        "userMessages": []
+      },
+      "status": null,
+      "theme": {
+        "blankStatus": "blank",
+        "buildThemeSelection": {"mode":"auto"},
+        "composerAdoption": {
+          "frozen_theme": true,
+          "presentation_id": "synthetic-composer-deck-01",
+          "schema_version": "composer-adoption-v1",
+          "template_id": "synthetic-template-01"
+        },
+        "composerThemeBlocked": true,
+        "composerThemeFrozen": true,
+        "composerThemeResolved": true,
+        "effectivePresentationId": "synthetic-composer-deck-01",
+        "panelError": null,
+        "textLabsRequests": 0,
+        "themeSync": {"error":null,"presentationId":null,"requestId":null,"status":"idle","themeFingerprint":null}
+      },
+      "transportNotice": null,
+      "virtualMs": 3000
+    },
+    {
+      "checkpoint": "02-frozen-after-theme-pick-and-generate",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-03",
+        "finalId": "synthetic-composer-deck-01",
+        "finalUrl": "https://layout.synthetic.invalid/p/synthetic-composer-deck-01",
+        "hasStrawman": true,
+        "isBlank": false,
+        "owner": "synthetic-session-use-original",
+        "presentationId": "synthetic-composer-deck-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-composer-deck-01",
+        "slideContextIndexes": null,
+        "slideCount": 3,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": "COMPLETE"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "frozen after theme pick and generate",
+      "messages": [],
+      "messagesSha": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "page": {
+        "answeredActions": [],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 1,
+        "userMessageIds": [],
+        "userMessages": []
+      },
+      "status": null,
+      "theme": {
+        "blankStatus": "blank",
+        "buildThemeSelection": {"mode":"preset","preset_id":"corporate_light"},
+        "composerAdoption": {
+          "frozen_theme": true,
+          "presentation_id": "synthetic-composer-deck-01",
+          "schema_version": "composer-adoption-v1",
+          "template_id": "synthetic-template-01"
+        },
+        "composerThemeBlocked": true,
+        "composerThemeFrozen": true,
+        "composerThemeResolved": true,
+        "effectivePresentationId": "synthetic-composer-deck-01",
+        "panelError": "This template keeps its stored source theme.",
+        "textLabsRequests": 0,
+        "themeSync": {"error":null,"presentationId":null,"requestId":null,"status":"idle","themeFingerprint":null}
+      },
+      "transportNotice": null,
+      "virtualMs": 7000
+    },
+    {
+      "checkpoint": "03-still-frozen-after-reconnect",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 2,
+        "reconnectAttempt": 1,
+        "reconnectStatus": "idle",
+        "sockets": 2,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-03",
+        "finalId": "synthetic-composer-deck-01",
+        "finalUrl": "https://layout.synthetic.invalid/p/synthetic-composer-deck-01",
+        "hasStrawman": true,
+        "isBlank": false,
+        "owner": "synthetic-session-use-original",
+        "presentationId": "synthetic-composer-deck-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-composer-deck-01",
+        "slideContextIndexes": null,
+        "slideCount": 3,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": "COMPLETE"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "still frozen after reconnect",
+      "messages": [],
+      "messagesSha": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "page": {
+        "answeredActions": [],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 1,
+        "userMessageIds": [],
+        "userMessages": []
+      },
+      "status": null,
+      "theme": {
+        "blankStatus": "blank",
+        "buildThemeSelection": {"mode":"preset","preset_id":"corporate_dark"},
+        "composerAdoption": {
+          "frozen_theme": true,
+          "presentation_id": "synthetic-composer-deck-01",
+          "schema_version": "composer-adoption-v1",
+          "template_id": "synthetic-template-01"
+        },
+        "composerThemeBlocked": true,
+        "composerThemeFrozen": true,
+        "composerThemeResolved": true,
+        "effectivePresentationId": "synthetic-composer-deck-01",
+        "panelError": "This template keeps its stored source theme.",
+        "textLabsRequests": 0,
+        "themeSync": {"error":null,"presentationId":null,"requestId":null,"status":"idle","themeFingerprint":null}
+      },
+      "transportNotice": null,
+      "virtualMs": 12500
+    },
+    {
+      "checkpoint": "04-final",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 2,
+        "reconnectAttempt": 1,
+        "reconnectStatus": "idle",
+        "sockets": 2,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-03",
+        "finalId": "synthetic-composer-deck-01",
+        "finalUrl": "https://layout.synthetic.invalid/p/synthetic-composer-deck-01",
+        "hasStrawman": true,
+        "isBlank": false,
+        "owner": "synthetic-session-use-original",
+        "presentationId": "synthetic-composer-deck-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-composer-deck-01",
+        "slideContextIndexes": null,
+        "slideCount": 3,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": "COMPLETE"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "final",
+      "messages": [],
+      "messagesSha": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "page": {
+        "answeredActions": [],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 1,
+        "userMessageIds": [],
+        "userMessages": []
+      },
+      "status": null,
+      "theme": {
+        "blankStatus": "blank",
+        "buildThemeSelection": {"mode":"preset","preset_id":"corporate_dark"},
+        "composerAdoption": {
+          "frozen_theme": true,
+          "presentation_id": "synthetic-composer-deck-01",
+          "schema_version": "composer-adoption-v1",
+          "template_id": "synthetic-template-01"
+        },
+        "composerThemeBlocked": true,
+        "composerThemeFrozen": true,
+        "composerThemeResolved": true,
+        "effectivePresentationId": "synthetic-composer-deck-01",
+        "panelError": "This template keeps its stored source theme.",
+        "textLabsRequests": 0,
+        "themeSync": {"error":null,"presentationId":null,"requestId":null,"status":"idle","themeFingerprint":null}
+      },
+      "transportNotice": null,
+      "virtualMs": 12500
+    }
+  ],
+  "notes": ["step 0: applyTemplateIngestReady returned true"],
+  "steps": [
+    {
+      "comment": "the page's staged Composer result (composer-library-dialog -> sessionStorage -> applyTemplateIngestReady)",
+      "op": "useOriginal",
+      "step": 0
+    },
+    {"op":"expect","step":1},
+    {"op":"ensureConnected","step":2},
+    {"op":"open","step":3},
+    {
+      "comment": "Composer INSERTed the Director session, so Director answers with sync_response carrying the adoption",
+      "op": "frame",
+      "step": 4
+    },
+    {"op":"checkpoint","step":5},
+    {"op":"expect","step":6},
+    {"comment":"defensive: a stray blank deck frame after the adoption","op":"frame","step":7},
+    {"op":"expect","step":8},
+    {"comment":"Theme dialog: Corporate Light","op":"themePick","step":9},
+    {"comment":"the adopted deck keeps its stored source theme","op":"expect","step":10},
+    {"comment":"Add Element > Text Box > Generate on the adopted deck","op":"generate","step":11},
+    {"comment":"frozen as before: the preflight refuses and nothing reaches Text Labs","op":"expect","step":12},
+    {"op":"checkpoint","step":13},
+    {"comment":"socket drops","op":"close","step":14},
+    {"comment":"backoff elapses, the hook opens socket 1","op":"advance","step":15},
+    {"op":"expect","step":16},
+    {"op":"open","step":17},
+    {"op":"frame","step":18},
+    {"op":"themePick","step":19},
+    {"op":"expect","step":20},
+    {"op":"checkpoint","step":21}
+  ]
+}

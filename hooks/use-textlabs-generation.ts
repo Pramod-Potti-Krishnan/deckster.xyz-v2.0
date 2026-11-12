@@ -40,8 +40,21 @@ import {
   type ThemeGenerationAuthority,
   type ThemeReadinessResult,
   type ThemeSyncState,
+  type ElementThemePreflightRetry,
 } from '@/lib/theme-sync'
 import { restoreBlankElementAfterFailure } from '@/lib/blank-element-recovery'
+import { TEXTBOX_REQUEST_FIDELITY_ENABLED, textBoxResponseNotices } from '@/lib/textbox-request-fidelity'
+import {
+  CAPTION_ROW_PADDING,
+  INFOGRAPHIC_CAPTION_ROW_ENABLED,
+  captionRowElementForInsertion,
+  captionRowRefineState,
+  captionRowSkipNotice,
+  carryCaptionLink,
+  readCaptionRow,
+  withCaptionLink,
+  type CaptionRowRefineState,
+} from '@/lib/infographic-caption-row'
 import { parseThemeVariantSource, responseStyleOwner } from '@/lib/element-provenance'
 import { resolveMetricsLayout } from '@/lib/metrics-layout'
 import {
@@ -69,6 +82,7 @@ import {
 import { resolveRefineGenerationConfig } from '@/lib/refine-generation-config'
 import { normalizePersistedDiagramSubtype } from '@/lib/diagram-catalog'
 import { imageEditPreflightError } from '@/lib/image-refinement'
+import { shapeTypedFailureGuidance } from '@/lib/shape-generation-failure'
 import {
   diagramBackendDeadlineBudgetMs,
   diagramRetryCandidateForPreDispatch,
@@ -83,6 +97,25 @@ import {
   type ElementGenerationSubmitIntent,
 } from '@/lib/element-generation-retry'
 import type { TextLabsResponse } from '@/types/textlabs'
+import {
+  STUDIO_ELEMENT_PLACEHOLDER_FIX_ENABLED,
+  createPlaceholderDeferral,
+  isBlankPlaceholderInsert,
+  type PlaceholderDeferral,
+} from '@/lib/element-placeholder-defer'
+import {
+  STUDIO_ELEMENT_FREE_SPOT_ENABLED,
+  pickElementFreeSpot,
+  type FreeSpot,
+} from '@/lib/element-free-spot'
+// IMAGE-PENDING-WRITE begin
+import { STUDIO_IMAGE_PENDING_WRITE_ENABLED, imageJobWritesPending, type ImageJobEnd, type ImagePendingJob } from '@/lib/studio-image-pending-write'
+import { startImagePendingJob } from '@/lib/studio-image-pending-runtime'
+// IMAGE-PENDING-WRITE end
+import { CHAT_ADD_TARGETED_SAVE_ENABLED, openChatAddScope, type ChatAddScope } from '@/lib/chat-add-targeted' // CHAT-ADD-TARGETED
+import { CHAT_STALE_VIEWER_GUARD_ENABLED, confirmChatDeckUnchanged, requireChatAddSaved, type AddSaveWatch } from '@/lib/chat-stale-viewer-guard' // CHAT-STALE-VIEWER-GUARD CHAT-ADD-TARGETED
+import { watchViewerSave } from '@/lib/chat-element-edit-save' // CHAT-STALE-VIEWER-GUARD CHAT-ADD-TARGETED
+import { CHAT_ADD_STACKING_ENABLED, chatAddStackedZIndex } from '@/lib/chat-add-stacking' // CHAT-ADD-STACKING
 
 export type TextLabsGenerationResult =
   | { status: 'inserted'; presentationId: string | null; slideIndex: number; elementIds: string[] }
@@ -131,6 +164,8 @@ interface UseTextLabsGenerationParams {
     ) => void
     changeElementType: (type: TextLabsComponentType) => void
     getIntentRevision?: () => number
+    getPanelOwnershipRevision?: () => number
+    panelOwnershipRevision?: number
     claimInsertionIntent?: () => number
     getSnapshot: () => {
       isOpen: boolean
@@ -157,6 +192,7 @@ interface UseTextLabsGenerationParams {
   layoutServiceApis: {
     sendElementCommand: (action: string, params: Record<string, any>) => Promise<any>
     captureStudioElementGeneration?: () => StudioElementGenerationLease | null
+    sendTextBoxCommand?: (action: string, params: Record<string, any>) => Promise<any> // CHAT-ADD-TARGETED: Layout's begin / commit / cancel (the page's layoutServiceApis has it)
   } | null
   presentationId?: string | null
   currentSlideIndex: number
@@ -167,7 +203,7 @@ interface UseTextLabsGenerationParams {
   researchUserId?: string | null
   researchCapabilities: ElementResearchCapabilities
   getThemeSyncSnapshot: () => ThemeSyncState
-  ensureThemeReady: (presentationId: string) => Promise<ThemeReadinessResult>
+  ensureThemeReady: (presentationId: string, retry?: ElementThemePreflightRetry) => Promise<ThemeReadinessResult>
   toast: (opts: { title: string; description: string }) => void
 }
 
@@ -266,7 +302,7 @@ export function useTextLabsGeneration({
   generationPanel,
   blankElements,
   textLabsSession,
-  layoutServiceApis,
+  layoutServiceApis: layoutServiceApisProp,
   presentationId,
   currentSlideIndex,
   getCurrentSlideIndex,
@@ -280,8 +316,13 @@ export function useTextLabsGeneration({
   toast,
 }: UseTextLabsGenerationParams) {
   const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+  const immediateFailureFeedbackEnabled = studio
+    && process.env.NEXT_PUBLIC_ELEMENT_FAILURE_IMMEDIATE_FEEDBACK_ENABLED === 'true'
   const pendingPlaceholderAddsRef = useRef<Set<string>>(new Set())
   const placeholderSequenceRef = useRef(0)
+  // PASS2D (NEXT_PUBLIC_STUDIO_ELEMENT_FREE_SPOT): the spot handleOpenPanelFreeSpot found for the card being opened, handed to handleOpenPanel.
+  const freeSpotRef = useRef<FreeSpot | null>(null)
+  const freeSpotOpeningRef = useRef<Set<string>>(new Set())
   const placeholderMountRevisionRef = useRef(0)
   const activeGenerationKeysRef = useRef<Set<string>>(new Set())
   const retryCandidateRef = useRef<DiagramRetryCandidate | null>(null)
@@ -309,10 +350,79 @@ export function useTextLabsGeneration({
   }
   const renderPresentationTarget = activePresentationTargetRef.current
 
+  // PASS2-J3 P1 (flag NEXT_PUBLIC_STUDIO_ELEMENT_PLACEHOLDER_FIX, Studio shell only, default off): choosing an Add Element card puts
+  // nothing on the slide. The card click's placeholder insertion is held back (lib/element-placeholder-defer.ts) and sent only when
+  // Generate first needs the element; a Generate that ends without the generated element takes the empty placeholder out again.
+  // Off: `layoutServiceApis` below is the prop itself and the hook behaves exactly as before.
+  const placeholderFixEnabled = studio && STUDIO_ELEMENT_PLACEHOLDER_FIX_ENABLED
+  const placeholderDeferralRef = useRef<PlaceholderDeferral | null>(null)
+  if (placeholderFixEnabled && !placeholderDeferralRef.current) placeholderDeferralRef.current = createPlaceholderDeferral()
+  const placeholderDeferral = placeholderFixEnabled ? placeholderDeferralRef.current : null
+  const deferringPlaceholderInsertRef = useRef(false)
+  const layoutApisProxyRef = useRef<{ source: NonNullable<UseTextLabsGenerationParams['layoutServiceApis']>, proxy: NonNullable<UseTextLabsGenerationParams['layoutServiceApis']> } | null>(null)
+  if (placeholderDeferral && layoutServiceApisProp && layoutApisProxyRef.current?.source !== layoutServiceApisProp) {
+    layoutApisProxyRef.current = {
+      source: layoutServiceApisProp,
+      proxy: {
+        ...layoutServiceApisProp,
+        // handleOpenPanel's placeholder insertion (only while handleOpenPanelDeferred is calling it) is held back, answered as Layout would.
+        sendElementCommand: (action, params) => deferringPlaceholderInsertRef.current && isBlankPlaceholderInsert(action, params)
+          ? Promise.resolve(placeholderDeferral.defer(params, { ...activePresentationTargetRef.current }))
+          : layoutServiceApisProp.sendElementCommand(action, params),
+        // A Generate's lease sends the held-back insertion just before its first command on that placeholder.
+        captureStudioElementGeneration: layoutServiceApisProp.captureStudioElementGeneration
+          ? () => {
+              const lease = layoutServiceApisProp.captureStudioElementGeneration?.() ?? null
+              return lease ? placeholderDeferral.wrapLease(lease, owner => (
+                activePresentationTargetRef.current.presentationId === owner.presentationId
+                && activePresentationTargetRef.current.epoch === owner.epoch
+              )) : null
+            }
+          : undefined,
+      },
+    }
+  }
+  const layoutServiceApis = placeholderDeferral && layoutServiceApisProp
+    ? layoutApisProxyRef.current?.proxy ?? layoutServiceApisProp
+    : layoutServiceApisProp
+
+  const themePreflightRecoveryEnabled = process.env.NEXT_PUBLIC_ELEMENT_THEME_PREFLIGHT_RECOVERY_ENABLED === 'true'
+  const themePreflightFailureRef = useRef<{
+    authority: ElementThemePreflightRetry
+    epoch: number
+    blankElementId: string
+    error: string
+  } | null>(null)
+  const recoveryTheme = themePreflightRecoveryEnabled ? getThemeSyncSnapshot() : null
+  useEffect(() => {
+    const failure = themePreflightFailureRef.current
+    if (!themePreflightRecoveryEnabled || !failure || !recoveryTheme) return
+    if (
+      presentationId !== failure.authority.presentationId
+      || renderPresentationTarget.epoch !== failure.epoch
+      || generationPanel.blankElementId !== failure.blankElementId
+      || !generationPanel.isOpen || generationPanel.mode !== 'generate'
+      || generationPanel.error !== failure.error
+      || recoveryTheme.requestId !== failure.authority.requestId
+      || recoveryTheme.presentationId !== failure.authority.presentationId
+      || recoveryTheme.themeFingerprint !== failure.authority.themeFingerprint
+    ) {
+      themePreflightFailureRef.current = null
+      return
+    }
+    if (recoveryTheme.status === 'applied' && !generationPanel.isGenerating) {
+      const notice = 'Deck theme is now ready. Try again to generate this element.'
+      if (failure.error !== notice) {
+        failure.error = notice
+        generationPanel.setError(notice)
+      }
+    }
+  }, [themePreflightRecoveryEnabled, recoveryTheme, presentationId, renderPresentationTarget.epoch, generationPanel])
+
   const handleGenerate = useCallback(async (
     formData: TextLabsFormData,
     submitIntent: ElementGenerationSubmitIntent = 'generate',
-    invocation?: { kind: 'chat-add'; slideIndex: number },
+    invocation?: { kind: 'chat-add'; slideIndex: number } | { kind: 'chat-refine'; slideIndex: number; refineContext: RefineContext }, // chat-refine: NEXT_PUBLIC_CHAT_ELEMENT_REFINE
   ): Promise<TextLabsGenerationResult> => {
     const expectedPresentationTarget = renderPresentationTarget
     const nativeGenerationLease = studio
@@ -328,10 +438,44 @@ export function useTextLabsGeneration({
     )
     const presentationIsStillAuthoritative = () => presentationOwnerIsStillAuthoritative()
       && (!studio || Boolean(nativeGenerationLease?.isCurrent()))
+    let failureRecoveryStarted = false
+    let lastFailureToastMessage: string | null = null
+    const publishFailureToast = (message: string) => {
+      if (lastFailureToastMessage === message || !generationHookMountedRef.current) return
+      lastFailureToastMessage = message
+      toast({ title: 'Element generation failed', description: message })
+    }
+    let failureRecoveryIsCurrent = () => presentationIsStillAuthoritative()
+    const panelOwnershipAtInvocation = immediateFailureFeedbackEnabled
+      ? generationPanel.panelOwnershipRevision
+        ?? generationPanel.getPanelOwnershipRevision?.()
+        ?? generationPanel.getIntentRevision?.()
+      : undefined
+    let failurePanelIsCurrent = () => {
+      // Viewer-not-ready errors still belong to the mounted panel even when
+      // no command lease could be captured. No compensation uses this gate.
+      if (!presentationOwnerIsStillAuthoritative()) return false
+      const panel = generationPanel.getSnapshot()
+      return (generationPanel.getPanelOwnershipRevision?.()
+        ?? generationPanel.getIntentRevision?.()) === panelOwnershipAtInvocation
+        && panel.isOpen === generationPanel.isOpen
+        && panel.mode === generationPanel.mode
+        && panel.blankElementId === generationPanel.blankElementId
+        && (!generationPanel.refineContext
+          || panel.editElementId === generationPanel.refineContext.elementId)
+    }
     let generationError: string | null = null
     const setGenerationError = (error: string | null) => {
       generationError = error
-      if (!studio || presentationIsStillAuthoritative()) generationPanel.setError(error)
+      if (immediateFailureFeedbackEnabled && error !== null) failureRecoveryStarted = true
+      if (immediateFailureFeedbackEnabled && error !== null) {
+        const panel = generationPanel.getSnapshot()
+        if (failurePanelIsCurrent() && panel.isOpen && !invocation && panel.mode !== 'edit') {
+          generationPanel.setError(error)
+        } else publishFailureToast(error)
+      } else if (!studio || presentationIsStillAuthoritative()) {
+        generationPanel.setError(error)
+      }
     }
     const failureOutcome = (error?: string): TextLabsGenerationResult => ({
       status: 'failed',
@@ -341,7 +485,17 @@ export function useTextLabsGeneration({
     })
     if (studio && !nativeGenerationLease) {
       const error = 'The presentation viewer is not ready. Wait for it to load before generating an element.'
-      if (presentationOwnerIsStillAuthoritative()) generationPanel.setError(error)
+      if (presentationOwnerIsStillAuthoritative()) {
+        if (immediateFailureFeedbackEnabled
+          && (invocation || !generationPanel.getSnapshot().isOpen || !failurePanelIsCurrent())) {
+          publishFailureToast(error)
+        } else generationPanel.setError(error)
+      }
+      return failureOutcome(error)
+    }
+    if (immediateFailureFeedbackEnabled && !invocation && !failurePanelIsCurrent()) {
+      const error = 'The element panel changed before generation started. Reopen the intended element and try again.'
+      publishFailureToast(error)
       return failureOutcome(error)
     }
     const retryCandidate = diagramRetryCandidateForPreDispatch(
@@ -364,7 +518,10 @@ export function useTextLabsGeneration({
       )
       return failureOutcome()
     }
-    const refineContext = !invocation && generationPanel.mode === 'refine' ? generationPanel.refineContext : null
+    // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: a chat refine (lib/chat-element-refine.ts) brings its own target, read from the viewer, into the
+    // same refine branch the Element panel uses. Only that runner passes kind 'chat-refine', and only with the flag on.
+    const refineContext = invocation?.kind === 'chat-refine' && process.env.NEXT_PUBLIC_CHAT_ELEMENT_REFINE === 'true' ? invocation.refineContext
+      : !invocation && generationPanel.mode === 'refine' ? generationPanel.refineContext : null
     // Chart's explicit Manual control is request intent. Preserve that snapshot
     // while still reading the original native element for identity and metadata.
     // Other forms use auto_position:false by default and do not prove an edit.
@@ -391,6 +548,14 @@ export function useTextLabsGeneration({
       : `blank:${invocation ? 'direct' : generationPanel.blankElementId ?? 'direct'}`
     if (activeGenerationKeysRef.current.has(generationKey)) return failureOutcome('Another generation is already active for this element.')
     activeGenerationKeysRef.current.add(generationKey)
+    const failedPreflight = themePreflightFailureRef.current
+    const themeRetry = themePreflightRecoveryEnabled && submitIntent === 'retry'
+      && failedPreflight?.epoch === expectedPresentationTarget.epoch
+      && failedPreflight.authority.presentationId === expectedPresentationTarget.presentationId
+      && failedPreflight.blankElementId === generationPanel.blankElementId
+      && failedPreflight.error === generationPanel.error
+      ? failedPreflight.authority : undefined
+    themePreflightFailureRef.current = null
 
     // Lock this panel's submit path before the async geometry lookup so a
     // double-click cannot start two concurrent swaps for the same placeholder.
@@ -402,6 +567,15 @@ export function useTextLabsGeneration({
     let refineOverlayActive = false
     let blankOverlayActive = false
     let refineElementDeleted = false
+    // R14 (flag NEXT_PUBLIC_INFOGRAPHIC_CAPTION_ROW_ENABLED): a refined picture's caption row, and what to tell the user about it.
+    let captionRefineState: CaptionRowRefineState | null = null
+    let captionRowInserted = false
+    let captionRowInsertFailed = false
+    // IMAGE-PENDING-WRITE begin (NEXT_PUBLIC_STUDIO_IMAGE_PENDING_WRITE): the stored "image job pending" state of a hero-background image job, and how the job ended.
+    let imagePendingJob: ImagePendingJob | null = null
+    let imagePendingOutcome: ImageJobEnd = 'failed'
+    // IMAGE-PENDING-WRITE end
+    const captionNotices: string[] = []
     let dispatchedDiagramRequestFingerprint: string | null = null
     let diagramRequestWasDispatched = false
 
@@ -416,14 +590,98 @@ export function useTextLabsGeneration({
     let currentBlankInfo = trackedBlankInfo
     let blankTrackingWasRemoved = false
     const insertedElementIds: string[] = []
+    let chatAddScope: ChatAddScope | null = null // CHAT-ADD-TARGETED: the open scope of the insert in flight (a chat add with the flag on)
+    let staleGuardWatch: AddSaveWatch | null = null // CHAT-STALE-VIEWER-GUARD CHAT-ADD-TARGETED: the viewer's save acknowledgement of this chat add (a chat add with the flag on)
     let generationLifecycleCleaned = false
+    let recoveryLeaseReleased = false
+    let deferredFailedPanelResume: {
+      type: TextLabsComponentType
+      elementId: string
+      message: string
+      retryStrategy: TextLabsRetryStrategy | null
+    } | null = null
+    // Older injected panel adapters do not expose the structural revision yet;
+    // retain their conservative intent gate rather than trusting a lagged ID.
+    const getFailurePanelOwnershipRevision = () => generationPanel.getPanelOwnershipRevision?.()
+      ?? generationPanel.getIntentRevision?.()
+    let recoveryPanelOwnershipRevision = immediateFailureFeedbackEnabled
+      ? getFailurePanelOwnershipRevision() : undefined
+    const recoveryPanelAtStart = immediateFailureFeedbackEnabled
+      ? generationPanel.getSnapshot() : null
+    const recoveryBlankIds = new Set([currentBlankId])
+    const recoveryGenerationKeys = new Set([generationKey])
+    failureRecoveryIsCurrent = () => {
+      if (!immediateFailureFeedbackEnabled) return true
+      // Compensation belongs to the captured presentation/lease, not the
+      // panel or its persisted draft. A new panel must not abandon old cleanup.
+      return presentationIsStillAuthoritative()
+    }
+    failurePanelIsCurrent = () => {
+      if (!immediateFailureFeedbackEnabled) return true
+      if (!presentationIsStillAuthoritative()
+        || (!recoveryLeaseReleased && !activeGenerationKeysRef.current.has(generationKey))
+        || getFailurePanelOwnershipRevision() !== recoveryPanelOwnershipRevision) return false
+      const panel = generationPanel.getSnapshot()
+      if (!recoveryPanelAtStart || panel.isOpen !== recoveryPanelAtStart.isOpen
+        || panel.mode !== recoveryPanelAtStart.mode) return false
+      return currentBlankId
+        ? recoveryBlankIds.has(panel.blankElementId)
+        : panel.blankElementId === recoveryPanelAtStart.blankElementId
+          && panel.editElementId === recoveryPanelAtStart.editElementId
+    }
+    const assertFailureRecoveryIsCurrent = () => {
+      if (!failureRecoveryIsCurrent()) {
+        throw new Error('Element recovery stopped because its presentation changed.')
+      }
+    }
+    const publishImmediateFailure = (message: string, retryStrategy: TextLabsRetryStrategy | null = null) => {
+      if (!immediateFailureFeedbackEnabled) return
+      failureRecoveryStarted = true
+      generationError = message
+      const panel = generationPanel.getSnapshot()
+      const ownsPanel = failurePanelIsCurrent() && (currentBlankId
+        ? recoveryBlankIds.has(panel.blankElementId)
+        : refineContext ? panel.editElementId === refineContext.elementId : !panel.isOpen)
+      if (ownsPanel && panel.isOpen && !invocation) {
+        setGenerationError(message)
+        generationPanel.setRetryStrategy(retryStrategy)
+      } else publishFailureToast(message)
+    }
+    const resumeFailedPanel = (type: TextLabsComponentType, elementId: string,
+      message: string, retryStrategy: TextLabsRetryStrategy | null, afterCleanup = false) => {
+      if (immediateFailureFeedbackEnabled
+        && (!failurePanelIsCurrent() || !recoveryPanelAtStart?.isOpen || invocation)) return
+      if (immediateFailureFeedbackEnabled && !recoveryLeaseReleased) {
+        const resumedKey = `blank:${elementId}`
+        activeGenerationKeysRef.current.add(resumedKey)
+        recoveryGenerationKeys.add(resumedKey)
+        if (elementId !== currentBlankId && !afterCleanup) {
+          // The panel's busy setter owns the old draft key. Keep that visible
+          // target busy until cleanup completes instead of exposing a new idle
+          // draft while the original generation is still recovering.
+          deferredFailedPanelResume = { type, elementId, message, retryStrategy }
+          return
+        }
+      }
+      generationPanel.resumePanelForElement(type, elementId)
+      if (immediateFailureFeedbackEnabled) {
+        recoveryBlankIds.add(elementId)
+        recoveryPanelOwnershipRevision = getFailurePanelOwnershipRevision()
+        // resume clears error/retry. Restore both in the same synchronous turn;
+        // the old snapshot can still name the previous owned placeholder ID.
+        setGenerationError(message)
+        generationPanel.setRetryStrategy(retryStrategy)
+      }
+    }
 
     const cleanupGenerationLifecycle = async () => {
       if (generationLifecycleCleaned) return
       generationLifecycleCleaned = true
+      if (imagePendingJob) void imagePendingJob.end(imagePendingOutcome) // IMAGE-PENDING-WRITE: ready or failed, in the background; never rejects
       const refineOverlayTargetSurvived = !refineElementDeleted
         || Boolean(refineContext && insertedElementIds.includes(refineContext.elementId))
       if ((!studio || presentationIsStillAuthoritative())
+        && (!immediateFailureFeedbackEnabled || !failureRecoveryStarted || failureRecoveryIsCurrent())
         && currentBlankId && blankOverlayActive && !blankTrackingWasRemoved) {
         try {
           blankElements.setStatus(currentBlankId, 'blank')
@@ -433,6 +691,7 @@ export function useTextLabsGeneration({
       }
       if (
         presentationIsStillAuthoritative()
+        && (!immediateFailureFeedbackEnabled || !failureRecoveryStarted || failureRecoveryIsCurrent())
         && currentBlankId
         && blankOverlayActive
         && !blankTrackingWasRemoved
@@ -450,6 +709,7 @@ export function useTextLabsGeneration({
       }
       if (
         presentationIsStillAuthoritative()
+        && (!immediateFailureFeedbackEnabled || !failureRecoveryStarted || failureRecoveryIsCurrent())
         && refineContext
         && refineOverlayActive
         && refineOverlayTargetSurvived
@@ -470,7 +730,23 @@ export function useTextLabsGeneration({
       } catch (error) {
         console.warn('[TextLabs] Failed to reset generation panel state:', error)
       }
-      activeGenerationKeysRef.current.delete(generationKey)
+      if (immediateFailureFeedbackEnabled) {
+        recoveryGenerationKeys.forEach(key => activeGenerationKeysRef.current.delete(key))
+      } else activeGenerationKeysRef.current.delete(generationKey)
+      recoveryLeaseReleased = true
+      if (immediateFailureFeedbackEnabled && deferredFailedPanelResume && failurePanelIsCurrent()) {
+        const pending = deferredFailedPanelResume
+        deferredFailedPanelResume = null
+        // No await occurs after releasing the old busy/lease and before this
+        // final authority check plus atomic error-preserving panel handoff.
+        try {
+          resumeFailedPanel(pending.type, pending.elementId, pending.message, pending.retryStrategy, true)
+        } catch {
+          // A failed UI handoff must not replace the original generation failure
+          // or reject an otherwise settled, awaited recovery lifecycle.
+          console.warn('[TextLabs] Failed to resume the recovered placeholder after error.')
+        }
+      }
     }
 
     try {
@@ -505,7 +781,14 @@ export function useTextLabsGeneration({
           assertLayoutCommandSucceeded(overlayResponse, 'Regeneration overlay')
           refineOverlayActive = true
         } catch (error) {
+          if (immediateFailureFeedbackEnabled) {
+            const message = error instanceof Error
+              ? `The presentation viewer could not show regeneration progress: ${error.message}`
+              : 'The presentation viewer could not show regeneration progress.'
+            publishImmediateFailure(`${message} Reload the slide and try again.`)
+          }
           try {
+            assertFailureRecoveryIsCurrent()
             await generationLayoutServiceApis.sendElementCommand('setElementGenerationState', {
               elementId: refineContext.elementId,
               generating: false,
@@ -533,8 +816,15 @@ export function useTextLabsGeneration({
           assertLayoutCommandSucceeded(overlayResponse, 'Generation overlay')
           blankOverlayActive = true
         } catch (error) {
-          blankElements.setStatus(blankId, 'blank')
+          if (!immediateFailureFeedbackEnabled || failureRecoveryIsCurrent()) blankElements.setStatus(blankId, 'blank')
+          if (immediateFailureFeedbackEnabled) {
+            const message = error instanceof Error
+              ? `The presentation viewer could not show generation progress: ${error.message}`
+              : 'The presentation viewer could not show generation progress.'
+            publishImmediateFailure(`${message} Reload the slide and try again.`)
+          }
           try {
+            assertFailureRecoveryIsCurrent()
             await generationLayoutServiceApis.sendElementCommand('setElementGenerationState', {
               elementId: blankId,
               generating: false,
@@ -565,7 +855,9 @@ export function useTextLabsGeneration({
     if (requestedThemePresentationId) {
       let readiness: ThemeReadinessResult
       try {
-        readiness = await ensureThemeReady(requestedThemePresentationId)
+        readiness = themeRetry
+          ? await ensureThemeReady(requestedThemePresentationId, themeRetry)
+          : await ensureThemeReady(requestedThemePresentationId)
       } catch (error) {
         readiness = {
           ready: false,
@@ -580,7 +872,26 @@ export function useTextLabsGeneration({
         return failureOutcome()
       }
       if (!readiness.ready) {
+        // Pin the handshake that actually failed, rather than a later snapshot
+        // that could already name another request or a just-arrived Applied ACK.
+        const failedTheme = themePreflightRecoveryEnabled ? readiness.sync : null
+        if (
+          blankId && !refineContext
+          && (readiness.code === 'timeout' || readiness.code === 'failed')
+          && (readiness.code === 'timeout' || failedTheme?.error === readiness.error)
+          && failedTheme?.presentationId === requestedThemePresentationId
+          && failedTheme.requestId && failedTheme.themeFingerprint
+          && (failedTheme.status === 'syncing' || failedTheme.status === 'failed')
+        ) {
+          themePreflightFailureRef.current = {
+            authority: { presentationId: requestedThemePresentationId, requestId: failedTheme.requestId, themeFingerprint: failedTheme.themeFingerprint },
+            epoch: expectedPresentationTarget.epoch,
+            blankElementId: blankId,
+            error: readiness.error,
+          }
+        }
         setGenerationError(readiness.error)
+
         toast({
           title: 'Deck theme not ready',
           description: readiness.error,
@@ -766,9 +1077,20 @@ export function useTextLabsGeneration({
           auto_position: false,
         }
 
+        // R14: the picture of a captioned pair sits in a box shrunk to make room for its caption row. A variation is asked for the
+        // ORIGINAL area (persisted with the picture), otherwise the picture would shrink again on every variation.
+        if (INFOGRAPHIC_CAPTION_ROW_ENABLED && formData.componentType === 'INFOGRAPHIC') {
+          captionRefineState = captionRowRefineState(
+            formData.infographicConfig?.operation,
+            snapshot.generationConfig ?? refineContext.existingElement?.generation_config ?? refineContext.generationConfig,
+          )
+        }
+        const captionVariationArea = captionRefineState?.operation === 'variation' && captionRefineState.area
+          ? { ...captionRefineState.area, auto_position: false }
+          : null
         applyPositionToFormData(
           formData,
-          chartManualPosition ?? liveGridPosition,
+          chartManualPosition ?? captionVariationArea ?? liveGridPosition,
           formData.slotKind !== 'accessory',
         )
         if (snapshot.zIndex !== null) formData.z_index = snapshot.zIndex
@@ -1061,8 +1383,12 @@ export function useTextLabsGeneration({
       )
       if (imagePreflightError) {
         setGenerationError(imagePreflightError)
-        generationPanel.setIsGenerating(false)
-        activeGenerationKeysRef.current.delete(generationKey)
+        // The outer finally owns the busy key and generating:false command.
+        // Releasing here used to retire cleanup before its image overlay reset.
+        if (!immediateFailureFeedbackEnabled) {
+          generationPanel.setIsGenerating(false)
+          activeGenerationKeysRef.current.delete(generationKey)
+        }
         return failureOutcome()
       }
     }
@@ -1099,6 +1425,11 @@ export function useTextLabsGeneration({
     const lifecycleMutationId = createLayoutMutationId(
       refineContext ? `refine:${refineContext.elementId}` : 'generate',
     )
+    // IMAGE-PENDING-WRITE begin: the request is about to go out. A hero-background image job stores "pending" on its slide (in the background; the job never waits for it).
+    if (STUDIO_IMAGE_PENDING_WRITE_ENABLED && imageJobWritesPending({ componentType: formData.componentType, slotName: formData.slotName })) {
+      imagePendingJob = startImagePendingJob(expectedPresentationTarget.presentationId ?? '', generationSlideIndex)
+    }
+    // IMAGE-PENDING-WRITE end
 
     try {
       const sessionId = await textLabsSession.ensureSession(controller.signal)
@@ -1291,7 +1622,19 @@ export function useTextLabsGeneration({
       } : undefined
       for (const [index, element] of elements.entries()) {
         assertGenerationTargetIsStillAuthoritative()
-        const fallbackGridPosition = formElements?.[index]?.grid_position
+        // A typed family with several cards comes back as ONE element (Text Labs !84): it belongs
+        // over the whole panel area, not in the first box's cell (request fidelity flag).
+        const fallbackGridPosition = formData.componentType === 'TEXT_BOX'
+          && formData.cardsInOneElement
+          && elements.length === 1
+          && formData.positionConfig
+          ? {
+              start_col: formData.positionConfig.start_col,
+              start_row: formData.positionConfig.start_row,
+              position_width: formData.positionConfig.position_width,
+              position_height: formData.positionConfig.position_height,
+            }
+          : formElements?.[index]?.grid_position
         const existingThemeVariantId = refineContext
           ? (formData.existingElement?.theme_variant_id as string | null | undefined)
           : null
@@ -1375,6 +1718,52 @@ export function useTextLabsGeneration({
         } else if (fallbackGridPosition && !(element as any).grid_position) {
           elementWithPosition = { ...elementWithPosition, grid_position: fallbackGridPosition }
         }
+        // R14: a Creative infographic with a recognised stage list comes back with `caption_row`. Applied: the picture goes to its
+        // own (shrunk) box and the names go in a sibling text element under it. Skipped or absent: the picture is inserted as today.
+        // Everything is decided here, on the element handed to buildInsertionParams, so the insertion block below stays as it was.
+        const captionRead = INFOGRAPHIC_CAPTION_ROW_ENABLED
+          && formData.componentType === 'INFOGRAPHIC'
+          && elements.length === 1
+          && Boolean(element.image_data_url || element.image_url)
+          ? readCaptionRow(element)
+          : null
+        const captionPlan = captionRead?.kind === 'applied' ? captionRead.plan : null
+        let captionInsertParams: Record<string, unknown> | null = null
+        if (captionPlan) {
+          const captionParams = buildInsertionParams(
+            'TEXT_BOX',
+            captionRowElementForInsertion(captionPlan),
+            undefined,
+            CAPTION_ROW_PADDING,
+            (formData.z_index ?? getDefaultSize('INFOGRAPHIC').zIndex) + 1,
+            effectiveSlideIndex,
+          ).params
+          // Layout names an inserted text box after `id` (it ignores `elementId`) and the picture is saved before the row exists,
+          // so the row is given its id up front: the link saved with the picture must be the id Layout will really use.
+          const captionElementId = String(captionParams.elementId)
+          captionInsertParams = { ...captionParams, id: captionElementId }
+          // The link is persisted next to the picture's generationConfig (the part of the element Layout stores and returns).
+          const linkedConfig = withCaptionLink(effectiveGenerationConfig, captionElementId, captionPlan.summary)
+          elementWithPosition = {
+            ...elementWithPosition,
+            grid_position: captionPlan.imagePosition,
+            generation_config: linkedConfig,
+            generationConfig: linkedConfig,
+            captionElementId,
+          }
+        } else if (captionRead) {
+          const skipNotice = captionRowSkipNotice(captionRead, response.warnings)
+          if (skipNotice) captionNotices.push(skipNotice)
+        } else if (captionRefineState?.operation === 'edit' && captionRefineState.captionElementId) {
+          // An edit keeps the caption row; the replacement picture must still point at it.
+          const carriedConfig = carryCaptionLink(effectiveGenerationConfig, captionRefineState)
+          elementWithPosition = {
+            ...elementWithPosition,
+            generation_config: carriedConfig as typeof effectiveGenerationConfig,
+            generationConfig: carriedConfig as typeof effectiveGenerationConfig,
+            captionElementId: captionRefineState.captionElementId,
+          }
+        }
         const insertionComponentType = formData.slotKind === 'accessory'
           ? element.component_type
           : refineContext?.elementType ?? element.component_type
@@ -1386,6 +1775,7 @@ export function useTextLabsGeneration({
           formData.z_index,
           effectiveSlideIndex
         )
+        if (CHAT_ADD_STACKING_ENABLED && invocation?.kind === 'chat-add') { const stackedZIndex = chatAddStackedZIndex(formData.componentType); if (stackedZIndex !== null) params.zIndex = stackedZIndex } // CHAT-ADD-STACKING: a chat add lands at the z the Element panel's own add of this type starts at (not the directive's z 1, under the slide's content)
         if (studio && insertionComponentType === 'METRICS') {
           params.generationConfig = normalizeMetricsCardRefineGenerationConfig(params.generationConfig, 'METRICS')
         }
@@ -1430,6 +1820,15 @@ export function useTextLabsGeneration({
           ? 'upsertCitedElement'
           : semanticUpsertParams ? 'upsertSemanticElement'
           : method === 'insertElement' ? 'insertTextBox' : method
+        if (CHAT_STALE_VIEWER_GUARD_ENABLED && invocation?.kind === 'chat-add') await confirmChatDeckUnchanged() // CHAT-STALE-VIEWER-GUARD CHAT-ADD-TARGETED: a deck whose slides have no ids is proved against Layout's signature again right before the insert (the guard's reload proved it before the generation); changed: the add stops here, nothing inserted
+        if (CHAT_ADD_TARGETED_SAVE_ENABLED && invocation?.kind === 'chat-add') { // CHAT-ADD-TARGETED: hold the slide's change marks so this insert schedules no whole-deck autosave
+          chatAddScope = await openChatAddScope({ // CHAT-ADD-TARGETED
+            slideIndex: effectiveSlideIndex, insertAction: insertionAction, sendElement: generationLayoutServiceApis.sendElementCommand, // CHAT-ADD-TARGETED
+            sendTextBox: layoutServiceApis?.sendTextBoxCommand ?? null, owns: presentationIsStillAuthoritative, // CHAT-ADD-TARGETED
+            report: note => console.info('[TextLabs] Chat add saved:', note.saved === 'targeted' ? 'only the new element' : `by the editor's autosave (${note.reason})`), // CHAT-ADD-TARGETED
+          }) // CHAT-ADD-TARGETED
+        } // CHAT-ADD-TARGETED
+        if (CHAT_STALE_VIEWER_GUARD_ENABLED && invocation?.kind === 'chat-add') staleGuardWatch = watchViewerSave() // CHAT-STALE-VIEWER-GUARD CHAT-ADD-TARGETED: opened right before the insert, so only this change's acknowledgement counts
         const insertResponse = await sendLayoutMutationWithReconciliation(
           generationLayoutServiceApis.sendElementCommand,
           insertionAction,
@@ -1461,6 +1860,9 @@ export function useTextLabsGeneration({
         }
         if (insertedElementId) {
           insertedElementIds.push(insertedElementId)
+          const storedOnItsOwn = chatAddScope !== null // CHAT-STALE-VIEWER-GUARD CHAT-ADD-TARGETED: the targeted save is in use (its commit below confirms the element is stored, or throws); this line reads the targeted add's variable, so that change's strip takes it out too
+          if (chatAddScope) { const scope = chatAddScope; chatAddScope = null; try { await scope.finish(insertedElementId) } catch (error) { if (scope.removed) insertedElementIds.pop(); throw error } } // CHAT-ADD-TARGETED: save only this element; when it is not stored it is taken off the slide again (else the rollback below removes it)
+          if (staleGuardWatch) { const watch = staleGuardWatch; staleGuardWatch = null; await requireChatAddSaved(watch, { storedOnItsOwn }) } // CHAT-STALE-VIEWER-GUARD CHAT-ADD-TARGETED: "Done" only once the element is stored; else the add throws (the rollback below removes it) and the result is failed; uses the line above, so the targeted add's strip takes it out too
           if (!invocation && (!studio || presentationIsStillAuthoritative())) generationPanel.rememberDraftForElement(insertedElementId, formData,
             studio && insertionComponentType === 'METRICS'
               ? { elementId: insertedElementId, elementType: 'METRICS' }
@@ -1591,6 +1993,34 @@ export function useTextLabsGeneration({
             }
           }
         }
+        if (captionInsertParams && method === 'insertImage') {
+          // R14: the caption row goes in right after its picture. If it cannot be added the picture stays and the user is told;
+          // if the picture could not be inserted we never get here and nothing is inserted.
+          try {
+            assertGenerationTargetIsStillAuthoritative()
+            const captionResponse = await sendLayoutMutationWithReconciliation(
+              generationLayoutServiceApis.sendElementCommand,
+              'insertTextBox',
+              captionInsertParams,
+              `${lifecycleMutationId}:insert-caption:${index}`,
+            )
+            const insertedCaptionId = typeof captionResponse?.elementId === 'string'
+              ? captionResponse.elementId.trim()
+              : ''
+            if (!insertedCaptionId) {
+              throw new LayoutMutationAmbiguousError('The stage-name row was acknowledged without an element identity. Reload the slide to check it.')
+            }
+            insertedElementIds.push(insertedCaptionId)
+            captionRowInserted = true
+          } catch (captionError) {
+            if (generationTargetError()) throw captionError
+            captionRowInsertFailed = true
+            console.error('[TextLabs] Caption row insertion failed:', captionError)
+            captionNotices.push(
+              `The stage-name row could not be added under the picture: ${captionError instanceof Error ? captionError.message : 'unknown error'}`,
+            )
+          }
+        }
       }
       assertGenerationTargetIsStillAuthoritative()
 
@@ -1653,13 +2083,17 @@ export function useTextLabsGeneration({
             insertedElementIds.length = 0
             throw deleteError
           }
+          publishImmediateFailure('The original could not be replaced.')
           const rollbackResults = await Promise.allSettled(
-            insertedElementIds.map((elementId, index) => sendLayoutMutationWithReconciliation(
-              generationLayoutServiceApis.sendElementCommand,
-              'deleteElement',
-              { elementId },
-              `${lifecycleMutationId}:rollback-original-delete:${index}`,
-            )),
+            insertedElementIds.map((elementId, index) => {
+              assertFailureRecoveryIsCurrent()
+              return sendLayoutMutationWithReconciliation(
+                generationLayoutServiceApis.sendElementCommand,
+                'deleteElement',
+                { elementId },
+                `${lifecycleMutationId}:rollback-original-delete:${index}`,
+              )
+            }),
           )
           const rollbackFailed = rollbackResults.some(result => (
             result.status === 'rejected' || !layoutCommandSucceeded(result.value)
@@ -1674,6 +2108,36 @@ export function useTextLabsGeneration({
         }
       }
 
+      // R14: a variation replaces the whole pair. The previous caption row goes once the new picture is in and the old one is gone.
+      // If the new row could not be inserted the old one stays: never delete the only copy of the user's stage names.
+      if (
+        captionRefineState?.operation === 'variation'
+        && captionRefineState.captionElementId
+        && refineElementDeleted
+        && !captionRowInsertFailed
+        && generationLayoutServiceApis?.sendElementCommand
+      ) {
+        try {
+          assertGenerationTargetIsStillAuthoritative()
+          await sendLayoutMutationWithReconciliation(
+            generationLayoutServiceApis.sendElementCommand,
+            'deleteElement',
+            { elementId: captionRefineState.captionElementId },
+            `${lifecycleMutationId}:delete-previous-caption`,
+          )
+          if (!captionRowInserted) {
+            captionNotices.push('The previous stage-name row was removed because this variation has no stage names for it.')
+          }
+        } catch (previousCaptionError) {
+          if (generationTargetError()) throw previousCaptionError
+          // A row the user already deleted is simply gone.
+          if (!(previousCaptionError instanceof Error && /not found/i.test(previousCaptionError.message))) {
+            console.warn('[TextLabs] Previous caption row could not be removed:', previousCaptionError)
+            captionNotices.push('The previous stage-name row could not be removed; delete it by hand.')
+          }
+        }
+      }
+
       assertGenerationTargetIsStillAuthoritative()
       if (currentBlankId && generatedRefineContext && elements.length === 1) {
         generationPanel.completeBlankReplacement(
@@ -1685,16 +2149,35 @@ export function useTextLabsGeneration({
         generationPanel.openPanelForRefine(generatedRefineContext.elementType, generatedRefineContext)
       }
       assertGenerationTargetIsStillAuthoritative()
+      // Text Labs says which count it honoured in `warnings` (and, when its count flag is on, with the
+      // numbers in `warning_details`); say it in plain words (request fidelity flag). One toast: the
+      // toaster shows a single message, so the notice rides on this one.
+      const countNotices = TEXTBOX_REQUEST_FIDELITY_ENABLED
+        && (formData.componentType === 'TEXT_BOX' || formData.componentType === 'METRICS')
+        ? textBoxResponseNotices(response.warnings, {
+            componentType: formData.componentType,
+            structure: formData.componentType === 'TEXT_BOX' ? formData.structure : null,
+            count: formData.count,
+            countAuto: formData.countAuto,
+            elementsReturned: elements.length,
+          }, response.warning_details)
+        : []
       toast({
         title: refineContext ? 'Element refined' : 'Element generated',
-        description: refineContext
+        description: (refineContext
           ? `${formData.componentType.replace(/_/g, ' ')} updated on slide`
-          : `${formData.componentType.replace(/_/g, ' ')} added to slide`,
+          : `${formData.componentType.replace(/_/g, ' ')} added to slide`)
+          + (countNotices.length > 0 ? `. ${countNotices.join(' ')}` : '')
+          + (captionNotices.length > 0 ? `. ${captionNotices.join(' ')}` : ''),
       })
       console.log(`[TextLabs] Generated ${elements.length} ${formData.componentType} element(s)`)
+      imagePendingOutcome = 'ready' // IMAGE-PENDING-WRITE
       return { status: 'inserted', presentationId: expectedPresentationTarget.presentationId,
         slideIndex: generationSlideIndex, elementIds: [...insertedElementIds] }
     } catch (err) {
+      if (chatAddScope) await chatAddScope.cancel() // CHAT-ADD-TARGETED: an insert that failed leaves no scope open (Layout would hold this slide's change marks for up to 30 s)
+      staleGuardWatch?.close() // CHAT-STALE-VIEWER-GUARD CHAT-ADD-TARGETED: a failed insert leaves no save watch subscribed
+      if (immediateFailureFeedbackEnabled) failureRecoveryStarted = true
       let errorRetryStrategy = diagramRequestWasDispatched
         ? diagramRetryStrategyForFailure(err)
         : null
@@ -1735,7 +2218,8 @@ export function useTextLabsGeneration({
         if (err.kind === 'transport') {
           errorMessage = `The generation service could not be reached.${reference}${downstreamReference}`
         } else {
-          errorMessage = `${err.message}${reference}${downstreamReference}`
+          const shapeGuidance = shapeTypedFailureGuidance(formData, err)
+          errorMessage = `${err.message}${shapeGuidance ? ` ${shapeGuidance}` : ''}${reference}${downstreamReference}`
         }
       } else if (err instanceof TypeError && /fetch|network/i.test(err.message)) {
         errorMessage = `The generation service could not be reached. Request reference: ${generationAttemptId.slice(0, 12)}.`
@@ -1761,31 +2245,40 @@ export function useTextLabsGeneration({
         // reloaded and its actual lifecycle state can be inspected.
         insertedElementIds.length = 0
       }
+      publishImmediateFailure(errorMessage, errorRetryStrategy)
       if (
         !presentationTargetChanged &&
+        (!immediateFailureFeedbackEnabled || failureRecoveryIsCurrent()) &&
         (!refineContext || !refineElementDeleted) &&
         insertedElementIds.length > 0 &&
         generationLayoutServiceApis?.sendElementCommand
       ) {
         const rollbackResults = await Promise.allSettled(
-          insertedElementIds.map((elementId, index) => sendLayoutMutationWithReconciliation(
-            generationLayoutServiceApis.sendElementCommand,
-            'deleteElement',
-            { elementId },
-            `${lifecycleMutationId}:rollback-generation:${index}`,
-          )),
+          insertedElementIds.map((elementId, index) => {
+            if (immediateFailureFeedbackEnabled && !failureRecoveryIsCurrent()) {
+              return Promise.resolve({ success: false })
+            }
+            return sendLayoutMutationWithReconciliation(
+              generationLayoutServiceApis.sendElementCommand,
+              'deleteElement',
+              { elementId },
+              `${lifecycleMutationId}:rollback-generation:${index}`,
+            )
+          }),
         )
         if (rollbackResults.some(result => (
           result.status === 'rejected' || !layoutCommandSucceeded(result.value)
         ))) {
           errorMessage += ' Some generated elements could not be removed; reload the slide before retrying.'
         }
+        publishImmediateFailure(errorMessage, errorRetryStrategy)
         insertedElementIds.length = 0
       }
       // Restore placeholder on failure
       let restoredBlankElementId: string | null = currentBlankId
       if (
         !presentationTargetChanged &&
+        (!immediateFailureFeedbackEnabled || failureRecoveryIsCurrent()) &&
         currentBlankId &&
         currentBlankInfo &&
         blankTrackingWasRemoved &&
@@ -1800,37 +2293,52 @@ export function useTextLabsGeneration({
           restoredBlankElementId = await restoreBlankElementAfterFailure({
             elementId: currentBlankId,
             trackingWasRemoved: blankTrackingWasRemoved,
-            deleteElement: () => generationLayoutServiceApis.sendElementCommand('deleteElement', {
-              elementId: currentBlankId,
-            }),
-            insertElement: () => generationLayoutServiceApis.sendElementCommand('insertTextBox', {
-              elementId: currentBlankId,
-              slideIndex: recoveryBlankInfo.slideIndex,
-              content: placeholderHtml,
-              gridRow,
-              gridColumn,
-              positionWidth: recoveryBlankInfo.width,
-              positionHeight: recoveryBlankInfo.height,
-              zIndex: 10,
-              draggable: true,
-              resizable: true,
-              skipAutoSize: true,
-              componentType: recoveryBlankInfo.componentType,
-              themeVariantId: recoveryBlankInfo.themeVariantId,
-              themeBindings: recoveryBlankInfo.themeBindings,
-              themeVariantSource: 'element_generation',
-            }),
+            deleteElement: () => {
+              assertFailureRecoveryIsCurrent()
+              return generationLayoutServiceApis.sendElementCommand('deleteElement', { elementId: currentBlankId })
+            },
+            insertElement: () => {
+              assertFailureRecoveryIsCurrent()
+              return generationLayoutServiceApis.sendElementCommand('insertTextBox', {
+                elementId: currentBlankId,
+                slideIndex: recoveryBlankInfo.slideIndex,
+                content: placeholderHtml,
+                gridRow,
+                gridColumn,
+                positionWidth: recoveryBlankInfo.width,
+                positionHeight: recoveryBlankInfo.height,
+                zIndex: 10,
+                draggable: true,
+                resizable: true,
+                skipAutoSize: true,
+                componentType: recoveryBlankInfo.componentType,
+                themeVariantId: recoveryBlankInfo.themeVariantId,
+                themeBindings: recoveryBlankInfo.themeBindings,
+                themeVariantSource: 'element_generation',
+              })
+            },
             restoreTracking: restoredElementId => {
+              if (immediateFailureFeedbackEnabled) {
+                if (!failureRecoveryIsCurrent()) return
+                recoveryBlankIds.add(restoredElementId)
+                // Reserve a renamed identity before tracking callbacks can
+                // expose it to another user attempt during owned cleanup.
+                const restoredKey = `blank:${restoredElementId}`
+                activeGenerationKeysRef.current.add(restoredKey)
+                recoveryGenerationKeys.add(restoredKey)
+              }
               blankElements.removeElement(currentBlankId)
               blankElements.addElement({
                 ...recoveryBlankInfo,
                 elementId: restoredElementId,
                 status: 'blank',
               })
-              blankElements.trackElement(restoredElementId)
+              if (!immediateFailureFeedbackEnabled || failurePanelIsCurrent()) {
+                blankElements.trackElement(restoredElementId)
+              }
               const latestPanel = generationPanel.getSnapshot()
               if (!latestPanel.isOpen) {
-                generationPanel.resumePanelForElement(recoveryBlankInfo.componentType, restoredElementId)
+                resumeFailedPanel(recoveryBlankInfo.componentType, restoredElementId, errorMessage, errorRetryStrategy)
               }
             },
             onDeleteError: deleteError => {
@@ -1839,18 +2347,27 @@ export function useTextLabsGeneration({
           })
           const latestPanel = generationPanel.getSnapshot()
           if (restoredBlankElementId && (!latestPanel.isOpen || latestPanel.blankElementId === currentBlankId)) {
-            generationPanel.resumePanelForElement(recoveryBlankInfo.componentType, restoredBlankElementId)
+            resumeFailedPanel(recoveryBlankInfo.componentType, restoredBlankElementId, errorMessage, errorRetryStrategy)
           }
         } catch (restoreErr) {
           console.warn('[TextLabs] Failed to restore placeholder after error:', restoreErr)
         }
-      } else if (!presentationTargetChanged && currentBlankId && currentBlankInfo) {
+      } else if (!presentationTargetChanged
+        && (!immediateFailureFeedbackEnabled || failureRecoveryIsCurrent()) && currentBlankId && currentBlankInfo) {
         // Pre-insertion failures leave the original placeholder in place.
         blankElements.setStatus(currentBlankId, 'blank')
       }
-      // openPanelForElement clears prior panel errors, so publish the final
-      // failure only after any placeholder/tracking recovery has completed.
-      if (!studio || presentationIsStillAuthoritative()) {
+      // OFF retains legacy publication after recovery. ON has already shown
+      // the failure and restores it synchronously whenever owned resume clears it.
+      if (immediateFailureFeedbackEnabled) {
+        // An awaited rollback/restore can outlive the original viewer lease.
+        // Keep the final recovery advice accurate without writing its new panel.
+        if (!presentationIsStillAuthoritative()) {
+          errorMessage = PRESENTATION_CHANGED_DURING_GENERATION
+          errorRetryStrategy = 'do_not_retry'
+        }
+        publishImmediateFailure(errorMessage, errorRetryStrategy)
+      } else if (!studio || presentationIsStillAuthoritative()) {
         const latestPanel = generationPanel.getSnapshot()
         const ownsCurrentPanel = currentBlankId
           ? latestPanel.blankElementId === currentBlankId || latestPanel.blankElementId === restoredBlankElementId
@@ -1878,6 +2395,7 @@ export function useTextLabsGeneration({
       await cleanupGenerationLifecycle()
     }
   }, [
+    immediateFailureFeedbackEnabled,
     generationPanel,
     textLabsSession,
     layoutServiceApis,
@@ -1906,8 +2424,8 @@ export function useTextLabsGeneration({
     if (studio && !ownerIsCurrent()) return
     const componentType = type as TextLabsComponentType
     const defaults = getDefaultSize(componentType)
-    const startCol = 2
-    const startRow = 4
+    const startCol = freeSpotRef.current?.startCol ?? 2
+    const startRow = freeSpotRef.current?.startRow ?? 4
 
     const pendingKey = JSON.stringify([expectedMountRevision, expectedPresentationTarget.epoch, expectedPresentationTarget.presentationId, studioTargetSlideIndex, componentType])
     if (studio && pendingPlaceholderAddsRef.current.has(pendingKey)) return
@@ -1984,5 +2502,94 @@ export function useTextLabsGeneration({
     }
   }, [generationPanel, layoutServiceApis, blankElements, currentSlideIndex, getCurrentSlideIndex, toast, renderPresentationTarget, studio])
 
+  // PASS2-J3 P1 (NEXT_PUBLIC_STUDIO_ELEMENT_PLACEHOLDER_FIX): the same two handlers, with the placeholder's insertion deferred to Generate.
+  const blankElementsRef = useRef(blankElements)
+  blankElementsRef.current = blankElements
+  const generationPanelRef = useRef(generationPanel)
+  generationPanelRef.current = generationPanel
+
+  const handleOpenPanelDeferred = useCallback(async (type: string) => {
+    // handleOpenPanel reaches its placeholder insertion before its first await, so the hold-back window is the synchronous call.
+    deferringPlaceholderInsertRef.current = true
+    let opening: Promise<void>
+    try { opening = handleOpenPanel(type) } finally { deferringPlaceholderInsertRef.current = false }
+    await opening
+  }, [handleOpenPanel])
+
+  const handleGenerateDeferred = useCallback(async (
+    formData: TextLabsFormData,
+    submitIntent: ElementGenerationSubmitIntent = 'generate',
+    invocation?: { kind: 'chat-add'; slideIndex: number } | { kind: 'chat-refine'; slideIndex: number; refineContext: RefineContext }, // chat-refine: NEXT_PUBLIC_CHAT_ELEMENT_REFINE
+  ): Promise<TextLabsGenerationResult> => {
+    const blankId = invocation ? null : generationPanel.blankElementId
+    const held = placeholderDeferral && blankId ? placeholderDeferral.get(blankId) : undefined
+    // A second click while a Generate owns the placeholder is only ever refused by handleGenerate; it must not own the clean-up.
+    if (!placeholderDeferral || !held || held.inFlight) return handleGenerate(formData, submitIntent, invocation)
+    held.inFlight = true
+    let outcome: TextLabsGenerationResult | null = null
+    try {
+      outcome = await handleGenerate(formData, submitIntent, invocation)
+      return outcome
+    } finally {
+      held.inFlight = false
+      if (outcome?.status === 'inserted') {
+        // The generated element replaced the placeholder (handleGenerate deleted it): nothing is held any more.
+        placeholderDeferral.forget(held.elementId)
+      } else {
+        // The Generate ended without the generated element (a refusal, a failure, a stop). The empty placeholder must not stay on
+        // the slide: take it out; the form keeps its draft and the next Generate inserts it again.
+        const removed = await placeholderDeferral.takeOut(held.elementId)
+        const panel = generationPanelRef.current.getSnapshot()
+        if (removed && !(panel.isOpen && panel.blankElementId === held.elementId)) {
+          placeholderDeferral.forget(held.elementId)
+          blankElementsRef.current.removeElement(held.elementId)
+        }
+      }
+    }
+  }, [generationPanel, handleGenerate, placeholderDeferral])
+
+  // The panel moved on from a held-back placeholder (closed, or another card chosen): nothing of it was ever on the slide, so just
+  // forget it (and take out an inserted one nobody can reach any more).
+  const sweepPanelBlankId = generationPanel.isOpen ? generationPanel.blankElementId : null
+  useEffect(() => {
+    if (!placeholderDeferral) return
+    for (const gone of placeholderDeferral.sweep(sweepPanelBlankId)) {
+      void placeholderDeferral.takeOut(gone.elementId).then(removed => {
+        if (!removed) return // still on the slide: it stays tracked and reachable, as before
+        placeholderDeferral.forget(gone.elementId)
+        blankElementsRef.current.removeElement(gone.elementId)
+      })
+    }
+  }, [placeholderDeferral, sweepPanelBlankId])
+
+  // PASS2D (flag NEXT_PUBLIC_STUDIO_ELEMENT_FREE_SPOT, Studio shell only, default off): choosing a card first asks the viewer where the slide's
+  // elements are (lib/element-free-spot.ts) and hands the first free spot to the same open handler, which then runs as before. The read is
+  // done up front, outside the open handler, so the placeholder insertion stays in the open handler's own synchronous window (the hold-back
+  // window of NEXT_PUBLIC_STUDIO_ELEMENT_PLACEHOLDER_FIX). No room, no answer or a viewer that moved on: the open handler's own position.
+  const handleOpenPanelFreeSpot = useCallback(async (type: string) => {
+    const open = placeholderDeferral ? handleOpenPanelDeferred : handleOpenPanel
+    const sendElementCommand = layoutServiceApis?.sendElementCommand
+    if (!sendElementCommand) { freeSpotRef.current = null; return open(type) }
+    // A second click on the same card while the first is still reading is dropped, as handleOpenPanel drops one while its insertion is out.
+    if (freeSpotOpeningRef.current.has(type)) return
+    freeSpotOpeningRef.current.add(type)
+    let spot: FreeSpot | null = null
+    try {
+      const slideIndex = getCurrentSlideIndex?.() ?? currentSlideIndex
+      const defaults = getDefaultSize(type as TextLabsComponentType)
+      spot = await pickElementFreeSpot({ sendElementCommand, slideIndex, width: defaults.width, height: defaults.height })
+      // The open handler takes the slide current when it runs, and drops the click itself if the deck changed meanwhile (its owner check).
+      if ((getCurrentSlideIndex?.() ?? currentSlideIndex) !== slideIndex) spot = null
+    } finally {
+      freeSpotOpeningRef.current.delete(type)
+    }
+    freeSpotRef.current = spot // read by the open handler's first lines, in this same synchronous stretch; every open sets it afresh
+    await open(type)
+  }, [handleOpenPanel, handleOpenPanelDeferred, placeholderDeferral, layoutServiceApis, getCurrentSlideIndex, currentSlideIndex])
+
+  if (studio && STUDIO_ELEMENT_FREE_SPOT_ENABLED) {
+    return { handleGenerate: placeholderDeferral ? handleGenerateDeferred : handleGenerate, handleOpenPanel: handleOpenPanelFreeSpot }
+  }
+  if (placeholderDeferral) return { handleGenerate: handleGenerateDeferred, handleOpenPanel: handleOpenPanelDeferred }
   return { handleGenerate, handleOpenPanel }
 }

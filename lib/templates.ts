@@ -1,5 +1,10 @@
-import { Template, TemplateFilters } from '@/types/template';
-import { templates } from '@/content/templates';
+import { Template, TemplateFilters, AgentType } from '@/types/template';
+import { templates as baseTemplates } from '@/content/templates';
+import { studioAgentId } from '@/lib/studio-p2-docs';
+
+// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): with the flag on the templates name the current agents (content-generator, slide-composer, visualizer) in place of scripter, graphic-artist and data-visualizer. Off: the content as it was, the same array.
+const STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';
+const templates: Template[] = STUDIO_P2_DOCS ? baseTemplates.map((template) => ({ ...template, agents: template.agents.map((agent) => studioAgentId(agent) as AgentType) })) : baseTemplates;
 
 export function getAllTemplates(): Template[] {
   return templates;

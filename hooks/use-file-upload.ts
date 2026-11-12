@@ -5,6 +5,7 @@ import { useToast } from '@/hooks/use-toast'
 import { UploadedFile } from '@/components/file-chip'
 import { validateFile } from '@/lib/file-validation'
 import { getKnowledgeServiceUrl, uploadConfig } from '@/lib/config'
+import { ingestStatusPollUrl, type IngestStatusPollIdentity } from '@/lib/researcher-ingest-status-auth'
 import {
   getEnrichmentLabel,
   resolveEnrichmentOutcome,
@@ -322,6 +323,8 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     jobId: string,
     fileId: string,
     owner?: UploadOwner,
+    // Captured when the upload started (not re-read here), so polling another deck cannot change it.
+    statusIdentity?: IngestStatusPollIdentity,
   ): Promise<IngestStatusResponse> => {
     // Configuration is not a transient request failure. Refuse before sleeping
     // or entering the retry loop, while preserving the existing poll protocol.
@@ -341,8 +344,11 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
         // leaves `fetch` pending forever, the loop never advances, and the
         // overall attempt budget below can never be reached — the chip spins
         // indefinitely and can reach neither 'success' nor 'error'.
+        // Flag NEXT_PUBLIC_RESEARCHER_INGEST_STATUS_AUTH_ENABLED (default off): on, the
+        // poll goes through the same-origin route that attaches the owner-bound token;
+        // off, this is the direct request it always was.
         const response = await fetch(
-          `${researcherBaseUrl}/api/v1/files/ingest-status/${jobId}`,
+          ingestStatusPollUrl(researcherBaseUrl, jobId, statusIdentity),
           { signal: AbortSignal.timeout(POLL_REQUEST_TIMEOUT_MS) },
         )
         const body = await readResponseBody(response)
@@ -584,7 +590,10 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
       setUploadFiles(prev => prev.map(f => f.id === fileId ? processingFile : f))
 
       if (processResult.job_id) {
-        void pollIngestStatus(processResult.job_id, fileId, owner)
+        void pollIngestStatus(processResult.job_id, fileId, owner, {
+          sessionId: currentSessionId,
+          userId: STUDIO_UPLOAD_OWNERSHIP ? owner?.userId : userId,
+        })
           .then(ingestResult => {
             const enrichment = resolveEnrichmentOutcome(ingestResult)
             const completedFile: UploadedFile = {

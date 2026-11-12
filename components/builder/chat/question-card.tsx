@@ -57,7 +57,18 @@ export function QuestionCard({
     structuredEnabled && onSubmitAnswers && questionSet && questionSet.questions?.length,
   )
   const isOutlineApproval = actions.some((action) => action.value === "accept_strawman")
-  const HeadingIcon = studio ? (structured ? ListChecks : isOutlineApproval ? CheckCircle2 : HelpCircle) : HelpCircle
+  // PASS2-DIRECTOR-CHAT PR C (flag NEXT_PUBLIC_STUDIO_CHAT_ASK, Studio shell only, default off): the plan gate is an approval too, so
+  // its heading says so, as the v4 mockup's "Approval needed" does. Words and icon only: the actions, onActionClick and
+  // everything below are untouched. The outline gate keeps its own, more specific "Review your outline"; the N-of-M answered
+  // count and the (k/N) on Send answers already exist and are not repeated here.
+  const isPlanApproval = studio && !structured && !isOutlineApproval && process.env.NEXT_PUBLIC_STUDIO_CHAT_ASK === "true"
+    && actions.some((action) => action.value === "accept_plan")
+  // PASS2B J1-07 (flag NEXT_PUBLIC_STUDIO_APPROVAL_HINT, Studio shell only, default off): the gates whose primary action starts the build say how long
+  // it takes and that it can be stopped, in one quiet line under the buttons. Words only, from the action values the card already receives; the
+  // actions, onActionClick and everything else are untouched, and off nothing below is rendered.
+  const approvalHint = studio && !structured && process.env.NEXT_PUBLIC_STUDIO_APPROVAL_HINT === 'true'
+    && actions.some((action) => action.value === 'accept_plan' || action.value === 'accept_strawman' || String(action.value ?? '').startsWith('accept_strawman:'))
+  const HeadingIcon = studio ? (structured ? ListChecks : isOutlineApproval || isPlanApproval ? CheckCircle2 : HelpCircle) : HelpCircle
   const [selected, setSelected] = useState<Record<string, string>>({})
   const [freeText, setFreeText] = useState<Record<string, string>>({})
   // UAT 2026-08-30: reveal questions one by one — a tall all-at-once card
@@ -113,7 +124,7 @@ export function QuestionCard({
       <div data-studio-director-part="heading" className="flex items-center gap-1.5 mb-1.5">
         <HeadingIcon className="h-3 w-3 text-purple-600 dark:text-purple-400" aria-hidden="true" />
         <span className="text-[10px] font-semibold uppercase tracking-wide text-purple-600 dark:text-purple-400">
-          {structured ? "Quick questions" : studio && isOutlineApproval ? "Review your outline" : "Your input"}
+          {structured ? "Quick questions" : studio && isOutlineApproval ? "Review your outline" : isPlanApproval ? "Approval needed" : "Your input"}
         </span>
         {studio && structured && questionSet && <span data-studio-director-part="count">{answeredCount} of {questionSet.questions.length} answered</span>}
       </div>
@@ -217,6 +228,7 @@ export function QuestionCard({
           ))}
         </div>
       )}
+      {approvalHint && <p data-studio-director-part="approval-hint">About 3–5 minutes. You can stop anytime.</p>}
     </div>
   )
 }

@@ -18,7 +18,23 @@ const compile = text => {
   assert.equal((result.diagnostics ?? []).filter(item => item.category === ts.DiagnosticCategory.Error).length, 0)
   return result.outputText
 }
-const canonical = (text, strip = false) => {
+// J2-F7 (#320) added an opt-in `stableSubmit` prop (default off). These are EXACTLY its additions, each matched by name
+// and shape, so any other change to the file still breaks the pin below. --- stableSubmit strip begin
+const stableSubmitId = (node, ast) => ts.isIdentifier(node) && node.getText(ast) === 'stableSubmit'
+const stableSubmitRemoval = (node, ast) => {
+  if (ts.isPropertySignature(node) && node.name.getText(ast) === 'stableSubmit') return 'prop'
+  if (ts.isVariableStatement(node) && node.declarationList.declarations.length === 1
+    && node.declarationList.declarations[0].name.getText(ast) === 'STABLE_SUBMIT_TEXTAREA_STYLE') return 'const'
+  if (ts.isBindingElement(node) && ts.isIdentifier(node.name) && node.name.getText(ast) === 'stableSubmit' && !node.propertyName && !node.initializer) return 'destructure'
+  if (ts.isIfStatement(node) && stableSubmitId(node.expression, ast) && !node.elseStatement
+    && ts.isReturnStatement(node.thenStatement) && !node.thenStatement.expression) return 'effect guard'
+  if (ts.isJsxAttribute(node) && node.name.getText(ast) === 'style'
+    && node.initializer?.getText(ast) === '{stableSubmit ? STABLE_SUBMIT_TEXTAREA_STYLE : undefined}') return 'textarea style'
+  return null
+}
+const stableSubmitDeps = (node, ast) => ts.isArrayLiteralExpression(node) && node.elements.some(item => stableSubmitId(item, ast))
+// --- stableSubmit strip end
+const canonical = (text, strip = false, removed = []) => {
   const ast = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   const result = ts.transform(ast, [context => {
     const visit = node => {
@@ -26,6 +42,12 @@ const canonical = (text, strip = false) => {
         if (ts.isImportDeclaration(node) && node.moduleSpecifier.text === './studio-generation-feedback.css') return undefined
         if (ts.isVariableStatement(node) && node.declarationList.declarations.some(item => item.name.getText(ast) === 'STUDIO_GENERATION_FEEDBACK')) return undefined
         if (ts.isJsxAttribute(node) && node.initializer?.getText(ast).includes('STUDIO_GENERATION_FEEDBACK')) return undefined
+        const stable = stableSubmitRemoval(node, ast)
+        if (stable) { removed.push(stable); return undefined }
+        if (stableSubmitDeps(node, ast)) {
+          removed.push('effect deps')
+          return ts.visitEachChild(context.factory.updateArrayLiteralExpression(node, node.elements.filter(item => !stableSubmitId(item, ast))), visit, context)
+        }
       }
       return ts.visitEachChild(node, visit, context)
     }
@@ -33,7 +55,10 @@ const canonical = (text, strip = false) => {
   }])
   const printed = ts.createPrinter({ removeComments: true }).printFile(result.transformed[0]); result.dispose(); return printed
 }
-assert.equal(canonical(source, true), canonical(original), 'All original algorithms, guards, text, effects, callbacks, layout classes and native options remain AST-exact')
+const removedStable = []
+assert.equal(canonical(source, true, removedStable), canonical(original), 'All original algorithms, guards, text, effects, callbacks, layout classes and native options remain AST-exact')
+assert.deepEqual([...removedStable].sort(), ['const', 'destructure', 'effect deps', 'effect guard', 'prop', 'textarea style'],
+  'the strip removed exactly the stableSubmit additions: the prop, the style const, the destructure, the effect guard and its deps entry, the textarea style (each once)')
 const helper = { exports: {} }
 vm.runInNewContext(compile(fs.readFileSync(new URL('lib/element-prompt-limit.ts', root), 'utf8')), { module: helper, exports: helper.exports, require })
 const Passthrough = ({ children }) => React.createElement('div', null, children)

@@ -1,0 +1,16 @@
+/* PASS2 DET-12 (flag NEXT_PUBLIC_STUDIO_P2_DETAILS, default off; the two markers below exist only with it on, so every rule here is inert without it).
+   The mockup's shell: a bordered "+ Presentation" in the library pages' top bar (after "Back to Studio"), a 2px teal bar at the rail's left edge beside the current
+   page's icon, and a hairline under the brand tile. */
+[data-studio-v4-shell="true"] [data-studio-p2-new-deck="true"] { display: inline-flex; align-items: center; flex-shrink: 0; height: 34px; gap: 6px; margin-left: 6px; padding: 0 12px; font-size: 13px; font-weight: 500; text-decoration: none; color: var(--ss-text); border: 1px solid var(--ss-line); border-radius: 8px; background: var(--ss-panel); }
+[data-studio-v4-shell="true"] span + [data-studio-p2-new-deck="true"] { margin-left: auto; }
+[data-studio-v4-shell="true"] [data-studio-p2-new-deck="true"]:hover { background: var(--ss-active); }
+[data-studio-v4-shell="true"] [data-studio-p2-new-deck="true"]:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; }
+[data-studio-v4-shell="true"] [data-studio-p2-new-deck="true"] > svg { width: 14px; height: 14px; stroke-width: 1.8; }
+[data-studio-v4-rail][data-studio-p2-rail="true"] nav [aria-current="page"] { position: relative; }
+[data-studio-v4-rail][data-studio-p2-rail="true"] nav [aria-current="page"]::before { content: ""; position: absolute; left: -8px; top: 11px; bottom: 11px; width: 2px; border-radius: 0 2px 2px 0; background: var(--ss-teal); }
+[data-studio-v4-rail][data-studio-p2-rail="true"] .studio-rail-brand { position: relative; }
+[data-studio-v4-rail][data-studio-p2-rail="true"] .studio-rail-brand::after { content: ""; position: absolute; left: 50%; top: calc(100% + 8px); width: 26px; height: 1px; transform: translateX(-50%); background: var(--ss-line); }
+@media (max-width: 666px) {
+  [data-studio-v4-shell="true"] [data-studio-p2-new-deck="true"] { width: 34px; padding: 0; justify-content: center; gap: 0; font-size: 0; }
+  [data-studio-v4-shell="true"] [data-studio-p2-new-deck="true"] span { display: none; }
+}

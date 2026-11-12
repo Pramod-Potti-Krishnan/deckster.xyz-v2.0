@@ -3,12 +3,13 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
 import { readAtlasBaseline } from './atlas-witness-baseline.mjs'
+import { stripLibraryManage } from './studio-library-manage-strip.mjs'
 
 // Actual leaf render/effects, private element/timer witnesses. No browser,
 // service, upload, session creation, storage or navigation can run here.
 const root = new URL('../', import.meta.url)
 const path = 'components/studio-libraries/templates-workspace.tsx'
-const source = fs.readFileSync(new URL(path, root), 'utf8')
+const source = stripLibraryManage(path, fs.readFileSync(new URL(path, root), 'utf8')) // FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE / NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE): that change's lines are not part of what this pin holds (scripts/studio-library-manage-strip.mjs)
 const prior = readAtlasBaseline(`0f690ec:${path}`)
 const compile = value => {
   const result = ts.transpileModule(value, { reportDiagnostics: true, compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } })
@@ -38,7 +39,7 @@ function harness(code = source, flag = 'true', owner = 'A') {
   const accountModule = { exports: {} }
   vm.runInNewContext(compile(fs.readFileSync(new URL('components/studio-libraries/library-account-boundary.tsx',root),'utf8')), { module: accountModule, exports: accountModule.exports, require: name => name === 'react' ? react : { useAuth: refuse } })
   const stableApi = { listTemplates: refuse, getTemplate: refuse, reoptimizeTemplate: refuse, watchTemplateStatus: refuse }
-  const imports = { './templates-fidelity.css': {}, react, 'react/jsx-runtime': { jsx, jsxs: jsx }, './library-account-boundary': accountModule.exports, '@/hooks/use-templates': { useTemplates: () => stableApi }, '@/components/template-ingest-dialog': { TemplateIngestDialog: 'TemplateIngestDialog' }, './studio-workflow-action': { StudioWorkflowAction: 'StudioWorkflowAction' }, './library-controls': Object.fromEntries(['FittedLibraryStage','LibraryLoading','LibraryNotice','LibrarySearch','LibraryWorkspace','MetadataDisclosure','ReadValue','StudioWorkflowLink'].map(n=>[n,n])) }
+  const imports = { './templates-fidelity.css': {}, '@/lib/studio-templates-notice': { templatesNoticeText: () => 'Saved templates are not enabled in this environment. You can sketch a local draft; connected creation and reuse remain in Studio when enabled.' }, react, 'react/jsx-runtime': { jsx, jsxs: jsx }, './library-account-boundary': accountModule.exports, '@/hooks/use-templates': { useTemplates: () => stableApi }, '@/components/template-ingest-dialog': { TemplateIngestDialog: 'TemplateIngestDialog' }, './studio-workflow-action': { StudioWorkflowAction: 'StudioWorkflowAction' }, './library-controls': Object.fromEntries(['FittedLibraryStage','LibraryLoading','LibraryNotice','LibrarySearch','LibraryWorkspace','MetadataDisclosure','ReadValue','StudioWorkflowLink'].map(n=>[n,n])) }
   imports['./library-controls'].libraryDate = String
   imports['lucide-react'] = Object.fromEntries(['ArrowLeft','ArrowRight','FileText','FileUp','Layers','LayoutTemplate','Loader2','RefreshCw'].map(n=>[n,n]))
   const mod = { exports: {} }

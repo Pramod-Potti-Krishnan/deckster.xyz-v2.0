@@ -1,0 +1,32 @@
+/* PASS2-DIRECTOR-CHAT PR D, item 6 (flag NEXT_PUBLIC_STUDIO_CHAT_COMPOSER_CONTEXT): the composer in the accepted v4 mockup's voice
+   (design/studio-v4-mockup/components/director-composer.tsx and app/studio.css: .dc-context, .dc-selection). A one-line context above the
+   composer ("Working on slide 3") and the Template / Theme selections as compact teal pills with the name in bold.
+   Every rule is keyed to [data-studio-chat-context] (the line, rendered only with the flag on) or [data-studio-chat-pill] (an attribute
+   ChatInput puts on its EXISTING selection rows only with the flag on, Studio shell only), so with the flag off none of this matches anything.
+   Presentation only: the pills keep their buttons, props and handlers; the tokens are the Studio shell's own and follow light and dark. */
+
+[data-studio-v4-shell="true"] [data-studio-chat-context] {
+  display: flex; align-items: center; gap: 6px; min-width: 0; margin: 0 3px 9px;
+  color: var(--ss-muted); font-size: 10px; line-height: 1.4;
+}
+[data-studio-v4-shell="true"] [data-studio-chat-context] > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-studio-v4-shell="true"] [data-studio-chat-context-dot] { flex: none; width: 5px; height: 5px; border-radius: 50%; background: var(--ss-teal); }
+
+/* The selection rows as pills. Specificity is one attribute above the Studio selection rules in studio-director.css so the order of the
+   two stylesheets does not matter. */
+[data-studio-v4-shell="true"] [data-studio-composer-selection][data-studio-chat-pill] {
+  gap: 7px; padding: 8px 11px; border-radius: 7px; margin-bottom: 8px;
+  border-color: color-mix(in srgb, var(--ss-teal) 32%, var(--ss-line));
+  background: color-mix(in srgb, var(--ss-teal) 9%, var(--ss-panel));
+  color: var(--ss-teal);
+}
+[data-studio-v4-shell="true"] [data-studio-composer-selection][data-studio-chat-pill] > div { color: var(--ss-teal); }
+[data-studio-v4-shell="true"] [data-studio-composer-selection][data-studio-chat-pill] svg { color: var(--ss-teal); }
+[data-studio-v4-shell="true"] [data-studio-composer-selection][data-studio-chat-pill] [data-studio-v4-type-role="selection-label"] { color: var(--ss-teal); font-size: 10.5px; }
+[data-studio-v4-shell="true"] [data-studio-composer-selection][data-studio-chat-pill] [data-studio-v4-type-role="selection-label"] strong { color: var(--ss-text); font-weight: 500; }
+/* A template that cannot generate yet keeps its amber outline (studio-director.css [data-studio-composer-template-ready="false"]). */
+[data-studio-v4-shell="true"] [data-studio-composer-selection][data-studio-chat-pill][data-studio-composer-template-ready="false"] { border-color: color-mix(in srgb, #d99739 45%, var(--ss-line)); }
+@media (forced-colors: active) {
+  [data-studio-v4-shell="true"] [data-studio-chat-context-dot] { background: CanvasText; }
+  [data-studio-v4-shell="true"] [data-studio-composer-selection][data-studio-chat-pill] { border-color: CanvasText; }
+}

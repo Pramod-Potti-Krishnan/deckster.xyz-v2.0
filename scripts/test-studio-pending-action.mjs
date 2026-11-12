@@ -1,7 +1,9 @@
+import { serviceUrl } from './service-url-harness.mjs'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-CLEAN)
 
 // Render the real native leaves. Explicit dependencies only; all requests refused.
 let flag = 'true'
@@ -9,6 +11,9 @@ const refuse = () => { throw new Error('Offline pending-action fixture refuses e
 const react = { useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}], useEffect() {}, useRef: current => ({ current }), useCallback: callback => callback }
 const jsx = (type, props, key) => ({ type, props, key })
 const imports = {
+  '@/lib/service-url': serviceUrl,
+  './studio-theme-menu': { StudioThemeMenu: 'StudioThemeMenu' },
+  './studio-composer-hint': { StudioComposerHint: 'StudioComposerHint' },
   react: { ...react, default: react },
   'react/jsx-runtime': { jsx, jsxs: jsx },
   'lucide-react': Object.fromEntries(['Sparkles', 'ArrowUpRight', 'BookOpen', 'Lightbulb', 'ListChecks', 'Globe', 'SlidersHorizontal', 'Paperclip', 'ArrowUp', 'Square', 'Loader2', 'Search', 'Brain', 'LayoutTemplate', 'Palette', 'Save', 'Star', 'Trash2', 'X', 'CheckCircle2', 'AlertCircle'].map(name => [name, name])),
@@ -26,9 +31,10 @@ const imports = {
   '@/hooks/use-theme-profiles': { useThemeProfiles: () => ({ loading: false, error: null, listThemes: refuse, saveTheme: refuse, setStandardTheme: refuse, clearStandardTheme: refuse, deleteTheme: refuse }) },
   '@/hooks/use-templates': { isTemplateGenerationReady: () => false, templateGenerationUnavailableReason: () => '' },
   './template-picker': { TemplatePicker: 'TemplatePicker' },
+  '@/lib/studio-composer-popups': { nextComposerPopup: refuse, keepPopupOpenForDropdownList: refuse }, // PASS2-COMPOSER-POPUPS: flag off here, never called
 }
 function load(relative) {
-  const source = fs.readFileSync(new URL(relative, import.meta.url), 'utf8')
+  const source = stripLaterChanges(relative.replace(/^\.\.\//, ''), fs.readFileSync(new URL(relative, import.meta.url), 'utf8')) // LATER-CHANGES: registry read (CHAT-CLEAN): a registered later change's marked lines (chat clean's imports in chat-input.tsx) come out before the allow-list sees the file
   const compiled = ts.transpileModule(source, { reportDiagnostics: true, compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } })
   assert.equal((compiled.diagnostics || []).filter(entry => entry.category === ts.DiagnosticCategory.Error).length, 0)
   const mod = { exports: {} }

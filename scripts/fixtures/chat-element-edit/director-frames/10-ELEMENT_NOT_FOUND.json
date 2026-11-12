@@ -1,0 +1,105 @@
+{
+  "case": "10-ELEMENT_NOT_FOUND",
+  "user_message": {
+    "text": "Make this bold",
+    "client_caps": [
+      "mdc1",
+      "element_edit1",
+      "notes1",
+      "undo1"
+    ],
+    "references": [
+      {
+        "kind": "element",
+        "element_id": "textbox_a1",
+        "element_type": "TEXT_BOX",
+        "slide_index": 2,
+        "slide_id": "L2",
+        "label": "Text \u00b7 slide 3"
+      }
+    ]
+  },
+  "decision": {
+    "action_type": "edit_element",
+    "reasoning": "scripted",
+    "confidence": 0.95,
+    "requires_approval": false,
+    "target_slide_indices": [
+      2
+    ],
+    "edit_op": "style",
+    "edit_bold": true
+  },
+  "frames_in": [
+    {
+      "type": "element_edit_result",
+      "payload": {
+        "directive_id": "ele_f91f35273ada",
+        "ok": false,
+        "error_code": "ELEMENT_NOT_FOUND"
+      }
+    }
+  ],
+  "frames_out": [
+    [
+      {
+        "message_id": "msg_eedit_3786a55e",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:21:58.873524Z",
+        "type": "element_edit",
+        "role": "assistant",
+        "payload": {
+          "directive_id": "ele_f91f35273ada",
+          "session_id": "s_e2e",
+          "presentation_id": "pres-e2e",
+          "slide_id": "L2",
+          "slide_index": 2,
+          "element_id": "textbox_a1",
+          "op": "style",
+          "style": {
+            "bold": true
+          }
+        }
+      },
+      {
+        "message_id": "msg_3ac59353",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:21:58.875291Z",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Restyling the text box on slide 3: bold.",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      }
+    ],
+    [
+      {
+        "message_id": "msg_a7ebc77c",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:21:58.880492Z",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "I couldn't change the text box on slide 3 because it's no longer on the slide, so nothing was changed. Select it again and ask me again.",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      }
+    ]
+  ],
+  "chat_lines": [
+    "Restyling the text box on slide 3: bold.",
+    "I couldn't change the text box on slide 3 because it's no longer on the slide, so nothing was changed. Select it again and ask me again."
+  ],
+  "layout_calls": [
+    "GET /api/presentations/pres-e2e",
+    "PUT /api/presentations/pres-e2e",
+    "GET /api/presentations/pres-e2e/versions"
+  ]
+}

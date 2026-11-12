@@ -1,8 +1,10 @@
+import { serviceUrl } from './service-url-harness.mjs'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import { setImmediate } from 'node:timers/promises'
 import ts from 'typescript'
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-CLEAN)
 
 // Execute the real components, hook, and handlers with a minimal hook/JSX
 // harness. UI primitives and fetch are mocked; no browser or server is needed.
@@ -30,12 +32,20 @@ let templates = []
 let requests = []
 const toasts = []
 const imports = {
+  '@/lib/service-url': serviceUrl,
+  './studio-composer-hint': { StudioComposerHint: 'StudioComposerHint' },
+  './studio-theme-menu': { StudioThemeMenu: 'StudioThemeMenu' },
   react: { ...react, default: react },
   'react/jsx-runtime': { jsx: element, jsxs: element, Fragment: 'Fragment' },
   // Rendering only: keep the native library link visible without Next's router.
   'next/link': { default: 'a' },
   // The scoped stylesheet has no executable behavior in this DOM-free fixture.
   './studio-template-picker.css': {},
+  // PASS2-COMPOSER-POPUPS: the V2 popup pieces template-picker imports; this test renders the flag-off picker only.
+  '@/components/theme-dropdown-picker': { ThemeDropdownPicker: 'ThemeDropdownPicker' },
+  '@/lib/studio-composer-popups': { DECKSTER_PROVIDED_TEMPLATES: [], keepPopupOpenForDropdownList() {} },
+  // PASS2B G38: reached only for a name drawn through displayName(); flag NEXT_PUBLIC_STUDIO_TEMPLATE_DISPLAY_NAMES is off here, so the stored name comes back as it is.
+  '@/lib/studio-template-display-name': { studioTemplateShownName: name => name, studioTemplateTitleProps: () => ({}) },
   'lucide-react': primitives,
   '@/components/ui/dropdown-menu': primitives,
   '@/components/ui/button': primitives,
@@ -46,13 +56,13 @@ const imports = {
   '@/lib/mdc-mentions': {},
   '@/lib/mdc-flags': { CHAT_MENTIONS: false },
   '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') },
-  '@/lib/config': { features: { enableFileUploads: false }, config: { api: { themeBuilderUrl: 'http://localhost' } } },
+  '@/lib/config': { getThemeBuilderUrl: () => serviceUrl.requireServiceUrl('Theme Builder', [{ name: 'NEXT_PUBLIC_THEME_BUILDER_URL', value: 'https://theme.synthetic.invalid' }]), features: { enableFileUploads: false }, config: { api: { themeBuilderUrl: 'http://localhost' } } },
   '@/lib/theme-builder': { FALLBACK_THEME_PRESETS: [], isValidThemeHex: value => /^#[\da-f]{6}$/i.test(value) },
   '@/hooks/use-theme-profiles': { useThemeProfiles: () => ({ loading: false, error: null }) },
   '@/hooks/use-toast': { useToast: () => ({ toast: value => toasts.push(value) }) },
 }
 function load(relative) {
-  const source = fs.readFileSync(new URL(relative, import.meta.url), 'utf8')
+  const source = stripLaterChanges(relative.replace(/^\.\.\//, ''), fs.readFileSync(new URL(relative, import.meta.url), 'utf8')) // LATER-CHANGES: registry read (CHAT-CLEAN): a registered later change's marked lines (chat clean's import in chat-input.tsx) come out before the allow-list sees the file
   const output = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText
@@ -69,6 +79,7 @@ function load(relative) {
   })
   return module.exports
 }
+imports['@/lib/template-retry-acknowledgement'] = load('../lib/template-retry-acknowledgement.ts')
 imports['@/hooks/use-templates'] = load('../hooks/use-templates.ts')
 const picker = load('../components/builder/template-picker.tsx')
 imports['./template-picker'] = picker

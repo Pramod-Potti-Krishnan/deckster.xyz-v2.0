@@ -14,6 +14,9 @@ import "@/components/settings/studio-privacy.css"
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = "force-dynamic"
 
+// NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
+const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === "true"
+
 export default function PrivacySettingsPage() {
   return process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true"
     ? <StudioPrivacySettingsPage />
@@ -129,7 +132,7 @@ function StudioAccountPrivacy({ owner, authLoading }: { owner: string | null; au
   return (
     <div data-studio-privacy="true" aria-busy={loading || saving}>
       <Card className="sp-card"><CardHeader className="sp-header"><CardTitle>Privacy Settings</CardTitle><CardDescription>Control how your data is used and who can see your information</CardDescription></CardHeader><CardContent className="sp-body">
-        <div className="sp-row"><div><Label><Eye className="h-4 w-4" aria-hidden="true" />Profile Visibility</Label><p>Your profile is private. Public profiles and team sharing are planned for a future release.</p></div><Badge variant="outline" className="sp-planned">Planned</Badge></div>
+        <div className="sp-row"><div><Label><Eye className="h-4 w-4" aria-hidden="true" />Profile Visibility</Label><p>{LAUNCH_WORDING ? "Your profile is private. Public profiles and team sharing are not available." : "Your profile is private. Public profiles and team sharing are planned for a future release."}</p></div><Badge variant="outline" className="sp-planned">{LAUNCH_WORDING ? "Private" : "Planned"}</Badge></div>
         <div className="sp-tracking" data-studio-privacy-tracking data-unsaved={choice !== null ? "true" : "false"}>
           <div className="sp-load"><span role="status">{loading && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}{status}</span><button type="button" className="sp-action" onClick={() => void readPreferences()} disabled={!owner || loading || saving} data-studio-privacy-refresh>{loadError ? "Retry loading" : "Refresh"}</button></div>
           {loadError && <p className="sp-error" role="alert">{loadError}</p>}
@@ -196,12 +199,12 @@ function ClassicPrivacySettingsPage() {
                 Profile Visibility
               </Label>
               <p className="text-sm text-muted-foreground">
-                Your profile is private. Public profiles and team sharing are
-                planned for a future release.
+                {LAUNCH_WORDING ? "Your profile is private. Public profiles and team sharing are not available." : <>Your profile is private. Public profiles and team sharing are
+                planned for a future release.</>}
               </p>
             </div>
             <Badge variant="outline" className="text-muted-foreground">
-              Planned
+              {LAUNCH_WORDING ? "Private" : "Planned"}
             </Badge>
           </div>
 

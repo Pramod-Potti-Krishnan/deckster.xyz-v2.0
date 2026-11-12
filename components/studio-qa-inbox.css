@@ -66,3 +66,9 @@
 [data-studio-qa-inbox-error="true"] p { margin-top: 6px; font-size: 12px; line-height: 1.6; color: var(--sqi-muted); }
 [data-studio-qa-inbox-retry="true"] { flex-shrink: 0; border-color: var(--sqi-line); color: var(--sqi-teal); background: var(--sqi-panel); }
 [data-studio-qa-inbox-retry="true"]:hover { color: var(--sqi-text); background: var(--sqi-soft); }
+
+/* NEXT_PUBLIC_STUDIO_P2_PUBLISH_INBOX: Unblock, Remove from FAQ and the "In the FAQ" mark. */
+[data-studio-qa-inbox="true"] .studio-qa-question-actions > .studio-qa-unblock { border-color: var(--sqi-line); color: var(--sqi-teal); background: var(--sqi-panel); }
+[data-studio-qa-inbox="true"] .studio-qa-question-actions > .studio-qa-remove-faq:hover { color: var(--sqi-danger); }
+[data-studio-qa-inbox="true"] .studio-qa-unblock-note { color: var(--sqi-muted); line-height: 1.6; }
+[data-studio-qa-inbox="true"] .studio-qa-question-meta > .studio-qa-in-faq { color: var(--sqi-teal); }

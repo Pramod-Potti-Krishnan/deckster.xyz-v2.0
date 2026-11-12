@@ -1,7 +1,9 @@
+import { serviceUrl } from './service-url-harness.mjs'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-CLEAN)
 
 // Render the real native leaves. Explicit dependencies only; all requests refused.
 let flag = 'true'
@@ -9,10 +11,14 @@ const refuse = () => { throw new Error('Offline Director-header fixture refuses 
 const react = { useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}], useEffect() {}, useRef: current => ({ current }), useCallback: callback => callback }
 const jsx = (type, props, key) => ({ type, props, key })
 const imports = {
+  '@/lib/service-url': serviceUrl,
+  './studio-composer-hint': { StudioComposerHint: 'StudioComposerHint' },
   react: { ...react, default: react },
   'react/jsx-runtime': { jsx, jsxs: jsx },
   'lucide-react': Object.fromEntries(['Sparkles', 'ArrowUpRight', 'BookOpen', 'Lightbulb', 'ListChecks', 'Globe', 'SlidersHorizontal', 'Paperclip', 'ArrowUp', 'Square', 'Loader2', 'Search', 'Brain', 'LayoutTemplate', 'Palette', 'Save', 'Star', 'Trash2', 'X', 'CheckCircle2', 'AlertCircle'].map(name => [name, name])),
   './studio-director-header.css': {},
+  '@/lib/studio-welcome-polish': { studioWelcomeEyebrow: refuse }, // PASS2B G01: reached only with a `greeting` prop (flag NEXT_PUBLIC_STUDIO_WELCOME_POLISH), never passed here
+  '@/lib/studio-welcome-width': { studioWelcomeWidthProps: () => ({}) }, // PASS2D W: flag NEXT_PUBLIC_STUDIO_WELCOME_WIDTH_560 is off here, so the marker is never added
   '@/components/builder/chat/mention-popover': { SlideMentionPopover: 'SlideMentionPopover' },
   '@/lib/mdc-mentions': { filterMentionSlides: () => [], mentionToken: refuse },
   '@/lib/mdc-flags': { CHAT_MENTIONS: false },
@@ -27,9 +33,10 @@ const imports = {
   '@/hooks/use-templates': { isTemplateGenerationReady: () => false, templateGenerationUnavailableReason: () => '' },
   './template-picker': { TemplatePicker: 'TemplatePicker' },
   './studio-theme-menu': { StudioThemeMenu: 'StudioThemeMenu' },
+  '@/lib/studio-composer-popups': { nextComposerPopup: refuse, keepPopupOpenForDropdownList: refuse }, // PASS2-COMPOSER-POPUPS: flag off here, never called
 }
 function load(relative) {
-  const source = fs.readFileSync(new URL(relative, import.meta.url), 'utf8')
+  const source = stripLaterChanges(relative.replace(/^\.\.\//, ''), fs.readFileSync(new URL(relative, import.meta.url), 'utf8')) // LATER-CHANGES: registry read (CHAT-CLEAN): a registered later change's marked lines (chat clean's imports in chat-input.tsx) come out before the allow-list sees the file
   const compiled = ts.transpileModule(source, { reportDiagnostics: true, compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } })
   assert.equal((compiled.diagnostics || []).filter(entry => entry.category === ts.DiagnosticCategory.Error).length, 0)
   const mod = { exports: {} }
@@ -94,7 +101,10 @@ assert.equal(nodes(StudioWelcome({ connectionState: 'disconnected' })).some(node
 flag = 'false'
 assert.equal(nodes(ChatInput({ ...baseProps, showConnectionStatus: false })).some(node => node.props?.['data-studio-composer-part'] === 'footer'), false)
 const page = fs.readFileSync(new URL('../app/builder/page.tsx', import.meta.url), 'utf8')
-assert.match(page, /studioShell && <StudioDirectorHeader connectionState=\{connectionState\} isLoadingSession=\{session\.isLoadingSession\} \/>/)
+// The owner passes the live connection state and session-loading flag (and, for NEXT_PUBLIC_STUDIO_CHAT_HEADER, the hook's own
+// reconnectStatus, read only; ignored with the flag off). Its only `actions` slot is the Director call
+// entry (7c0040b), and that is mounted solely behind STUDIO_VOICE_INTERACTIVE_ENABLED; otherwise the header stays control-free.
+assert.match(page, /\{studioShell && <StudioDirectorHeader connectionState=\{connectionState\} isLoadingSession=\{session\.isLoadingSession\}(?: reconnectStatus=\{reconnectStatus\})?(?:\s+onReconnect=\{process\.env\.NEXT_PUBLIC_STUDIO_CHAT_RECONNECT === 'true' \? connect : undefined\})?\s+actions=\{STUDIO_VOICE_INTERACTIVE_ENABLED \? <DirectorCallEntry [^>]*\/> : undefined\} \/>\}/)
 assert.match(page, /showConnectionStatus=\{!studioShell\}/)
 assert.ok(page.indexOf('{studioShell && <StudioDirectorHeader') < page.indexOf('                  <TokenUsageStrip'))
 console.log('Persistent Director header passed: actual connection/loading labels and literal flag, no readiness/call claims, no controls, default/hidden composer connection with unchanged drafts/gates/instructions/actions, standalone welcome status and native page wiring. No effects/services/requests ran; root owns geometry captures.')

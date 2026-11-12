@@ -1,0 +1,36 @@
+{
+ "description": "WebSocket sync_response frame for the imported deck's session, on every connect/reconnect from any device (the marker is persisted in the session's adoption receipt). payload.composer_adoption.source is sent only while DIRECTOR_DECK_IMPORT_ENABLED is on; a deck imported earlier is sent without it once the flag is off.",
+ "frame": {
+  "message_id": "<message id>",
+  "payload": {
+   "action": "skip_history",
+   "composer_adoption": {
+    "frozen_theme": true,
+    "presentation_id": "5f0c7a52-6f5e-4c55-9a51-0d2b8f3a9c11",
+    "schema_version": "composer-adoption-v1",
+    "source": "deck_import",
+    "template_id": "a7b50d74-e10f-43ee-841f-f8c61a89cd0e"
+   },
+   "current_state": "COMPLETE",
+   "has_strawman": true,
+   "message_count": 0,
+   "presentation_id": "5f0c7a52-6f5e-4c55-9a51-0d2b8f3a9c11",
+   "presentation_url": "http://127.0.0.1:8544/p/5f0c7a52-6f5e-4c55-9a51-0d2b8f3a9c11",
+   "slide_count": 3
+  },
+  "role": "assistant",
+  "session_id": "fresh-session",
+  "timestamp": "<iso timestamp>",
+  "type": "sync_response"
+ },
+ "persisted_session_context": {
+  "composer_adoption": {
+   "job_id": "stage-import-9c477368-85dd-4e0c-88b5-b89191168338",
+   "presentation_id": "5f0c7a52-6f5e-4c55-9a51-0d2b8f3a9c11",
+   "source": "deck_import",
+   "template_id": "a7b50d74-e10f-43ee-841f-f8c61a89cd0e",
+   "template_sha256": "<sha256>"
+  }
+ },
+ "second_device_frame_identical": true
+}

@@ -114,6 +114,22 @@ function strip(ref, studio) {
     '@/lib/slide-compose-async': pure(ref,'slide-compose-async'),
     '@/lib/slide-thumbnail-menu': pure(ref,'slide-thumbnail-menu'),
     './slide-layout-picker': {SLIDE_LAYOUTS:[]},
+    '@/lib/studio-slide-title-label': {slideTitleLabel:title=>title},
+    // F9-A (live rail preview, flag NEXT_PUBLIC_STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED, default off): flag-off stubs; older refs never import them.
+    '@/lib/rail-live-preview': {STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED:false,railLivePreviewApplies:()=>false},
+    './rail-live-preview': {RailLivePreview:()=>null},
+    // PASS2 rail v2 (flag NEXT_PUBLIC_STUDIO_SLIDE_RAIL_V2, default off): flag-off stub; older refs never import it.
+    '@/lib/studio-slide-rail-v2': {STUDIO_SLIDE_RAIL_V2:false,slideRailV2Number:n=>String(n).padStart(2,'0')},
+    // PASS2B G20 (flag NEXT_PUBLIC_STUDIO_RAIL_LAYOUT_LABELS, default off): flag-off stub; older refs never import it.
+    '@/lib/studio-rail-layout-label': {STUDIO_RAIL_LAYOUT_LABELS:false,railLayoutName:()=>null},
+    // PASS2B G21 (flag NEXT_PUBLIC_STUDIO_RAIL_ADD_SLIDE, default off): flag-off stubs; older refs never import them.
+    '@/lib/studio-rail-add-slide': {STUDIO_RAIL_ADD_SLIDE:false},
+    './studio-rail-add-slide': {RailAddSlideButton:()=>null},
+    // RAIL-SLIDES-1-MIDBUILD (flag NEXT_PUBLIC_STUDIO_RAIL_BUILD_COUNT, default off): flag-off stub; the card is drawn only for a row the viewer marks with buildPlaceholder, which these renders never do; older refs never import it.
+    './studio-rail-build-placeholder': {RailBuildPlaceholderCard:()=>null},
+    // THUMBNAILS-BLANK-UAT "never blank" (flag NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD, default off): flag-off stub; the cue is drawn only for a row that carries thumbnailLag, which these renders never do; older refs never import it.
+    './studio-thumbnail-lag-cue': {StudioThumbnailLagCue:()=>null},
+    '@/lib/studio-template-match': {STUDIO_TEMPLATE_MATCH_ENABLED:false}, '@/components/builder/studio-template-match-chip': {StudioTemplateMatchChip:()=>null}, // LATER-CHANGES: registry read (STUDIO-TEMPLATE-MATCH): flag-off stubs (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH, default off); the chip is drawn only with the flag on; older refs never import them
   }
   const parsed=ts.createSourceFile('strip.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX)
   for (const declaration of parsed.statements) {

@@ -1,0 +1,21 @@
+{
+  "case": "422-whitespace-only-name",
+  "what": "Whitespace-only name (empty after trimming).",
+  "request": {
+    "method": "PATCH",
+    "path": "/api/users/user-a/templates/t-plain",
+    "json_body": {
+      "name": "   \t "
+    },
+    "entitlement_header": "(none)"
+  },
+  "response": {
+    "status": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json_body": {
+      "detail": "A template name is required."
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "01-connected-one-turn-sent": {
+    "chat": "1f2be6bc7264a7096451d234a9e153fab3efc5551b0e3a4f719f9fce9ddf7965",
+    "composer": "523a7a8cc53cce070edca6411bb935729bf222282c36ce02bfe6e7d63d1e69f9",
+    "header": "f300b84d63410cdc2e8eca6372408049af5aedbaca9c860ffe488ef2d8a3626d",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "02-evicted-by-another-tab": {
+    "chat": "1f2be6bc7264a7096451d234a9e153fab3efc5551b0e3a4f719f9fce9ddf7965",
+    "composer": "83451d012a89ff697150c0a4a070ea76184b79930636d0d46e8a20f42d05c335",
+    "header": "4ad199007c83de5a5d3a2fcfe23f2ea072245cb918543a731e7be287b5ad253e",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "superseded": "106a03940e08155ec2c408fd8214156aaf3ef79423e100fbd470916b5c308e47"
+  },
+  "03-send-blocked-draft-kept": {
+    "chat": "1f2be6bc7264a7096451d234a9e153fab3efc5551b0e3a4f719f9fce9ddf7965",
+    "composer": "69032c1a3ef5ca87d67c7c7eca62cede3802ff716d3ba93baac9181fb43dd241",
+    "header": "4ad199007c83de5a5d3a2fcfe23f2ea072245cb918543a731e7be287b5ad253e",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "superseded": "106a03940e08155ec2c408fd8214156aaf3ef79423e100fbd470916b5c308e47"
+  },
+  "04-use-here-connecting": {
+    "chat": "1f2be6bc7264a7096451d234a9e153fab3efc5551b0e3a4f719f9fce9ddf7965",
+    "composer": "a5130b9ffa608250ae3c7232c68f995cb70fce276eeac95302ac2d61983990a0",
+    "header": "3ee9fc0db3eb1e86b0efc51bb9b3e79dd954eb70b105e14d7ab568136a27f232",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "05-took-the-session-back": {
+    "chat": "1f2be6bc7264a7096451d234a9e153fab3efc5551b0e3a4f719f9fce9ddf7965",
+    "composer": "f80eea8bf8c4e891d75cdde732226923f8d0fac9d894482f7c24a5c01c41c2f4",
+    "header": "f300b84d63410cdc2e8eca6372408049af5aedbaca9c860ffe488ef2d8a3626d",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "06-late-close-of-the-old-socket-ignored": {
+    "chat": "1f2be6bc7264a7096451d234a9e153fab3efc5551b0e3a4f719f9fce9ddf7965",
+    "composer": "f80eea8bf8c4e891d75cdde732226923f8d0fac9d894482f7c24a5c01c41c2f4",
+    "header": "f300b84d63410cdc2e8eca6372408049af5aedbaca9c860ffe488ef2d8a3626d",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "07-sent-from-the-winning-tab": {
+    "chat": "0443604c59e0df65509bb028c27197dbee386d5f95cb62379a98b3e6375443e9",
+    "composer": "c59e53a2c3aa070d7c6d269b1c865701fe31ed14106022ad6beef0fcdccfc121",
+    "header": "f300b84d63410cdc2e8eca6372408049af5aedbaca9c860ffe488ef2d8a3626d",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "08-paused-again-still-one-eviction-each": {
+    "chat": "0443604c59e0df65509bb028c27197dbee386d5f95cb62379a98b3e6375443e9",
+    "composer": "83451d012a89ff697150c0a4a070ea76184b79930636d0d46e8a20f42d05c335",
+    "header": "4ad199007c83de5a5d3a2fcfe23f2ea072245cb918543a731e7be287b5ad253e",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "superseded": "106a03940e08155ec2c408fd8214156aaf3ef79423e100fbd470916b5c308e47"
+  },
+  "09-final": {
+    "chat": "0443604c59e0df65509bb028c27197dbee386d5f95cb62379a98b3e6375443e9",
+    "composer": "83451d012a89ff697150c0a4a070ea76184b79930636d0d46e8a20f42d05c335",
+    "header": "4ad199007c83de5a5d3a2fcfe23f2ea072245cb918543a731e7be287b5ad253e",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "superseded": "106a03940e08155ec2c408fd8214156aaf3ef79423e100fbd470916b5c308e47"
+  }
+}

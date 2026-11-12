@@ -1,0 +1,311 @@
+{
+ "payload_semantic_role": "SLIDE_TITLE",
+ "payload_slot": [
+  "title",
+  "structural"
+ ],
+ "payload_content": {
+  "success": true,
+  "elementId": "slide_3ccd465f4de3_textbox_c4e90e33",
+  "content": "Turning Trash Into Store Profitability Today",
+  "plainText": "Turning Trash Into Store Profitability Today"
+ },
+ "chat": {
+  "kind": "chat",
+  "body": {
+   "session_id": "tls",
+   "message": "Shorten the text in the selected text box while keeping it punchy.",
+   "component_type": "TEXT_BOX",
+   "presentation_id": "d68f9b14",
+   "server_side_insert": false,
+   "slide_index": 0,
+   "use_deck_theme": true,
+   "theme_bindings": {},
+   "refine": true,
+   "existing_element": {
+    "element_id": "slide_3ccd465f4de3_textbox_c4e90e33",
+    "component_type": "TEXT_BOX",
+    "renderer_type": "textbox",
+    "theme_variant_id": null,
+    "theme_bindings": {},
+    "style_owner": null,
+    "theme_variant_source": null,
+    "research_provenance": null,
+    "semantic_role": "SLIDE_TITLE",
+    "slot_name": "title",
+    "slot_kind": "structural",
+    "accessory_type": null,
+    "generation_config": null,
+    "citations_used": [],
+    "metrics_color_variant": null,
+    "diagram_subtype": null,
+    "z_index": null,
+    "content": {
+     "success": true,
+     "elementId": "slide_3ccd465f4de3_textbox_c4e90e33",
+     "content": "Turning Trash Into Store Profitability Today",
+     "plainText": "Turning Trash Into Store Profitability Today"
+    },
+    "formatting": {
+     "fontFamily": "var(--theme-font-family, Poppins, sans-serif)",
+     "fontSize": 32,
+     "fontWeight": "var(--theme-title-weight, bold)",
+     "fontStyle": "normal",
+     "textDecoration": "none",
+     "textTransform": "none",
+     "color": "var(--theme-text-primary, #111827)",
+     "backgroundColor": "transparent",
+     "textAlign": "left",
+     "verticalAlign": "bottom",
+     "lineHeight": "1.5",
+     "paddingShorthand": "0px",
+     "padding": {
+      "top": 0,
+      "right": 0,
+      "bottom": 0,
+      "left": 0
+     },
+     "borderShorthand": null,
+     "border": {
+      "width": 0,
+      "color": "transparent",
+      "style": "solid"
+     },
+     "borderRadius": {
+      "topLeft": 0,
+      "topRight": 0,
+      "bottomRight": 0,
+      "bottomLeft": 0
+     },
+     "themeBindings": {},
+     "themeVariantId": null,
+     "cssClasses": [
+      "draggable",
+      "resizable"
+     ]
+    },
+    "properties": null,
+    "grid_position": {
+     "start_col": 13,
+     "start_row": 1,
+     "position_width": 19,
+     "position_height": 2,
+     "auto_position": false
+    },
+    "normalized_component_type": "TEXT_BOX"
+   },
+   "slide_context": {
+    "slide_index": 0,
+    "slide_title": "",
+    "slide_summary": "",
+    "target_element_id": null,
+    "elements": [],
+    "truncated": false
+   },
+   "generation_context": {
+    "generation_intent": {
+     "user_prompt": "Shorten the text in the selected text box while keeping it punchy.",
+     "component_type": "TEXT_BOX"
+    },
+    "reference_context": {
+     "slide": {
+      "slide_index": 0,
+      "slide_title": "",
+      "slide_summary": "",
+      "target_element_id": null,
+      "elements": [],
+      "truncated": false
+     },
+     "deck": null
+    }
+   },
+   "generation_attempt_id": "37eab41e-43fb-4e15-b9a3-683f816d9122",
+   "research": {
+    "mode": "off",
+    "web": false,
+    "uploaded_docs": false,
+    "use_knowledge_graph": false,
+    "user_id": null,
+    "store_name": null,
+    "session_id": "s",
+    "source_capabilities": {
+     "web": false,
+     "uploadedDocuments": false,
+     "knowledgeGraph": false
+    },
+    "depth": "quick"
+   },
+   "replace_element_id": "slide_3ccd465f4de3_textbox_c4e90e33",
+   "semantic_role": "SLIDE_TITLE",
+   "slot_name": "title",
+   "slot_kind": "structural",
+   "geometry_mode": "AUTO",
+   "text_only_mode": true,
+   "count": 1,
+   "layout": "horizontal",
+   "z_index": 1,
+   "position_config": {
+    "start_col": 13,
+    "start_row": 1,
+    "position_width": 19,
+    "position_height": 2,
+    "auto_position": false
+   }
+  },
+  "commands": [
+   "setElementGenerationState",
+   "getElementGeometry",
+   "getSlideGenerationContext",
+   "upsertSemanticElement"
+  ]
+ },
+ "panel": {
+  "kind": "panel",
+  "body": {
+   "session_id": "tls",
+   "message": "Shorten this",
+   "component_type": "TEXT_BOX",
+   "presentation_id": "d68f9b14",
+   "server_side_insert": false,
+   "slide_index": 0,
+   "use_deck_theme": true,
+   "theme_bindings": {},
+   "refine": true,
+   "existing_element": {
+    "element_id": "slide_3ccd465f4de3_textbox_c4e90e33",
+    "component_type": "TEXT_BOX",
+    "renderer_type": "textbox",
+    "theme_variant_id": null,
+    "theme_bindings": {},
+    "style_owner": null,
+    "theme_variant_source": null,
+    "research_provenance": null,
+    "semantic_role": "SLIDE_TITLE",
+    "slot_name": "title",
+    "slot_kind": "structural",
+    "accessory_type": null,
+    "generation_config": null,
+    "citations_used": [],
+    "metrics_color_variant": null,
+    "diagram_subtype": null,
+    "z_index": null,
+    "content": {
+     "success": true,
+     "elementId": "slide_3ccd465f4de3_textbox_c4e90e33",
+     "content": "Turning Trash Into Store Profitability Today",
+     "plainText": "Turning Trash Into Store Profitability Today"
+    },
+    "formatting": {
+     "fontFamily": "var(--theme-font-family, Poppins, sans-serif)",
+     "fontSize": 32,
+     "fontWeight": "var(--theme-title-weight, bold)",
+     "fontStyle": "normal",
+     "textDecoration": "none",
+     "textTransform": "none",
+     "color": "var(--theme-text-primary, #111827)",
+     "backgroundColor": "transparent",
+     "textAlign": "left",
+     "verticalAlign": "bottom",
+     "lineHeight": "1.5",
+     "paddingShorthand": "0px",
+     "padding": {
+      "top": 0,
+      "right": 0,
+      "bottom": 0,
+      "left": 0
+     },
+     "borderShorthand": null,
+     "border": {
+      "width": 0,
+      "color": "transparent",
+      "style": "solid"
+     },
+     "borderRadius": {
+      "topLeft": 0,
+      "topRight": 0,
+      "bottomRight": 0,
+      "bottomLeft": 0
+     },
+     "themeBindings": {},
+     "themeVariantId": null,
+     "cssClasses": [
+      "draggable",
+      "resizable"
+     ]
+    },
+    "properties": null,
+    "grid_position": {
+     "start_col": 13,
+     "start_row": 1,
+     "position_width": 19,
+     "position_height": 2,
+     "auto_position": false
+    },
+    "normalized_component_type": "TEXT_BOX"
+   },
+   "slide_context": {
+    "slide_index": 0,
+    "slide_title": "",
+    "slide_summary": "",
+    "target_element_id": null,
+    "elements": [],
+    "truncated": false
+   },
+   "generation_context": {
+    "generation_intent": {
+     "user_prompt": "Shorten this",
+     "component_type": "TEXT_BOX"
+    },
+    "reference_context": {
+     "slide": {
+      "slide_index": 0,
+      "slide_title": "",
+      "slide_summary": "",
+      "target_element_id": null,
+      "elements": [],
+      "truncated": false
+     },
+     "deck": null
+    }
+   },
+   "generation_attempt_id": "f86fae21-e2bc-4f00-99d2-712a5d255e4d",
+   "research": {
+    "mode": "off",
+    "web": false,
+    "uploaded_docs": false,
+    "use_knowledge_graph": false,
+    "user_id": null,
+    "store_name": null,
+    "session_id": "s",
+    "source_capabilities": {
+     "web": false,
+     "uploadedDocuments": false,
+     "knowledgeGraph": false
+    },
+    "depth": "quick"
+   },
+   "replace_element_id": "slide_3ccd465f4de3_textbox_c4e90e33",
+   "semantic_role": "SLIDE_TITLE",
+   "slot_name": "title",
+   "slot_kind": "structural",
+   "geometry_mode": "AUTO",
+   "text_only_mode": true,
+   "count": 1,
+   "layout": "horizontal",
+   "position_config": {
+    "start_col": 13,
+    "start_row": 1,
+    "position_width": 19,
+    "position_height": 2,
+    "auto_position": false
+   },
+   "compose": false
+  },
+  "commands": [
+   "setElementGenerationState",
+   "getElementGeometry",
+   "getSlideGenerationContext",
+   "upsertSemanticElement"
+  ]
+ }
+}

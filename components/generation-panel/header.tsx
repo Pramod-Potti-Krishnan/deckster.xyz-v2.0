@@ -2,6 +2,8 @@
 
 import { X, Type, TrendingUp, Table, BarChart3, ImageIcon, Tag, Pentagon, LayoutGrid, GitBranch } from 'lucide-react'
 import { TextLabsComponentType, COMPONENT_TYPE_INFO } from '@/types/textlabs'
+import { elementPanelEyebrow } from '@/lib/studio-panel-eyebrow'
+import { StudioPanelEyebrow } from '@/components/studio-panel-eyebrow'
 
 const STUDIO_GENERATION_HEADER = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
 
@@ -33,7 +35,7 @@ export function GenerationPanelHeader({ elementType, onClose, mode }: Generation
       ? 'SVG shapes with 25 choices, including custom'
       : info.description
 
-  return (
+  const header = (
     <div data-studio-v4-panel-header className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
       <div className="flex items-center gap-2.5">
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
@@ -58,4 +60,8 @@ export function GenerationPanelHeader({ elementType, onClose, mode }: Generation
       </div>
     </div>
   )
+  // PASS2B G33 (NEXT_PUBLIC_STUDIO_PANEL_EYEBROW, default off, Studio shell only): the violet band over the header ("CREATE ELEMENT", "Selected Chart").
+  return STUDIO_GENERATION_HEADER && process.env.NEXT_PUBLIC_STUDIO_PANEL_EYEBROW === 'true'
+    ? <><StudioPanelEyebrow {...elementPanelEyebrow({ mode, label: info.label })} />{header}</>
+    : header
 }

@@ -284,3 +284,35 @@
 /* Keyboard focus retains clearance inside the native Inspector scroll body. */
 [data-studio-v4-shell="true"] [data-studio-v4-panel-fields] { scroll-padding-block: 10px; }
 [data-studio-v4-shell="true"] [data-studio-v4-panel-fields] :is(input,select,textarea,button) { scroll-margin-block: 10px; }
+
+/* PASS2B G29 + G33 (NEXT_PUBLIC_STUDIO_PANEL_EYEBROW): the violet band over the Add Slide and Add Element panels' header. It replaces the header's own thin
+   violet top rule, so the two do not stack. */
+[data-studio-v4-shell="true"] [data-studio-panel-eyebrow] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+  min-height: 30px;
+  padding: 0 16px;
+  background: var(--sp-violet);
+  color: #fff;
+  font-size: 11px;
+  line-height: 16px;
+}
+[data-studio-v4-shell="true"] [data-studio-panel-eyebrow] > span:first-child {
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+[data-studio-v4-shell="true"] [data-studio-panel-eyebrow] > span:last-child:not(:first-child) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  color: rgba(255, 255, 255, .92);
+}
+[data-studio-v4-shell="true"] [data-studio-panel-eyebrow] + [data-studio-v4-panel-header] {
+  border-top: 0;
+}

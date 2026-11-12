@@ -1,0 +1,10 @@
+{
+  "user_id": "user-fixture-1",
+  "session_id": "sess-fixture-1",
+  "preferences": {
+    "planning_strategy": {
+      "auto": true
+    }
+  },
+  "catalogue_version": "2026-09-30.wp1-stage25-proposed-mapping-revision-two-layer+shortlist:2026-10-02-shortlist-v1"
+}

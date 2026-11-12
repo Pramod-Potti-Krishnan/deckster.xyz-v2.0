@@ -1,0 +1,23 @@
+/* STUDIO PASS 3 POLISH, PR F (FRONTEND-2; flag NEXT_PUBLIC_STUDIO_PASS3_POLISH, PR A's, exact "true", default off, build-time). One more phone side effect of PR A's section 2 (studio-pass3-polish.css: text
+   controls are 16px on a phone, so iOS Safari does not zoom the page when one takes focus), found by the whole-site A/B sweep of 0e267a2c, put right with one rule in this file of its own (PR A's and PR E's
+   stylesheets are not edited).
+
+   THE SCOPE RULE is PR A's: every rule starts with html[data-studio-pass3-polish="true"], which lib/studio-pass3-polish.ts sets on <html> only with the flag on, so with the flag off not one rule here matches
+   anything. The rule is for a phone (max-width: 640px, PR A's breakpoint), sits inside the Studio shell ([data-studio-v4-shell="true"]) and ends with PR A's section 2 guard, the :not() that keeps it off
+   FRONTEND-1's areas (Settings and profile pages, Billing, Shortcuts, Your details, the account menu, Publish, the published viewer and its ask panel, Admin, Docs and Help). No !important.
+   The chosen value keeps PR A's 16px: iOS decides the zoom on the control's own font size, and the rule does not change it.
+
+   SECTIONS (F1: named apart from PR A's numbered sections and PR E's E1, E2):
+     F1. the Themes page's Heading font and Body font selects end in an ellipsis before the chevron on a phone */
+
+/* ===== SECTION F1: the Themes font selects end in an ellipsis before the chevron on a phone ===== */
+/* The two font pickers of the Themes page (themes-workspace.tsx, FontFields: .sl-two-fields[data-theme-font-fields] > label.sl-field > select; libraries.css gives them 10px 11px of padding and 12px type) sit side
+   by side, each half the card. They draw the browser's own chevron over their right padding. At 12px "Theme default" fitted; at PR A's 16px it ran on under the chevron ("Theme defau▾"). The same correction as
+   PR E's E2 for the Intelligence selects: 24px of right padding, so the text box ends before the chevron, and text-overflow: ellipsis, so a value that does not fit ends in "…" there. Nothing else changes: the
+   font size (16px), the height, the left padding, the width and the two-column layout are PR A's and the page's. */
+@media (max-width: 640px) {
+  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] main.studio-library[data-studio-library="themes"] [data-theme-font-fields="true"] > label.sl-field > select:not(:is([data-studio-settings], [data-studio-billing], [data-studio-p2-shortcuts], [data-studio-personal="details"], [data-studio-v4-profile], [data-studio-publish], [data-studio-publish-popup], [data-studio-publish-wizard], [data-studio-qa-inbox], [data-studio-published-viewer], [data-studio-published-ask], [data-studio-published-qa], [data-studio-p2-admin], [data-studio-p2-docs], [data-studio-p2-help], [data-studio-help-content]) *) {
+    padding-right: 24px;
+    text-overflow: ellipsis;
+  }
+}
