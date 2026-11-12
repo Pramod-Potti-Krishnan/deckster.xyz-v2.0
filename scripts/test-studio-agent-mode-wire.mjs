@@ -23,7 +23,7 @@
 //     tier) reads from a clean state and shows, a late frame of the finished run is still stale, and a live run still refuses another run's frame;
 //  F. the sources: every line this change adds to the hook and the page carries the marker and is a pure insertion (no base line is rewritten or removed); #607's own four files and its proof, edited in place (the A1 estimate card is information), have EVERY
 //     changed line marked and paired (a line of #607's is never rewritten unmarked); the strip puts #607's head back BYTE FOR BYTE (two app files, #607's files and proof, two older proofs); the registry (two lines, after #607's and at the true end of the
-//     files and strips lists, none in the env list; ORDER checks, never adjacency, the older files read through the other changes' strips, so a keep-both restack of the changes queued ahead of this one still passes: F3), .env.example untouched;
+//     files and strips lists, none in the env list; ORDER checks, never adjacency, the older files read through the other changes' strips, so a keep-both restack of the changes queued ahead of this one still passes: F3, and a change stacked after this one, its lines below ours: F4), .env.example untouched;
 //  G. scope, read from the COMMITTED diff only (never the working tree): own commits by subject, each with the co-author line; the files they touch are this change's scope; a stray untracked file changes nothing;
 //  H. NO AGENT START FROM VOICE (PK ruling, 11 Nov): a voice accept (a spoken yes to the plan card) or any voice-originated send never carries build_mode "agent" and sends no agent frame; a click on the card or a typed send with the picker on Agent still does.
 //     H1 the paths, read from the sources: the voice call's controller is the only sender for the voice (two callbacks, one arming of the bus, one mount, handed the page's two handlers), the Director call is read-only, the guard is at the top of both handlers
@@ -834,8 +834,10 @@ function registryChecks(text = read(REGISTRY), reg = registry) {
   for (const [line, i] of own) {
     assert.match(line, /\/\/ LATER-CHANGE: FRONTEND-1, Agent mode wire/, 'the registry marker')
     const shellAt = lines.findIndex((l, k) => l.includes('studio-agent-mode-shell-strip.mjs') && section(k) === section(i)); assert.ok(shellAt !== -1 && shellAt < i, `after #607's line in the same list (line ${i + 1}; changes restacked between them are fine, a line before it is not)`)
-    let k = i + 1; while (k < lines.length && lines[k] !== END) { assert.ok(registeredLine(lines[k]), `the true end of its list: only another change's registered line may follow it (line ${k + 1}: ${lines[k].slice(0, 80)})`); k++ }
-    assert.equal(lines[k], END, 'the list ends at the registry\'s own end line')
+    // the list's own end line is the first end line below the list's header: it comes AFTER this change's line, and every line between the two is another change's registered line (a later change stacked after this one sits there)
+    const head = (() => { for (let h = i; h >= 0; h--) if (/^export const LATER_\w+/.test(lines[h])) return h; return -1 })(), end = lines.findIndex((l, h) => h > head && l === END)
+    assert.ok(end > i, `the true end of its list: the registry's own end line (${end === -1 ? 'none' : `line ${end + 1}`}) comes after this change's line (line ${i + 1})`)
+    for (let k = i + 1; k < end; k++) assert.ok(registeredLine(lines[k]), `the true end of its list: only another change's registered line may follow it (line ${k + 1}: ${lines[k].slice(0, 80)})`)
   }
   assert.deepEqual(own.map(([l]) => /\)\.(\w+), \/\//.exec(l)?.[1]), ['AGENT_MODE_WIRE_SCOPE_FILES', 'stripAgentModeWire'])
   const base = baseText(REGISTRY).split('\n'); assert.ok(base.every(l => lines.includes(l)), 'the registry loses no line'); assert.equal(lines.filter(l => !base.includes(l)).filter(l => !l.includes('studio-agent-mode-wire-strip.mjs')).filter(l => !registeredLine(l)).length, 0, 'and gains nothing else (the registered lines of changes restacked with this one are theirs)')
@@ -861,6 +863,30 @@ const restackedReg = () => { const shell = registry.LATER_STRIPS.find(fn => type
 const restackedProofs = () => Object.fromEntries(CHAIN_PINS.map(rel => { const own = ALL_EDITS[rel][0][0]; assert.equal(count(committed(rel), own), 1); return [rel, committed(rel).replace(own, () => CHAIN.map(chainFilter).join('') + own)] }))
 function restackChecks(text = restackedRegistry(), reg = restackedReg(), texts = restackedProofs(), others = [...otherStripsOf(), ...chainStrips]) {
   registryChecks(text, reg); sourceChecks(texts, stripAgentModeWire, {}, others)
+}
+
+/** Two changes made up to come AFTER this one, as a keep-both merge of a later branch lays them out (this change's lines first, theirs below, above the registry's end line): each registers a files line and a strips line, and one of them adds a line to the Builder page, read out by its strip.
+ *  The order checks must hold with their lines behind ours (the end of a list is where the registry says, not the line after ours). Modelled, not read from any branch: the real later change (Brand Kit caller, #624) is proved in the trial merge. */
+const STACKED = ['alpha', 'beta'], STACKED_PAGE_LINE = '// STACKED-ALPHA: a later change adds this line to the Builder page\n'
+const stackedStrips = STACKED.map(name => { const fn = (rel, text) => (name === 'alpha' && rel === PAGE && typeof text === 'string' ? text.replace(STACKED_PAGE_LINE, '') : text); Object.defineProperty(fn, 'name', { value: `stripStacked${name}` }); return fn })
+function stackedRegistry(text = read(REGISTRY)) {
+  const out = []
+  for (const line of text.split('\n')) {
+    out.push(line)
+    if (line.includes('studio-agent-mode-wire-strip.mjs')) for (const name of STACKED) out.push(line.includes('SCOPE_FILES') ? `  ...(await import('./studio-stacked-${name}-strip.mjs')).STACKED_SCOPE_FILES, // LATER-CHANGE: STACKED, change ${name}, stacked after the Agent mode wire` : `  (await import('./studio-stacked-${name}-strip.mjs')).stripStacked${name}, // LATER-CHANGE: STACKED, change ${name}, stacked after the Agent mode wire`)
+  }
+  return out.join('\n')
+}
+const stackedReg = (reg = registry) => { const at = reg.LATER_STRIPS.indexOf(stripAgentModeWire); return { ...reg, LATER_STRIPS: [...reg.LATER_STRIPS.slice(0, at + 1), ...stackedStrips, ...reg.LATER_STRIPS.slice(at + 1)] } }
+const stackedPage = () => ({ [PAGE]: committed(PAGE) + STACKED_PAGE_LINE })
+function stackedChecks(text = stackedRegistry(), reg = stackedReg(), texts = stackedPage(), others = otherStripsOf(reg)) {
+  assert.ok(reg.LATER_STRIPS.indexOf(stripAgentModeWire) < reg.LATER_STRIPS.indexOf(stackedStrips[0]), 'the made-up later strips sit after this change\'s')
+  registryChecks(text, reg); sourceChecks(texts, stripAgentModeWire, {}, others)
+}
+/** The list's end line moved to sit directly above this change's line in the files list (`which` 0) or the strips list (1), whatever follows this change's line there. */
+function endBeforeOurs(text, which) {
+  const lines = text.split('\n'), at = lines.map((l, i) => [l, i]).filter(([l]) => l.includes('studio-agent-mode-wire-strip.mjs')).map(([, i]) => i)[which], end = lines.findIndex((l, i) => i > at && l === END)
+  assert.ok(at !== undefined && end > at, 'the mutant finds this change\'s line and the list\'s end line below it'); const [endLine] = lines.splice(end, 1); lines.splice(at, 0, endLine); return lines.join('\n')
 }
 
 // ============================================================================================================================================
@@ -908,6 +934,7 @@ await check('H5. STANDARD IS SAID OUT LOUD: with the picker on Standard (a page 
 await check('F1. the sources: every line this change adds to the hook and the page carries the marker and is a pure insertion (no base line rewritten or removed); #607\'s four files and its proof, edited in place, have every changed line marked and paired; the strip puts #607\'s head back byte for byte (two app files, #607\'s files and proof, two older proofs); .env.example untouched', () => sourceChecks())
 await check('F2. the registry: two marked lines (files, strips) after #607\'s (in order: changes restacked between them are fine) and at the true end of their lists, none in the env list, nothing lost, nothing gained but registered lines; read through it the hook and the page are the base\'s', () => registryChecks())
 await check('F3. A KEEP-BOTH RESTACK (the changes queued ahead of this one, #600 / #606 / #605, put their registry lines and their subject filters in the same places, before this change\'s): the registry checks and the older-proof checks still pass, the base read through the other strips', () => restackChecks())
+await check('F4. A LATER CHANGE STACKED AFTER THIS ONE (made up: two changes put their registry lines below this change\'s, and one adds a line to the page that its strip reads out; then the same with the chain\'s lines above this change\'s): the end of each list is the registry\'s own end line, the registry checks and the source checks still pass', () => { stackedChecks(); stackedChecks(stackedRegistry(restackedRegistry()), stackedReg(restackedReg()), { ...restackedProofs(), ...stackedPage() }, otherStripsOf(stackedReg(restackedReg()))) })
 await check('G. scope, read from the COMMITTED diff only: the own commits (by subject) carry the co-author line; every file they touch is this change\'s scope; the whole diff from #607\'s head is nothing else; a stray untracked file changes nothing', () => scopeChecks())
 
 // ============================================================================================================================================
@@ -1084,7 +1111,8 @@ await mutant('strip: the pair for a handler\'s entry line is missing', async () 
 await mutant('strip: the pair for the voice ref is missing', async () => { const m = await dataModule(swap(STRIP_TEXT, `${stripLine('const agentVoiceModeRef = useRef')}\n`, '')); sourceChecks({}, m.stripAgentModeWire) })
 await mutant('registry: a line is missing', () => registryChecks(read(REGISTRY).split('\n').filter(l => !l.includes('stripAgentModeWire')).join('\n')))
 await mutant('registry: a base line is lost', () => registryChecks(read(REGISTRY).split('\n').filter(l => !l.includes('studio-agent-mode-shell-strip.mjs') || l.includes('wire')).join('\n')))
-await mutant('registry: our line is not at the end of its list (the end line comes before it)', () => { const lines = read(REGISTRY).split('\n'), at = lines.findIndex(l => l.includes('studio-agent-mode-wire-strip.mjs')); [lines[at], lines[at + 1]] = [lines[at + 1], lines[at]]; registryChecks(lines.join('\n')) })
+await mutant('registry: our line is not at the end of its list, the files list (the list\'s end line comes before it)', () => registryChecks(endBeforeOurs(read(REGISTRY), 0)))
+await mutant('registry: our line is not at the end of its list, the strips list (the list\'s end line comes before it)', () => registryChecks(endBeforeOurs(read(REGISTRY), 1)))
 await mutant('registry: our line comes BEFORE #607\'s in its list (an order, not an adjacency)', () => { const lines = read(REGISTRY).split('\n'), at = lines.findIndex(l => l.includes('studio-agent-mode-wire-strip.mjs')), shell = lines.findIndex((l, i) => i < at && l.includes('studio-agent-mode-shell-strip.mjs') && l.includes('SCOPE_FILES')); const [own] = lines.splice(at, 1); lines.splice(shell, 0, own); registryChecks(lines.join('\n')) })
 await mutant('env: a block of this change in .env.example', () => sourceChecks({ '.env.example': `${committed('.env.example')}\n# Agent mode wire (AGENT-MODE-WIRE)\nNEXT_PUBLIC_AGENT_MODE_WIRE=\"false\"\n` }))
 await mutant('registry: a line in the env list (no block exists)', () => { const lines = read(REGISTRY).split('\n'), at = lines.findIndex(l => l.includes('(await import(\'./studio-agent-mode-shell-strip.mjs\')).AGENT_MODE_SHELL_ENV_BLOCK')); lines.splice(at + 1, 0, "  (await import('./studio-agent-mode-wire-strip.mjs')).AGENT_MODE_WIRE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, Agent mode wire"); registryChecks(lines.join('\n')) })
@@ -1095,6 +1123,14 @@ await mutant('restack: a line in the registry that is neither this change\'s nor
 await mutant('restack: this change\'s strip is registered BEFORE #607\'s (not an order)', () => { const reg = restackedReg(), list = reg.LATER_STRIPS.filter(fn => fn !== stripAgentModeWire), at = list.findIndex(fn => typeof fn === 'function' && fn.name === 'stripAgentModeShell'); list.splice(at, 0, stripAgentModeWire); restackChecks(undefined, { ...reg, LATER_STRIPS: list }) })
 await mutant('restack: a line that is not a registered change\'s follows this change\'s at the end of its list', () => restackChecks(restackedRegistry().replace(/^(.*studio-agent-mode-wire-strip\.mjs.*stripAgentModeWire.*)$/m, "$1\n  console.log('after ours')")))
 await mutant('restack: the chain\'s lines are not read out of the older proof (a base line is lost behind them, or a line is left)', () => restackChecks(undefined, undefined, undefined, []))
+// a later change stacked after this one: the positive control above (F4); each of these must still FAIL (the first two are the mutant above, with a later change's line behind ours: the line after ours is no longer the list's end line)
+await mutant('stacked: the files list\'s end line comes before ours, a later change\'s line behind it', () => stackedChecks(endBeforeOurs(stackedRegistry(), 0)))
+await mutant('stacked: the strips list\'s end line comes before ours, a later change\'s line behind it', () => stackedChecks(endBeforeOurs(stackedRegistry(), 1)))
+await mutant('stacked: the files list\'s end line comes before ours (the chain above, a later change below)', () => stackedChecks(endBeforeOurs(stackedRegistry(restackedRegistry()), 0), stackedReg(restackedReg()), undefined, otherStripsOf(stackedReg(restackedReg()))))
+await mutant('stacked: a line that is not a registered change\'s sits between ours and a later change\'s', () => stackedChecks(stackedRegistry().replace(/^(.*studio-agent-mode-wire-strip\.mjs.*stripAgentModeWire.*)$/m, "$1\n  console.log('between ours and theirs')")))
+await mutant('stacked: a line that is not a registered change\'s follows the last later change\'s (at the end of its list)', () => stackedChecks(stackedRegistry().replace(/^(.*stripStackedbeta.*)$/m, "$1\n  console.log('after theirs')")))
+await mutant('stacked: this change\'s strip is registered BEFORE #607\'s (not an order), a later change\'s behind it', () => { const reg = stackedReg(), list = reg.LATER_STRIPS.filter(fn => fn !== stripAgentModeWire), at = list.findIndex(fn => typeof fn === 'function' && fn.name === 'stripAgentModeShell'); list.splice(at, 0, stripAgentModeWire); stackedChecks(undefined, { ...reg, LATER_STRIPS: list }) })
+await mutant('stacked: a later change\'s line in the page that no strip reads out is not this change\'s', () => stackedChecks(undefined, undefined, undefined, otherStripsOf(registry)))
 // #607's own files and proof, edited in place: nothing weaker than a byte for byte strip, and every changed line marked
 const SHELL_CARD = 'components/builder/agent-mode/agent-estimate-card.tsx', SHELL_WORDS = 'lib/studio-agent-mode.ts'
 await mutant('in place: a pair for #607\'s estimate card is missing (the strip leaves a line of ours in it)', async () => { const m = await dataModule(swap(STRIP_TEXT, `${stripLine('line is not here, the card does not read expires_at')}\n`, '')); sourceChecks({}, m.stripAgentModeWire) })
