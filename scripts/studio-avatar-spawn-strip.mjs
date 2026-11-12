@@ -80,7 +80,7 @@ export const AVATAR_SPAWN_DRAFT = [
   },
   {
     topic: 'Navigation: the rail link itself, after "Your details"',
-    file: 'components/layout/studio-rail.tsx', after: 34, anchor: '        <StudioNavigationHint enabled label="Your details"><Link href="/studio/details" aria-label="Your details" aria-current={pathname===\'/studio/details\' ? \'page\' : undefined}><UserRound className="h-5 w-5" /></Link></StudioNavigationHint>',
+    file: 'components/layout/studio-rail.tsx', after: 35, anchor: '        <StudioNavigationHint enabled label="Your details"><Link href="/studio/details" aria-label="Your details" aria-current={pathname===\'/studio/details\' || studioRailDetailsCurrent(STUDIO_PAGE_CONSISTENCY_ENABLED, pathname) ? \'page\' : undefined}><UserRound className="h-5 w-5" /></Link></StudioNavigationHint>{/* PAGE-CONSISTENCY (UX-10): Settings and Billing mark Your details */}',
     line: '        {STUDIO_AVATAR_SPAWN_ENABLED && <StudioNavigationHint enabled label="My companions"><Link href="/studio/companions" aria-label="My companions" aria-current={pathname===\'/studio/companions\' ? \'page\' : undefined}><UserRound className="h-5 w-5" /></Link></StudioNavigationHint>}{/* AVATAR-SPAWN */}',
   },
   {
