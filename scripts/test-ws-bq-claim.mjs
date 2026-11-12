@@ -12,7 +12,7 @@ import nodeCrypto from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import ts from 'typescript'
 import * as registry from './studio-later-changes.mjs'
-import { BASE_COMMIT, WS_BQ_CLAIM_EDITS, WS_BQ_CLAIM_ENV_BLOCK, WS_BQ_CLAIM_FLAGS, WS_BQ_CLAIM_SCOPE_FILES, stripWsBqClaim } from './studio-ws-bq-claim-strip.mjs'
+import { BASE_COMMIT, WS_BQ_CLAIM_EDITS, WS_BQ_CLAIM_ENV_BLOCK, WS_BQ_CLAIM_FLAGS, WS_BQ_CLAIM_MARKED_FILES, WS_BQ_CLAIM_MARKER_RE, WS_BQ_CLAIM_SCOPE_FILES, stripWsBqClaim } from './studio-ws-bq-claim-strip.mjs'
 
 const ROOT = new URL('..', import.meta.url).pathname
 const plain = value => JSON.parse(JSON.stringify(value))
@@ -494,7 +494,7 @@ await check('hook source: the connect-time response sets the claim state and the
   const connectBranch = source.indexOf("protocols = ['deckster.v1', `deckster-auth.${tokenBody.auth_token}`];")
   const setActive = source.indexOf('bqClaimActiveRef.current = tokenBody.bq_claim === true;')
   assert.ok(connectBranch > 0 && setActive > connectBranch, 'set after the token is accepted (an order check: a later change may add lines between the two)')
-  assert.equal(source.split('bqClaimActiveRef.current = body.bq_claim === true;').length, 2, 'set from each refresh response')
+  assert.equal(source.split('bqClaimActiveRef.current = body.bq_claim === true;').length, 3, 'set from each refresh response: the timer callback\'s and forceRefreshNow\'s')
   // The hook's import list is unchanged (the evidence harnesses that load the real hook enumerate it).
   assert.doesNotMatch(source, /from '@\/lib\/ws-bq-refresh'/)
 })
@@ -640,9 +640,11 @@ function removeBlock(text, registered) {
 }
 
 await check('registry strip: every file this change edits goes back to Studio dev\'s text byte for byte and idempotently, and each run it puts back is there exactly once', () => {
-  const edited = ['app/(app)/billing/page.tsx', 'app/(auth)/redeem/page.tsx', 'hooks/use-deckster-websocket-v2.ts', 'app/api/director/ws-token/route.ts', 'app/api/version/route.ts', 'package.json']
-  for (const rel of edited) assert.ok(Object.prototype.hasOwnProperty.call(WS_BQ_CLAIM_EDITS, rel), `${rel} is taught to the strip`)
-  for (const [rel, pairs] of Object.entries(WS_BQ_CLAIM_EDITS)) {
+  const edited = ['app/(app)/billing/page.tsx', 'app/(auth)/redeem/page.tsx', 'app/api/director/ws-token/route.ts', 'app/api/version/route.ts', 'package.json', 'scripts/test-studio-billing-f4-f6.mjs', 'scripts/test-studio-billing-l5.mjs', 'scripts/test-studio-chat-element-edit.mjs', 'scripts/test-studio-deck-sync-truth.mjs']
+  for (const rel of edited) assert.ok(Object.prototype.hasOwnProperty.call(WS_BQ_CLAIM_EDITS, rel), `${rel} is taught to the strip by pair`)
+  assert.deepEqual([...WS_BQ_CLAIM_MARKED_FILES], ['hooks/use-deckster-websocket-v2.ts'], 'the socket hook is taught by marker, and it is the only file that is')
+  assert.ok(!Object.prototype.hasOwnProperty.call(WS_BQ_CLAIM_EDITS, 'hooks/use-deckster-websocket-v2.ts'), 'no pair for the hook')
+  for (const [rel, pairs] of [...Object.entries(WS_BQ_CLAIM_EDITS), ...WS_BQ_CLAIM_MARKED_FILES.map(rel => [rel, []])]) {
     const mine = laterStrips(rel, readRaw(rel)) // the file as this change left it
     const base = baseText(rel)
     for (const [has] of pairs) {
@@ -656,6 +658,64 @@ await check('registry strip: every file this change edits goes back to Studio de
   }
   assert.equal(stripWsBqClaim('lib/ws-bq-refresh.ts', 'x\n'), 'x\n', 'a file this change only adds is returned as it is')
   assert.equal(stripWsBqClaim('app/(app)/billing/page.tsx', undefined), undefined)
+})
+
+const HOOK = 'hooks/use-deckster-websocket-v2.ts'
+await check('hook: this change only inserts into the socket hook (no base line removed or changed), every added line carries the marker WS-BQ-CLAIM, none is blank, and the strip takes each out even on its own', () => {
+  const gitDiff = execFileSync('git', ['diff', '-U0', BASE_COMMIT, '--', HOOK], { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000 }).split('\n')
+  const removed = gitDiff.filter(line => line.startsWith('-') && !line.startsWith('---'))
+  assert.equal(removed.length, 0, `no line of dev's hook is removed or changed: ${removed.slice(0, 2).join(' | ')}`)
+  const added = gitDiff.filter(line => line.startsWith('+') && !line.startsWith('+++')).map(line => line.slice(1)).filter(line => laterStrips(HOOK, `${line}\n`) !== '') // a line a change registered after this one owns is that change's
+  assert.ok(added.length >= 60, `this change's added hook lines: ${added.length}`)
+  for (const line of added) {
+    assert.notEqual(line.trim(), '', 'no added line is blank')
+    assert.match(line, WS_BQ_CLAIM_MARKER_RE, `an added line carries the marker: ${line.slice(0, 80)}`)
+    assert.equal(stripWsBqClaim(HOOK, `${line}\n`), '', `the strip takes the line out on its own: ${line.slice(0, 80)}`)
+  }
+  assert.equal(baseText(HOOK).split('\n').filter(line => WS_BQ_CLAIM_MARKER_RE.test(line)).length, 0, 'dev\'s hook has no marked line')
+  assert.equal(stripWsBqClaim(HOOK, 'const ordinary = 1\n'), 'const ordinary = 1\n', 'an unmarked line stays')
+  assert.equal(stripWsBqClaim('app/(app)/billing/page.tsx', '// WS-BQ-CLAIM\n'), '// WS-BQ-CLAIM\n', 'the marker strip is for the hook only')
+  assert.ok(WS_BQ_CLAIM_MARKER_RE.test('x // WS-BQ-CLAIM') && WS_BQ_CLAIM_MARKER_RE.test('// WS-BQ-CLAIM: y') && !WS_BQ_CLAIM_MARKER_RE.test('WS-BQ-CLAIM-X') && !WS_BQ_CLAIM_MARKER_RE.test('X-WS-BQ-CLAIM') && !WS_BQ_CLAIM_MARKER_RE.test('DECKSTER_WS_BQ_CLAIM_ENABLED'), 'the marker is a whole token')
+})
+
+// The two paths that re-mint the Director token (the ~9 minute timer callback and the forced refresh after a top-up / redeem) are one request and one frame.
+// forceRefreshNow mirrors the timer callback (the hook is FRONTEND-1's, so this change's lines there are pure insertions): a later hardening of one path that skips the other must fail here.
+function remintPaths(source) {
+  const file = ts.createSourceFile('hook.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+  const found = (node, visit, out = []) => { if (visit(node)) out.push(node); ts.forEachChild(node, child => { found(child, visit, out) }); return out } // the callback returns nothing: forEachChild stops at a truthy return
+  const timers = found(file, n => ts.isCallExpression(n) && n.expression.getText(file) === 'setTimeout' && n.arguments[0] && ts.isArrowFunction(n.arguments[0]) && /ws-token/.test(n.arguments[0].getText(file)))
+  assert.equal(timers.length, 1, 'one setTimeout whose callback re-mints the token')
+  const forced = found(file, n => ts.isVariableDeclaration(n) && n.name.getText(file) === 'forceRefreshNow' && n.initializer && ts.isArrowFunction(n.initializer))
+  assert.equal(forced.length, 1, 'forceRefreshNow exists once')
+  const squash = text => text.replace(/\s+/g, ' ').trim()
+  const props = object => Object.fromEntries(object.properties.map(prop => [prop.name.getText(file), squash(prop.initializer.getText(file))]))
+  const describe = fn => {
+    const fetches = found(fn, n => ts.isCallExpression(n) && n.expression.getText(file) === 'fetch')
+    assert.equal(fetches.length, 1, 'one fetch per path')
+    const sends = found(fn, n => ts.isCallExpression(n) && /\.send$/.test(n.expression.getText(file)) && n.arguments[0] && /^JSON\.stringify\(/.test(n.arguments[0].getText(file)))
+    assert.equal(sends.length, 1, 'one auth frame per path')
+    const frame = sends[0].arguments[0].arguments[0]
+    assert.ok(ts.isObjectLiteralExpression(frame), 'the frame is an object literal')
+    const frameProps = props(frame), payload = frame.properties.find(prop => prop.name.getText(file) === 'payload').initializer
+    const emitted = ts.transpileModule(`const f = ${fn.getText(file)};`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, removeComments: true } }).outputText
+    return { url: squash(fetches[0].arguments[0].getText(file)), init: props(fetches[0].arguments[1]), frameType: frameProps.type, payloadKeys: payload.properties.map(prop => prop.name.getText(file)), emitted: squash(emitted) }
+  }
+  return { timer: describe(timers[0].arguments[0]), forced: describe(forced[0].initializer) }
+}
+await check('hook: the timer callback and forceRefreshNow call the same ws-token URL with the same init and send the same auth_refresh frame, and mirror each other statement for statement (and a change to one path alone is caught)', () => {
+  const same = source => { const { timer, forced } = remintPaths(source); assert.deepEqual(plain(forced.url), plain(timer.url), 'the same ws-token URL'); assert.deepEqual(plain(forced.init), plain(timer.init), 'the same init keys and values'); assert.equal(forced.frameType, timer.frameType, 'the same frame type'); assert.deepEqual(plain(forced.payloadKeys), plain(timer.payloadKeys), 'the same payload keys'); assert.equal(forced.emitted, timer.emitted, 'the same statements') }
+  const source = read(HOOK)
+  const { timer } = remintPaths(source)
+  assert.equal(timer.url, '`/api/director/ws-token?session_id=${encodeURIComponent(refreshSessionId)}`', 'the ws-token URL carries the session id')
+  assert.deepEqual(plain(timer.init), { cache: "'no-store'" }, 'the init is today\'s')
+  assert.equal(timer.frameType, "'auth_refresh'")
+  assert.deepEqual(plain(timer.payloadKeys), ['token'], 'the frame carries the token and nothing else')
+  same(source)
+  const at = source.indexOf('const forceRefreshNow')
+  assert.ok(at > 0)
+  assert.throws(() => same(source.slice(0, at) + source.slice(at).replace("{ cache: 'no-store' }", "{ cache: 'no-store', credentials: 'include' }")), /init/, 'a hardening of the forced path alone is caught (init)')
+  assert.throws(() => same(source.slice(0, at).replace("type: 'auth_refresh',", "type: 'auth_refresh_v2',") + source.slice(at)), /frame type|statements/, 'a change of the timer path alone is caught (frame)')
+  assert.throws(() => same(source.slice(0, at) + source.slice(at).replace('/api/director/ws-token?session_id=', '/api/director/ws-token-v2?session_id=')), /URL/, 'a change of the forced path\'s URL is caught')
 })
 
 await check('registry env block: at the true end of .env.example after one blank line, once, the flag documented as "false"; .env.example is dev\'s plus the registered blocks', () => {
