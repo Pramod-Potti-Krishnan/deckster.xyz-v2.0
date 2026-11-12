@@ -13,7 +13,7 @@ import {
   sniffBrandImageMime,
   type BrandExtractCode,
 } from '@/lib/studio-brand-kit'
-import { takeBrandExtractSlot } from '@/lib/studio-brand-kit-server'
+import { takeBrandExtractSlot } from '@/lib/studio-brand-kit-cap'
 
 export const dynamic = 'force-dynamic'
 // BK-C5: the route outlasts Theme Builder's worst case (30 s upload read + 30 s vision deadline), so it may run past the default limit.

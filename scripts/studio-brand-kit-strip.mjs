@@ -11,7 +11,7 @@
 // Putting each pair back gives the file at BASE_COMMIT byte for byte. The new files (libs, a hook, routes, a component, a stylesheet, this strip, a proof) have no base text.
 // Older proofs this change teaches (tests only, every line carries the registry-read mark): the two that read the first-parent commits of BASE..HEAD for their own commits' subjects get one more inserted line each, "Brand kit caller:", right after the shell's;
 // the Deck import proof, whose "the minter is imported by the two import routes only" walk gets two more inserted lines (the Brand Kit's server lib and its brand record route, which sign with the same helper and are proved by this change's own proof), right after the compose lib's line;
-// and seven Themes-page proofs (font selection, base dropdown, preview canon, the two Atlas Themes proofs, draft ownership, library manage) that held the Themes page or its proxy to a base byte for byte without reading the registry: each now reads that file through stripLaterChanges.
+// and eight Themes-page proofs (font selection, base dropdown, preview canon, the two Atlas Themes proofs, draft ownership, library manage, support access) that held the Themes page or its proxy to a base byte for byte without reading the registry: each now reads that file through stripLaterChanges.
 // How the older pins reach it: it REGISTERS its files, its .env.example block and its strip (scripts/studio-later-changes.mjs, three lines). The voice-call proof's .env.example pin (21d254c6) already reads the blocks registered after its own, so no edit of it is carried.
 // Plain node, no imports, nothing read from disk or git here.
 
@@ -31,7 +31,7 @@ export const DECK_IDENTITY_HOOK = 'hooks/use-deck-identity.ts'
 export const BRAND_KIT_APP_FILES = [...THEME_PROXY_FILES, THEMES_WORKSPACE, DECK_IDENTITY_LIB, DECK_IDENTITY_HOOK]
 /** New files (no base text to put back). */
 export const BRAND_KIT_NEW_FILES = [
-  'lib/studio-brand-kit.ts', 'lib/studio-brand-kit-state.ts', 'lib/studio-brand-kit-server.ts',
+  'lib/studio-brand-kit.ts', 'lib/studio-brand-kit-state.ts', 'lib/studio-brand-kit-server.ts', 'lib/studio-brand-kit-cap.ts',
   'hooks/use-brand-kit.ts',
   'app/api/brand/extract/route.ts', 'app/api/themes/[id]/brand/route.ts',
   'components/studio-libraries/brand-kit-panel.tsx', 'components/studio-libraries/brand-kit.css',
@@ -109,10 +109,10 @@ export const BRAND_KIT_EDITS = {
 export const BRAND_KIT_PIN_MARK = '// LATER-CHANGES: registry read (BRAND-KIT-CALLER)'
 const PIN_LINE = "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Brand kit caller:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (BRAND-KIT-CALLER): on a branch stacked after this change (the Brand Kit caller), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files\n"
 const MINTER_LINES = [
-  "  text.delete('lib/studio-brand-kit-server.ts') // LATER-CHANGES: registry read (BRAND-KIT-CALLER): the Brand Kit's server-only lib (it signs the eight theme proxy fetches and holds the extract cap) also reaches the minter; scripts/test-studio-brand-kit.mjs proves it, and the closure walk above already ran over it\n",
+  "  text.delete('lib/studio-brand-kit-server.ts') // LATER-CHANGES: registry read (BRAND-KIT-CALLER): the Brand Kit's server-only lib (it signs the eight theme proxy fetches) also reaches the minter; scripts/test-studio-brand-kit.mjs proves it, and the closure walk above already ran over it\n",
   "  text.delete('app/api/themes/[id]/brand/route.ts') // LATER-CHANGES: registry read (BRAND-KIT-CALLER): the Brand Kit's brand record route signs its Director calls with the same helper (proved by scripts/test-studio-brand-kit.mjs)\n",
 ]
-// the seven Themes-page proofs that held the Themes page / the theme proxies to a base without reading the registry: each now reads the file through stripLaterChanges (innermost, as the registry's own header says), so this change's marked lines come out first
+// the eight Themes-page proofs that held the Themes page / the theme proxies to a base without reading the registry: each now reads the file through stripLaterChanges (innermost, as the registry's own header says), so this change's marked lines come out first
 const MARK = 'LATER-CHANGES: registry read (BRAND-KIT-CALLER)'
 const REG_IMPORT = `import { stripLaterChanges } from './studio-later-changes.mjs' // ${MARK}\n`
 const LM_NOW = `import { stripLibraryManage as stripLibraryManageBase } from './studio-library-manage-strip.mjs' // ${MARK}\n`
@@ -135,6 +135,7 @@ export const BRAND_KIT_PIN_EDITS = {
   'scripts/test-studio-theme-preview-canon.mjs': LM_PAIRS,
   'scripts/test-atlas-themes-recovery.mjs': LM_PAIRS,
   'scripts/test-atlas-themes-account-boundary.mjs': LM_PAIRS,
+  'scripts/test-studio-theme-support-access.mjs': LM_PAIRS,
   'scripts/test-studio-theme-draft-ownership.mjs': [[REG_IMPORT, ''], [CT_NOW, CT_WAS]],
   'scripts/test-studio-theme-library-manage.mjs': [[REG_IMPORT, ''], [RM_NOW, RM_WAS], [RM_WRAP, '']],
 }

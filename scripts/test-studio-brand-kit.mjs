@@ -75,7 +75,7 @@ async function mutant(label, run) {
 const swap = (text, from, to) => { if (text.split(from).length !== 2) throw new SwapError(`exactly one ${JSON.stringify(from.slice(0, 90))} (found ${text.split(from).length - 1})`); return text.replace(from, () => to) }
 
 // ---- the real sources, run in this realm with a stubbed world ------------------------------------------------------------------------------------------------------------------------------------------
-const LIB = 'lib/studio-brand-kit.ts', STATE = 'lib/studio-brand-kit-state.ts', SERVER = 'lib/studio-brand-kit-server.ts', HOOKS = 'hooks/use-brand-kit.ts', PANEL = 'components/studio-libraries/brand-kit-panel.tsx'
+const LIB = 'lib/studio-brand-kit.ts', STATE = 'lib/studio-brand-kit-state.ts', SERVER = 'lib/studio-brand-kit-server.ts', CAP = 'lib/studio-brand-kit-cap.ts', HOOKS = 'hooks/use-brand-kit.ts', PANEL = 'components/studio-libraries/brand-kit-panel.tsx'
 const EXTRACT = 'app/api/brand/extract/route.ts', BRAND = 'app/api/themes/[id]/brand/route.ts', WORKSPACE = 'components/studio-libraries/themes-workspace.tsx', IDLIB = 'lib/deck-identity.ts', IDHOOK = 'hooks/use-deck-identity.ts'
 const [T_LIST, T_ID, T_STD_SET, T_STD] = THEME_PROXY_FILES
 const REGISTRY = 'scripts/studio-later-changes.mjs', STRIP = 'scripts/studio-brand-kit-strip.mjs', PROOF = 'scripts/test-studio-brand-kit.mjs', ENVFILE = '.env.example'
@@ -844,6 +844,9 @@ function sourceChecks(texts = {}, strip = stripBrandKit, shown = {}) {
   for (const rel of ['lib/studio-brand-kit-state.ts', 'hooks/use-brand-kit.ts', 'components/studio-libraries/brand-kit-panel.tsx']) assert.ok(!/studio-brand-kit-server/.test(now(rel)), `${rel}: does not import the server file`)
   for (const rel of [...THEME_PROXY_FILES, EXTRACT, BRAND]) assert.ok(/studio-brand-kit-server|restEntitlementHeaders/.test(now(rel)), `${rel}: signs through the helper`)
   assert.equal(count(now('hooks/use-brand-kit.ts'), 'api-hardening'), 0)
+  // the signing lib is imported by all four theme proxies: it must not reach the database (three of them had no database import before); only the extract route imports the cap
+  for (const rel of [SERVER]) assert.ok(!/api-hardening|@\/lib\/prisma|next-auth/.test(now(rel).replace(/\/\/.*$/gm, '')), `${rel}: reaches no database and no session`)
+  assert.ok(/@\/lib\/studio-brand-kit-cap/.test(now(EXTRACT)), 'the extract route imports the cap'); for (const rel of [...THEME_PROXY_FILES, BRAND, SERVER]) assert.ok(!/studio-brand-kit-cap/.test(now(rel)), `${rel}: does not import the cap`)
 }
 const ENV_RE = lines => lines.filter(l => l && !l.startsWith('#'))
 function envChecks(texts = {}) {
@@ -905,7 +908,7 @@ await check('G3. the hook module: browser pre-check, the one request, answers no
 await check('H. the page\'s marked lines run: the hook, Save off for a kit detail that cannot be saved, the brand save after the theme save, the reset, every mount gated', () => pageChecks())
 await check('I1. deck identity (pure): the kit replaces the browser copy for all three fields, footer to company, source "form"; no kit gives the browser form back untouched', () => identityLibChecks())
 await check('I2. deck identity (the hook): the standard theme\'s kit read once and fail soft, never held back; flag off is the base hook', () => identityHookChecks())
-await check('J1. sources: every changed line in an existing file carries the marker; the strip puts the base back byte for byte (7 app files, 10 older proofs); no bucket, no upload route, no migration', () => sourceChecks())
+await check('J1. sources: every changed line in an existing file carries the marker; the strip puts the base back byte for byte (7 app files, 11 older proofs); no bucket, no upload route, no migration', () => sourceChecks())
 await check('J2. .env.example: exactly this change\'s block, after one blank line; the registry takes it out; the voice-call pin already reads blocks after its own', () => envChecks())
 await check('J3. the registry: three marked lines at the true end of their lists right after the Agent mode shell\'s; read through it every app file is the base\'s', () => registryChecks())
 await check('J4. scope, read from the COMMITTED diff only: own commits by subject with the co-author line; every file is this change\'s; no secret-shaped literal; a stray untracked file changes nothing', () => scopeChecks())
@@ -913,7 +916,7 @@ await check('J4. scope, read from the COMMITTED diff only: own commits by subjec
 // ============================================================================================================================================
 // K. mutants: each is one edit of the real sources, fed to the same checks
 // ============================================================================================================================================
-const SRC = Object.fromEntries([EXTRACT, BRAND, SERVER, LIB, STATE, HOOKS, PANEL, WORKSPACE, IDLIB, IDHOOK, ...THEME_PROXY_FILES, REGISTRY, STRIP, ENVFILE].map(rel => [rel, rel === ENVFILE ? git('show', `HEAD:${ENVFILE}`) : read(rel)]))
+const SRC = Object.fromEntries([EXTRACT, BRAND, SERVER, CAP, LIB, STATE, HOOKS, PANEL, WORKSPACE, IDLIB, IDHOOK, ...THEME_PROXY_FILES, REGISTRY, STRIP, ENVFILE].map(rel => [rel, rel === ENVFILE ? git('show', `HEAD:${ENVFILE}`) : read(rel)]))
 const runAll = async (fns, texts) => { for (const fn of fns) await fn(texts) }
 const mut = (label, rel, from, to, fns) => mutant(label, () => runAll(fns, { [rel]: swap(SRC[rel], from, to) }))
 const HK = [t => hookChecks(t)]
@@ -956,13 +959,13 @@ await mut('extract: no function duration beyond the fetch timeout', EXTRACT, 'ex
 await mut('extract: a client user id counts against someone else', EXTRACT, 'takeBrandExtractSlot(userId)', "takeBrandExtractSlot(req.headers.get('x-user-id') ?? userId)", X)
 
 // the cap
-await mut('cap: it is not recorded before the call', SERVER, "    await recordRateEvent(BRAND_EXTRACT_CAP_BUCKET, 'user', userId)\n", '', X)
-await mut('cap: an unreadable count is "ok"', SERVER, "  } catch {\n    return 'unavailable'\n  }", "  } catch {\n    return 'ok'\n  }", X)
-await mut('cap: one over the limit is allowed', SERVER, 'if (used >= brandExtractDailyCap()) return', 'if (used > brandExtractDailyCap()) return', X)
-await mut('cap: counted over all time', SERVER, 'since: startOfUtcDay(now) }', 'since: new Date(0) }', X)
-await mut('cap: a bad setting disables it', SERVER, "  if (typeof raw !== 'string' || !/^\\d{1,3}$/.test(raw.trim())) return BRAND_EXTRACT_DAILY_CAP\n", "  if (typeof raw !== 'string') return BRAND_EXTRACT_DAILY_CAP\n", X)
-await mut('cap: out-of-range settings are taken', SERVER, "return value >= 1 && value <= 100 ? value : BRAND_EXTRACT_DAILY_CAP", "return value", X)
-await mut('cap: counted for the wrong subject', SERVER, 'countRateEvents({ bucket: BRAND_EXTRACT_CAP_BUCKET, subject: userId,', "countRateEvents({ bucket: BRAND_EXTRACT_CAP_BUCKET, subject: 'everyone',", X)
+await mut('cap: it is not recorded before the call', CAP, "    await recordRateEvent(BRAND_EXTRACT_CAP_BUCKET, 'user', userId)\n", '', X)
+await mut('cap: an unreadable count is "ok"', CAP, "  } catch {\n    return 'unavailable'\n  }", "  } catch {\n    return 'ok'\n  }", X)
+await mut('cap: one over the limit is allowed', CAP, 'if (used >= brandExtractDailyCap()) return', 'if (used > brandExtractDailyCap()) return', X)
+await mut('cap: counted over all time', CAP, 'since: startOfUtcDay(now) }', 'since: new Date(0) }', X)
+await mut('cap: a bad setting disables it', CAP, "  if (typeof raw !== 'string' || !/^\\d{1,3}$/.test(raw.trim())) return BRAND_EXTRACT_DAILY_CAP\n", "  if (typeof raw !== 'string') return BRAND_EXTRACT_DAILY_CAP\n", X)
+await mut('cap: out-of-range settings are taken', CAP, "return value >= 1 && value <= 100 ? value : BRAND_EXTRACT_DAILY_CAP", "return value", X)
+await mut('cap: counted for the wrong subject', CAP, 'countRateEvents({ bucket: BRAND_EXTRACT_CAP_BUCKET, subject: userId,', "countRateEvents({ bucket: BRAND_EXTRACT_CAP_BUCKET, subject: 'everyone',", X)
 
 // the brand proxy
 await mut('brand GET: the flag gate is gone', BRAND, "  if (!isStudioBrandKitEnabled()) return NextResponse.json({ error: 'Not found' }, { status: 404 })\n  const userId = await resolveUserId()\n  if (!userId) return refuse(401, 'signin')\n  const { id } = await context.params\n  try {", "  const userId = await resolveUserId()\n  if (!userId) return refuse(401, 'signin')\n  const { id } = await context.params\n  try {", FO)
@@ -1140,6 +1143,9 @@ await sourceMutant('source: a base line rewritten without a pair', WORKSPACE, t 
 await sourceMutant('source: a base line lost', WORKSPACE, t => swap(t, "const CUSTOM_FIELDS = [['primary_hex', 'Primary / brand'], ['secondary_hex', 'Secondary'], ['tertiary_hex', 'Tertiary'], ['neutral_hex', 'Neutral']] as const\n", ''))
 await sourceMutant('source: a pair\'s line missing from the file', DECK_ID_LIB_REL(), t => swap(t, "  return { ...(company ? { company } : {}), ...(confidentiality ? { confidentiality } : {}), ...(logoUrl ? { logoUrl } : {}) }; // BRAND-KIT-CALLER\n", ''))
 await sourceMutant('source: the identity hook rewrites an unmarked line', IDHOOK, t => swap(t, "const { data: session } = useSession()\n  const enabled", "const { data: session } = useSession()\n  const enabled /* x */"))
+await sourceMutant('source: the signing lib reaches the database', SERVER, t => swap(t, "import { isStudioBrandKitEnabled } from '@/lib/studio-brand-kit'\n", "import { isStudioBrandKitEnabled } from '@/lib/studio-brand-kit'\nimport { countRateEvents } from '@/lib/api-hardening'\n"))
+await sourceMutant('source: a brand proxy imports the cap (and so the database)', BRAND, t => swap(t, "import { requireApprovedUser } from '@/lib/api-hardening'\n", "import { requireApprovedUser } from '@/lib/api-hardening'\nimport { takeBrandExtractSlot } from '@/lib/studio-brand-kit-cap'\n"))
+await sourceMutant('source: the extract route does not use the cap file', EXTRACT, t => swap(t, "from '@/lib/studio-brand-kit-cap'", "from '@/lib/studio-brand-kit-server'"))
 await sourceMutant('source: the standard proxy unmarked', T_STD, t => swap(t, "import { authOptions } from '@/lib/auth-options'\n", "import { authOptions } from '@/lib/auth-options'\nimport { extra } from '@/lib/extra'\n"))
 function DECK_ID_LIB_REL() { return IDLIB }
 await mutant('source: a taught proof loses its line', () => sourceChecks({ 'scripts/test-studio-chat-element-edit.mjs': committed('scripts/test-studio-chat-element-edit.mjs').split('\n').filter(l => !l.includes('Brand kit caller')).join('\n') }))
