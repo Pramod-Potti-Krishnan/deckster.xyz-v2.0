@@ -96,6 +96,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-restack-ux-pc-proofs-strip.mjs')).RESTACK_UX_PC_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, restack of FRONTEND-1's page consistency: older proofs read the later changes right after the merge onto newer dev (tests only)
   ...(await import('./studio-billing-l5-strip.mjs')).BILLING_L5_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B67 L-BILLING Studio half: Plan & credits UI, F3 entitlement push, F4 meter receiver; new files only, owners' lines are drafts (NEXT_PUBLIC_STUDIO_BILLING_PLANS / STUDIO_ROUTER_ENTITLEMENTS_PUSH / STUDIO_METER_RECEIVER_ENABLED)
   ...(await import('./studio-avatar-spawn-strip.mjs')).AVATAR_SPAWN_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B66 AVATAR-SPAWN: the Studio 'Create my avatar' create / pick / delete mock at /studio/companions, new files only, no network (NEXT_PUBLIC_STUDIO_AVATAR_SPAWN)
+  ...(await import('./studio-ws-bq-claim-strip.mjs')).WS_BQ_CLAIM_SCOPE_FILES, // LATER-CHANGE: OPS-2, J8.1 WS token bq claim (DECKSTER_WS_BQ_CLAIM_ENABLED)
   ...(await import('./studio-agent-mode-wire-strip.mjs')).AGENT_MODE_WIRE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, Agent mode wire: the picker, the agent frames and the card answer mounted in the Studio, stacked on the Agent build shell (NEXT_PUBLIC_AGENT_MODE and NEXT_PUBLIC_STUDIO_V4_SHELL; no .env.example block of its own: the flag's block is the shell's)
   // one line per later change, above this comment
 ])
@@ -159,6 +160,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-page-consistency-strip.mjs')).PAGE_CONSISTENCY_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, UX-07 / UX-10 page consistency (NEXT_PUBLIC_STUDIO_PAGE_CONSISTENCY)
   (await import('./studio-billing-l5-strip.mjs')).BILLING_L5_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B67 L-BILLING Studio half (NEXT_PUBLIC_STUDIO_BILLING_PLANS / STUDIO_ROUTER_ENTITLEMENTS_PUSH / STUDIO_METER_RECEIVER_ENABLED / METER_RECEIVER_MODE / ROUTER_ENTITLEMENTS_API_KEY / METER_WEBHOOK_SECRET)
   (await import('./studio-avatar-spawn-strip.mjs')).AVATAR_SPAWN_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B66 AVATAR-SPAWN (NEXT_PUBLIC_STUDIO_AVATAR_SPAWN)
+  (await import('./studio-ws-bq-claim-strip.mjs')).WS_BQ_CLAIM_ENV_BLOCK, // LATER-CHANGE: OPS-2, J8.1 WS token bq claim (DECKSTER_WS_BQ_CLAIM_ENABLED)
   // one line per later change, above this comment
 ]
 
@@ -236,6 +238,7 @@ export const LATER_STRIPS = [
   (await import('./studio-restack-ux-pc-proofs-strip.mjs')).stripRestackUxPc, // LATER-CHANGE: FRONTEND-2, restack of FRONTEND-1's page consistency: older proofs read the later changes right after the merge onto newer dev (tests only)
   (await import('./studio-billing-l5-strip.mjs')).stripBillingL5, // LATER-CHANGE: FRONTEND-2, B67 L-BILLING Studio half (NEXT_PUBLIC_STUDIO_BILLING_PLANS / STUDIO_ROUTER_ENTITLEMENTS_PUSH / STUDIO_METER_RECEIVER_ENABLED)
   (await import('./studio-avatar-spawn-strip.mjs')).stripAvatarSpawn, // LATER-CHANGE: FRONTEND-2, B66 AVATAR-SPAWN (NEXT_PUBLIC_STUDIO_AVATAR_SPAWN)
+  (await import('./studio-ws-bq-claim-strip.mjs')).stripWsBqClaim, // LATER-CHANGE: OPS-2, J8.1 WS token bq claim (DECKSTER_WS_BQ_CLAIM_ENABLED)
   (await import('./studio-agent-mode-wire-strip.mjs')).stripAgentModeWire, // LATER-CHANGE: FRONTEND-1, Agent mode wire (NEXT_PUBLIC_AGENT_MODE and NEXT_PUBLIC_STUDIO_V4_SHELL; no .env.example block of its own)
   // one line per later change, above this comment
 ]

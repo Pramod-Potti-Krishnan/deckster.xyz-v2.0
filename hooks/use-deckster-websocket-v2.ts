@@ -1292,6 +1292,15 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   // ws_auth caps any token at 20m), and the frame that arrives at expiry is
   // discarded server-side — which silently swallowed the strawman approval.
   const authRefreshTimerRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  // WS-BQ-CLAIM: build-quota claim (contract F-quota-bq-claim v1). `bqClaimActiveRef` is set
+  // WS-BQ-CLAIM: from the ws-token response, which carries `bq_claim: true` only when the
+  // WS-BQ-CLAIM: server flag DECKSTER_WS_BQ_CLAIM_ENABLED is on; with the flag off it stays
+  // WS-BQ-CLAIM: false and the forced refresh below never runs. `forceAuthRefreshRef` re-mints
+  // WS-BQ-CLAIM: the token now (after a coupon redeem / top-up / checkout) instead of waiting
+  // WS-BQ-CLAIM: for the ~9 minute timer.
+  const bqClaimActiveRef = useRef(false); // WS-BQ-CLAIM
+  const forceAuthRefreshRef = useRef<(() => void) | null>(null); // WS-BQ-CLAIM
+  const forcedAuthRefreshInFlightRef = useRef(false); // WS-BQ-CLAIM
   const pongDeadlineTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const awaitingPongRef = useRef(false);
   const lastCloseDiagnosticAtRef = useRef(0);
@@ -1363,6 +1372,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         if (!isCurrentRefresh()) return;
         if (body?.auth_enabled === false) return; // tokenless deployment
         if (!body?.auth_token) throw new Error('ws-token returned no token');
+        bqClaimActiveRef.current = body.bq_claim === true; // WS-BQ-CLAIM
         socket!.send(JSON.stringify({
           type: 'auth_refresh',
           payload: { token: body.auth_token },
@@ -1381,7 +1391,63 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         );
       }
     }, delayMs);
+    // WS-BQ-CLAIM: mirrors the timer callback above (scheduleAuthRefresh's setTimeout body); keep the two in step
+    const forceRefreshNow = async () => { // WS-BQ-CLAIM
+      if (!isCurrentRefresh()) return; // WS-BQ-CLAIM
+      try { // WS-BQ-CLAIM
+        const resp = await fetch( // WS-BQ-CLAIM
+          `/api/director/ws-token?session_id=${encodeURIComponent(refreshSessionId)}`, // WS-BQ-CLAIM
+          { cache: 'no-store' }, // WS-BQ-CLAIM
+        ); // WS-BQ-CLAIM
+        if (!isCurrentRefresh()) return; // WS-BQ-CLAIM
+        if (!resp.ok) throw new Error(`ws-token HTTP ${resp.status}`); // WS-BQ-CLAIM
+        const body = await resp.json(); // WS-BQ-CLAIM
+        if (!isCurrentRefresh()) return; // WS-BQ-CLAIM
+        if (body?.auth_enabled === false) return; // WS-BQ-CLAIM: tokenless deployment
+        if (!body?.auth_token) throw new Error('ws-token returned no token'); // WS-BQ-CLAIM
+        bqClaimActiveRef.current = body.bq_claim === true; // WS-BQ-CLAIM
+        socket!.send(JSON.stringify({ // WS-BQ-CLAIM
+          type: 'auth_refresh', // WS-BQ-CLAIM
+          payload: { token: body.auth_token }, // WS-BQ-CLAIM
+        })); // WS-BQ-CLAIM
+        // WS-BQ-CLAIM: browser send is not the server's auth_refreshed acknowledgement.
+        debugLog('🔐 Director WS auth refresh sent; awaiting acknowledgement'); // WS-BQ-CLAIM
+        scheduleAuthRefresh( // WS-BQ-CLAIM
+          typeof body.expires_in === 'number' ? body.expires_in : expiresInSeconds, // WS-BQ-CLAIM
+        ); // WS-BQ-CLAIM
+      } catch (refreshError) { // WS-BQ-CLAIM
+        if (!isCurrentRefresh()) return; // WS-BQ-CLAIM
+        // WS-BQ-CLAIM: retry once quickly; if the socket dies the reconnect path re-mints.
+        console.warn('[WS AUTH] Token refresh failed, retrying shortly:', refreshError); // WS-BQ-CLAIM
+        authRefreshTimerRef.current = setTimeout( // WS-BQ-CLAIM
+          () => { if (isCurrentRefresh()) scheduleAuthRefresh(expiresInSeconds); }, 30_000, // WS-BQ-CLAIM
+        ); // WS-BQ-CLAIM
+      } // WS-BQ-CLAIM
+    }; // WS-BQ-CLAIM
+    forceAuthRefreshRef.current = () => { // WS-BQ-CLAIM
+      if (!bqClaimActiveRef.current || forcedAuthRefreshInFlightRef.current || !isCurrentRefresh()) return; // WS-BQ-CLAIM
+      forcedAuthRefreshInFlightRef.current = true; // WS-BQ-CLAIM
+      clearAuthRefreshTimer(); // WS-BQ-CLAIM
+      void forceRefreshNow().finally(() => { forcedAuthRefreshInFlightRef.current = false; }); // WS-BQ-CLAIM
+    }; // WS-BQ-CLAIM
   }, [clearAuthRefreshTimer]);
+  // WS-BQ-CLAIM: a coupon redeem, top-up or checkout (on /redeem or /billing, usually in
+  // WS-BQ-CLAIM: another tab) asks this socket to re-mint its token now, so the build-quota
+  // WS-BQ-CLAIM: claim reflects the new plan or wallet at once. Inert unless the current
+  // WS-BQ-CLAIM: token carries a claim (server flag DECKSTER_WS_BQ_CLAIM_ENABLED). The channel
+  // WS-BQ-CLAIM: and event names are lib/ws-bq-refresh.ts's; they are spelled here rather than
+  // WS-BQ-CLAIM: imported so this hook's import list stays as it was.
+  useEffect(() => { // WS-BQ-CLAIM
+    const requestRefresh = () => forceAuthRefreshRef.current?.(); // WS-BQ-CLAIM
+    if (typeof BroadcastChannel !== 'undefined') { // WS-BQ-CLAIM
+      const channel = new BroadcastChannel('deckster-ws-bq-refresh'); // WS-BQ-CLAIM
+      channel.onmessage = requestRefresh; // WS-BQ-CLAIM
+      return () => channel.close(); // WS-BQ-CLAIM
+    } // WS-BQ-CLAIM
+    if (typeof window === 'undefined') return undefined; // WS-BQ-CLAIM
+    window.addEventListener('deckster:ws-bq-refresh', requestRefresh); // WS-BQ-CLAIM
+    return () => window.removeEventListener('deckster:ws-bq-refresh', requestRefresh); // WS-BQ-CLAIM
+  }, []); // WS-BQ-CLAIM
 
   const clearReconnectTimer = useCallback((preservePendingAttempt = false) => {
     if (reconnectTimeoutRef.current) {
@@ -1729,6 +1795,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             if (tokenBody?.auth_token) {
               // Never logged: the auth-bearing protocol carries the secret.
               protocols = ['deckster.v1', `deckster-auth.${tokenBody.auth_token}`];
+              bqClaimActiveRef.current = tokenBody.bq_claim === true; // WS-BQ-CLAIM
               expiresInSeconds =
                 typeof tokenBody.expires_in === 'number' ? tokenBody.expires_in : null;
               return { ok: true };

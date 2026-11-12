@@ -748,7 +748,7 @@ await check('F4 logs: every line is "[meter-receiver] event=<id> mode=<mode> out
 
 // ===== 5. the DRAFT lines for FRONTEND-1's files ====================================================================================================================================
 console.log('5. drafts')
-function proveDrafts(drafts = S.BILLING_L5_DRAFTS, readNow = read) {
+function proveDrafts(drafts = S.BILLING_L5_DRAFTS, readNow = rel => laterStrips(rel, read(rel))) { // LATER-CHANGES: registry read (WS-BQ-CLAIM): the changes registered after this one are undone first, so the owner's file reads as this change left it
   const byFile = new Map()
   for (const d of drafts) {
     const base = baseText(d.file), lines = base.split('\n'), anchor = d.after ?? d.before
