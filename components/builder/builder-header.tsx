@@ -23,6 +23,7 @@ import {
 } from "@/lib/studio-top-bar-v2"
 import "./studio-top-bar-v2.css"
 import { studioCreateLabel } from "@/lib/studio-create-word"
+import { STUDIO_PAGE_CONSISTENCY_ENABLED, STUDIO_PRESENTATION_LABEL, STUDIO_PRESENTATION_NAME } from "@/lib/studio-page-consistency" // PAGE-CONSISTENCY (NEXT_PUBLIC_STUDIO_PAGE_CONSISTENCY, default off)
 import { StudioTemplateWorkspaceHeaderActions, StudioTemplateWorkspaceHeading } from "@/components/studio-template-workspace/entry"
 
 const subscribeToNothing = () => () => {}
@@ -63,6 +64,7 @@ export function BuilderHeader({
   const studioTopBarV2 = studioShell && STUDIO_TOP_BAR_V2_ENABLED
   // PASS2B G56 (NEXT_PUBLIC_STUDIO_CREATE_WORD, default off): with the top-bar flag off, the create button says "New deck" too.
   const studioCreateWord = studioShell && process.env.NEXT_PUBLIC_STUDIO_CREATE_WORD === "true"
+  const studioTopBarNewLabel = studioShell && STUDIO_PAGE_CONSISTENCY_ENABLED ? STUDIO_PRESENTATION_LABEL : "New deck", studioTopBarNewName = studioShell && STUDIO_PAGE_CONSISTENCY_ENABLED ? STUDIO_PRESENTATION_NAME : "New deck" // PAGE-CONSISTENCY: one create label
   // "Saved" also needs a history row: with NEXT_PUBLIC_STUDIO_SESSION_HYGIENE a bare /builder is an unsaved local session whose
   // blank deck the viewer already calls saved, so an unsaved session shows nothing here until its first action writes the row.
   const savedLabel = studioTopBarSavedLabel(React.useSyncExternalStore(
@@ -206,7 +208,7 @@ export function BuilderHeader({
           </div>}
           {studioShell ? (
             <div className="studio-shell-header-actions">
-              <Button className="studio-shell-new" onClick={onNewPresentation} aria-label={studioTopBarV2 ? "New deck" : studioCreateLabel(studioCreateWord, "Add presentation")} title={studioTopBarV2 ? "New deck" : studioCreateLabel(studioCreateWord, "Add presentation")}><Plus className="h-4 w-4" /><span>{studioTopBarV2 ? "New deck" : studioCreateLabel(studioCreateWord, "Presentation")}</span></Button>
+              <Button className="studio-shell-new" onClick={onNewPresentation} aria-label={studioTopBarV2 ? studioTopBarNewName : studioCreateLabel(studioCreateWord, "Add presentation")} title={studioTopBarV2 ? studioTopBarNewName : studioCreateLabel(studioCreateWord, "Add presentation")}><Plus className="h-4 w-4" /><span>{studioTopBarV2 ? studioTopBarNewLabel : studioCreateLabel(studioCreateWord, "Presentation")}</span></Button>{/* PAGE-CONSISTENCY: one create label */}
               {/* Delivery controls retain their portal target and original handlers. */}
               <div data-studio-v4-toolbar-target="true" ref={toolbarSlotRef} className="min-w-0 h-full overflow-hidden" />
               {/* PASS2-PK-FOUR item 4 (default off): the template workspace (drawn over the stage) and, while it is open, its progress pill,
