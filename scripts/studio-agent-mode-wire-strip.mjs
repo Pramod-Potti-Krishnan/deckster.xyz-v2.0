@@ -100,8 +100,10 @@ export const AGENT_MODE_WIRE_ALL_EDITS = { ...AGENT_MODE_WIRE_EDITS, ...AGENT_MO
 
 /** Files this change edits that are not app code: the registry (two lines: its files and its strip) and the older proofs it teaches. */
 export const AGENT_MODE_WIRE_OWN_EDITS = ['scripts/studio-later-changes.mjs', ...AGENT_MODE_WIRE_PIN_FILES]
+/** #607's own files this change edits in place (PK ruling, 11 Nov: the A1 estimate card is information, not a gate, because the Agent send is the spend click; Stop sends A1 cancel): the card, the mount that hands it its props, the shared button's comment and the words (AGENT_COPY). Not marked lines, so not stripped; #607's own proof holds what they do. #607's proof is the other file edited in place (it is in AGENT_MODE_WIRE_PIN_FILES). */
+export const AGENT_MODE_WIRE_SHELL_EDITED_FILES = ['components/builder/agent-mode/agent-card-parts.tsx', 'components/builder/agent-mode/agent-estimate-card.tsx', 'components/builder/agent-mode/agent-run-cards.tsx', 'lib/studio-agent-mode.ts']
 /** Every file this change's commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
-export const AGENT_MODE_WIRE_SCOPE_FILES = new Set([...AGENT_MODE_WIRE_APP_FILES, ...AGENT_MODE_WIRE_NEW_FILES, ...AGENT_MODE_WIRE_OWN_EDITS])
+export const AGENT_MODE_WIRE_SCOPE_FILES = new Set([...AGENT_MODE_WIRE_APP_FILES, ...AGENT_MODE_WIRE_NEW_FILES, ...AGENT_MODE_WIRE_OWN_EDITS, ...AGENT_MODE_WIRE_SHELL_EDITED_FILES])
 
 /** `text` with one whole line put back: `has` is the line with its newline, and it counts only at the start of a line (never the tail of a longer one). Only the first occurrence goes: a line that is there twice is a merge mistake the older pins must still see. */
 function putBackLine(text, has, was) {

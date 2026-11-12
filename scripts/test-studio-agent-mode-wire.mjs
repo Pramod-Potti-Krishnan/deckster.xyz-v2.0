@@ -15,7 +15,8 @@
 //     once, on an open socket only; a closed, connecting, closing or missing socket, a throwing send, a bad answer sends nothing and is not retried, queued or replayed. Director's side (read-only, branch agent1/agent-frames of director-v4.0):
 //     src/utils/agent_frames.py:28 ANSWER_TYPE = "agent_answer", :669 handle_answer reads data.get("data") for run_id / card / choice, src/handlers/websocket.py:2627 routes a message of that type to it;
 //  D. NO PAID START WITHOUT THE PERSON'S CLICK: a frame, a render, a reconnect, the picker, a timer and the expiry of an estimate send nothing; the only way to a frame is the click on a card's own button, through answerAgentCard (the page's real cards
-//     line is run); one frame per card, then the card is answered; an estimate past its expires_at, an answered card, another run's card and an A6 fallback that was not offered send nothing; a socket that is not live leaves the card open and says so
+//     line is run); one frame per card, then the card is answered; the A1 estimate is information (the Agent send is the spend click): no Start, one Stop that sends A1 cancel, and the card does not read expires_at (the rule still refuses a late A1 start);
+//     an answered card, another run's card and an A6 fallback that was not offered send nothing; a socket that is not live leaves the card open and says so
 //     with the next step; Agent is disabled below Pro, a plan that is not loaded, and while a run is in progress; sendAgentAnswer has exactly one caller;
 //  E. the page: every mount and option is gated, the plan comes from the signed-in session (never a frame), the four build sends carry build_mode, a session change clears the run and the mode and the first save of a new chat does not, a failure to send
 //     (an answer or a Pause / Resume / Stop) is said in plain words with the next step, and the lib's own functions;
@@ -38,7 +39,7 @@ import ts from 'typescript'
 import * as stripModule from './studio-agent-mode-wire-strip.mjs'
 import * as registry from './studio-later-changes.mjs'
 
-const { STACK_BASE, BASE_COMMIT, AGENT_MODE_WIRE_SCOPE_FILES: SCOPE, AGENT_MODE_WIRE_NEW_FILES: NEW_FILES, AGENT_MODE_WIRE_APP_FILES: APP_FILES, AGENT_MODE_WIRE_PIN_FILES: PIN_FILES, AGENT_MODE_WIRE_ALL_EDITS: ALL_EDITS, AGENT_MODE_WIRE_MARKER_RE: MARKER_RE, AGENT_MODE_WIRE_SUBJECT: SUBJECT, AGENT_MODE_WIRE_PIN_MARK: PIN_MARK, stripAgentModeWire } = stripModule
+const { STACK_BASE, BASE_COMMIT, AGENT_MODE_WIRE_SCOPE_FILES: SCOPE, AGENT_MODE_WIRE_NEW_FILES: NEW_FILES, AGENT_MODE_WIRE_APP_FILES: APP_FILES, AGENT_MODE_WIRE_PIN_FILES: PIN_FILES, AGENT_MODE_WIRE_SHELL_EDITED_FILES: SHELL_EDITED, AGENT_MODE_WIRE_ALL_EDITS: ALL_EDITS, AGENT_MODE_WIRE_MARKER_RE: MARKER_RE, AGENT_MODE_WIRE_SUBJECT: SUBJECT, AGENT_MODE_WIRE_PIN_MARK: PIN_MARK, stripAgentModeWire } = stripModule
 
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const nodeRequire = createRequire(path.join(root, 'package.json'))
@@ -363,20 +364,19 @@ function noAutoStartChecks(texts = {}) {
   assert.equal(s0.attempts, 0); assert.equal(sendSpy.length, 0); assert.equal(opt.dispatched.length, FRAME_TYPES.length * 2, 'every frame was only dispatched to the reducer')
   // 3. rendering the cards sends nothing; only the person's click does, and each click sends once
   const open = stateOf(ENV_ON, [estimateNow()]); const mounted = pageCards({ text: page, wireText, state: open })
-  assert.notEqual(mounted.element, null); const markup = renderToStaticMarkup(mounted.element); assert.match(textOf(markup), /About 470 credits · cap 600 credits/, 'the estimate card is drawn')
+  assert.notEqual(mounted.element, null); const markup = renderToStaticMarkup(mounted.element); assert.match(textOf(markup), /Estimated cost: About 470 credits · cap 600 credits · Running/, 'the estimate card is drawn, as information')
   deepEqual(mounted.spies.sent, [], 'drawing the estimate sends nothing'); deepEqual(mounted.spies.dispatched, [])
   const inside = cardsInside(mounted.element); assert.ok(inside, 'the cards element carries onAnswer and onControl')
-  buttonOf(inside, 'start').props.onClick()
-  deepEqual(mounted.spies.sent, [answerOf('A1', 'start')], 'Start: exactly one answer, A1 start'); assert.equal(mounted.spies.dispatched.length, 1, 'and the card is marked answered once'); deepEqual(mounted.spies.toasts, [])
-  // the same state again (a second click before the card re-draws, or one after it did) sends nothing more
-  const answeredState = wire.agentWireReducer(open, mounted.spies.dispatched[0])
-  const second = pageCards({ text: page, wireText, state: answeredState }); buttonOf(cardsInside(second.element), 'start').props.onClick(); deepEqual(second.spies.sent, [], 'an answered card: a second click sends nothing')
-  // Cancel sends A1 cancel and clears the run
-  const cancel = pageCards({ text: page, wireText, state: open }); buttonOf(cardsInside(cancel.element), 'cancel').props.onClick(); deepEqual(cancel.spies.sent, [answerOf('A1', 'cancel')]); assert.equal(wire.agentWireReducer(open, cancel.spies.dispatched[0]).status, 'idle', 'Cancel clears the run')
-  // 4. an estimate past its expires_at: Start sends nothing (Cancel still goes); the fixture's own example has long expired
-  const expired = stateOf(ENV_ON, [wireFrame('agent_estimate')]); const exp = pageCards({ text: page, wireText, state: expired }); buttonOf(cardsInside(exp.element), 'start').props.onClick(); deepEqual(exp.spies.sent, [], 'an expired estimate: Start sends nothing'); deepEqual(exp.spies.toasts, [], '... and says nothing is wrong with the connection')
-  buttonOf(cardsInside(exp.element), 'cancel').props.onClick(); deepEqual(exp.spies.sent, [answerOf('A1', 'cancel')], 'Cancel still goes')
-  // 4b. the rule itself (the card guards the click too): before expires_at an A1 start goes, from the instant on it does not, Cancel always does
+  assert.equal(byProp(inside, 'data-agent-choice', 'start').length, 0, 'no Start on the estimate card (PK ruling: the Agent send is the spend click; the estimate is information)')
+  buttonOf(inside, 'cancel').props.onClick()
+  deepEqual(mounted.spies.sent, [answerOf('A1', 'cancel')], 'Stop: exactly one answer, A1 cancel'); assert.equal(mounted.spies.dispatched.length, 1, 'and the run is marked once'); deepEqual(mounted.spies.toasts, [])
+  assert.equal(wire.agentWireReducer(open, mounted.spies.dispatched[0]).status, 'idle', 'Stop (A1 cancel) clears the run')
+  // an answered card: a click that lands anyway (a second click before the card re-draws) sends nothing
+  const answeredState = { ...open, estimate: { ...open.estimate, answered: 'cancel' } }
+  const second = pageCards({ text: page, wireText, state: answeredState }); buttonOf(cardsInside(second.element), 'cancel').props.onClick(); deepEqual(second.spies.sent, [], 'an answered card: a second click sends nothing')
+  // 4. the estimate's expires_at is not read by the card (it has no Start to expire): the fixture's own example has long expired and its Stop still goes (a cancel is never expiry-gated)
+  const expired = stateOf(ENV_ON, [wireFrame('agent_estimate')]); const exp = pageCards({ text: page, wireText, state: expired }); assert.equal(byProp(cardsInside(exp.element), 'data-agent-choice', 'start').length, 0, 'no Start, expired or not'); buttonOf(cardsInside(exp.element), 'cancel').props.onClick(); deepEqual(exp.spies.sent, [answerOf('A1', 'cancel')], 'an expired estimate: Stop still goes'); deepEqual(exp.spies.toasts, [], '... and says nothing is wrong with the connection')
+  // 4b. the rule itself (the lib's, unchanged: nothing in the card sends a start any more): before expires_at an A1 start goes, from the instant on it does not, Cancel always does
   const expiresAt = Date.parse(EX('agent_estimate').expires_at), sent4 = []
   assert.equal(wire.answerAgentCard(expired, answerOf('A1', 'start'), a => { sent4.push(a); return true }, () => {}, () => {}, expiresAt - 1), 'sent', 'one instant before the expiry: Start goes'); assert.equal(wire.answerAgentCard(expired, answerOf('A1', 'start'), a => { sent4.push(a); return true }, () => {}, () => {}, expiresAt), 'closed', 'at the expiry: not'); assert.equal(wire.answerAgentCard(expired, answerOf('A1', 'start'), a => { sent4.push(a); return true }, () => {}, () => {}), 'closed', 'now (long past it): not'); assert.equal(wire.answerAgentCard(expired, answerOf('A1', 'cancel'), a => { sent4.push(a); return true }, () => {}, () => {}), 'sent', 'Cancel always goes'); deepEqual(sent4, [answerOf('A1', 'start'), answerOf('A1', 'cancel')])
   // 5. A3, A4, A6: one frame per click, with its own choice; a card that is not open, another run's, and an A6 fallback that was not offered send nothing
@@ -390,7 +390,7 @@ function noAutoStartChecks(texts = {}) {
   const plain = pageCards({ text: page, wireText, state: failedPlain }); assert.equal(byProp(plain.element, 'data-agent-choice', 'fallback').length, 0, 'none offered: no fallback button'); assert.equal(wire.answerAgentCard(failedPlain, answerOf('A6', 'fallback'), a => { plain.spies.sent.push(a); return true }, () => {}, () => {}), 'closed', 'a fallback that was not offered is refused'); deepEqual(plain.spies.sent, [])
   assert.equal(wire.answerAgentCard(open, answerOf('A1', 'start', 'agr_other'), () => assert.fail('another run\'s answer was sent'), () => {}, () => {}), 'closed', 'another run\'s answer'); assert.equal(wire.answerAgentCard(lib.initialAgentRunState(), answerOf('A3', 'continue'), () => assert.fail('sent with no card open'), () => {}, () => {}), 'closed', 'no card open')
   // 6. a socket that is not live: the card stays open, nothing was sent, and the person is told with the next step
-  const down = pageCards({ text: page, wireText, state: open, send: () => false }); buttonOf(cardsInside(down.element), 'start').props.onClick()
+  const down = pageCards({ text: page, wireText, state: open, send: () => false }); buttonOf(cardsInside(down.element), 'cancel').props.onClick()
   assert.equal(down.spies.sent.length, 1, 'the send was asked once'); deepEqual(down.spies.dispatched, [], 'a failed send does NOT mark the card answered (it stays open for another click)'); assert.equal(down.spies.toasts.length, 1); deepEqual(down.spies.toasts[0], wire.AGENT_WIRE_COPY.answerNotSent)
   assert.match(down.spies.toasts[0].title, /send/); assert.match(down.spies.toasts[0].description, /nothing was sent/); assert.match(down.spies.toasts[0].description, /Try again/, 'plain words, and the next step')
   // 7. the build controls go through the existing build control and say so when Director does not take them
@@ -485,8 +485,10 @@ function sourceChecks(texts = {}, strip = stripAgentModeWire, shown = {}) {
     const shell = rel === 'scripts/test-studio-agent-mode-shell.mjs', baseLines = baseText(rel).split('\n'), nowLines = now(rel).split('\n')
     for (const [has, was] of ALL_EDITS[rel]) { assert.ok(has.includes(PIN_MARK.replace('// ', '')), `${rel}: the line carries the registry-read mark: ${has.slice(0, 70)}`); assert.equal(now(rel).split('\n').filter(l => l === has.slice(0, -1)).length, 1, `${rel}: in the file once, as a whole line`); assert.equal(was === '', !shell, `${rel}: ${shell ? 'the replaced line' : 'a pure insertion'}`) }
     const only = (a, b) => { const seen = new Map(); for (const l of b) seen.set(l, (seen.get(l) ?? 0) + 1); return a.filter(l => { const n = seen.get(l) ?? 0; if (n > 0) { seen.set(l, n - 1); return false } return true }) }
-    assert.equal(only(nowLines, baseLines).length, ALL_EDITS[rel].length, `${rel}: the lines this change has that the base lacks are its pairs'`); assert.equal(only(baseLines, nowLines).length, shell ? 1 : 0, `${rel}: ${shell ? 'exactly one base line is replaced' : 'no base line is lost'}`)
-    assert.equal(strip(rel, now(rel)), baseText(rel), `${rel}: the strip puts #607's head back`)
+    if (!shell) { assert.equal(only(nowLines, baseLines).length, ALL_EDITS[rel].length, `${rel}: the lines this change has that the base lacks are its pairs'`); assert.equal(only(baseLines, nowLines).length, 0, `${rel}: no base line is lost`) }
+    // #607's proof is also edited in place by this change (the A1 estimate card is information): its one registered line is still the line the strip puts back (a line #607 had, once), and the strip does exactly that and nothing else
+    else for (const [has, was] of ALL_EDITS[rel]) { assert.equal(baseLines.filter(l => l === was.slice(0, -1)).length, 1, `${rel}: the line the strip puts back is a line #607's proof had, once`); assert.equal(nowLines.filter(l => l === was.slice(0, -1)).length, 0, `${rel}: and the file has it no more (it is the replaced line)`) }
+    assert.equal(strip(rel, now(rel)), shell ? ALL_EDITS[rel].reduce((text, [has, was]) => text.replace(has, () => was), now(rel)) : baseText(rel), `${rel}: the strip puts ${shell ? 'its one registered line' : '#607\'s head'} back`)
   }
   // the strip: other files untouched, no line of another file is claimed, the pairs are whole lines
   for (const rel of ['lib/studio-agent-mode.ts', 'package.json', '.env.example', REGISTRY]) assert.equal(strip(rel, baseText(rel)), baseText(rel), `${rel}: not this strip's`)
@@ -528,7 +530,8 @@ function scopeChecks() {
   for (const c of own) deepEqual(messageProblems(subjectOf(c), git('log', '-1', '--format=%B', c)), [], `commit ${c.slice(0, 8)}`)
   // what is committed differs from #607's head in the scope files only (a later change stacked after this one is left to its registered files)
   const net = git('diff', '--name-only', `${STACK_BASE}..HEAD`).split('\n').filter(Boolean); deepEqual(net.filter(rel => !SCOPE.has(rel) && !registry.LATER_CHANGE_FILES.has(rel)), [], 'the whole committed diff from #607\'s head is this change\'s scope (or a later change\'s registered files)')
-  for (const rel of ['lib/studio-agent-mode.ts', 'tests/fixtures/agent_frames_contract.json', 'package.json', 'pnpm-lock.yaml', '.env.example', 'components/builder/message-list.tsx', 'components/builder/chat-input.tsx', 'components/builder/agent-mode/agent-run-cards.tsx', 'components/builder/agent-mode/build-mode-picker.tsx', 'scripts/studio-agent-mode-shell-strip.mjs']) assert.ok(!net.includes(rel) || SCOPE.has(rel), `${rel} is #607's / the base's: untouched`)
+  for (const rel of ['tests/fixtures/agent_frames_contract.json', 'package.json', 'pnpm-lock.yaml', '.env.example', 'components/builder/message-list.tsx', 'components/builder/chat-input.tsx', 'components/builder/agent-mode/build-mode-picker.tsx', 'scripts/studio-agent-mode-shell-strip.mjs']) assert.ok(!net.includes(rel) || SCOPE.has(rel), `${rel} is #607's / the base's: untouched`)
+  deepEqual(net.filter(rel => rel.startsWith('components/builder/agent-mode/') || rel === 'lib/studio-agent-mode.ts').sort(), [...SHELL_EDITED].sort(), 'of #607\'s card files and words, exactly the ones this change edits in place (the A1 estimate card) differ from #607\'s head, and each is in its scope'); assert.ok(SHELL_EDITED.every(rel => SCOPE.has(rel)))
   for (const rel of NEW_FILES) assert.doesNotMatch(committed(rel), SECRET, `${rel}: no secret-shaped literal`)
   // the working tree is not read: an untracked stray file changes nothing
   const stray = path.join(root, 'stray-agent-mode-wire.txt'), before = [...touchedFiles(own)].sort()
