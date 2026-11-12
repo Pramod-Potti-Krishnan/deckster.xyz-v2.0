@@ -13,8 +13,8 @@
  * approval or wallet, which the browser can rewrite through `update()`
  * (R-20261007-frontend-14).
  */
-import { prisma } from '@/lib/prisma'
 import { getQuotaStatus, type Tier } from '@/lib/quota/quota'
+import { getServerTier } from '@/lib/quota/server-tier'
 import {
   buildQuotaClaimFromStatus,
   unverifiedBuildQuotaClaim,
@@ -25,13 +25,20 @@ import {
 export const BQ_LOOKUP_TIMEOUT_MS = 4000
 
 /**
- * The user's plan as stored in the database right now. A user row that is
- * missing reads as `free` (the same default the quota route uses), which fails
- * closed: free has no included allowance.
+ * The user's plan as stored in the database right now, checked against the four
+ * plans (free, starter, pro, premium) BEFORE it is signed. Director trusts the
+ * signed `tier`: Agent mode admits exactly "pro" or "premium", Opus needs
+ * "premium", and author mode's tier limit reads it (lower-cased, so even a
+ * stored "PREMIUM" would pass there). So a stored value outside the four
+ * (another case, padding, an unknown plan, null, a non-string) reads as `free`
+ * and is never signed as stored. This is `getServerTier`, the rule the quota
+ * and wallet routes already use, so the claim and Studio's own gate see the
+ * same plan. `free` fails closed: no included allowance (a prepaid wallet still
+ * covers a build, as it does in the browser gate) and no paid-tier feature in
+ * Director. A missing user row reads as `free` too.
  */
-export async function readLiveTier(userId: string): Promise<string> {
-  const row = await prisma.user.findUnique({ where: { id: userId }, select: { tier: true } })
-  return row?.tier ?? 'free'
+export async function readLiveTier(userId: string): Promise<Tier> {
+  return getServerTier(userId)
 }
 
 /**
@@ -44,10 +51,10 @@ export async function mintBuildQuotaClaim(
   userId: string,
   options: { timeoutMs?: number } = {},
 ): Promise<BuildQuotaClaim> {
-  let tier: string | null = null
+  let tier: Tier | null = null
   const lookup = (async () => {
     tier = await readLiveTier(userId)
-    return buildQuotaClaimFromStatus(await getQuotaStatus(userId, tier as Tier))
+    return buildQuotaClaimFromStatus(await getQuotaStatus(userId, tier))
   })()
 
   let timer: ReturnType<typeof setTimeout> | undefined

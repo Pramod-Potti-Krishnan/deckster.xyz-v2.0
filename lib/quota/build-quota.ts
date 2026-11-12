@@ -36,7 +36,7 @@ export interface BuildQuotaClaim {
   /** true = may start a paid turn; false = refused (see `r`); null = could not decide. */
   ok: boolean | null
   r: BuildQuotaReason | null
-  /** The LIVE tier read from the database at mint; null only when that read failed. */
+  /** The LIVE tier read from the database at mint, always one of free / starter / pro / premium (a stored value outside those reads as free); null only when that read failed. */
   tier: string | null
   /** ISO-8601 UTC time the limiting window resets; null when not applicable. */
   reset: string | null

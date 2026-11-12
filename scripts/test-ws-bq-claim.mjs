@@ -36,7 +36,7 @@ FixedDate.nowMs = Date.UTC(2026, 9, 7, 15, 0, 0) // Wed 7 Oct 2026 11:00 EDT
 const DAILY_RESET = '2026-10-08T04:00:00.000Z'  // next 00:00 Eastern
 const WEEKLY_RESET = '2026-10-11T04:00:00.000Z' // next Sunday 00:00 Eastern
 
-function createWorld({ externals = {}, context = {} } = {}) {
+function createWorld({ externals = {}, context = {}, sources = {} } = {}) {
   const cache = new Map()
   const logs = []
   const baseContext = {
@@ -48,7 +48,7 @@ function createWorld({ externals = {}, context = {} } = {}) {
     const file = [`${relative}.ts`, `${relative}.tsx`, relative].map(r => path.join(ROOT, r)).find(f => fs.existsSync(f) && fs.statSync(f).isFile())
     assert.ok(file, `cannot resolve ${relative}`)
     if (cache.has(file)) return cache.get(file).exports
-    const output = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
+    const output = ts.transpileModule(sources[relative] ?? fs.readFileSync(file, 'utf8'), {
       compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
     }).outputText
     const module = { exports: {} }
@@ -107,8 +107,9 @@ function makeDb(db = {}) {
   }
 }
 
-function makeRoute({ db, env, session }) {
+function makeRoute({ db, env, session, sources }) {
   const world = createWorld({
+    sources,
     context: { process: { env } },
     externals: {
       'crypto': nodeCrypto,
@@ -127,10 +128,10 @@ function makeRoute({ db, env, session }) {
   return world
 }
 
-async function mint({ dbSpec, flag, session, secret = SIGNING, query = `session_id=${SESSION_ID}` }) {
+async function mint({ dbSpec, flag, session, secret = SIGNING, query = `session_id=${SESSION_ID}`, sources }) {
   const db = makeDb(dbSpec)
   const env = { ...(secret ? { DIRECTOR_WS_AUTH_SECRET: secret } : {}), ...(flag === undefined ? {} : { DECKSTER_WS_BQ_CLAIM_ENABLED: flag }) }
-  const world = makeRoute({ db, env, session: session ?? { user: { id: USER_ID } } })
+  const world = makeRoute({ db, env, session: session ?? { user: { id: USER_ID } }, sources })
   const route = world.load('app/api/director/ws-token/route')
   const response = await route.GET({ nextUrl: new URL(`http://localhost/api/director/ws-token?${query}`) })
   const body = await response.json()
@@ -160,13 +161,16 @@ const SCENARIOS = [
   { name: 'pro within both caps', db: { tier: 'pro', wallet: 0, spent: { day: 100, week: 200, month: 300 } }, claim: { ok: true, r: null, tier: 'pro', reset: null } },
   { name: 'premium within caps', db: { tier: 'premium', wallet: 0, spent: { day: 1249, week: 2499, month: 2499 } }, claim: { ok: true, r: null, tier: 'premium', reset: null } },
   { name: 'premium, daily cap used, $0 wallet', db: { tier: 'premium', wallet: 0, spent: { day: 1250, week: 1250, month: 1250 } }, claim: { ok: false, r: 'daily_limit', tier: 'premium', reset: DAILY_RESET } },
-  { name: 'a tier value the pricing table does not know has no allowance', db: { tier: 'enterprise', wallet: 0 }, claim: { ok: false, r: 'plan_required', tier: 'enterprise', reset: null } },
+  { name: 'a tier value outside the four plans is read as free (never echoed) and has no allowance', db: { tier: 'enterprise', wallet: 0 }, claim: { ok: false, r: 'plan_required', tier: 'free', reset: null } },
+  { name: 'a stored tier in another case is read as free, not as the paid tier it spells', db: { tier: 'PREMIUM', wallet: 0 }, claim: { ok: false, r: 'plan_required', tier: 'free', reset: null } },
+  { name: 'an unknown stored tier with prepaid credit builds as free, as the browser gate lets it', db: { tier: 'admin', wallet: 500 }, claim: { ok: true, r: null, tier: 'free', reset: null } },
   { name: 'no user row reads as free', db: { noUserRow: true }, claim: { ok: false, r: 'plan_required', tier: 'free', reset: null } },
 ]
 const UNVERIFIED_UNKNOWN_TIER = { ok: null, r: 'unverified', tier: null, reset: null }
 const FAILURES = [
   { name: 'user lookup fails', db: { userThrows: true }, claim: UNVERIFIED_UNKNOWN_TIER },
   { name: 'ledger lookup fails after the tier was read', db: { tier: 'pro', wallet: 0, aggregateThrows: true }, claim: { ok: null, r: 'unverified', tier: 'pro', reset: null } },
+  { name: 'ledger lookup fails after an unknown tier was read: the unverified claim carries free, never the stored value', db: { tier: 'Premium', wallet: 0, aggregateThrows: true }, claim: { ok: null, r: 'unverified', tier: 'free', reset: null } },
 ]
 
 // --- flag OFF: the token is today's token, byte for byte -------------------------------------
@@ -253,6 +257,87 @@ await check('flag on: auth_enabled:false without a signing secret, 401 without a
   const noSid = await mint({ dbSpec: { tier: 'free', wallet: 0 }, flag: 'true', query: '' })
   assert.equal(noSid.status, 400)
   assert.equal(noSid.db.calls.length, 0)
+})
+
+// --- the tier is checked against the four plans BEFORE it is signed (PK-approved, FRONTEND-1) ----------------------------
+// Director trusts the signed tier: Agent mode admits exactly "pro" / "premium", Opus needs "premium", author mode's limit reads it (lower-cased). So a stored value outside the
+// four must never reach the claim as stored, and never as pro / premium: it reads as free (getServerTier, the quota and wallet routes' rule), which keeps the quota gate and Studio's browser gate on one plan.
+const VALID_TIERS = ['free', 'starter', 'pro', 'premium']
+const JUNK_TIERS = [
+  ['upper case PRO', 'PRO'], ['capitalised Premium', 'Premium'], ['upper case PREMIUM', 'PREMIUM'], ['padded " premium"', ' premium'], ['padded "pro "', 'pro '], ['trailing newline "premium\\n"', 'premium\n'],
+  ['admin', 'admin'], ['enterprise', 'enterprise'], ['a list "pro,premium"', 'pro,premium'], ['__proto__', '__proto__'], ['empty string', ''],
+  ['null', null], ['undefined', undefined], ['an object', { tier: 'premium' }], ['an array', ['premium']], ['a number', 7], ['true', true],
+]
+/** Mint through the real route (so the SIGNED bytes are what is judged) for every valid and every junk stored tier, wallet empty and funded. Returns what broke, empty when every rule holds. */
+async function tierProbe(sources) {
+  const broke = []
+  const note = (what, cond) => { if (!cond) broke.push(what) }
+  for (const wallet of [0, 500]) {
+    for (const tier of VALID_TIERS) {
+      const result = await mint({ dbSpec: { tier, wallet }, flag: 'true', sources })
+      const bq = result.payload?.bq
+      note(`valid ${tier}/${wallet}: signed as stored`, result.status === 200 && bq?.tier === tier && result.signatureOk === true)
+      note(`valid ${tier}/${wallet}: ok follows the plan`, bq?.ok === (tier !== 'free' || wallet > 0))
+    }
+    for (const [label, value] of JUNK_TIERS) {
+      const result = await mint({ dbSpec: { tier: value, wallet }, flag: 'true', sources })
+      const bq = result.payload?.bq
+      note(`${label}/${wallet}: still a signed 200 claim`, result.status === 200 && result.signatureOk === true && bq !== undefined)
+      note(`${label}/${wallet}: never signed as pro or premium`, bq !== undefined && bq.tier !== 'pro' && bq.tier !== 'premium' && !/pro|premium/i.test(String(bq.tier)))
+      note(`${label}/${wallet}: signed as free`, bq?.tier === 'free')
+      note(`${label}/${wallet}: the quota answer is free's`, bq?.ok === (wallet > 0) && bq?.r === (wallet > 0 ? null : 'plan_required'))
+      if (typeof value === 'string' && value !== '') note(`${label}/${wallet}: the stored text is not in the signed bytes`, !String(result.payloadJson).includes(JSON.stringify(value).slice(1, -1)))
+    }
+  }
+  const missing = await mint({ dbSpec: { noUserRow: true }, flag: 'true', sources })
+  note('no user row: signed as free', missing.payload?.bq?.tier === 'free' && missing.payload.bq.ok === false)
+  const hung = await mint({ dbSpec: { tier: 'PRO', wallet: 0, aggregateThrows: true }, flag: 'true', sources })
+  note('an unverified claim after a junk read: carries free, not the stored value', hung.payload?.bq?.ok === null && hung.payload.bq.tier === 'free')
+  return broke
+}
+
+await check('tier check: each of the four plans is signed as stored; anything else (case, padding, admin, null, undefined, an object, a list, a number) is signed as free and never as pro or premium', async () => {
+  const broke = await tierProbe(undefined)
+  assert.deepEqual(broke, [], `the tier check before signing: ${broke.slice(0, 3).join(' | ')}`)
+})
+
+await check('tier check: the claim reads the plan through the four-plan check, and the session is still not consulted', () => {
+  const claim = read('lib/quota/build-quota-claim.ts')
+  assert.match(claim, /import \{ getServerTier \} from '@\/lib\/quota\/server-tier'/)
+  assert.match(claim, /return getServerTier\(userId\)/)
+  assert.doesNotMatch(claim, /prisma/, 'the claim module has no raw read of the stored tier of its own')
+  const tierRule = read('lib/quota/server-tier.ts')
+  assert.match(tierRule, /\["free", "starter", "pro", "premium"\]/, 'the rule is exactly the four plans')
+  assert.match(tierRule, /typeof tier === "string" && TIERS\.includes\(tier\) \? tier : "free"/, 'exact match, anything else is free')
+})
+
+await check('tier check mutants: removing the check, inverting it, letting an extra tier through, folding case, failing open, or signing the stored value raw each fail the probe', async () => {
+  const swap = (rel, from, to) => {
+    const text = read(rel)
+    assert.ok(text.includes(from), `${rel}: the mutant's target text is there: ${from.slice(0, 50)}`)
+    const mutated = text.replace(from, to)
+    assert.notEqual(mutated, text, 'the mutant changes the file')
+    return { [rel.replace(/\.ts$/, '')]: mutated }
+  }
+  const TIER_FILE = 'lib/quota/server-tier.ts'
+  const CHECK = 'typeof tier === "string" && TIERS.includes(tier) ? tier : "free"'
+  const mutants = [
+    ['validation removed', swap(TIER_FILE, CHECK, 'tier ?? "free"')],
+    ['validation reduced to "is a string"', swap(TIER_FILE, CHECK, 'typeof tier === "string" ? tier : "free"')],
+    ['check inverted', swap(TIER_FILE, CHECK, 'typeof tier === "string" && !TIERS.includes(tier) ? tier : "free"')],
+    ['an extra tier allowed (admin)', swap(TIER_FILE, '["free", "starter", "pro", "premium"]', '["free", "starter", "pro", "premium", "admin"]')],
+    ['an extra tier allowed (enterprise)', swap(TIER_FILE, '["free", "starter", "pro", "premium"]', '["free", "starter", "pro", "premium", "enterprise"]')],
+    ['case folded before the check, the stored text signed', swap(TIER_FILE, CHECK, 'typeof tier === "string" && TIERS.includes(tier.trim().toLowerCase()) ? tier : "free"')],
+    ['fails open to pro', swap(TIER_FILE, CHECK, 'typeof tier === "string" && TIERS.includes(tier) ? tier : "pro"')],
+    ['fails open to premium for a non-string', swap(TIER_FILE, CHECK, 'typeof tier === "string" ? (TIERS.includes(tier) ? tier : "free") : "premium"')],
+    ['a plan dropped from the rule (premium)', swap(TIER_FILE, '["free", "starter", "pro", "premium"]', '["free", "starter", "pro"]')],
+    ['the claim reads the stored tier raw (the code before this fix)', swap('lib/quota/build-quota-claim.ts', 'return getServerTier(userId)', "const row = await require('@/lib/prisma').prisma.user.findUnique({ where: { id: userId }, select: { tier: true } }); return (row?.tier ?? 'free') as Tier")],
+  ]
+  for (const [name, sources] of mutants) {
+    const broke = await tierProbe(sources)
+    assert.ok(broke.length > 0, `mutant not caught: ${name}`)
+  }
+  assert.deepEqual(await tierProbe(undefined), [], 'and the real files pass the same probe')
 })
 
 // --- the session JWT never decides ------------------------------------------------------------
