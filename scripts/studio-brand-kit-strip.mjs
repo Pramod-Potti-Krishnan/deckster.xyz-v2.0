@@ -10,7 +10,8 @@
 // Every line this change adds to an EXISTING file carries the marker BRAND-KIT-CALLER (matched as a whole token). Most are insertions ([has, was] with was = ''); the REWRITTEN lines (a theme proxy's init, the save button's guard, two lines of the identity hook) put the base's line back.
 // Putting each pair back gives the file at BASE_COMMIT byte for byte. The new files (libs, a hook, routes, a component, a stylesheet, this strip, a proof) have no base text.
 // Older proofs this change teaches (tests only, every line carries the registry-read mark): the two that read the first-parent commits of BASE..HEAD for their own commits' subjects get one more inserted line each, "Brand kit caller:", right after the shell's;
-// and the Deck import proof, whose "the minter is imported by the two import routes only" walk gets two more inserted lines (the Brand Kit's server lib and its brand record route, which sign with the same helper and are proved by this change's own proof), right after the compose lib's line.
+// the Deck import proof, whose "the minter is imported by the two import routes only" walk gets two more inserted lines (the Brand Kit's server lib and its brand record route, which sign with the same helper and are proved by this change's own proof), right after the compose lib's line;
+// and seven Themes-page proofs (font selection, base dropdown, preview canon, the two Atlas Themes proofs, draft ownership, library manage) that held the Themes page or its proxy to a base byte for byte without reading the registry: each now reads that file through stripLaterChanges.
 // How the older pins reach it: it REGISTERS its files, its .env.example block and its strip (scripts/studio-later-changes.mjs, three lines). The voice-call proof's .env.example pin (21d254c6) already reads the blocks registered after its own, so no edit of it is carried.
 // Plain node, no imports, nothing read from disk or git here.
 
@@ -111,12 +112,31 @@ const MINTER_LINES = [
   "  text.delete('lib/studio-brand-kit-server.ts') // LATER-CHANGES: registry read (BRAND-KIT-CALLER): the Brand Kit's server-only lib (it signs the eight theme proxy fetches and holds the extract cap) also reaches the minter; scripts/test-studio-brand-kit.mjs proves it, and the closure walk above already ran over it\n",
   "  text.delete('app/api/themes/[id]/brand/route.ts') // LATER-CHANGES: registry read (BRAND-KIT-CALLER): the Brand Kit's brand record route signs its Director calls with the same helper (proved by scripts/test-studio-brand-kit.mjs)\n",
 ]
+// the seven Themes-page proofs that held the Themes page / the theme proxies to a base without reading the registry: each now reads the file through stripLaterChanges (innermost, as the registry's own header says), so this change's marked lines come out first
+const MARK = 'LATER-CHANGES: registry read (BRAND-KIT-CALLER)'
+const REG_IMPORT = `import { stripLaterChanges } from './studio-later-changes.mjs' // ${MARK}\n`
+const LM_NOW = `import { stripLibraryManage as stripLibraryManageBase } from './studio-library-manage-strip.mjs' // ${MARK}\n`
+const LM_WAS = "import { stripLibraryManage } from './studio-library-manage-strip.mjs'\n"
+const LM_WRAP = `const stripLibraryManage = (rel, text) => stripLibraryManageBase(rel, stripLaterChanges(rel, text)) // ${MARK}: a later change's marked lines (the Brand Kit's, in the Themes page) come out first\n`
+const LM_PAIRS = [[LM_NOW, LM_WAS], [REG_IMPORT, ''], [LM_WRAP, '']]
+const CT_NOW = `const currentText=stripLaunchWording(file,stripLaterChanges(file,fs.readFileSync(new URL(file,root),'utf8'))) // ${MARK}: a later change's marked lines come out first\n`
+const CT_WAS = "const currentText=stripLaunchWording(file,fs.readFileSync(new URL(file,root),'utf8'))\n"
+const RM_NOW = `const readMutable = makeReader(MUTATIONS, 'THEME_MANAGE_TEST_MUTATION') // ${MARK}\n`
+const RM_WAS = "const read = makeReader(MUTATIONS, 'THEME_MANAGE_TEST_MUTATION')\n"
+const RM_WRAP = `const read = rel => stripLaterChanges(rel, readMutable(rel)) // ${MARK}: a later change's marked lines (the Brand Kit's, in the Themes page and the theme proxies) come out first\n`
 export const BRAND_KIT_PIN_EDITS = {
   // two older proofs walk the first-parent line of BASE..HEAD without merges and require every subject on it to be their own: this change's commits (subject "Brand kit caller:") are left out of that line, like every later change's
   'scripts/test-studio-chat-element-edit.mjs': [[PIN_LINE, '']],
   'scripts/test-studio-deck-sync-truth.mjs': [[PIN_LINE, '']],
   // the Deck import proof lists the files that import the entitlement minter (its two routes, and the compose lib it deletes from the list); the Brand Kit's two files that sign are taken out the same way
   'scripts/test-studio-deck-import.mjs': MINTER_LINES.map(line => [line, '']),
+  'scripts/test-theme-font-selection.mjs': LM_PAIRS,
+  'scripts/test-studio-theme-base-dropdown.mjs': LM_PAIRS,
+  'scripts/test-studio-theme-preview-canon.mjs': LM_PAIRS,
+  'scripts/test-atlas-themes-recovery.mjs': LM_PAIRS,
+  'scripts/test-atlas-themes-account-boundary.mjs': LM_PAIRS,
+  'scripts/test-studio-theme-draft-ownership.mjs': [[REG_IMPORT, ''], [CT_NOW, CT_WAS]],
+  'scripts/test-studio-theme-library-manage.mjs': [[REG_IMPORT, ''], [RM_NOW, RM_WAS], [RM_WRAP, '']],
 }
 /** Where the taught lines go: right after the line that starts with this text, per proof. */
 export const BRAND_KIT_PIN_ANCHORS = {

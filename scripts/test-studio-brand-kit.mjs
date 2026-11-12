@@ -780,13 +780,16 @@ function sourceChecks(texts = {}, strip = stripBrandKit, shown = {}) {
     for (const [has, was] of pairs) { assert.ok(MARKER_RE.test(has) && has.endsWith('\n'), `${rel}: the pair line carries the marker`); assert.equal(cur.split('\n').filter(l => l === has.slice(0, -1)).length, 1, `${rel}: the pair's line is in the file exactly once, as a whole line: ${has.slice(0, 70)}`); if (was !== '') { assert.ok(!MARKER_RE.test(was), 'a base line never carries the marker'); assert.equal(base.split('\n').filter(l => l === was.slice(0, -1)).length, 1, `${rel}: the line put back is a base line, once`) } }
     assert.equal(strip(rel, cur), base, `${rel}: the strip puts the base back byte for byte`); assert.equal(strip(rel, base), base, `${rel}: idempotent on the base`)
   }
-  // the older proofs this change teaches: inserted lines only, each with the registry-read mark, together right after the anchor the strip names for that proof
+  // the older proofs this change teaches: each pair's line carries the registry-read mark and is in the file once; a rewritten pair puts back a base line (once); nothing else changes; the proofs that only get inserted lines have them together right after their anchor
   for (const rel of PIN_FILES) {
-    const base = baseText(rel), cur = now(rel), pairs = ALL_EDITS[rel], anchor = stripModule.BRAND_KIT_PIN_ANCHORS[rel]; assert.ok(anchor, `${rel}: an anchor`)
-    for (const [has, was] of pairs) { assert.ok(has.includes(PIN_MARK.replace('// ', '')), `${rel}: the line carries the registry-read mark`); assert.equal(was, '', `${rel}: a pure insertion`); assert.equal(cur.split('\n').filter(l => l === has.slice(0, -1)).length, 1, `${rel}: in the file once, as a whole line`) }
-    const { added, removed } = lineDelta(base, cur); assert.equal(added.length, pairs.length, `${rel}: only this change's lines are added`); assert.equal(removed.length, 0, `${rel}: no base line is lost`)
-    const lines = cur.split('\n'), first = lines.indexOf(pairs[0][0].slice(0, -1)); assert.ok(first > 0 && lines[first - 1].startsWith(anchor), `${rel}: right after its anchor`); pairs.forEach(([has], i) => assert.equal(lines[first + i], has.slice(0, -1), `${rel}: the lines sit together, in order`))
-    assert.equal(strip(rel, cur), base, `${rel}: the strip puts the base back`)
+    const base = baseText(rel), cur = now(rel), pairs = ALL_EDITS[rel], anchor = stripModule.BRAND_KIT_PIN_ANCHORS[rel]
+    for (const [has, was] of pairs) {
+      assert.ok(has.includes(PIN_MARK.replace('// ', '')), `${rel}: the line carries the registry-read mark: ${has.slice(0, 60)}`); assert.equal(cur.split('\n').filter(l => l === has.slice(0, -1)).length, 1, `${rel}: in the file once, as a whole line`)
+      if (was !== '') { assert.ok(!MARKER_RE.test(was) && !/BRAND-KIT-CALLER/.test(was), 'a base line never carries the mark'); assert.equal(base.split('\n').filter(l => l === was.slice(0, -1)).length, 1, `${rel}: the line put back is a base line, once`); assert.equal(cur.split('\n').filter(l => l === was.slice(0, -1)).length, 0, `${rel}: and it is no longer in the file`) }
+    }
+    const { added, removed } = lineDelta(base, cur); assert.equal(added.length, pairs.length, `${rel}: only this change's lines are added`); assert.equal(removed.length, pairs.filter(([, was]) => was !== '').length, `${rel}: only the rewritten base lines are lost`)
+    if (anchor) { const lines = cur.split('\n'), first = lines.indexOf(pairs[0][0].slice(0, -1)); assert.ok(first > 0 && lines[first - 1].startsWith(anchor), `${rel}: right after its anchor`); pairs.forEach(([has], i) => assert.equal(lines[first + i], has.slice(0, -1), `${rel}: the lines sit together, in order`)) }
+    assert.equal(strip(rel, cur), base, `${rel}: the strip puts the base back byte for byte`); assert.equal(strip(rel, base), base, `${rel}: idempotent on the base`)
   }
   for (const rel of ['lib/studio-agent-mode.ts', 'package.json', '.env.example', REGISTRY, 'scripts/test-studio-voice-call.mjs']) assert.equal(strip(rel, baseText(rel)), baseText(rel), `${rel}: not this strip's`)
   assert.equal(strip('x.ts', 7), 7); assert.equal(strip('x.ts', 'a\nb\n'), 'a\nb\n')
@@ -859,7 +862,7 @@ await check('G2. fonts: "Use suggested fonts" is a second click, only with the t
 await check('H. the page\'s marked lines run: the hook, Save off for a kit detail that cannot be saved, the brand save after the theme save, the reset, every mount gated', () => pageChecks())
 await check('I1. deck identity (pure): the kit replaces the browser copy for all three fields, footer to company, source "form"; no kit gives the browser form back untouched', () => identityLibChecks())
 await check('I2. deck identity (the hook): the standard theme\'s kit read once and fail soft, never held back; flag off is the base hook', () => identityHookChecks())
-await check('J1. sources: every changed line in an existing file carries the marker; the strip puts the base back byte for byte (7 app files, 3 older proofs); no bucket, no upload route, no migration', () => sourceChecks())
+await check('J1. sources: every changed line in an existing file carries the marker; the strip puts the base back byte for byte (7 app files, 10 older proofs); no bucket, no upload route, no migration', () => sourceChecks())
 await check('J2. .env.example: exactly this change\'s block, after one blank line; the registry takes it out; the voice-call pin already reads blocks after its own', () => envChecks())
 await check('J3. the registry: three marked lines at the true end of their lists right after the Agent mode shell\'s; read through it every app file is the base\'s', () => registryChecks())
 await check('J4. scope, read from the COMMITTED diff only: own commits by subject with the co-author line; every file is this change\'s; no secret-shaped literal; a stray untracked file changes nothing', () => scopeChecks())
