@@ -9,7 +9,7 @@
 //     same init, same answer) even with the entitlement flag and the secret on; the kit's hook holds an empty reducer and starts nothing; the identity hook fetches nothing and resolves the base's identity;
 //  B. SIGNING (BK-C19): with the flag on, each of the eight existing fetches carries X-Deckster-Entitlement exactly when the entitlement flag is on and the secret is set, for the session's own user id (the e-mail for an e-mail-only session), with the method of THAT call
 //     (GET list/get/standard, POST save, PUT set-standard, PATCH rename, DELETE delete and clear-standard); claims read by an independent verifier (HMAC, v1, typ rest, lifetime 120 s, no sid); the secret is read only when both flags are on;
-//  C. EXTRACT ROUTE (BK-C4, C5, C8, C9): signed in, approved, the key from the server-only variable, the file checked (one exact Content-Type, 4 MiB, the first bytes), the per-person daily cap counted BEFORE the one paid call and failing closed, exactly Content-Type and
+//  C. EXTRACT ROUTE (BK-C4, C5, C8, C9): signed in, approved, the key from the server-only variable, the file checked (one exact Content-Type, 4 MiB, the first bytes), the per-person daily cap (this attempt recorded, then counted with itself, BEFORE the one paid call; a record that did not land or an unreadable count is no call; a burst cannot pass it), exactly Content-Type and
 //     X-API-Key forwarded (no client header), the answer cleaned and passed with no-store, every failure a fixed Studio code (Theme Builder's text and the key never leave), no retry, redirects refused, the outgoing host is the configured UAT one and never a production default;
 //  D. BRAND PROXY (BK-C12, C14, C15): the user in the Director path is the session's (never a header or a query), signed with the method of the call, the PUT body checked (Director's six keys only, https logo, limits, eight catalog fonts, colours refused), an empty record
 //     refused unless ?clear=1, Director's refusals in Studio's codes;
@@ -167,7 +167,9 @@ const REAL_CHECKS = []
 // ---- the stubbed world of a route ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 const nextServer = { NextResponse: { json: (body, init) => Response.json(body, init) } }
 function makeConsole() { const lines = []; return { lines, error: (...a) => lines.push(a.map(String).join(' ')), log: (...a) => lines.push(a.map(String).join(' ')), warn: (...a) => lines.push(a.map(String).join(' ')) } }
-function rig({ env = ENV_ON, files = [], session = 'id', approved = null, count = () => 0, upstream = () => ({ status: 200, body: {} }), texts = {} } = {}) {
+/** A person's rate-event rows as the database holds them: `prior` rows already there, then every row a call records (`recordFails` swallows the insert, as recordRateEvent does; `tick` lets parallel calls interleave). */
+const rateDb = ({ prior = 0, recordFails = false, tick = null } = {}) => ({ prior, rows: [], recordFails, tick })
+function rig({ env = ENV_ON, files = [], session = 'id', approved = null, count = null, used = 0, recordFails = false, db = rateDb({ prior: used, recordFails }), upstream = () => ({ status: 200, body: {} }), texts = {} } = {}) {
   const calls = { session: 0, approved: 0, counts: [], records: [], fetch: [], order: [] }
   const sessionValue = session === 'id' ? { user: { id: USER_ID, email: EMAIL } } : session === 'email' ? { user: { email: EMAIL } } : null
   const con = makeConsole()
@@ -183,8 +185,8 @@ function rig({ env = ENV_ON, files = [], session = 'id', approved = null, count 
     '@/lib/auth-options': { authOptions: {} },
     '@/lib/api-hardening': {
       requireApprovedUser: async () => { calls.approved++; return approved },
-      countRateEvents: async where => { calls.order.push('count'); calls.counts.push(where); return count(where) },
-      recordRateEvent: async (...args) => { calls.order.push('record'); calls.records.push(args) },
+      countRateEvents: async where => { calls.order.push('count'); calls.counts.push(where); if (db.tick) await db.tick(); if (count) return count(where); return db.rows.filter(row => row.bucket === where.bucket && row.subject === where.subject && (!where.scope || row.scope === where.scope)).length + (where.scope ? 0 : db.prior) },
+      recordRateEvent: async (bucket, scope, subject) => { calls.order.push('record'); calls.records.push([bucket, scope, subject]); if (db.tick) await db.tick(); if (!db.recordFails) db.rows.push({ bucket, scope, subject }) },
     },
   }
   const world = createWorld({ env, texts, stubs, fetch, console: con })
@@ -281,6 +283,9 @@ const extractRig = (opts = {}) => rig({ env: EXTRACT_ENV, ...opts, upstream: opt
 
 async function extractChecks(texts = {}) {
   const mk = (o = {}) => extractRig({ ...o, texts })
+  // the platform's limit: what Vercel reads is the route's own export (the Vercel Next builder merges a route's segment config OVER vercel.json's `functions` glob, 30 s here: see the PR body), so vercel.json is not edited; the export must outlast the one fetch's deadline, or the platform would cut a slow extraction short after its slot was taken
+  { const src = texts[EXTRACT] ?? read(EXTRACT), seconds = Number(/^export const maxDuration = (\d+)\s*$/m.exec(src)?.[1]), deadline = createWorld({ texts }).load(LIB).BRAND_EXTRACT_TIMEOUT_MS
+    assert.ok(Number.isInteger(seconds) && seconds * 1000 > deadline, `the route's maxDuration (${seconds} s) outlasts the fetch deadline (${deadline} ms)`) }
   // signed in, approved
   { const r = mk({ session: null }); const res = await post(r); assert.equal(res.status, 401); assert.equal((await bodyOf(res)).json.code, 'signin'); assert.equal(r.calls.fetch.length, 0); assert.equal(r.calls.counts.length, 0) }
   { const denied = Response.json({ error: 'account_pending_approval' }, { status: 403 }); const r = mk({ approved: denied }); const res = await post(r); assert.equal(res.status, 403); assert.equal(r.calls.fetch.length, 0); assert.equal(r.calls.counts.length, 0) }
@@ -310,13 +315,33 @@ async function extractChecks(texts = {}) {
   for (const [label, body, type] of [['JPEG bytes as png', JPEG, 'image/png'], ['PNG bytes as jpeg', PNG, 'image/jpeg'], ['random bytes', crypto.randomBytes(200), 'image/png'], ['html', Buffer.from('<html><script>alert(1)</script></html>'), 'image/jpeg'], ['a short PNG signature', PNG.subarray(0, 5), 'image/png']]) {
     const r = mk(); const res = await post(r, { body, headers: { 'content-type': type } }); assert.equal(res.status, 415, `${label}: 415`); assert.equal(r.calls.fetch.length + r.calls.counts.length, 0, `${label}: nothing counted or fetched`)
   }
-  // the daily cap: counted before the call, fails closed
-  { const r = mk({ count: () => 10 }); const res = await post(r); assert.equal(res.status, 429); assert.equal((await bodyOf(res)).json.code, 'cap'); assert.equal(r.calls.fetch.length, 0, 'at the cap: no call'); assert.equal(r.calls.records.length, 0, 'and nothing recorded') }
-  { const r = mk({ count: () => 9 }); const res = await post(r); assert.equal(res.status, 200); deepEqual(r.calls.order, ['count', 'record', 'fetch'], 'one under the cap: counted, recorded, THEN the one paid call'); deepEqual(r.calls.records[0], ['brand_extract', 'user', USER_ID], 'recorded for this user in the brand_extract bucket'); assert.equal(r.calls.counts[0].subject, USER_ID); assert.equal(r.calls.counts[0].bucket, 'brand_extract'); assert.ok(r.calls.counts[0].since instanceof Date && Date.now() - r.calls.counts[0].since.getTime() < 86_400_000 + 1000, 'today (UTC day) only') }
-  { const r = mk({ env: { ...EXTRACT_ENV, STUDIO_BRAND_EXTRACT_DAILY_CAP: '3' }, count: () => 3 }); assert.equal((await post(r)).status, 429, 'the cap follows STUDIO_BRAND_EXTRACT_DAILY_CAP') }
-  { const r = mk({ env: { ...EXTRACT_ENV, STUDIO_BRAND_EXTRACT_DAILY_CAP: '3' }, count: () => 2 }); assert.equal((await post(r)).status, 200) }
-  for (const bad of ['0', '101', '-1', 'x', '5.5', '0x5', '1e1', '']) { const r = mk({ env: { ...EXTRACT_ENV, STUDIO_BRAND_EXTRACT_DAILY_CAP: bad }, count: () => 10 }); assert.equal((await post(r)).status, 429, `a bad cap setting ${JSON.stringify(bad)} is the default 10`); const r2 = mk({ env: { ...EXTRACT_ENV, STUDIO_BRAND_EXTRACT_DAILY_CAP: bad }, count: () => 6 }); assert.equal((await post(r2)).status, 200, `and ${JSON.stringify(bad)} is not read as a smaller cap`) }
+  // the daily cap: this attempt is RECORDED, then counted with itself, then (and only then) the one paid call; it fails closed when the record did not land or a count cannot be read; a burst cannot pass it
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+  { const r = mk({ used: 10 }); const res = await post(r); assert.equal(res.status, 429, 'ten already today: this is the eleventh'); assert.equal((await bodyOf(res)).json.code, 'cap'); assert.equal(r.calls.fetch.length, 0, 'at the cap: no call'); assert.equal(r.calls.records.length, 1, 'and the refused attempt is on the record too (every attempt counts)') }
+  { const r = mk({ used: 9 }); const res = await post(r); assert.equal(res.status, 200, 'nine already: the tenth is the last one allowed'); deepEqual(r.calls.order, ['record', 'count', 'count', 'fetch'], 'recorded FIRST, then its own row looked up, then counted with itself, THEN the one paid call')
+    const [bucket, scope, subject] = r.calls.records[0]; assert.equal(bucket, 'brand_extract', 'recorded in the brand_extract bucket'); assert.equal(subject, USER_ID, 'for this user'); assert.match(scope, UUID_RE, 'under a one-off scope, so this attempt\'s own row can be found again')
+    deepEqual({ ...r.calls.counts[0], since: undefined }, { bucket: 'brand_extract', scope, subject: USER_ID, since: undefined }, 'the first count looks up this attempt\'s own row by that scope'); assert.equal(r.calls.counts[1].bucket, 'brand_extract'); assert.equal(r.calls.counts[1].subject, USER_ID); assert.equal(r.calls.counts[1].scope, undefined, 'the second counts all of the person\'s attempts, this one included')
+    assert.ok(r.calls.counts[1].since instanceof Date && Date.now() - r.calls.counts[1].since.getTime() < 86_400_000 + 1000, 'today (UTC day) only') }
+  { const r = mk({ env: { ...EXTRACT_ENV, STUDIO_BRAND_EXTRACT_DAILY_CAP: '3' }, used: 3 }); assert.equal((await post(r)).status, 429, 'the cap follows STUDIO_BRAND_EXTRACT_DAILY_CAP') }
+  { const r = mk({ env: { ...EXTRACT_ENV, STUDIO_BRAND_EXTRACT_DAILY_CAP: '3' }, used: 2 }); assert.equal((await post(r)).status, 200) }
+  for (const bad of ['0', '101', '-1', 'x', '5.5', '0x5', '1e1', '']) { const r = mk({ env: { ...EXTRACT_ENV, STUDIO_BRAND_EXTRACT_DAILY_CAP: bad }, used: 10 }); assert.equal((await post(r)).status, 429, `a bad cap setting ${JSON.stringify(bad)} is the default 10`); const r2 = mk({ env: { ...EXTRACT_ENV, STUDIO_BRAND_EXTRACT_DAILY_CAP: bad }, used: 6 }); assert.equal((await post(r2)).status, 200, `and ${JSON.stringify(bad)} is not read as a smaller cap`) }
   { const r = mk({ count: () => { throw new Error('db down') } }); const res = await post(r); assert.equal(res.status, 503, 'a count that cannot be read: 503'); assert.equal(r.calls.fetch.length, 0, 'and the paid call is not made (fails closed)') }
+  { const r = mk({ count: where => { if (!where.scope) throw new Error('db down'); return 1 } }); const res = await post(r); assert.equal(res.status, 503, 'the total cannot be read (the own row can): 503'); assert.equal(r.calls.fetch.length, 0, 'no paid call') }
+  { const r = mk({ count: where => { if (where.scope) throw new Error('db down'); return 1 } }); assert.equal((await post(r)).status, 503, 'the own row cannot be looked up: 503'); assert.equal(r.calls.fetch.length, 0, 'no paid call') }
+  // a record that did not land is NOT a free call (recordRateEvent swallows its own error): with no rows at all, with rows from earlier today (the count would never grow), and at the very last slot
+  for (const used of [0, 1, 3, 9]) { const r = mk({ used, recordFails: true }); const res = await post(r); assert.equal(res.status, 503, `the insert fails with ${used} earlier today: 503, not a free call`); assert.equal((await bodyOf(res)).json.code, 'unavailable'); assert.equal(r.calls.fetch.length, 0, `${used} earlier: no paid call`) }
+  { const db = rateDb(); let ok = 0; for (let n = 0; n < 4; n++) { const r = mk({ db }); if ((await post(r)).status === 200) ok++ } assert.equal(ok, 4); db.recordFails = true
+    for (let n = 0; n < 5; n++) { const r = mk({ db }); const res = await post(r); assert.equal(res.status, 503, `an earlier attempt's row is not this attempt's (the insert keeps failing, attempt ${n + 1})`); assert.equal(r.calls.fetch.length, 0) } assert.equal(db.rows.length, 4, 'the failing insert never grew the count: only the first four are in the table') }
+  // a burst: ten calls pass, the rest are refused (one after another), and parallel calls never get more than the cap through (each reads after its own row is written)
+  { const db = rateDb(); const out = []; for (let n = 0; n < 13; n++) { const r = mk({ db }); out.push({ status: (await post(r)).status, fetches: r.calls.fetch.length }) }
+    assert.equal(out.filter(o => o.status === 200).length, 10, 'one after another: exactly ten pass'); assert.equal(out.filter(o => o.status === 429).length, 3); assert.equal(out.reduce((n, o) => n + o.fetches, 0), 10, 'and ten paid calls were made') }
+  for (const [label, prior, burst, seed] of [['a burst of 15 on an empty day', 0, 15, 1], ['a burst of 12 with 8 earlier', 8, 12, 2], ['a burst of 25 (cap 10), uneven timing', 0, 25, 3], ['a burst of 11 with 9 earlier, uneven timing', 9, 11, 4], ['a burst of 40, uneven timing', 0, 40, 5]]) {
+    let x = seed * 7919; const rnd = () => ((x = (x * 1103515245 + 12345) % 2147483648) / 2147483648)
+    const db = rateDb({ prior, tick: () => new Promise(done => (rnd() < 0.5 ? setImmediate(done) : setTimeout(done, Math.floor(rnd() * 3)))) })
+    const rigs = Array.from({ length: burst }, () => mk({ db })); const results = await Promise.all(rigs.map(r => post(r)))
+    const passed = results.filter(res => res.status === 200).length, paid = rigs.reduce((n, r) => n + r.calls.fetch.length, 0)
+    assert.ok(prior + passed <= 10, `${label}: at most the cap gets through (${passed} passed, ${prior} earlier)`); assert.equal(paid, passed, `${label}: a paid call for each pass and no other`); assert.ok(results.every(res => [200, 429].includes(res.status)), `${label}: the others are plain cap refusals`)
+  }
   // the one request: exactly Content-Type and X-API-Key, to the configured Theme Builder, with the file's bytes
   for (const [label, type, body, address] of [['png', 'image/png', PNG, UAT_TB], ['jpeg', 'image/jpeg', JPEG, `${UAT_TB}/`]]) {
     const r = mk({ env: { ...EXTRACT_ENV, NEXT_PUBLIC_THEME_BUILDER_URL: address } })
@@ -330,7 +355,7 @@ async function extractChecks(texts = {}) {
     assert.ok(Buffer.from(init.body).equals(body), `${label}: the body is the file's raw bytes (not multipart, not base64)`)
     assert.equal(res.headers.get('cache-control'), 'no-store', `${label}: no-store`)
     assert.ok(!JSON.stringify(await bodyOf(res)).includes(KEY), `${label}: the key is not in the answer`)
-    deepEqual(r.calls.records[0], ['brand_extract', 'user', USER_ID], `${label}: the slot is the SESSION's user's, whatever a header says`); assert.equal(r.calls.counts[0].subject, USER_ID)
+    assert.equal(r.calls.records[0][0], 'brand_extract'); assert.equal(r.calls.records[0][2], USER_ID, `${label}: the slot is the SESSION's user's, whatever a header says`); assert.equal(r.calls.counts[0].subject, USER_ID)
   }
   // the answer is Theme Builder's, CLEANED: upper-case hexes lowercased, an unknown key and a control character gone, the extra text never passed on
   { const dirty = clone(TB_OK); dirty.theme_payload.primary_hex = '#0047AB'; dirty.preview.source_colors.primary_hex = '#0047AB'; dirty.extra = LEAK; dirty.theme_payload.extra = LEAK; dirty.preview.extra = LEAK; dirty.preview.warnings = [`fine\u0000 ${'x'.repeat(400)}`]
@@ -443,8 +468,8 @@ function libChecks(texts = {}, env = {}) {
   for (const key of ['primary_hex', 'secondary_hex', 'tertiary_hex']) assert.notEqual(parsed.theme_payload[key], undefined)
   assert.ok(!('neutral_hex' in parsed.theme_payload), 'a colour Theme Builder did not suggest is absent, never invented')
   const upper = clone(TB_OK); upper.theme_payload.primary_hex = '#0047AB'; upper.preview.source_colors.primary_hex = '#0047AB'; assert.equal(lib.parseBrandExtract(upper).theme_payload.primary_hex, '#0047ab', 'hexes are lowercased and nothing else changes')
-  const odd = clone(TB_OK); odd.theme_payload.font_family = 'Comic Sans'; odd.brand.body_font = 'Comic Sans'; odd.preview.warnings = ['  fine\u0000 ', 5, '', 'x'.repeat(400)]; odd.preview.role_colors.primary = 'red'; odd.preview.contrast_checks.push({ foreground_role: 'Bad Role!', foreground_hex: '#000000', background_role: 'background', background_hex: '#ffffff', ratio: 5 }, { foreground_role: 'text_body', foreground_hex: '#000000', background_role: 'background', background_hex: '#ffffff', ratio: 99 }, chk('text_body', '#777777', 'background', '#ffffff', 4.4))
-  const oddOut = lib.parseBrandExtract(odd); assert.ok(!('font_family' in oddOut.theme_payload) && !('body_font' in oddOut.brand), 'a font outside the 8-family catalog is dropped'); assert.equal(oddOut.preview.warnings[0], 'fine'); assert.equal(oddOut.preview.warnings.length, 2); assert.equal(oddOut.preview.warnings[1].length, 300); assert.ok(!('primary' in oddOut.preview.role_colors), 'a role colour that is not a hex is dropped'); assert.equal(oddOut.preview.contrast_checks.length, 9, 'a bad role name and an out-of-range ratio are dropped')
+  const odd = clone(TB_OK); odd.theme_payload.font_family = 'Comic Sans'; odd.brand.body_font = 'Comic Sans'; odd.preview.warnings = ['  fine\u0000 ', 'two\u0001 or\u0002 more\u007f controls', 5, '', 'x'.repeat(400)]; odd.preview.role_colors.primary = 'red'; odd.preview.contrast_checks.push({ foreground_role: 'Bad Role!', foreground_hex: '#000000', background_role: 'background', background_hex: '#ffffff', ratio: 5 }, { foreground_role: 'text_body', foreground_hex: '#000000', background_role: 'background', background_hex: '#ffffff', ratio: 99 }, chk('text_body', '#777777', 'background', '#ffffff', 4.4))
+  const oddOut = lib.parseBrandExtract(odd); assert.ok(!('font_family' in oddOut.theme_payload) && !('body_font' in oddOut.brand), 'a font outside the 8-family catalog is dropped'); assert.equal(oddOut.preview.warnings[0], 'fine'); assert.equal(oddOut.preview.warnings[1], 'two or more controls', 'EVERY control character goes, not only the first'); assert.equal(oddOut.preview.warnings.length, 3); assert.equal(oddOut.preview.warnings[2].length, 300); assert.ok(!('primary' in oddOut.preview.role_colors), 'a role colour that is not a hex is dropped'); assert.equal(oddOut.preview.contrast_checks.length, 9, 'a bad role name and an out-of-range ratio are dropped')
   assert.equal(oddOut.preview.contrast_checks.at(-1).passes_aa, false, 'passes_aa is the ratio against 4.5, not a flag from outside'); const claimed = clone(TB_OK); claimed.preview.contrast_checks[7].passes_aa = true; assert.equal(lib.parseBrandExtract(claimed).preview.contrast_checks[7].passes_aa, false)
   for (const bad of [null, 'x', [], {}, { theme_payload: null }, { theme_payload: { mode: 'preset', primary_hex: '#000000' } }, { theme_payload: { mode: 'custom' } }, { theme_payload: { mode: 'custom', primary_hex: '#12' } }, { ...clone(TB_OK), preview: { ...clone(TB_OK).preview, source_colors: { secondary_hex: '#000000' } } }]) assert.equal(lib.parseBrandExtract(bad), null, JSON.stringify(bad)?.slice(0, 60))
   // the brand record: every case the proxy refuses, the pure check refuses too
@@ -764,6 +789,9 @@ function identityLibChecks(texts = {}) {
   deepEqual(idl.resolveDeckIdentityForm({ footer: 'Acme Corp' }, BROWSER), { company: 'Acme Corp' }, 'whole record: a field the kit left empty stays empty; the old browser values do not come back')
   deepEqual(idl.resolveDeckIdentityForm({ confidentiality: 'Internal' }, BROWSER), { confidentiality: 'Internal' }); deepEqual(idl.resolveDeckIdentityForm({ logo_url: 'https://cdn.example.test/l.png' }, {}), { logoUrl: 'https://cdn.example.test/l.png' })
   deepEqual(idl.resolveDeckIdentityForm({ footer: ' Acme ​ Corp ', logo_url: 'http://nope.example.test/l.png' }, BROWSER), { company: 'Acme Corp' }, 'cleaned like every identity value; an http logo is not a logo')
+  // the override on its own (the dialog's note reads it): null exactly when the browser form stands, and the very record a build sends otherwise
+  for (const kit of [null, undefined, {}, { heading_font: 'Lora' }, { logo_url: 'http://insecure.example.test/l.png' }, { footer: 'Your Company' }, { footer: '   ', confidentiality: '\u200b' }]) assert.equal(idl.brandKitIdentityOverride(kit), null, `${JSON.stringify(kit)}: no override`)
+  for (const kit of [KIT, { footer: 'Acme Corp' }, { confidentiality: 'Internal' }, { logo_url: 'https://cdn.example.test/l.png' }, { footer: ' Acme \u200b Corp ', logo_url: 'http://nope.example.test/l.png' }, { footer: 'A', confidentiality: 'B', logo_url: 'https://x.example.test/l.png' }]) deepEqual(idl.resolveDeckIdentityForm(kit, BROWSER), idl.brandKitIdentityOverride(kit), `${JSON.stringify(kit)}: a build sends exactly the override`)
   const identity = idl.buildDeckIdentity({ sessionName: 'Pat Presenter', form: idl.resolveDeckIdentityForm(KIT, BROWSER), now: NOW })
   deepEqual(identity, { presenter: 'Pat Presenter', company: 'Acme Corp', date: '2026-11-11', confidentiality: 'Confidential', logo_url: 'https://cdn.example.test/logo.png', source: 'form' }, 'the wire object: the presenter and the date as ever, source stays "form" (never "kit")')
   assert.ok(!('kit' in identity) && identity.source === 'form'); assert.ok(!/'kit'/.test((texts[IDLIB] ?? read(IDLIB)).split('\n').filter(l => /DeckIdentitySource/.test(l)).join('\n')), 'DeckIdentitySource is not widened (BK-Q10)')
@@ -799,6 +827,53 @@ async function identityHookChecks(texts = {}) {
   { const r = await probe({ kitFlag: 'true', plan: plan(KIT), stored: null, steps: 3 }); deepEqual(strip(r.last), { presenter: 'Pat Presenter', company: 'Acme Corp', date: '<date>', confidentiality: 'Confidential', logo_url: 'https://cdn.example.test/logo.png', source: 'form' }, 'with no browser copy the kit still carries the identity') }
   { const r = await probe({ kitFlag: 'true', plan: plan(KIT), steps: 6 }); assert.equal(r.log.length, 2, 'read once, however often it renders') }
   const src = texts[IDHOOK] ?? read(IDHOOK); assert.ok(/useStandardBrandKit\(enabled && isStudioBrandKitEnabled\(\)\)/.test(src), 'the read needs both the identity flag and the kit flag')
+}
+
+/**
+ * The Presenter details dialog's note (FRONTEND-2's finding 3): the REAL component and hook on the small React host. When the standard theme's kit replaces the browser fields for a build, the dialog says so and says what the deck takes instead;
+ * what it says is checked against the resolver a build uses (so the note cannot drift from the send); nothing is stored or changed; flag off and no kit draw nothing.
+ */
+const NOTE = 'components/builder/brand-kit-identity-note.tsx', DIALOG = 'components/builder/deck-identity-dialog.tsx'
+async function identityNoteChecks(texts = {}) {
+  const TYPED = { company: 'Typed Co', confidentiality: 'Typed in confidence', logoUrl: 'https://typed.example.test/typed.png' }
+  async function render({ kitFlag, open = true, plan, closeAfter = false }) {
+    const log = [], writes = []; const before = globalThis.window
+    globalThis.window = { localStorage: { getItem: () => JSON.stringify(TYPED), setItem: (...a) => writes.push(a), removeItem: (...a) => writes.push(a) }, addEventListener() {}, removeEventListener() {}, dispatchEvent() { return true } }
+    try {
+      const fetch = (url, init = {}) => { log.push(`${init.method ?? 'GET'} ${url}`); const out = plan(String(url)); if (out.throws) return Promise.reject(out.throws); return Promise.resolve(new Response(out.raw ?? JSON.stringify(out.body ?? {}), { status: out.status })) }
+      const w = createWorld({ env: flagEnv(kitFlag), texts, fetch }); const mod = w.load(NOTE), idl = w.load(IDLIB)
+      const r = new Root(); r.setElement(h(mod.BrandKitIdentityNote, { open })); r.flush(); for (let i = 0; i < 3; i++) { await tick(); r.flush() }
+      let closedText = null; if (closeAfter) { r.setElement(h(mod.BrandKitIdentityNote, { open: false })); r.flush(); await tick(); r.flush(); closedText = textOf(r.tree) }
+      const out = { log, writes, closedText, text: textOf(r.tree), notes: nodesBy(r.tree, n => n.type === 'p' && n.props?.role === 'note').map(n => n.props), idl }; r.unmount(); return out
+    } finally { globalThis.window = before }
+  }
+  const plan = (kit, { std = { status: 200, body: { theme: { id: 'theme-9' } } } } = {}) => url => (url === '/api/themes/standard' ? std : url === '/api/themes/theme-9/brand' ? { status: 200, body: { id: 'theme-9', brand: kit } } : { status: 404, body: {} })
+  // flag off (every spelling), or the dialog closed: nothing is fetched, nothing is drawn
+  for (const [label, value] of Object.entries(FLAG_OFF)) { const r = await render({ kitFlag: value, plan: plan(KIT) }); assert.equal(r.log.length, 0, `flag ${label}: nothing is fetched`); assert.equal(r.text, '', `flag ${label}: nothing is drawn`) }
+  { const r = await render({ kitFlag: 'true', open: false, plan: plan(KIT) }); assert.equal(r.log.length, 0, 'closed: nothing is fetched'); assert.equal(r.text, '', 'closed: nothing is drawn') }
+  { const r = await render({ kitFlag: 'true', plan: plan(KIT), closeAfter: true }); assert.ok(r.text.includes('brand kit is in effect'), 'open: drawn'); assert.equal(r.closedText, '', 'closed again: the note is gone even though the kit was read') }
+  // a kit in effect: the note, with what the deck takes instead; the typed values are not what it says
+  const cases = [[KIT, { company: 'Acme Corp', conf: 'Confidential', logo: true }], [{ footer: 'Acme Corp' }, { company: 'Acme Corp', conf: null, logo: false }], [{ confidentiality: 'Internal' }, { company: null, conf: 'Internal', logo: false }], [{ logo_url: 'https://cdn.example.test/l.png', heading_font: 'Lora' }, { company: null, conf: null, logo: true }], [{ footer: 'Acme Corp', logo_url: 'http://insecure.example.test/l.png' }, { company: 'Acme Corp', conf: null, logo: false }]]
+  for (const [kit, say] of cases) {
+    const r = await render({ kitFlag: 'true', plan: plan(kit) }); const t = r.text
+    deepEqual(r.log, ['GET /api/themes/standard', 'GET /api/themes/theme-9/brand'], 'the standard theme and its kit are read, once per opening')
+    assert.ok(t.length > 80 && /brand kit is in effect/.test(t), `${JSON.stringify(kit)}: the note says the kit is in effect`); assert.ok(/standard theme/.test(t), 'whose kit')
+    assert.equal(t.includes(`company line “${say.company}”`), say.company !== null, `company: ${JSON.stringify(kit)}`); assert.equal(t.includes('no company line'), say.company === null)
+    assert.equal(t.includes(`confidentiality line “${say.conf}”`), say.conf !== null, `confidentiality: ${JSON.stringify(kit)}`); assert.equal(t.includes('no confidentiality line'), say.conf === null)
+    assert.equal(t.includes('the kit’s logo'), say.logo, `logo: ${JSON.stringify(kit)}`); assert.equal(t.includes('no logo'), !say.logo)
+    // what it says is what a build sends (the same resolver), whatever the person typed
+    const sent = r.idl.resolveDeckIdentityForm(kit, TYPED); assert.equal(sent.company ?? null, say.company, 'the note and the build agree on the company'); assert.equal(sent.confidentiality ?? null, say.conf, 'the note and the build agree on the confidentiality line'); assert.equal(Boolean(sent.logoUrl), say.logo, 'the note and the build agree on the logo')
+    for (const typed of ['Typed Co', 'Typed in confidence', 'typed.example.test']) assert.ok(!t.includes(typed), `the person's typed value ${typed} is not shown as in effect`)
+    assert.ok(/kept, and is used again when your standard theme has no brand details/.test(t), 'what is typed here is kept'); assert.equal(r.writes.length, 0, 'nothing is stored or removed')
+    assert.equal(r.notes.length, 1, 'one note'); assert.equal(r.notes[0]['data-studio-deck-identity-note'], 'true', 'in the dialog\'s own note style')
+  }
+  // no kit in effect (a fonts-only kit, an unset kit, no standard theme, a failing read, the kit switched off): nothing is drawn and the dialog is exactly the base's
+  for (const [label, p] of [['a fonts-only kit', plan({ heading_font: 'Lora' })], ['an unset kit', plan(null)], ['an insecure logo only', plan({ logo_url: 'http://x.example.test/l.png' })], ['no standard theme', plan(KIT, { std: { status: 200, body: { theme: null } } })], ['the standard read failing', plan(KIT, { std: { status: 500, body: {} } })], ['not JSON', plan(KIT, { std: { status: 200, raw: 'oops' } })], ['the kit being off', url => (url === '/api/themes/standard' ? { status: 200, body: { theme: { id: 'theme-9' } } } : { status: 404, body: { code: 'kit_unavailable' } })], ['the kit read failing', url => (url === '/api/themes/standard' ? { status: 200, body: { theme: { id: 'theme-9' } } } : { status: 503, body: { code: 'unavailable' } })], ['a network error', () => ({ throws: new TypeError('x') })]]) { const r = await render({ kitFlag: 'true', plan: p }); assert.equal(r.text, '', `${label}: no note`); assert.equal(r.writes.length, 0) }
+  // the dialog mounts it once, inside the fields, passing whether it is open; both lines are this change's (the strip takes them out, the older dialog proof reads through it)
+  const dlg = texts[DIALOG] ?? read(DIALOG), lines = dlg.split('\n')
+  assert.equal(lines.filter(l => /^import \{ BrandKitIdentityNote \} from "\.\/brand-kit-identity-note"/.test(l) && MARKER_RE.test(l)).length, 1, 'the import, marked, once'); assert.equal(count(dlg, '<BrandKitIdentityNote open={open} />'), 1, 'the note is mounted once, with the dialog\'s open state')
+  { const at = lines.findIndex(l => l.includes('<BrandKitIdentityNote')), fields = lines.findIndex(l => l.includes('data-studio-deck-identity-fields=')), presenter = lines.findIndex(l => l.includes('<Label className="text-xs text-muted-foreground">Presenter</Label>')); assert.ok(fields > 0 && at > fields && at < presenter, 'inside the fields, above the Presenter row'); assert.ok(MARKER_RE.test(lines[at]), 'the mount line is marked') }
+  const note = texts[NOTE] ?? read(NOTE); assert.ok(/useStandardBrandKit\(open && isStudioBrandKitEnabled\(\)\)/.test(note), 'the read needs the dialog open and the kit flag'); assert.ok(!/localStorage|readDeckIdentityForm|writeDeckIdentityForm|useDeckIdentityForm/.test(note.replace(/\/\/.*$/gm, '')), 'the note never reads or writes the browser fields'); assert.ok(/brandKitIdentityOverride\(kit\)/.test(note), 'it reads the same resolver a build uses')
 }
 
 // ============================================================================================================================================
@@ -909,7 +984,8 @@ await check('G3. the hook module: browser pre-check, the one request, answers no
 await check('H. the page\'s marked lines run: the hook, Save off for a kit detail that cannot be saved, the brand save after the theme save, the reset, every mount gated', () => pageChecks())
 await check('I1. deck identity (pure): the kit replaces the browser copy for all three fields, footer to company, source "form"; no kit gives the browser form back untouched', () => identityLibChecks())
 await check('I2. deck identity (the hook): the standard theme\'s kit read once and fail soft, never held back; flag off is the base hook', () => identityHookChecks())
-await check('J1. sources: every changed line in an existing file carries the marker; the strip puts the base back byte for byte (7 app files, 11 older proofs); no bucket, no upload route, no migration', () => sourceChecks())
+await check('I3. the Presenter details dialog: the standard theme\'s kit in effect is SAID (what the deck takes instead, agreeing with the resolver a build uses); nothing stored; flag off, closed, no kit: nothing drawn', () => identityNoteChecks())
+await check('J1. sources: every changed line in an existing file carries the marker; the strip puts the base back byte for byte (8 app files, 12 older proofs); no bucket, no upload route, no migration', () => sourceChecks())
 await check('J2. .env.example: exactly this change\'s block, after one blank line; the registry takes it out; the voice-call pin already reads blocks after its own', () => envChecks())
 await check('J3. the registry: three marked lines at the true end of their lists right after the Agent mode shell\'s; read through it every app file is the base\'s', () => registryChecks())
 await check('J4. scope, read from the COMMITTED diff only: own commits by subject with the co-author line; every file is this change\'s; no secret-shaped literal; a stray untracked file changes nothing', () => scopeChecks())
@@ -917,7 +993,7 @@ await check('J4. scope, read from the COMMITTED diff only: own commits by subjec
 // ============================================================================================================================================
 // K. mutants: each is one edit of the real sources, fed to the same checks
 // ============================================================================================================================================
-const SRC = Object.fromEntries([EXTRACT, BRAND, SERVER, CAP, LIB, STATE, HOOKS, PANEL, WORKSPACE, IDLIB, IDHOOK, ...THEME_PROXY_FILES, REGISTRY, STRIP, ENVFILE].map(rel => [rel, rel === ENVFILE ? git('show', `HEAD:${ENVFILE}`) : read(rel)]))
+const SRC = Object.fromEntries([EXTRACT, BRAND, SERVER, CAP, LIB, STATE, HOOKS, PANEL, WORKSPACE, IDLIB, IDHOOK, NOTE, DIALOG, ...THEME_PROXY_FILES, REGISTRY, STRIP, ENVFILE].map(rel => [rel, rel === ENVFILE ? git('show', `HEAD:${ENVFILE}`) : read(rel)]))
 const runAll = async (fns, texts) => { for (const fn of fns) await fn(texts) }
 const mut = (label, rel, from, to, fns) => mutant(label, () => runAll(fns, { [rel]: swap(SRC[rel], from, to) }))
 const HK = [t => hookChecks(t)]
@@ -941,6 +1017,7 @@ await mut('extract: the stream is not bounded', EXTRACT, "    if (total > BRAND_
 await mut('extract: the cap is one MiB too generous', EXTRACT, 'if (total > BRAND_EXTRACT_MAX_BYTES)', 'if (total > BRAND_EXTRACT_MAX_BYTES + 1024 * 1024)', X)
 await mut('extract: an empty body is not refused', EXTRACT, "  if (bytes.byteLength === 0) return fail(400, 'empty')\n", '', X)
 await mut('extract: the first bytes are not checked', EXTRACT, "  if (sniffBrandImageMime(bytes) !== mime) return fail(415, 'type')\n", '', X)
+await mut('extract: the route\'s own limit is below the fetch deadline', EXTRACT, 'export const maxDuration = 90', 'export const maxDuration = 30', X)
 await mut('extract: the cap is not checked', EXTRACT, "  if (slot === 'cap') return fail(429, 'cap')\n", '', X)
 await mut('extract: an unreadable count lets the call through', EXTRACT, "  if (slot === 'unavailable') return fail(503, 'unavailable')\n", '', X)
 await mut('extract: the key check comes after the slot is taken', EXTRACT, "  const key = process.env.THEME_BUILDER_BRAND_EXTRACT_KEY\n  if (!key) return fail(503, 'unconfigured')\n", "  const slot0 = await takeBrandExtractSlot(userId)\n  const key = process.env.THEME_BUILDER_BRAND_EXTRACT_KEY\n  if (!key) return fail(503, 'unconfigured')\n", X)
@@ -960,13 +1037,22 @@ await mut('extract: no function duration beyond the fetch timeout', EXTRACT, 'ex
 await mut('extract: a client user id counts against someone else', EXTRACT, 'takeBrandExtractSlot(userId)', "takeBrandExtractSlot(req.headers.get('x-user-id') ?? userId)", X)
 
 // the cap
-await mut('cap: it is not recorded before the call', CAP, "    await recordRateEvent(BRAND_EXTRACT_CAP_BUCKET, 'user', userId)\n", '', X)
+await mut('cap: it is not recorded at all', CAP, "    await recordRateEvent(BRAND_EXTRACT_CAP_BUCKET, attempt, userId)\n", '', X)
+const CAP_BODY = "    const attempt = randomUUID()\n    await recordRateEvent(BRAND_EXTRACT_CAP_BUCKET, attempt, userId)\n    // this attempt's own row: its scope is a one-off, so no day bound is needed (and a clock a little behind the database's cannot lose it at midnight)\n    const own = await countRateEvents({ bucket: BRAND_EXTRACT_CAP_BUCKET, scope: attempt, subject: userId, since: new Date(0) })\n    if (own < 1) return 'unavailable'\n    const used = await countRateEvents({ bucket: BRAND_EXTRACT_CAP_BUCKET, subject: userId, since: startOfUtcDay(now) })\n    return used > brandExtractDailyCap() ? 'cap' : 'ok'\n"
+await mut('cap: it counts first and records after (the old order: a burst reads one count, a failed insert is a free call)', CAP, CAP_BODY, "    const used = await countRateEvents({ bucket: BRAND_EXTRACT_CAP_BUCKET, subject: userId, since: startOfUtcDay(now) })\n    if (used >= brandExtractDailyCap()) return 'cap'\n    await recordRateEvent(BRAND_EXTRACT_CAP_BUCKET, 'user', userId)\n    return 'ok'\n", X)
+await mut('cap: the own-row check is gone (a failed insert is a free call)', CAP, "    if (own < 1) return 'unavailable'\n", '', X)
+await mut('cap: the own-row check is the whole day\'s count (it passes on an earlier attempt\'s row)', CAP, 'scope: attempt, subject: userId, since: new Date(0) })', 'subject: userId, since: startOfUtcDay(now) })', X)
+await mut('cap: the one-off scope is one shared scope (an earlier attempt\'s row is this one\'s)', CAP, "    const attempt = randomUUID()\n", "    const attempt = 'user'\n", X)
+await mut('cap: the own-row check looks for the wrong person', CAP, 'scope: attempt, subject: userId, since: new Date(0) })', "scope: attempt, subject: 'everyone', since: new Date(0) })", X)
+await mut('cap: this attempt is not counted with itself (the total is read before it is recorded)', CAP, CAP_BODY, "    const attempt = randomUUID()\n    const used = await countRateEvents({ bucket: BRAND_EXTRACT_CAP_BUCKET, subject: userId, since: startOfUtcDay(now) })\n    await recordRateEvent(BRAND_EXTRACT_CAP_BUCKET, attempt, userId)\n    const own = await countRateEvents({ bucket: BRAND_EXTRACT_CAP_BUCKET, scope: attempt, subject: userId, since: new Date(0) })\n    if (own < 1) return 'unavailable'\n    return used > brandExtractDailyCap() ? 'cap' : 'ok'\n", X)
 await mut('cap: an unreadable count is "ok"', CAP, "  } catch {\n    return 'unavailable'\n  }", "  } catch {\n    return 'ok'\n  }", X)
-await mut('cap: one over the limit is allowed', CAP, 'if (used >= brandExtractDailyCap()) return', 'if (used > brandExtractDailyCap()) return', X)
-await mut('cap: counted over all time', CAP, 'since: startOfUtcDay(now) }', 'since: new Date(0) }', X)
+await mut('cap: one over the limit is allowed', CAP, "return used > brandExtractDailyCap() ? 'cap' : 'ok'", "return used > brandExtractDailyCap() + 1 ? 'cap' : 'ok'", X)
+await mut('cap: the last allowed call is refused', CAP, "return used > brandExtractDailyCap() ? 'cap' : 'ok'", "return used >= brandExtractDailyCap() ? 'cap' : 'ok'", X)
+await mut('cap: counted over all time', CAP, 'subject: userId, since: startOfUtcDay(now) })', 'subject: userId, since: new Date(0) })', X)
 await mut('cap: a bad setting disables it', CAP, "  if (typeof raw !== 'string' || !/^\\d{1,3}$/.test(raw.trim())) return BRAND_EXTRACT_DAILY_CAP\n", "  if (typeof raw !== 'string') return BRAND_EXTRACT_DAILY_CAP\n", X)
 await mut('cap: out-of-range settings are taken', CAP, "return value >= 1 && value <= 100 ? value : BRAND_EXTRACT_DAILY_CAP", "return value", X)
 await mut('cap: counted for the wrong subject', CAP, 'countRateEvents({ bucket: BRAND_EXTRACT_CAP_BUCKET, subject: userId,', "countRateEvents({ bucket: BRAND_EXTRACT_CAP_BUCKET, subject: 'everyone',", X)
+await mut('cap: counted in the wrong bucket', CAP, 'countRateEvents({ bucket: BRAND_EXTRACT_CAP_BUCKET, subject: userId,', "countRateEvents({ bucket: 'other', subject: userId,", X)
 
 // the brand proxy
 await mut('brand GET: the flag gate is gone', BRAND, "  if (!isStudioBrandKitEnabled()) return NextResponse.json({ error: 'Not found' }, { status: 404 })\n  const userId = await resolveUserId()\n  if (!userId) return refuse(401, 'signin')\n  const { id } = await context.params\n  try {", "  const userId = await resolveUserId()\n  if (!userId) return refuse(401, 'signin')\n  const { id } = await context.params\n  try {", FO)
@@ -1011,7 +1097,8 @@ await mut('lib: hexes are not lowercased', LIB, "HEX.test(value) ? value.toLower
 await mut('lib: a font outside the catalog is kept', LIB, "const body = canonicalThemeFont(brandRaw.body_font ?? payload.font_family)", "const body = (brandRaw.body_font ?? payload.font_family) as string | undefined", L)
 await mut('lib: passes_aa is taken from the answer', LIB, "passes_aa: ratio >= 4.5 })", "passes_aa: entry.passes_aa === true })", L)
 await mut('lib: a role colour that is not a hex is kept', LIB, "    const hex = hexOf(roleRaw[role])\n    if (hex) role_colors[role] = hex\n", "    if (roleRaw[role] !== undefined) role_colors[role] = String(roleRaw[role])\n", L)
-await mut('lib: a warning is kept as it came', LIB, "      const text = entry.replace(CONTROL, ' ').replace(/\\s+/g, ' ').trim()\n", "      const text = entry\n", L)
+await mut('lib: a warning is kept as it came', LIB, "      const text = entry.replace(CONTROL_ALL, ' ').replace(/\\s+/g, ' ').trim()\n", "      const text = entry\n", L)
+await mut('lib: only the first control character of a warning is replaced', LIB, "entry.replace(CONTROL_ALL, ' ')", "entry.replace(CONTROL, ' ')", L)
 await mut('lib: an out-of-range ratio is kept', LIB, 'entry.ratio >= 1 && entry.ratio <= 21 ? entry.ratio : null', 'entry.ratio : null', L)
 await mut('lib: a non-custom answer is accepted', LIB, "  if (payload.mode !== 'custom') return null\n", '', L)
 await mut('lib: an http logo is a logo', LIB, "if (url.protocol !== 'https:' || !url.hostname", "if ((url.protocol !== 'https:' && url.protocol !== 'http:') || !url.hostname", L)
@@ -1119,16 +1206,31 @@ await mut('page: the kit form sits outside the create form', WORKSPACE, "       
 
 // deck identity
 const ID = [t => identityLibChecks(t), t => identityHookChecks(t)]
-await mut('identity: the browser copy is merged per field', IDLIB, "  return { ...(company ? { company } : {}), ...(confidentiality ? { confidentiality } : {}), ...(logoUrl ? { logoUrl } : {}) }; // BRAND-KIT-CALLER", "  return { ...form, ...(company ? { company } : {}), ...(confidentiality ? { confidentiality } : {}), ...(logoUrl ? { logoUrl } : {}) }; // BRAND-KIT-CALLER", ID)
+await mut('identity: the browser copy is merged per field', IDLIB, "return brandKitIdentityOverride(kit) ?? form; }", "return { ...form, ...(brandKitIdentityOverride(kit) ?? {}) }; }", ID)
 await mut('identity: the footer goes to the confidentiality line', IDLIB, "...(company ? { company } : {}), ...(confidentiality ? { confidentiality } : {}), ...(logoUrl ? { logoUrl } : {}) }; // BRAND-KIT-CALLER", "...(company ? { confidentiality: company } : {}), ...(confidentiality ? { company: confidentiality } : {}), ...(logoUrl ? { logoUrl } : {}) }; // BRAND-KIT-CALLER", ID)
-await mut('identity: no kit gives a copy of the form', IDLIB, "  if (!logoUrl && !company && !confidentiality) return form; // BRAND-KIT-CALLER", "  if (!logoUrl && !company && !confidentiality) return { ...form }; // BRAND-KIT-CALLER", ID)
-await mut('identity: a fonts-only kit wipes the browser copy', IDLIB, "  if (!logoUrl && !company && !confidentiality) return form; // BRAND-KIT-CALLER", "  if (!kit) return form; // BRAND-KIT-CALLER", ID)
+await mut('identity: no kit gives a copy of the form', IDLIB, "return brandKitIdentityOverride(kit) ?? form; }", "return brandKitIdentityOverride(kit) ?? { ...form }; }", ID)
+await mut('identity: a fonts-only kit wipes the browser copy', IDLIB, "  if (!logoUrl && !company && !confidentiality) return null; // BRAND-KIT-CALLER", "  if (!kit) return null; // BRAND-KIT-CALLER", ID)
+await mut('identity: a build ignores the kit\'s company line but the note still names it', IDLIB, "return brandKitIdentityOverride(kit) ?? form; }", "return { ...(brandKitIdentityOverride(kit) ?? form), company: undefined }; }", [t => identityNoteChecks(t)])
 await mut('identity: the logo is not cleaned', IDLIB, "const logoUrl = cleanLogoUrl(kit?.logo_url), company", "const logoUrl = kit?.logo_url || undefined, company", ID)
 await mut('identity: the footer is not cleaned', IDLIB, "company = cleanIdentityValue(kit?.footer), confidentiality", "company = kit?.footer || undefined, confidentiality", ID)
 await mut('identity: the hook reads the kit with the flag off', IDHOOK, "useStandardBrandKit(enabled && isStudioBrandKitEnabled())", "useStandardBrandKit(enabled)", ID)
 await mut('identity: the hook reads the kit without the identity flag', IDHOOK, "useStandardBrandKit(enabled && isStudioBrandKitEnabled())", "useStandardBrandKit(isStudioBrandKitEnabled())", ID)
 await mut('identity: the hook ignores the kit', IDHOOK, "form: resolveDeckIdentityForm(brandKit, form), now", "form, now", ID)
 await mut('identity: the kit change does not recompute', IDHOOK, "}, [enabled, sessionName, form, brandKit]) // BRAND-KIT-CALLER", "}, [enabled, sessionName, form]) // BRAND-KIT-CALLER", ID)
+const NT = [t => identityNoteChecks(t)]
+await mut('note: it is drawn for a kit with no identity fields', NOTE, 'const override = brandKitIdentityOverride(kit)\n', 'const override = brandKitIdentityOverride(kit) ?? {}\n', NT)
+await mut('note: it reads while the dialog is closed', NOTE, 'useStandardBrandKit(open && isStudioBrandKitEnabled())', 'useStandardBrandKit(isStudioBrandKitEnabled())', NT)
+await mut('note: it is drawn while the dialog is closed', NOTE, 'if (!open || !override) return null', 'if (!override) return null', NT)
+await mut('note: the company and confidentiality are swapped', NOTE, 'BRAND_COPY.identityNote(override.company, override.confidentiality,', 'BRAND_COPY.identityNote(override.confidentiality, override.company,', NT)
+await mut('note: it says a logo is kept when the kit has none', NOTE, 'Boolean(override.logoUrl)', 'true', NT)
+await mut('note: it is not the dialog\'s own note style', NOTE, 'data-studio-deck-identity-note="true" ', '', NT)
+await mut('note: it writes the kit into the browser fields', NOTE, 'const override = brandKitIdentityOverride(kit)\n', 'const override = brandKitIdentityOverride(kit); if (override) window.localStorage.setItem("deck-identity", JSON.stringify(override))\n', NT)
+await mut('note: it reads the browser fields', NOTE, 'import { brandKitIdentityOverride } from "@/lib/deck-identity"', 'import { brandKitIdentityOverride, readDeckIdentityForm } from "@/lib/deck-identity"', NT)
+await mut('copy: the note forgets that what is typed is kept', LIB, 'What you type here is kept, and is used again when your standard theme has no brand details. ', '', NT)
+await mut('copy: the note does not say the kit is in effect', LIB, 'brand kit is in effect on new presentations', 'brand kit exists', NT)
+await mut('dialog: the note is not mounted', DIALOG, '            <BrandKitIdentityNote open={open} />{/* BRAND-KIT-CALLER: says when the standard theme\'s brand kit replaces the three fields below on a new deck (nothing with the flag off) */}\n', '', NT)
+await mut('dialog: the note is told the dialog is always open', DIALOG, '<BrandKitIdentityNote open={open} />', '<BrandKitIdentityNote open={true} />', NT)
+await mut('dialog: the note is mounted below the fields', DIALOG, '            <BrandKitIdentityNote open={open} />{/* BRAND-KIT-CALLER: says when the standard theme\'s brand kit replaces the three fields below on a new deck (nothing with the flag off) */}\n            <div className="space-y-1">\n              <Label className="text-xs text-muted-foreground">Presenter</Label>', '            <div className="space-y-1">\n              <Label className="text-xs text-muted-foreground">Presenter</Label>\n            <BrandKitIdentityNote open={open} />', NT)
 await mut('identity: the kit is read again on every render', HOOKS, "  }, [enabled])\n  return kit", "  }, [enabled, {}])\n  return kit", ID)
 await mut('identity: the read is not cancelled on unmount', HOOKS, "return () => { live = false; clearTimeout(timer); controller.abort() }", "return () => { live = false; clearTimeout(timer) }", ID)
 await mut('identity: the read reads the first theme, not the standard', HOOKS, "const standard = await fetch('/api/themes/standard', { cache: 'no-store', signal: controller.signal })", "const standard = await fetch('/api/themes', { cache: 'no-store', signal: controller.signal })", ID)

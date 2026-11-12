@@ -86,6 +86,7 @@ export interface BrandExtractResult {
 
 const HEX = /^#[0-9a-fA-F]{6}$/
 const CONTROL = /[\u0000-\u001f\u007f]/
+const CONTROL_ALL = /[\u0000-\u001f\u007f]/g // for replace(): every control character goes, not only the first (CONTROL has no `g`, so its .test() keeps no position between calls)
 const ROLE_NAME = /^[a-z][a-z0-9_]{0,39}$/
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 const hexOf = (value: unknown): string | undefined => (typeof value === 'string' && HEX.test(value) ? value.toLowerCase() : undefined)
@@ -167,7 +168,7 @@ export function parseBrandExtract(raw: unknown): BrandExtractResult | null {
   if (Array.isArray(previewRaw.warnings)) {
     for (const entry of previewRaw.warnings.slice(0, 20)) {
       if (typeof entry !== 'string') continue
-      const text = entry.replace(CONTROL, ' ').replace(/\s+/g, ' ').trim()
+      const text = entry.replace(CONTROL_ALL, ' ').replace(/\s+/g, ' ').trim()
       if (text) warnings.push(text.slice(0, 300))
     }
   }
@@ -354,6 +355,9 @@ export const BRAND_COPY = {
   savedDetailsNone: 'No brand details saved on this theme.',
   savedDetailsUnavailable: 'Brand details could not be read right now.',
   savedDetailsLoading: 'Reading brand details…',
+  // the Presenter details dialog (BK-Q2, whole record): what the standard theme's kit does to the three fields a new deck takes from it
+  identityNote: (company: string | undefined, confidentiality: string | undefined, hasLogo: boolean) =>
+    `Your standard theme’s brand kit is in effect on new presentations. It replaces the three fields below: ${company ? `company line “${company}”` : 'no company line'}; ${confidentiality ? `confidentiality line “${confidentiality}”` : 'no confidentiality line'}; ${hasLogo ? 'the kit’s logo' : 'no logo'}. What you type here is kept, and is used again when your standard theme has no brand details. Change the kit on the Themes page.`,
 } as const
 
 /** What a refused or failed extraction says, and what to do next. A retry is a fresh click, and each attempt may count towards today's limit (BK-C9). */

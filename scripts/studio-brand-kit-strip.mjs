@@ -27,14 +27,15 @@ export const THEME_PROXY_FILES = ['app/api/themes/route.ts', 'app/api/themes/[id
 export const THEMES_WORKSPACE = 'components/studio-libraries/themes-workspace.tsx'
 export const DECK_IDENTITY_LIB = 'lib/deck-identity.ts'
 export const DECK_IDENTITY_HOOK = 'hooks/use-deck-identity.ts'
+export const DECK_IDENTITY_DIALOG = 'components/builder/deck-identity-dialog.tsx'
 /** Existing app files that get marked lines. */
-export const BRAND_KIT_APP_FILES = [...THEME_PROXY_FILES, THEMES_WORKSPACE, DECK_IDENTITY_LIB, DECK_IDENTITY_HOOK]
+export const BRAND_KIT_APP_FILES = [...THEME_PROXY_FILES, THEMES_WORKSPACE, DECK_IDENTITY_LIB, DECK_IDENTITY_HOOK, DECK_IDENTITY_DIALOG]
 /** New files (no base text to put back). */
 export const BRAND_KIT_NEW_FILES = [
   'lib/studio-brand-kit.ts', 'lib/studio-brand-kit-state.ts', 'lib/studio-brand-kit-server.ts', 'lib/studio-brand-kit-cap.ts',
   'hooks/use-brand-kit.ts',
   'app/api/brand/extract/route.ts', 'app/api/themes/[id]/brand/route.ts',
-  'components/studio-libraries/brand-kit-panel.tsx', 'components/studio-libraries/brand-kit.css',
+  'components/studio-libraries/brand-kit-panel.tsx', 'components/studio-libraries/brand-kit.css', 'components/builder/brand-kit-identity-note.tsx',
   'scripts/studio-brand-kit-strip.mjs', 'scripts/test-studio-brand-kit.mjs',
 ]
 
@@ -89,11 +90,17 @@ export const BRAND_KIT_EDITS = {
     ["// BRAND-KIT-CALLER (the same object, so flag-off and kit-absent output is byte-identical to today). Otherwise the kit REPLACES the browser copy for all three fields (BK-Q2, whole record: a field the kit left empty stays empty, an old browser value never comes back):\n", ""],
     ["// BRAND-KIT-CALLER kit.logo_url to logoUrl, kit.confidentiality to confidentiality, kit.footer to company (the only free-text slot: DeckIdentity has no footer field and Director composes the footer from identity). `source` stays what buildDeckIdentity says (\"form\").\n", ""],
     ["export interface BrandKitIdentityInput { logo_url?: string | null; footer?: string | null; confidentiality?: string | null } // BRAND-KIT-CALLER\n", ""],
-    ["export function resolveDeckIdentityForm(kit: BrandKitIdentityInput | null | undefined, form: DeckIdentityForm): DeckIdentityForm { // BRAND-KIT-CALLER\n", ""],
+    ["// BRAND-KIT-CALLER brandKitIdentityOverride is that replacement on its own (null when the kit supplies none of the three): the Presenter details dialog reads it too, so what it tells the person is what a build sends.\n", ""],
+    ["export function brandKitIdentityOverride(kit: BrandKitIdentityInput | null | undefined): DeckIdentityForm | null { // BRAND-KIT-CALLER\n", ""],
     ["  const logoUrl = cleanLogoUrl(kit?.logo_url), company = cleanIdentityValue(kit?.footer), confidentiality = cleanIdentityValue(kit?.confidentiality); // BRAND-KIT-CALLER\n", ""],
-    ["  if (!logoUrl && !company && !confidentiality) return form; // BRAND-KIT-CALLER\n", ""],
+    ["  if (!logoUrl && !company && !confidentiality) return null; // BRAND-KIT-CALLER\n", ""],
     ["  return { ...(company ? { company } : {}), ...(confidentiality ? { confidentiality } : {}), ...(logoUrl ? { logoUrl } : {}) }; // BRAND-KIT-CALLER\n", ""],
     ["} // BRAND-KIT-CALLER\n", ""],
+    ["export function resolveDeckIdentityForm(kit: BrandKitIdentityInput | null | undefined, form: DeckIdentityForm): DeckIdentityForm { return brandKitIdentityOverride(kit) ?? form; } // BRAND-KIT-CALLER\n", ""],
+  ],
+  "components/builder/deck-identity-dialog.tsx": [
+    ["import { BrandKitIdentityNote } from \"./brand-kit-identity-note\" // BRAND-KIT-CALLER (NEXT_PUBLIC_STUDIO_BRAND_KIT)\n", ""],
+    ["            <BrandKitIdentityNote open={open} />{/* BRAND-KIT-CALLER: says when the standard theme's brand kit replaces the three fields below on a new deck (nothing with the flag off) */}\n", ""],
   ],
   "hooks/use-deck-identity.ts": [
     ["import { resolveDeckIdentityForm } from '@/lib/deck-identity' // BRAND-KIT-CALLER\n", ""],
@@ -124,6 +131,9 @@ const CT_WAS = "const currentText=stripLaunchWording(file,fs.readFileSync(new UR
 const RM_NOW = `const readMutable = makeReader(MUTATIONS, 'THEME_MANAGE_TEST_MUTATION') // ${MARK}\n`
 const RM_WAS = "const read = makeReader(MUTATIONS, 'THEME_MANAGE_TEST_MUTATION')\n"
 const RM_WRAP = `const read = rel => stripLaterChanges(rel, readMutable(rel)) // ${MARK}: a later change's marked lines (the Brand Kit's, in the Themes page and the theme proxies) come out first\n`
+// the Presenter details dialog's proof reads the dialog's source raw and holds it to its original byte for byte: it now reads the file through stripLaterChanges, so this change's two marked lines (the kit-in-effect note) come out first
+const DLG_NOW = `const source = stripLaterChanges(path, fs.readFileSync(new URL(\`../\${path}\`, import.meta.url), 'utf8')) // ${MARK}: a later change's marked lines come out first\n`
+const DLG_WAS = "const source = fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')\n"
 export const BRAND_KIT_PIN_EDITS = {
   // two older proofs walk the first-parent line of BASE..HEAD without merges and require every subject on it to be their own: this change's commits (subject "Brand kit caller:") are left out of that line, like every later change's
   'scripts/test-studio-chat-element-edit.mjs': [[PIN_LINE, '']],
@@ -138,6 +148,7 @@ export const BRAND_KIT_PIN_EDITS = {
   'scripts/test-studio-theme-support-access.mjs': LM_PAIRS,
   'scripts/test-studio-theme-draft-ownership.mjs': [[REG_IMPORT, ''], [CT_NOW, CT_WAS]],
   'scripts/test-studio-theme-library-manage.mjs': [[REG_IMPORT, ''], [RM_NOW, RM_WAS], [RM_WRAP, '']],
+  'scripts/test-studio-deck-identity-dialog.mjs': [[REG_IMPORT, ''], [DLG_NOW, DLG_WAS]],
 }
 /** Where the taught lines go: right after the line that starts with this text, per proof. */
 export const BRAND_KIT_PIN_ANCHORS = {

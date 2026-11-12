@@ -25,7 +25,7 @@ export const maxDuration = 90
 //   - the key is THEME_BUILDER_BRAND_EXTRACT_KEY (server only, never NEXT_PUBLIC_, never logged, never sent to the browser); the one request carries Content-Type and X-API-Key and nothing else the browser sent (no cookies, no
 //     attribution headers: only a verified token-mode identity is attributed by Theme Builder, and Studio sends none);
 //   - the body is the raw PNG or JPEG bytes (not multipart, not base64), at most 4 MiB, and its first bytes must say it is what its Content-Type says: a bad file is refused here, before anything is counted or paid;
-//   - one request is one paid call: a per-person daily cap (STUDIO_BRAND_EXTRACT_DAILY_CAP, default 10, counted before the call and failing closed), no retry, redirects refused, a fetch timeout above Theme Builder's worst case;
+//   - one request is one paid call: a per-person daily cap (STUDIO_BRAND_EXTRACT_DAILY_CAP, default 10: the attempt is recorded, then counted with itself, before the call; a failed record or an unreadable count is no call), no retry, redirects refused, a fetch timeout above Theme Builder's worst case;
 //   - the answer is Theme Builder's own preview, cleaned (lib/studio-brand-kit.ts parseBrandExtract), with Cache-Control: no-store; every failure is a fixed Studio sentence, never Theme Builder's text.
 const NO_STORE = { 'Cache-Control': 'no-store' }
 
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
   if (bytes.byteLength === 0) return fail(400, 'empty')
   if (sniffBrandImageMime(bytes) !== mime) return fail(415, 'type')
 
-  // one more paid call for this person today? counted BEFORE the call (any outcome may have reached the model); unreadable count = no call
+  // one more paid call for this person today? recorded, then counted including this attempt, BEFORE the call (any outcome may have reached the model); a record that did not land or a count that cannot be read = no call
   const slot = await takeBrandExtractSlot(userId)
   if (slot === 'cap') return fail(429, 'cap')
   if (slot === 'unavailable') return fail(503, 'unavailable')
