@@ -1213,7 +1213,7 @@ await pageMutant('a control is marked even when Director did not take it', 'if (
 await pageMutant('the session effect resets on the first save of a new chat', 'agentSessionChanged(agentSessionRef.current, currentSessionId)', 'agentSessionRef.current !== currentSessionId')
 await pageMutant('the session effect never resets', 'if (agentSessionChanged(agentSessionRef.current, currentSessionId)) {', 'if (false) {')
 await pageMutant('the session effect keeps the picked mode', 'dispatchAgentRun(AGENT_WIRE_RESET); setBuildMode(\'standard\'); setBuildModeFrom(undefined) }', 'dispatchAgentRun(AGENT_WIRE_RESET) }')
-await pageMutant('the session effect runs with the flag off', 'if (!STUDIO_AGENT_MODE_ENABLED) return // AGENT-MODE-WIRE', '')
+await pageMutant('the session effect runs with the flag off', 'if (!STUDIO_AGENT_MODE_ENABLED) return // AGENT-MODE-WIRE\n    if (agentSessionChanged(', 'if (agentSessionChanged(')
 await pageMutant('one build send loses the build mode', '          ...buildSendOptions,\n          ...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE\n          manualDeck: turnContext?.manualDeck,', '          ...buildSendOptions,\n          manualDeck: turnContext?.manualDeck,')
 await pageMutant('the build mode ref is never written', 'agentBuildModeRef.current = STUDIO_AGENT_MODE_ENABLED ? typedBuildMode(buildModeWire, agentPlan) : undefined // AGENT-MODE-WIRE', 'void buildModeWire // AGENT-MODE-WIRE')
 await pageMutant('the cards sit outside the scroll area (before the message list)', "{STUDIO_AGENT_MODE_ENABLED && agentRun.status !== 'idle' ? <div ref={agentCardsRef}", "{STUDIO_AGENT_MODE_ENABLED && agentRun.status !== 'idle' && false ? <div ref={agentCardsRef}")
