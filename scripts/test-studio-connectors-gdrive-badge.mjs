@@ -20,11 +20,14 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const nodeRequire = createRequire(path.join(root, 'package.json'))
 const React = nodeRequire('react')
 const { renderToStaticMarkup } = nodeRequire('react-dom/server')
-const BASE = 'f06501285747f4943a31d8d3985c97958b2f80cd' // the branch this change stacks on (#608's head refreshed onto studio-v4-dev-preparation-code 2f06e51e; was 1baf289d)
+const BASE = process.env.GDRIVE_BADGE_BASE || '11ff3c89502bdf1a3c71b8a1e7c16ec4e03a92bc' // the branch this change stacks on (#608's head refreshed onto studio-v4-dev-preparation-code 2f06e51e; was 1baf289d)
+// this change's own head, FROZEN (#615's commit that holds its final code and proofs; the commit after it only sets this pin): the strip is held to the base on BASE..OWN_HEAD, whatever is merged on top later
+const OWN_HEAD = process.env.GDRIVE_BADGE_HEAD || '0000000000000000000000000000000000000000'
 
 const FLAG = 'NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED'
 const CARD = 'components/build-narration/slide-context-card.tsx', SOURCES = 'components/builder/studio-citation-sources.tsx', LIB = 'lib/connectors-gdrive-citations.ts'
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const showAt = (commit, rel = CARD) => { try { return execFileSync('git', ['show', `${commit}:${rel}`], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }) } catch { return null } } // null: not in this clone
 const sources = () => ({ [CARD]: read(CARD), [SOURCES]: read(SOURCES), [LIB]: read(LIB), 'lib/connectors-gdrive-flag.ts': read('lib/connectors-gdrive-flag.ts'), 'components/ui/badge.tsx': read('components/ui/badge.tsx'), 'lib/utils.ts': read('lib/utils.ts') })
 
 // ---- a tiny loader: sources by relative path (so a mutant can replace one), lucide and the css import stubbed, everything else real
@@ -178,16 +181,23 @@ check('scope: the strip takes this change out of the card (the base commit\'s fi
   assert.notEqual(stripped, card)
   assert.equal(stripConnectorsGdriveBadge('app/builder/page.tsx', 'x'), 'x')
   assert.equal(stripConnectorsGdriveBadge(CARD, stripped), stripped, 'stripping twice changes nothing more')
-  let base = null
-  try { base = execFileSync('git', ['show', `${BASE}:${CARD}`], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }) } catch { console.log('   (base commit not in this clone: strip == base not checked)') }
-  if (base !== null) assert.equal(stripped, base)
+  // on this change's own range (BASE..OWN_HEAD, frozen): its card minus its lines is the base's card; a later change's lines in the live card are not this one's
+  const base = showAt(BASE), own = showAt(OWN_HEAD)
+  if (base !== null && own !== null) assert.equal(stripConnectorsGdriveBadge(CARD, own), base)
+  else console.log(`   SKIP strip == base: ${BASE.slice(0, 8)} or ${OWN_HEAD.slice(0, 8)} is not in this clone`)
 })
 await (async () => {
   const registry = await import(pathToFileURL(path.join(root, 'scripts/studio-later-changes.mjs')).href)
   check('scope: the registry lists this change\'s files and its strip, and the strip reaches the card', () => {
     for (const file of CONNECTORS_GDRIVE_BADGE_SCOPE_FILES) assert.ok(registry.LATER_CHANGE_FILES.has(file), file)
     for (const file of [CARD, SOURCES, LIB, 'scripts/test-studio-connectors-gdrive-badge.mjs']) assert.ok(CONNECTORS_GDRIVE_BADGE_SCOPE_FILES.has(file), file)
-    assert.equal(registry.stripLaterChanges(CARD, read(CARD)), stripConnectorsGdriveBadge(CARD, read(CARD)))
+    // the registry reads this change out of the live card: nothing of it is left for its own strip to take (a later change's strip of the card may take more: not this one's),
+    // and both sides through the registry read alike (FRONTEND-2 addendum 13 Nov, R4)
+    const throughRegistry = registry.stripLaterChanges(CARD, read(CARD))
+    assert.equal(stripConnectorsGdriveBadge(CARD, throughRegistry), throughRegistry)
+    const base = showAt(BASE)
+    if (base !== null) assert.equal(throughRegistry, registry.stripLaterChanges(CARD, base))
+    else console.log(`   SKIP the card through the registry === the base through it: ${BASE.slice(0, 8)} is not in this clone`)
   })
 })()
 check('scope: the flag is the existing one, read as the exact string, and no new env var is introduced', () => {

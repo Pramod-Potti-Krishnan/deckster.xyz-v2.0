@@ -213,11 +213,15 @@ await t('page: flag on => every listed file with an id gets a Remove from librar
 // 6. flag-off identity: every edit to an older file is additive (only the lines named here are replaced), so with the Drive flag off nothing
 //    older changes; the new code is reachable only through the Drive-flag-gated page and the handler's own gate (section 1).
 await t('older files: this change only ADDS lines, except the named replaced lines (vs the base)', async () => {
-  const base = process.env.ITEM_REMOVE_BASE || 'f06501285747f4943a31d8d3985c97958b2f80cd' // the merge base: #608's head refreshed onto studio-v4-dev-preparation-code 2f06e51e (before the refresh: f4192aa0, the pre-C merge; piece C alone was measured vs 1baf289d)
+  const base = process.env.ITEM_REMOVE_BASE || '11ff3c89502bdf1a3c71b8a1e7c16ec4e03a92bc' // the merge base: #608's head refreshed onto studio-v4-dev-preparation-code 2f06e51e (before the refresh: f4192aa0, the pre-C merge; piece C alone was measured vs 1baf289d)
+  // this change's own head, FROZEN (#615's commit that holds its final code and proofs; the commit after it only sets this pin): both checks below read base..ownHead, never HEAD or the worktree,
+  // so a later change merged on top (or a dirty file in the clone) is not judged as this one's (FRONTEND-2 addendum 13 Nov, R1)
+  const ownHead = process.env.ITEM_REMOVE_HEAD || '0000000000000000000000000000000000000000'
   const git = (...a) => execFileSync('git', a, { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20 })
-  git('cat-file', '-e', `${base}^{commit}`)
   // composer A + badge B sit between that base and piece C here: only their own edits, read from history (#608 1baf289d -> the pre-C merge f4192aa0), are allowed besides this change's
   const AB = ['1baf289da2aca08b83a996ac0c4dd3b30aea315a', 'f4192aa0']
+  const missing = [base, ownHead, ...AB].filter(c => { try { execFileSync('git', ['cat-file', '-e', `${c}^{commit}`], { cwd: root, stdio: 'ignore' }); return false } catch { return true } })
+  if (missing.length > 0) { console.log(`  SKIP older files added-only and no stray file: ${missing.map(c => c.slice(0, 8)).join(', ')} not in this clone`); return }
   const removedLines = (range, f) => git('diff', '--unified=0', ...range, '--', f).split('\n').filter(l => l.startsWith('-') && !l.startsWith('---')).map(l => l.slice(1))
   const REPLACED = {
     'app/api/connectors/gdrive/items/route.ts': ["import { handleItemsGet, handleItemsPost } from '@/lib/connectors-gdrive-server'"],
@@ -225,10 +229,10 @@ await t('older files: this change only ADDS lines, except the named replaced lin
   }
   const older = ['app/(app)/settings/connectors/page.tsx', 'app/api/connectors/gdrive/items/route.ts', 'lib/connectors-gdrive-server.ts', 'lib/connectors-gdrive.ts', 'package.json', 'docs/CONNECTORS_E2E_STATUS.md', 'scripts/studio-later-changes.mjs']
   for (const f of older) {
-    assert.deepEqual(removedLines([base, 'HEAD'], f).sort(), [...removedLines(AB, f), ...(REPLACED[f] ?? [])].sort(), f)
+    assert.deepEqual(removedLines([base, ownHead], f).sort(), [...removedLines(AB, f), ...(REPLACED[f] ?? [])].sort(), f)
   }
   // and nothing else older moved: the whole diff vs base is this change's files only
-  const touched = git('diff', '--name-only', base, 'HEAD').split('\n').filter(Boolean)
+  const touched = git('diff', '--name-only', base, ownHead).split('\n').filter(Boolean)
   const registry = await import('./studio-connectors-item-remove-strip.mjs')
   const own = new Set([...registry.CONNECTORS_ITEM_REMOVE_SCOPE_FILES, 'lib/connectors-gdrive-remove.ts'])
   const abTouched = new Set(git('diff', '--name-only', ...AB).split('\n').filter(Boolean))

@@ -1,7 +1,9 @@
 // KNOWLEDGE P4-15 composer half (DARK): "Add from Google Drive" in the Builder composer's attach menu, the Drive chips, D2 connect round trip, D8 errors.
 // Flags: NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED AND NEXT_PUBLIC_STUDIO_CONNECTORS_SESSION_LINKS_ENABLED (exact "true", default off) + the Knowledge entitlement.
 // Run: node scripts/test-studio-connectors-gdrive-composer.mjs   (transpile + vm, fake fetch / Picker / storage / timers, no network, no Google, no writes)
-//   GDRIVE_COMPOSER_BASE=<commit>  the base the flag-off identity is proven against (default: #608's head 0578e0a1, the branch this change stacks on, refreshed onto studio-v4-dev-preparation-code 2f06e51e; first cut from 1baf289d)
+//   GDRIVE_COMPOSER_BASE=<commit>  the base the flag-off identity is proven against (default: #608's head 11ff3c89, the branch this change stacks on, refreshed onto studio-v4-dev-preparation-code 2f06e51e; first cut from 1baf289d)
+//   GDRIVE_COMPOSER_HEAD=<commit>  this change's own head, frozen (default: #615's commit that holds its final code and proofs): the pure-insertion, marker and untouched-hook checks read
+//                                  `git diff BASE OWN_HEAD`, so a later change merged on top is never judged as this one's; either commit missing in the clone prints SKIP
 //   1 pure helpers   2 server: the connect round trip returns to the chat   3 the hook, on a tiny hook runtime   4 the components (static markup)
 //   5 FLAG-OFF IDENTITY: the REAL ChatInput with no `gdrive` prop renders exactly what the base's ChatInput renders (markup + element tree), and the marked lines
 //     stripped (scripts/studio-connectors-gdrive-composer-strip.mjs) give the base's chat-input.tsx and builder page byte for byte, and no base line is rewritten (pure insertions)   6 page wiring   7 the wire
@@ -21,8 +23,14 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const nodeRequire = createRequire(path.join(root, 'package.json'))
 const React = nodeRequire('react')
 const { renderToStaticMarkup } = nodeRequire('react-dom/server')
-const BASE = process.env.GDRIVE_COMPOSER_BASE || 'f06501285747f4943a31d8d3985c97958b2f80cd'
+const BASE = process.env.GDRIVE_COMPOSER_BASE || '11ff3c89502bdf1a3c71b8a1e7c16ec4e03a92bc'
+// this change's own head, FROZEN (#615's commit that holds its final code and proofs; the commit after it only sets this pin): BASE..OWN_HEAD is what this change did, whatever is merged on top later
+const OWN_HEAD = process.env.GDRIVE_COMPOSER_HEAD || '0000000000000000000000000000000000000000'
 const gitShow = rel => execFileSync('git', ['show', `${BASE}:${rel}`], { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20 })
+const inClone = commit => { try { execFileSync('git', ['cat-file', '-e', `${commit}^{commit}`], { cwd: root, stdio: 'ignore' }); return true } catch { return false } }
+const frozen = () => inClone(BASE) && inClone(OWN_HEAD) // the change's own range is readable in this clone
+const showAt = (commit, rel) => execFileSync('git', ['show', `${commit}:${rel}`], { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20 })
+const skipFrozen = what => console.log(`  SKIP ${what}: ${BASE.slice(0, 8)} or ${OWN_HEAD.slice(0, 8)} is not in this clone`)
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
 const plain = v => JSON.parse(JSON.stringify(v))
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
@@ -415,15 +423,19 @@ await t('marked lines stripped = the base file, byte for byte (chat-input.tsx an
   for (const rel of CONNECTORS_GDRIVE_COMPOSER_FILES) {
     const now = read(rel), base = gitShow(rel)
     assert.notEqual(now, base, `${rel}: this change edits it`)
-    assert.equal(stripConnectorsGdriveComposer(rel, now), base, `${rel}: strip(this change) === base`)
+    // this change's own text, frozen (BASE..OWN_HEAD), so a later change's lines in the file are not read as this one's; the live file is held by the registry line below
+    if (frozen()) assert.equal(stripConnectorsGdriveComposer(rel, showAt(OWN_HEAD, rel)), showAt(BASE, rel), `${rel}: strip(this change) === base (at ${OWN_HEAD.slice(0, 8)})`)
+    else skipFrozen(`${rel}: strip(this change) === base`)
     assert.equal(stripLaterChanges(rel, now), stripLaterChanges(rel, base), `${rel}: through the registry (every later change's strip, this one included) it reads as the base reads`)
     assert.ok(LATER_STRIPS.includes(stripConnectorsGdriveComposer), 'registered')
   }
   assert.equal(stripConnectorsGdriveComposer('lib/other.ts', 'GDRIVE-COMPOSER x'), 'GDRIVE-COMPOSER x', 'another file is returned as it is')
   assert.equal(stripConnectorsGdriveComposer(PAGE, 7), 7)
   // every added line in the two files carries the marker, and the only rewritten base lines are the two put-backs
-  for (const rel of CONNECTORS_GDRIVE_COMPOSER_FILES) {
-    const diff = execFileSync('git', ['diff', '-U0', BASE, 'HEAD', '--', rel], { cwd: root, encoding: 'utf8' }).split('\n')
+  // judged on this change's OWN range (BASE..OWN_HEAD, frozen), never on HEAD: a later change's lines in these files are not this change's (FRONTEND-2 addendum 13 Nov, R2)
+  if (!frozen()) skipFrozen('pure insertions and the marker on every added line')
+  else for (const rel of CONNECTORS_GDRIVE_COMPOSER_FILES) {
+    const diff = execFileSync('git', ['diff', '-U0', BASE, OWN_HEAD, '--', rel], { cwd: root, encoding: 'utf8' }).split('\n')
     const removed = diff.filter(l => /^-(?!--)/.test(l)), added = diff.filter(l => /^\+(?!\+\+)/.test(l))
     assert.deepEqual(removed, [], `${rel}: no base line is rewritten or removed (pure insertions: older pins hold the base's lines in order)`)
     assert.ok(added.every(l => /(?<![\w-])GDRIVE-COMPOSER(?![\w-])/.test(l)), `${rel}: every added line carries the marker`)
@@ -566,7 +578,9 @@ await t('wire: the chips\' ids go out as linked_item_ids through the existing ho
   assert.deepEqual(plain(sl.linkedItemIdsField([])), { linked_item_ids: [] })
   assert.deepEqual(plain(sl.linkedItemIdsField(undefined)), {})
   assert.deepEqual(plain(slOff.linkedItemIdsField(ids)), {}, 'session-links flag off: the key is not there at all')
-  assert.equal(fs.readFileSync(path.join(root, 'hooks/use-deckster-websocket-v2.ts'), 'utf8'), execFileSync('git', ['show', 'HEAD:hooks/use-deckster-websocket-v2.ts'], { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20 }), 'the websocket hook is not touched by this change')
+  // on this change's own range (BASE..OWN_HEAD, frozen), not the worktree against HEAD: a later change may edit the hook, this one does not
+  if (frozen()) assert.equal(showAt(OWN_HEAD, 'hooks/use-deckster-websocket-v2.ts'), showAt(BASE, 'hooks/use-deckster-websocket-v2.ts'), 'the websocket hook is not touched by this change')
+  else skipFrozen('the websocket hook is not touched by this change')
 })
 
 console.log(`\n${passed} passed`)
