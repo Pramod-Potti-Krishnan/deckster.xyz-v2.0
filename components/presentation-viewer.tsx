@@ -169,6 +169,7 @@ import {
   visualTotalAfterCommit,
 } from '@/lib/studio-slide-count-sync'
 import { STUDIO_DECK_SYNC_TRUTH_ENABLED, syncTruthSettledTotals } from '@/lib/studio-deck-sync-truth' // DECK-SYNC-TRUTH (NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH, default off): after a poll the totals are the viewer's own count, not a floor restored too high
+import { STUDIO_PRESENT_EXIT_FIX_ENABLED, presentExitDesynced, leaveBrowserFullscreen } from '@/lib/studio-present-exit' // AUDIT-PRESENT-EXIT
 
 const DEFAULT_BUILD_THEME_SELECTION: BuildThemeSelection = { mode: 'auto' }
 
@@ -759,6 +760,7 @@ export function PresentationViewer({
   const slideTotalsRef = useRef({ total: 0, visual: 0 })
   slideTotalsRef.current = { total: totalSlides, visual: visualTotalSlides }
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const isFullscreenRef = useRef(isFullscreen); isFullscreenRef.current = isFullscreen // AUDIT-PRESENT-EXIT: the toggle reads the page's own state through a ref (its callback is not rebuilt for it)
   // A4: while Present is on, a separate `?viewOnly=true` frame covers the editing frame so audiences
   // never see authoring placeholders. Flag NEXT_PUBLIC_PRESENT_VIEW_ONLY_ENABLED, default off = unchanged.
   const presentViewOnlyEnabled = isPresentViewOnlyEnabled()
@@ -3705,6 +3707,7 @@ export function PresentationViewer({
     if (!isCurrent()) return
 
     try {
+      if (presentExitDesynced(STUDIO_PRESENT_EXIT_FIX_ENABLED, isFullscreenRef.current, Boolean(document.fullscreenElement))) { await leaveBrowserFullscreen(document); if (!isCurrent()) return; setIsFullscreen(false); return } // AUDIT-PRESENT-EXIT: the page says presenting, the browser says not full screen: Exit leaves Present (the toggle below would ask for fullscreen again)
       if (!document.fullscreenElement) {
         if (studioShell && iframeRef.current) {
           const targetIframe = interaction!.iframe

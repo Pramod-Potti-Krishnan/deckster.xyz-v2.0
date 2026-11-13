@@ -4,6 +4,8 @@ import { useRef, useState, type SyntheticEvent } from 'react'
 import { ImageIcon } from 'lucide-react'
 import { resolveStudioPublishPreview, type StudioPublishPreviewSource } from '@/lib/studio-publish-preview'
 import { useStudioPublishPreviewInventory } from '@/hooks/use-studio-publish-preview-inventory'
+import { useStudioPublishPreviewFrame } from '@/hooks/use-studio-publish-preview-frame' // AUDIT-PREVIEWS (NEXT_PUBLIC_STUDIO_INVENTORY_FALLBACK, default off)
+import { PublishPreviewFrame } from '@/components/studio-publish-preview-frame' // AUDIT-PREVIEWS
 
 interface Props {
   sessionId: string
@@ -15,11 +17,14 @@ export function StudioPublishPreview({ sessionId, source }: Props) {
   const resolved = resolveStudioPublishPreview(sessionId, source)
   // NEXT_PUBLIC_STUDIO_PUBLISH_PREVIEW_INVENTORY_ENABLED (default off): with no live or restored image, Layout's inventory slide 0 when fresh. Off: `resolved`, as before.
   const preview = useStudioPublishPreviewInventory(sessionId, source, resolved)
+  const frame = useStudioPublishPreviewFrame(sessionId, source, preview) // AUDIT-PREVIEWS: no image from any source and this Layout has the deck: slide 1 in a view-only frame; flag off = null
   return (
     <figure className="studio-publish-deck-preview" aria-label="Current deck preview">
       <div className="studio-publish-preview-bar">Current deck preview</div>
       {preview.status === 'ready' ? (
         <OwnedPreviewImage key={preview.ownerKey} ownerKey={preview.ownerKey} thumbnailUrl={preview.thumbnailUrl} />
+      ) : frame ? ( // AUDIT-PREVIEWS
+        <PublishPreviewFrame src={frame.src} /> // AUDIT-PREVIEWS
       ) : (
         <PreviewFallback loading={preview.status === 'loading'} />
       )}
