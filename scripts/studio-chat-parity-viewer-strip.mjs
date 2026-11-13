@@ -77,6 +77,7 @@ export const CHAT_PARITY_VIEWER_NEW_FILES = [
   "scripts/studio-chat-parity-viewer-strip.mjs",
   "scripts/test-studio-chat-parity-viewer.mjs",
   "scripts/studio-chat-harness/composer-mount.mjs",
+  "scripts/studio-chat-harness/later-reader.mjs",
 ]
 
 /** The older proofs this change teaches: [line now, line before] per edit, whole lines (a line now carries "registry read (CHAT-PARITY-VIEWER)" and occurs once in its file; a line before of "" is an inserted line). Arrange, first paint's viewer proof and the two phone proofs read the viewer (and the page) raw: one import and one read hook each, this strip only, never the registry. The phone proofs' scope check also drops the viewer, which a later change marks, from the files an own commit touched. Structural decline's commit-subject check skips this chain's subjects. */
