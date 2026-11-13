@@ -50,6 +50,16 @@ export interface SessionsResponse {
   };
 }
 
+/**
+ * POST /api/sessions answers 201 { session } for a new row and 409 { error, session } for the caller's OWN row with that id;
+ * an id that belongs to another account is a 404 with no row (P-73). Only a row that carries the id that was asked for is
+ * this account's session: anything else is not an adoption.
+ */
+function ownRowFromCreateAnswer(body: any, sessionId: string): ChatSession | null {
+  const row = body?.session;
+  return row && typeof row === 'object' && row.id === sessionId ? (row as ChatSession) : null;
+}
+
 async function ensureSessionRow(sessionId: string): Promise<boolean> {
   try {
     const response = await fetch('/api/sessions', {
@@ -60,7 +70,7 @@ async function ensureSessionRow(sessionId: string): Promise<boolean> {
       body: JSON.stringify({ sessionId }),
     });
 
-    if (response.ok || response.status === 409) {
+    if (response.ok || (response.status === 409 && ownRowFromCreateAnswer(await response.json().catch(() => null), sessionId))) {
       console.warn('[useChatSessions] Recovered missing session row:', sessionId);
       return true;
     }
@@ -207,11 +217,12 @@ export function useChatSessions() {
       console.log('[useChatSessions] Response status:', response.status);
 
       if (!response.ok) {
-        // If conflict (409), session already exists - that's ok
+        // If conflict (409), session already exists - that's ok when it is this account's own row
         if (response.status === 409) {
+          const row = ownRowFromCreateAnswer(await response.json().catch(() => null), sessionId);
+          if (!row) throw new Error('Failed to create session (409): the existing session is not available');
           console.log('[useChatSessions] Session already exists (409)');
-          const data = await response.json();
-          return data.session;
+          return row;
         }
 
         // Try to get error details from response
