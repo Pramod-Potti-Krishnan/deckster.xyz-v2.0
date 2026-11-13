@@ -29,7 +29,7 @@ const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
 const strip = await import('./studio-chat-parity-viewer-strip.mjs')
 const registry = await import('./studio-later-changes.mjs')
 const { createModuleLoader } = await import('./studio-chat-harness/module-loader.mjs')
-const { mountComposer } = await import('./studio-chat-harness/composer-mount.mjs')
+const { mountComposer, driveComposer: drive, labelsOf: menuOf, chainDev, PARITY } = await import('./studio-chat-harness/composer-mount.mjs')
 
 const LIB = 'lib/studio-chat-parity-viewer.ts'
 const MENU = 'components/builder/chat/studio-chat-parity-viewer-menu.tsx'
@@ -446,11 +446,8 @@ function noteChecks(text = read(CLEAN_LIB)) {
 // ============================================================================================================================================
 // E. The trigger and the real composer: the new flag off is dev's composer; on, the viewer rows
 // ============================================================================================================================================
-const PARITY = { NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS: 'true' }
-/** Every chat parity change registered so far (this one, and any stacked on it), newest first: what is left once their lines are taken out is dev's file. */
-const CHAIN_STRIPS = registry.LATER_STRIPS.filter(fn => /^stripChatParity(Viewer|Workspace|More)$/.test(fn.name)).reverse()
-const asDev = (rel, text) => CHAIN_STRIPS.reduce((out, fn) => fn(rel, out), text)
-const normaliseIds = text => text.replace(/:r[0-9a-z]+:/g, ':id:').replace(/\bradix-[:\w-]+/g, 'radix-id')
+/** dev's file reader: every chat parity change registered so far (this one, and any stacked on it) takes its lines out of the file it is given. */
+const asDev = chainDev(registry)
 
 /** The commands lib (lib/studio-chat-commands.ts), evaluated from `text` through the harness loader. */
 function loadCommandsLib(text) {
@@ -487,19 +484,8 @@ const COMPOSER_STEPS = [
   ['type', '/layout image text'], ['type', '/theme dark blue'], ['type', 'please /theme dark blue'], ['type', 'Brief\n/layout image'], ['type', '/goto 2'], ['type', '/blank-slide'], ['type', '/grid on'], ['type', '/canvas'], ['type', '/rail hide'], ['type', '/discard'],
   ['type', 'Make it /th'], ['key', 'Escape'], ['type', '@'], ['type', '@sl'], ['key', 'Enter'], ['type', '/publish'], ['key', 'Enter'], ['type', '/export'], ['key', 'Enter'], ['type', '/stop'], ['key', 'Enter'], ['type', 'a brief\n/th'], ['key', 'Tab'],
 ]
-/** One scripted session on a mounted composer: after every step, what a person could see (the composer's whole markup) and what it did (the calls, the notes). */
-async function driveComposer(env, read, steps = COMPOSER_STEPS, extra = {}) {
-  const c = await mountComposer({ root, env, read, ...extra })
-  const log = []
-  try {
-    for (const [kind, value] of steps) {
-      if (kind === 'type') await c.type(value); else await c.key(value)
-      log.push({ step: [kind, value], text: c.text(), menu: c.menu() ? c.labels() : null, calls: c.records.calls.map(call => JSON.stringify(call)), notes: c.records.notes.slice(), markup: normaliseIds(c.markup()) })
-    }
-  } finally { c.unmount() }
-  return log
-}
-const labelsOf = async (env, read, text, extra) => { const c = await mountComposer({ root, env, read, ...extra }); try { await c.type(text); return c.menu() ? c.labels() : null } finally { c.unmount() } }
+const driveComposer = (env, read, steps = COMPOSER_STEPS, extra = {}) => drive({ root, env, read, steps, ...extra })
+const labelsOf = (env, read, text, extra) => menuOf({ root, env, read, text, ...extra })
 const DEV_ROWS = ['add-slide', 'duplicate', 'delete', 'theme', 'template', 'model', 'research', 'web', 'export', 'publish', 'undo', 'stop']
 const VIEWER_ROWS = ['goto', 'next', 'prev', 'blank-slide', 'layout', 'present', 'edit', 'view', 'rail', 'grid', 'borders', 'save', 'discard', 'version', 'canvas', 'theme']
 
@@ -680,7 +666,7 @@ sourceChecks()
 menuChecks()
 noteChecks()
 sourceLibOnly(read(LIB))
-console.log(`PASS C  the sources: markers, the strip back to the base, the viewer's gate and handlers, the registry, no new flag, the committed diff, the menu markup, the note (${checks - afterB} checks)`)
+console.log(`PASS C  the sources: markers, the strip back to the base, the viewer's gate and handlers, the registry, the one new flag and its .env.example block, the committed diff, the menu markup, the note (${checks - afterB} checks)`)
 const afterC = checks
 triggerChecks()
 await composerChecks()

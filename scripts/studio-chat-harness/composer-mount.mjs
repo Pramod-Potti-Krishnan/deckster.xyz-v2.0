@@ -111,3 +111,41 @@ export async function mountComposer(opts = {}) {
   }
   return api
 }
+
+// ---- scripted sessions, shared by the chain's three proofs ------------------------------------------------------------------------------------------------------------------------------------
+
+/** The chain's one flag, on. */
+export const PARITY = Object.freeze({ NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS: 'true' })
+/** React's generated ids differ by the order of hooks in a render: what a person sees does not. */
+export const normaliseIds = text => text.replace(/:r[0-9a-z]+:/g, ':id:').replace(/\bradix-[:\w-]+/g, 'radix-id')
+
+/**
+ * dev's file reader for `mountComposer({ read })`: every chat parity change registered so far (the viewer's, and any stacked on it), newest first, takes its lines out of the file it is given; what is left is dev's file.
+ * `registry` is scripts/studio-later-changes.mjs (a strip is found by its name, so a proof run at an older step sees only the strips that exist there).
+ */
+export const chainDev = registry => {
+  const strips = registry.LATER_STRIPS.filter(fn => /^stripChatParity(Viewer|Workspace|More)$/.test(fn.name)).reverse()
+  return (rel, text) => strips.reduce((out, fn) => fn(rel, out), text)
+}
+
+/**
+ * One scripted session on a mounted composer: [['type', text] | ['key', name]] steps. After every step it records what a person could see (the composer's whole markup, the menu's labels) and what the composer did
+ * (the calls it made, the notes it was given, the windows it opened, the hand-off storage): two sessions that log the same are the same composer.
+ */
+export async function driveComposer({ root, env = {}, read = null, steps, ...extra }) {
+  const c = await mountComposer({ root, env, read, ...extra })
+  const log = []
+  try {
+    for (const [kind, value] of steps) {
+      if (kind === 'type') await c.type(value); else await c.key(value)
+      log.push({ step: [kind, value], text: c.text(), menu: c.menu() ? c.labels() : null, calls: c.records.calls.map(call => JSON.stringify(call)), notes: c.records.notes.slice(), opened: c.records.opened.map(call => JSON.stringify(call)), storage: [...c.store.entries()], markup: normaliseIds(c.markup()) })
+    }
+  } finally { c.unmount() }
+  return log
+}
+
+/** The menu's labels (aria-labels) after typing `text` into a fresh composer; null when no menu opens. */
+export async function labelsOf({ root, env = {}, read = null, text, ...extra }) {
+  const c = await mountComposer({ root, env, read, ...extra })
+  try { await c.type(text); return c.menu() ? c.labels() : null } finally { c.unmount() }
+}
