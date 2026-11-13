@@ -103,6 +103,14 @@ export const AUDIT_PREVIEWS_PIN_EDITS = {
     ["    '@/hooks/use-studio-publish-preview-frame': { useStudioPublishPreviewFrame: () => null }, '@/components/studio-publish-preview-frame': { PublishPreviewFrame: 'PublishPreviewFrame' }, // LATER-CHANGES: registry read (AUDIT-PREVIEWS): the component now imports the frame hook (flag off: null) and the frame\n", ""],
     ["    const head = stripLaterChanges(COMPONENT, fs.readFileSync(path.join(root, COMPONENT), 'utf8')).split('\\n'), base = baseOf(COMPONENT).split('\\n') // LATER-CHANGES: registry read (AUDIT-PREVIEWS): a later change's lines come out first\n", "    const head = fs.readFileSync(path.join(root, COMPONENT), 'utf8').split('\\n'), base = baseOf(COMPONENT).split('\\n')\n"],
   ],
+  "scripts/test-studio-deck-grid-4.mjs": [
+    ["import { stripAuditPreviews, AUDIT_PREVIEWS_FILES } from './studio-audit-previews-strip.mjs' // LATER-CHANGES: registry read (AUDIT-PREVIEWS): the previews fix (stacked after this change) marks lines on the Decks page; this proof reads it as the change before the page's left it\n", ""],
+    ["{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(repoRoot, file) : ''; return typeof out === 'string' && AUDIT_PREVIEWS_FILES.includes(rel) ? stripAuditPreviews(rel, out) : out } } // LATER-CHANGES: registry read (AUDIT-PREVIEWS): every read of a file the previews fix touched is the file without its marked lines, before this proof's own strips run (the fix's own strip, never the registry: this proof's own lines stay visible to its pins)\n", ""],
+  ],
+  "scripts/test-studio-deck-title.mjs": [
+    ["import { stripAuditPreviews, AUDIT_PREVIEWS_FILES } from './studio-audit-previews-strip.mjs' // LATER-CHANGES: registry read (AUDIT-PREVIEWS): the previews fix (stacked after this change) marks lines on the Decks page; this proof reads it as the change before the page's left it\n", ""],
+    ["{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && AUDIT_PREVIEWS_FILES.includes(rel) ? stripAuditPreviews(rel, out) : out } } // LATER-CHANGES: registry read (AUDIT-PREVIEWS): every read of a file the previews fix touched is the file without its marked lines, before this proof's own strips run (the fix's own strip, never the registry: this proof's own lines stay visible to its pins)\n", ""],
+  ],
 }
 
 // FRONTEND-1's voice-call proof (the four-line after-merge edit): in dev since 506bcbb3, so it is the base's own text and no edit of it is carried (nothing to put back).

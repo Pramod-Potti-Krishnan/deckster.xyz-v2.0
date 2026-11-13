@@ -22,11 +22,13 @@ import { stripDeckCardCount } from './studio-deck-card-count-strip.mjs'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import ts from 'typescript'
+import { stripAuditPreviews, AUDIT_PREVIEWS_FILES } from './studio-audit-previews-strip.mjs' // LATER-CHANGES: registry read (AUDIT-PREVIEWS): the previews fix (stacked after this change) marks lines on the Decks page; this proof reads it as the change before the page's left it
 import { stripDeckTitle } from './studio-deck-title-strip.mjs'
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 import { stripDeckCardThumbnail } from './studio-deck-card-thumbnail-strip.mjs' // DECK-CARD-THUMBNAIL (NEXT_PUBLIC_STUDIO_DECK_CARD_THUMBNAILS_ENABLED, COMPOSER-2): its marked lines on the Decks page come out first, before every older change's strip
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
+{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(repoRoot, file) : ''; return typeof out === 'string' && AUDIT_PREVIEWS_FILES.includes(rel) ? stripAuditPreviews(rel, out) : out } } // LATER-CHANGES: registry read (AUDIT-PREVIEWS): every read of a file the previews fix touched is the file without its marked lines, before this proof's own strips run (the fix's own strip, never the registry: this proof's own lines stay visible to its pins)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
 const React = nodeRequire('react')
 const jsxRuntime = nodeRequire('react/jsx-runtime')
