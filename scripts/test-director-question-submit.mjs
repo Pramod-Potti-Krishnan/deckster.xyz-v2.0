@@ -3,10 +3,11 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 import ts from 'typescript'
+import { stripBillingF5Usage } from './studio-billing-f5-usage-strip.mjs' // BILLING-F5-USAGE: this pin reads the page and the hook without the F5 marked lines (same as the base)
 
 // Execute the real Builder adapter and QuestionCard composer with explicit
 // offline dependencies. No mounting, network, socket or persistence service.
-const pageText = fs.readFileSync(new URL('../app/builder/page.tsx', import.meta.url), 'utf8')
+const pageText = stripBillingF5Usage('app/builder/page.tsx', fs.readFileSync(new URL('../app/builder/page.tsx', import.meta.url), 'utf8')) // BILLING-F5-USAGE
 const cardText = fs.readFileSync(new URL('../components/builder/chat/question-card.tsx', import.meta.url), 'utf8')
 const parse = (name, text) => ts.createSourceFile(name, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
 const page = parse('page.tsx', pageText)
@@ -219,7 +220,7 @@ assert.deepEqual(traffic(withoutPersistence.events).map(event => event[0]), ['tr
 assert.equal(withoutPersistence.context.session.userMessages[0].text, prose)
 cases++
 
-const hook = parse('websocket.ts', fs.readFileSync(new URL('../hooks/use-deckster-websocket-v2.ts', import.meta.url), 'utf8'))
+const hook = parse('websocket.ts', stripBillingF5Usage('hooks/use-deckster-websocket-v2.ts', fs.readFileSync(new URL('../hooks/use-deckster-websocket-v2.ts', import.meta.url), 'utf8'))) // BILLING-F5-USAGE
 assert.equal(hook.parseDiagnostics.length, 0)
 const reconnectingSend = declaration(hook, 'sendMessageWhenConnected').arguments[0]
 function renderUpdate(root, refName, names) {

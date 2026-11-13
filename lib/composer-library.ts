@@ -40,13 +40,42 @@ export interface ComposerJob {
   retryable?: boolean
 }
 
-/** Explicit UAT or loopback only; never inherit the older production defaults. */
+/**
+ * C-06 (pre-promotion): the hosts each composer service may use besides its UAT host, read from the service URLs the app already
+ * runs on (the NEXT_PUBLIC_*_URL vars, literal so Next inlines them in the browser). On UAT they name the UAT hosts, so nothing
+ * changes there; in production they name the production hosts. Each value is read when it is used; a missing, non-https/wss,
+ * credentialed or ported value approves nothing.
+ */
+function readEnv(read: () => string | undefined): string | undefined {
+  try { return read() } catch { return undefined }
+}
+function composerEnvHosts(uatHost: string): string[] {
+  const values = uatHost === 'directorv40-uat.up.railway.app'
+    ? [readEnv(() => process.env.NEXT_PUBLIC_DIRECTOR_API_URL), readEnv(() => process.env.NEXT_PUBLIC_WS_URL)]
+    : uatHost === 'layout-builder-v75-uat.up.railway.app'
+      ? [readEnv(() => process.env.NEXT_PUBLIC_LAYOUT_SERVICE_URL)]
+      : uatHost === 'researcher-v11-uat.up.railway.app'
+        ? [readEnv(() => process.env.NEXT_PUBLIC_KNOWLEDGE_SERVICE_URL)]
+        : []
+  const hosts: string[] = []
+  for (const value of values) {
+    if (!value) continue
+    try {
+      const url = new URL(value)
+      if ((url.protocol === 'https:' || url.protocol === 'wss:') && !url.port && !url.username && !url.password) hosts.push(url.hostname)
+    } catch { /* not a URL: approves nothing */ }
+  }
+  return hosts
+}
+
+/** Explicit UAT, the app's own configured service host (C-06), or loopback only; never inherit the older production defaults. */
 export function requireComposerServiceUrl(value: string | undefined, uatHost: string): string {
   if (!value) throw new Error('Template library service is not configured.')
   const url = new URL(value)
   const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+  const approved = url.hostname === uatHost || composerEnvHosts(uatHost).includes(url.hostname)
   if (url.username || url.password || url.search || url.hash || url.pathname !== '/' ||
-      !(local && url.protocol === 'http:' || url.hostname === uatHost && url.protocol === 'https:' && !url.port)) {
+      !(local && url.protocol === 'http:' || approved && url.protocol === 'https:' && !url.port)) {
     throw new Error('Template library requires an approved UAT or local service.')
   }
   return url.origin

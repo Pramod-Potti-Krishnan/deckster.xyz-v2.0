@@ -26,6 +26,8 @@ import {
 } from "@/lib/studio-phone-landscape"
 import { useStudioPhoneQuery, useStudioPhoneRailSync } from "@/hooks/use-studio-phone-landscape"
 import "./studio-phone-landscape.css"
+import { STUDIO_PHONE_POLISH_ATTRIBUTE, STUDIO_PHONE_POLISH_LANDSCAPE_ENABLED } from "@/lib/studio-phone-polish" // PHONE-POLISH
+import "../layout/studio-phone-polish.css" // PHONE-POLISH
 
 /** The authoring row's own controls (the viewer portals them into its authoring slot), found by the words they carry. */
 const AUTHORING_SLOT = "[data-studio-authoring-slot] button"
@@ -106,6 +108,12 @@ export function StudioPhoneLandscape({ deckOnStage, stageVisible, slideNumber, c
 
   // The menus belong to the stage: turning the phone, or leaving the slide, closes whichever is open.
   useEffect(() => { if (!stage) setMenu(null) }, [stage])
+  useEffect(() => { // PHONE-POLISH: the stage's lifted buttons (components/layout/studio-phone-polish.css) are keyed to this attribute, which exists only with the flag on and only while the stage is on
+    if (!STUDIO_PHONE_POLISH_LANDSCAPE_ENABLED || !stage) return // PHONE-POLISH
+    const root = document.documentElement // PHONE-POLISH
+    root.setAttribute(STUDIO_PHONE_POLISH_ATTRIBUTE, "stage") // PHONE-POLISH
+    return () => root.removeAttribute(STUDIO_PHONE_POLISH_ATTRIBUTE) // PHONE-POLISH
+  }, [stage]) // PHONE-POLISH
 
   // The strip's header band is as wide as the rail the viewer draws (its width is the viewer's own, and can be changed there).
   useEffect(() => {

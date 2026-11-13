@@ -24,10 +24,11 @@ import { execFileSync } from 'node:child_process'
 import ts from 'typescript'
 import postcss from 'postcss'
 import { KG_ASK_ENV_FROM, KG_ASK_ENV_TO, KG_ASK_FILES, KG_ASK_PAGE_ADDED, stripKgAsk } from './studio-kg-ask-strip.mjs'
+import { stripApiHardening } from './studio-api-hardening-strip.mjs' // LATER-CHANGE: PROGRAM-1 API hardening (STUDIO_API_HARDENING_V1_ENABLED): its route lines come out before this pin reads them
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const BASE_COMMIT = process.env.KG_ASK_BASE || '1079ba4b7cd277ece7cc46ee7624d74419c3a5aa'
-const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
+const read = rel => stripApiHardening(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))
 const baseCache = new Map()
 const baseSource = (rel, commit = BASE_COMMIT) => {
   const key = `${commit}:${rel}`

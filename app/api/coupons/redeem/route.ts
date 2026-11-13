@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth-options"
 import { prisma } from "@/lib/prisma"
 import { creditWallet } from "@/lib/wallet"
+import { couponUserUpdate, isUniqueViolation } from "@/lib/billing/security" // BILLING-SECURITY
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,9 +35,9 @@ export async function POST(request: NextRequest) {
       if (coupon.expiresAt && coupon.expiresAt < new Date()) {
         throw new RedeemError("This coupon has expired")
       }
-      if (coupon.maxRedemptions !== null && coupon.timesRedeemed >= coupon.maxRedemptions) {
-        throw new RedeemError("This coupon has been fully redeemed")
-      }
+      // BILLING-SECURITY begin redeem-precheck
+      // B4: the redemption limit is enforced by the conditional increment below, not by this read.
+      // BILLING-SECURITY end redeem-precheck
 
       const existing = await tx.couponRedemption.findUnique({
         where: { couponId_userId: { couponId: coupon.id, userId: session.user.id } },
@@ -53,10 +54,16 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      await tx.coupon.update({
-        where: { id: coupon.id },
+      // BILLING-SECURITY begin redeem-claim
+      // B4: atomic conditional increment. Concurrent redeemers serialize on the row; only one that still sees timesRedeemed < max gets count 1.
+      const claimed = await tx.coupon.updateMany({
+        where: coupon.maxRedemptions !== null ? { id: coupon.id, timesRedeemed: { lt: coupon.maxRedemptions } } : { id: coupon.id },
         data: { timesRedeemed: { increment: 1 } },
       })
+      if (claimed.count !== 1) {
+        throw new RedeemError("This coupon has been fully redeemed")
+      }
+      // BILLING-SECURITY end redeem-claim
 
       const { balanceAfterCents } = await creditWallet({
         userId: session.user.id,
@@ -67,17 +74,16 @@ export async function POST(request: NextRequest) {
         tx,
       })
 
-      await tx.user.update({
+      // BILLING-SECURITY begin redeem-tier
+      // B5 (not flagged; PK 4 Nov: coupons give credits only): a coupon grants credit and approval only, never a tier (the schema has no grant expiry).
+      const user = await tx.user.update({
         where: { id: session.user.id },
-        data: {
-          approved: true,
-          approvedAt: new Date(),
-          approvedBy: `coupon:${coupon.code}`,
-          tier: coupon.tier,
-        },
+        data: couponUserUpdate(coupon.code),
+        select: { tier: true },
       })
 
-      return { balanceCents: balanceAfterCents, valueCents: coupon.valueCents, tier: coupon.tier }
+      return { balanceCents: balanceAfterCents, valueCents: coupon.valueCents, tier: user.tier }
+      // BILLING-SECURITY end redeem-tier
     })
 
     return NextResponse.json({
@@ -91,6 +97,12 @@ export async function POST(request: NextRequest) {
     if (error instanceof RedeemError) {
       return NextResponse.json({ error: error.message }, { status: 422 })
     }
+    // BILLING-SECURITY begin redeem-p2002
+    if (isUniqueViolation(error)) {
+      // B9: a concurrent double submit by the same user hit couponId_userId (detected by code, not message).
+      return NextResponse.json({ error: "You have already redeemed this coupon" }, { status: 422 })
+    }
+    // BILLING-SECURITY end redeem-p2002
     console.error("[api/coupons/redeem] Error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }

@@ -12,13 +12,9 @@ import {
 import { cn } from "@/lib/utils"
 import { PAYMENTS_OPEN_SOON_LINE, STUDIO_PAYMENTS_OPEN_SOON_ENABLED } from "@/lib/studio-payments-open-soon" // NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON (default off): the packs are disabled and the modal says so
 import "@/components/builder/studio-usage-topup.css"
+import { TOPUP_PACKS } from "@/lib/marketing/homepage-v2-pricing" // BILLING-F4F6
 
-const CREDIT_PACKS = [
-  { id: "pack_10", label: "$10", amountCents: 1000 },
-  { id: "pack_25", label: "$25", amountCents: 2500 },
-  { id: "pack_50", label: "$50", amountCents: 5000 },
-  { id: "pack_100", label: "$100", amountCents: 10000 },
-] as const
+const CREDIT_PACKS = TOPUP_PACKS // BILLING-F4F6: the one pack list, lib/marketing/homepage-v2-pricing.ts
 
 interface TopUpModalProps {
   open: boolean

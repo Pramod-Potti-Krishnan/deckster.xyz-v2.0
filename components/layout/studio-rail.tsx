@@ -11,6 +11,7 @@ import { STUDIO_NEW_LOGO_SIZE, STUDIO_NEW_LOGO_SRC, studioNewLogoOn } from "@/li
 import "./studio-shell.css"
 import "./studio-p2-shell.css"
 import "./studio-new-logo.css"
+import { STUDIO_PAGE_CONSISTENCY_ENABLED, studioRailDetailsCurrent } from "@/lib/studio-page-consistency" // PAGE-CONSISTENCY (UX-10, NEXT_PUBLIC_STUDIO_PAGE_CONSISTENCY, default off)
 
 /** Navigation only. Session and workspace ownership remain with the existing pages. */
 export function StudioRail({ studioEntry, homeHref = "/", sessionUsage }: { studioEntry?: ReactElement; homeHref?: string; sessionUsage?: ReactNode }) {
@@ -31,7 +32,7 @@ export function StudioRail({ studioEntry, homeHref = "/", sessionUsage }: { stud
         {[{label:'Templates',href:'/studio/templates',Icon:LayoutTemplate},{label:'Themes & brand',href:'/studio/themes',Icon:Palette}].map(({label,href,Icon}) => <StudioNavigationHint key={label} enabled label={label}><Link href={href} aria-label={label} aria-current={pathname===href ? 'page' : undefined}><Icon className="h-5 w-5" /></Link></StudioNavigationHint>)}
         <StudioNavigationHint enabled label={navLabels.knowledge}><Link href="/knowledge" aria-label={navLabels.knowledge} aria-current={pathname==='/knowledge' ? 'page' : undefined}><Brain className="h-5 w-5" /></Link></StudioNavigationHint>
         <StudioNavigationHint enabled label="Intelligence"><Link href="/studio/intelligence" aria-label="Intelligence" aria-current={pathname==='/studio/intelligence' ? 'page' : undefined}><Cpu className="h-5 w-5" /></Link></StudioNavigationHint>
-        <StudioNavigationHint enabled label="Your details"><Link href="/studio/details" aria-label="Your details" aria-current={pathname==='/studio/details' ? 'page' : undefined}><UserRound className="h-5 w-5" /></Link></StudioNavigationHint>
+        <StudioNavigationHint enabled label="Your details"><Link href="/studio/details" aria-label="Your details" aria-current={pathname==='/studio/details' || studioRailDetailsCurrent(STUDIO_PAGE_CONSISTENCY_ENABLED, pathname) ? 'page' : undefined}><UserRound className="h-5 w-5" /></Link></StudioNavigationHint>{/* PAGE-CONSISTENCY (UX-10): Settings and Billing mark Your details */}
       </nav>
       <div className="studio-rail-profile"><UserProfileMenu sessionUsage={sessionUsage} studioLabels studioPalette={process.env.NEXT_PUBLIC_STUDIO_V4_TOKENS === 'true'} /></div>
     </aside>

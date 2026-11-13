@@ -12,9 +12,10 @@ import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
+import { stripApiHardening } from './studio-api-hardening-strip.mjs' // LATER-CHANGE: PROGRAM-1 API hardening (STUDIO_API_HARDENING_V1_ENABLED): its route lines come out before this pin reads them
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const read = rel => stripApiHardening(rel, fs.readFileSync(path.join(root, rel), 'utf8'))
 const MINT = 'lib/text-labs-identity-mint.ts'
 const ROUTE = 'app/api/identity/text-labs-token/route.ts'
 const CLIENT = 'lib/text-labs-signed-fetch.ts'
