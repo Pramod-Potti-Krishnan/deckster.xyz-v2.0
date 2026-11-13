@@ -13,6 +13,9 @@ import {
   type DeckIdentity,
   type DeckIdentityForm,
 } from '@/lib/deck-identity'
+import { resolveDeckIdentityForm } from '@/lib/deck-identity' // BRAND-KIT-CALLER
+import { useStandardBrandKit } from '@/hooks/use-brand-kit' // BRAND-KIT-CALLER
+import { isStudioBrandKitEnabled } from '@/lib/studio-brand-kit' // BRAND-KIT-CALLER
 
 /**
  * Reads the two inputs to `deck_identity` — the signed-in profile name and the
@@ -29,6 +32,7 @@ export function useDeckIdentity(): DeckIdentity | null {
   const { data: session } = useSession()
   const enabled = isDeckIdentityEnabled()
   const [form, setForm] = useState<DeckIdentityForm>({})
+  const brandKit = useStandardBrandKit(enabled && isStudioBrandKitEnabled()) // BRAND-KIT-CALLER (NEXT_PUBLIC_STUDIO_BRAND_KIT): the STANDARD theme's brand record, read once and fail soft; null with the flag off (nothing is fetched) and on any error
 
   useEffect(() => {
     if (!enabled || typeof window === 'undefined') return
@@ -53,8 +57,8 @@ export function useDeckIdentity(): DeckIdentity | null {
 
   return useMemo(() => {
     if (!enabled) return null
-    return buildDeckIdentity({ sessionName, form, now: new Date() })
-  }, [enabled, sessionName, form])
+    return buildDeckIdentity({ sessionName, form: resolveDeckIdentityForm(brandKit, form), now: new Date() }) // BRAND-KIT-CALLER
+  }, [enabled, sessionName, form, brandKit]) // BRAND-KIT-CALLER
 }
 
 /**
