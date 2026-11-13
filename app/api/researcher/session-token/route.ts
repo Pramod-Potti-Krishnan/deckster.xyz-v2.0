@@ -43,11 +43,14 @@ function uploadSessionTokenEnabled(): boolean {
  *
  * GET /api/researcher/session-token?session_id=<chat session id>&owner=<email|id>
  *
+ * Dark by default: with the flag NEXT_PUBLIC_STUDIO_UPLOAD_SESSION_TOKEN_ENABLED off the route
+ * answers 404 {error:'Not found'} before anything is read, as the connector routes do (the
+ * browser never calls it then).
+ *
  * Proven, in order, before anything is signed:
  *  1. NextAuth: who the caller is (the account id from the session, never from the query). 401.
- *  2. Flag NEXT_PUBLIC_STUDIO_UPLOAD_SESSION_TOKEN_ENABLED on and a usable
- *     RESEARCHER_SESSION_TOKEN_SECRET (32 bytes or more after trimming); otherwise 200
- *     {token_enabled:false}, nothing is read and nothing is issued.
+ *  2. A usable RESEARCHER_SESSION_TOKEN_SECRET (32 bytes or more after trimming); otherwise
+ *     200 {token_enabled:false}, nothing is read and nothing is issued.
  *  3. The chat session id is canonical (400) and the owner kind is 'email' or 'id' (400).
  *  4. The chat session (ChatSession.id) belongs to the caller (403 session_not_owned; a
  *     session with no row reads the same) and is not deleted (410); a failed lookup is 503.
@@ -60,6 +63,10 @@ function uploadSessionTokenEnabled(): boolean {
  * (sessions/create is called with it and keys its binding by it).
  */
 export async function GET(request: NextRequest) {
+  if (!uploadSessionTokenEnabled()) {
+    return respond({ error: 'Not found' }, 404)
+  }
+
   const session = await getServerSession(authOptions)
   const accountId = session?.user?.id
   if (typeof accountId !== 'string' || accountId === '') {
@@ -67,7 +74,7 @@ export async function GET(request: NextRequest) {
   }
 
   const secret = researcherSessionTokenSecret()
-  if (!uploadSessionTokenEnabled() || !secret) {
+  if (!secret) {
     return respond({ token_enabled: false })
   }
 

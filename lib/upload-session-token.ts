@@ -12,9 +12,9 @@
  *     GET /api/researcher/session-token for the Researcher session the call names and the owner
  *     the upload sent to sessions/create (its kind only: 'email' or 'id', as the ingest-status
  *     route takes it; the server reads the value from the signed-in session).
- *       * The route answers {token_enabled:false} (flag or secret off on the server), or no
- *         token can be had for another reason (signed out, the route down, no network): the
- *         call goes out with NO header, exactly as today.
+ *       * The route answers {token_enabled:false} (its secret is not set) or 404 (its flag is off
+ *         on the server), or no token can be had for another reason (signed out, the route down,
+ *         no network, no owner value): the call goes out with NO header, exactly as today.
  *       * The route says the chat session is not the caller's (403 session_not_owned) or was
  *         deleted (410): the call is not sent; an UploadSessionRefusedError (terminal) is thrown.
  *       * The Researcher refuses a call that carried a token (401 or 403; it answers 401 only
@@ -22,8 +22,9 @@
  *         mint once more and send the same request once more; that answer is returned as is.
  *       * A call that carried no token gets the Researcher's answer as is.
  *
- * Per (session, owner kind): one token, refreshed after 60% of its lifetime; a mint already
- * in flight is shared. The token lives only in memory. Never logs a token, an id or an e-mail.
+ * Per (session, owner): one token, refreshed after 60% of its lifetime; a mint already in flight
+ * is shared. The owner is the value the upload sends (the e-mail or the account id), so a token
+ * minted for one signed-in account is never reused for another; only its kind is sent to the route. The token lives only in memory. Never logs a token, an id or an e-mail.
  * Browser-safe: no crypto, no secret; the only import is the owner-kind rule of
  * lib/researcher-ingest-status-auth.ts (import-free).
  */
@@ -85,15 +86,19 @@ interface CacheEntry {
 type MintOutcome = { kind: 'disabled' } | { kind: 'token'; entry: CacheEntry }
 
 export interface UploadSessionTokenClient {
-  /** The credential, or null when the server has tokens switched off. Throws UploadSessionRefusedError, or another error when none can be had. */
+  /**
+   * The credential for (`sessionId`, `owner`), or null when the server has tokens switched off. `owner` is the value the
+   * upload sends to sessions/create (the e-mail or the account id): it keys the cache, so another account never reuses a
+   * token; only its kind ('email' or 'id') goes to the mint route. Throws UploadSessionRefusedError, or another error when none can be had.
+   */
   getCredential(
     fetchImpl: UploadFetch,
     sessionId: string,
-    owner: IngestStatusOwnerKind,
+    owner: string,
     options?: { forceRefresh?: boolean },
   ): Promise<UploadTokenCredential | null>
-  /** Forget one token, or all of them. */
-  invalidate(sessionId?: string, owner?: IngestStatusOwnerKind): void
+  /** Forget one token (one session and owner), every token of one session, or all of them. */
+  invalidate(sessionId?: string, owner?: string): void
 }
 
 export function createUploadSessionTokenClient(options: { now?: () => number; endpoint?: string } = {}): UploadSessionTokenClient {
@@ -102,7 +107,9 @@ export function createUploadSessionTokenClient(options: { now?: () => number; en
   const cache = new Map<string, CacheEntry>()
   const inflight = new Map<string, Promise<MintOutcome>>()
   let disabledUntilMs = 0
-  const keyOf = (sessionId: string, owner: IngestStatusOwnerKind) => `${owner}\n${sessionId}`
+  // Keyed by the account the upload speaks for (its own owner value) as well as the session: a token minted for one
+  // signed-in account is never handed to a call made for another, even inside the same page life.
+  const keyOf = (sessionId: string, owner: string) => `${owner}\n${sessionId}`
 
   async function mint(fetchImpl: UploadFetch, sessionId: string, owner: IngestStatusOwnerKind): Promise<MintOutcome> {
     let response: Response
@@ -120,6 +127,8 @@ export function createUploadSessionTokenClient(options: { now?: () => number; en
     }
     if (response.status === 403 && body?.error === 'session_not_owned') throw new UploadSessionRefusedError('session_not_owned')
     if (response.status === 410) throw new UploadSessionRefusedError('session_deleted')
+    // The route is dark (its flag off on the server): the same as tokens off.
+    if (response.status === 404 && body?.error === 'Not found') return { kind: 'disabled' }
     if (!response.ok) throw new UploadTokenUnavailableError(`status_${response.status}`)
     if (body && body.token_enabled === false) return { kind: 'disabled' }
 
@@ -145,11 +154,11 @@ export function createUploadSessionTokenClient(options: { now?: () => number; en
     }
   }
 
-  function mintOnce(fetchImpl: UploadFetch, sessionId: string, owner: IngestStatusOwnerKind): Promise<MintOutcome> {
+  function mintOnce(fetchImpl: UploadFetch, sessionId: string, owner: string): Promise<MintOutcome> {
     const key = keyOf(sessionId, owner)
     const pending = inflight.get(key)
     if (pending) return pending
-    const started = mint(fetchImpl, sessionId, owner).finally(() => {
+    const started = mint(fetchImpl, sessionId, ingestStatusOwnerKind(owner)).finally(() => {
       if (inflight.get(key) === started) inflight.delete(key)
     })
     inflight.set(key, started)
@@ -159,7 +168,7 @@ export function createUploadSessionTokenClient(options: { now?: () => number; en
   async function getCredential(
     fetchImpl: UploadFetch,
     sessionId: string,
-    owner: IngestStatusOwnerKind,
+    owner: string,
     opts: { forceRefresh?: boolean } = {},
   ): Promise<UploadTokenCredential | null> {
     const key = keyOf(sessionId, owner)
@@ -191,14 +200,14 @@ export function createUploadSessionTokenClient(options: { now?: () => number; en
     return outcome.entry.credential
   }
 
-  function invalidate(sessionId?: string, owner?: IngestStatusOwnerKind): void {
+  function invalidate(sessionId?: string, owner?: string): void {
     if (sessionId === undefined) {
       cache.clear()
       disabledUntilMs = 0
-    } else if (owner) {
+    } else if (owner !== undefined) {
       cache.delete(keyOf(sessionId, owner))
     } else {
-      for (const kind of ['email', 'id'] as const) cache.delete(keyOf(sessionId, kind))
+      for (const key of Array.from(cache.keys())) if (key.endsWith(`\n${sessionId}`)) cache.delete(key)
     }
   }
 
@@ -242,10 +251,16 @@ async function credentialFor(
   forceRefresh: boolean,
 ): Promise<UploadTokenCredential | null> {
   const sessionId = identity?.sessionId
+  const owner = identity?.userId
   if (typeof sessionId !== 'string' || sessionId === '') return null
+  // No owner value, no token: the cache is keyed by it (a token is never shared between accounts), and the upload then sends 'anonymous' anyway.
+  if (typeof owner !== 'string' || owner === '') {
+    console.warn('[upload-session-token] no token for this call (no_owner)')
+    return null
+  }
   try {
     return await untilAborted(
-      client.getCredential(fetchImpl, sessionId, ingestStatusOwnerKind(identity?.userId), forceRefresh ? { forceRefresh: true } : undefined),
+      client.getCredential(fetchImpl, sessionId, owner, forceRefresh ? { forceRefresh: true } : undefined),
       signal,
     )
   } catch (error) {
@@ -271,7 +286,7 @@ async function fetchWithToken(
   if (!credential) return response
   if (response.status !== 401 && response.status !== 403) return response
   // The token may simply have expired (an expired or invalid token is a 403): one re-mint, one retry.
-  client.invalidate(identity?.sessionId as string, ingestStatusOwnerKind(identity?.userId))
+  client.invalidate(identity?.sessionId as string, identity?.userId as string)
   const fresh = await credentialFor(client, fetchImpl, identity, signal, true)
   if (!fresh) return response
   return fetchImpl(url, withTokenHeader(init, fresh))

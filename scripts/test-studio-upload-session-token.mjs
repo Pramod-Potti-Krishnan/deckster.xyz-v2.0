@@ -129,7 +129,7 @@ const authLibSource = ownView('lib/researcher-ingest-status-auth.ts')
 const OWNER = { id: 'user_a-1111', email: 'alice@example.test' }
 const OTHER = { id: 'user_b-2222', email: 'bob@example.test' }
 const CHAT = 'chat-11111111-1111-4111-8111-111111111111'
-const state = { session: null, rows: new Map(), lookups: [], failLookup: false }
+const state = { session: null, rows: new Map(), lookups: [], failLookup: false, sessionReads: 0 }
 const prisma = {
   chatSession: {
     findUnique: async args => {
@@ -141,7 +141,7 @@ const prisma = {
 }
 const route = load(ownView(ROUTE), {
   'next/server': { NextResponse: Response },
-  'next-auth': { getServerSession: async () => state.session },
+  'next-auth': { getServerSession: async () => { state.sessionReads += 1; return state.session } },
   '@/lib/auth-options': { authOptions: {} },
   '@/lib/prisma': { prisma },
   '@/lib/researcher-session-token': tokenLib,
@@ -153,6 +153,7 @@ function resetRoute() {
   state.rows = new Map([[CHAT, { userId: OWNER.id, status: 'active' }]])
   state.lookups = []
   state.failLookup = false
+  state.sessionReads = 0
   setClock(CLOCK_START)
 }
 async function mintCall(query = `?session_id=${encodeURIComponent(CHAT)}&owner=email`) {
@@ -165,14 +166,16 @@ async function mintCall(query = `?session_id=${encodeURIComponent(CHAT)}&owner=e
 }
 const noToken = r => { ok(!('token' in r.body) && !/v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[0-9]+\./.test(r.text), 'no token in the answer'); eq(r.cache, 'no-store', 'no-store') }
 
-// 1a. flag off or no usable secret: 200 {token_enabled:false}, nothing read, nothing issued
+// 1a. flag off: 404 {error:'Not found'} before anything is read (as the connector routes); flag on, no usable secret: 200 {token_enabled:false}, nothing issued
 for (const value of [undefined, '', 'false', '0', '1', 'TRUE', 'True', ' true', 'true ', 'yes']) {
-  resetRoute()
-  if (value === undefined) delete env[FLAG]; else env[FLAG] = value
-  const r = await mintCall()
-  eq([r.status, r.body], [200, { token_enabled: false }], `flag ${JSON.stringify(value)}: token_enabled false`)
-  noToken(r)
-  eq(state.lookups.length, 0, `flag ${JSON.stringify(value)}: no database read`)
+  for (const session of [{ user: { ...OWNER } }, null]) {
+    resetRoute(); state.session = session
+    if (value === undefined) delete env[FLAG]; else env[FLAG] = value
+    const r = await mintCall()
+    eq([r.status, r.body], [404, { error: 'Not found' }], `flag ${JSON.stringify(value)}, ${session ? 'signed in' : 'signed out'}: 404`)
+    noToken(r)
+    eq([state.sessionReads, state.lookups.length], [0, 0], `flag ${JSON.stringify(value)}: neither the session nor the database is read`)
+  }
 }
 for (const secret of [undefined, '', 'short', 'x'.repeat(31), `  ${'x'.repeat(31)}  `, ' '.repeat(64), 'é'.repeat(15) + 'e']) {
   resetRoute()
@@ -189,19 +192,18 @@ for (const secret of [undefined, '', 'short', 'x'.repeat(31), `  ${'x'.repeat(31
   resetRoute()
   ok(typeof (await mintCall()).body.token === 'string', 'on: a token')
   env[FLAG] = 'false'
-  eq((await mintCall()).body, { token_enabled: false }, 'the flag is read on every request')
+  eq((await mintCall()).body, { error: 'Not found' }, 'the flag is read on every request')
 }
 
-// 1b. signed in, or 401 (also with the flag off: an anonymous caller learns nothing)
+// 1b. signed in, or 401 (with the flag on; off, the 404 above comes first)
 for (const [name, session] of [['no session', null], ['no user', {}], ['e-mail only', { user: { email: OWNER.email } }], ['empty id', { user: { id: '', email: OWNER.email } }], ['id not a string', { user: { id: 7 } }]]) {
-  for (const flag of ['true', undefined]) {
-    resetRoute(); state.session = session
-    if (flag === undefined) delete env[FLAG]
-    const r = await mintCall()
-    eq([r.status, r.body], [401, { error: 'unauthenticated' }], `${name}, flag ${flag}: 401`)
-    noToken(r)
-    eq(state.lookups.length, 0, `${name}: nothing looked up`)
-  }
+  resetRoute(); state.session = session
+  const r = await mintCall()
+  eq([r.status, r.body], [401, { error: 'unauthenticated' }], `${name}: 401`)
+  noToken(r)
+  eq(state.lookups.length, 0, `${name}: nothing looked up`)
+  resetRoute(); state.session = session; env[SECRET_ENV] = ''
+  eq((await mintCall()).status, 401, `${name}: 401 before the secret is looked at (a signed-out caller learns nothing)`)
 }
 
 // 1c. the request: a canonical chat session id, an owner kind; a client can never name an identity
@@ -355,7 +357,7 @@ for (const flag of [undefined, '', 'false', 'TRUE', '1', ' true', 'true ']) {
   await w.lib.researcherUploadFetch(w.fetchImpl, { sessionId: SID, userId: OWNER.id })(`${RESEARCHER_BASE}/x`, POST)
   eq(w.mints().at(-1).url, `/api/researcher/session-token?session_id=${SID}&owner=id`, 'an account id is owner=id (its own cache entry)')
   await w.lib.researcherUploadFetch(w.fetchImpl, { sessionId: SID, userId: OWNER.email })(`${RESEARCHER_BASE}/x`, POST)
-  eq(w.mints().length, 2, 'cached per session and kind')
+  eq(w.mints().length, 2, 'cached per session and owner')
   const h = await w.lib.researcherUploadFetch(w.fetchImpl, { sessionId: SID, userId: OWNER.email })(`${RESEARCHER_BASE}/x`, { headers: new Headers({ A: 'b' }) })
   ok(h.status === 200 && w.sent().at(-1).init.headers.get('A') === 'b' && headerOf(w.sent().at(-1).init), 'a Headers init keeps its headers and gains the token')
   await w.lib.researcherUploadFetch(w.fetchImpl, { sessionId: SID, userId: OWNER.email })(`${RESEARCHER_BASE}/poll`, { signal: new AbortController().signal })
@@ -392,6 +394,8 @@ for (const flag of [undefined, '', 'false', 'TRUE', '1', ' true', 'true ']) {
 // 3d. the route says tokens are off, or has none to give: no header, the call as today
 for (const [name, mint, warned] of [
   ['token_enabled false', () => ({ status: 200, body: { token_enabled: false } }), false],
+  ['404 Not found (the route dark on the server)', () => ({ status: 404, body: { error: 'Not found' } }), false],
+  ['404 of another shape', () => ({ status: 404, body: { error: 'something else' } }), true],
   ['401 signed out', () => ({ status: 401, body: { error: 'unauthenticated' } }), true],
   ['503', () => ({ status: 503, body: { error: 'ownership_lookup_failed' } }), true],
   ['400', () => ({ status: 400, body: { error: 'invalid_session_id' } }), true],
@@ -410,12 +414,15 @@ for (const [name, mint, warned] of [
 }
 {
   setEnv({ [FLAG]: 'true' }); setClock(CLOCK_START)
-  const w = clientWorld({ mint: () => ({ status: 200, body: { token_enabled: false } }) })
-  const f = w.lib.researcherUploadFetch(w.fetchImpl, { sessionId: SID, userId: OWNER.email })
-  await f(`${RESEARCHER_BASE}/a`, POST); await f(`${RESEARCHER_BASE}/b`, POST)
-  eq(w.mints().length, 1, 'tokens off: asked again no sooner than 60 s')
-  setClock(CLOCK_START + 61); await f(`${RESEARCHER_BASE}/c`, POST)
-  eq(w.mints().length, 2, 'and asked again after')
+  for (const off of [{ status: 200, body: { token_enabled: false } }, { status: 404, body: { error: 'Not found' } }]) {
+    setClock(CLOCK_START)
+    const w = clientWorld({ mint: () => off })
+    const f = w.lib.researcherUploadFetch(w.fetchImpl, { sessionId: SID, userId: OWNER.email })
+    await f(`${RESEARCHER_BASE}/a`, POST); await f(`${RESEARCHER_BASE}/b`, POST)
+    eq(w.mints().length, 1, `${off.status}: tokens off, asked again no sooner than 60 s`)
+    setClock(CLOCK_START + 61); await f(`${RESEARCHER_BASE}/c`, POST)
+    eq(w.mints().length, 2, `${off.status}: and asked again after`)
+  }
 }
 // 3e. the route refuses the chat session: the call is not sent; a terminal error
 for (const [status, code] of [[403, 'session_not_owned'], [410, 'session_deleted']]) {
@@ -464,6 +471,46 @@ for (const [name, remint, outcome] of [
   ok(w.lib.researcherUploadPollFetch(w.fetchImpl, { sessionId: SID, userId: OWNER.email }) === w.fetchImpl, 'ingest-status proxy on: the poll is fetch itself (the proxy signs on the server)')
   setEnv({ [FLAG]: 'true' })
   ok(w.lib.researcherUploadPollFetch(w.fetchImpl, { sessionId: SID, userId: OWNER.email }) !== w.fetchImpl, 'proxy off: the direct poll is wrapped')
+}
+
+// 3h. the cache is keyed by the account the upload speaks for: another signed-in account never reuses a token (REVIEW-1 P3 1)
+{
+  setEnv({ [FLAG]: 'true' }); setClock(CLOCK_START)
+  const w = clientWorld()
+  const call = userId => w.lib.researcherUploadFetch(w.fetchImpl, { sessionId: SID, userId })(`${RESEARCHER_BASE}/api/v1/sessions/create`, POST)
+  await call(OWNER.email)
+  const alice = headerOf(w.sent()[0].init)
+  await call(OTHER.email)
+  const bob = headerOf(w.sent()[1].init)
+  eq(w.mints().length, 2, 'the same chat and owner kind, another account: a mint of its own')
+  ok(alice && bob && alice !== bob, "the second account's call never carries the first account's token")
+  eq(w.mints().map(c => c.url), [`/api/researcher/session-token?session_id=${SID}&owner=email`, `/api/researcher/session-token?session_id=${SID}&owner=email`], 'the route still gets the kind only, never the e-mail')
+  ok(!w.mints().some(c => c.url.includes('@') || c.url.includes(encodeURIComponent('@'))), 'no e-mail in a URL')
+  await call(OWNER.email); await call(OTHER.email)
+  eq(w.mints().length, 2, 'each account keeps its own cached token')
+  eq([headerOf(w.sent()[2].init), headerOf(w.sent()[3].init)], [alice, bob], 'and gets its own back')
+  await call(OWNER.id)
+  eq(w.mints().length, 3, 'the account id is its own entry')
+  // a refused call invalidates only that account's token
+  const v = clientWorld({ researcher: (entry, n) => ({ status: n === 3 ? 403 : 200 }) })
+  const vcall = userId => v.lib.researcherUploadFetch(v.fetchImpl, { sessionId: SID, userId })(`${RESEARCHER_BASE}/x`, POST)
+  await vcall(OWNER.email); await vcall(OTHER.email); await vcall(OWNER.email); await vcall(OTHER.email)
+  eq(v.mints().length, 3, "a refused call re-mints for its own account only (the other account's token stays)")
+  // no owner value: no token, no mint (the cache could not tell accounts apart)
+  for (const userId of ['', undefined, null]) {
+    logs.length = 0
+    const u = clientWorld()
+    const res = await u.lib.researcherUploadFetch(u.fetchImpl, { sessionId: SID, userId })(`${RESEARCHER_BASE}/x`, POST)
+    eq([res.status, u.mints().length, headerOf(u.sent()[0].init)], [200, 0, null], `owner ${JSON.stringify(userId)}: the call as today, no mint`)
+    eq(logs.map(l => l.text), ['[upload-session-token] no token for this call (no_owner)'], `owner ${JSON.stringify(userId)}: one fixed-code warning`)
+  }
+  // invalidate(session) with no owner forgets every account's token for that session, and only that session
+  const c = load(clientSource, { '@/lib/researcher-ingest-status-auth': load(authLibSource) }).createUploadSessionTokenClient()
+  const x = clientWorld()
+  for (const [sid, uid] of [[SID, OWNER.email], [SID, OTHER.email], ['chat-Z', OWNER.email]]) await c.getCredential(x.fetchImpl, sid, uid)
+  c.invalidate(SID)
+  for (const [sid, uid] of [[SID, OWNER.email], [SID, OTHER.email], ['chat-Z', OWNER.email]]) await c.getCredential(x.fetchImpl, sid, uid)
+  eq(x.mints().length, 5, 'invalidate(session) re-mints both accounts of that session, not the other session')
 }
 
 // ================================================= 4. the upload hook, run as shipped (both upload paths)
@@ -589,7 +636,8 @@ for (const studio of [false, true]) {
     await pending; await settle()
     const polls = w.researcher().filter(r => r.stage === 'poll')
     ok(polls.length >= 1 && polls.every(p => headersOf(p.init)?.[HEADER]), `${mode}: the poll ran with a token`)
-    ok(w.mints().every(r => r.url === '/api/researcher/session-token?session_id=chat-A&owner=email'), `${mode}: never minted for the new deck or its owner`)
+    ok(w.mints().every(r => r.url === '/api/researcher/session-token?session_id=chat-A&owner=email'), `${mode}: never minted for the new deck`)
+    eq(w.mints().length, 1, `${mode}: one mint, the first account's (a mint for the new account would be a second one)`)
   }
   // 4e. proxy flag on: the poll goes to the proxy exactly as before (no header); the other three still carry it
   {
@@ -621,6 +669,19 @@ for (const studio of [false, true]) {
     await w.render().handleFilesSelected([nativeFile()]); await settle()
     eq(w.researcher().filter(r => r.stage === 'poll').length, 1, `${mode}: a poll whose re-mint says the chat was deleted is terminal (one poll)`)
     eq(w.render().files[0].status, 'degraded', `${mode}: enrichment degraded, the file stays attached`)
+  }
+  // 4i. another account signs in within the same page life and uploads into the same chat id: its calls never carry the first account's token
+  {
+    const w = hookWorld({ hookEnv: { ...base, [FLAG]: 'true' } })
+    await w.render().handleFilesSelected([nativeFile()]); await settle()
+    const first = new Set(w.researcher().map(r => headersOf(r.init)?.[HEADER]).filter(Boolean))
+    const before = w.requests.length
+    await w.render({ userId: OTHER.email }).handleFilesSelected([nativeFile('second.pdf')]); await settle()
+    const later = w.requests.slice(before)
+    const carried = later.filter(r => r.stage !== 'mint').map(r => headersOf(r.init)?.[HEADER]).filter(Boolean)
+    ok(later.some(r => r.stage === 'mint') && carried.length >= 2, `${mode}: the second account's upload mints its own token`)
+    ok(carried.every(t => !first.has(t)), `${mode}: and never carries the first account's`)
+    ok(later.filter(r => r.stage === 'create').every(r => r.body.user_id === OTHER.email), `${mode}: (its create names the second account)`)
   }
   // 4h. the Researcher refuses the create's token (expired): one re-mint, one retry, the upload goes on
   {
