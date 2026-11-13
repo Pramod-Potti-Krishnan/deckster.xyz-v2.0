@@ -36,6 +36,7 @@ import { toast } from "@/hooks/use-toast"
 import { duplicateTargetFor, runDuplicateDeck } from "@/lib/studio-duplicate-deck"
 import { useStudioDeckCardThumbnail } from "@/hooks/use-studio-deck-card-thumbnail" // DECK-CARD-THUMBNAIL (NEXT_PUBLIC_STUDIO_DECK_CARD_THUMBNAILS_ENABLED, default off): a card shows its first-slide image instead of the live viewer
 import { STUDIO_DECK_TABS_HONEST_ENABLED, deckBuiltTabLabel } from "@/lib/studio-deck-tabs-honest" // AUDIT-CONSOLE
+import { useStudioDeckCardRehome, useStudioDeckRehomeVersion, studioDeckRehomeDecision } from "@/hooks/use-studio-deck-card-rehome" // AUDIT-PREVIEWS (NEXT_PUBLIC_STUDIO_DECK_CARD_REHOME, default off): a card whose saved viewer URL is another environment's uses this one when the deck exists here
 
 // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
 const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === "true"
@@ -77,7 +78,9 @@ interface DeckPagination {
 function PresentationPreview({ presentation }: { presentation: Presentation }) {
   // PASS2D R5 (NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT, default off): an unfinished deck previews its strawman, the deck its count describes (not a blank final deck).
   const candidate = process.env.NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT === "true" ? studioDeckCardPreviewUrl(presentation) : presentation.finalPresentationUrl || presentation.strawmanPreviewUrl
-  const decision = evaluateLayoutViewerUrl(candidate, LAYOUT_VIEWER_URL_POLICY)
+  const savedDecision = evaluateLayoutViewerUrl(candidate, LAYOUT_VIEWER_URL_POLICY) // AUDIT-PREVIEWS
+  const rehome = useStudioDeckCardRehome(candidate, savedDecision) // AUDIT-PREVIEWS: flag off = nothing asked, url null
+  const decision = rehome.url ? evaluateLayoutViewerUrl(rehome.url, LAYOUT_VIEWER_URL_POLICY) : savedDecision // AUDIT-PREVIEWS
   const deckCardThumbnail = useStudioDeckCardThumbnail(decision, deckTitle(presentation)) // DECK-CARD-THUMBNAIL: null with the flag off, and whenever today's preview is to be drawn
   if (deckCardThumbnail) return deckCardThumbnail // DECK-CARD-THUMBNAIL
 
@@ -94,13 +97,13 @@ function PresentationPreview({ presentation }: { presentation: Presentation }) {
   }
 
   return (
-    <div className="relative h-full w-full">
+    <div ref={rehome.boxRef} className="relative h-full w-full">{/* AUDIT-PREVIEWS */}
       <img
         src="/placeholder.svg"
         alt={deckTitle(presentation)}
         className="w-full h-full object-cover"
       />
-      {decision.status === 'blocked' && (
+      {decision.status === 'blocked' && !rehome.pending && ( // AUDIT-PREVIEWS
         <span className="absolute inset-x-2 bottom-2 rounded bg-amber-950/80 px-2 py-1 text-center text-xs text-white">
           Preview unavailable in this environment
         </span>
@@ -199,6 +202,7 @@ function DashboardForAccount({ user, isLoading }: Pick<ReturnType<typeof useAuth
   // PASS2B G53 (NEXT_PUBLIC_STUDIO_DECK_GRID_4, default off, Studio shell only): four cards per row from the xl breakpoint (1280 px), as in the mockup.
   const deckGrid4 = studioShell && process.env.NEXT_PUBLIC_STUDIO_DECK_GRID_4 === "true"
   const router = useRouter()
+  useStudioDeckRehomeVersion() // AUDIT-PREVIEWS: the Duplicate items re-read their decision when a card's read settles (flag off: never subscribes)
 
   // Load sessions from API
   const fetchSessions = useCallback(async (append = false) => {
@@ -340,7 +344,7 @@ function DashboardForAccount({ user, isLoading }: Pick<ReturnType<typeof useAuth
 
   const duplicateSession = async (presentation: Presentation) => {
     if (!duplicateDeckEnabled || !owner || !hasLoadedSessions || duplicationPending.current || requestPending.current || deletionPending.current) return
-    const target = duplicateTargetFor(presentation, url => evaluateLayoutViewerUrl(url, LAYOUT_VIEWER_URL_POLICY))
+    const target = duplicateTargetFor(presentation, url => studioDeckRehomeDecision(url, saved => evaluateLayoutViewerUrl(saved, LAYOUT_VIEWER_URL_POLICY))) // AUDIT-PREVIEWS
     if (!target.ok) return
     const copyOwner = owner
     const shownTitle = deckTitle(presentation)
@@ -399,7 +403,7 @@ function DashboardForAccount({ user, isLoading }: Pick<ReturnType<typeof useAuth
   // NEXT_PUBLIC_STUDIO_DUPLICATE_DECK: undefined with the flag off, so a card renders exactly as before.
   const duplicateControl = (presentation: Presentation): DuplicateControl | undefined => {
     if (!duplicateDeckEnabled) return undefined
-    const target = duplicateTargetFor(presentation, url => evaluateLayoutViewerUrl(url, LAYOUT_VIEWER_URL_POLICY))
+    const target = duplicateTargetFor(presentation, url => studioDeckRehomeDecision(url, saved => evaluateLayoutViewerUrl(saved, LAYOUT_VIEWER_URL_POLICY))) // AUDIT-PREVIEWS
     return {
       reason: target.ok ? null : target.reason,
       state: duplicating?.id === presentation.id ? "busy" : duplicating || isLoadingSessions || isLoadingMore || isDeletingSession ? "locked" : "idle",

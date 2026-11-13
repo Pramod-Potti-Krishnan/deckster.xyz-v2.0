@@ -19,8 +19,9 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
 import { stripAuditConsole } from './studio-audit-console-strip.mjs' // LATER-CHANGES: registry read (AUDIT-CONSOLE)
+import { stripAuditPreviews } from './studio-audit-previews-strip.mjs' // LATER-CHANGES: registry read (AUDIT-PREVIEWS)
 
-const read = path => stripAuditConsole(path, fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')) // LATER-CHANGES: registry read (AUDIT-CONSOLE)
+const read = path => stripAuditConsole(path, stripAuditPreviews(path, fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'))) // LATER-CHANGES: registry read (AUDIT-CONSOLE); LATER-CHANGES: registry read (AUDIT-PREVIEWS)
 const compile = (text, jsx = false) => ts.transpileModule(text, {
   compilerOptions: {
     module: ts.ModuleKind.CommonJS,

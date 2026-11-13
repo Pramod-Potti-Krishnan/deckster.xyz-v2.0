@@ -20,9 +20,10 @@ import ts from 'typescript'
 import { stripDeckCardCount, DECK_CARD_COUNT_ADDITIONS } from './studio-deck-card-count-strip.mjs'
 import { stripDeckCardThumbnail } from './studio-deck-card-thumbnail-strip.mjs' // DECK-CARD-THUMBNAIL (NEXT_PUBLIC_STUDIO_DECK_CARD_THUMBNAILS_ENABLED, COMPOSER-2): its marked lines on the Decks page come out first, before every older change's strip
 import { stripAuditConsole } from './studio-audit-console-strip.mjs' // LATER-CHANGES: registry read (AUDIT-CONSOLE)
+import { stripAuditPreviews } from './studio-audit-previews-strip.mjs' // LATER-CHANGES: registry read (AUDIT-PREVIEWS)
 
 const root = path.resolve(new URL('..', import.meta.url).pathname)
-const read = rel => stripDeckCardThumbnail(rel, stripAuditConsole(rel, fs.readFileSync(path.join(root, rel), 'utf8'))) // LATER-CHANGES: registry read (AUDIT-CONSOLE); DECK-CARD-THUMBNAIL: its marked lines on the Decks page come out first
+const read = rel => stripDeckCardThumbnail(rel, stripAuditConsole(rel, stripAuditPreviews(rel, fs.readFileSync(path.join(root, rel), 'utf8')))) // LATER-CHANGES: registry read (AUDIT-CONSOLE); LATER-CHANGES: registry read (AUDIT-PREVIEWS); DECK-CARD-THUMBNAIL: its marked lines on the Decks page come out first
 const PAGE = 'app/(app)/dashboard/page.tsx'
 const LIB = 'lib/studio-deck-card-count.ts'
 const CARDS = 'lib/studio-deck-cards.ts'

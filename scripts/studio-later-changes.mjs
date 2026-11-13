@@ -101,6 +101,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-brand-kit-strip.mjs')).BRAND_KIT_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, Brand Kit caller: colour suggestions from a logo, the kit form, the brand record proxy and the signed theme proxies (NEXT_PUBLIC_STUDIO_BRAND_KIT)
   ...(await import('./studio-audit-present-exit-strip.mjs')).AUDIT_PRESENT_EXIT_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, audit P-17, Present Exit leaves Present when the browser is not full screen (NEXT_PUBLIC_STUDIO_PRESENT_EXIT_FIX)
   ...(await import('./studio-audit-console-strip.mjs')).AUDIT_CONSOLE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, audit P-30 / P-32, no analytics script request where none is served, an honest first Decks tab (NEXT_PUBLIC_STUDIO_ANALYTICS_GATE / NEXT_PUBLIC_STUDIO_ANALYTICS_SERVED / NEXT_PUBLIC_STUDIO_DECK_TABS_HONEST)
+  ...(await import('./studio-audit-previews-strip.mjs')).AUDIT_PREVIEWS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, audit P-01 / P-07 / P-29, deck cards and Duplicate for a deck that exists on this Layout, the slide list and a live Publish preview when the inventory route is absent (NEXT_PUBLIC_STUDIO_DECK_CARD_REHOME / NEXT_PUBLIC_STUDIO_INVENTORY_FALLBACK)
   // one line per later change, above this comment
 ])
 
@@ -167,6 +168,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-brand-kit-strip.mjs')).BRAND_KIT_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, Brand Kit caller (NEXT_PUBLIC_STUDIO_BRAND_KIT / THEME_BUILDER_BRAND_EXTRACT_KEY / STUDIO_BRAND_EXTRACT_DAILY_CAP)
   (await import('./studio-audit-present-exit-strip.mjs')).AUDIT_PRESENT_EXIT_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, audit P-17, Present Exit leaves Present when the browser is not full screen (NEXT_PUBLIC_STUDIO_PRESENT_EXIT_FIX)
   (await import('./studio-audit-console-strip.mjs')).AUDIT_CONSOLE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, audit P-30 / P-32, no analytics script request where none is served, an honest first Decks tab (NEXT_PUBLIC_STUDIO_ANALYTICS_GATE / NEXT_PUBLIC_STUDIO_ANALYTICS_SERVED / NEXT_PUBLIC_STUDIO_DECK_TABS_HONEST)
+  (await import('./studio-audit-previews-strip.mjs')).AUDIT_PREVIEWS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, audit P-01 / P-07 / P-29, deck cards and Duplicate for a deck that exists on this Layout, the slide list and a live Publish preview when the inventory route is absent (NEXT_PUBLIC_STUDIO_DECK_CARD_REHOME / NEXT_PUBLIC_STUDIO_INVENTORY_FALLBACK)
   // one line per later change, above this comment
 ]
 
@@ -249,6 +251,7 @@ export const LATER_STRIPS = [
   (await import('./studio-brand-kit-strip.mjs')).stripBrandKit, // LATER-CHANGE: FRONTEND-1, Brand Kit caller (NEXT_PUBLIC_STUDIO_BRAND_KIT)
   (await import('./studio-audit-present-exit-strip.mjs')).stripAuditPresentExit, // LATER-CHANGE: FRONTEND-1, audit P-17, Present Exit leaves Present when the browser is not full screen (NEXT_PUBLIC_STUDIO_PRESENT_EXIT_FIX)
   (await import('./studio-audit-console-strip.mjs')).stripAuditConsole, // LATER-CHANGE: FRONTEND-1, audit P-30 / P-32, no analytics script request where none is served, an honest first Decks tab (NEXT_PUBLIC_STUDIO_ANALYTICS_GATE / NEXT_PUBLIC_STUDIO_ANALYTICS_SERVED / NEXT_PUBLIC_STUDIO_DECK_TABS_HONEST)
+  (await import('./studio-audit-previews-strip.mjs')).stripAuditPreviews, // LATER-CHANGE: FRONTEND-1, audit P-01 / P-07 / P-29, deck cards and Duplicate for a deck that exists on this Layout, the slide list and a live Publish preview when the inventory route is absent (NEXT_PUBLIC_STUDIO_DECK_CARD_REHOME / NEXT_PUBLIC_STUDIO_INVENTORY_FALLBACK)
   // one line per later change, above this comment
 ]
 
