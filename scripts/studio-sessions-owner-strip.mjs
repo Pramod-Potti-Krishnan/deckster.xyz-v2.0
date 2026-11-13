@@ -10,6 +10,12 @@
 //   - a URL session id that POST /api/sessions refuses (404: another account's chat) is never kept: the Builder mints a fresh id, creates its row, replaces the URL (no history entry) and opens the Director socket on the fresh id only
 //     (hooks/use-builder-session.ts, its adoption branch; hooks/use-chat-sessions.ts says which id was refused). Every line this follow-up adds to those two EXISTING files carries the marker SESSIONS-OWNER (a whole token) and is a PURE INSERTION:
 //     no base line of the hook is rewritten (older proofs hold every base line of it, in order), so each pair has an empty base text. The Builder page is not touched.
+// FOLLOW-UP 2 (13 Nov, REVIEW-1's P2 on #629 and DIRECTOR-2's 17:10Z note, a Draft stacked on the follow-up): through the Builder the Director socket never opens on a session id the caller does not own, or that is not confirmed new or the caller's own.
+//   - hooks/use-builder-session.ts only, 7 more marked PURE INSERTIONS (the pairs after the first two there, each with an empty base text): the id the page seeds from the URL starts as "unconfirmed"; the connection effect waits for it to clear
+//     (the loading safety net ends "loading" after 10 s whatever is in flight, and "loading is over" was all the effect waited for); the start-up pass clears it where the caller's own row answered, where the create for the id was answered 2xx and for a
+//     local id this tab minted; a create that fails with a 500 or no answer keeps the id as an unsaved session, as before, but the id stays unconfirmed (no socket) and the person is told.
+//   - scripts/test-studio-new-deck-handoff-send.mjs is taught one marked line (its harness compiles the hook's connection effect with a hand-made scope; the effect now reads ownerUnconfirmedId), paired here with an empty base text like the two older proofs' taught line.
+//   - app/api/director/ws-token/route.ts is NOT changed: the mint already refuses another account's chat id (403) before it signs; the proof now says so. The Builder page and the socket hook are not touched.
 // Plain node, no imports, nothing read from disk or git here.
 
 /** The marker every line this follow-up inserts into the two hooks carries, as a WHOLE token (SESSIONS-OWNER-X and X-SESSIONS-OWNER are not it). */
@@ -28,16 +34,21 @@ export const SESSIONS_OWNER_SCOPE_FILES = [
   'scripts/studio-later-changes.mjs',
   'scripts/test-studio-deck-sync-truth.mjs', // taught: one registry-read line (the first-parent commit filter), as every later change before it
   'scripts/test-studio-chat-element-edit.mjs', // taught: the same line
+  'scripts/test-studio-new-deck-handoff-send.mjs', // taught (follow-up 2): its harness runs the Builder hook's connection effect with a hand-made scope, so the effect's new free variable (ownerUnconfirmedId) is one marked line there
   'scripts/test-studio-session-hygiene.mjs', // taught: its scripted history API answers the caller's own existing row 200 as the route now does (two marked lines)
 ]
 
 /** The one line this change taught the two older proofs that read their own first-parent commits (a filter by this change's commit subject). Read through the registry, an older pin or a later change's pin sees them as they were. */
 export const SESSIONS_OWNER_PIN_LINE = "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Sessions:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (SESSIONS-OWNER): on a branch stacked after this change (the sessions owner check, P-73 / P-74), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files\n"
 
+/** The one line follow-up 2 taught the new-deck handoff send proof: its harness gives the session hook's connection effect a hand-made scope, and the effect now reads ownerUnconfirmedId (null: the new session's id is the page's own). Read through the registry, an older pin sees the proof as it was. */
+export const SESSIONS_OWNER_HANDOFF_SCOPE_LINE = "      ownerUnconfirmedId: null, // SESSIONS-OWNER: the session hook's wait for \"this URL id was checked\" (a free variable of its connection effect): the new session's id is one the page owns, so nothing is unconfirmed here\n"
+
 /** [now, before] pairs per file: the strip puts the base's text back (each `now` sits in the head's file exactly once). Generated from the diff against BASE_COMMIT. */
 export const SESSIONS_OWNER_PAIRS = {
  "scripts/test-studio-chat-element-edit.mjs": [[SESSIONS_OWNER_PIN_LINE, '']],
  "scripts/test-studio-deck-sync-truth.mjs": [[SESSIONS_OWNER_PIN_LINE, '']],
+ "scripts/test-studio-new-deck-handoff-send.mjs": [[SESSIONS_OWNER_HANDOFF_SCOPE_LINE, '']],
  "app/api/sessions/route.ts": [
   [
    "import { authOptions } from '@/lib/auth-options';\nimport { prisma } from '@/lib/prisma';\nimport { pickAllowedKeys } from '@/lib/api-hardening-core';\n\n/**\n",
@@ -95,6 +106,34 @@ export const SESSIONS_OWNER_PAIRS = {
   ],
   [
    "            if (!adopted && createSessionWasRefused(sessionParam)) { // SESSIONS-OWNER (13 Nov, REVIEW-1 P3 and DIRECTOR-2): POST /api/sessions answered 404: this id is another account's chat (a missing id is created, 201). Never keep it, not even as an unsaved local session, and never open the Director socket on it\n              const ownSessionId = crypto.randomUUID() // SESSIONS-OWNER: a fresh id of the caller's own, as the bare /builder branch below mints one\n              console.warn('⚠️ [SESSIONS-OWNER] The URL session is not this account\\'s; starting a new session under a fresh id') // SESSIONS-OWNER\n              const ownRow = await createSession(ownSessionId) // SESSIONS-OWNER: the row for the caller's own id; a failure keeps the fresh id as an unsaved local session, as the adoption below does\n              if (!mayContinueInitialization() || (ownRow && ownRow.id !== ownSessionId)) return // SESSIONS-OWNER\n              recordStudioFreshAssignment(ownSessionId, { kind: 'local_uuid', generatedSessionId: ownSessionId }) // SESSIONS-OWNER\n              clearMessages() // SESSIONS-OWNER\n              setUserMessages([]) // SESSIONS-OWNER\n              setCurrentSessionId(ownSessionId) // SESSIONS-OWNER: the socket (existingSessionId) and every later write use this id from here\n              setSessionStoreName(ownRow?.geminiStoreName || null) // SESSIONS-OWNER\n              setIsUnsavedSession(!ownRow) // SESSIONS-OWNER\n              try { if (builderCacheOwner) { if (ownRow) sessionStorage.removeItem(unsavedBuilderSessionKey(builderCacheOwner, ownSessionId)); else sessionStorage.setItem(unsavedBuilderSessionKey(builderCacheOwner, ownSessionId), 'true') } } catch {} // SESSIONS-OWNER\n              setIsResumedSession(false) // SESSIONS-OWNER\n              lastLoadedSessionRef.current = ownSessionId // SESSIONS-OWNER: the URL change below must not load it again\n              router.replace(getInitializedBuilderHref(searchParams, ownSessionId, process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'), { scroll: false }) // SESSIONS-OWNER: replace, not push: Back does not return to the other account's id\n              return // SESSIONS-OWNER\n            } // SESSIONS-OWNER\n",
+   ""
+  ],
+  [
+   "  // SESSIONS-OWNER (13 Nov, REVIEW-1 P2 and DIRECTOR-2): the id the page seeds from the URL is not known to be the caller's own until the start-up pass below has checked it (the caller's own row answered 200, or the create for it was answered 2xx, or the id is a local one this tab minted).\n  // SESSIONS-OWNER: the loading safety net below ends \"loading\" after 10 s whatever is still in flight, so \"loading is over\" must not be what lets the Director socket open on that id: the connection effect waits for this to clear.\n  const [ownerUnconfirmedId, setOwnerUnconfirmedId] = useState<string | null>(() => currentSessionId) // SESSIONS-OWNER: a URL id (the page's first value for the chat id); null on a bare /builder and on session_id=new, so those starts are unchanged\n  const confirmSessionOwner = (confirmedId: string) => setOwnerUnconfirmedId(held => (held === confirmedId ? null : held)) // SESSIONS-OWNER: the start-up pass says \"this id is the caller's own\" (or a local one); the change re-runs the connection effect\n",
+   ""
+  ],
+  [
+   "            confirmSessionOwner(sessionParam) // SESSIONS-OWNER (found): the lookup answered the caller's own row and it is restored above, so the Director socket may open on this id (after the restore, as it always did)\n",
+   ""
+  ],
+  [
+   "            confirmSessionOwner(sessionParam) // SESSIONS-OWNER (local id): the lookup answered 404 (no row under any account) and this tab minted the id (its unsaved marker), so it is new and the caller's own\n",
+   ""
+  ],
+  [
+   "              confirmSessionOwner(adopted.id) // SESSIONS-OWNER (adopted): the create for the URL's id was answered 2xx, which always means the row is the caller's (201 new, 200 own), so the socket may open on it\n",
+   ""
+  ],
+  [
+   "              if (freshStageAssignmentRef.current?.sessionId === sessionParam) confirmSessionOwner(sessionParam) // SESSIONS-OWNER (adoption failed, a local id): this tab minted the id (bare /builder, + New chat), so it is new and the caller's own: the socket opens on it, as before\n              else { // SESSIONS-OWNER (adoption failed, a URL id)\n                setOwnerUnconfirmedId(sessionParam) // SESSIONS-OWNER (adoption failed, a URL id): the create was not answered 2xx and not 404 (a 500, a network error), so nobody has said whose this id is: it stays the page's unsaved session (no new id, as before) but the Director socket never opens on it from here\n                toast({ title: 'This chat could not be opened', description: 'Check your connection and reload the page to try again.', variant: 'destructive' }) // SESSIONS-OWNER (adoption failed, a URL id): the person is told why the chat has no Director connection\n              } // SESSIONS-OWNER (adoption failed, a URL id)\n",
+   ""
+  ],
+  [
+   "    if (ownerUnconfirmedId && currentSessionId === ownerUnconfirmedId) return // SESSIONS-OWNER: this id came from the URL and nobody has said it is the caller's own (or it is new): not even after the loading safety net ends \"loading\"; confirmSessionOwner clears it and this effect runs again\n",
+   ""
+  ],
+  [
+   "    ownerUnconfirmedId, // SESSIONS-OWNER\n",
    ""
   ]
  ],

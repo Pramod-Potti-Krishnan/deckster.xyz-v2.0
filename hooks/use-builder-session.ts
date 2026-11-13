@@ -164,6 +164,10 @@ export function useBuilderSession({
   const [isCreatingSession, setIsCreatingSession] = useState(false)
   // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: why the URL's session cannot be opened. Always null with the flag off.
   const [sessionProblem, setSessionProblem] = useState<{ kind: StudioSessionProblem; sessionId: string } | null>(null)
+  // SESSIONS-OWNER (13 Nov, REVIEW-1 P2 and DIRECTOR-2): the id the page seeds from the URL is not known to be the caller's own until the start-up pass below has checked it (the caller's own row answered 200, or the create for it was answered 2xx, or the id is a local one this tab minted).
+  // SESSIONS-OWNER: the loading safety net below ends "loading" after 10 s whatever is still in flight, so "loading is over" must not be what lets the Director socket open on that id: the connection effect waits for this to clear.
+  const [ownerUnconfirmedId, setOwnerUnconfirmedId] = useState<string | null>(() => currentSessionId) // SESSIONS-OWNER: a URL id (the page's first value for the chat id); null on a bare /builder and on session_id=new, so those starts are unchanged
+  const confirmSessionOwner = (confirmedId: string) => setOwnerUnconfirmedId(held => (held === confirmedId ? null : held)) // SESSIONS-OWNER: the start-up pass says "this id is the caller's own" (or a local one); the change re-runs the connection effect
 
   const [userMessages, setUserMessages] = useState<UserChatMessage[]>(() => {
     if (typeof window === 'undefined') return [];
@@ -663,6 +667,7 @@ export function useBuilderSession({
                   .map((msg: any) => msg.id)),
               }))
             }
+            confirmSessionOwner(sessionParam) // SESSIONS-OWNER (found): the lookup answered the caller's own row and it is restored above, so the Director socket may open on this id (after the restore, as it always did)
           } else if (missingDecision === 'keep_unsaved') {
             // A local id this tab generated (bare /builder, + Presentation, a reload of either). Its row is created by the
             // first real action (first message, upload, manual-deck handoff), exactly like + Presentation always did.
@@ -671,6 +676,7 @@ export function useBuilderSession({
             setIsUnsavedSession(true)
             setIsResumedSession(false)
             debugLog('🆕 [SESSION-HYGIENE] Local unsaved session kept; no history row written:', sessionParam)
+            confirmSessionOwner(sessionParam) // SESSIONS-OWNER (local id): the lookup answered 404 (no row under any account) and this tab minted the id (its unsaved marker), so it is new and the caller's own
           } else if (missingDecision && missingDecision !== 'adopt') {
             // Not a session this account can open. Show the state; write nothing, connect to nothing.
             console.warn('⚠️ [SESSION-HYGIENE] Session cannot be opened:', missingDecision, sessionParam)
@@ -711,6 +717,7 @@ export function useBuilderSession({
                 }
               } catch {}
               debugLog('✅ Adopted URL session in frontend DB:', adopted.id)
+              confirmSessionOwner(adopted.id) // SESSIONS-OWNER (adopted): the create for the URL's id was answered 2xx, which always means the row is the caller's (201 new, 200 own), so the socket may open on it
             } else {
               setCurrentSessionId(sessionParam)
               setSessionStoreName(null)
@@ -721,6 +728,11 @@ export function useBuilderSession({
                 }
               } catch {}
               debugLog('⚠️ URL session adoption failed; keeping unsaved guard active:', sessionParam)
+              if (freshStageAssignmentRef.current?.sessionId === sessionParam) confirmSessionOwner(sessionParam) // SESSIONS-OWNER (adoption failed, a local id): this tab minted the id (bare /builder, + New chat), so it is new and the caller's own: the socket opens on it, as before
+              else { // SESSIONS-OWNER (adoption failed, a URL id)
+                setOwnerUnconfirmedId(sessionParam) // SESSIONS-OWNER (adoption failed, a URL id): the create was not answered 2xx and not 404 (a 500, a network error), so nobody has said whose this id is: it stays the page's unsaved session (no new id, as before) but the Director socket never opens on it from here
+                toast({ title: 'This chat could not be opened', description: 'Check your connection and reload the page to try again.', variant: 'destructive' }) // SESSIONS-OWNER (adoption failed, a URL id): the person is told why the chat has no Director connection
+              } // SESSIONS-OWNER (adoption failed, a URL id)
             }
             setIsResumedSession(false)
           }
@@ -903,6 +915,7 @@ export function useBuilderSession({
       return
     }
 
+    if (ownerUnconfirmedId && currentSessionId === ownerUnconfirmedId) return // SESSIONS-OWNER: this id came from the URL and nobody has said it is the caller's own (or it is new): not even after the loading safety net ends "loading"; confirmSessionOwner clears it and this effect runs again
     if (!shouldRequestBuilderSessionConnection({
       sessionKey,
       lastRequestedSessionKey: connectionRequestedSessionRef.current,
@@ -924,6 +937,7 @@ export function useBuilderSession({
     }
   }, [
     currentSessionId,
+    ownerUnconfirmedId, // SESSIONS-OWNER
     isLoadingSession,
     isAuthLoading,
     connecting,

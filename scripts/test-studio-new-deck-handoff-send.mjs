@@ -182,6 +182,7 @@ async function mountPage({ flag, pageText = read(PAGE), files = {} }) {
     const connectionScope = {
       currentSessionId, isUnsavedSession, isResumedSession, connected: api.connected, connecting: api.connecting, reconnectStatus: api.reconnectStatus,
       connectionRequestedSessionRef: r.connectionRequestedSessionRef, shouldRequestBuilderSessionConnection: modules.policy.shouldRequestBuilderSessionConnection,
+      ownerUnconfirmedId: null, // SESSIONS-OWNER: the session hook's wait for "this URL id was checked" (a free variable of its connection effect): the new session's id is one the page owns, so nothing is unconfirmed here
       isLoadingSession: false, isAuthLoading: false, user, debugLog: noop, ensureConnected: api.ensureConnected,
     }
     React.useEffect(parts.refSyncEffect({ ...r, currentSessionId }), parts.refSyncDeps({ currentSessionId }))
