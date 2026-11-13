@@ -15,6 +15,7 @@ export const SESSIONS_OWNER_SCOPE_FILES = [
   'scripts/studio-later-changes.mjs',
   'scripts/test-studio-deck-sync-truth.mjs', // taught: one registry-read line (the first-parent commit filter), as every later change before it
   'scripts/test-studio-chat-element-edit.mjs', // taught: the same line
+  'scripts/test-studio-session-hygiene.mjs', // taught: its scripted history API answers the caller's own existing row 200 as the route now does (two marked lines)
 ]
 
 /** The one line this change taught the two older proofs that read their own first-parent commits (a filter by this change's commit subject). Read through the registry, an older pin or a later change's pin sees them as they were. */
@@ -82,6 +83,16 @@ export const SESSIONS_OWNER_PAIRS = {
   [
    "\n      if (!response.ok) {\n        // Try to get error details from response\n        let errorMessage = response.statusText;\n",
    "\n      if (!response.ok) {\n        // If conflict (409), session already exists - that's ok\n        if (response.status === 409) {\n          console.log('[useChatSessions] Session already exists (409)');\n          const data = await response.json();\n          return data.session;\n        }\n\n        // Try to get error details from response\n        let errorMessage = response.statusText;\n"
+  ]
+ ],
+ "scripts/test-studio-session-hygiene.mjs": [
+  [
+   "      if (method === 'POST' && faults.posts > 0) { faults.posts--; status = 500; out = { error: 'boom' } }\n      else if (method === 'POST') {\n        if (rows.has(body.sessionId)) { status = 200; out = { session: { id: body.sessionId, geminiStoreName: rows.get(body.sessionId).geminiStoreName ?? null } } } // LATER-CHANGES: registry read (SESSIONS-OWNER): the route answers the caller's own existing row 200 with the allow-listed row (it was a 409 with the whole row)\n        else { const row = { id: body.sessionId, status: 'active', title: body.title || 'Untitled Session', messages: [] }; rows.set(row.id, row); status = 201; out = { session: row } }\n      } else out = { sessions: [], pagination: { total: 0, limit: 50, offset: 0, hasMore: false } }\n",
+   "      if (method === 'POST' && faults.posts > 0) { faults.posts--; status = 500; out = { error: 'boom' } }\n      else if (method === 'POST') {\n        if (rows.has(body.sessionId)) { status = 409; out = { session: rows.get(body.sessionId) } }\n        else { const row = { id: body.sessionId, status: 'active', title: body.title || 'Untitled Session', messages: [] }; rows.set(row.id, row); status = 201; out = { session: row } }\n      } else out = { sessions: [], pagination: { total: 0, limit: 50, offset: 0, hasMore: false } }\n"
+  ],
+  [
+   "    check(assert.equal, bug.api.rowCreations().length, 1, 'pre-fix, flag on: a bare visit creates the empty row (the live \"Untitled Session\")')\n    check(assert.equal, patches404(bug), 8, 'pre-fix, flag on: after eight PATCH 404s (two updates x four attempts), as in the live trace')\n    check(assert.equal, bug.api.count('POST', 200), 1, 'pre-fix, flag on: with the second update\\'s recovery POST answering 200 (the row exists; a 409 before the sessions owner check)') // LATER-CHANGES: registry read (SESSIONS-OWNER)\n    check(assert.equal, bug.api.count('PATCH', 200), 2, 'pre-fix, flag on: then both PATCHes land')\n    check(assert.equal, bug.api.calls[0].method + ' ' + bug.api.calls[0].status, 'GET 404', 'pre-fix, flag on: after the one lookup that 404ed')\n",
+   "    check(assert.equal, bug.api.rowCreations().length, 1, 'pre-fix, flag on: a bare visit creates the empty row (the live \"Untitled Session\")')\n    check(assert.equal, patches404(bug), 8, 'pre-fix, flag on: after eight PATCH 404s (two updates x four attempts), as in the live trace')\n    check(assert.equal, bug.api.count('POST', 409), 1, 'pre-fix, flag on: with the second update\\'s recovery POST answering 409')\n    check(assert.equal, bug.api.count('PATCH', 200), 2, 'pre-fix, flag on: then both PATCHes land')\n    check(assert.equal, bug.api.calls[0].method + ' ' + bug.api.calls[0].status, 'GET 404', 'pre-fix, flag on: after the one lookup that 404ed')\n"
   ]
  ]
 }

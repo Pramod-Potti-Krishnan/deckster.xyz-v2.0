@@ -425,7 +425,7 @@ for (const [list, name] of [['LATER_CHANGE_FILES', 'SESSIONS_OWNER_SCOPE_FILES']
   assert.equal(mine.length, 1, `${list}: one marked line`)
 }
 assert.ok(strip.SESSIONS_OWNER_SCOPE_FILES.every(rel => LATER_CHANGE_FILES.has(rel)), 'every scope file is registered')
-for (const rel of ['app/api/sessions/route.ts', 'hooks/use-chat-sessions.ts', 'scripts/test-studio-sessions-owner.mjs', 'scripts/studio-sessions-owner-strip.mjs', 'scripts/studio-later-changes.mjs', 'scripts/test-studio-deck-sync-truth.mjs', 'scripts/test-studio-chat-element-edit.mjs']) assert.ok(strip.SESSIONS_OWNER_SCOPE_FILES.includes(rel), `${rel} is in scope`)
+for (const rel of ['app/api/sessions/route.ts', 'hooks/use-chat-sessions.ts', 'scripts/test-studio-sessions-owner.mjs', 'scripts/studio-sessions-owner-strip.mjs', 'scripts/studio-later-changes.mjs', 'scripts/test-studio-deck-sync-truth.mjs', 'scripts/test-studio-chat-element-edit.mjs', 'scripts/test-studio-session-hygiene.mjs']) assert.ok(strip.SESSIONS_OWNER_SCOPE_FILES.includes(rel), `${rel} is in scope`)
 assert.equal(stripLaterChanges('.env.example', read('.env.example')), stripLaterChanges('.env.example', baseOf('.env.example')), 'no flag, no .env.example block (read through the later changes\' blocks)')
 
 // the two older proofs that read their own first-parent commits skip a later change's by subject: this change's commits start "Sessions:"
