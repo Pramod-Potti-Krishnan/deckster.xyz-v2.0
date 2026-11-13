@@ -7,6 +7,8 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { LATER_CHANGE_FILES } from './studio-later-changes.mjs'; // taught (FRONTEND-1, pre-promo C-07 deletion): through the later-changes registry
+import { PREPROMO_BASE, PREPROMO_DELETED } from './studio-prepromo-strip.mjs';
 const root = process.cwd();
 const scratch = path.join(root, '.env.studio-v4-runtime/jose-candidate-20261003');
 const frozen = path.join(root, '.env.studio-v4-runtime/isolated-dependencies');
@@ -16,7 +18,12 @@ const write = (n, v) => fs.writeFileSync(path.join(evidence, n), typeof v === 's
 const protectedFiles = ['package.json', 'pnpm-lock.yaml', '.nvmrc', 'next.config.mjs', 'app/api/dev/mock-token/route.ts', '.env.studio-v4-runtime/isolated-dependencies/package.json', '.env.studio-v4-runtime/isolated-dependencies/pnpm-lock.yaml',
   '.env.studio-v4-runtime/isolated-dependencies/node_modules/.pnpm/jose@6.1.2/node_modules/jose/package.json',
   '.env.studio-v4-runtime/isolated-dependencies/node_modules/.pnpm/jose@4.15.9/node_modules/jose/package.json'];
-const guards = () => Object.fromEntries(protectedFiles.map(f => [f, hash(path.join(root, f))]));
+// taught (FRONTEND-1, pre-promo C-07 deletion): a registered later change deletes the route, so the candidate reads its BASE text from git (PREPROMO_BASE); its hash is of that text, and it must stay deleted
+const mockRel = 'app/api/dev/mock-token/route.ts';
+const mockDeletedLater = PREPROMO_DELETED.includes(mockRel) && LATER_CHANGE_FILES.has(mockRel) && !fs.existsSync(path.join(root, mockRel));
+const mockText = mockDeletedLater ? execFileSync('git', ['show', `${PREPROMO_BASE}:${mockRel}`], { cwd: root, encoding: 'utf8' }) : null;
+const hashFile = (rel) => rel === mockRel && mockDeletedLater ? (fs.existsSync(path.join(root, rel)) ? 'reappeared' : crypto.createHash('sha256').update(mockText).digest('hex')) : hash(path.join(root, rel));
+const guards = () => Object.fromEntries(protectedFiles.map(f => [f, hashFile(f)]));
 const before = guards(), rootSymlink = fs.readlinkSync(path.join(root, 'node_modules'));
 assert.equal(execFileSync('git', ['check-ignore', path.join(scratch, 'package.json')], { encoding: 'utf8' }).trim(), path.join(scratch, 'package.json'));
 const metadata = JSON.parse(fs.readFileSync(path.join(evidence, 'registry-6.2.12.json')));
@@ -54,7 +61,7 @@ const module = await import(pathToFileURL(runtimeEntry).href);
 assert.equal(typeof module.SignJWT, 'function');
 for (const method of ['setProtectedHeader', 'setExpirationTime', 'setIssuedAt', 'sign']) assert.equal(typeof module.SignJWT.prototype[method], 'function');
 const ts = require('typescript');
-const source = fs.readFileSync(path.join(root, 'app/api/dev/mock-token/route.ts'), 'utf8');
+const source = mockDeletedLater ? mockText : fs.readFileSync(path.join(root, 'app/api/dev/mock-token/route.ts'), 'utf8');
 const virtual = path.join(scratch, 'app/api/dev/mock-token/route.ts');
 const parsed = ts.parseJsonConfigFileContent(ts.readConfigFile(path.join(root, 'tsconfig.json'), ts.sys.readFile).config, ts.sys, root);
 const options = { ...parsed.options, baseUrl: scratch, noEmit: true, incremental: false };
@@ -143,7 +150,7 @@ write('candidate-witness.json', { capturedAt: new Date().toISOString(), head: ex
   nextVersion: require('next/package.json').version, webpackVersion: nextWebpack.webpack.version,
   nodeVersion: process.version, nodeTarget: 'node18', globalWebCryptoPresent: typeof globalThis.crypto?.subtle === 'object',
   directTypeEntry: fs.realpathSync(typeResolution.resolvedFileName), actualRouteDiagnostics: diagnostics,
-  actualRouteHash: hash(path.join(root, 'app/api/dev/mock-token/route.ts')), emittedHash: hash(entry), bundleHash: hash(path.join(scratch, 'bundle/route.cjs')),
+  actualRouteHash: hashFile(mockRel), emittedHash: hash(entry), bundleHash: hash(path.join(scratch, 'bundle/route.cjs')),
   bundlingDecisions: decisions, rawJoseRequireInBundle: false, cryptoSubtleRemainsRequired: true, transitive,
   protectedHashes: before, sharedAndFrozenFilesUnchanged: true, rootSymlink,
   routeExecuted: false, signerConstructed: false, tokenSigned: false, handlersInvoked: false,

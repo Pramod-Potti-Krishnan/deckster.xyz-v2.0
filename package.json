@@ -11,6 +11,7 @@
     "build": "prisma generate && next build",
     "dev": "next dev",
     "lint": "next lint",
+    "test:ws-bq-claim": "node scripts/test-ws-bq-claim.mjs",
     "test:director-sync-recovery": "node scripts/test-director-sync-recovery.mjs",
     "test:studio-history-action-status": "node scripts/test-studio-history-action-status.mjs",
     "test:studio-first-paint": "node scripts/test-studio-first-paint.mjs",
@@ -169,6 +170,7 @@
     "test:studio-narration-router": "node scripts/test-studio-narration-router.mjs",
     "test:studio-deck-import": "node scripts/test-studio-deck-import.mjs",
     "test:studio-launch-wording": "node scripts/test-studio-launch-wording.mjs",
+    "test:studio-voice-core": "vitest run --config scripts/studio-voice-vitest.config.mjs",
     "test:studio-connectors-gdrive": "node scripts/test-studio-connectors-gdrive.mjs"
   },
   "dependencies": {
@@ -248,6 +250,7 @@
     "postcss": "^8.5",
     "prisma": "^6.19.0",
     "tailwindcss": "^3.4.17",
+    "vitest": "5.0.3",
     "typescript": "^5"
   }
 }

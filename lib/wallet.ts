@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import type { PrismaClient, Prisma } from "@prisma/client"
+import { isUniqueViolation } from "@/lib/billing/security" // BILLING-SECURITY
 
 type TransactionClient = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">
 
@@ -8,6 +9,7 @@ export type WalletTransactionReason =
   | "token_usage"
   | "card_topup"
   | "admin_adjust"
+  | "refund_clawback" // BILLING-SECURITY
 
 interface WalletMutationParams {
   userId: string
@@ -17,6 +19,7 @@ interface WalletMutationParams {
   tokens?: number
   metadata?: Prisma.JsonValue
   tx?: TransactionClient
+  allowNegative?: boolean // BILLING-SECURITY: a refund / dispute clawback (STUDIO_BILLING_COUPON_TIER_HARDENING) may take the balance below zero
 }
 
 async function mutateWallet(
@@ -24,6 +27,7 @@ async function mutateWallet(
   params: WalletMutationParams,
 ): Promise<{ balanceAfterCents: number; transactionId: string }> {
   const { userId, amountCents, reason, sourceRef, tokens, metadata, tx } = params
+  const allowNegative = params.allowNegative === true // BILLING-SECURITY
   if (amountCents <= 0) throw new Error("amountCents must be positive")
 
   const run = async (client: TransactionClient) => {
@@ -45,7 +49,9 @@ async function mutateWallet(
       select: { walletBalanceCents: true },
     })
 
-    if (user.walletBalanceCents < 0) {
+    // BILLING-SECURITY begin wallet-negative
+    if (user.walletBalanceCents < 0 && !allowNegative) {
+    // BILLING-SECURITY end wallet-negative
       throw new InsufficientFundsError(user.walletBalanceCents - delta, amountCents)
     }
 
@@ -66,7 +72,18 @@ async function mutateWallet(
   }
 
   if (tx) return run(tx)
-  return prisma.$transaction(async (txClient) => run(txClient))
+  // BILLING-SECURITY begin wallet-race
+  try {
+    return await prisma.$transaction(async (txClient) => run(txClient))
+  } catch (error) {
+    // B9: a concurrent duplicate with the same sourceRef lost the race on the unique index (Prisma P2002, by code). The winner's row is the result.
+    if (sourceRef && isUniqueViolation(error)) {
+      const existing = await prisma.walletTransaction.findUnique({ where: { sourceRef }, select: { id: true, balanceAfterCents: true } })
+      if (existing) return { balanceAfterCents: existing.balanceAfterCents, transactionId: existing.id }
+    }
+    throw error
+  }
+  // BILLING-SECURITY end wallet-race
 }
 
 export async function creditWallet(params: WalletMutationParams) {
@@ -76,6 +93,13 @@ export async function creditWallet(params: WalletMutationParams) {
 export async function debitWallet(params: WalletMutationParams) {
   return mutateWallet("debit", params)
 }
+// BILLING-SECURITY begin wallet-clawback
+
+/** Refund / dispute clawback (STUDIO_BILLING_COUPON_TIER_HARDENING): a debit that may take the balance negative, which blocks further spend. */
+export async function clawbackWallet(params: Omit<WalletMutationParams, "reason" | "allowNegative">) {
+  return mutateWallet("debit", { ...params, reason: "refund_clawback", allowNegative: true })
+}
+// BILLING-SECURITY end wallet-clawback
 
 /**
  * Record plan-included token usage in the ledger WITHOUT touching the prepaid

@@ -1,3 +1,4 @@
+import { stripVoiceCore } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): remove only this later port's exact test metadata
 // FRONTEND-2 (PROGRAM-1 decision D16 a, 25 Oct): proof for the flag NEXT_PUBLIC_STUDIO_LEGAL_SHORT_LINKS (exact "true", default off, build-time). `uat`'s next.config.mjs has two short legal links (/terms -> /legal/terms,
 // /privacy -> /legal/privacy, permanent: false) and a cache header on /marketing/v3/slides/:path* that the Studio dev tree lacks; carried into `uat`, the dev tree's next.config.mjs would drop all three. They are ported
 // as two new pages (the redirects, behind the flag) and one vercel.json entry (the header: a deploy config file cannot read an environment variable, so it is not behind the flag). NOT ported: `uat`'s /docs/api -> /docs and
@@ -28,6 +29,7 @@ import {
   BASE_COMMIT, LEGAL_SHORT_LINKS_BULK_EDIT_PROOF, LEGAL_SHORT_LINKS_COMMIT_SUBJECT, LEGAL_SHORT_LINKS_OLDER_PROOFS, LEGAL_SHORT_LINKS_POLISH_F_PROOF, LEGAL_SHORT_LINKS_ENV_BLOCK, LEGAL_SHORT_LINKS_FLAG, LEGAL_SHORT_LINKS_NEW_FILES, LEGAL_SHORT_LINKS_OWN_EDITS, LEGAL_SHORT_LINKS_SCOPE_FILES, UAT_COMMIT,
 } from './studio-legal-short-links-strip.mjs'
 import { LATER_CHANGE_FILES, LATER_ENV_BLOCKS, LATER_STRIPS, stripLaterEnvBlocks } from './studio-later-changes.mjs'
+import { stripApiHardening } from './studio-api-hardening-strip.mjs' // LATER-CHANGE: PROGRAM-1 API hardening (STUDIO_API_HARDENING_V1_ENABLED): its route lines come out before this pin reads them
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const nodeRequire = createRequire(import.meta.url)
@@ -39,7 +41,7 @@ const showCache = new Map()
 const showOf = (commit, rel) => { const ref = `${commit}:${rel}`; if (!showCache.has(ref)) showCache.set(ref, git('show', ref)); return showCache.get(ref) }
 const baseOf = rel => showOf(BASE, rel)
 let overrides = {} // in-memory mutations: every proof reads its sources through read()
-const read = rel => (rel in overrides ? overrides[rel] : fs.readFileSync(path.join(root, rel), 'utf8'))
+const read = rel => stripVoiceCore(rel, (rel in overrides ? overrides[rel] : fs.readFileSync(path.join(root, rel), 'utf8')))
 const sha = value => crypto.createHash('sha256').update(value).digest('hex')
 
 let checks = 0
@@ -263,9 +265,12 @@ const UNTOUCHED = [
   'next.config.mjs', 'middleware.ts', 'app/layout.tsx', 'app/not-found.tsx', 'app/legal/terms/page.tsx', 'app/legal/terms/layout.tsx', 'app/legal/privacy/page.tsx', 'app/legal/privacy/layout.tsx', 'app/legal/layout.tsx',
   'app/auth/signin/page.tsx', 'app/auth/signup/page.tsx', 'lib/legal-links.ts', 'app/sitemap.ts', 'vercel.dev.json', 'package.json', 'pnpm-lock.yaml', 'components/layout/Footer.tsx',
 ]
+const readOuter = read // LATER-CHANGES: registry read (WS-BQ-CLAIM): proveUntouched reads through the strips of the changes registered after this one (its own read stays as it is)
+const laterAfterLegal = (rel, text) => { const at = LATER_STRIPS.findIndex(fn => fn?.name === 'stripPass3PolishG'); return (at === -1 ? [] : LATER_STRIPS.slice(at)).reduce((out, strip) => { const next = typeof strip === 'function' ? strip(rel, out) : out; return typeof next === 'string' ? next : out }, text) } // LATER-CHANGES: registry read (WS-BQ-CLAIM): from Pass 3 polish G on, the first change registered after this one, in the registry's order
 function proveUntouched(at = '') {
   const a = message => (at ? `${at}: ${message}` : message)
-  for (const rel of UNTOUCHED) eq(sha(read(rel)), sha(baseOf(rel)), a(`${rel} is the base commit's, byte for byte`))
+  const read = rel => laterAfterLegal(rel, readOuter(rel)) // LATER-CHANGES: registry read (WS-BQ-CLAIM)
+  for (const rel of UNTOUCHED) eq(sha(stripApiHardening(rel, read(rel))), sha(baseOf(rel)), a(`${rel} is the base commit's, byte for byte`))
   for (const rel of [TERMS, PRIVACY, HELPER]) {
     let found = true
     try { git('cat-file', '-e', `${BASE}:${rel}`) } catch { found = false }
