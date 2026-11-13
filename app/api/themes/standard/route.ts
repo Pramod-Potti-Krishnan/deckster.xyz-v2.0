@@ -2,6 +2,7 @@ import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
+import { brandKitSignedHeaders, brandKitSignedInit } from '@/lib/studio-brand-kit-server' // BRAND-KIT-CALLER (NEXT_PUBLIC_STUDIO_BRAND_KIT): signs the Director call when the flag AND the entitlement flag are on; off, nothing is added
 
 function directorBaseUrl(): string {
   return requireServiceUrl('Director', [{ name: 'DIRECTOR_API_URL', value: process.env.DIRECTOR_API_URL }])
@@ -19,7 +20,7 @@ export async function GET() {
   try {
     const r = await fetch(
       `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes/standard`,
-      { cache: 'no-store' },
+      { cache: 'no-store', ...brandKitSignedInit(userId, 'GET') }, // BRAND-KIT-CALLER
     )
     const body = await r.json()
     return NextResponse.json(body, { status: r.status })
@@ -35,7 +36,7 @@ export async function DELETE() {
   try {
     const r = await fetch(
       `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes/standard`,
-      { method: 'DELETE' },
+      { method: 'DELETE', ...brandKitSignedInit(userId, 'DELETE') }, // BRAND-KIT-CALLER
     )
     const body = await r.json()
     return NextResponse.json(body, { status: r.status })

@@ -17,7 +17,9 @@ import path from 'node:path'
 import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
-import { stripLibraryManage } from './studio-library-manage-strip.mjs'
+import { stripLibraryManage as stripLibraryManageBase } from './studio-library-manage-strip.mjs' // LATER-CHANGES: registry read (BRAND-KIT-CALLER)
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (BRAND-KIT-CALLER)
+const stripLibraryManage = (rel, text) => stripLibraryManageBase(rel, stripLaterChanges(rel, text)) // LATER-CHANGES: registry read (BRAND-KIT-CALLER): a later change's marked lines (the Brand Kit's, in the Themes page) come out first
 
 const FLAG = 'NEXT_PUBLIC_THEME_FONT_SELECTION_ENABLED'
 const treeRoot = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
