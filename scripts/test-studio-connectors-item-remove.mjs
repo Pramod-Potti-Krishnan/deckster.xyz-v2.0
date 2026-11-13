@@ -238,9 +238,12 @@ await t('older files: this change only ADDS lines, except the named replaced lin
   git('cat-file', '-e', `${base}^{commit}`)
   // composer A + badge B sit between that base and piece C here: only their own edits, read from history (#608 1baf289d -> the pre-C merge f4192aa0), are allowed besides this change's
   const AB = ['1baf289da2aca08b83a996ac0c4dd3b30aea315a', 'f4192aa0']
-  // the hardening follow-up sits on #615's head 497408d5 (its merge base): its own edits, read from commits (497408d5 -> HEAD), are allowed besides these
+  // the hardening follow-up (on #615's head 497408d5): its own edits are allowed besides these, read from ITS OWN frozen range 497408d5..its head
+  // (never ..HEAD, never the worktree: later changes on HEAD are not the hardening's); either commit missing = no allowance, and a SKIP is printed
   const HARDENING_BASE = process.env.CONNECTORS_HARDENING_BASE || '497408d56860b07a7900f2e94fe51e50101e85bd'
-  git('cat-file', '-e', `${HARDENING_BASE}^{commit}`)
+  const HARDENING_HEAD = process.env.CONNECTORS_HARDENING_HEAD || 'PENDING'
+  const hardening = [HARDENING_BASE, HARDENING_HEAD].every(c => { try { git('cat-file', '-e', `${c}^{commit}`); return true } catch { return false } }) ? [HARDENING_BASE, HARDENING_HEAD] : null
+  if (!hardening) console.log(`   SKIP the hardening's allowance: ${HARDENING_BASE.slice(0, 8)} or ${HARDENING_HEAD.slice(0, 8)} is not in this clone`)
   const removedLines = (range, f) => git('diff', '--unified=0', ...range, '--', f).split('\n').filter(l => l.startsWith('-') && !l.startsWith('---')).map(l => l.slice(1))
   const REPLACED = {
     'app/api/connectors/gdrive/items/route.ts': ["import { handleItemsGet, handleItemsPost } from '@/lib/connectors-gdrive-server'"],
@@ -250,14 +253,14 @@ await t('older files: this change only ADDS lines, except the named replaced lin
   for (const f of older) {
     // the hardening's removed lines count only where the base had them (a line composer A added and the hardening rewrote was never the base's)
     const baseLines = new Set(git('show', `${base}:${f}`).split('\n'))
-    const hardeningRemoved = removedLines([HARDENING_BASE, 'HEAD'], f).filter(l => baseLines.has(l))
+    const hardeningRemoved = hardening ? removedLines(hardening, f).filter(l => baseLines.has(l)) : []
     assert.deepEqual(removedLines([base, 'HEAD'], f).sort(), [...removedLines(AB, f), ...hardeningRemoved, ...(REPLACED[f] ?? [])].sort(), f)
   }
   // and nothing else older moved: the whole diff vs base is this change's files only
   const touched = git('diff', '--name-only', base, 'HEAD').split('\n').filter(Boolean)
   const registry = await import('./studio-connectors-item-remove-strip.mjs')
   const own = new Set([...registry.CONNECTORS_ITEM_REMOVE_SCOPE_FILES, 'lib/connectors-gdrive-remove.ts'])
-  const abTouched = new Set([...git('diff', '--name-only', ...AB).split('\n'), ...git('diff', '--name-only', HARDENING_BASE, 'HEAD').split('\n')].filter(Boolean))
+  const abTouched = new Set([...git('diff', '--name-only', ...AB).split('\n'), ...(hardening ? git('diff', '--name-only', ...hardening).split('\n') : [])].filter(Boolean))
   for (const f of touched) assert.ok(own.has(f) || abTouched.has(f), `stray file in the diff: ${f}`)
 })
 

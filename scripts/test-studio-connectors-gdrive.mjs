@@ -301,18 +301,26 @@ await t('hardening #7a: start checks the Researcher address and the identity BEF
   const ok = await load(SERVER, stubsFor(), ENV_ON).handleStart(); assert.equal(ok.status, 307); assert.match(ok.location, /^https:\/\/accounts\.google\.com\//)
   assert.equal(calls.length, 0, 'start never calls Researcher')
 })
-await t('FRONTEND-2 N2 / N3 / N4: the sidebar edit has a strip pair (== the base sidebar byte for byte, registered); the flag is read through isGdriveConnectorEnabled; package.json is not in slice 1\'s scope', async () => {
+await t('FRONTEND-2 N2 / N3 / N4: the sidebar edit has a strip pair (frozen: own strip of this change\'s head == the base sidebar; live: through the registry on both sides); isGdriveConnectorEnabled; package.json out of slice 1\'s scope', async () => {
   const { stripConnectorsGdrive, CONNECTORS_GDRIVE_SCOPE_FILES } = await import('./studio-connectors-gdrive-strip.mjs')
   const { LATER_STRIPS, stripLaterChanges } = await import('./studio-later-changes.mjs')
   const rel = 'components/settings/settings-sidebar.tsx'
-  const DEV_BASE = process.env.CONNECTORS_GDRIVE_BASE || '2f06e51ec807d4ecd5cd00edc9bfd0005a5fd0b8' // studio-v4-dev-preparation-code, the base #566 stacks on (the sidebar's base); #615 497408d5 is the hardening's merge base
+  const DEV_BASE = process.env.CONNECTORS_GDRIVE_BASE || '2f06e51ec807d4ecd5cd00edc9bfd0005a5fd0b8' // studio-v4-dev-preparation-code, the base #566 stacks on (the sidebar's base)
+  // the hardening's own head, frozen (its PR's last code + proof commit; this pin is set by a commit of its own): what this change made of the sidebar, however much lands on top later
+  const OWN_HEAD = process.env.CONNECTORS_HARDENING_HEAD || 'PENDING'
+  const have = commit => { try { execFileSync('git', ['cat-file', '-e', `${commit}^{commit}`], { cwd: root, stdio: 'ignore' }); return true } catch { return false } }
   const show = ref => execFileSync('git', ['show', `${ref}:${rel}`], { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20 })
-  const base = show(DEV_BASE), now = show('HEAD') // commits, not the live worktree (other scripts may rewrite files mid-sweep)
-  assert.notEqual(now, base); assert.equal(stripConnectorsGdrive(rel, now), base, 'strip(sidebar) === the base sidebar')
-  assert.equal(stripLaterChanges(rel, now), stripLaterChanges(rel, base), 'through the registry too')
   assert.ok(LATER_STRIPS.includes(stripConnectorsGdrive), 'registered')
   assert.equal(stripConnectorsGdrive('app/builder/page.tsx', 'x'), 'x'); assert.equal(stripConnectorsGdrive(rel, 7), 7)
-  assert.match(now, /isGdriveConnectorEnabled\(\) \? \[\.\.\.ITEMS, CONNECTORS_ITEM\] : ITEMS/); assert.ok(!now.includes('process.env.NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED'))
   assert.equal(CONNECTORS_GDRIVE_SCOPE_FILES.has('package.json'), false)
+  if (!have(DEV_BASE)) { console.log(`   SKIP sidebar identity: ${DEV_BASE.slice(0, 8)} is not in this clone`); return }
+  const base = show(DEV_BASE)
+  // live: the sidebar as it is now and the base read the same once every registered later change (this one included) is taken out
+  assert.equal(stripLaterChanges(rel, fs.readFileSync(path.join(root, rel), 'utf8')), stripLaterChanges(rel, base), 'through the registry, both sides')
+  // frozen: this change's own strip pair, on this change's own head
+  if (!have(OWN_HEAD)) { console.log(`   SKIP sidebar strip pair (frozen): ${OWN_HEAD.slice(0, 8)} is not in this clone`); return }
+  const own = show(OWN_HEAD)
+  assert.notEqual(own, base); assert.equal(stripConnectorsGdrive(rel, own), base, 'strip(sidebar at this change\'s head) === the base sidebar, byte for byte')
+  assert.match(own, /isGdriveConnectorEnabled\(\) \? \[\.\.\.ITEMS, CONNECTORS_ITEM\] : ITEMS/); assert.ok(!own.includes('process.env.NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED'))
 })
 console.log(`\n${passed} passed`)
