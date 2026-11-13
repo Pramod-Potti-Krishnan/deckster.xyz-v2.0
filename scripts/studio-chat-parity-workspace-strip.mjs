@@ -4,7 +4,7 @@
 // lib/studio-chat-parity-workspace.ts decides (the rows, what cannot run and why, the words, the bus), components/builder/chat/studio-chat-parity-workspace.tsx is the composer's glue (appearance, history, the saved templates), and the viewer half's menu draws the group.
 // Every line this change adds to an EXISTING file carries the marker CHAT-PARITY-WORKSPACE (matched as a whole token; CHAT-PARITY-VIEWER is the viewer half's and CHAT-PARITY is another change's). All are pure insertions (CHAT_PARITY_WORKSPACE_EDITS is empty: another change's strip never meets one of its lines changed). Take the marked lines out and each file is the viewer half's head, byte for byte.
 // The base is the viewer half's head, not the commit under it: for a file the viewer half touched that is its text; for a file it left alone the two commits agree (BASE_TOUCHED says which is which: the proof reads each from its own commit and checks the list against git).
-// How the older pins reach it: this change REGISTERS its files and this strip (scripts/studio-later-changes.mjs, two lines; no .env.example block), and teaches the four older proofs that read files this change touched without going through the registry.
+// How the older pins reach it: this change REGISTERS its files and this strip (scripts/studio-later-changes.mjs, two lines; no .env.example block), and teaches the older proofs that read files this change touched without going through the registry (the chat element edit proof: one inserted line, its two lines kept as they were).
 // Plain node, no imports, nothing read from disk or git here.
 
 export const BASE_COMMIT = '99e029760c06800fd1186bda60592404a7ba569a' // origin/frontend1/chat-parity-viewer (#611's head, on dev 2f06e51e); the tree diff from it to this change's newest commit is this change
@@ -53,7 +53,7 @@ export const CHAT_PARITY_WORKSPACE_NEW_FILES = [
 /**
  * The older proofs this change teaches: [line now, line before] per edit, whole lines (a line now carries "registry read (CHAT-PARITY-WORKSPACE)" and occurs once in its file). The viewer half's own proof and the chat commands proof
  * are put back to the viewer half's lines (its strip never reads the first, and only drops marked lines of the second); test-studio-chat-parity.mjs was changed by the viewer half too, so its line goes back to the line BEFORE the
- * viewer half: the two strips then agree whichever runs first.
+ * viewer half: the two strips then agree whichever runs first. The chat element edit proof's two Notes-panel lines are NOT rewritten (chat parity's strip pins the second): one marked line in front of them runs both checks, and returns before they run.
  */
 export const CHAT_PARITY_WORKSPACE_PIN_EDITS = {
   "scripts/test-studio-chat-parity-viewer.mjs": [
@@ -73,10 +73,8 @@ export const CHAT_PARITY_WORKSPACE_PIN_EDITS = {
      ""]
   ],
   "scripts/test-studio-chat-element-edit.mjs": [
-    ["  assert.equal(stripPeers(rel, stripChatElementEdit(rel, read(rel))), stripPeers(rel, baseFile(rel))) // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): the workspace slash commands add marked lines to this panel (the Notes bar's handler for /notes): read it as every other later change leaves it, like the viewer's byte pins below\n",
-     "  assert.equal(stripChatElementEdit(rel, read(rel)), baseFile(rel))\n"],
-    ["  for (const line of git('diff', '-U0', BASE_COMMIT, '--', rel).split('\\n').filter(l => l.startsWith('+') && !l.startsWith('+++') && !/(?<![\\w-])CHAT-PARITY(?![\\w-])/.test(l) && !/(?<![\\w-])CHAT-PARITY-WORKSPACE(?![\\w-])/.test(l))) assert.match(line, CHAT_ELEMENT_EDIT_MARKER_RE) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked lines in the panel (its fields listener) are its own // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): its marked lines are a later change's too\n",
-     "  for (const line of git('diff', '-U0', BASE_COMMIT, '--', rel).split('\\n').filter(l => l.startsWith('+') && !l.startsWith('+++') && !/(?<![\\w-])CHAT-PARITY(?![\\w-])/.test(l))) assert.match(line, CHAT_ELEMENT_EDIT_MARKER_RE) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked lines in the panel (its fields listener) are its own\n"]
+    ["  assert.equal(stripPeers(rel, stripChatElementEdit(rel, read(rel))), stripPeers(rel, baseFile(rel))); for (const line of git('diff', '-U0', BASE_COMMIT, '--', rel).split('\\n').filter(l => l.startsWith('+') && !l.startsWith('+++') && !/(?<![\\w-])CHAT-PARITY(?![\\w-])/.test(l) && !/(?<![\\w-])CHAT-PARITY-WORKSPACE(?![\\w-])/.test(l))) assert.match(line, CHAT_ELEMENT_EDIT_MARKER_RE); return // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): the workspace slash commands add marked lines to this panel (the Notes bar's handler for /notes): the panel is read as every other later change leaves it, and chat parity's and the workspace's marked lines are not this change's; the two lines below are the base's own, kept as they were (another change's strip pins the second) and never run\n",
+     ""]
   ],
   "scripts/test-studio-chat-parity.mjs": [
     ["const OWN = (() => { try { return git('log', '--format=%H%x09%s', '-E', '--grep=^Chat parity', 'HEAD').split('\\n').filter(Boolean).map(line => line.split('\\t')).find(([, subject]) => !subject.startsWith('Chat parity viewer:') && !subject.startsWith('Chat parity workspace:'))?.[0] || null } catch { return null } })() // a merge of dev into this branch is this change's commit too (its subject starts the same way) // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): the viewer's slash commands (commits \"Chat parity viewer: ...\") are a later change's, not this one's // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): so are the workspace commands (commits \"Chat parity workspace: ...\")\n",
