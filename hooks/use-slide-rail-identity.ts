@@ -13,7 +13,8 @@ import {
   type SlideInventoryState,
   type SlideRailRow,
 } from '@/lib/slide-rail-identity'
-import { STUDIO_INVENTORY_FALLBACK_ENABLED, readInventoryFallback } from '@/lib/studio-inventory-fallback' // AUDIT-PREVIEWS (NEXT_PUBLIC_STUDIO_INVENTORY_FALLBACK, default off)
+import { STUDIO_INVENTORY_FALLBACK_ENABLED, readInventoryFallback, slidePicturesKnown } from '@/lib/studio-inventory-fallback' // AUDIT-PREVIEWS (NEXT_PUBLIC_STUDIO_INVENTORY_FALLBACK, default off)
+import { ownedRestoredThumbnailUrl } from '@/lib/stage-f-thumbnails' // AUDIT-PREVIEWS
 
 const IDLE: SlideInventoryState = { status: 'idle', inventory: null }
 
@@ -46,6 +47,8 @@ export function useSlideRailIdentity({
     { presentationId: null, state: IDLE },
   )
   const controllerRef = useRef<ReturnType<typeof createSlideInventoryController> | null>(null)
+  const knownPicturesRef = useRef(false) // AUDIT-PREVIEWS: the fallback's rows have no picture, and identity rows come before the pictures the viewer knows
+  knownPicturesRef.current = STUDIO_INVENTORY_FALLBACK_ENABLED && slidePicturesKnown(refreshSignals, structureSlides, slide => ownedRestoredThumbnailUrl(slide, presentationId)) // AUDIT-PREVIEWS: with any picture known the fallback is not used (flag off: nothing is read)
 
   useEffect(() => {
     if (!active || !presentationId) {
@@ -57,7 +60,7 @@ export function useSlideRailIdentity({
       getBaseUrl: () => getLayoutServiceUrl(),
       fetchImpl: (input, init) => fetch(input, init),
       onChange: state => setSnapshot({ presentationId, state }),
-      ...(STUDIO_INVENTORY_FALLBACK_ENABLED ? { readFallback: async args => { const derived = await readInventoryFallback(args); return derived.kind === 'ok' ? derived : null } } : {}), // AUDIT-PREVIEWS
+      ...(STUDIO_INVENTORY_FALLBACK_ENABLED ? { readFallback: async args => { if (knownPicturesRef.current) return null; const derived = await readInventoryFallback(args); return derived.kind === 'ok' ? derived : null } } : {}), // AUDIT-PREVIEWS
     })
     controllerRef.current = controller
     controller.refresh()

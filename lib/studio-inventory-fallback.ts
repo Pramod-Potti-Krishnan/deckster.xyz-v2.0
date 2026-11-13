@@ -114,6 +114,29 @@ export function inventoryFromPresentation(body: unknown, presentationId: string)
   return { presentationId, slideCount: rows.length, slides: rows }
 }
 
+/**
+ * Whether the page already knows a picture for any slide of this deck: a live frame (the viewer's `railThumbnailFrames`, one of the rail hook's refresh signals, is the JSON of slide index to URL) or one restored on a
+ * slide row (`restoredUrl` is the page's own ownership check, lib/stage-f-thumbnails ownedRestoredThumbnailUrl). The fallback's rows carry no picture of their own and the viewer returns identity rows before it adds the
+ * pictures it knows, so with any picture known the fallback is not used and the rail keeps today's path, which draws them.
+ */
+export function slidePicturesKnown(
+  signals: ReadonlyArray<unknown>,
+  slides: ReadonlyArray<unknown> | null | undefined,
+  restoredUrl: (slide: Record<string, unknown>) => string | null | undefined,
+): boolean {
+  for (const signal of signals) {
+    if (typeof signal !== 'string' || signal.charAt(0) !== '{') continue
+    try {
+      const frames: unknown = JSON.parse(signal)
+      if (record(frames) && Object.values(frames).some(url => typeof url === 'string' && url.trim() !== '')) return true
+    } catch {
+      // Not a frame map: it is not a picture.
+    }
+  }
+  if (Array.isArray(slides)) for (const slide of slides) if (record(slide) && restoredUrl(slide)) return true
+  return false
+}
+
 /** The presentation read (the one the Builder's own recovery makes). */
 export function presentationReadUrl(baseUrl: string, presentationId: string): string {
   return `${baseUrl.replace(/\/+$/, '')}/api/presentations/${encodeURIComponent(presentationId)}`

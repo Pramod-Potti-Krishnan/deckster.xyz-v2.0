@@ -247,7 +247,7 @@ export function createSlideInventoryController({
   pendingFastWindowMs?: number
   pendingSlowPollMs?: number
   pendingMaxMs?: number
-  /** NEXT_PUBLIC_STUDIO_INVENTORY_FALLBACK (the hook passes it only with the flag on): asked once when the inventory answers 404 or 405; a result stands in for the inventory, null keeps the answer. */ // AUDIT-PREVIEWS
+  /** NEXT_PUBLIC_STUDIO_INVENTORY_FALLBACK (the hook passes it only with the flag on): asked when the inventory answers 404 or 405, and then (for `unavailableTtlMs`, as the base's own pause) the route is known absent: each refresh reads only the deck, not the inventory route again; a result stands in for the inventory, null keeps the answer (the rail then has none: today's path). */ // AUDIT-PREVIEWS
   readFallback?: (args: { baseUrl: string; presentationId: string; fetchImpl: typeof fetch; signal?: AbortSignal }) => Promise<SlideInventoryResult | null> // AUDIT-PREVIEWS
 }) {
   let state: SlideInventoryState = { status: 'idle', inventory: null }
@@ -257,6 +257,7 @@ export function createSlideInventoryController({
   let debounceHandle: unknown = null
   let abort: AbortController | null = null
   let unavailableUntil = 0
+  let routeAbsentUntil = 0 // AUDIT-PREVIEWS
   let pendingHandle: unknown = null
   let triggerAt = now()
 
@@ -298,8 +299,10 @@ export function createSlideInventoryController({
     if (state.status === 'idle') publish({ status: 'loading', inventory: null })
     let result: SlideInventoryResult
     try {
+      if (readFallback && now() < routeAbsentUntil) result = (await readFallback({ baseUrl, presentationId, fetchImpl, signal: abort?.signal }).catch(() => null)) ?? { kind: 'unavailable', reason: 'fallback_unavailable' } // AUDIT-PREVIEWS: the route answered 404 or 405 within the window: only the deck is read
+      else // AUDIT-PREVIEWS
       result = await fetchSlideInventory({ baseUrl, presentationId, fetchImpl, signal: abort?.signal })
-      if (readFallback && result.kind === 'unavailable' && (result.reason === 'http_404' || result.reason === 'http_405')) { const derived = await readFallback({ baseUrl, presentationId, fetchImpl, signal: abort?.signal }).catch(() => null); if (derived) result = derived } // AUDIT-PREVIEWS
+      if (readFallback && result.kind === 'unavailable' && (result.reason === 'http_404' || result.reason === 'http_405')) { routeAbsentUntil = now() + unavailableTtlMs; const derived = await readFallback({ baseUrl, presentationId, fetchImpl, signal: abort?.signal }).catch(() => null); if (derived) result = derived } // AUDIT-PREVIEWS
     } finally {
       if (timer !== null) clearTimer(timer)
       abort = null

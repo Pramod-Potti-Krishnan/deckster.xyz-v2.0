@@ -28,6 +28,7 @@ export function useStudioDeckCardRehome(savedUrl: string | null | undefined, dec
   const [, refresh] = useReducer((count: number) => count + 1, 0)
   const [seen, setSeen] = useState(false)
   const [unobservable, setUnobservable] = useState(false)
+  const [failedId, setFailedId] = useState<string | null>(null) // this card's read said "unknown": the store does not keep that, so the card does, and stops waiting
   const box = useRef<HTMLDivElement | null>(null)
   const answer = id ? store.peek(id) : null
 
@@ -44,7 +45,7 @@ export function useStudioDeckCardRehome(savedUrl: string | null | undefined, dec
   useEffect(() => {
     if (!id || !seen || store.peek(id)) return
     let live = true
-    void store.request(id, () => readPresentationHere({ getBaseUrl: getLayoutServiceUrl, presentationId: id, fetchImpl: (input, init) => fetch(input, init) })).then(() => { if (live) refresh() })
+    void store.request(id, () => readPresentationHere({ getBaseUrl: getLayoutServiceUrl, presentationId: id, fetchImpl: (input, init) => fetch(input, init) })).then(result => { if (live) { if (result === 'unknown') setFailedId(id); refresh() } })
     return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, seen])
@@ -53,7 +54,7 @@ export function useStudioDeckCardRehome(savedUrl: string | null | undefined, dec
   const origin = LAYOUT_VIEWER_URL_POLICY.configuredOrigin
   if (answer === 'here' && origin) return { url: rehomedViewerUrl(origin, id), pending: false, boxRef: box }
   // A browser with no IntersectionObserver cannot say when the card is seen: it keeps today's note rather than read for every card.
-  return { url: null, pending: !answer && !unobservable, boxRef: box }
+  return { url: null, pending: !answer && !unobservable && failedId !== id, boxRef: box }
 }
 
 /** The page's snapshot of "an answer settled" (a number that changes then). With the flag off it never subscribes and is always 0, so the page does not re-render for it. */

@@ -131,9 +131,15 @@ async function rehomeChecks(libText = read(REHOME)) {
     const [one, two] = await within(Promise.all([store.request('a', readOf('a1', 'here')), store.request('a', readOf('a2', 'absent'))]))
     assert.deepEqual([one, two], ['here', 'here'], 'the second asker gets the first read\'s answer'); assert.deepEqual(calls, ['a1'], 'one read per id')
     assert.equal(store.peek('a'), 'here'); assert.equal(await store.request('a', readOf('a3', 'absent')), 'here', 'a settled id is never read again'); assert.deepEqual(calls, ['a1'])
-    assert.equal(await store.request('b', () => { throw new Error('sync') }), 'unknown', 'a read that throws is "unknown"'); assert.equal(store.peek('b'), 'unknown')
+    assert.equal(await store.request('b', () => { throw new Error('sync') }), 'unknown', 'a read that throws is "unknown"'); assert.equal(store.peek('b'), null, 'an "unknown" is not kept')
     assert.equal(await store.request('c', () => Promise.reject(new Error('rejected'))), 'unknown', 'a read that rejects is "unknown"')
-    assert.equal(await store.request('d', () => Promise.resolve('absent')), 'absent')
+    assert.equal(store.peek('c'), null, 'a rejected read is not kept either'); assert.equal(await store.request('d', () => Promise.resolve('absent')), 'absent'); assert.equal(store.peek('d'), 'absent', 'an absent answer is kept')
+    { // an "unknown" is asked again the next time; a real answer is kept; everyone who asked during one read gets that read's answer
+      let reads = 0; const flaky = () => { reads += 1; return Promise.resolve(reads === 1 ? 'unknown' : 'here') }
+      assert.equal(await store.request('g', flaky), 'unknown'); assert.equal(store.peek('g'), null); assert.equal(await store.request('g', flaky), 'here', 'the next ask reads again'); assert.equal(reads, 2)
+      assert.equal(store.peek('g'), 'here'); assert.equal(await store.request('g', flaky), 'here'); assert.equal(reads, 2, 'a real answer is kept')
+      assert.deepEqual(await within(Promise.all([store.request('h', () => Promise.resolve('unknown')), store.request('h', () => Promise.resolve('here'))])), ['unknown', 'unknown']); assert.equal(store.peek('h'), null)
+    }
     // subscribe and version
     const before = store.version(), heard = []; const stop = store.subscribe(() => heard.push(store.version()))
     await store.request('e', () => Promise.resolve('here')); assert.equal(store.version(), before + 1, 'the version moves when an answer settles'); assert.deepEqual(heard, [before + 1], 'subscribers are told')
@@ -219,6 +225,16 @@ async function fallbackChecks(libText = read(FALLBACK)) {
   for (const status of ['loading', 'ready', 'frame', '']) assert.equal(lib.publishFrameRequest(status, 's1', source), null, `${status}: no read`)
   for (const [session, src] of [[null, source], ['', source], ['s1', null], ['s1', undefined], ['s2', source], ['s1', { ...source, sessionId: 's2' }], ['s1', { ...source, ownerSessionId: 's2' }], ['s1', { ...source, ownerSessionId: null }], ['s1', { ...source, finalPresentationId: '' }], ['s1', { ...source, finalPresentationId: '  ' }], ['s1', { sessionId: 's1' }]]) assert.equal(lib.publishFrameRequest('unavailable', session, src), null, `another session's or missing deck: ${JSON.stringify([session, src])}`)
   assert.equal(lib.publishFrameRequest('unavailable', ' s1 ', { sessionId: 's1 ', ownerSessionId: ' s1', finalPresentationId: ' deck-9 ' })?.presentationId, 'deck-9', 'values are trimmed like the other Publish preview sources')
+  // -- the pictures the page already knows: the fallback stands aside ---------------------------------------------------------------------------
+  {
+    const restored = slide => (typeof slide.thumbnail_url === 'string' && slide.thumbnail_url ? slide.thumbnail_url : null), known = (signals, slides) => lib.slidePicturesKnown(signals, slides, restored)
+    assert.equal(known([3, ''], null), false, 'a count and an empty signal: no picture'); assert.equal(known([3, '{}'], null), false, 'no frames: no picture')
+    assert.equal(known([3, JSON.stringify({ 0: 'https://img.test/0.png' })], null), true, 'a live frame is a picture'); assert.equal(known([JSON.stringify({ 2: ' https://img.test/2.png ' })], []), true, 'any slide\'s frame counts')
+    assert.equal(known([3, JSON.stringify({ 0: '', 1: '  ' })], null), false, 'empty frame URLs are not pictures'); assert.equal(known([3, JSON.stringify({ 0: 5, 1: null, 2: {} })], null), false, 'values that are not URLs are not pictures')
+    assert.equal(known(['{not json', '[1]', '"x"', 'null', '{"0": "https://img.test/0.png"'], null), false, 'a signal that is not a frame map is not a picture, and never throws')
+    assert.equal(known([3, '{}'], [{ title: 'a' }, { title: 'b', thumbnail_url: 'https://img.test/r.png' }]), true, 'a restored picture on a slide row'); assert.equal(known([3, '{}'], [{ title: 'a' }, 'x', null, 5, []]), false, 'rows with no picture, and rows that are not objects')
+    assert.equal(known([], undefined), false); assert.equal(known([], []), false); assert.equal(lib.slidePicturesKnown([], [{ thumbnail_url: 'https://img.test/r.png' }], () => undefined), false, 'the page\'s ownership check can refuse a restored picture')
+  }
 }
 
 // ============================================================================================================================================
@@ -267,6 +283,39 @@ async function controllerChecks(railText = read(RAIL), fallbackText = read(FALLB
   // a second refresh with the same slides publishes nothing new (the rail does not re-render for it)
   { const result = await run({ inventory: status(405), presentation: () => answer(200, deckOf(3)), refreshes: 2 }); assert.deepEqual(result.states.map(state => state.status), ['loading', 'ready'], 'an unchanged derived inventory is not published twice') }
   { let n = 3; const result = await run({ inventory: status(405), presentation: () => answer(200, deckOf(n++)), refreshes: 2 }); assert.deepEqual(result.states.map(state => `${state.status}:${state.inventory?.slideCount ?? '-'}`), ['loading:-', 'ready:3', 'ready:4'], 'a changed deck is published') }
+  // the route is known absent for the unavailable window: later refreshes read only the deck; once the window ends the inventory is asked again, once
+  const windowRun = async ({ inventory, presentation, steps, picturesFrom = Infinity, throwFrom = Infinity, ttl = 60_000, withFallback = true }) => {
+    const urls = [], states = []; let t = 1_000_000, index = 0
+    const fetchImpl = async url => { const route = url.endsWith('/slides/inventory'); urls.push(route ? 'inventory' : 'deck'); return route ? inventory(urls.length) : presentation(urls.length) }
+    const controller = rail.createSlideInventoryController({
+      presentationId: PRES, getBaseUrl: () => ORIGIN, fetchImpl, onChange: state => states.push(plain(state)), now: () => t, setTimer: () => 1, clearTimer: () => {}, unavailableTtlMs: ttl,
+      ...(withFallback ? { readFallback: async args => { if (index >= throwFrom) throw new Error('boom'); if (index >= picturesFrom) return null; const derived = await fb.readInventoryFallback({ ...args, fetchImpl: (u, i) => fetchImpl(u, i) }); return derived.kind === 'ok' ? derived : null } } : {}),
+    })
+    unhandled.length = 0
+    const perRefresh = []
+    for (const advance of steps) { t += advance; const before = urls.length; controller.refresh(true); await tick(); await tick(); await tick(); perRefresh.push(urls.slice(before).join('+')); index += 1 }
+    controller.dispose()
+    assert.equal(unhandled.length, 0, 'no unhandled rejection from the controller')
+    return { perRefresh, states, statuses: states.map(state => state.status), last: states[states.length - 1] }
+  }
+  { const result = await windowRun({ inventory: status(405), presentation: () => answer(200, deckOf(3)), steps: [0, 1000, 58_999, 1, 1000] })
+    assert.deepEqual(result.perRefresh, ['inventory+deck', 'deck', 'deck', 'inventory+deck', 'deck'], 'the first refresh asks the route; the next ones in the window read only the deck; at the end of the window the route is asked once more, and the window starts again')
+    assert.deepEqual(result.statuses, ['loading', 'ready'], 'an unchanged deck publishes nothing more') }
+  { const result = await windowRun({ inventory: status(404), presentation: () => answer(200, deckOf(3)), steps: [0, 1000, 1000], ttl: 0 }); assert.deepEqual(result.perRefresh, ['inventory+deck', 'inventory+deck', 'inventory+deck'], 'a window of 0: the route is asked every time (the base\'s own pause is the window)') }
+  { let n = 3; const result = await windowRun({ inventory: status(405), presentation: () => answer(200, deckOf(n++)), steps: [0, 1000] }); assert.deepEqual(result.states.map(state => `${state.status}:${state.inventory?.slideCount ?? '-'}`), ['loading:-', 'ready:3', 'ready:4'], 'a changed deck is published from the deck-only read too'); assert.deepEqual(result.perRefresh, ['inventory+deck', 'deck']) }
+  // a known picture: the fallback is not used (not even the deck is read) and the rail keeps today's path; the base's own pause applies
+  { const result = await windowRun({ inventory: status(405), presentation: () => answer(200, deckOf(3)), picturesFrom: 0, steps: [0, 1000, 1000, 59_000, 1000] })
+    assert.deepEqual(result.statuses, ['loading', 'unavailable'], 'with a picture known the first answer is the base\'s unavailable (no rows)'); assert.equal(result.last.inventory, null)
+    assert.deepEqual(result.perRefresh, ['inventory', '', '', 'inventory', ''], 'the deck is never read, and the base\'s own pause applies inside the window') }
+  { const result = await windowRun({ inventory: status(405), presentation: () => answer(200, deckOf(3)), picturesFrom: 1, steps: [0, 1000, 1000] })
+    assert.deepEqual(result.statuses, ['loading', 'ready', 'unavailable'], 'a picture that arrives after the rows were drawn takes the rail back to today\'s path'); assert.equal(result.last.inventory, null); assert.deepEqual(result.perRefresh, ['inventory+deck', '', '']) }
+  { const result = await windowRun({ inventory: status(405), presentation: () => answer(200, deckOf(3)), throwFrom: 1, steps: [0, 1000, 1000] })
+    assert.deepEqual(result.statuses, ['loading', 'ready', 'unavailable'], 'a fallback that throws inside the window is the base\'s unavailable, contained'); assert.deepEqual(result.perRefresh, ['inventory+deck', '', '']) }
+  { let call = 0; const result = await windowRun({ inventory: status(405), presentation: () => (++call === 1 ? answer(200, deckOf(3)) : answer(200, undefined)), steps: [0, 1000, 1000] })
+    assert.deepEqual(result.statuses, ['loading', 'ready', 'unavailable'], 'a deck that cannot be read inside the window is the base\'s unavailable (rows go, today\'s path), not stale rows'); assert.deepEqual(result.perRefresh, ['inventory+deck', 'deck', '']) }
+  { let first = true; const result = await windowRun({ inventory: () => (first ? (first = false, answer(405, {})) : answer(200, { presentation_id: PRES, slide_count: 1, slides: [{ slide_id: 'real', slide_index: 0, title: 'From inventory', thumbnail_url: 'https://img.test/1.png', thumbnail_stale: false, thumbnail_status: 'fresh' }] })), presentation: () => answer(200, deckOf(3)), steps: [0, 61_000] })
+    assert.deepEqual(result.perRefresh, ['inventory+deck', 'inventory'], 'after the window a real inventory is used, and the deck is not read'); assert.equal(result.last.inventory.slides[0].thumbnailUrl, 'https://img.test/1.png') }
+  { const result = await windowRun({ inventory: status(405), presentation: () => answer(200, deckOf(3)), steps: [0, 1000], withFallback: false, ttl: 60_000 }); assert.deepEqual(result.perRefresh, ['inventory', ''], 'no readFallback: the base\'s behaviour (one request, then its own pause)') }
 }
 
 
@@ -288,16 +337,20 @@ function fileChecks(texts = TEXTS) {
   assert.ok(dash.includes('  const router = useRouter()\n  useStudioDeckRehomeVersion() // AUDIT-PREVIEWS'), 'the page re-renders when an answer settles')
   assert.equal(/process\.env\.NEXT_PUBLIC_STUDIO_DECK_CARD_REHOME/.test(dash), false, 'the page does not read the env itself')
   // the controller: four marked lines, import-free, the fallback asked inside the try right after the inventory read
-  assert.equal(marked(RAIL).length, 4, 'the controller carries the marker on four lines: the parameter, its two doc lines (comment and type), the call')
+  assert.equal(marked(RAIL).length, 7, 'the controller carries the marker on seven lines: the parameter, its two doc lines (comment and type), the window variable, the window check and its else, the call')
   assert.deepEqual([...rail.matchAll(/^import .*$/gm)].map(m => m[0]), [], 'the inventory module stays import-free')
-  const lines = rail.split('\n'), call = lines.findIndex(line => line.includes('await readFallback('))
+  const lines = rail.split('\n'), call = lines.findIndex(line => line.includes('await readFallback(') && line.includes("result.kind === 'unavailable'"))
   assert.ok(call > 0 && lines[call - 1].includes('result = await fetchSlideInventory({ baseUrl, presentationId, fetchImpl, signal: abort?.signal })') && lines[call + 1] === '    } finally {', 'the fallback is asked inside the try, right after the inventory read and before the finally')
-  assert.ok(lines[call].includes("readFallback && result.kind === 'unavailable' && (result.reason === 'http_404' || result.reason === 'http_405')") && lines[call].includes('.catch(() => null)') && lines[call].includes('if (derived) result = derived'), 'only 404 and 405, never throws, a null keeps the answer')
+  assert.ok(lines[call].includes("readFallback && result.kind === 'unavailable' && (result.reason === 'http_404' || result.reason === 'http_405')") && lines[call].includes('.catch(() => null)') && lines[call].includes('if (derived) result = derived') && lines[call].includes('{ routeAbsentUntil = now() + unavailableTtlMs; const derived = await readFallback('), 'only 404 and 405, the route is remembered as absent for the window, never throws, a null keeps the answer')
+  assert.equal(lines[call - 2], '      else // AUDIT-PREVIEWS', 'the base read is the else of the window check'); assert.ok(lines[call - 3].startsWith("      if (readFallback && now() < routeAbsentUntil) result = (await readFallback({ baseUrl, presentationId, fetchImpl, signal: abort?.signal }).catch(() => null)) ?? { kind: 'unavailable', reason: 'fallback_unavailable' } // AUDIT-PREVIEWS"), 'inside the window only the deck is read; a failed read is the base\'s unavailable')
+  assert.ok(lines.some(line => line === '  let routeAbsentUntil = 0 // AUDIT-PREVIEWS') && lines.indexOf('  let routeAbsentUntil = 0 // AUDIT-PREVIEWS') === lines.indexOf('  let unavailableUntil = 0') + 1, 'the window variable sits beside the base\'s own pause')
+  assert.equal(lines.some(line => /asked once/.test(line)), false, 'the comment no longer says "asked once" (it is asked once per window)')
   assert.ok(lines.some(line => line === '  readFallback, // AUDIT-PREVIEWS') && lines.some(line => line.startsWith('  readFallback?: (args: { baseUrl: string; presentationId: string; fetchImpl: typeof fetch; signal?: AbortSignal }) => Promise<SlideInventoryResult | null> // AUDIT-PREVIEWS')), 'the optional parameter and its type')
   // the rail hook: the fallback is passed only with the flag on, and only an ok result
-  assert.equal(marked(RAIL_HOOK).length, 2, 'the rail hook carries the marker on two lines')
-  assert.ok(railHook.includes("import { STUDIO_INVENTORY_FALLBACK_ENABLED, readInventoryFallback } from '@/lib/studio-inventory-fallback' // AUDIT-PREVIEWS"), 'the rail hook imports the lib')
-  assert.ok(railHook.includes("      ...(STUDIO_INVENTORY_FALLBACK_ENABLED ? { readFallback: async args => { const derived = await readInventoryFallback(args); return derived.kind === 'ok' ? derived : null } } : {}), // AUDIT-PREVIEWS\n"), 'the fallback is passed only with the flag on, and only a derived inventory counts')
+  assert.equal(marked(RAIL_HOOK).length, 5, 'the rail hook carries the marker on five lines: two imports, the known-pictures ref and its update, the fallback')
+  assert.ok(railHook.includes("import { STUDIO_INVENTORY_FALLBACK_ENABLED, readInventoryFallback, slidePicturesKnown } from '@/lib/studio-inventory-fallback' // AUDIT-PREVIEWS") && railHook.includes("import { ownedRestoredThumbnailUrl } from '@/lib/stage-f-thumbnails' // AUDIT-PREVIEWS"), 'the rail hook imports the lib and the page\'s own ownership check')
+  assert.ok(railHook.includes("  const knownPicturesRef = useRef(false) // AUDIT-PREVIEWS") && railHook.includes("  knownPicturesRef.current = STUDIO_INVENTORY_FALLBACK_ENABLED && slidePicturesKnown(refreshSignals, structureSlides, slide => ownedRestoredThumbnailUrl(slide, presentationId)) // AUDIT-PREVIEWS"), 'the known pictures are read from the refresh signals and the slide rows, only with the flag on')
+  assert.ok(railHook.includes("      ...(STUDIO_INVENTORY_FALLBACK_ENABLED ? { readFallback: async args => { if (knownPicturesRef.current) return null; const derived = await readInventoryFallback(args); return derived.kind === 'ok' ? derived : null } } : {}), // AUDIT-PREVIEWS\n"), 'the fallback is passed only with the flag on, stands aside when a picture is known, and only a derived inventory counts')
   // the Publish preview: five marked lines, the frame after the image and before the unavailable state
   assert.equal(marked(PUBLISH).length, 5, 'the Publish preview carries the marker on five lines')
   assert.ok(pub.includes("  const preview = useStudioPublishPreviewInventory(sessionId, source, resolved)\n  const frame = useStudioPublishPreviewFrame(sessionId, source, preview) // AUDIT-PREVIEWS"), 'the frame reads the preview the other sources resolved')
@@ -306,6 +359,7 @@ function fileChecks(texts = TEXTS) {
   // the new hooks and the frame component read no env; the frame is view-only
   for (const rel of [CARD_HOOK, FRAME_HOOK]) assert.equal(/process\.env\./.test(texts[rel]), false, `${rel} reads no env itself (the libs do)`)
   assert.ok(texts[CARD_HOOK].includes("STUDIO_DECK_CARD_REHOME_ENABLED, savedUrl, decision, LAYOUT_VIEWER_URL_POLICY.configuredOrigin") && texts[CARD_HOOK].includes('observeFirstVisibility('), 'the card hook reads the flag from the lib and waits for the first visibility')
+  assert.ok(texts[CARD_HOOK].includes("if (result === 'unknown') setFailedId(id)") && texts[CARD_HOOK].includes('pending: !answer && !unobservable && failedId !== id'), 'a read that said "unknown" is the card\'s own: it stops waiting (the store does not keep it)')
   assert.ok(texts[FRAME_HOOK].includes('STUDIO_INVENTORY_FALLBACK_ENABLED ? publishFrameRequest(preview.status, publishSessionId, source) : null') && texts[FRAME_HOOK].includes("answers[request.key] !== 'here'"), 'the frame hook asks only with the flag on and only for an unavailable preview, and needs the answer "here"')
   assert.ok(texts[FRAME_HOOK].includes('railLivePreviewSrc(rehomedViewerUrl(origin, request.presentationId), 0, LAYOUT_VIEWER_URL_POLICY)'), 'the frame URL goes through the view-only builder and the Layout allow-list')
   assert.ok(texts[FRAME].includes('aria-hidden="true"') && texts[FRAME].includes('tabIndex={-1}') && texts[FRAME].includes("pointerEvents: 'none'") && texts[FRAME].includes('<iframe src={src}'), 'the frame is not clickable, focusable or read aloud')
@@ -467,7 +521,9 @@ const REHOME_MUTANTS = [
   ['the id is not decoded', 'decodeURIComponent(parts[marker + 1])', 'parts[marker + 1]'],
   ['the re-homed URL is not encoded', '`${configuredOrigin}/p/${encodeURIComponent(presentationId)}`', '`${configuredOrigin}/p/${presentationId}`'],
   ['the store does not share an in-flight read', '      const pending = inFlight.get(presentationId)\n      if (pending) return pending\n', ''],
-  ['the store does not keep an answer', '            settled.set(presentationId, result)\n', ''],
+  ['the store does not keep an answer', "            if (result !== 'unknown') settled.set(presentationId, result)", '            '],
+  ['the store keeps an "unknown" too (a failed read hides the preview for the page\'s life)', "if (result !== 'unknown') settled.set(presentationId, result)", 'settled.set(presentationId, result)'],
+  ['the store keeps only "here"', "if (result !== 'unknown') settled.set(presentationId, result)", "if (result === 'here') settled.set(presentationId, result)"],
   ['the store has no concurrency limit', 'while (running < Math.max(1, maxConcurrent) && waiting.length > 0)', 'while (waiting.length > 0)'],
   ['the store does not move its version', '            version += 1\n            listeners.forEach', '            listeners.forEach'],
   ['the store does not tell subscribers', '            listeners.forEach(listener => listener())\n', ''],
@@ -507,6 +563,13 @@ const FALLBACK_MUTANTS = [
   ['the Publish frame ignores the held deck owner', ' || nonempty(source?.ownerSessionId) !== session', ''],
   ['the Publish frame ignores the session', 'nonempty(source?.sessionId) !== session || ', ''],
   ['the lib imports something', 'export function inventoryFallbackOn', "import { x } from '@/lib/x'\nexport function inventoryFallbackOn"],
+  ['a live frame is not a known picture', "if (record(frames) && Object.values(frames).some(url => typeof url === 'string' && url.trim() !== '')) return true", ''],
+  ['an empty frame URL is a known picture', "typeof url === 'string' && url.trim() !== ''", "typeof url === 'string'"],
+  ['any value of a frame map is a known picture', "Object.values(frames).some(url => typeof url === 'string' && url.trim() !== '')", 'Object.values(frames).length > 0'],
+  ['an empty frame map is a known picture', "Object.values(frames).some(url => typeof url === 'string' && url.trim() !== '')", "(Object.values(frames).length === 0 || Object.values(frames).some(url => typeof url === 'string' && url.trim() !== ''))"],
+  ['a restored picture is not a known picture', 'if (Array.isArray(slides)) for (const slide of slides) if (record(slide) && restoredUrl(slide)) return true', ''],
+  ['the page\'s ownership check is not asked', 'if (record(slide) && restoredUrl(slide)) return true', 'if (record(slide)) return true'],
+  ['a signal that is not JSON throws', "    } catch {\n      // Not a frame map: it is not a picture.\n    }", '    } finally {\n    }'],
 ]
 for (const [name, from, to] of FALLBACK_MUTANTS) {
   await check(`mutant caught: fallback lib: ${name}`, async () => {
@@ -518,8 +581,16 @@ const RAIL_MUTANTS = [
   ['the fallback is asked for any failed read', "result.kind === 'unavailable' && (result.reason === 'http_404' || result.reason === 'http_405')", "result.kind !== 'ok'"],
   ['the fallback is asked only for a 405', "(result.reason === 'http_404' || result.reason === 'http_405')", "(result.reason === 'http_405')"],
   ['the derived inventory is dropped', 'if (derived) result = derived', ''],
-  ['a throwing fallback is not contained', '.catch(() => null)', ''],
+  ['a throwing fallback is not contained', 'const derived = await readFallback({ baseUrl, presentationId, fetchImpl, signal: abort?.signal }).catch(() => null)', 'const derived = await readFallback({ baseUrl, presentationId, fetchImpl, signal: abort?.signal })'],
   ['the fallback is not optional', 'if (readFallback && result.kind', 'if (result.kind'],
+  ['the route is not remembered as absent', 'routeAbsentUntil = now() + unavailableTtlMs; ', ''],
+  ['the route is remembered forever', 'if (readFallback && now() < routeAbsentUntil)', 'if (readFallback && routeAbsentUntil > 0)'],
+  ['the window is longer than the base\'s pause', 'routeAbsentUntil = now() + unavailableTtlMs;', 'routeAbsentUntil = now() + 2 * unavailableTtlMs;'],
+  ['inside the window the route is asked as well', "      else // AUDIT-PREVIEWS\n", "      // AUDIT-PREVIEWS\n"],
+  ['a deck that cannot be read inside the window leaves stale rows', "{ kind: 'unavailable', reason: 'fallback_unavailable' }", "{ kind: 'failed', reason: 'fallback_unavailable' }"],
+  ['inside the window the deck is not read (no rows)', "if (readFallback && now() < routeAbsentUntil) result = (await readFallback({ baseUrl, presentationId, fetchImpl, signal: abort?.signal }).catch(() => null)) ?? { kind: 'unavailable', reason: 'fallback_unavailable' }", "if (readFallback && now() < routeAbsentUntil) result = { kind: 'unavailable', reason: 'fallback_unavailable' }"],
+  ['the window does not need the fallback', 'if (readFallback && now() < routeAbsentUntil)', 'if (now() < routeAbsentUntil)'],
+  ['a throwing fallback inside the window is not contained', "signal: abort?.signal }).catch(() => null)) ?? { kind: 'unavailable', reason: 'fallback_unavailable' }", "signal: abort?.signal })) ?? { kind: 'unavailable', reason: 'fallback_unavailable' }"],
   ['the fallback is asked outside the try', "      result = await fetchSlideInventory({ baseUrl, presentationId, fetchImpl, signal: abort?.signal })\n      if (readFallback", "      result = await fetchSlideInventory({ baseUrl, presentationId, fetchImpl, signal: abort?.signal })\n      if (false && readFallback"],
 ]
 for (const [name, from, to] of RAIL_MUTANTS) {
@@ -536,10 +607,17 @@ const FILE_MUTANTS = [
   [DASH, 'one Duplicate target ignores the re-home', "const target = duplicateTargetFor(presentation, url => studioDeckRehomeDecision(url, saved => evaluateLayoutViewerUrl(saved, LAYOUT_VIEWER_URL_POLICY))) // AUDIT-PREVIEWS\n    return {", "const target = duplicateTargetFor(presentation, url => evaluateLayoutViewerUrl(url, LAYOUT_VIEWER_URL_POLICY)) // AUDIT-PREVIEWS\n    return {", false],
   [DASH, 'the page does not re-render on an answer', '  useStudioDeckRehomeVersion() // AUDIT-PREVIEWS', '  // AUDIT-PREVIEWS', false],
   [DASH, 'the hook reads the page\'s env', 'useStudioDeckCardRehome(candidate, savedDecision)', 'useStudioDeckCardRehome(process.env.NEXT_PUBLIC_STUDIO_DECK_CARD_REHOME === "true" ? candidate : null, savedDecision)', false],
+  [RAIL_HOOK, 'the fallback is used whatever pictures are known', 'if (knownPicturesRef.current) return null; ', '', false],
+  [RAIL_HOOK, 'the known pictures are read without the refresh signals', 'slidePicturesKnown(refreshSignals, structureSlides,', 'slidePicturesKnown([], structureSlides,', false],
+  [RAIL_HOOK, 'the known pictures are read without the slide rows', 'slidePicturesKnown(refreshSignals, structureSlides,', 'slidePicturesKnown(refreshSignals, null,', false],
+  [RAIL_HOOK, 'the known pictures are computed with the flag off', 'STUDIO_INVENTORY_FALLBACK_ENABLED && slidePicturesKnown(', 'slidePicturesKnown(', false],
+  [RAIL_HOOK, 'the page\'s ownership check is not used for restored pictures', 'slide => ownedRestoredThumbnailUrl(slide, presentationId)', 'slide => (slide as any).thumbnail_url', false],
   [RAIL_HOOK, 'the fallback is always passed', '...(STUDIO_INVENTORY_FALLBACK_ENABLED ? {', '...(true ? {', false],
   [RAIL_HOOK, 'any fallback result counts', "return derived.kind === 'ok' ? derived : null", 'return derived as any', false],
   [PUBLISH, 'the frame replaces a ready image', "{preview.status === 'ready' ? (", "{frame ? (<PublishPreviewFrame src={frame.src} />) : preview.status === 'ready' ? (", false],
   [PUBLISH, 'the frame is never drawn', ') : frame ? ( // AUDIT-PREVIEWS', ') : false ? ( // AUDIT-PREVIEWS', false],
+  [CARD_HOOK, 'a failed read keeps the card waiting', 'pending: !answer && !unobservable && failedId !== id', 'pending: !answer && !unobservable', false],
+  [CARD_HOOK, 'a failed read is never noted', "if (result === 'unknown') setFailedId(id); ", '', false],
   [CARD_HOOK, 'the card hook reads the env itself', 'STUDIO_DECK_CARD_REHOME_ENABLED, savedUrl', "process.env.NEXT_PUBLIC_STUDIO_DECK_CARD_REHOME === 'true', savedUrl", false],
   [CARD_HOOK, 'the card hook reads without waiting for the card to be seen', 'observeFirstVisibility(', 'ignoreVisibility(', false],
   [FRAME_HOOK, 'the frame hook reads the env itself', 'STUDIO_INVENTORY_FALLBACK_ENABLED ? publishFrameRequest', "process.env.NEXT_PUBLIC_STUDIO_INVENTORY_FALLBACK === 'true' ? publishFrameRequest", false],

@@ -51,13 +51,16 @@ export const AUDIT_PREVIEWS_EDITS = {
     ["      ) : frame ? ( // AUDIT-PREVIEWS\n        <PublishPreviewFrame src={frame.src} /> // AUDIT-PREVIEWS\n", ""],
   ],
   "hooks/use-slide-rail-identity.ts": [
-    ["import { STUDIO_INVENTORY_FALLBACK_ENABLED, readInventoryFallback } from '@/lib/studio-inventory-fallback' // AUDIT-PREVIEWS (NEXT_PUBLIC_STUDIO_INVENTORY_FALLBACK, default off)\n", ""],
-    ["      ...(STUDIO_INVENTORY_FALLBACK_ENABLED ? { readFallback: async args => { const derived = await readInventoryFallback(args); return derived.kind === 'ok' ? derived : null } } : {}), // AUDIT-PREVIEWS\n", ""],
+    ["import { STUDIO_INVENTORY_FALLBACK_ENABLED, readInventoryFallback, slidePicturesKnown } from '@/lib/studio-inventory-fallback' // AUDIT-PREVIEWS (NEXT_PUBLIC_STUDIO_INVENTORY_FALLBACK, default off)\nimport { ownedRestoredThumbnailUrl } from '@/lib/stage-f-thumbnails' // AUDIT-PREVIEWS\n", ""],
+    ["  const knownPicturesRef = useRef(false) // AUDIT-PREVIEWS: the fallback's rows have no picture, and identity rows come before the pictures the viewer knows\n  knownPicturesRef.current = STUDIO_INVENTORY_FALLBACK_ENABLED && slidePicturesKnown(refreshSignals, structureSlides, slide => ownedRestoredThumbnailUrl(slide, presentationId)) // AUDIT-PREVIEWS: with any picture known the fallback is not used (flag off: nothing is read)\n", ""],
+    ["      ...(STUDIO_INVENTORY_FALLBACK_ENABLED ? { readFallback: async args => { if (knownPicturesRef.current) return null; const derived = await readInventoryFallback(args); return derived.kind === 'ok' ? derived : null } } : {}), // AUDIT-PREVIEWS\n", ""],
   ],
   "lib/slide-rail-identity.ts": [
     ["  readFallback, // AUDIT-PREVIEWS\n", ""],
-    ["  /** NEXT_PUBLIC_STUDIO_INVENTORY_FALLBACK (the hook passes it only with the flag on): asked once when the inventory answers 404 or 405; a result stands in for the inventory, null keeps the answer. */ // AUDIT-PREVIEWS\n  readFallback?: (args: { baseUrl: string; presentationId: string; fetchImpl: typeof fetch; signal?: AbortSignal }) => Promise<SlideInventoryResult | null> // AUDIT-PREVIEWS\n", ""],
-    ["      if (readFallback && result.kind === 'unavailable' && (result.reason === 'http_404' || result.reason === 'http_405')) { const derived = await readFallback({ baseUrl, presentationId, fetchImpl, signal: abort?.signal }).catch(() => null); if (derived) result = derived } // AUDIT-PREVIEWS\n", ""],
+    ["  /** NEXT_PUBLIC_STUDIO_INVENTORY_FALLBACK (the hook passes it only with the flag on): asked when the inventory answers 404 or 405, and then (for `unavailableTtlMs`, as the base's own pause) the route is known absent: each refresh reads only the deck, not the inventory route again; a result stands in for the inventory, null keeps the answer (the rail then has none: today's path). */ // AUDIT-PREVIEWS\n  readFallback?: (args: { baseUrl: string; presentationId: string; fetchImpl: typeof fetch; signal?: AbortSignal }) => Promise<SlideInventoryResult | null> // AUDIT-PREVIEWS\n", ""],
+    ["  let routeAbsentUntil = 0 // AUDIT-PREVIEWS\n", ""],
+    ["      if (readFallback && now() < routeAbsentUntil) result = (await readFallback({ baseUrl, presentationId, fetchImpl, signal: abort?.signal }).catch(() => null)) ?? { kind: 'unavailable', reason: 'fallback_unavailable' } // AUDIT-PREVIEWS: the route answered 404 or 405 within the window: only the deck is read\n      else // AUDIT-PREVIEWS\n", ""],
+    ["      if (readFallback && result.kind === 'unavailable' && (result.reason === 'http_404' || result.reason === 'http_405')) { routeAbsentUntil = now() + unavailableTtlMs; const derived = await readFallback({ baseUrl, presentationId, fetchImpl, signal: abort?.signal }).catch(() => null); if (derived) result = derived } // AUDIT-PREVIEWS\n", ""],
   ],
 }
 
@@ -96,7 +99,7 @@ export const AUDIT_PREVIEWS_PIN_EDITS = {
     ["const pageText = stripAuditConsole(DASHBOARD_PAGE, stripAuditPreviews(DASHBOARD_PAGE, read(DASHBOARD_PAGE))) // LATER-CHANGES: registry read (AUDIT-CONSOLE); LATER-CHANGES: registry read (AUDIT-PREVIEWS): this change's lines come out first\n", "const pageText = stripAuditConsole(DASHBOARD_PAGE, read(DASHBOARD_PAGE)) // LATER-CHANGES: registry read (AUDIT-CONSOLE): this change's lines come out first\n"],
   ],
   "scripts/test-studio-rail-slide-identity.mjs": [
-    ["    if (name === '@/lib/studio-inventory-fallback') return { STUDIO_INVENTORY_FALLBACK_ENABLED: false, readInventoryFallback: async () => ({ kind: 'unavailable', reason: 'stub' }) } // LATER-CHANGES: registry read (AUDIT-PREVIEWS): the hook now imports the fallback lib (flag off here: the base's hook)\n", ""],
+    ["    if (name === '@/lib/studio-inventory-fallback') return { STUDIO_INVENTORY_FALLBACK_ENABLED: false, readInventoryFallback: async () => ({ kind: 'unavailable', reason: 'stub' }) } // LATER-CHANGES: registry read (AUDIT-PREVIEWS): the hook now imports the fallback lib (flag off here: the base's hook)\n    if (name === '@/lib/stage-f-thumbnails') return { ownedRestoredThumbnailUrl: () => undefined } // LATER-CHANGES: registry read (AUDIT-PREVIEWS): the hook now also imports the page's restored-picture ownership check (flag off here: never called)\n", ""],
   ],
   "scripts/test-studio-publish-preview.mjs": [
     ["    if (name === '@/hooks/use-studio-publish-preview-frame') return { useStudioPublishPreviewFrame: () => null } // LATER-CHANGES: registry read (AUDIT-PREVIEWS): flag off, the frame hook answers null\n    if (name === '@/components/studio-publish-preview-frame') return { PublishPreviewFrame: 'PublishPreviewFrame' } // LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", ""],

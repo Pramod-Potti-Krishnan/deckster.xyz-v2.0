@@ -118,8 +118,8 @@ export async function readPresentationHere({
 }
 
 /**
- * One answer per presentation id for the page's life, with at most `maxConcurrent` reads in flight (the rest wait their turn, first asked first). `request` starts the read the first time an id is asked for and gives
- * everyone who asks the same promise; `peek` is the settled answer or null; `subscribe` is told whenever an answer settles (the page re-renders its Duplicate items from it).
+ * One real answer (`here` or `absent`) per presentation id for the page's life (an `unknown` is not kept: the next ask reads again), with at most `maxConcurrent` reads in flight (the rest wait their turn, first asked first). `request` starts the read the first time an id is asked for and gives
+ * everyone who asks the same promise; `peek` is the kept answer or null; `subscribe` is told whenever an answer settles (the page re-renders its Duplicate items from it).
  */
 export function createRehomeStore(maxConcurrent: number = DECK_CARD_REHOME_MAX_CONCURRENT_READS) {
   const settled = new Map<string, DeckCardRehomeAnswer>()
@@ -147,7 +147,7 @@ export function createRehomeStore(maxConcurrent: number = DECK_CARD_REHOME_MAX_C
           try { started = Promise.resolve(read()) } catch { started = Promise.resolve('unknown' as DeckCardRehomeAnswer) }
           started.catch(() => 'unknown' as DeckCardRehomeAnswer).then(result => {
             running -= 1
-            settled.set(presentationId, result)
+            if (result !== 'unknown') settled.set(presentationId, result) // only a real answer is kept for the page's life: an "unknown" (timeout, 5xx, network) is read again the next time it is asked
             inFlight.delete(presentationId)
             version += 1
             listeners.forEach(listener => listener())
