@@ -124,13 +124,16 @@ await t('no identity secret => 503, no fetch', async () => {
 })
 
 // 5. flag-off identity of the hook: this change's lines stripped = the base hook, byte for byte
-await t('hook: strip(this change) === base hook', async () => {
+await t('hook: strip(this change) === base hook (both sides through the registry)', async () => {
   const { stripConnectorsSessionLinks } = await import('./studio-connectors-session-links-strip.mjs')
+  const { stripLaterChanges } = await import('./studio-later-changes.mjs')
   const rel = 'hooks/use-deckster-websocket-v2.ts'
   // the base is PINNED (#566's head refreshed onto studio-v4-dev-preparation-code 2f06e51e), not a branch name: a gate clone fetches only dev
   // and the head branch, so a remote-tracking ref can be stale or missing there (RUNNER-MINI-B S6, 13 Nov); this commit is an ancestor of the head
   const base = execFileSync('git', ['show', `${process.env.SESSION_LINKS_BASE || '59f94e2d7ae685ebfcc3a9a43e71ba5432b488fb'}:${rel}`], { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20 })
-  assert.equal(stripConnectorsSessionLinks(rel, fs.readFileSync(path.join(root, rel), 'utf8')), base)
+  // both sides through the registry (every registered change's strip, this one's included), so a LATER change's lines in the hook come out of the
+  // live file as they do out of the base, and the check still holds once later changes sit on HEAD (FRONTEND-2 addendum 13 Nov, R3)
+  assert.equal(stripLaterChanges(rel, fs.readFileSync(path.join(root, rel), 'utf8')), stripLaterChanges(rel, base))
   assert.equal(stripConnectorsSessionLinks('other.ts', 'x'), 'x')
 })
 
