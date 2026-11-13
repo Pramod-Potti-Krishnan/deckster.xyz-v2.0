@@ -12,8 +12,10 @@ export const AUDIT_CONSOLE_FLAGS = ["NEXT_PUBLIC_STUDIO_ANALYTICS_GATE","NEXT_PU
 export const AUDIT_CONSOLE_MARKER = 'AUDIT-CONSOLE'
 /** The marker as a WHOLE token: AUDIT-CONSOLE-X and X-AUDIT-CONSOLE are not this change's. */
 export const AUDIT_CONSOLE_MARKER_RE = /(?<![\w-])AUDIT-CONSOLE(?![\w-])/
-/** The subject prefix of this change's own commits. */
-export const AUDIT_CONSOLE_SUBJECT = 'Audit fix:'
+/** The subject prefix of this change's own commits. Each audit change has one of its own, so a sibling audit change's commits are never taken for this one's. */
+export const AUDIT_CONSOLE_SUBJECT = 'Audit fix (console):'
+/** This change's commits made before it had a subject of its own (the plain "Audit fix:"): fixed, so listed by sha, oldest first. A plain "Audit fix:" commit that is not listed here is another audit change's. */
+export const AUDIT_CONSOLE_LEGACY_COMMITS = ['390a6b7d8974359a29be7e4206e7066aab50c3a1', 'f8b913145d26bd9829c14c160d72c80369095acc', '7ff94c9c9cf33c790793334c5f2a44f28133d7b6', '9dfade4dc53fbae960dca9597726d81941df9413', 'd686f0ddcf18e33ce43d90d94de9fe2054889c9b', 'b309aff232719b7a6bff3bbeb484de3161883153', 'c21ee27ecbffd5afc19a1f81d41aada14e184385']
 
 /** Existing files that get marked lines. */
 export const AUDIT_CONSOLE_FILES = ["app/layout.tsx","app/(app)/dashboard/page.tsx"]
@@ -46,10 +48,10 @@ export const AUDIT_CONSOLE_EDITS = {
 export const AUDIT_CONSOLE_PIN_MARK = "LATER-CHANGES: registry read (AUDIT-CONSOLE)"
 export const AUDIT_CONSOLE_PIN_EDITS = {
   "scripts/test-studio-chat-element-edit.mjs": [
-    ["  shas.splice(0, shas.length, ...shas.filter(sha => !/^Audit fix:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (AUDIT-CONSOLE): on a branch stacked after this change (the audit P-30 / P-32 console fixes), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files\n", ""],
+    ["  shas.splice(0, shas.length, ...shas.filter(sha => !(/^Audit fix \\(console\\):/.test(git('log', '-1', '--format=%s', sha)) || ['390a6b7d8974359a29be7e4206e7066aab50c3a1', 'f8b913145d26bd9829c14c160d72c80369095acc', '7ff94c9c9cf33c790793334c5f2a44f28133d7b6', '9dfade4dc53fbae960dca9597726d81941df9413', 'd686f0ddcf18e33ce43d90d94de9fe2054889c9b', 'b309aff232719b7a6bff3bbeb484de3161883153', 'c21ee27ecbffd5afc19a1f81d41aada14e184385'].includes(sha)))) // LATER-CHANGES: registry read (AUDIT-CONSOLE): on a branch stacked after this change (the audit P-30 / P-32 console fixes), the first-parent commits are its own (its own subject, or the plain-subject commits it had before, listed by sha), not this change's; a sibling audit change's commits stay; with none left the pins and identity checks cover the files\n", ""],
   ],
   "scripts/test-studio-deck-sync-truth.mjs": [
-    ["  shas.splice(0, shas.length, ...shas.filter(sha => !/^Audit fix:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (AUDIT-CONSOLE): on a branch stacked after this change (the audit P-30 / P-32 console fixes), the first-parent commits are its own, not this change's; with none left the identity checks cover the files\n", ""],
+    ["  shas.splice(0, shas.length, ...shas.filter(sha => !(/^Audit fix \\(console\\):/.test(git('log', '-1', '--format=%s', sha)) || ['390a6b7d8974359a29be7e4206e7066aab50c3a1', 'f8b913145d26bd9829c14c160d72c80369095acc', '7ff94c9c9cf33c790793334c5f2a44f28133d7b6', '9dfade4dc53fbae960dca9597726d81941df9413', 'd686f0ddcf18e33ce43d90d94de9fe2054889c9b', 'b309aff232719b7a6bff3bbeb484de3161883153', 'c21ee27ecbffd5afc19a1f81d41aada14e184385'].includes(sha)))) // LATER-CHANGES: registry read (AUDIT-CONSOLE): on a branch stacked after this change (the audit P-30 / P-32 console fixes), the first-parent commits are its own (its own subject, or the plain-subject commits it had before, listed by sha), not this change's; a sibling audit change's commits stay; with none left the identity checks cover the files\n", ""],
   ],
   "scripts/test-studio-deck-card-count.mjs": [
     ["import { stripAuditConsole } from './studio-audit-console-strip.mjs' // LATER-CHANGES: registry read (AUDIT-CONSOLE)\n", ""],
