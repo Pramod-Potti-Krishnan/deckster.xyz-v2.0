@@ -29,9 +29,11 @@ import ts from 'typescript'
 import { installHostNetworkGuard, createEnvironment } from './studio-chat-harness/fake-env.mjs'
 import { BASE_ENV } from './studio-chat-harness/profiles.mjs'
 import { stripChatParityViewer, CHAT_PARITY_VIEWER_FILES } from './studio-chat-parity-viewer-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): the viewer's slash commands (stacked after chat commands) add rows and lines to files this proof reads; it reads them as chat commands had them
+import { stripChatParityWorkspace, CHAT_PARITY_WORKSPACE_FILES } from './studio-chat-parity-workspace-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): the workspace slash commands (stacked after the viewer's) add rows and lines to files this proof reads; it reads them as the viewer's commands left them, then as chat commands had them
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 { const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && CHAT_PARITY_VIEWER_FILES.includes(rel) ? stripChatParityViewer(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): every read of a file that change touched (the module loader's too) is the file as chat commands had it
+{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && CHAT_PARITY_WORKSPACE_FILES.includes(rel) ? stripChatParityWorkspace(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): every read of a file that change touched (the module loader's too) is the file as the viewer's commands left it (each of the two hooks only drops its own marked lines, so the order they are installed in does not matter)
 const require = createRequire(import.meta.url)
 const release = installHostNetworkGuard(net, dns)
 let checks = 0

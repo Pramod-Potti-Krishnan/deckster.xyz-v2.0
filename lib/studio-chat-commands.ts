@@ -134,6 +134,8 @@ const COMMAND_RE = /(^|\s)\/([\w-]*)(?: ([\w-]*))?$/
 const MENTION_RE = /@([\w ]{0,30})$/
 /** "/layout image text", "/theme dark blue": these two take several words after the name, and only when the draft STARTS with the command (the rest of the commands keep the one-word rule above, which also reads after a space); read only with the second argument of detectTrigger (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS). */ // CHAT-PARITY-VIEWER
 const COMMAND_WORDS_RE = /^\/(layout|theme) ([^\n]*)$/i // CHAT-PARITY-VIEWER
+/** "/template Quarterly Review": a saved template's name is several words (/template-mode keeps the one-word rule: the name has to be followed by a space); read only when the draft STARTS with it and only with detectTrigger's second argument (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS). */ // CHAT-PARITY-WORKSPACE
+const COMMAND_TEMPLATE_RE = /^\/(template) ([^\n]*)$/i // CHAT-PARITY-WORKSPACE
 
 /** `parity`: the chat parity commands' flag (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS) is on, so the several-word commands are read; off (the default), this is the commands flag's own trigger, byte for byte. */ // CHAT-PARITY-VIEWER
 export function detectTrigger(text: string, parity = false): MenuTrigger | null { // CHAT-PARITY-VIEWER
@@ -142,6 +144,8 @@ export function detectTrigger(text: string, parity = false): MenuTrigger | null 
   if (mention) return { kind: 'mention', start: mention.index, query: mention[1] ?? '' }
   const words = parity ? COMMAND_WORDS_RE.exec(text) : null // CHAT-PARITY-VIEWER
   if (words) return { kind: 'command', start: 0, name: words[1], arg: words[2] } // CHAT-PARITY-VIEWER: several words after /layout or /theme, at the start of the draft
+  const template = parity ? COMMAND_TEMPLATE_RE.exec(text) : null // CHAT-PARITY-WORKSPACE
+  if (template) return { kind: 'command', start: 0, name: template[1], arg: template[2] } // CHAT-PARITY-WORKSPACE: several words after /template, at the start of the draft
   const command = COMMAND_RE.exec(text)
   if (command) return { kind: 'command', start: command.index + command[1].length, name: command[2] ?? '', arg: command[3] === undefined ? null : command[3] }
   return null

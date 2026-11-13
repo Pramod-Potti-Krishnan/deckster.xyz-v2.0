@@ -24,6 +24,7 @@ import { useSyncExternalStore } from 'react' // CHAT-PARITY-VIEWER
 import { ChatParityRows } from '@/components/builder/chat/studio-chat-parity-viewer-menu' // CHAT-PARITY-VIEWER
 import { parityRows, runParity, subscribeViewerState, viewerStateSnapshot, type ParityEnv, type ParityResult, type ParityRow } from '@/lib/studio-chat-parity-viewer' // CHAT-PARITY-VIEWER
 import { useStudioStageShowCanvas } from '@/lib/studio-stage-open-gate' // CHAT-PARITY-VIEWER
+import { useChatParityWorkspace } from '@/components/builder/chat/studio-chat-parity-workspace' // CHAT-PARITY-WORKSPACE
 import '../studio-chat-commands.css'
 
 // the model gauge is drawn only with this flag (components/model-choice/use-model-choice.ts STUDIO_MODEL_PICKER_ENABLED, the same literal read)
@@ -148,6 +149,8 @@ export function useStudioChatCommands(input: StudioChatCommandsInput): StudioCha
   const showCanvas = useStudioStageShowCanvas() // CHAT-PARITY-VIEWER: the Show canvas button's own function (null while the canvas is open)
   const parityEnv: ParityEnv = { viewer: parityViewer, building: input.stop.visible, themeBlocked: input.themeBlocked, presets: input.presets, canvasClosed: Boolean(showCanvas) } // CHAT-PARITY-VIEWER
   const parity: ParityRow[] = parityOn && trigger?.kind === 'command' ? parityRows(trigger, parityEnv) : [] // CHAT-PARITY-VIEWER: the viewer commands' rows, after the existing commands (a command that cannot run is a disabled row with its reason)
+  const workspaceRows = useChatParityWorkspace({ enabled: parityOn, trigger: trigger?.kind === 'command' ? trigger : null, text: input.text, template: input.template, listTemplates, menuOpen: dismissed !== key }) // CHAT-PARITY-WORKSPACE: the Workspace group's rows (kg, template, template-mode, notes, appearance, intro, pane, history); a command that cannot run is a disabled row with its reason
+  parity.push(...workspaceRows) // CHAT-PARITY-WORKSPACE: after the viewer's rows, so they draw as the last group
   const mention: MentionModel | null = trigger?.kind === 'mention' && source ? buildMentionModel(source, trigger.query) : null
   const count = trigger?.kind === 'command' ? rows.length + parity.length : mention ? mention.items.length : 0 // CHAT-PARITY-VIEWER
   const menuOpen = Boolean(enabled && trigger && dismissed !== key && (trigger.kind === 'command' ? rows.length + parity.length > 0 : mention && (mention.items.length > 0 || mention.empty))) // CHAT-PARITY-VIEWER

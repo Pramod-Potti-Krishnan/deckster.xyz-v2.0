@@ -286,6 +286,7 @@ function build(command: ParityName, label: string, blurb: string, run: ParityRun
 export function runBlocked(run: ParityRun, env: ParityEnv): string | null {
   if (run.name === 'theme') return env.themeBlocked
   if (run.name === 'canvas') return env.canvasClosed ? null : PARITY_WORDS.canvasOpen
+  if ('ws' in run) return null // CHAT-PARITY-WORKSPACE: a workspace row carries its own reason (lib/studio-chat-parity-workspace.ts)
   return blockedReason(run, env.viewer, env.building)
 }
 
@@ -526,8 +527,14 @@ export interface ParityDeps {
   scale?: number
 }
 
+/** Another half's runner (the workspace commands register one): it answers the runs it owns, else null. */ // CHAT-PARITY-WORKSPACE
+export type ParityRunner = (run: ParityRun, deps: ParityDeps) => Promise<ParityResult> | null // CHAT-PARITY-WORKSPACE
+const PARITY_RUNNERS = new Set<ParityRunner>() // CHAT-PARITY-WORKSPACE
+export const registerParityRunner = (runner: ParityRunner): (() => void) => { PARITY_RUNNERS.add(runner); return () => { PARITY_RUNNERS.delete(runner) } } // CHAT-PARITY-WORKSPACE
 /** Run any of the commands: the viewer's through the bus, /theme through the preset chip, /canvas through the Show canvas function. */
 export async function runParity(run: ParityRun, deps: ParityDeps): Promise<ParityResult> {
+  for (const runner of Array.from(PARITY_RUNNERS)) { const answer = runner(run, deps); if (answer) return answer } // CHAT-PARITY-WORKSPACE
+  if ('ws' in run) return failed("That command isn't available here.") // CHAT-PARITY-WORKSPACE: a workspace run no runner owns
   if (run.name === 'theme') {
     deps.choosePreset(run.preset.id)
     return done(`Theme set to ${run.preset.name} for your next build`)
