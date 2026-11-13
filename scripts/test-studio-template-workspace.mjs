@@ -115,6 +115,7 @@ function compile(expressionText, { call = false } = {}) {
     const proxy = new Proxy(scope, {
       has: (target, k) => typeof k === 'string' && (k in target || (/^[A-Z]/.test(k) && !(k in globalThis))),
       get: (target, k) => k === Symbol.unscopables ? undefined : k in target ? target[k] : String(k),
+      get: (target, k) => k === Symbol.unscopables ? undefined : k in target ? target[k] : /^[A-Z][A-Z0-9_]*$/.test(String(k)) ? undefined : String(k), // LATER-CHANGES: registry read (RESTACK-UX-PC): a duplicate key, the later one wins; a SCREAMING_CASE flag constant that this harness does not resolve reads as undefined (OFF), never as its own name (a truthy string)
     })
     return script.runInContext(vm.createContext({ __scope: proxy, console }))
   }

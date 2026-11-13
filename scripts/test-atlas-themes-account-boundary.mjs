@@ -3,7 +3,9 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import { readAtlasBaseline } from './atlas-witness-baseline.mjs'
 import ts from 'typescript'
-import { stripLibraryManage } from './studio-library-manage-strip.mjs'
+import { stripLibraryManage as stripLibraryManageBase } from './studio-library-manage-strip.mjs' // LATER-CHANGES: registry read (BRAND-KIT-CALLER)
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (BRAND-KIT-CALLER)
+const stripLibraryManage = (rel, text) => stripLibraryManageBase(rel, stripLaterChanges(rel, text)) // LATER-CHANGES: registry read (BRAND-KIT-CALLER): a later change's marked lines (the Brand Kit's, in the Themes page) come out first
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 
 // Actual Themes leaf callbacks, native payload, preview helpers and safe handoff

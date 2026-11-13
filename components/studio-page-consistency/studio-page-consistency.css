@@ -1,0 +1,20 @@
+/* UX-07 (NEXT_PUBLIC_STUDIO_PAGE_CONSISTENCY, default off): Billing on the Studio shell tokens. Every rule is scoped to <html data-studio-page-consistency="true">, set only with the flag on. */
+html[data-studio-page-consistency="true"] [data-studio-billing="true"] { color: var(--ss-text); }
+html[data-studio-page-consistency="true"] [data-studio-billing="true"] [data-studio-billing-heading="true"] p { color: var(--ss-muted); }
+html[data-studio-page-consistency="true"] [data-studio-billing-card] { background: var(--ss-panel); border: 1px solid var(--ss-line); border-radius: 12px; box-shadow: none; color: var(--ss-text); }
+/* card titles: the "Your details" section heading (15 px, 600), not the old 24 px black title */
+html[data-studio-page-consistency="true"] [data-studio-billing-header="true"] { padding: 18px 20px 10px; }
+html[data-studio-page-consistency="true"] [data-studio-billing-header="true"] > :first-child { font-size: 15px; line-height: 1.35; font-weight: 600; letter-spacing: -.25px; color: var(--ss-text); }
+html[data-studio-page-consistency="true"] [data-studio-billing-header="true"] > :first-child svg { width: 16px; height: 16px; color: var(--ss-muted); }
+html[data-studio-page-consistency="true"] [data-studio-billing-header="true"] > p { font-size: 12px; color: var(--ss-muted); }
+html[data-studio-page-consistency="true"] [data-studio-billing-body="true"] { padding: 0 20px 19px; }
+html[data-studio-page-consistency="true"] [data-studio-billing-plan-summary="true"],
+html[data-studio-page-consistency="true"] [data-studio-billing-balance="true"] { background: var(--ss-surface); border: 1px solid var(--ss-line); }
+html[data-studio-page-consistency="true"] [data-studio-billing="true"] .text-muted-foreground { color: var(--ss-muted); }
+/* buttons: the shell's action and outline buttons; a disabled one stays readable instead of the old grey pill */
+html[data-studio-page-consistency="true"] [data-studio-billing="true"] button { border-radius: 8px; }
+html[data-studio-page-consistency="true"] [data-studio-billing="true"] button:disabled { opacity: 1; background: var(--ss-soft); color: var(--ss-muted); border: 1px solid var(--ss-line); }
+@media (max-width: 640px) {
+  html[data-studio-page-consistency="true"] [data-studio-billing-header="true"] { padding: 15px 16px 8px; }
+  html[data-studio-page-consistency="true"] [data-studio-billing-body="true"] { padding: 0 16px 15px; }
+}
