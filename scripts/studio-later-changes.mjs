@@ -164,6 +164,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-avatar-spawn-strip.mjs')).AVATAR_SPAWN_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B66 AVATAR-SPAWN (NEXT_PUBLIC_STUDIO_AVATAR_SPAWN)
   (await import('./studio-ws-bq-claim-strip.mjs')).WS_BQ_CLAIM_ENV_BLOCK, // LATER-CHANGE: OPS-2, J8.1 WS token bq claim (DECKSTER_WS_BQ_CLAIM_ENABLED)
   (await import('./studio-brand-kit-strip.mjs')).BRAND_KIT_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, Brand Kit caller (NEXT_PUBLIC_STUDIO_BRAND_KIT / THEME_BUILDER_BRAND_EXTRACT_KEY / STUDIO_BRAND_EXTRACT_DAILY_CAP)
+  (await import('./studio-chat-parity-viewer-strip.mjs')).CHAT_PARITY_COMMANDS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, overnight chat parity, the one flag of the chain (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS)
   // one line per later change, above this comment
 ]
 

@@ -1,6 +1,6 @@
 /**
  * FRONTEND-1, overnight chat parity (10 Nov), the VIEWER half: "/" commands that do what a viewer button does.
- * Gated by NEXT_PUBLIC_STUDIO_CHAT_COMMANDS (which already needs NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell). No new flag, no backend, no Director change.
+ * Gated by NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS (default off) on top of NEXT_PUBLIC_STUDIO_CHAT_COMMANDS (which already needs NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell). The flag is read where this bus is used (the viewer, the composer's hook, the page), never here. No backend, no Director change.
  *
  * ONE small bus, module level, in two halves:
  *   the viewer (components/presentation-viewer.tsx) REGISTERS a getter of its latest { state, actions } in a gated effect (the same shape as the Master opener on chatParityBus);
