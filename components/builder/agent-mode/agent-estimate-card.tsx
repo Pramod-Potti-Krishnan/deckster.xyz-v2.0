@@ -1,43 +1,27 @@
 "use client"
 
 import React from "react"
-import { AGENT_COPY, STUDIO_AGENT_MODE_ENABLED, estimateExpired, formatEstimate, type AgentChoice, type AgentRunState } from "@/lib/studio-agent-mode"
+import { AGENT_COPY, STUDIO_AGENT_MODE_ENABLED, formatEstimate, type AgentChoice, type AgentRunState } from "@/lib/studio-agent-mode" // AGENT-MODE-WIRE
 import { AgentActionButton, AgentActions, AgentCardFrame, AgentCardText, type AgentCardCallbacks } from "./agent-card-parts"
 
 /**
- * AGENT-MODE-SHELL, A1 (flag NEXT_PUBLIC_AGENT_MODE, Studio shell only, default off; off, null): the estimate and the cap, "About N credits · cap M credits", shown BEFORE the paid click. The credits are reserved at Start, never here,
- * and nothing is sent until a button is clicked. Credits only. When the frame carries expires_at and it has passed, Start is off and the card says to ask again (Cancel stays); a click that lands after the expiry sends nothing.
- * `now` (ms) is for a proof: the card reads the clock itself and re-draws once at the expiry.
+ * AGENT-MODE-SHELL, A1 (flag NEXT_PUBLIC_AGENT_MODE, Studio shell only, default off; off, null): the estimate and the cap, "Estimated cost: About N credits · cap M credits · Running". It is INFORMATION, not a gate (PK ruling): (AGENT-MODE-WIRE)
+ * the spend began at the Agent send, Director already has the run going when this shows (A1 "start" is only an acknowledgement there), so there is no Start. The one button is Stop, which sends A1 "cancel" (the wire contract (AGENT-MODE-WIRE)
+ * is unchanged); once answered it is off. Credits only. Nothing is sent until the button is clicked. The estimate's expires_at is not read here: with no Start there is nothing to expire (a cancel was never expiry-gated). (AGENT-MODE-WIRE)
  */
-export function AgentEstimateCard({ state, onAnswer, now }: { state: AgentRunState; now?: number } & AgentCardCallbacks) {
+export function AgentEstimateCard({ state, onAnswer }: { state: AgentRunState } & AgentCardCallbacks) { // AGENT-MODE-WIRE
   if (!STUDIO_AGENT_MODE_ENABLED || state.status !== "estimate" || !state.estimate || state.runId === null || state.capCredits === null) return null
-  return <EstimateBody runId={state.runId} credits={state.estimate.credits} cap={state.capCredits} expiresAt={state.estimate.expiresAt} answered={state.estimate.answered} now={now} onAnswer={onAnswer} />
+  return <EstimateBody runId={state.runId} credits={state.estimate.credits} cap={state.capCredits} answered={state.estimate.answered} onAnswer={onAnswer} /> // AGENT-MODE-WIRE
 }
 
-/** The clock the card reads: `now` when a proof gives one, else the real time; with a real expiry still ahead, one timer re-draws the card at that moment (and none otherwise). */
-function useClock(expiresAt: string | null, now: number | undefined): number {
-  const [tick, setTick] = React.useState(0)
-  React.useEffect(() => {
-    if (now !== undefined || expiresAt === null) return
-    const left = Date.parse(expiresAt) - Date.now()
-    if (!(left > 0)) return
-    const timer = setTimeout(() => setTick(t => t + 1), Math.min(left + 25, 2_000_000_000))
-    return () => clearTimeout(timer)
-  }, [expiresAt, now, tick])
-  return now ?? Date.now()
-}
-
-function EstimateBody({ runId, credits, cap, expiresAt, answered, now, onAnswer }: { runId: string; credits: number; cap: number; expiresAt: string | null; answered: AgentChoice | null; now?: number } & AgentCardCallbacks) {
-  const clock = useClock(expiresAt, now) // always called (the same hooks on every draw, answered or not)
-  const expired = answered === null && estimateExpired(expiresAt, clock)
+function EstimateBody({ runId, credits, cap, answered, onAnswer }: { runId: string; credits: number; cap: number; answered: AgentChoice | null } & AgentCardCallbacks) { // AGENT-MODE-WIRE
   return (
     <AgentCardFrame kind="estimate" label={AGENT_COPY.heading}>
-      <AgentCardText>{formatEstimate(credits, cap)}</AgentCardText>
+      <AgentCardText>{`${AGENT_COPY.estimateLabel}: ${formatEstimate(credits, cap)} · ${AGENT_COPY.estimateRunning}`}</AgentCardText>{/* AGENT-MODE-WIRE */}
       {credits > cap ? <AgentCardText part="hint">{AGENT_COPY.estimateMayCap}</AgentCardText> : null}
-      {expired ? <AgentCardText part="hint">{AGENT_COPY.estimateExpired}</AgentCardText> : null}
+      {/* AGENT-MODE-WIRE: #607's "This estimate has expired" line is not here, the card does not read expires_at */}
       <AgentActions>
-        <AgentActionButton choice="start" primary answered={answered} disabled={expired} onClick={() => { if (!estimateExpired(expiresAt, now ?? Date.now())) onAnswer?.({ runId, card: "A1", choice: "start" }) }}>{AGENT_COPY.start}</AgentActionButton>
-        <AgentActionButton choice="cancel" answered={answered} onClick={() => onAnswer?.({ runId, card: "A1", choice: "cancel" })}>{AGENT_COPY.cancel}</AgentActionButton>
+        <AgentActionButton choice="cancel" answered={answered} onClick={() => onAnswer?.({ runId, card: "A1", choice: "cancel" })}>{AGENT_COPY.stop}</AgentActionButton>{/* AGENT-MODE-WIRE */}
       </AgentActions>
     </AgentCardFrame>
   )
