@@ -140,7 +140,7 @@ const SESSION_CREATE_RESPONSE_KEYS = ['id', 'geminiStoreName'] as const;
  * - 201 { session }                      a new row, owned by the caller
  * - 200 { session }                      the caller's OWN row already has that id (it was a 409 with the whole row before P-73)
  * - 404 { error: 'Session not found' }   the id is another user's chat: no row, nothing about its owner, nothing written (P-73)
- * Logs carry no e-mail, no DATABASE_URL and no raw error text; a 500 answers a generic message (P-74).
+ * Logs carry no e-mail, no account or chat id, no DATABASE_URL and no raw error text; a 500 answers a generic message (P-74).
  */
 export async function POST(req: NextRequest) {
   console.log('='.repeat(80));
@@ -198,7 +198,7 @@ export async function POST(req: NextRequest) {
             approved: false,
           }
         });
-        console.log('[Session Create] ✅ User created successfully:', user.id);
+        console.log('[Session Create] ✅ User created successfully');
       } catch (createError: any) {
         console.error('[Session Create] ❌ Failed to create user:');
         console.error('[Session Create] Code:', createError.code);
@@ -208,14 +208,14 @@ export async function POST(req: NextRequest) {
         );
       }
     } else {
-      console.log('[Session Create] ✅ User found in database:', user.id);
+      console.log('[Session Create] ✅ User found in database');
     }
 
     // Parse request body
     console.log('[Session Create] Step 4: Parsing request body...');
     const body = await req.json();
     const { sessionId, title } = body;
-    console.log('[Session Create] Session ID:', sessionId);
+    console.log('[Session Create] Session ID given:', !!sessionId);
     console.log('[Session Create] Title given:', !!title);
 
     if (!sessionId) {
@@ -236,14 +236,14 @@ export async function POST(req: NextRequest) {
       // Another user's chat is answered exactly like an id that cannot be used: no row, nothing about its owner (P-73).
       // The [id] routes check the owner the same way (app/api/sessions/[id]/route.ts).
       if (existing.userId !== user.id) {
-        console.warn('[Session Create] ⚠️ Session id belongs to another user, refused:', sessionId);
+        console.warn('[Session Create] ⚠️ Session id belongs to another user, refused');
         return NextResponse.json(
           { error: 'Session not found' },
           { status: 404 }
         );
       }
 
-      console.log('[Session Create] ⚠️ Session already exists:', sessionId);
+      console.log('[Session Create] ⚠️ Session already exists (the caller\'s own)');
       return NextResponse.json(
         { session: pickAllowedKeys(existing, SESSION_CREATE_RESPONSE_KEYS) },
         { status: 200 }
@@ -255,8 +255,6 @@ export async function POST(req: NextRequest) {
     // Create new session
     console.log('[Session Create] Step 6: Creating chat session...');
     console.log('[Session Create] Data:', {
-      id: sessionId,
-      userId: user.id,
       hasTitle: !!title,
       currentStage: 1,
       status: 'active'
@@ -272,7 +270,7 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    console.log('[Session Create] ✅ Chat session created successfully:', newSession.id);
+    console.log('[Session Create] ✅ Chat session created successfully');
     console.log('='.repeat(80));
 
     return NextResponse.json({

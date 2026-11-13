@@ -24,6 +24,7 @@ import {
   type CachedSessionState,
 } from '@/hooks/use-session-cache'
 import { unsavedBuilderSessionKey } from '@/lib/last-builder-session'
+import { createSessionWasRefused } from '@/hooks/use-chat-sessions' // SESSIONS-OWNER: whether POST /api/sessions refused the URL's id as another account's chat
 import {
   STUDIO_SESSION_HYGIENE_ENABLED,
   decideMissingSession,
@@ -683,6 +684,23 @@ export function useBuilderSession({
             console.warn('⚠️ Session not found in frontend DB, adopting URL session:', sessionParam)
             const adopted = await createSession(sessionParam)
             if (!mayContinueInitialization() || (adopted && adopted.id !== sessionParam)) return
+            if (!adopted && createSessionWasRefused(sessionParam)) { // SESSIONS-OWNER (13 Nov, REVIEW-1 P3 and DIRECTOR-2): POST /api/sessions answered 404: this id is another account's chat (a missing id is created, 201). Never keep it, not even as an unsaved local session, and never open the Director socket on it
+              const ownSessionId = crypto.randomUUID() // SESSIONS-OWNER: a fresh id of the caller's own, as the bare /builder branch below mints one
+              console.warn('⚠️ [SESSIONS-OWNER] The URL session is not this account\'s; starting a new session under a fresh id') // SESSIONS-OWNER
+              const ownRow = await createSession(ownSessionId) // SESSIONS-OWNER: the row for the caller's own id; a failure keeps the fresh id as an unsaved local session, as the adoption below does
+              if (!mayContinueInitialization() || (ownRow && ownRow.id !== ownSessionId)) return // SESSIONS-OWNER
+              recordStudioFreshAssignment(ownSessionId, { kind: 'local_uuid', generatedSessionId: ownSessionId }) // SESSIONS-OWNER
+              clearMessages() // SESSIONS-OWNER
+              setUserMessages([]) // SESSIONS-OWNER
+              setCurrentSessionId(ownSessionId) // SESSIONS-OWNER: the socket (existingSessionId) and every later write use this id from here
+              setSessionStoreName(ownRow?.geminiStoreName || null) // SESSIONS-OWNER
+              setIsUnsavedSession(!ownRow) // SESSIONS-OWNER
+              try { if (builderCacheOwner) { if (ownRow) sessionStorage.removeItem(unsavedBuilderSessionKey(builderCacheOwner, ownSessionId)); else sessionStorage.setItem(unsavedBuilderSessionKey(builderCacheOwner, ownSessionId), 'true') } } catch {} // SESSIONS-OWNER
+              setIsResumedSession(false) // SESSIONS-OWNER
+              lastLoadedSessionRef.current = ownSessionId // SESSIONS-OWNER: the URL change below must not load it again
+              router.replace(getInitializedBuilderHref(searchParams, ownSessionId, process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'), { scroll: false }) // SESSIONS-OWNER: replace, not push: Back does not return to the other account's id
+              return // SESSIONS-OWNER
+            } // SESSIONS-OWNER
             if (adopted) {
               setCurrentSessionId(adopted.id)
               setSessionStoreName(adopted.geminiStoreName || null)
