@@ -6,7 +6,7 @@
 // FRONTEND-2's UX findings E (#603) carries the same four-line edit of FRONTEND-1's test-studio-voice-call.mjs (the .env.example "last thing in the file" pin must take out the env blocks registered after voice-call's); this change carries it too, BYTE-IDENTICAL, so every PR merges clean in any order.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = 'eeb78d4f4b7676d75c244746f1edc7da1d269478' // origin/studio-v4-dev-preparation-code (#598 merged) at the start of this change
+export const BASE_COMMIT = '796d84420e0f1b233c91365e3053adc71441eb90' // origin/studio-v4-dev-preparation-code (#624 merged) the trunk this change sits on (restacked from eeb78d4f, #598 merged)
 export const AUDIT_PRESENT_EXIT_FLAGS = ["NEXT_PUBLIC_STUDIO_PRESENT_EXIT_FIX"]
 export const AUDIT_PRESENT_EXIT_MARKER = 'AUDIT-PRESENT-EXIT'
 /** The marker as a WHOLE token: AUDIT-PRESENT-EXIT-X and X-AUDIT-PRESENT-EXIT are not this change's. */
