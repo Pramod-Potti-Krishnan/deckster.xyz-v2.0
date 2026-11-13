@@ -4,9 +4,10 @@ import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 import ts from 'typescript'
 import postcss from 'postcss'
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (BRAND-KIT-CALLER)
 
 const path = 'components/builder/deck-identity-dialog.tsx'
-const source = fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
+const source = stripLaterChanges(path, fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')) // LATER-CHANGES: registry read (BRAND-KIT-CALLER): a later change's marked lines come out first
 const original = execFileSync('git', ['show', `15639c8:${path}`], { encoding: 'utf8' })
 const focusStart = source.indexOf(' ref={studioShell ? contentRef : undefined} onOpenAutoFocus=')
 const focusEnd = source.indexOf(' data-studio-deck-identity=', focusStart)
