@@ -7,7 +7,7 @@
 // The four-line edit of FRONTEND-1's test-studio-voice-call.mjs (the .env.example "last thing in the file" pin reads the blocks registered after voice-call's) that this change used to carry, byte-identical to #603's, is in dev since 506bcbb3: no edit of that proof is carried here.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '796d84420e0f1b233c91365e3053adc71441eb90' // origin/studio-v4-dev-preparation-code (#624 merged), the trunk this change sits on (restacked from eeb78d4f, #598 merged)
+export const BASE_COMMIT = '2f06e51ec807d4ecd5cd00edc9bfd0005a5fd0b8' // origin/studio-v4-dev-preparation-code (#621 merged), the trunk this change sits on (restacked from 796d8442, #624 merged)
 export const AUDIT_PREVIEWS_FLAGS = ["NEXT_PUBLIC_STUDIO_DECK_CARD_REHOME","NEXT_PUBLIC_STUDIO_INVENTORY_FALLBACK"]
 export const AUDIT_PREVIEWS_MARKER = 'AUDIT-PREVIEWS'
 /** The marker as a WHOLE token: AUDIT-PREVIEWS-X and X-AUDIT-PREVIEWS are not this change's. */
