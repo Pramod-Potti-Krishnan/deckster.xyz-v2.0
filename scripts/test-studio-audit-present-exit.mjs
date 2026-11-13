@@ -127,6 +127,8 @@ function viewerChecks(text = read(VIEWER)) {
 // ============================================================================================================================================
 /** The strips of the changes registered after this one come out first (none today): a later change that touches these files must not hide this change's edits from the identity check. */
 const laterStrips = (rel, text) => { const strips = registry.LATER_STRIPS, at = strips.indexOf(STRIP_FN); return (at === -1 ? [] : strips.slice(at + 1)).reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text) }
+/** .env.example without the blocks of the changes registered after this one (each is a blank line and its block), so this change's own block is the last thing that is checked, on a branch with another audit change stacked after it. */
+const laterEnv = text => { const blocks = registry.LATER_ENV_BLOCKS, at = blocks.indexOf(ENV_BLOCK); return (at === -1 ? [] : blocks.slice(at + 1)).reduce((out, later) => out.replace(`\n${later}`, ''), text) }
 /** The older proofs this change teaches (their first-parent scope checks leave this change's own commits out: the subject "Audit fix (present-exit):", or one of the plain "Audit fix:" commits it had before, listed by sha). */
 const PIN_FILES = ['scripts/test-studio-chat-element-edit.mjs', 'scripts/test-studio-deck-sync-truth.mjs']
 /** The older proofs that hold the viewer byte for byte or count its lines read it past this change's three lines: [file, marked lines it gains] (a read hook with its import, the phone proofs' scope line, the rail proof's diff filter). */
@@ -186,7 +188,7 @@ function sourceChecks(texts, mod = stripModule) {
     for (const other of [...files, ...mod.AUDIT_PRESENT_EXIT_NEW_FILES.filter(f => /^(hooks|components)\//.test(f))]) assert.equal((texts[other] || '').includes(`process.env.${flag}`), false, `${other} does not read ${flag} itself`)
   }
   // .env.example: the base plus the block (after one blank line); every flag documented "false", once
-  assert.equal(texts['.env.example'], `${baseText('.env.example')}\n${block}`, '.env.example is the base plus the block')
+  assert.equal(laterEnv(texts['.env.example']), `${baseText('.env.example')}\n${block}`, '.env.example is the base plus the block (past the blocks registered after this one)')
   for (const flag of mod.AUDIT_PRESENT_EXIT_FLAGS) {
     assert.match(block, new RegExp(`^${flag}="false"$`, 'm'), `the block documents ${flag} as "false"`)
     assert.equal((texts['.env.example'].match(new RegExp(`^${flag}=`, 'gm')) || []).length, 1, `.env.example assigns ${flag} once`)
@@ -328,6 +330,7 @@ await check('mutant caught: a taught viewer-reading proof whose read hook goes t
   }
 })
 await check('mutant caught: .env.example with a flag on by default, or the block missing', async () => {
+  assert.ok(await throws(() => sourceChecks({ ...TEXTS, '.env.example': `${TEXTS['.env.example']}# stray line after the blocks\n` })), 'an extra line after the blocks')
   for (const flag of stripModule.AUDIT_PRESENT_EXIT_FLAGS) assert.ok(await throws(() => sourceChecks({ ...TEXTS, '.env.example': TEXTS['.env.example'].replace(`${flag}="false"`, `${flag}="true"`) })), `${flag} true by default`)
   assert.ok(await throws(() => sourceChecks({ ...TEXTS, '.env.example': baseText('.env.example') })))
 })
