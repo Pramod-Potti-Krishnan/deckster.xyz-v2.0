@@ -74,6 +74,8 @@ export const CHAT_PARITY_MORE_NEW_FILES = [
 
 /**
  * The older proofs this change teaches: [line now, line before] per edit, whole lines (a line now carries "registry read (CHAT-PARITY-MORE)" and occurs once in its file). Each goes back to the workspace half's line (its strip never reads these).
+ * The three atlas Templates proofs, the Templates notice proof, the Knowledge Ask proof and the two library manage proofs read the Knowledge page and UI and the two workspaces with an older strip innermost or none: one import and one read hook each (this strip only, never the registry), pure insertions;
+ * the two library manage proofs' flag walks also drop a file a later change registers (the remaining commands' own glue names the manage flags) from the files that read them, one inserted line each.
  */
 export const CHAT_PARITY_MORE_PIN_EDITS = {
   "scripts/test-studio-chat-commands.mjs": [
@@ -118,6 +120,84 @@ export const CHAT_PARITY_MORE_PIN_EDITS = {
     [
       "const OWN = (() => { try { return git('log', '--format=%H%x09%s', '-E', '--grep=^Chat parity', 'HEAD').split('\\n').filter(Boolean).map(line => line.split('\\t')).find(([, subject]) => !subject.startsWith('Chat parity viewer:') && !subject.startsWith('Chat parity workspace:') && !subject.startsWith('Chat parity more:'))?.[0] || null } catch { return null } })() // a merge of dev into this branch is this change's commit too (its subject starts the same way) // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): the viewer's slash commands (commits \"Chat parity viewer: ...\") are a later change's, not this one's // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): so are the workspace commands (commits \"Chat parity workspace: ...\") // LATER-CHANGES: registry read (CHAT-PARITY-MORE): so are the remaining commands (commits \"Chat parity more: ...\")\n",
       "const OWN = (() => { try { return git('log', '--format=%H%x09%s', '-E', '--grep=^Chat parity', 'HEAD').split('\\n').filter(Boolean).map(line => line.split('\\t')).find(([, subject]) => !subject.startsWith('Chat parity viewer:') && !subject.startsWith('Chat parity workspace:'))?.[0] || null } catch { return null } })() // a merge of dev into this branch is this change's commit too (its subject starts the same way) // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): the viewer's slash commands (commits \"Chat parity viewer: ...\") are a later change's, not this one's // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): so are the workspace commands (commits \"Chat parity workspace: ...\")\n"
+    ]
+  ],
+  "scripts/test-atlas-templates-account-boundary.mjs": [
+    [
+      "import { stripChatParityMore, CHAT_PARITY_MORE_FILES } from './studio-chat-parity-more-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-MORE): the remaining slash commands (stacked after the workspace's) mark lines in the Knowledge, Themes and Templates files; this proof reads them as the workspace commands left them\n",
+      ""
+    ],
+    [
+      "{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = file instanceof URL && file.pathname.startsWith(root.pathname) ? file.pathname.slice(root.pathname.length) : ''; return typeof out === 'string' && CHAT_PARITY_MORE_FILES.includes(rel) ? stripChatParityMore(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-MORE): every read of a file the remaining commands touched is the file without their marked lines (that change's own strip, never the registry, before this proof's own strips read it)\n",
+      ""
+    ]
+  ],
+  "scripts/test-atlas-templates-recovery.mjs": [
+    [
+      "import { stripChatParityMore, CHAT_PARITY_MORE_FILES } from './studio-chat-parity-more-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-MORE): the remaining slash commands (stacked after the workspace's) mark lines in the Knowledge, Themes and Templates files; this proof reads them as the workspace commands left them\n",
+      ""
+    ],
+    [
+      "{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = file instanceof URL && file.pathname.startsWith(root.pathname) ? file.pathname.slice(root.pathname.length) : ''; return typeof out === 'string' && CHAT_PARITY_MORE_FILES.includes(rel) ? stripChatParityMore(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-MORE): every read of a file the remaining commands touched is the file without their marked lines (that change's own strip, never the registry, before this proof's own strips read it)\n",
+      ""
+    ]
+  ],
+  "scripts/test-atlas-templates-render-corrections.mjs": [
+    [
+      "import { stripChatParityMore, CHAT_PARITY_MORE_FILES } from './studio-chat-parity-more-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-MORE): the remaining slash commands (stacked after the workspace's) mark lines in the Knowledge, Themes and Templates files; this proof reads them as the workspace commands left them\n",
+      ""
+    ],
+    [
+      "{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = file instanceof URL && file.pathname.startsWith(root.pathname) ? file.pathname.slice(root.pathname.length) : ''; return typeof out === 'string' && CHAT_PARITY_MORE_FILES.includes(rel) ? stripChatParityMore(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-MORE): every read of a file the remaining commands touched is the file without their marked lines (that change's own strip, never the registry, before this proof's own strips read it)\n",
+      ""
+    ]
+  ],
+  "scripts/test-studio-templates-notice-plain.mjs": [
+    [
+      "import { stripChatParityMore, CHAT_PARITY_MORE_FILES } from './studio-chat-parity-more-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-MORE): the remaining slash commands (stacked after the workspace's) mark lines in the Knowledge, Themes and Templates files; this proof reads them as the workspace commands left them\n",
+      ""
+    ],
+    [
+      "{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(repoRoot, file) : ''; return typeof out === 'string' && CHAT_PARITY_MORE_FILES.includes(rel) ? stripChatParityMore(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-MORE): every read of a file the remaining commands touched is the file without their marked lines (that change's own strip, never the registry, before this proof's own strips read it)\n",
+      ""
+    ]
+  ],
+  "scripts/test-studio-kg-ask.mjs": [
+    [
+      "import { stripChatParityMore, CHAT_PARITY_MORE_FILES } from './studio-chat-parity-more-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-MORE): the remaining slash commands (stacked after the workspace's) mark lines in the Knowledge, Themes and Templates files; this proof reads them as the workspace commands left them\n",
+      ""
+    ],
+    [
+      "{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(repoRoot, file) : ''; return typeof out === 'string' && CHAT_PARITY_MORE_FILES.includes(rel) ? stripChatParityMore(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-MORE): every read of a file the remaining commands touched is the file without their marked lines (that change's own strip, never the registry, before this proof's own strips read it)\n",
+      ""
+    ]
+  ],
+  "scripts/test-studio-template-library-manage.mjs": [
+    [
+      "import { stripChatParityMore, CHAT_PARITY_MORE_FILES } from './studio-chat-parity-more-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-MORE): the remaining slash commands (stacked after the workspace's) mark lines in the Knowledge, Themes and Templates files; this proof reads them as the workspace commands left them\n",
+      ""
+    ],
+    [
+      "{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && CHAT_PARITY_MORE_FILES.includes(rel) ? stripChatParityMore(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-MORE): every read of a file the remaining commands touched is the file without their marked lines (that change's own strip, never the registry, before launch wording and the registry strip it)\n",
+      ""
+    ],
+    [
+      "  { const later = (await import('./studio-later-changes.mjs')).LATER_CHANGE_FILES; reads.splice(0, reads.length, ...reads.filter(rel => !later.has(rel) || rel === PROXY || rel === TEMPLATES_WORKSPACE)) } // LATER-CHANGES: registry read (CHAT-PARITY-MORE): a file a later change registers (the remaining commands' own acting-on-this-flag glue, components/builder/chat/studio-chat-parity-more.tsx) is that change's, not a reader of this change's flag; the files this proof names stay\n",
+      ""
+    ]
+  ],
+  "scripts/test-studio-theme-library-manage.mjs": [
+    [
+      "import { stripChatParityMore, CHAT_PARITY_MORE_FILES } from './studio-chat-parity-more-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-MORE): the remaining slash commands (stacked after the workspace's) mark lines in the Knowledge, Themes and Templates files; this proof reads them as the workspace commands left them\n",
+      ""
+    ],
+    [
+      "{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && CHAT_PARITY_MORE_FILES.includes(rel) ? stripChatParityMore(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-MORE): every read of a file the remaining commands touched is the file without their marked lines (that change's own strip, never the registry, before launch wording and the registry strip it)\n",
+      ""
+    ],
+    [
+      "  { const later = (await import('./studio-later-changes.mjs')).LATER_CHANGE_FILES; reads.splice(0, reads.length, ...reads.filter(rel => !later.has(rel) || rel === THEMES_WORKSPACE)) } // LATER-CHANGES: registry read (CHAT-PARITY-MORE): a file a later change registers (the remaining commands' own acting-on-this-flag glue, components/builder/chat/studio-chat-parity-more.tsx) is that change's, not a reader of this change's flag; the files this proof names stay\n",
+      ""
     ]
   ]
 }
