@@ -26,7 +26,7 @@ import * as S from './studio-upload-session-token-strip.mjs'
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const { BASE_COMMIT, stripUploadSessionToken } = S
 // The last commit of this change's own work (the pin-only commit that sets this line comes after it).
-const OWN_HEAD = process.env.STUDIO_UPLOAD_SESSION_TOKEN_HEAD || ''
+const OWN_HEAD = process.env.STUDIO_UPLOAD_SESSION_TOKEN_HEAD || 'b6fee3eea86cf946d63f9efb8a38fceec2fbbddd'
 const FLAG = 'NEXT_PUBLIC_STUDIO_UPLOAD_SESSION_TOKEN_ENABLED'
 const PROXY_FLAG = 'NEXT_PUBLIC_RESEARCHER_INGEST_STATUS_AUTH_ENABLED'
 const SECRET_ENV = 'RESEARCHER_SESSION_TOKEN_SECRET'
