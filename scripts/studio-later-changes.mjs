@@ -109,6 +109,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-owner-cuid-strip.mjs')).OWNER_CUID_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE, K-02 chat upload owner = user.id cuid (NEXT_PUBLIC_STUDIO_OWNER_CUID_ENABLED)
   ...(await import('./studio-upload-session-token-strip.mjs')).UPLOAD_SESSION_TOKEN_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE-3, DSB-5a upload session token: the browser's Researcher upload calls carry a signed session token from a same-origin mint route (NEXT_PUBLIC_STUDIO_UPLOAD_SESSION_TOKEN_ENABLED)
   ...(await import('./studio-connectors-gdrive-strip.mjs')).CONNECTORS_GDRIVE_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE, P4-15 slice 1 Google Drive picker connector (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED)
+  ...(await import('./studio-connectors-session-links-strip.mjs')).CONNECTORS_SESSION_LINKS_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE, P4-15 slice 3 Drive session links (NEXT_PUBLIC_STUDIO_CONNECTORS_SESSION_LINKS_ENABLED)
   // one line per later change, above this comment
 ])
 
@@ -180,6 +181,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-owner-cuid-strip.mjs')).OWNER_CUID_ENV_BLOCK, // LATER-CHANGE: KNOWLEDGE, K-02 chat upload owner = user.id cuid (NEXT_PUBLIC_STUDIO_OWNER_CUID_ENABLED)
   (await import('./studio-upload-session-token-strip.mjs')).UPLOAD_SESSION_TOKEN_ENV_BLOCK, // LATER-CHANGE: KNOWLEDGE-3, DSB-5a upload session token (NEXT_PUBLIC_STUDIO_UPLOAD_SESSION_TOKEN_ENABLED)
   (await import('./studio-connectors-gdrive-strip.mjs')).CONNECTORS_GDRIVE_ENV_BLOCK, // LATER-CHANGE: KNOWLEDGE, P4-15 slice 1 Google Drive picker connector (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED)
+  (await import('./studio-connectors-session-links-strip.mjs')).CONNECTORS_SESSION_LINKS_ENV_BLOCK, // LATER-CHANGE: KNOWLEDGE, P4-15 slice 3 Drive session links (NEXT_PUBLIC_STUDIO_CONNECTORS_SESSION_LINKS_ENABLED)
   // one line per later change, above this comment
 ]
 
@@ -269,6 +271,7 @@ export const LATER_STRIPS = [
   (await import('./studio-chat-parity-more-strip.mjs')).stripChatParityMore, // LATER-CHANGE: FRONTEND-1, overnight chat parity, the remaining slash commands (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS)
   (await import('./studio-owner-cuid-strip.mjs')).stripOwnerCuid, // LATER-CHANGE: KNOWLEDGE, K-02 chat upload owner = user.id cuid (NEXT_PUBLIC_STUDIO_OWNER_CUID_ENABLED)
   (await import('./studio-upload-session-token-strip.mjs')).stripUploadSessionToken, // LATER-CHANGE: KNOWLEDGE-3, DSB-5a upload session token (NEXT_PUBLIC_STUDIO_UPLOAD_SESSION_TOKEN_ENABLED)
+  (await import('./studio-connectors-session-links-strip.mjs')).stripConnectorsSessionLinks, // LATER-CHANGE: KNOWLEDGE, P4-15 slice 3 Drive session links (NEXT_PUBLIC_STUDIO_CONNECTORS_SESSION_LINKS_ENABLED)
   // one line per later change, above this comment
 ]
 
