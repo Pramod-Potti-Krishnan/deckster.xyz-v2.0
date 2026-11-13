@@ -320,7 +320,7 @@ await check('mutant caught: a taught proof with an unmarked extra line, or witho
 await check('mutant caught: a taught viewer-reading proof whose read hook goes through the registry, whose import is gone, or that loses one of its lines', async () => {
   for (const rel of Object.keys(READ_PIN_FILES)) {
     const text = TEXTS[rel], lines = text.split('\n')
-    const hook = lines.findIndex(line => line.includes('fs.readFileSync = '))
+    const hook = lines.findIndex(line => line.includes('fs.readFileSync = ') && line.includes('stripAuditPresentExit(rel, out)')) // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): a later change (this one) adds its own read hook to the same proofs, so the mutant edits the hook that is this change's, not the first hook in the file
     if (hook >= 0) {
       assert.ok(await throws(() => sourceChecks({ ...TEXTS, [rel]: lines.map((line, at) => at === hook ? line.replace('stripAuditPresentExit(rel, out)', 'registry.stripLaterChanges(rel, out)') : line).join('\n') })), `${rel}: a read hook through the registry`)
       assert.ok(await throws(() => sourceChecks({ ...TEXTS, [rel]: lines.map((line, at) => at === hook ? line.replace('stripAuditPresentExit(rel, out)', 'out') : line).join('\n') })), `${rel}: a read hook that strips nothing`)

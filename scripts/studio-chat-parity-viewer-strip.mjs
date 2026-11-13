@@ -82,6 +82,10 @@ export const CHAT_PARITY_VIEWER_NEW_FILES = [
 
 /** The older proofs this change teaches: [line now, line before] per edit, whole lines (a line now carries "registry read (CHAT-PARITY-VIEWER)" and occurs once in its file; a line before of "" is an inserted line). Arrange, first paint's viewer proof and the two phone proofs read the viewer (and the page) raw: one import and one read hook each, this strip only, never the registry. The phone proofs' scope check also drops the viewer, which a later change marks, from the files an own commit touched. Structural decline's commit-subject check skips this chain's subjects. */
 export const CHAT_PARITY_VIEWER_PIN_EDITS = {
+  "scripts/test-studio-audit-present-exit.mjs": [
+    ["    const hook = lines.findIndex(line => line.includes('fs.readFileSync = ') && line.includes('stripAuditPresentExit(rel, out)')) // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): a later change (this one) adds its own read hook to the same proofs, so the mutant edits the hook that is this change's, not the first hook in the file\n",
+     "    const hook = lines.findIndex(line => line.includes('fs.readFileSync = '))\n"]
+  ],
   "scripts/test-studio-chat-commands.mjs": [
     ["import { stripChatParityViewer, CHAT_PARITY_VIEWER_FILES } from './studio-chat-parity-viewer-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): the viewer's slash commands (stacked after chat commands) add rows and lines to files this proof reads; it reads them as chat commands had them\n",
      ""],
