@@ -7,7 +7,7 @@
 // [line now, line before] for each, whole lines. Put the changed lines back, then take the marked lines out, and each file is its base, byte for byte.
 // How the older pins reach it: this change REGISTERS its files and this strip (scripts/studio-later-changes.mjs, two lines; no .env.example block). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = 'eeb78d4f4b7676d75c244746f1edc7da1d269478' // origin/studio-v4-dev-preparation-code (#598 merged); the tree diff from it to this change's newest commit is this change
+export const BASE_COMMIT = '796d84420e0f1b233c91365e3053adc71441eb90' // origin/studio-v4-dev-preparation-code (#624 merged); the tree diff from it to this change's newest commit is this change
 export const CHAT_PARITY_VIEWER_FLAG = 'NEXT_PUBLIC_STUDIO_CHAT_COMMANDS'
 export const CHAT_PARITY_VIEWER_MARKER = 'CHAT-PARITY-VIEWER'
 /** The marker as a WHOLE token: CHAT-PARITY-VIEWER-X and X-CHAT-PARITY-VIEWER are not this change's (CHAT-PARITY is chat parity's, studio_action). */
