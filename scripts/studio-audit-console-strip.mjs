@@ -7,7 +7,7 @@
 // The four-line edit of FRONTEND-1's test-studio-voice-call.mjs (the .env.example "last thing in the file" pin reads the blocks registered after voice-call's) that this change used to carry, byte-identical to #603's, is in dev since 506bcbb3: no edit of that proof is carried here.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '2f06e51ec807d4ecd5cd00edc9bfd0005a5fd0b8' // origin/studio-v4-dev-preparation-code (#621 merged), the trunk this change sits on (restacked from 796d8442, #624 merged)
+export const BASE_COMMIT = '29a1a6d274f7dd70d2a9e6b9a5fa04ccc1114ac6' // frontend1/audit-present-exit (#616) head: this change is stacked on it (and #616 on origin/studio-v4-dev-preparation-code 2f06e51e, #621 merged); the head under it moves with it
 export const AUDIT_CONSOLE_FLAGS = ["NEXT_PUBLIC_STUDIO_ANALYTICS_GATE","NEXT_PUBLIC_STUDIO_ANALYTICS_SERVED","NEXT_PUBLIC_STUDIO_DECK_TABS_HONEST"]
 export const AUDIT_CONSOLE_MARKER = 'AUDIT-CONSOLE'
 /** The marker as a WHOLE token: AUDIT-CONSOLE-X and X-AUDIT-CONSOLE are not this change's. */
