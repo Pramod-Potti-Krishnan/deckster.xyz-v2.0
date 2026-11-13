@@ -1,4 +1,4 @@
-// FRONTEND-1 (overnight chat parity, 11 Nov 2026), the REMAINING commands, stacked on the workspace half (PR #614, head d9cc01d5), which sits on the viewer half (PR #611, head d1726e07); all restacked on dev 2f06e51e. Flag NEXT_PUBLIC_STUDIO_CHAT_COMMANDS (the string "true", default off, build-time; it already needs
+// FRONTEND-1 (overnight chat parity, 11 Nov 2026), the REMAINING commands, stacked on the workspace half (PR #614, head 470aec94), which sits on the viewer half (PR #611, head 99e02976); all on dev 2f06e51e. Flag NEXT_PUBLIC_STUDIO_CHAT_COMMANDS (the string "true", default off, build-time; it already needs
 // NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell): the composer's "/" menu gains /delete-theme <name> and /delete-template <name> (the Themes and Templates pages' own delete confirmation, opened; the click there deletes), /model auto|fast|balanced|best, /model reset
 // and /model <work> <model> (the gauge's own save, and the Intelligence page's per-task save), /kg-search <words> (the Knowledge page's own search), /ask <question> (the Ask box FILLED, never sent) and /switch-template <name> (the Template picker's switch); the existing /publish row
 // now presses the Publish button (the wizard opens), and a picked @template is chosen the way the toolbar chooses it. No new flag, no .env.example block, no backend, no Director change.
@@ -10,8 +10,8 @@
 // How the older pins reach it: this change REGISTERS its files and this strip (scripts/studio-later-changes.mjs, two lines; no .env.example block), and teaches the older proofs that read files this change touched without going through the registry.
 // Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = 'd9cc01d5094a2ef71b3d8e7d82445b0d2ae78f17' // origin/frontend1/chat-parity-workspace (#614's head, restacked on dev 2f06e51e); the tree diff from it to this change's newest commit is this change
-export const BASE_UNDER_COMMIT = 'd1726e075d175eaff8bc8f18bf6dfa573a598514' // origin/frontend1/chat-parity-viewer (#611's head, restacked on dev 2f06e51e): what a file the workspace half left alone is, in either commit
+export const BASE_COMMIT = '470aec940d3dffa69ab9302471ee8ef145c0c83f' // origin/frontend1/chat-parity-workspace (#614's head, on dev 2f06e51e); the tree diff from it to this change's newest commit is this change
+export const BASE_UNDER_COMMIT = '99e029760c06800fd1186bda60592404a7ba569a' // origin/frontend1/chat-parity-viewer (#611's head, on dev 2f06e51e): what a file the workspace half left alone is, in either commit
 export const CHAT_PARITY_MORE_FLAG = 'NEXT_PUBLIC_STUDIO_CHAT_COMMANDS'
 export const CHAT_PARITY_MORE_MARKER = 'CHAT-PARITY-MORE'
 /** The marker as a WHOLE token: CHAT-PARITY-MORE-X and X-CHAT-PARITY-MORE are not this change's (CHAT-PARITY-WORKSPACE is the workspace half's, CHAT-PARITY-VIEWER the viewer half's, CHAT-PARITY is chat parity's). */
