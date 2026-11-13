@@ -11,6 +11,7 @@
 
 import { getKnowledgeServiceUrl } from '@/lib/config'
 import { requireServiceUrl } from '@/lib/service-url'
+import { researcherUploadFetch } from '@/lib/upload-session-token' // UPLOAD-SESSION-TOKEN (NEXT_PUBLIC_STUDIO_UPLOAD_SESSION_TOKEN_ENABLED, default off): the session token on the three Researcher calls below; off, each is the plain fetch it was
 
 export interface ResearcherUploadProgress {
   /** 0–100 coarse progress across the four steps. */
@@ -75,7 +76,7 @@ export async function uploadFileToResearcher(options: ResearcherUploadOptions): 
 
   // 1) Ensure a Researcher session exists for this frontend session.
   onProgress?.({ percent: 5, stage: 'session' })
-  const sessionResponse = await fetch(`${researcherBaseUrl}/api/v1/sessions/create`, {
+  const sessionResponse = await researcherUploadFetch(fetch, { sessionId, userId })(`${researcherBaseUrl}/api/v1/sessions/create`, { // UPLOAD-SESSION-TOKEN
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -97,7 +98,7 @@ export async function uploadFileToResearcher(options: ResearcherUploadOptions): 
 
   // 2) Ask Researcher for a signed storage upload URL.
   onProgress?.({ percent: 20, stage: 'prepare' })
-  const prepareResponse = await fetch(`${researcherBaseUrl}/api/v1/files/storage-upload-url`, {
+  const prepareResponse = await researcherUploadFetch(fetch, { sessionId: researcherSessionId, userId })(`${researcherBaseUrl}/api/v1/files/storage-upload-url`, { // UPLOAD-SESSION-TOKEN
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -141,7 +142,7 @@ export async function uploadFileToResearcher(options: ResearcherUploadOptions): 
 
   // 4) Tell Researcher to process the uploaded object (with intent).
   onProgress?.({ percent: 75, stage: 'process' })
-  const processResponse = await fetch(`${researcherBaseUrl}/api/v1/files/process-uploaded`, {
+  const processResponse = await researcherUploadFetch(fetch, { sessionId: researcherSessionId, userId })(`${researcherBaseUrl}/api/v1/files/process-uploaded`, { // UPLOAD-SESSION-TOKEN
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

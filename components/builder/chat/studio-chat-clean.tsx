@@ -21,6 +21,7 @@ import {
   chatCleanAckReduce,
   chatCleanAckState,
   chatCleanDirectionsNote,
+  chatCleanCommandNote, // CHAT-PARITY-VIEWER
   chatCleanElapsed,
   chatCleanJobModel,
   chatCleanNotesReduce,
@@ -54,6 +55,8 @@ export interface StudioChatCleanNotesApi {
   notes: readonly ChatCleanNote[]
   /** The user's new directions went to Director as instructions (never a chat message): keep them in the thread. */
   addDirections: (text: string) => void
+  /** Chat parity, viewer commands: one short note of what a "/" command did, kept in the thread like the others. */ // CHAT-PARITY-VIEWER
+  addNote: (text: string) => void // CHAT-PARITY-VIEWER
   /** Director's acknowledgement of the last directions, while it shows (applied / nothing left to build), else null key. */
   ack: { key: ChatCleanAckKey | null; line: string }
 }
@@ -119,8 +122,12 @@ export function useStudioChatCleanNotes(input: UseStudioChatCleanNotesInput): St
     const id = latestRef.current.narration.buildId
     setNotes(current => chatCleanDirectionsNote(current, text, id, Date.now()))
   }, [])
+  const addNote = useCallback((text: string) => { // CHAT-PARITY-VIEWER
+    if (!latestRef.current.enabled) return // CHAT-PARITY-VIEWER
+    setNotes(current => chatCleanCommandNote(current, text, Date.now())) // CHAT-PARITY-VIEWER
+  }, []) // CHAT-PARITY-VIEWER
 
-  return { notes: enabled ? notes : NO_NOTES, addDirections, ack: enabled && ackNow ? ackNow : NO_ACK }
+  return { notes: enabled ? notes : NO_NOTES, addDirections, addNote, ack: enabled && ackNow ? ackNow : NO_ACK } // CHAT-PARITY-VIEWER
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

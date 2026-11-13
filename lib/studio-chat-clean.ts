@@ -372,7 +372,7 @@ export function chatCleanJobModel(input: ChatCleanJobInput): ChatCleanJobModel {
 // Thread notes: the record of stop / resume / applied, kept by the page and drawn at the end of the thread
 // ---------------------------------------------------------------------------
 
-export type ChatCleanNoteKind = 'stopped' | 'paused' | 'resumed' | 'applied' | 'not_applied' | 'directions'
+export type ChatCleanNoteKind = 'stopped' | 'paused' | 'resumed' | 'applied' | 'not_applied' | 'directions' | 'command' // CHAT-PARITY-VIEWER: chat parity, viewer commands: a quiet one-line note of what a "/" command did
 
 export interface ChatCleanNote {
   id: string
@@ -449,6 +449,7 @@ export function chatCleanDirectionsNote(notes: readonly ChatCleanNote[], text: s
   const note: ChatCleanNote = { id: `directions:${now}:${notes.length}`, kind: 'directions', text: clean, at: now, buildId }
   return [...notes, note].slice(-CHAT_CLEAN_NOTES_MAX)
 }
+export const chatCleanCommandNote = (notes: readonly ChatCleanNote[], text: string, now: number): ChatCleanNote[] => (text.trim() ? [...notes, { id: `command:${now}:${notes.length}`, kind: 'command' as const, text: text.trim(), at: now, buildId: null }].slice(-CHAT_CLEAN_NOTES_MAX) : notes.slice()) // CHAT-PARITY-VIEWER: a viewer command's one-line note, in the thread's own note style
 
 // ---------------------------------------------------------------------------
 // Director's plain status, when no build narration is active
