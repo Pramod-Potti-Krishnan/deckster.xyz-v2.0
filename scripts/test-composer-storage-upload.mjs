@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
 
-const source = fs.readFileSync(new URL('../lib/researcher-upload.ts', import.meta.url), 'utf8')
+const source = (await import('./studio-later-changes.mjs')).stripLaterChanges('lib/researcher-upload.ts', fs.readFileSync(new URL('../lib/researcher-upload.ts', import.meta.url), 'utf8')) // LATER-CHANGES: registry read (UPLOAD-SESSION-TOKEN): a later change's lines come out first (the upload session token's import is not in this proof's closed dependency list), so the helper is read as this proof's base has it
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } })
 
 async function upload(options, failAt) {
