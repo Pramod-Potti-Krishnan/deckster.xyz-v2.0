@@ -24,8 +24,10 @@ import { createRequire } from 'node:module'
 import ts from 'typescript'
 import { stripDeckSyncTruth } from './studio-deck-sync-truth-strip.mjs' // LATER-CHANGES: registry read (DECK-SYNC-TRUTH)
 import { stripDeckSaveRefused } from './studio-deck-save-refused-strip.mjs' // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): the change stacked after this one marks lines in the viewer; the viewer is compared with the base past them
+import { stripChatParityViewer, CHAT_PARITY_VIEWER_FILES } from './studio-chat-parity-viewer-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): the viewer's slash commands (stacked after this change) mark lines in the viewer and the page; this proof reads them as the change before the viewer's left them
 
 const root = path.resolve(new URL('..', import.meta.url).pathname)
+{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && CHAT_PARITY_VIEWER_FILES.includes(rel) ? stripChatParityViewer(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): every read of a file the viewer's change touched is the file without its marked lines (the viewer's own strip, never the registry: this proof's own lines stay visible to its pins)
 const nodeRequire = createRequire(path.join(root, 'package.json'))
 const React = nodeRequire('react')
 const jsxRuntime = nodeRequire('react/jsx-runtime')

@@ -23,9 +23,11 @@ import ts from 'typescript'
 import React from 'react'
 import { FIRST_PAINT_BASE_COMMIT, FIRST_PAINT_ENV_BLOCK, FIRST_PAINT_FILES, FIRST_PAINT_MARKER, stripFirstPaint } from './studio-first-paint-strip.mjs'
 import { stripPass3PolishB } from './studio-pass3-polish-b-strip.mjs' // LATER-CHANGES: registry read (PASS3-POLISH-B)
+import { stripChatParityViewer, CHAT_PARITY_VIEWER_FILES } from './studio-chat-parity-viewer-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): the viewer's slash commands (stacked after this change) mark lines in the viewer and the page; this proof reads them as the change before the viewer's left them
 
 const require = createRequire(import.meta.url)
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && CHAT_PARITY_VIEWER_FILES.includes(rel) ? stripChatParityViewer(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): every read of a file the viewer's change touched is the file without its marked lines (the viewer's own strip, never the registry: this proof's own lines stay visible to its pins)
 const VIEWER = 'components/presentation-viewer.tsx'
 const LIB = 'lib/studio-first-paint.ts'
 const FLAG = 'NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED'
