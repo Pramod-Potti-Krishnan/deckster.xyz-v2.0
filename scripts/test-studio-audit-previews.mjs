@@ -45,7 +45,7 @@ async function throws(fn) { try { await fn(); return false } catch { return true
 const { installHostNetworkGuard } = await import('./studio-chat-harness/fake-env.mjs')
 const registry = await import('./studio-later-changes.mjs')
 const stripModule = await import('./studio-audit-previews-strip.mjs')
-const { BASE_COMMIT, AUDIT_PREVIEWS_FILES: TOUCHED, AUDIT_PREVIEWS_NEW_FILES: NEW_FILES, AUDIT_PREVIEWS_SCOPE_FILES: SCOPE_FILES, AUDIT_PREVIEWS_ENV_BLOCK: ENV_BLOCK, AUDIT_PREVIEWS_SUBJECT: SUBJECT, AUDIT_PREVIEWS_MARKER_RE: MARKER_RE, AUDIT_PREVIEWS_EDITS: EDITS } = stripModule
+const { BASE_COMMIT, AUDIT_PREVIEWS_FILES: TOUCHED, AUDIT_PREVIEWS_NEW_FILES: NEW_FILES, AUDIT_PREVIEWS_SCOPE_FILES: SCOPE_FILES, AUDIT_PREVIEWS_ENV_BLOCK: ENV_BLOCK, AUDIT_PREVIEWS_SUBJECT: SUBJECT, AUDIT_PREVIEWS_LEGACY_COMMITS: LEGACY, AUDIT_PREVIEWS_MARKER_RE: MARKER_RE, AUDIT_PREVIEWS_EDITS: EDITS } = stripModule
 const STRIP_FN = stripModule.stripAuditPreviews
 const release = installHostNetworkGuard(net, dns)
 const git = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28, timeout: 60_000 })
@@ -318,7 +318,7 @@ function fileChecks(texts = TEXTS) {
 // ============================================================================================================================================
 /** The strips of the changes registered after this one come out first (none today): a later change that touches these files must not hide this change's edits from the identity check. */
 const laterStrips = (rel, text) => { const strips = registry.LATER_STRIPS, at = strips.indexOf(STRIP_FN); return (at === -1 ? [] : strips.slice(at + 1)).reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text) }
-/** The older proofs this change teaches (their first-parent scope checks leave the commits whose subject starts "Audit fix:" out). */
+/** The older proofs this change teaches (their first-parent scope checks leave this change's own commits out: the subject "Audit fix (previews):", or one of the plain "Audit fix:" commits it had before, listed by sha). */
 const PIN_FILES = ['scripts/test-studio-chat-element-edit.mjs', 'scripts/test-studio-deck-sync-truth.mjs']
 const SECRET = /(sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{12,}|eyJ[A-Za-z0-9_-]{20,}\.|-----BEGIN [A-Z ]*PRIVATE KEY|ghp_[A-Za-z0-9]{20,}|xox[bp]-)/
 /** The lines added to and removed from `was` to make `now` (a multiset difference by line). */
@@ -365,7 +365,7 @@ function sourceChecks(texts, mod = stripModule) {
     const now = laterStrips(rel, texts[rel]), diff = lineDiff(baseText(rel), now)
     assert.equal(strip(rel, now), baseText(rel), `${rel}: without this change's line the proof is the base's, byte for byte`)
     assert.deepEqual([diff.removed.length, diff.added.length], [0, 1], `${rel}: the proof gains one line and loses none`)
-    assert.ok(diff.added[0].includes(mod.AUDIT_PREVIEWS_PIN_MARK) && diff.added[0].includes('^Audit fix:'), `${rel}: the line carries the pin mark and names this change's subject`)
+    assert.ok(diff.added[0].includes(mod.AUDIT_PREVIEWS_PIN_MARK) && diff.added[0].includes('^Audit fix \\(previews\\):') && LEGACY.every(sha => diff.added[0].includes(sha)) && !diff.added[0].includes('^Audit fix:'), `${rel}: the line carries the pin mark and names this change's own subject and its earlier commits by sha (never every "Audit fix:")`)
   }
   // the voice-call proof: its four-line after-merge edit is in dev since 506bcbb3, so it is the base's own text and this change carries no edit of it (nothing to pin here)
   // the new libs: import-free, one literal env read each (nothing else reads the flag)
@@ -403,15 +403,17 @@ function registryChecks(text, texts = TEXTS) {
   assert.equal(stripModule.AUDIT_PREVIEWS_FLAGS.some(flag => registry.stripLaterEnvBlocks('.env.example', texts['.env.example']).includes(flag)), false, 'the registry takes the block out of .env.example')
 }
 
-/** This change's own commits, found by SUBJECT across `rev-list --no-merges` (so a merge of dev does not hide or add any). */
-function ownCommits(ref = 'HEAD') { return git('rev-list', '--no-merges', `${BASE_COMMIT}..${ref}`).split('\n').filter(Boolean).filter(commit => git('log', '-1', '--format=%s', commit).startsWith(SUBJECT)) }
+/** Whether a commit is this change's own: its subject starts with the change's own prefix, or it is one of the plain "Audit fix:" commits the change had before it had a prefix of its own (fixed, so listed by sha). Another audit change's commits are neither, whatever else is on the branch. */
+const isOwnCommit = (commit, subject, legacy = LEGACY) => subject.startsWith(SUBJECT) || (legacy.includes(commit) && subject.startsWith('Audit fix:'))
+/** This change's own commits, found across `rev-list --no-merges` (so a merge of dev does not hide or add any). */
+function ownCommits(ref = 'HEAD') { return git('rev-list', '--no-merges', `${BASE_COMMIT}..${ref}`).split('\n').filter(Boolean).filter(commit => isOwnCommit(commit, git('log', '-1', '--format=%s', commit))) }
 /** The files that differ from the base: what this change's own commits touch, that the COMMITTED diff BASE..HEAD still shows (a file put back to the base nets to nothing). Nothing is read from the working tree, the index or the untracked files: a polluted tree must not fail the scope check. */
 function touchedFiles(commits) { const net = new Set(git('diff', '--name-only', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean)); return new Set(commits.flatMap(commit => git('show', '--name-only', '--format=', commit).split('\n')).filter(rel => rel && net.has(rel))) }
 function scopeCheck(commits, extra = []) { assert.deepEqual([...touchedFiles(commits), ...extra].filter(rel => !SCOPE_FILES.has(rel)).sort(), [], 'no file outside this change\'s scope differs from the base') }
 /** What is wrong with one commit message (an empty list: nothing). */
-function messageProblems(subject, body) {
+function messageProblems(subject, body, legacy = false) {
   const problems = []
-  if (!subject.startsWith(SUBJECT)) problems.push(`the subject starts "${SUBJECT}"`)
+  if (!subject.startsWith(SUBJECT) && !(legacy && subject.startsWith('Audit fix:'))) problems.push(`the subject starts "${SUBJECT}"`)
   if (!/^Co-Authored-By: Claude Opus 5\.5 <noreply@anthropic\.com>\s*$/m.test(body)) problems.push('the co-author line')
   return problems
 }
@@ -433,7 +435,9 @@ await check('3c. the scope: every file that differs from the base (own commits, 
   scopeCheck(own)
   assert.deepEqual(NEW_FILES.filter(rel => !fs.existsSync(path.join(repo, rel))), [], 'the new files exist')
   if (git('status', '--porcelain').trim() === '') assert.ok(own.length >= 1, `a clean tree has this change committed (commits whose subject starts "${SUBJECT}")`)
-  for (const commit of own) assert.deepEqual(messageProblems(git('log', '-1', '--format=%s', commit).trim(), git('log', '-1', '--format=%B', commit)), [], `commit ${commit.slice(0, 8)}`)
+  for (const commit of own) assert.deepEqual(messageProblems(git('log', '-1', '--format=%s', commit).trim(), git('log', '-1', '--format=%B', commit), LEGACY.includes(commit)), [], `commit ${commit.slice(0, 8)}`)
+  // the plain-subject list is real: each sha is a full commit id, its subject starts "Audit fix:", and (when it is in range) it is among the own commits found
+  for (const sha of LEGACY) { assert.match(sha, /^[0-9a-f]{40}$/, `${sha}: a full commit id`); assert.ok(git('log', '-1', '--format=%s', sha).startsWith('Audit fix:'), `${sha}: a plain "Audit fix:" commit`); assert.equal(new Set(LEGACY).size, LEGACY.length, 'listed once') }
   for (const rel of [...NEW_FILES, '.env.example']) assert.doesNotMatch(read(rel), SECRET, `${rel}: no secret-shaped literal`)
 })
 
@@ -609,6 +613,15 @@ await check('mutant caught: a stray file outside the scope (in a commit) fails t
   assert.deepEqual(messageProblems(`${SUBJECT} a change`, 'body\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n'), [], 'a good message has no problem')
   assert.deepEqual(messageProblems(`${SUBJECT} a change`, 'body\n'), ['the co-author line'], 'no co-author line')
   assert.deepEqual(messageProblems('Fix the page', 'body\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n'), [`the subject starts "${SUBJECT}"`], 'another subject')
+  // a commit is this change's by its own subject, or by being listed (plain subject); a sibling audit change's commit (its prefix, or a plain subject that is not listed) is not
+  const GOOD = 'body\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n'
+  assert.equal(isOwnCommit('1'.repeat(40), `${SUBJECT} a change`), true, 'the change\'s own prefix')
+  assert.equal(isOwnCommit(LEGACY[0], 'Audit fix: a change'), true, 'a listed plain-subject commit')
+  assert.equal(isOwnCommit('1'.repeat(40), 'Audit fix: a change'), false, 'a plain-subject commit that is not listed is another change\'s')
+  for (const other of ['present-exit', 'console', 'previews', 'other'].filter(name => `Audit fix (${name}):` !== SUBJECT)) assert.equal(isOwnCommit('1'.repeat(40), `Audit fix (${other}): a change`), false, `a sibling's commit (${other})`)
+  assert.equal(isOwnCommit(LEGACY[0], 'Something else'), false, 'a listed sha with another subject is not taken')
+  assert.equal(isOwnCommit('1'.repeat(40), 'Audit fix: a change', ['1'.repeat(40)]), true, 'the list decides')
+  assert.deepEqual(messageProblems('Audit fix: a change', GOOD, true), [], 'a listed commit may keep the plain subject'); assert.deepEqual(messageProblems('Audit fix: a change', GOOD, false), [`the subject starts "${SUBJECT}"`], 'an unlisted one may not')
 })
 await check('mutant caught: the registry without one of the three lines, with a line changed, or with a base line lost', async () => {
   const text = TEXTS[REGISTRY], lines = text.split('\n')

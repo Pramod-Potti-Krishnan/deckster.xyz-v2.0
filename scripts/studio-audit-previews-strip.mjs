@@ -12,8 +12,10 @@ export const AUDIT_PREVIEWS_FLAGS = ["NEXT_PUBLIC_STUDIO_DECK_CARD_REHOME","NEXT
 export const AUDIT_PREVIEWS_MARKER = 'AUDIT-PREVIEWS'
 /** The marker as a WHOLE token: AUDIT-PREVIEWS-X and X-AUDIT-PREVIEWS are not this change's. */
 export const AUDIT_PREVIEWS_MARKER_RE = /(?<![\w-])AUDIT-PREVIEWS(?![\w-])/
-/** The subject prefix of this change's own commits. */
-export const AUDIT_PREVIEWS_SUBJECT = 'Audit fix:'
+/** The subject prefix of this change's own commits. Each audit change has one of its own, so a sibling audit change's commits are never taken for this one's. */
+export const AUDIT_PREVIEWS_SUBJECT = 'Audit fix (previews):'
+/** This change's commits made before it had a subject of its own (the plain "Audit fix:"): fixed, so listed by sha, oldest first. A plain "Audit fix:" commit that is not listed here is another audit change's. */
+export const AUDIT_PREVIEWS_LEGACY_COMMITS = ['a49f8ca831f6f22b2ed8fcae57035897eb54fb08', '7f7b19d27498aca52eea9e3ee968686bac9cf807', '160316e43b72a67cf0a3fa7b641e42b5e66e5a2f', '66a641c13eae44310d0dac66b63c6ff990059fff', 'f461a8960e416529162a16c84b8b4eae1ca1589c', 'c251817e91d3a562a9ff755883676dff28c4e760', '38dbe5a3a08bdb8b4a74b6256d5a9b0771c2c1a8', 'd3a8e8b0b97fd5ea7fa36275490c2769c1d654ff', 'c83e03ecb3bf6d572285935883e7eb6311f7cef3']
 
 /** Existing files that get marked lines. */
 export const AUDIT_PREVIEWS_FILES = ["app/(app)/dashboard/page.tsx","components/studio-publish-preview.tsx","hooks/use-slide-rail-identity.ts","lib/slide-rail-identity.ts"]
@@ -64,10 +66,10 @@ export const AUDIT_PREVIEWS_EDITS = {
 export const AUDIT_PREVIEWS_PIN_MARK = "LATER-CHANGES: registry read (AUDIT-PREVIEWS)"
 export const AUDIT_PREVIEWS_PIN_EDITS = {
   "scripts/test-studio-chat-element-edit.mjs": [
-    ["  shas.splice(0, shas.length, ...shas.filter(sha => !/^Audit fix:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (AUDIT-PREVIEWS): on a branch stacked after this change (the audit P-01 / P-07 / P-29 previews fix), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files\n", ""],
+    ["  shas.splice(0, shas.length, ...shas.filter(sha => !(/^Audit fix \\(previews\\):/.test(git('log', '-1', '--format=%s', sha)) || ['a49f8ca831f6f22b2ed8fcae57035897eb54fb08', '7f7b19d27498aca52eea9e3ee968686bac9cf807', '160316e43b72a67cf0a3fa7b641e42b5e66e5a2f', '66a641c13eae44310d0dac66b63c6ff990059fff', 'f461a8960e416529162a16c84b8b4eae1ca1589c', 'c251817e91d3a562a9ff755883676dff28c4e760', '38dbe5a3a08bdb8b4a74b6256d5a9b0771c2c1a8', 'd3a8e8b0b97fd5ea7fa36275490c2769c1d654ff', 'c83e03ecb3bf6d572285935883e7eb6311f7cef3'].includes(sha)))) // LATER-CHANGES: registry read (AUDIT-PREVIEWS): on a branch stacked after this change (the audit P-01 / P-07 / P-29 previews fix), the first-parent commits are its own (its own subject, or the plain-subject commits it had before, listed by sha), not this change's; a sibling audit change's commits stay; with none left the pins and identity checks cover the files\n", ""],
   ],
   "scripts/test-studio-deck-sync-truth.mjs": [
-    ["  shas.splice(0, shas.length, ...shas.filter(sha => !/^Audit fix:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (AUDIT-PREVIEWS): on a branch stacked after this change (the audit P-01 / P-07 / P-29 previews fix), the first-parent commits are its own, not this change's; with none left the identity checks cover the files\n", ""],
+    ["  shas.splice(0, shas.length, ...shas.filter(sha => !(/^Audit fix \\(previews\\):/.test(git('log', '-1', '--format=%s', sha)) || ['a49f8ca831f6f22b2ed8fcae57035897eb54fb08', '7f7b19d27498aca52eea9e3ee968686bac9cf807', '160316e43b72a67cf0a3fa7b641e42b5e66e5a2f', '66a641c13eae44310d0dac66b63c6ff990059fff', 'f461a8960e416529162a16c84b8b4eae1ca1589c', 'c251817e91d3a562a9ff755883676dff28c4e760', '38dbe5a3a08bdb8b4a74b6256d5a9b0771c2c1a8', 'd3a8e8b0b97fd5ea7fa36275490c2769c1d654ff', 'c83e03ecb3bf6d572285935883e7eb6311f7cef3'].includes(sha)))) // LATER-CHANGES: registry read (AUDIT-PREVIEWS): on a branch stacked after this change (the audit P-01 / P-07 / P-29 previews fix), the first-parent commits are its own (its own subject, or the plain-subject commits it had before, listed by sha), not this change's; a sibling audit change's commits stay; with none left the identity checks cover the files\n", ""],
   ],
   "scripts/test-studio-deck-card-count.mjs": [
     ["import { stripAuditPreviews } from './studio-audit-previews-strip.mjs' // LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", ""],
