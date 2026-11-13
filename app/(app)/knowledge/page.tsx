@@ -37,6 +37,7 @@ import { StudioP2Sources } from "@/components/knowledge/studio-p2-sources"
 import { StudioP2SourcesMenu } from "@/components/knowledge/studio-p2-sources-menu"
 import { StudioP2DeckProvider } from "@/components/knowledge/studio-p2-deck-provider"
 import { StudioKgAsk } from "@/components/knowledge/studio-kg-ask"
+import { takeBrowserHandoff } from "@/lib/studio-chat-parity-more-handoff" // CHAT-PARITY-MORE
 import type { StudioDeckDirectory } from "@/hooks/use-studio-p2-deck-titles"
 import {
   clearImportMarker, IMPORT_FAILED_TEXT, importConfirmWarning, importFailureText, normalizeKgGraph, normalizeKgStats, OFFLINE_IMPORT_TEXT, ownerTag,
@@ -848,6 +849,10 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
       if (await admitted() && isCurrent()) setSearchLoading(false)
     }
   }, [clearSearchResults, searchQuery, operationOwner, operationLifetime, waitForAdmission])
+  // CHAT-PARITY-MORE (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS, default off, with NEXT_PUBLIC_STUDIO_CHAT_COMMANDS and NEXT_PUBLIC_STUDIO_CHAT_CLEAN): /kg-search <words> from the chat opens this page with the words in the search box and runs the page's own search (runSearch) once the account is ready. The words come from a one-time hand-off, not the address. Flag off: nothing is read.
+  const chatMoreSearch = useRef<string | null>(null) // CHAT-PARITY-MORE
+  useEffect(() => { if (process.env.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS !== "true" || process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN !== "true" || process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS !== "true") return; const handed = takeBrowserHandoff("kg-search", kg.userId ?? null); if (handed?.text) { chatMoreSearch.current = handed.text; setSearchQuery(handed.text) } }, []) // CHAT-PARITY-MORE
+  useEffect(() => { if (chatMoreSearch.current && searchQuery === chatMoreSearch.current && accessStatus === "ready") { chatMoreSearch.current = null; void runSearch() } }, [accessStatus, searchQuery, runSearch]) // CHAT-PARITY-MORE: the box holds the handed words and the page can search: the same search a click on Run search makes
 
   const runImport = useCallback(async () => {
     const owner = operationOwner
@@ -1252,7 +1257,7 @@ stats && stats.nodes_by_type.length > 0 && (
         </section>
       )}
 
-      {KG_ASK && <StudioKgAsk />}
+      {KG_ASK && <StudioKgAsk handoffAccount={kg.userId ?? null} /> /* CHAT-PARITY-MORE */}
 
       <div data-studio-knowledge-role="layout" className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_370px]">
         <section data-studio-knowledge-role="map-panel" className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
