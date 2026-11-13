@@ -34,7 +34,7 @@ export const SESSIONS_OWNER_PAIRS = {
    "}\n\n/**\n * POST /api/sessions\n"
   ],
   [
-   " * - sessionId: string (UUID from WebSocket)\n * - title?: string (optional initial title)\n *\n * Answers:\n * - 201 { session }                      a new row, owned by the caller\n * - 409 { error, session }               the caller's OWN row already has that id (the client treats it as success)\n * - 404 { error: 'Session not found' }   the id is another user's chat: no row, nothing about its owner (P-73)\n * Logs carry no e-mail, no DATABASE_URL and no raw error text; a 500 answers a generic message (P-74).\n */\nexport async function POST(req: NextRequest) {\n",
+   " * - sessionId: string (UUID from WebSocket)\n * - title?: string (optional initial title)\n *\n * Answers (a 2xx always means the row is the caller's):\n * - 201 { session }                      a new row, owned by the caller\n * - 200 { session }                      the caller's OWN row already has that id (it was a 409 with the whole row before P-73)\n * - 404 { error: 'Session not found' }   the id is another user's chat: no row, nothing about its owner, nothing written (P-73)\n * Logs carry no e-mail, no DATABASE_URL and no raw error text; a 500 answers a generic message (P-74).\n */\nexport async function POST(req: NextRequest) {\n",
    " * - sessionId: string (UUID from WebSocket)\n * - title?: string (optional initial title)\n */\nexport async function POST(req: NextRequest) {\n"
   ],
   [
@@ -62,8 +62,8 @@ export const SESSIONS_OWNER_PAIRS = {
    "    const { sessionId, title } = body;\n    console.log('[Session Create] Session ID:', sessionId);\n    console.log('[Session Create] Title:', title || '(no title)');\n\n    if (!sessionId) {\n"
   ],
   [
-   "\n    if (existing) {\n      // Another user's chat is answered exactly like an id that cannot be used: no row, nothing about its owner (P-73).\n      // The [id] routes check the owner the same way (app/api/sessions/[id]/route.ts).\n      if (existing.userId !== user.id) {\n        console.warn('[Session Create] ⚠️ Session id belongs to another user, refused:', sessionId);\n        return NextResponse.json(\n          { error: 'Session not found' },\n          { status: 404 }\n        );\n      }\n\n      console.log('[Session Create] ⚠️ Session already exists:', sessionId);\n      return NextResponse.json(\n        { error: 'Session already exists', session: pickAllowedKeys(existing, SESSION_CREATE_RESPONSE_KEYS) },\n        { status: 409 }\n      );\n",
-   "\n    if (existing) {\n      console.log('[Session Create] ⚠️ Session already exists:', sessionId);\n      return NextResponse.json(\n        { error: 'Session already exists', session: existing },\n        { status: 409 }\n      );\n"
+   "\n    if (existing) {\n      // Another user's chat is answered exactly like an id that cannot be used: no row, nothing about its owner (P-73).\n      // The [id] routes check the owner the same way (app/api/sessions/[id]/route.ts).\n      if (existing.userId !== user.id) {\n        console.warn('[Session Create] ⚠️ Session id belongs to another user, refused:', sessionId);\n        return NextResponse.json(\n          { error: 'Session not found' },\n          { status: 404 }\n        );\n      }\n\n      console.log('[Session Create] ⚠️ Session already exists:', sessionId);\n      return NextResponse.json(\n        { session: pickAllowedKeys(existing, SESSION_CREATE_RESPONSE_KEYS) },\n        { status: 200 }\n      );\n    }\n",
+   "\n    if (existing) {\n      console.log('[Session Create] ⚠️ Session already exists:', sessionId);\n      return NextResponse.json(\n        { error: 'Session already exists', session: existing },\n        { status: 409 }\n      );\n    }\n"
   ],
   [
    "      id: sessionId,\n      userId: user.id,\n      hasTitle: !!title,\n      currentStage: 1,\n      status: 'active'\n",
@@ -76,16 +76,12 @@ export const SESSIONS_OWNER_PAIRS = {
  ],
  "hooks/use-chat-sessions.ts": [
   [
-   "}\n\n/**\n * POST /api/sessions answers 201 { session } for a new row and 409 { error, session } for the caller's OWN row with that id;\n * an id that belongs to another account is a 404 with no row (P-73). Only a row that carries the id that was asked for is\n * this account's session: anything else is not an adoption.\n */\nfunction ownRowFromCreateAnswer(body: any, sessionId: string): ChatSession | null {\n  const row = body?.session;\n  return row && typeof row === 'object' && row.id === sessionId ? (row as ChatSession) : null;\n}\n\nasync function ensureSessionRow(sessionId: string): Promise<boolean> {\n  try {\n",
-   "}\n\nasync function ensureSessionRow(sessionId: string): Promise<boolean> {\n  try {\n"
-  ],
-  [
-   "    });\n\n    if (response.ok || (response.status === 409 && ownRowFromCreateAnswer(await response.json().catch(() => null), sessionId))) {\n      console.warn('[useChatSessions] Recovered missing session row:', sessionId);\n      return true;\n",
+   "    });\n\n    if (response.ok) { // POST /api/sessions: 201 a new row, 200 the caller's own row; another account's id is a 404 and a 409 is never an adoption (P-73)\n      console.warn('[useChatSessions] Recovered missing session row:', sessionId);\n      return true;\n",
    "    });\n\n    if (response.ok || response.status === 409) {\n      console.warn('[useChatSessions] Recovered missing session row:', sessionId);\n      return true;\n"
   ],
   [
-   "\n      if (!response.ok) {\n        // If conflict (409), session already exists - that's ok when it is this account's own row\n        if (response.status === 409) {\n          const row = ownRowFromCreateAnswer(await response.json().catch(() => null), sessionId);\n          if (!row) throw new Error('Failed to create session (409): the existing session is not available');\n          console.log('[useChatSessions] Session already exists (409)');\n          return row;\n        }\n\n",
-   "\n      if (!response.ok) {\n        // If conflict (409), session already exists - that's ok\n        if (response.status === 409) {\n          console.log('[useChatSessions] Session already exists (409)');\n          const data = await response.json();\n          return data.session;\n        }\n\n"
+   "\n      if (!response.ok) {\n        // Try to get error details from response\n        let errorMessage = response.statusText;\n",
+   "\n      if (!response.ok) {\n        // If conflict (409), session already exists - that's ok\n        if (response.status === 409) {\n          console.log('[useChatSessions] Session already exists (409)');\n          const data = await response.json();\n          return data.session;\n        }\n\n        // Try to get error details from response\n        let errorMessage = response.statusText;\n"
   ]
  ]
 }

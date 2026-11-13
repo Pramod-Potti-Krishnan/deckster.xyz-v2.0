@@ -136,10 +136,10 @@ const SESSION_CREATE_RESPONSE_KEYS = ['id', 'geminiStoreName'] as const;
  * - sessionId: string (UUID from WebSocket)
  * - title?: string (optional initial title)
  *
- * Answers:
+ * Answers (a 2xx always means the row is the caller's):
  * - 201 { session }                      a new row, owned by the caller
- * - 409 { error, session }               the caller's OWN row already has that id (the client treats it as success)
- * - 404 { error: 'Session not found' }   the id is another user's chat: no row, nothing about its owner (P-73)
+ * - 200 { session }                      the caller's OWN row already has that id (it was a 409 with the whole row before P-73)
+ * - 404 { error: 'Session not found' }   the id is another user's chat: no row, nothing about its owner, nothing written (P-73)
  * Logs carry no e-mail, no DATABASE_URL and no raw error text; a 500 answers a generic message (P-74).
  */
 export async function POST(req: NextRequest) {
@@ -245,8 +245,8 @@ export async function POST(req: NextRequest) {
 
       console.log('[Session Create] ⚠️ Session already exists:', sessionId);
       return NextResponse.json(
-        { error: 'Session already exists', session: pickAllowedKeys(existing, SESSION_CREATE_RESPONSE_KEYS) },
-        { status: 409 }
+        { session: pickAllowedKeys(existing, SESSION_CREATE_RESPONSE_KEYS) },
+        { status: 200 }
       );
     }
 

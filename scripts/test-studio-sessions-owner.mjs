@@ -4,8 +4,10 @@
 // precedent is the tier guard, PR #575, and the D1 debug routes: "by design, no flag").
 // The REAL app/api/sessions/route.ts and hooks/use-chat-sessions.ts are transpiled and run on stubs: an in-memory prisma, a fixed
 // signed-in session, a minimal NextResponse, and a fetch that calls the real route. No network, no database, no browser.
+// A 2xx from POST /api/sessions always means the row is the caller's (201 new, 200 own); another user's id is a 404 with fixed bytes
+// and the same database calls as the own-id path; the client adopts only a 2xx and never a 409 (REVIEW-1's two checks, 13 Nov).
 // Then mutants (each must make the proof FAIL): owner check removed, owner check inverted, allow-list widened, each log restored,
-// raw error text restored, and the client trusting a 409 row again.
+// raw error text restored, an extra database round trip or a write on the foreign path, and the client adopting a 409 again.
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
@@ -49,15 +51,15 @@ function makeWorld() {
   const rows = new Map([[OWN_ID, fullRow(OWN_ID, CALLER, { geminiStoreName: 'fileSearchStores/own-store' })], [FOREIGN_ID, fullRow(FOREIGN_ID, VICTIM)]])
   const users = new Map([[CALLER.email, { ...CALLER }], [VICTIM.email, { ...VICTIM }]])
   const world = {
-    rows, users, session: { user: { email: CALLER.email, name: 'Caller' } }, userLookupError: null, userCreateError: null, created: [], userCreated: [],
+    calls: [], rows, users, session: { user: { email: CALLER.email, name: 'Caller' } }, userLookupError: null, userCreateError: null, created: [], userCreated: [],
     prisma: {
       user: {
-        findUnique: async ({ where }) => { if (world.userLookupError) throw world.userLookupError; return users.get(where.email) ?? null },
-        create: async ({ data }) => { if (world.userCreateError) throw world.userCreateError; const user = { id: `user-new-${users.size}`, ...data }; users.set(data.email, user); world.userCreated.push(user); return user },
+        findUnique: async ({ where }) => { world.calls.push('user.findUnique'); if (world.userLookupError) throw world.userLookupError; return users.get(where.email) ?? null },
+        create: async ({ data }) => { world.calls.push('user.create'); if (world.userCreateError) throw world.userCreateError; const user = { id: `user-new-${users.size}`, ...data }; users.set(data.email, user); world.userCreated.push(user); return user },
       },
       chatSession: {
-        findUnique: async ({ where }) => rows.get(where.id) ?? null,
-        create: async ({ data }) => { world.created.push(plain(data)); const row = fullRow(data.id, { id: data.userId }, { title: data.title, geminiStoreName: null, geminiStoreId: null }); rows.set(data.id, row); return row },
+        findUnique: async ({ where }) => { world.calls.push('chatSession.findUnique'); return rows.get(where.id) ?? null },
+        create: async ({ data }) => { world.calls.push('chatSession.create'); world.created.push(plain(data)); const row = fullRow(data.id, { id: data.userId }, { title: data.title, geminiStoreName: null, geminiStoreId: null }); rows.set(data.id, row); return row },
       },
     },
   }
@@ -151,18 +153,40 @@ const cases = [
     const world = makeWorld(); world.rows.set(FOREIGN_ID, fullRow(FOREIGN_ID, VICTIM, { status: 'deleted' })) // another user's deleted chat is theirs too
     assert.deepEqual(await loadRoute(routeSource, world).post({ sessionId: FOREIGN_ID }), { status: 404, body: { error: 'Session not found' } })
   }],
-  ['P-73: the caller\'s own id keeps today\'s answer (409, error text, the row) with the allow-listed keys only', async ({ routeSource }) => {
+  ['P-73: the caller\'s own id is answered 200 (never 409) with the row, allow-listed keys only: a 2xx always means yours', async ({ routeSource }) => {
     const world = makeWorld(); const { post } = loadRoute(routeSource, world)
     const res = await post({ sessionId: OWN_ID })
-    assert.equal(res.status, 409)
-    assert.equal(res.body.error, 'Session already exists')
-    assert.deepEqual(Object.keys(res.body).sort(), ['error', 'session'])
+    assert.equal(res.status, 200)
+    assert.deepEqual(Object.keys(res.body), ['session'])
     assert.deepEqual(Object.keys(res.body.session).sort(), ALLOWED)
     assert.equal(res.body.session.id, OWN_ID)
     assert.equal(res.body.session.geminiStoreName, 'fileSearchStores/own-store', 'the one other field the Builder reads when it adopts an id')
     const text = JSON.stringify(res.body)
     for (const key of ['userId', 'blankPresentationUrl', 'strawmanPreviewUrl', 'finalPresentationUrl', 'blankPresentationId', 'strawmanPresentationId', 'finalPresentationId', 'geminiStoreId', 'title', 'status', 'currentStage', 'slideCount', 'isFavorite']) assert.equal(text.includes(`"${key}"`), false, `${key} is not on the list`)
     assert.equal(world.created.length, 0)
+    assert.equal(world.rows.get(OWN_ID).geminiStoreName, 'fileSearchStores/own-store', 'and the row is untouched')
+  }],
+  ['P-73 (REVIEW-1 check 1): the foreign answer is the same bytes every time, whoever owns the row, whatever the title; and it costs the same database calls as the own-id answer (one user read, one session read, no write)', async ({ routeSource }) => {
+    const answers = new Set(); const sequences = []
+    const OTHER = { id: 'user-other', email: 'other@mail.example' }
+    for (const [setup, body] of [
+      [w => w, { sessionId: FOREIGN_ID }],
+      [w => w, { sessionId: FOREIGN_ID, title: 'a title' }],
+      [w => { w.rows.set(FOREIGN_ID, fullRow(FOREIGN_ID, OTHER, { title: null, geminiStoreName: null })); return w }, { sessionId: FOREIGN_ID }], // another owner, a row with no store
+      [w => { w.rows.set(FOREIGN_ID, fullRow(FOREIGN_ID, VICTIM, { status: 'archived' })); return w }, { sessionId: FOREIGN_ID, title: 'x' }],
+    ]) {
+      const world = setup(makeWorld()); const { post } = loadRoute(routeSource, world)
+      const res = await post(body)
+      answers.add(JSON.stringify(res)); sequences.push(world.calls.join(','))
+      assert.equal(world.created.length, 0)
+    }
+    assert.equal(answers.size, 1, `one byte string for every foreign answer, got ${[...answers].join(' | ')}`)
+    assert.equal([...answers][0], JSON.stringify({ status: 404, body: { error: 'Session not found' } }))
+    const own = makeWorld(); await loadRoute(routeSource, own).post({ sessionId: OWN_ID })
+    const missing = makeWorld(); await loadRoute(routeSource, missing).post({ sessionId: FRESH_ID })
+    assert.deepEqual(sequences, Array(sequences.length).fill('user.findUnique,chatSession.findUnique'), 'the foreign path: one user read, one session read')
+    assert.equal(own.calls.join(','), 'user.findUnique,chatSession.findUnique', 'the own-id path makes exactly those calls: the foreign path has no round trip of its own')
+    assert.equal(missing.calls.join(','), 'user.findUnique,chatSession.findUnique,chatSession.create', 'a missing id: the same two reads, then the create it exists to do')
   }],
   ['P-73: a new id still creates the caller\'s own row (201), answered with the same allow-listed keys', async ({ routeSource }) => {
     const world = makeWorld(); const { post } = loadRoute(routeSource, world)
@@ -235,15 +259,16 @@ const cases = [
     assert.equal(/details\s*:/.test(routeSource), false, 'no "details:" in any answer')
     assert.equal(/session:\s*(existing|newSession)\b/.test(routeSource), false, 'no whole row is answered')
     assert.match(routeSource, /existing\.userId !== user\.id/)
+    assert.equal(/status:\s*409/.test(routeSource), false, 'the route answers no 409 any more')
   }],
-  ['P-73 client: a foreign id is never adopted: createSession answers null, and nothing of the victim\'s row reaches the browser', async ({ routeSource, hookSource }) => {
+  ['P-73 client (REVIEW-1 check 2): a foreign id is never adopted: createSession answers null (404), and nothing of the victim\'s row reaches the browser', async ({ routeSource, hookSource }) => {
     const world = makeWorld(); const { hook, sent, seen } = loadHook(hookSource, world, routeSource)
     assert.equal(await hook.createSession(FOREIGN_ID, 'x'), null)
     assert.deepEqual(sent, [{ url: '/api/sessions', method: 'POST' }])
     noLeak(seen, 'what the browser received')
     assert.equal(seen[0].status, 404)
   }],
-  ['P-73 client: the caller\'s own id is still adopted (409 row with its id and store name), and a new id is created (201)', async ({ routeSource, hookSource }) => {
+  ['P-73 client: the caller\'s own id is still adopted (200 row with its id and store name), and a new id is created (201)', async ({ routeSource, hookSource }) => {
     const world = makeWorld(); const { hook } = loadHook(hookSource, world, routeSource)
     const own = await hook.createSession(OWN_ID)
     assert.deepEqual(plain(own), { id: OWN_ID, geminiStoreName: 'fileSearchStores/own-store' })
@@ -275,13 +300,14 @@ const cases = [
 
 // A server that answers 409 with something that is not the caller's row for that id (an older build, a proxy, a bug): the client still does not adopt it.
 const clientAgainstOddServer = [
+  ['409 with the row of the id asked for (an older build\'s whole-row answer: the client cannot tell whose it is)', 409, { error: 'Session already exists', session: { id: OWN_ID, userId: VICTIM.id, geminiStoreName: 'fileSearchStores/x' } }],
   ['409 with another id\'s row', 409, { error: 'Session already exists', session: { id: 'someone-elses', geminiStoreName: 'fileSearchStores/x' } }],
   ['409 with no row', 409, { error: 'Session already exists' }],
   ['409 with no body', 409, undefined],
   ['409 with a null row', 409, { session: null }],
 ]
 for (const [label, status, body] of clientAgainstOddServer) {
-  cases.push([`P-73 client: ${label} is not an adoption (createSession answers null; the recovery path answers "not recovered")`, async ({ hookSource }) => {
+  cases.push([`P-73 client: ${label} is not an adoption (a 409 is never one: createSession answers null; the recovery path answers "not recovered")`, async ({ hookSource }) => {
     const calls = []
     const quiet = () => {}
     const fetchStub = async (url, init = {}) => {
@@ -305,13 +331,13 @@ for (const [label, status, body] of clientAgainstOddServer) {
     assert.equal(calls.filter(call => call.endsWith('/messages')).length, 1, 'the message save is not retried')
   }])
 }
-cases.push(['P-73 client: the same 409 with the row of the id asked for IS recovered (own row: today\'s behaviour)', async ({ hookSource }) => {
+cases.push(['P-73 client: a 200 with the row (the caller\'s own) IS recovered, as the 409 was (the PATCH is retried once)', async ({ hookSource }) => {
   const calls = []
   const quiet = () => {}
   let patches = 0
   const fetchStub = async (url, init = {}) => {
     calls.push(`${init.method ?? 'GET'} ${url}`)
-    if (url === '/api/sessions' && init.method === 'POST') return responseOf(409, { error: 'Session already exists', session: { id: OWN_ID, geminiStoreName: null } })
+    if (url === '/api/sessions' && init.method === 'POST') return responseOf(200, { session: { id: OWN_ID, geminiStoreName: null } })
     if (init.method === 'PATCH') { patches++; return patches <= 4 ? responseOf(404, { error: 'Session not found' }) : responseOf(200, { session: { id: OWN_ID } }) }
     throw new Error(`unexpected ${url}`)
   }
@@ -347,11 +373,16 @@ const mutants = {
   'the owner check is removed': swap('routeSource', 'existing.userId !== user.id', 'false'),
   'the owner check is inverted': swap('routeSource', 'existing.userId !== user.id', 'existing.userId === user.id'),
   'the owner check compares the e-mail, not the id': swap('routeSource', 'existing.userId !== user.id', 'existing.userId !== session.user.email'),
-  'the whole row is answered again (409)': swap('routeSource', 'pickAllowedKeys(existing, SESSION_CREATE_RESPONSE_KEYS)', 'existing'),
+  'the whole row is answered again (own id)': swap('routeSource', 'pickAllowedKeys(existing, SESSION_CREATE_RESPONSE_KEYS)', 'existing'),
   'the whole row is answered again (201)': swap('routeSource', 'pickAllowedKeys(newSession, SESSION_CREATE_RESPONSE_KEYS)', 'newSession'),
   'the allow-list is widened by userId': swap('routeSource', "['id', 'geminiStoreName'] as const", "['id', 'geminiStoreName', 'userId'] as const"),
   'the allow-list is widened by the presentation url': swap('routeSource', "['id', 'geminiStoreName'] as const", "['id', 'geminiStoreName', 'finalPresentationUrl'] as const"),
   'the allow-list loses the store name the Builder reads': swap('routeSource', "['id', 'geminiStoreName'] as const", "['id'] as const"),
+  'the own id is answered 409 again': swap('routeSource', "{ session: pickAllowedKeys(existing, SESSION_CREATE_RESPONSE_KEYS) },\n        { status: 200 }", "{ error: 'Session already exists', session: pickAllowedKeys(existing, SESSION_CREATE_RESPONSE_KEYS) },\n        { status: 409 }"),
+  'the foreign path makes an extra database round trip': swap('routeSource', "      if (existing.userId !== user.id) {\n", "      if (existing.userId !== user.id) {\n        await prisma.chatSession.findUnique({ where: { id: sessionId } });\n"),
+  'the foreign path writes a row under the caller': swap('routeSource', "      if (existing.userId !== user.id) {\n", "      if (existing.userId !== user.id) {\n        await prisma.chatSession.create({ data: { id: sessionId, userId: user.id, title: null, currentStage: 1, status: 'active' } });\n"),
+  'the foreign answer carries the owner in a message': swap('routeSource', "{ error: 'Session not found' },\n          { status: 404 }", "{ error: 'Session belongs to another user' },\n          { status: 404 }"),
+  'the foreign answer is a 403 (the [id] routes\' pattern: it names the id as taken)': swap('routeSource', "{ error: 'Session not found' },\n          { status: 404 }", "{ error: 'Forbidden' },\n          { status: 403 }"),
   'the foreign answer is a 409 with a row': swap('routeSource', "{ error: 'Session not found' },\n          { status: 404 }", "{ error: 'Session already exists', session: existing },\n          { status: 409 }"),
   'the DATABASE_URL prefix log is restored': swap('routeSource', "  console.log('[Session Create] DIRECT_URL configured:', !!process.env.DIRECT_URL);", "  console.log('[Session Create] DATABASE_URL prefix:', process.env.DATABASE_URL?.substring(0, 40) + '...');\n  console.log('[Session Create] DIRECT_URL configured:', !!process.env.DIRECT_URL);"),
   'the e-mail is logged after sign-in again': swap('routeSource', "console.log('[Session Create] ✅ Authenticated');", "console.log('[Session Create] ✅ Authenticated user:', session.user.email);"),
@@ -367,8 +398,8 @@ const mutants = {
   'the 500 body carries the raw message again': swap('routeSource', "    console.error('='.repeat(80));\n\n    return NextResponse.json(\n      { error: 'Internal server error' },", "    console.error('='.repeat(80));\n\n    return NextResponse.json(\n      { error: 'Internal server error', details: error.message, code: error.code },"),
   'the route as the base had it (the leak before this change)': { ...real, routeSource: baseOf('app/api/sessions/route.ts') },
   'the hook as the base had it (a 409 row is always adopted)': { ...real, hookSource: baseOf('hooks/use-chat-sessions.ts') },
-  'the client trusts any 409 row again (createSession)': swap('hookSource', 'row.id === sessionId', 'true'),
-  'the client treats any 409 as recovered again': swap('hookSource', '(response.status === 409 && ownRowFromCreateAnswer', '(response.status === 409 || ownRowFromCreateAnswer'),
+  'the client adopts a 409 row again (createSession)': swap('hookSource', "      if (!response.ok) {\n        // Try to get error details from response", "      if (response.status === 409) return (await response.json()).session;\n\n      if (!response.ok) {\n        // Try to get error details from response"),
+  'the client treats any 409 as recovered again (ensureSessionRow)': swap('hookSource', 'if (response.ok) { // POST /api/sessions', 'if (response.ok || response.status === 409) { // POST /api/sessions'),
 }
 let killed = 0
 for (const [name, sources] of Object.entries(mutants)) {
