@@ -11,8 +11,8 @@ import './templates-fidelity.css'
 import { templatesNoticeText } from '@/lib/studio-templates-notice'
 // FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE): rename and delete on a saved template's row (a Composer template shows Delete disabled, with the reason; it renames like any other).
 import { ManagedLibraryRow, type ManagedRowChild } from './library-manage'
-import { takeBrowserHandoff } from '@/lib/studio-chat-parity-more-handoff' // CHAT-PARITY-MORE
 import { BUSY_TEXT, COMPOSER_TEMPLATE_DELETE_REASON, TEMPLATE_RENAME_UNAVAILABLE_REASON, isUserOwnedLibraryItem, runLibraryDelete, runLibraryRename, selectionAfterRemoval, templateRenameRefusal } from '@/lib/studio-library-manage'
+import { takeBrowserHandoff } from '@/lib/studio-chat-parity-more-handoff' // CHAT-PARITY-MORE
 
 const TEMPLATES_ENABLED = process.env.NEXT_PUBLIC_TEMPLATE_BUILDER_ENABLED === 'true'
 const COMPOSER_ENABLED = process.env.NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED === 'true'
