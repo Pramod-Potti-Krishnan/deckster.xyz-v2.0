@@ -103,6 +103,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-audit-console-strip.mjs')).AUDIT_CONSOLE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, audit P-30 / P-32, no analytics script request where none is served, an honest first Decks tab (NEXT_PUBLIC_STUDIO_ANALYTICS_GATE / NEXT_PUBLIC_STUDIO_ANALYTICS_SERVED / NEXT_PUBLIC_STUDIO_DECK_TABS_HONEST)
   ...(await import('./studio-audit-previews-strip.mjs')).AUDIT_PREVIEWS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, audit P-01 / P-07 / P-29, deck cards and Duplicate for a deck that exists on this Layout, the slide list and a live Publish preview when the inventory route is absent (NEXT_PUBLIC_STUDIO_DECK_CARD_REHOME / NEXT_PUBLIC_STUDIO_INVENTORY_FALLBACK)
   ...(await import('./studio-thumbnail-proof-speed-strip.mjs')).THUMBNAIL_PROOF_SPEED_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, thumbnail-last-good proof speed-up (tests only)
+  ...(await import('./studio-chat-parity-viewer-strip.mjs')).CHAT_PARITY_VIEWER_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, overnight chat parity, viewer slash commands: /goto /next /prev /blank-slide /layout /present /edit /view /rail /grid /borders /save /discard /version /canvas and /theme <preset> (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS; no flag of its own, no .env.example block)
   // one line per later change, above this comment
 ])
 
@@ -170,6 +171,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-audit-present-exit-strip.mjs')).AUDIT_PRESENT_EXIT_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, audit P-17, Present Exit leaves Present when the browser is not full screen (NEXT_PUBLIC_STUDIO_PRESENT_EXIT_FIX)
   (await import('./studio-audit-console-strip.mjs')).AUDIT_CONSOLE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, audit P-30 / P-32, no analytics script request where none is served, an honest first Decks tab (NEXT_PUBLIC_STUDIO_ANALYTICS_GATE / NEXT_PUBLIC_STUDIO_ANALYTICS_SERVED / NEXT_PUBLIC_STUDIO_DECK_TABS_HONEST)
   (await import('./studio-audit-previews-strip.mjs')).AUDIT_PREVIEWS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, audit P-01 / P-07 / P-29, deck cards and Duplicate for a deck that exists on this Layout, the slide list and a live Publish preview when the inventory route is absent (NEXT_PUBLIC_STUDIO_DECK_CARD_REHOME / NEXT_PUBLIC_STUDIO_INVENTORY_FALLBACK)
+  (await import('./studio-chat-parity-viewer-strip.mjs')).CHAT_PARITY_COMMANDS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, overnight chat parity, the one flag of the chain (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS)
   // one line per later change, above this comment
 ]
 
@@ -254,6 +256,7 @@ export const LATER_STRIPS = [
   (await import('./studio-audit-console-strip.mjs')).stripAuditConsole, // LATER-CHANGE: FRONTEND-1, audit P-30 / P-32, no analytics script request where none is served, an honest first Decks tab (NEXT_PUBLIC_STUDIO_ANALYTICS_GATE / NEXT_PUBLIC_STUDIO_ANALYTICS_SERVED / NEXT_PUBLIC_STUDIO_DECK_TABS_HONEST)
   (await import('./studio-audit-previews-strip.mjs')).stripAuditPreviews, // LATER-CHANGE: FRONTEND-1, audit P-01 / P-07 / P-29, deck cards and Duplicate for a deck that exists on this Layout, the slide list and a live Publish preview when the inventory route is absent (NEXT_PUBLIC_STUDIO_DECK_CARD_REHOME / NEXT_PUBLIC_STUDIO_INVENTORY_FALLBACK)
   (await import('./studio-thumbnail-proof-speed-strip.mjs')).stripThumbnailProofSpeed, // LATER-CHANGE: FRONTEND-2, thumbnail-last-good proof speed-up (tests only)
+  (await import('./studio-chat-parity-viewer-strip.mjs')).stripChatParityViewer, // LATER-CHANGE: FRONTEND-1, overnight chat parity, viewer slash commands (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS)
   // one line per later change, above this comment
 ]
 
