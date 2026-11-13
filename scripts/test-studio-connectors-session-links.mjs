@@ -127,7 +127,9 @@ await t('no identity secret => 503, no fetch', async () => {
 await t('hook: strip(this change) === base hook', async () => {
   const { stripConnectorsSessionLinks } = await import('./studio-connectors-session-links-strip.mjs')
   const rel = 'hooks/use-deckster-websocket-v2.ts'
-  const base = execFileSync('git', ['show', `${process.env.SESSION_LINKS_BASE || 'origin/knowledge/connectors-gdrive-stub'}:${rel}`], { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20 })
+  // the base is PINNED (#566's head refreshed onto studio-v4-dev-preparation-code 2f06e51e), not a branch name: a gate clone fetches only dev
+  // and the head branch, so a remote-tracking ref can be stale or missing there (RUNNER-MINI-B S6, 13 Nov); this commit is an ancestor of the head
+  const base = execFileSync('git', ['show', `${process.env.SESSION_LINKS_BASE || '59f94e2d7ae685ebfcc3a9a43e71ba5432b488fb'}:${rel}`], { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20 })
   assert.equal(stripConnectorsSessionLinks(rel, fs.readFileSync(path.join(root, rel), 'utf8')), base)
   assert.equal(stripConnectorsSessionLinks('other.ts', 'x'), 'x')
 })
