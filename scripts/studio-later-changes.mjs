@@ -91,6 +91,13 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-usage-credits-page-strip.mjs')).USAGE_CREDITS_PAGE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B63 usage credits page: the credits view on FRONTEND-1's Usage page, two marked lines (no flag of its own: NEXT_PUBLIC_STUDIO_USAGE_CREDITS is B62's; no .env.example block)
   ...(await import('./studio-voice-core-strip.mjs')).VOICE_CORE_SCOPE_FILES, // LATER-CHANGE: ELEMENT-3, pure Director voice core (NEXT_PUBLIC_STUDIO_VOICE_CALL)
   ...(await import('./studio-voice-call-strip.mjs')).VOICE_CALL_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, W6 P4-20 voice call UI: the call button, the docked companion, push-to-talk, the router speech contract (NEXT_PUBLIC_STUDIO_VOICE_CALL / _VOICE_COMPANION)
+  ...(await import('./studio-agent-mode-shell-strip.mjs')).AGENT_MODE_SHELL_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B69 agent mode shell: Studio's build-mode picker and the Agent build cards, new files only, nothing mounted (NEXT_PUBLIC_AGENT_MODE / NEXT_PUBLIC_AUTHOR_MODE_PICKER)
+  ...(await import('./studio-page-consistency-strip.mjs')).PAGE_CONSISTENCY_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, UX-07 / UX-10 Billing and Settings on the Studio shell, one create label (NEXT_PUBLIC_STUDIO_PAGE_CONSISTENCY)
+  ...(await import('./studio-restack-ux-pc-proofs-strip.mjs')).RESTACK_UX_PC_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, restack of FRONTEND-1's page consistency: older proofs read the later changes right after the merge onto newer dev (tests only)
+  ...(await import('./studio-billing-l5-strip.mjs')).BILLING_L5_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B67 L-BILLING Studio half: Plan & credits UI, F3 entitlement push, F4 meter receiver; new files only, owners' lines are drafts (NEXT_PUBLIC_STUDIO_BILLING_PLANS / STUDIO_ROUTER_ENTITLEMENTS_PUSH / STUDIO_METER_RECEIVER_ENABLED)
+  ...(await import('./studio-avatar-spawn-strip.mjs')).AVATAR_SPAWN_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B66 AVATAR-SPAWN: the Studio 'Create my avatar' create / pick / delete mock at /studio/companions, new files only, no network (NEXT_PUBLIC_STUDIO_AVATAR_SPAWN)
+  ...(await import('./studio-ws-bq-claim-strip.mjs')).WS_BQ_CLAIM_SCOPE_FILES, // LATER-CHANGE: OPS-2, J8.1 WS token bq claim (DECKSTER_WS_BQ_CLAIM_ENABLED)
+  ...(await import('./studio-brand-kit-strip.mjs')).BRAND_KIT_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, Brand Kit caller: colour suggestions from a logo, the kit form, the brand record proxy and the signed theme proxies (NEXT_PUBLIC_STUDIO_BRAND_KIT)
   ...(await import('./studio-audit-previews-strip.mjs')).AUDIT_PREVIEWS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, audit P-01 / P-07 / P-29, deck cards and Duplicate for a deck that exists on this Layout, the slide list and a live Publish preview when the inventory route is absent (NEXT_PUBLIC_STUDIO_DECK_CARD_REHOME / NEXT_PUBLIC_STUDIO_INVENTORY_FALLBACK)
   // one line per later change, above this comment
 ])
@@ -150,6 +157,12 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-chat-caps-strip.mjs')).CHAT_CAPS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B61 chat caps (NEXT_PUBLIC_STUDIO_CHAT_CAPS_META)
   (await import('./studio-voice-core-strip.mjs')).VOICE_CORE_ENV_BLOCK, // LATER-CHANGE: ELEMENT-3, Director voice opt-in
   (await import('./studio-voice-call-strip.mjs')).VOICE_CALL_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, W6 P4-20 voice call UI (NEXT_PUBLIC_STUDIO_VOICE_COMPANION; the call flag's own line is ELEMENT-3's)
+  (await import('./studio-agent-mode-shell-strip.mjs')).AGENT_MODE_SHELL_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B69 agent mode shell (NEXT_PUBLIC_AGENT_MODE / NEXT_PUBLIC_AUTHOR_MODE_PICKER)
+  (await import('./studio-page-consistency-strip.mjs')).PAGE_CONSISTENCY_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, UX-07 / UX-10 page consistency (NEXT_PUBLIC_STUDIO_PAGE_CONSISTENCY)
+  (await import('./studio-billing-l5-strip.mjs')).BILLING_L5_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B67 L-BILLING Studio half (NEXT_PUBLIC_STUDIO_BILLING_PLANS / STUDIO_ROUTER_ENTITLEMENTS_PUSH / STUDIO_METER_RECEIVER_ENABLED / METER_RECEIVER_MODE / ROUTER_ENTITLEMENTS_API_KEY / METER_WEBHOOK_SECRET)
+  (await import('./studio-avatar-spawn-strip.mjs')).AVATAR_SPAWN_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B66 AVATAR-SPAWN (NEXT_PUBLIC_STUDIO_AVATAR_SPAWN)
+  (await import('./studio-ws-bq-claim-strip.mjs')).WS_BQ_CLAIM_ENV_BLOCK, // LATER-CHANGE: OPS-2, J8.1 WS token bq claim (DECKSTER_WS_BQ_CLAIM_ENABLED)
+  (await import('./studio-brand-kit-strip.mjs')).BRAND_KIT_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, Brand Kit caller (NEXT_PUBLIC_STUDIO_BRAND_KIT / THEME_BUILDER_BRAND_EXTRACT_KEY / STUDIO_BRAND_EXTRACT_DAILY_CAP)
   (await import('./studio-audit-previews-strip.mjs')).AUDIT_PREVIEWS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, audit P-01 / P-07 / P-29, deck cards and Duplicate for a deck that exists on this Layout, the slide list and a live Publish preview when the inventory route is absent (NEXT_PUBLIC_STUDIO_DECK_CARD_REHOME / NEXT_PUBLIC_STUDIO_INVENTORY_FALLBACK)
   // one line per later change, above this comment
 ]
@@ -223,6 +236,13 @@ export const LATER_STRIPS = [
   (await import('./studio-usage-credits-page-strip.mjs')).stripUsageCreditsPage, // LATER-CHANGE: FRONTEND-2, B63 usage credits page (NEXT_PUBLIC_STUDIO_USAGE_CREDITS is B62's; no flag of its own)
   (await import('./studio-voice-core-strip.mjs')).stripVoiceCore, // LATER-CHANGE: ELEMENT-3, voice port compatibility pin
   (await import('./studio-voice-call-strip.mjs')).stripVoiceCall, // LATER-CHANGE: FRONTEND-1, W6 P4-20 voice call UI (NEXT_PUBLIC_STUDIO_VOICE_CALL)
+  (await import('./studio-agent-mode-shell-strip.mjs')).stripAgentModeShell, // LATER-CHANGE: FRONTEND-2, B69 agent mode shell (NEXT_PUBLIC_AGENT_MODE)
+  (await import('./studio-page-consistency-strip.mjs')).stripPageConsistency, // LATER-CHANGE: FRONTEND-1, UX-07 / UX-10 page consistency (NEXT_PUBLIC_STUDIO_PAGE_CONSISTENCY)
+  (await import('./studio-restack-ux-pc-proofs-strip.mjs')).stripRestackUxPc, // LATER-CHANGE: FRONTEND-2, restack of FRONTEND-1's page consistency: older proofs read the later changes right after the merge onto newer dev (tests only)
+  (await import('./studio-billing-l5-strip.mjs')).stripBillingL5, // LATER-CHANGE: FRONTEND-2, B67 L-BILLING Studio half (NEXT_PUBLIC_STUDIO_BILLING_PLANS / STUDIO_ROUTER_ENTITLEMENTS_PUSH / STUDIO_METER_RECEIVER_ENABLED)
+  (await import('./studio-avatar-spawn-strip.mjs')).stripAvatarSpawn, // LATER-CHANGE: FRONTEND-2, B66 AVATAR-SPAWN (NEXT_PUBLIC_STUDIO_AVATAR_SPAWN)
+  (await import('./studio-ws-bq-claim-strip.mjs')).stripWsBqClaim, // LATER-CHANGE: OPS-2, J8.1 WS token bq claim (DECKSTER_WS_BQ_CLAIM_ENABLED)
+  (await import('./studio-brand-kit-strip.mjs')).stripBrandKit, // LATER-CHANGE: FRONTEND-1, Brand Kit caller (NEXT_PUBLIC_STUDIO_BRAND_KIT)
   (await import('./studio-audit-previews-strip.mjs')).stripAuditPreviews, // LATER-CHANGE: FRONTEND-1, audit P-01 / P-07 / P-29, deck cards and Duplicate for a deck that exists on this Layout, the slide list and a live Publish preview when the inventory route is absent (NEXT_PUBLIC_STUDIO_DECK_CARD_REHOME / NEXT_PUBLIC_STUDIO_INVENTORY_FALLBACK)
   // one line per later change, above this comment
 ]

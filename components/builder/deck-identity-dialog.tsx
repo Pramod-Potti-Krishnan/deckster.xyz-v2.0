@@ -19,6 +19,7 @@ import { useDeckIdentityForm } from "@/hooks/use-deck-identity"
 import { isDeckIdentityEnabled, type DeckIdentityForm } from "@/lib/deck-identity"
 import { keepStudioScrollFocusVisible } from "@/lib/studio-inspector-focus"
 import "./studio-deck-identity.css"
+import { BrandKitIdentityNote } from "./brand-kit-identity-note" // BRAND-KIT-CALLER (NEXT_PUBLIC_STUDIO_BRAND_KIT)
 
 /** Director caps each identity field at 120 characters. */
 const DECK_IDENTITY_MAX_LENGTH = 120
@@ -127,6 +128,7 @@ export function DeckIdentityDialog({ isDark = false }: { isDark?: boolean }) {
 
           <div onFocusCapture={studioShell ? event => revealStudioDeckIdentityField(event.target) : undefined} data-studio-deck-identity-fields={studioShell ? "true" : undefined} tabIndex={studioShell ? 0 : undefined} role={studioShell ? "region" : undefined} aria-label={studioShell ? "Optional presenter fields" : undefined} className="space-y-3 py-1">
             {studioShell && <p data-studio-deck-identity-note="true">Company, confidentiality and logo URL are kept in this browser. Presenter comes from your signed-in profile.</p>}
+            <BrandKitIdentityNote open={open} />{/* BRAND-KIT-CALLER: says when the standard theme's brand kit replaces the three fields below on a new deck (nothing with the flag off) */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Presenter</Label>
               <p className="text-sm">
