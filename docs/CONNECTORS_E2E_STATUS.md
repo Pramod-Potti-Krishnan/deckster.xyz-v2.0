@@ -18,11 +18,11 @@ Studio `origin/studio-v4-dev-preparation-code` + open PRs. Every hop is dark (fl
 | 7 | Director honours linked items as upload sources | MERGED dark (!623, audit !626) | `src/utils/connector_linked_items.py`; `src/handlers/websocket.py:3174`, `:5384`; `config/settings.py:1642` | `DIRECTOR_CONNECTOR_LINKED_ITEMS_ENABLED` |
 | 8 | Retrieval scopes linked items | MERGED | Researcher `services/per_slide_rag_retriever.py:717` → `session_links.py:58` | session-links flag |
 | 9 | Provenance on citations (title/url/modified) | MERGED (Researcher) | `services/slide_detail_service_v2.py:395-410`, `services/connectors/provenance.py:42`, `session_links.py:106` | session-links flag |
-| 9s | Studio shows a Drive source badge on citations | MISSING (generic citation footer only) | — | — |
+| 9s | Studio shows a Drive source badge on citations | **BUILT dark** (slide strip on the canvas while it builds; the slide's own footer is Slide Builder's, untouched). Reads `slide_context.slides[].content.source_citations[].source_origin` (`source_type` "gdrive", `title`, `source_url`); needs Director `DIRECTOR_CITATION_SOURCE_ORIGIN_ENABLED` + signed WS admission | `lib/connectors-gdrive-citations.ts`, `components/builder/studio-citation-sources.tsx`, `components/build-narration/slide-context-card.tsx` | `NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED` |
 | 10 | Disconnect: revoke + mark items + unlink | MERGED | `connectors.py:357` (`content_erased: False`, TODO K-07 at `:368`) | gdrive flags |
 | 10e | Disconnect real erase (owner erase `item` scope) | OPEN-FROZEN !262 | `services/connectors/providers.py` `disconnect_cleanup` / `erase_items` | `RESEARCHER_CONNECTOR_PROVIDER_UNIFY_ENABLED` + `RESEARCHER_OWNER_ERASE_ENABLED` |
 | 11 | Remove ONE item with real erase (CJ6) | **WAS MISSING → Researcher draft MR (stacked on !262)** | `DELETE /api/v1/connectors/gdrive/items`, `providers.erase_one_item` | **new** `RESEARCHER_CONNECTOR_ITEM_REMOVE_ENABLED` |
-| 11s | Studio proxy + UI for remove-one-item | MISSING (follow-up once 11 lands) | — | — |
+| 11s | Studio proxy + UI for remove-one-item | **WAS MISSING → this branch** (`knowledge/gdrive-e2e-c-remove`; mocks D6a–c; no Disconnect dialog exists in #566, so D7 copy is not applied) | `DELETE /api/connectors/gdrive/items` (`handleItemsDelete` in `lib/connectors-gdrive-server.ts`), `lib/connectors-gdrive-remove.ts`, `components/settings/gdrive-remove-item.tsx`, Settings > Connectors card | Drive flag `NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED` (no new flag; Researcher side needs 11's own flag) |
 | — | Notion / OneDrive (out of scope here) | OPEN-FROZEN !260 / !261 | | own flags |
 | — | Owner = cuid on chat upload | OPEN-DRAFT PR #586 | | `NEXT_PUBLIC_STUDIO_OWNER_CUID_ENABLED` |
 

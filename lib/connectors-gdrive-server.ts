@@ -15,6 +15,8 @@ import {
   GDRIVE_NONCE_COOKIE, STATE_TTL_MS, buildGoogleAuthUrl, isGdriveConnectorEnabled, newNonce, signState, validateFileIds, verifyState, MAX_ITEMS_PER_POST,
 } from '@/lib/connectors-gdrive'
 import { isGdriveSessionLinksEnabled, validChatSessionId, validateLinkedItemIds } from '@/lib/connectors-gdrive-session-links'
+import { GDRIVE_RETURN_COOKIE, GDRIVE_RETURN_QUERY, returnRedirectPath, validReturnPath } from '@/lib/connectors-gdrive-composer' // GDRIVE-COMPOSER
+import { validateRemoveItemIds } from '@/lib/connectors-gdrive-remove'
 
 const notFound = () => NextResponse.json({ error: 'Not found' }, { status: 404 })
 const fail = (status: number, error: string) => NextResponse.json({ error }, { status })
@@ -86,7 +88,7 @@ async function guarded(failMsg: string, fn: () => Promise<NextResponse>): Promis
   }
 }
 
-export async function handleStart(): Promise<NextResponse> {
+export async function handleStart(req?: Request): Promise<NextResponse> {
   const g = await gate(); if (g.error) return g.error
   const clientId = process.env.GOOGLE_CONNECTOR_CLIENT_ID
   const uri = redirectUri()
@@ -94,15 +96,20 @@ export async function handleStart(): Promise<NextResponse> {
   const nonce = newNonce()
   const res = NextResponse.redirect(buildGoogleAuthUrl(clientId, uri, signState(stateSecret(), g.userId, nonce)))
   res.cookies.set(GDRIVE_NONCE_COOKIE, nonce, { httpOnly: true, secure: true, sameSite: 'lax', path: '/api/connectors/gdrive', maxAge: STATE_TTL_MS / 1000 })
+  // GDRIVE-COMPOSER: the composer's Connect remembers the chat to come back to (only /builder?session_id=<id>); no ?return= = the Settings landing, as before
+  const returnTo = req ? validReturnPath(new URL(req.url).searchParams.get(GDRIVE_RETURN_QUERY)) : null // GDRIVE-COMPOSER
+  if (returnTo) res.cookies.set(GDRIVE_RETURN_COOKIE, returnTo, { httpOnly: true, secure: true, sameSite: 'lax', path: '/api/connectors/gdrive', maxAge: STATE_TTL_MS / 1000 }) // GDRIVE-COMPOSER
   return res
 }
 
 export async function handleCallback(req: NextRequest): Promise<NextResponse> {
   const g = await gate(); if (g.error) return g.error
   const url = new URL(req.url)
+  const returnTo = validReturnPath(req.cookies.get(GDRIVE_RETURN_COOKIE)?.value) // GDRIVE-COMPOSER: the chat the composer's Connect started from, if any
   const back = (status: string) => {
-    const res = NextResponse.redirect(new URL(`/settings/connectors?gdrive=${status}`, url.origin))
+    const res = NextResponse.redirect(new URL(returnTo ? returnRedirectPath(returnTo, status) : `/settings/connectors?gdrive=${status}`, url.origin))
     res.cookies.set(GDRIVE_NONCE_COOKIE, '', { httpOnly: true, secure: true, sameSite: 'lax', path: '/api/connectors/gdrive', maxAge: 0 })
+    if (returnTo) res.cookies.set(GDRIVE_RETURN_COOKIE, '', { httpOnly: true, secure: true, sameSite: 'lax', path: '/api/connectors/gdrive', maxAge: 0 }) // GDRIVE-COMPOSER
     return res
   }
   if (url.searchParams.get('error')) return back('cancelled')
@@ -177,4 +184,24 @@ export async function handleSessionLinks(req: Request, method: 'POST' | 'DELETE'
   const msg = method === 'POST' ? 'Could not add your Drive files to this chat. Please try again.' : 'Could not remove your Drive files from this chat. Please try again.'
   return guarded(msg, async () => relay(await callResearcher(g.userId, '/gdrive/session-links', method,
     { owner_id: g.userId, session_id: sessionId, item_ids: ids }, undefined, chatSessionIdentityHeader(g.userId, sessionId)), linksView, msg))
+}
+
+const removeView = (d: Record<string, unknown>) => ({
+  removed: Array.isArray(d.removed) ? d.removed.filter(x => typeof x === 'string') : [],
+  rejected: Array.isArray(d.rejected) ? d.rejected.map(r => pick(r, ['id', 'error'])) : [],
+  content_erased: d.content_erased === true,
+})
+
+/**
+ * DELETE /api/connectors/gdrive/items {item_ids}: remove library items with a real erase (Researcher !273, its own flag). Drive flag off: 404, no fetch.
+ * Owner is always the session cuid (never the body). Researcher fails closed (503 CONNECTOR_ERASE_UNAVAILABLE) when it cannot erase; that surfaces as 502 +
+ * error_code, never as a success, and the client tells the user nothing was changed.
+ */
+export async function handleItemsDelete(req: Request): Promise<NextResponse> {
+  const g = await gate(); if (g.error) return g.error
+  const body = (await req.json().catch(() => null)) as { item_ids?: unknown } | null
+  const ids = validateRemoveItemIds(body?.item_ids)
+  if (!ids) return fail(400, 'Please choose between 1 and 25 Drive files to remove.')
+  const msg = "Couldn't remove your Drive files. Nothing was changed. Please try again."
+  return guarded(msg, async () => relay(await callResearcher(g.userId, '/gdrive/items', 'DELETE', { owner_id: g.userId, item_ids: ids }), removeView, msg))
 }
