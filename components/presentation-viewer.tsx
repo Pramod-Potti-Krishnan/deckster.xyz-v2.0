@@ -3770,7 +3770,7 @@ export function PresentationViewer({
       addBlank: (position: number) => chatParityViewerMod.current?.addBlankSlide(handleAddSlide, position, ADD_SLIDE_V2_ENABLED ? addSlideV2Settings : undefined, currentSlide), // CHAT-PARITY-VIEWER
       changeLayout: async (index: number, layout: string) => { chatParityLayoutDone.current = false; await handleChangeLayout(index, layout as SlideLayoutType); return chatParityLayoutDone.current }, // CHAT-PARITY-VIEWER
       setEditing: (editing: boolean) => handleToggleEditModeButton(editing), setVersion: (version: 'blank' | 'strawman' | 'final') => onVersionSwitch?.(version), // CHAT-PARITY-VIEWER
-      setRail: (show: boolean) => { if (show && railFocusHidden) onStudioRailReveal?.(); else setShowThumbnails(show) } } } // CHAT-PARITY-VIEWER: the rail's own reveal when a panel folded it away, else the user's show / hide choice
+      setRail: (show: boolean) => { if (show !== railShown) handleToggleOverview() } } } // CHAT-PARITY-VIEWER: the rail button's own handler (it reveals a rail a panel folded away, else flips the user's show / hide choice), only when the rail is not already as asked
   useEffect(() => { if (!chatParityViewerOn) return; let off: (() => void) | null = null; let live = true; void import('@/lib/studio-chat-parity-viewer').then(mod => { if (!live) return; chatParityViewerMod.current = mod; off = mod.registerViewer(() => chatParityViewerLive.current) }); return () => { live = false; off?.() } }, [chatParityViewerOn]) // CHAT-PARITY-VIEWER
   useEffect(() => { if (chatParityViewerOn) chatParityViewerMod.current?.publishViewerState() }) // CHAT-PARITY-VIEWER: after every commit; the bus tells the composer only when the state it shows changed
 
