@@ -217,15 +217,16 @@ await t('allow-list relay: contract fields kept, unknown/secret fields dropped, 
 
 // 7. hardening (REVIEW-1 #2 / #3 / #4 / #7a; FRONTEND-2 N2 / N3 / N4), stacked on #615 815ea9cf
 const CAP = 1024 * 1024
-await t('hardening #2: every Researcher call refuses redirects and carries an 8 s timeout (the ingest-status route\'s)', async () => {
+await t('hardening #2: every Researcher call refuses redirects and carries an 8 s timeout (the ingest-status route\'s); round 2 (REVIEW-1 note 2): the callback\'s code exchange alone carries its own 20 s', async () => {
   const s = load(SERVER, stubsFor(), ENV_ON)
-  assert.equal(s.RESEARCHER_TIMEOUT_MS, 8000); assert.equal(s.RESEARCHER_MAX_BODY_BYTES, CAP)
+  assert.equal(s.RESEARCHER_TIMEOUT_MS, 8000); assert.equal(s.RESEARCHER_EXCHANGE_TIMEOUT_MS, 20000); assert.equal(s.RESEARCHER_MAX_BODY_BYTES, CAP)
   const st = lib.signState('s3cret', 'cuid_session_user', 'n1')
   await s.handleCallback(req(`https://app.test/api/connectors/gdrive/callback?code=C&state=${st}`, null, 'n1'))
   await s.handlePickerToken(); await s.handleItemsGet(); await s.handleItemsPost(req('u', { file_ids: ['1AbCdEfGhIjK_-x'] })); await s.handleDisconnect()
   assert.equal(calls.length, 5)
   for (const c of calls) { assert.equal(c.init.redirect, 'manual', c.url); assert.ok(c.init.signal instanceof AbortSignal, c.url) }
-  assert.deepEqual(signals.requested, [8000, 8000, 8000, 8000, 8000])
+  assert.deepEqual(calls.map(c => c.url.split('/connectors/')[1].split('?')[0]), ['gdrive/exchange', 'gdrive/picker-token', 'gdrive/items', 'gdrive/items', 'gdrive/disconnect'])
+  assert.deepEqual(signals.requested, [20000, 8000, 8000, 8000, 8000], 'the exchange 20 s, every other call 8 s')
 })
 await t('hardening #2: a 3xx answer is an upstream error (502, error_code null), never followed or read; the exchange ends "failed"', async () => {
   reply = () => new Response('{"access_token":"FROM_REDIRECT"}', { status: 307, headers: { location: 'https://evil.test/steal' } })
@@ -322,9 +323,56 @@ await t('FRONTEND-2 N2 / N3 / N4: the sidebar edit has a strip pair (frozen: own
   if (!have(OWN_BASE) || !have(OWN_HEAD)) { console.log(`   SKIP sidebar strip pair and N4 edit (frozen): ${OWN_BASE.slice(0, 8)} or ${OWN_HEAD.slice(0, 8)} is not in this clone`); return }
   const own = show(OWN_HEAD)
   assert.notEqual(own, base); assert.equal(stripConnectorsGdrive(rel, own), base, 'strip(sidebar at this change\'s head) === the base sidebar, byte for byte')
+  assert.equal(stripConnectorsGdrive(rel, stripConnectorsGdrive(rel, own)), base, 'idempotent: the base sidebar comes back as it is')
   // N4, on the hardening's own frozen range only: one import added, the flag read through isGdriveConnectorEnabled(), nothing else in the sidebar moved
   const diff = execFileSync('git', ['diff', '-U0', OWN_BASE, OWN_HEAD, '--', rel], { cwd: root, encoding: 'utf8' }).split('\n')
   assert.deepEqual(diff.filter(l => /^-(?!--)/.test(l)), ['-  const items = (process.env.NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED === "true" ? [...ITEMS, CONNECTORS_ITEM] : ITEMS).filter((item) => !item.authenticatedOnly || authenticated)'])
   assert.deepEqual(diff.filter(l => /^\+(?!\+\+)/.test(l)), ['+import { isGdriveConnectorEnabled } from "@/lib/connectors-gdrive-flag"', '+  const items = (isGdriveConnectorEnabled() ? [...ITEMS, CONNECTORS_ITEM] : ITEMS).filter((item) => !item.authenticatedOnly || authenticated)'])
+})
+await t('round 2 (FRONTEND-2 nit): stripConnectorsGdrive puts the sidebar back line by line: whole lines only (never the tail of a longer line), the first block only, idempotent, any other file untouched; a substring or partial-line mutant is caught', async () => {
+  const strip = await import('./studio-connectors-gdrive-strip.mjs')
+  const source = fs.readFileSync(path.join(root, 'scripts/studio-connectors-gdrive-strip.mjs'), 'utf8')
+  const rel = 'components/settings/settings-sidebar.tsx'
+  const pairs = strip.CONNECTORS_GDRIVE_SIDEBAR_PAIRS
+  assert.equal(pairs.length, 3)
+  for (const [has] of pairs) assert.ok(has.endsWith('\n'), 'every block is whole lines with their newline')
+  const filler = ['// a line of the sidebar\n', 'const ITEMS = []\n', 'export function Sidebar() {\n']
+  const build = pick => ['// top\n', pick(0), filler[0], filler[1], pick(1), filler[2], pick(2), '}\n'].join('')
+  const withEdit = build(i => pairs[i][0]), base = build(i => pairs[i][1])
+  const checks = async (mod) => {
+    const f = mod.stripConnectorsGdrive
+    assert.equal(f(rel, withEdit), base, 'each block is put back where it sits, anywhere in the file')
+    assert.equal(f(rel, f(rel, withEdit)), base, 'idempotent'); assert.equal(f(rel, base), base, 'the base comes back as it is')
+    for (const [i, [has]] of pairs.entries()) {
+      // a block that is only the tail of a longer line is not this change\'s line: left alone (a substring replace would take it)
+      const tail = ['// top\n', `// ${has}`, '}\n'].join(''); assert.equal(f(rel, tail), tail, `block ${i}: as the tail of a longer line`)
+      const glued = ['// top\n', `x${has}`, '}\n'].join(''); assert.equal(f(rel, glued), glued, `block ${i}: glued to the end of another line`)
+      // a block that continues on its last line is not whole either
+      const cut = has.slice(0, -1) + ' // more\n'; const longer = ['// top\n', cut, '}\n'].join(''); assert.equal(f(rel, longer), longer, `block ${i}: its last line continues`)
+      // only the first whole block goes: a second copy is a merge mistake the older pins must still see
+      const twice = ['// top\n', has, 'between\n', has, '}\n'].join(''); assert.equal(f(rel, twice), ['// top\n', pairs[i][1], 'between\n', has, '}\n'].join(''), `block ${i}: twice`)
+      // a partial-line copy first, a whole block later: the whole block is the one that goes
+      const mixed = ['// top\n', `// ${has}`, has, '}\n'].join(''); assert.equal(f(rel, mixed), ['// top\n', `// ${has}`, pairs[i][1], '}\n'].join(''), `block ${i}: the whole one goes, the partial one stays`)
+    }
+    assert.equal(f('app/builder/page.tsx', withEdit), withEdit, 'any other file comes back as it was'); assert.equal(f(rel, 7), 7); assert.equal(f(rel, undefined), undefined)
+  }
+  await checks(strip)
+  // mutants: each is the strip with one change, loaded from a data: URL (the module has no imports); each must fail a check above
+  const MUTANTS = {
+    'a first-substring replace (the old form)': ['return CONNECTORS_GDRIVE_SIDEBAR_PAIRS.reduce((out, [has, was]) => putBackLine(out, has, was), text)', 'return CONNECTORS_GDRIVE_SIDEBAR_PAIRS.reduce((out, [has, was]) => out.replace(has, () => was), text)'],
+    'no start-of-line check (a partial line matches)': ['  while (at !== -1 && !(at === 0 || text[at - 1] === "\\n")) at = text.indexOf(has, at + 1)\n', ''],
+    'only a block at the very start of the file matches': ['!(at === 0 || text[at - 1] === "\\n")', 'at !== 0'],
+    'every copy of a block goes': ['  return at === -1 ? text : text.slice(0, at) + was + text.slice(at + has.length)\n', '  return at === -1 ? text : text.split(has).join(was)\n'],
+    'another file is stripped too': ['if (rel !== SIDEBAR || typeof text !== "string") return text', 'if (typeof text !== "string") return text'],
+  }
+  let killed = 0
+  for (const [name, [from, to]] of Object.entries(MUTANTS)) {
+    assert.equal(source.split(from).length - 1, 1, `mutant "${name}" no longer applies`)
+    const mod = await import(`data:text/javascript;base64,${Buffer.from(source.replace(from, () => to)).toString('base64')}`)
+    let caught = false
+    try { await checks(mod) } catch { caught = true }
+    assert.ok(caught, `mutant not caught: ${name}`); killed++
+  }
+  console.log(`   mutants: ${killed}/${Object.keys(MUTANTS).length} killed`)
 })
 console.log(`\n${passed} passed`)

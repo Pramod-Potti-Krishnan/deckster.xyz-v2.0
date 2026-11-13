@@ -39,8 +39,8 @@ class FakeRes {
 const plain = v => JSON.parse(JSON.stringify(v))
 const NextResponse = { json: (b, i = {}) => new FakeRes(b, i.status ?? 200, undefined, i.headers), redirect: (u) => new FakeRes(null, 307, String(u)) }
 // hardening: Researcher answers are real Responses (the server reads a capped stream); AbortSignal.timeout is recorded; Prisma is a fake ChatSession table
-const signals = { requested: [], fastMs: null }
-const TestAbortSignal = { timeout: ms => { signals.requested.push(ms); return AbortSignal.timeout(signals.fastMs ?? ms) } }
+const signals = { requested: [], fastMs: null, speedup: null }
+const TestAbortSignal = { timeout: ms => { signals.requested.push(ms); return AbortSignal.timeout(signals.fastMs ?? ms / (signals.speedup ?? 1)) } } // speedup: a simulated clock, 8000 ms of a limit is 8000 / speedup real ms
 async function asResponse(r) {
   if (r instanceof Response) return r
   let text
@@ -66,13 +66,14 @@ globalThis.fetch = fakeFetch
 const SERVER = 'lib/connectors-gdrive-server.ts'
 const req = (url, body, cookie) => ({ url, json: async () => body, cookies: { get: (n) => (cookie && n === 'deckster_gdrive_oauth_nonce' ? { value: cookie } : undefined) } })
 let passed = 0
-const reset = () => { calls = []; signals.requested = []; signals.fastMs = null; prismaLoads = 0; prismaCalls = []; chatRow = { userId: 'cuid_session_user', status: 'active' }; prismaError = null; reply = () => ({ ok: true, status: 200, json: async () => ({}) }) }
+const reset = () => { calls = []; signals.requested = []; signals.fastMs = null; signals.speedup = null; prismaLoads = 0; prismaCalls = []; chatRow = { userId: 'cuid_session_user', status: 'active' }; prismaError = null; reply = () => ({ ok: true, status: 200, json: async () => ({}) }) }
 const t = async (name, fn) => { reset(); await fn(); passed++; console.log('ok -', name) }
 
 
 const ENV = { ...ENV_ON, NEXT_PUBLIC_STUDIO_CONNECTORS_SESSION_LINKS_ENABLED: 'true' }
 const CHAT = 'chatsess00000001'
 const links = load('lib/connectors-gdrive-session-links.ts', {}, {})
+const gdriveLib = load('lib/connectors-gdrive.ts', {}, {}) // signState (hardening round 2: the callback tests sign a valid state)
 
 // 1. flags
 await t('session-links flag needs exact "true" AND the Drive flag', async () => {
@@ -213,6 +214,77 @@ const HARDENING = [
     const keepAlive = setInterval(() => {}, 20)
     try { assert.equal((await L(stubsFor(), ENV).handleSessionLinks(LINK('DELETE'), 'DELETE')).status, 504) } finally { clearInterval(keepAlive) }
   }],
+  // ---- review round 2 (REVIEW-1 notes 1 and 2) ------------------------------------------------------------------------------------------------------
+  ['start (round 2, REVIEW-1 note 1): the chat to come back to must not be someone else\'s: their row, a deleted row and a failed lookup => the Settings landing (no return cookie, no error page); no row and the caller\'s own row keep the chat', async (L) => {
+    const RET = `/builder?session_id=${CHAT}`
+    const startReq = (sid = CHAT) => ({ url: `https://app.test/api/connectors/gdrive/start?return=${encodeURIComponent(`/builder?session_id=${sid}`)}` })
+    const callbackReq = (started, withReturn) => {
+      const nonce = started.cookies.jar.deckster_gdrive_oauth_nonce.v, state = new URL(started.location).searchParams.get('state')
+      const cookies = { deckster_gdrive_oauth_nonce: nonce, ...(withReturn ? { deckster_gdrive_return: withReturn } : {}) }
+      return { url: `https://app.test/api/connectors/gdrive/callback?code=C&state=${state}`, json: async () => null, cookies: { get: n => (n in cookies ? { value: cookies[n] } : undefined) } }
+    }
+    const cases = [ // [what the lookup finds, is the chat kept]
+      ['someone else\'s active chat', { userId: 'someone_else', status: 'active' }, false],
+      ['someone else\'s deleted chat', { userId: 'someone_else', status: 'deleted' }, false],
+      ['the caller\'s own deleted chat', { userId: 'cuid_session_user', status: 'deleted' }, false],
+      ['a failed lookup', 'error', false],
+      ['no row yet (a brand-new chat is a local id until its first action)', null, true],
+      ['the caller\'s own draft chat', { userId: 'cuid_session_user', status: 'draft' }, true],
+      ['the caller\'s own active chat', { userId: 'cuid_session_user', status: 'active' }, true],
+      ['the caller\'s own archived chat', { userId: 'cuid_session_user', status: 'archived' }, true],
+    ]
+    for (const [what, found, kept] of cases) {
+      reset(); prismaError = found === 'error' ? new Error('db down: postgres://user:secret@host') : null; chatRow = found === 'error' ? null : found
+      const s = L(stubsFor(), ENV)
+      const started = await s.handleStart(startReq())
+      assert.equal(started.status, 307, what); assert.match(started.location, /^https:\/\/accounts\.google\.com\/o\/oauth2\/v2\/auth\?/, `${what}: still the Google consent, never an error page`)
+      assert.ok(started.cookies.jar.deckster_gdrive_oauth_nonce.o.httpOnly, what); assert.ok(!started.location.includes('session_id') && !started.location.includes('secret'), what)
+      assert.deepEqual(plain(prismaCalls), [{ where: { id: CHAT }, select: { userId: true, status: true } }], `${what}: one lookup, for the chat the return names`)
+      const cookie = started.cookies.jar.deckster_gdrive_return
+      if (kept) { assert.equal(cookie?.v, RET, what); assert.ok(cookie.o.httpOnly && cookie.o.secure && cookie.o.path === '/api/connectors/gdrive' && cookie.o.maxAge === 600, what) } else assert.equal(cookie, undefined, `${what}: no return cookie`)
+      // the round trip, with the cookie the browser would send back: the chat (with its one-time marker) or Settings
+      const back = await s.handleCallback(callbackReq(started, cookie?.v))
+      if (kept) assert.match(back.location, new RegExp(`^https://app\\.test/builder\\?session_id=${CHAT}&gdrive=connected&gdrive_marker=[A-Za-z0-9_-]{32}$`), what)
+      else { assert.equal(back.location, 'https://app.test/settings/connectors?gdrive=connected', what); assert.equal('deckster_gdrive_return_marker' in back.cookies.jar, false, `${what}: no marker for Settings`) }
+      assert.equal(calls.length, 1, `${what}: start never calls Researcher; the callback's one call is the exchange`); assert.match(calls[0].url, /\/gdrive\/exchange$/)
+    }
+    // no chat named, an invalid return, no request at all, an unconfigured server, a signed-out caller, the flag off: no lookup at all (Prisma is not even loaded)
+    for (const [what, run] of [
+      ['no ?return=', s => s.handleStart({ url: 'https://app.test/api/connectors/gdrive/start' })],
+      ['an invalid return', s => s.handleStart({ url: `https://app.test/api/connectors/gdrive/start?return=${encodeURIComponent('https://evil.test/')}` })],
+      ['a return that is not a chat', s => s.handleStart({ url: `https://app.test/api/connectors/gdrive/start?return=${encodeURIComponent('/settings/connectors')}` })],
+      ['no request object', s => s.handleStart()],
+    ]) { reset(); const r = await run(L(stubsFor(), ENV)); assert.equal(r.status, 307, what); assert.equal('deckster_gdrive_return' in r.cookies.jar, false, what); assert.equal(prismaLoads, 0, `${what}: no lookup`); assert.equal(prismaCalls.length, 0, what) }
+    for (const [what, stubs, env, want] of [
+      ['the Researcher address unset', stubsFor(), { ...ENV, KNOWLEDGE_SERVICE_URL: '' }, 503], ['a signed-out caller', stubsFor(null), ENV, 401],
+      ['the Drive flag off', stubsFor(), { ...ENV, NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED: undefined }, 404],
+    ]) { reset(); const r = await L(stubs, env).handleStart(startReq()); assert.equal(r.status, want, what); assert.equal(prismaLoads, 0, `${what}: no lookup`); assert.equal(prismaCalls.length, 0, what) }
+  }],
+  ['the exchange (round 2, REVIEW-1 note 2): the callback\'s code exchange has its own 20 s limit, every other Researcher call keeps 8 s; a slow exchange (14 s on a simulated clock) still connects, any other call at 14 s is a 504, and an exchange past 20 s ends "failed"', async (L) => {
+    const s = L(stubsFor(), ENV)
+    assert.equal(s.RESEARCHER_TIMEOUT_MS, 8000); assert.equal(s.RESEARCHER_EXCHANGE_TIMEOUT_MS, 20000)
+    const st = gdriveLib.signState('s3cret', 'cuid_session_user', 'n1'), cb = () => req(`https://app.test/api/connectors/gdrive/callback?code=C&state=${st}`, null, 'n1')
+    // which limit each call carries: the exchange 20 s, the others 8 s (limits are recorded in call order)
+    await s.handleCallback(cb()); await s.handlePickerToken(); await s.handleItemsGet(); await s.handleItemsPost(req('u', { file_ids: ['1AbCdEfGhIjK_-x'] })); await s.handleDisconnect()
+    await s.handleSessionLinks(LINK(), 'POST'); await s.handleItemsDelete(req('u', { item_ids: ['abcdefghij12'] }))
+    assert.deepEqual(calls.map(c => c.url.split('/connectors/')[1].split('?')[0]), ['gdrive/exchange', 'gdrive/picker-token', 'gdrive/items', 'gdrive/items', 'gdrive/disconnect', 'gdrive/session-links', 'gdrive/items'])
+    assert.deepEqual(signals.requested, [20000, 8000, 8000, 8000, 8000, 8000, 8000])
+    // behaviour, on a simulated clock (1 s = 20 ms): a reply after 14 "s" is inside the exchange's limit and outside everyone else's
+    reset(); signals.speedup = 50
+    const slow = (ms) => (_u, init) => new Promise((resolve, reject) => {
+      const timer = setTimeout(() => resolve({ ok: true, status: 200, json: async () => ({ access_token: 'short', expires_in: 1 }) }), ms / 50)
+      init.signal.addEventListener('abort', () => { clearTimeout(timer); reject(init.signal.reason) })
+    })
+    const keepAlive = setInterval(() => {}, 20), realError = console.error
+    try {
+      const s2 = L(stubsFor(), ENV)
+      reply = slow(14000)
+      const ok = await s2.handleCallback(cb()); assert.match(ok.location, /gdrive=connected$/, 'the exchange finishing at 14 s is a success')
+      const p = await s2.handlePickerToken(); assert.equal(p.status, 504, 'any other call at 14 s has timed out')
+      reply = slow(25000); console.error = () => {}
+      const late = await s2.handleCallback(cb()); assert.match(late.location, /gdrive=failed$/, 'the exchange has a limit: past 20 s it ends "failed", as before')
+    } finally { console.error = realError; clearInterval(keepAlive) }
+  }],
 ]
 for (const [name, fn] of HARDENING) await t(`hardening: ${name}`, () => fn((stubs, env) => load(SERVER, stubs, env)))
 
@@ -226,7 +298,18 @@ for (const [name, fn] of HARDENING) await t(`hardening: ${name}`, () => fn((stub
     'a deleted chat accepted': [SRV, "  if (chat.status === 'deleted') return refuse(410)\n", ''],
     'a failed lookup treated as owned': [SRV, "return fail(503, 'Could not check this chat right now. Please try again.')", 'return null'],
     'redirects followed': [SRV, "redirect: 'manual', ", "redirect: 'follow', "],
-    'no timeout': [SRV, 'signal: AbortSignal.timeout(RESEARCHER_TIMEOUT_MS), ', ''],
+    'no timeout': [SRV, 'signal: AbortSignal.timeout(timeoutMs), ', ''],
+    'the exchange on the 8 s limit': [SRV, 'undefined, undefined, RESEARCHER_EXCHANGE_TIMEOUT_MS)', 'undefined, undefined, RESEARCHER_TIMEOUT_MS)'],
+    'every call on the 20 s limit': [SRV, 'timeoutMs = RESEARCHER_TIMEOUT_MS) {', 'timeoutMs = RESEARCHER_EXCHANGE_TIMEOUT_MS) {'],
+    'the exchange limit is not 20 s': [SRV, 'export const RESEARCHER_EXCHANGE_TIMEOUT_MS = 20000', 'export const RESEARCHER_EXCHANGE_TIMEOUT_MS = 30000'],
+    'the exchange has no limit of its own (the constant is the default one)': [SRV, 'export const RESEARCHER_EXCHANGE_TIMEOUT_MS = 20000', 'export const RESEARCHER_EXCHANGE_TIMEOUT_MS = 8000'],
+    'start: the return chat is not checked': [SRV, 'const returnTo = requested ? await chatReturnIfOwn(g.userId, requested) : null', 'const returnTo = requested'],
+    'start: someone else\'s chat is kept': [SRV, "return chat && (chat.userId !== ownerId || chat.status === 'deleted') ? null : returnTo", "return chat && chat.status === 'deleted' ? null : returnTo"],
+    'start: a deleted chat is kept': [SRV, "return chat && (chat.userId !== ownerId || chat.status === 'deleted') ? null : returnTo", 'return chat && chat.userId !== ownerId ? null : returnTo'],
+    'start: no row drops the chat': [SRV, "return chat && (chat.userId !== ownerId || chat.status === 'deleted') ? null : returnTo", "return !chat || chat.userId !== ownerId || chat.status === 'deleted' ? null : returnTo"],
+    'start: a failed lookup keeps the chat': [SRV, '    return chat && (chat.userId !== ownerId || chat.status === \'deleted\') ? null : returnTo\n  } catch {\n    return null\n', '    return chat && (chat.userId !== ownerId || chat.status === \'deleted\') ? null : returnTo\n  } catch {\n    return returnTo\n'],
+    'start: a failed lookup is an error page': [SRV, '    return chat && (chat.userId !== ownerId || chat.status === \'deleted\') ? null : returnTo\n  } catch {\n    return null\n', '    return chat && (chat.userId !== ownerId || chat.status === \'deleted\') ? null : returnTo\n  } catch {\n    throw new Error(\'lookup failed\')\n'],
+    'start: looks the chat up even without a return': [SRV, 'const returnTo = requested ? await chatReturnIfOwn(g.userId, requested) : null', 'const returnTo = requested ? await chatReturnIfOwn(g.userId, requested) : (await chatReturnIfOwn(g.userId, \'/builder?session_id=chatsess00000001\'), null)'],
     'no size cap': [SRV, 'if (bytes > RESEARCHER_MAX_BODY_BYTES) {', 'if (false) {'],
     'an unknown 4xx keeps its status': [SRV, 'status: code && res.status >= 400 && res.status < 500 ? res.status : 502', 'status: res.status >= 500 ? 502 : res.status'],
     'no-store dropped from relayed answers': [SRV, 'return NextResponse.json(keep(data), { headers: NO_STORE })', 'return NextResponse.json(keep(data))'],

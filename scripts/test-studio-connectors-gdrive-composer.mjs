@@ -175,10 +175,13 @@ class FakeRes { constructor(body, status = 200, location) { this.body = body; th
 const NextResponse = { json: (b, i = {}) => new FakeRes(b, i.status ?? 200), redirect: (u) => new FakeRes(null, 307, String(u)) }
 let calls = []
 globalThis.fetch = async (url, init) => { calls.push({ url, init }); return { ok: true, status: 200, json: async () => ({}) } }
+// round 2 (REVIEW-1 note 1): `start` looks the return chat up; the table is a fake (no row unless a test sets one), so nothing here ever loads the real Prisma client
+let chatRow = null, prismaError = null, prismaCalls = []
 const serverStubs = (userId = 'cuid_session_user') => ({
   'next/server': { NextResponse },
   '@/lib/kg-proxy': { requireKgEntitled: async () => (userId ? { userId } : { error: new FakeRes({ error: 'Unauthorized' }, 401) }), kgHeaders: x => ({ ...x }) },
   '@/lib/service-url': { requireServiceUrl: (_l, c) => c[0].value },
+  '@/lib/prisma': { prisma: { chatSession: { findUnique: async q => { prismaCalls.push(q); if (prismaError) throw prismaError; return chatRow } } } },
 })
 const SERVER_ENV = { ...ENV_ON, NEXTAUTH_SECRET: 's3cret', NEXTAUTH_URL: 'https://app.test', GOOGLE_CONNECTOR_CLIENT_ID: 'cid', KNOWLEDGE_SERVICE_URL: 'https://researcher.test', RESEARCHER_SESSION_TOKEN_SECRET: 'test-only-researcher-session-secret-0123456789' }
 const serverWorld = (env = SERVER_ENV) => createWorld({ env, stubs: serverStubs() }).load('lib/connectors-gdrive-server.ts')
@@ -203,6 +206,29 @@ await t('start: no ?return= / an invalid one => no return cookie (the Settings r
     const r = await s.handleStart(startReq(q)); assert.equal('deckster_gdrive_return' in r.cookies.jar, false, q); assert.ok(r.cookies.jar.deckster_gdrive_oauth_nonce)
   }
   const r0 = await s.handleStart(); assert.equal('deckster_gdrive_return' in r0.cookies.jar, false)
+})
+await t('start (round 2, REVIEW-1 note 1): the chat to come back to must be the caller\'s: someone else\'s row, a deleted row or a failed lookup => no return cookie, the callback lands on Settings (no error page); no row yet or the caller\'s own row => back in the chat', async () => {
+  const round = async (found, error = null) => {
+    chatRow = found; prismaError = error; prismaCalls = []
+    const s = serverWorld()
+    const started = await s.handleStart(startReq(`?return=${encodeURIComponent(RET)}`))
+    assert.equal(started.status, 307); assert.match(started.location, /^https:\/\/accounts\.google\.com\//)
+    assert.deepEqual(plain(prismaCalls), [{ where: { id: CHAT }, select: { userId: true, status: true } }])
+    const ret = started.cookies.jar.deckster_gdrive_return?.v
+    const state = new URL(started.location).searchParams.get('state'), nonce = started.cookies.jar.deckster_gdrive_oauth_nonce.v
+    const back = await s.handleCallback(cbReq(state, { deckster_gdrive_oauth_nonce: nonce, ...(ret ? { deckster_gdrive_return: ret } : {}) }))
+    return { ret, back: back.location }
+  }
+  const settings = 'https://app.test/settings/connectors?gdrive=connected'
+  for (const [what, found, error] of [['someone else\'s row', { userId: 'someone_else', status: 'active' }], ['a deleted row', { userId: 'cuid_session_user', status: 'deleted' }], ['a failed lookup', null, new Error('db down')]]) {
+    const r = await round(found, error); assert.equal(r.ret, undefined, `${what}: no return cookie`); assert.equal(r.back, settings, `${what}: Settings`)
+  }
+  for (const [what, found] of [['no row yet', null], ['the caller\'s own row', { userId: 'cuid_session_user', status: 'active' }]]) {
+    const r = await round(found); assert.equal(r.ret, RET, what); assert.match(r.back, new RegExp(`^https://app\\.test/builder\\?session_id=${CHAT}&gdrive=connected&gdrive_marker=`), what)
+  }
+  chatRow = null; prismaError = null; prismaCalls = []
+  await serverWorld().handleStart(startReq()); await serverWorld().handleStart(); assert.deepEqual(prismaCalls, [], 'no ?return= => no lookup')
+  calls = [] // the callbacks above called the (fake) exchange; the tests below count their own
 })
 await t('start: flag off (either) => 404, nothing set', async () => {
   for (const env of [{ ...SERVER_ENV, NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED: undefined }, { ...SERVER_ENV, NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED: 'false' }]) {
@@ -370,6 +396,17 @@ await t('D2a: not connected (picker rejects with CONNECTOR_NOT_CONNECTED) => the
   h.api.cancelConnect(); await settle(); assert.equal(h.api.connectOpen, false)
   h.api.addFromDrive(async () => {}); await settle(); h.api.connect(); await settle()
   assert.deepEqual(h.log.assigned, [`/api/connectors/gdrive/start?return=${encodeURIComponent(`/builder?session_id=${CHAT}`)}`]); assert.equal(h.api.startHref, h.log.assigned[0])
+})
+await t('D2a, round 2 (REVIEW-1 note 1): the Connect / Reconnect link can only be followed after the composer\'s draft-session creator has finished (the chat\'s Studio row exists): while it is still creating, no Picker, no prompt, no link; if it fails, never', async () => {
+  const err = Object.assign(new Error('Google Drive is not available right now.'), { code: 'CONNECTOR_NOT_CONNECTED', status: 404 })
+  const h = makeHookWorld({ pickError: err }); h.mount()
+  let finish; const creating = new Promise(r => { finish = r })
+  h.api.addFromDrive(() => creating); await settle()
+  assert.equal(h.log.picker, 0, 'the Picker waits for the creator'); assert.equal(h.api.connectOpen, false, 'no connect prompt yet'); assert.deepEqual(h.log.assigned, [])
+  finish(); await settle()
+  assert.equal(h.log.picker, 1); assert.equal(h.api.connectOpen, true, 'the prompt appears only after the creator resolved')
+  const failing = makeHookWorld({ pickError: err }); failing.mount(); failing.api.addFromDrive(async () => { throw new Error('no row') }); await settle()
+  assert.equal(failing.log.picker, 0); assert.equal(failing.api.connectOpen, false); assert.deepEqual(failing.log.assigned, [])
 })
 await t('D8a: an expired grant (picker or /items) => warn notice with Reconnect, never the connect prompt', async () => {
   const revoked = Object.assign(new Error('x'), { code: 'CONNECTOR_GRANT_REVOKED', status: 409 })

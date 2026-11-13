@@ -28,6 +28,9 @@ const fail = (status: number, error: string) => NextResponse.json({ error }, { s
 // Hardening (REVIEW-1 #2): a Researcher call gives up after the ingest-status route's upstream timeout (app/api/researcher/ingest-status/[jobId]/route.ts),
 // never follows a redirect (it would carry the service key, the K-06 token and, on a 307, the body with the OAuth code), and is read only up to a cap.
 export const RESEARCHER_TIMEOUT_MS = 8000
+// Hardening round 2 (REVIEW-1 note 2): the callback's OAuth code exchange alone gets a longer limit (vercel.json gives app/api/**/route.ts 30 s), so an exchange that
+// finishes a moment after 8 s, grant stored, is not told "couldn't connect". Every other call keeps 8 s; a timeout still ends the exchange as "failed".
+export const RESEARCHER_EXCHANGE_TIMEOUT_MS = 20000
 export const RESEARCHER_MAX_BODY_BYTES = 1024 * 1024
 class UpstreamUnusable extends Error {}
 
@@ -58,13 +61,13 @@ function connectorIdentityHeader(ownerId: string): Record<string, string> {
   return { [RESEARCHER_SESSION_TOKEN_HEADER]: minted.token }
 }
 
-async function callResearcher(ownerId: string, path: string, method: 'GET' | 'POST' | 'DELETE', body?: Record<string, unknown>, query?: Record<string, string>, identityOverride?: Record<string, string>) {
+async function callResearcher(ownerId: string, path: string, method: 'GET' | 'POST' | 'DELETE', body?: Record<string, unknown>, query?: Record<string, string>, identityOverride?: Record<string, string>, timeoutMs = RESEARCHER_TIMEOUT_MS) {
   const identity = identityOverride ?? connectorIdentityHeader(ownerId)
   const url = new URL(`${researcherBase()}/api/v1/connectors${path}`)
   for (const [k, v] of Object.entries(query ?? {})) url.searchParams.set(k, v)
   return fetch(url.toString(), {
     method, cache: 'no-store',
-    redirect: 'manual', signal: AbortSignal.timeout(RESEARCHER_TIMEOUT_MS), // hardening (REVIEW-1 #2): a 3xx comes back as itself (an upstream error, below), a wedged call ends
+    redirect: 'manual', signal: AbortSignal.timeout(timeoutMs), // hardening (REVIEW-1 #2): a 3xx comes back as itself (an upstream error, below), a wedged call ends
     headers: kgHeaders({ ...(body ? { 'Content-Type': 'application/json' } : {}), ...identity }),
     body: body ? JSON.stringify(body) : undefined,
   })
@@ -141,7 +144,9 @@ export async function handleStart(req?: Request): Promise<NextResponse> {
   const res = NextResponse.redirect(buildGoogleAuthUrl(clientId, uri, signState(stateSecret(), g.userId, nonce)))
   res.cookies.set(GDRIVE_NONCE_COOKIE, nonce, { httpOnly: true, secure: true, sameSite: 'lax', path: '/api/connectors/gdrive', maxAge: STATE_TTL_MS / 1000 })
   // GDRIVE-COMPOSER: the composer's Connect remembers the chat to come back to (only /builder?session_id=<id>); no ?return= = the Settings landing, as before
-  const returnTo = req ? validReturnPath(new URL(req.url).searchParams.get(GDRIVE_RETURN_QUERY)) : null // GDRIVE-COMPOSER
+  // Hardening round 2 (REVIEW-1 note 1): the chat must not be someone else's, deleted or unreadable (chatReturnIfOwn); then it is the Settings landing too, no error page.
+  const requested = req ? validReturnPath(new URL(req.url).searchParams.get(GDRIVE_RETURN_QUERY)) : null // GDRIVE-COMPOSER
+  const returnTo = requested ? await chatReturnIfOwn(g.userId, requested) : null
   if (returnTo) res.cookies.set(GDRIVE_RETURN_COOKIE, returnTo, { httpOnly: true, secure: true, sameSite: 'lax', path: '/api/connectors/gdrive', maxAge: STATE_TTL_MS / 1000 }) // GDRIVE-COMPOSER
   return res
 }
@@ -166,7 +171,7 @@ export async function handleCallback(req: NextRequest): Promise<NextResponse> {
   const code = url.searchParams.get('code'); const uri = redirectUri()
   if (!code || !uri) return back('invalid')
   try {
-    const res = await callResearcher(g.userId, '/gdrive/exchange', 'POST', { owner_id: g.userId, code, redirect_uri: uri })
+    const res = await callResearcher(g.userId, '/gdrive/exchange', 'POST', { owner_id: g.userId, code, redirect_uri: uri }, undefined, undefined, RESEARCHER_EXCHANGE_TIMEOUT_MS) // hardening round 2: the exchange's own, longer limit
     return back(res.ok ? 'connected' : 'failed') // response body (and any token in it) is never forwarded to the browser
   } catch (e) {
     if (e instanceof IdentityUnavailable) return back('failed')
@@ -231,8 +236,7 @@ const linksView = (d: Record<string, unknown>) => ({
 async function ownChatRefusal(ownerId: string, sessionId: string): Promise<NextResponse | null> {
   let chat: { userId: string; status: string } | null
   try {
-    const { prisma } = await import('@/lib/prisma')
-    chat = await prisma.chatSession.findUnique({ where: { id: sessionId }, select: { userId: true, status: true } })
+    chat = await findChat(sessionId)
   } catch {
     return fail(503, 'Could not check this chat right now. Please try again.')
   }
@@ -240,6 +244,29 @@ async function ownChatRefusal(ownerId: string, sessionId: string): Promise<NextR
   if (!chat || chat.userId !== ownerId) return refuse(404)
   if (chat.status === 'deleted') return refuse(410)
   return null
+}
+
+/** The Studio row of a chat (its owner and status), or null when there is none. Throws when the lookup fails. Prisma is loaded here, so a request that never asks never loads it. */
+async function findChat(sessionId: string): Promise<{ userId: string; status: string } | null> {
+  const { prisma } = await import('@/lib/prisma')
+  return prisma.chatSession.findUnique({ where: { id: sessionId }, select: { userId: true, status: true } })
+}
+
+/**
+ * Hardening round 2 (REVIEW-1 note 1): `start` takes the chat to come back to from its own query, so a link could walk a person through their own consent and back to a chat that is
+ * not theirs. The return path (validReturnPath: /builder?session_id=<id>) is kept only when the chat is the caller's to return to: its row is theirs and not deleted, or it has NO row yet
+ * (a brand-new chat is a local id until its first action; the link step's ownChatRefusal still protects linking). Someone else's row, a deleted one and a failed lookup give null:
+ * the callback then lands on Settings, as for a start without ?return= (no error page). "No row" and "someone else's row" differ only in where the caller, who already holds the id, lands.
+ */
+async function chatReturnIfOwn(ownerId: string, returnTo: string): Promise<string | null> {
+  const sessionId = new URLSearchParams(returnTo.slice(returnTo.indexOf('?') + 1)).get('session_id')
+  if (!validChatSessionId(sessionId)) return null
+  try {
+    const chat = await findChat(sessionId)
+    return chat && (chat.userId !== ownerId || chat.status === 'deleted') ? null : returnTo
+  } catch {
+    return null
+  }
 }
 
 /** POST = link, DELETE = unlink. Off (either flag): 404. Owner is always the session cuid, and the chat must be the owner's (ownChatRefusal). */

@@ -23,7 +23,7 @@ export const CONNECTORS_GDRIVE_ENV_BLOCK = "# P4-15 slice 1: Google Drive picker
 
 // The settings sidebar's in-place edit (FRONTEND-2 N2), as exact [has, was] pairs: taken out, the sidebar is the base's (studio-v4-dev-preparation-code) byte for byte.
 const SIDEBAR = "components/settings/settings-sidebar.tsx"
-const SIDEBAR_PAIRS = [
+export const CONNECTORS_GDRIVE_SIDEBAR_PAIRS = [
   [
     'import { User, Palette, Bell, ShieldCheck, Lock, Brain, Plug } from "lucide-react"\nimport { isGdriveConnectorEnabled } from "@/lib/connectors-gdrive-flag"\n',
     'import { User, Palette, Bell, ShieldCheck, Lock, Brain } from "lucide-react"\n',
@@ -38,8 +38,15 @@ const SIDEBAR_PAIRS = [
   ],
 ]
 
-/** The sidebar without this change's lines is the base's sidebar. Any other file (and anything that is not a string) comes back as it was. */
+/** `text` with one whole-line put-back: `has` is whole lines with their newline, and it counts only at the start of a line (never as the tail of a longer one). Only the first occurrence goes: a block that is there twice is a merge mistake the older pins must still see. */
+function putBackLine(text, has, was) {
+  let at = text.indexOf(has)
+  while (at !== -1 && !(at === 0 || text[at - 1] === "\n")) at = text.indexOf(has, at + 1)
+  return at === -1 ? text : text.slice(0, at) + was + text.slice(at + has.length)
+}
+
+/** The sidebar without this change's lines is the base's sidebar (line-anchored, whole-line put-backs; idempotent). Any other file (and anything that is not a string) comes back as it was. */
 export function stripConnectorsGdrive(rel, text) {
   if (rel !== SIDEBAR || typeof text !== "string") return text
-  return SIDEBAR_PAIRS.reduce((out, [has, was]) => out.replace(has, () => was), text)
+  return CONNECTORS_GDRIVE_SIDEBAR_PAIRS.reduce((out, [has, was]) => putBackLine(out, has, was), text)
 }
