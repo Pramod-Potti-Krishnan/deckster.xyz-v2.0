@@ -11,8 +11,10 @@ export const AUDIT_PRESENT_EXIT_FLAGS = ["NEXT_PUBLIC_STUDIO_PRESENT_EXIT_FIX"]
 export const AUDIT_PRESENT_EXIT_MARKER = 'AUDIT-PRESENT-EXIT'
 /** The marker as a WHOLE token: AUDIT-PRESENT-EXIT-X and X-AUDIT-PRESENT-EXIT are not this change's. */
 export const AUDIT_PRESENT_EXIT_MARKER_RE = /(?<![\w-])AUDIT-PRESENT-EXIT(?![\w-])/
-/** The subject prefix of this change's own commits. */
-export const AUDIT_PRESENT_EXIT_SUBJECT = 'Audit fix:'
+/** The subject prefix of this change's own commits. Each audit change has one of its own, so a sibling audit change's commits are never taken for this one's. */
+export const AUDIT_PRESENT_EXIT_SUBJECT = 'Audit fix (present-exit):'
+/** This change's commits made before it had a subject of its own (the plain "Audit fix:"): fixed, so listed by sha, oldest first. A plain "Audit fix:" commit that is not listed here is another audit change's. */
+export const AUDIT_PRESENT_EXIT_LEGACY_COMMITS = ['8af80c498ef7209b9ecfc39ecbc182f7eea323da', '2f2bff16ac3aa1e88d5cd7c9f2ffca1a7f87d49f', 'c2cb728d3c92d8cdda2386d08444d841306dfab4', '181980f7fe2e49f87c3c5687b9bc591d20c702bd', '4ef211969024dac77cd8589df04047c4204196db', '1bd383f89e9c4175f097dcaccdf8d9e5a88ab5d2']
 
 /** Existing files that get marked lines. */
 export const AUDIT_PRESENT_EXIT_FILES = ["components/presentation-viewer.tsx"]
@@ -40,10 +42,10 @@ export const AUDIT_PRESENT_EXIT_EDITS = {
 export const AUDIT_PRESENT_EXIT_PIN_MARK = "LATER-CHANGES: registry read (AUDIT-PRESENT-EXIT)"
 export const AUDIT_PRESENT_EXIT_PIN_EDITS = {
   "scripts/test-studio-chat-element-edit.mjs": [
-    ["  shas.splice(0, shas.length, ...shas.filter(sha => !/^Audit fix:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (AUDIT-PRESENT-EXIT): on a branch stacked after this change (the audit P-17 Present exit fix), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files\n", ""],
+    ["  shas.splice(0, shas.length, ...shas.filter(sha => !(/^Audit fix \\(present-exit\\):/.test(git('log', '-1', '--format=%s', sha)) || ['8af80c498ef7209b9ecfc39ecbc182f7eea323da', '2f2bff16ac3aa1e88d5cd7c9f2ffca1a7f87d49f', 'c2cb728d3c92d8cdda2386d08444d841306dfab4', '181980f7fe2e49f87c3c5687b9bc591d20c702bd', '4ef211969024dac77cd8589df04047c4204196db', '1bd383f89e9c4175f097dcaccdf8d9e5a88ab5d2'].includes(sha)))) // LATER-CHANGES: registry read (AUDIT-PRESENT-EXIT): on a branch stacked after this change (the audit P-17 Present exit fix), the first-parent commits are its own (its own subject, or the plain-subject commits it had before, listed by sha), not this change's; a sibling audit change's commits stay; with none left the pins and identity checks cover the files\n", ""],
   ],
   "scripts/test-studio-deck-sync-truth.mjs": [
-    ["  shas.splice(0, shas.length, ...shas.filter(sha => !/^Audit fix:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (AUDIT-PRESENT-EXIT): on a branch stacked after this change (the audit P-17 Present exit fix), the first-parent commits are its own, not this change's; with none left the identity checks cover the files\n", ""],
+    ["  shas.splice(0, shas.length, ...shas.filter(sha => !(/^Audit fix \\(present-exit\\):/.test(git('log', '-1', '--format=%s', sha)) || ['8af80c498ef7209b9ecfc39ecbc182f7eea323da', '2f2bff16ac3aa1e88d5cd7c9f2ffca1a7f87d49f', 'c2cb728d3c92d8cdda2386d08444d841306dfab4', '181980f7fe2e49f87c3c5687b9bc591d20c702bd', '4ef211969024dac77cd8589df04047c4204196db', '1bd383f89e9c4175f097dcaccdf8d9e5a88ab5d2'].includes(sha)))) // LATER-CHANGES: registry read (AUDIT-PRESENT-EXIT): on a branch stacked after this change (the audit P-17 Present exit fix), the first-parent commits are its own (its own subject, or the plain-subject commits it had before, listed by sha), not this change's; a sibling audit change's commits stay; with none left the identity checks cover the files\n", ""],
   ],
   // The older proofs that read the viewer (or count its lines) hold it byte for byte, so they read it past this change's three lines: a marked import and a marked read hook (the viewer's own strip, never the registry), the phone proofs' scope line, and the rail proof's diff filter.
   "scripts/test-studio-arrange.mjs": [
