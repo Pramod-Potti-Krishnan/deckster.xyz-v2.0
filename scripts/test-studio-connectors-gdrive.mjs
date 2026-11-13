@@ -308,7 +308,7 @@ await t('FRONTEND-2 N2 / N3 / N4: the sidebar edit has a strip pair (frozen: own
   const DEV_BASE = process.env.CONNECTORS_GDRIVE_BASE || '2f06e51ec807d4ecd5cd00edc9bfd0005a5fd0b8' // studio-v4-dev-preparation-code, the base #566 stacks on (the sidebar's base)
   // the hardening's own frozen range: its merge base (#615's head ee01e2fe) .. its own head (its PR's last code + proof commit; a commit of its own sets only this pin)
   const OWN_BASE = process.env.CONNECTORS_HARDENING_BASE || 'ee01e2fe447bb5e6987f47af19a6b1a33cb3560c'
-  const OWN_HEAD = process.env.CONNECTORS_HARDENING_HEAD || 'PENDING'
+  const OWN_HEAD = process.env.CONNECTORS_HARDENING_HEAD || '2025664892102eca2250f0c2d02b0313a03fdd11'
   const have = commit => { try { execFileSync('git', ['cat-file', '-e', `${commit}^{commit}`], { cwd: root, stdio: 'ignore' }); return true } catch { return false } }
   const show = ref => execFileSync('git', ['show', `${ref}:${rel}`], { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20 })
   assert.ok(LATER_STRIPS.includes(stripConnectorsGdrive), 'registered')
