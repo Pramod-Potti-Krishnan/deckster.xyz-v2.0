@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url'
 import { LIBRARY_MANAGE_ADDITIONS, ENV_FILE, LIBRARY_MANAGE_NEW_FILES, TEMPLATES_WORKSPACE, THEME_HOOK, THEMES_WORKSPACE, stripLibraryManage } from './studio-library-manage-strip.mjs'
 import { stripLaterChanges } from './studio-later-changes.mjs' // stacked: the later-changes registry (a change stacked after this one registers its files, its .env.example block and its strip there; every read of an app file or .env.example goes through it first)
 import { BASE_COMMIT, STACKED_P2_FILES, STACKED_PASS3_FILES, baseSource, createRuntime, deferred, isBaseFile, jsxRuntime, loadSource, makeReader, plain, root, sha, text, tick } from './studio-library-manage-harness.mjs'
+import { API_HARDENING_SCOPE_FILES } from './studio-api-hardening-strip.mjs' // LATER-CHANGE: PROGRAM-1 API hardening (STUDIO_API_HARDENING_V1_ENABLED)
 
 const here = fileURLToPath(import.meta.url)
 const FLAG = 'NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE'
@@ -521,9 +522,10 @@ function mountWorkspace({ source = WORKSPACE_SOURCE, flag, templates = [QBR, BOA
     is(hashOff, sha(JSON.stringify(baseFrames))); console.log(`flag-off frames sha256 ${hashOff.slice(0, 16)} == base ${sha(JSON.stringify(baseFrames)).slice(0, 16)}`)
     if (!MUTATING) for (const rel of [TEMPLATES_WORKSPACE, ENV_FILE, USE_TEMPLATES, PROXY]) ok(isBaseFile(rel, stripLibraryManage(rel, read(rel)), baseSource(rel)), `${rel}: without this change's lines (delete and rename) it is the base commit's file${rel === ENV_FILE ? ' (its lines in order; a later change\'s block may follow)' : ', byte for byte'}`)
     if (!MUTATING) for (const [rel, table] of Object.entries(LIBRARY_MANAGE_ADDITIONS)) for (const [added] of table) is(read(rel).split(added).length - 1, 1, `${rel}: each added literal occurs exactly once`)
-    const changed = spawnSync('git', ['diff', '--name-only', BASE_COMMIT, '--', 'app', 'components', 'lib', 'hooks', 'middleware.ts'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(Boolean)
+    const changed = spawnSync('git', ['diff', '--name-only', BASE_COMMIT, '--', 'app', 'components', 'lib', 'hooks', 'middleware.ts'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(Boolean).filter(file => !API_HARDENING_SCOPE_FILES.has(file)) // LATER-CHANGE: PROGRAM-1 API hardening's files are its own
     const allowed = new Set([THEMES_WORKSPACE, TEMPLATES_WORKSPACE, THEME_HOOK, USE_TEMPLATES, PROXY, ...LIBRARY_MANAGE_NEW_FILES, ...STACKED_PASS3_FILES, ...STACKED_P2_FILES])
     ok(changed.every(file => allowed.has(file)), `this change touches only the two workspaces, the theme hook, the template hook and proxy (the rename) and its own three new files (the other Pass 3 changes' files and the Pass 2 pages' files may be stacked on it): ${changed.filter(file => !allowed.has(file)).join(', ') || 'ok'}`)
+    { const later = (await import('./studio-later-changes.mjs')).LATER_CHANGE_FILES; changed.splice(0, changed.length, ...changed.filter(file => !later.has(file))) } // LATER-CHANGES: registry read (BRAND-KIT-CALLER): a file a later change registers (the Brand Kit caller's theme proxies and its brand routes, scripts/studio-later-changes.mjs) is that change's, not the rename's: it is read as a later change before the API proxy check
     ok(!changed.some(file => (/^app\/api\/(templates|themes)\//.test(file) && file !== PROXY) || /admission/i.test(file)), 'no API proxy but the template one (the rename) and nothing of the admission report is touched')
   }
 

@@ -1,0 +1,768 @@
+{
+ "name": "chat-caps-replay",
+ "description": "B61 (chat parity C-D1, the Studio half): the replay set of CODEX-6's CHAT-CAPS-META contract, 'Studio reader'. The chat_capabilities values are Director's own, not invented: DERIVED from Director codex6/chat-caps-meta 3e01129 (config/chat_capabilities.json: the keys on by default and their _metadata; src/utils/mdc_chat_parity_libraries.py CAPABILITY_META / OPERATION_META; mdc_chat_parity_c4.metadata; mdc_chat_caps_meta._OPERATION_HINTS; the malformed entries are tests/test_chat_caps_meta.py's own) and the contract's JSON example. The frames that carry them are RECORDED: scripts/fixtures/build-resume/j7-stop-resume.json (Director's real code, keyless: its two reconnect sync_response frames with build_state) and scripts/fixtures/studio-job-ledger/sync-response-with-jobs.json; only payload.chat_capabilities / chat_capability_meta / chat_operation_meta are set on a copy of them.",
+ "source": {
+  "director": "3e01129b9c9f4b2c116def327bdfff69307910b1",
+  "director_c4": "413ff7dcda527c440d0e2e014857de37e381200c",
+  "contract": "streams/codex/codex6/CHAT-CAPS-META.md",
+  "carriers": [
+   "scripts/fixtures/build-resume/j7-stop-resume.json#frames.reconnect_send_history[0]",
+   "scripts/fixtures/build-resume/j7-stop-resume.json#frames.reconnect_skip_history[0]",
+   "scripts/fixtures/studio-job-ledger/sync-response-with-jobs.json"
+  ]
+ },
+ "values": {
+  "legacy_defaults": {
+   "qa": true,
+   "resume": true,
+   "new_deck_redirect": true,
+   "compose_slide": true,
+   "rebuild_slide": true,
+   "delete_slide": true,
+   "add_element": true,
+   "build_control": true,
+   "reorder_slide": true,
+   "change_theme": true,
+   "export": true
+  },
+  "typed_defaults": {
+   "qa": {
+    "confirm": false,
+    "client_directive": false
+   },
+   "resume": {
+    "confirm": false,
+    "client_directive": false
+   },
+   "new_deck_redirect": {
+    "confirm": true,
+    "client_directive": true
+   },
+   "compose_slide": {
+    "confirm": false,
+    "client_directive": false
+   },
+   "rebuild_slide": {
+    "confirm": true,
+    "client_directive": false
+   },
+   "delete_slide": {
+    "confirm": true,
+    "client_directive": false
+   },
+   "add_element": {
+    "confirm": false,
+    "client_directive": true
+   },
+   "build_control": {
+    "confirm": false,
+    "client_directive": false
+   },
+   "reorder_slide": {
+    "confirm": false,
+    "client_directive": false
+   },
+   "change_theme": {
+    "confirm": false,
+    "client_directive": true
+   },
+   "export": {
+    "confirm": false,
+    "client_directive": true
+   }
+  },
+  "contract_example": {
+   "qa": {
+    "confirm": false,
+    "client_directive": false
+   },
+   "delete_slide": {
+    "confirm": true,
+    "client_directive": false
+   },
+   "export": {
+    "confirm": false,
+    "client_directive": true
+   },
+   "publish_deck": {
+    "confirm": true,
+    "client_directive": true
+   }
+  },
+  "legacy_c2": {
+   "qa": true,
+   "resume": true,
+   "new_deck_redirect": true,
+   "compose_slide": true,
+   "rebuild_slide": true,
+   "delete_slide": true,
+   "add_element": true,
+   "build_control": true,
+   "reorder_slide": true,
+   "change_theme": true,
+   "export": true,
+   "theme_library": true,
+   "identity": true,
+   "templates": true
+  },
+  "legacy_c2_capability_meta": {
+   "qa": {
+    "confirm": false,
+    "client_directive": false
+   },
+   "resume": {
+    "confirm": false,
+    "client_directive": false
+   },
+   "new_deck_redirect": {
+    "confirm": true,
+    "client_directive": true
+   },
+   "compose_slide": {
+    "confirm": false,
+    "client_directive": false
+   },
+   "rebuild_slide": {
+    "confirm": true,
+    "client_directive": false
+   },
+   "delete_slide": {
+    "confirm": true,
+    "client_directive": false
+   },
+   "add_element": {
+    "confirm": false,
+    "client_directive": true
+   },
+   "build_control": {
+    "confirm": false,
+    "client_directive": false
+   },
+   "reorder_slide": {
+    "confirm": false,
+    "client_directive": false
+   },
+   "change_theme": {
+    "confirm": false,
+    "client_directive": true
+   },
+   "export": {
+    "confirm": false,
+    "client_directive": true
+   },
+   "theme_library": {
+    "confirm": false,
+    "client_directive": true
+   },
+   "identity": {
+    "confirm": false,
+    "client_directive": true
+   },
+   "templates": {
+    "confirm": false,
+    "client_directive": true
+   }
+  },
+  "legacy_c2_operation_meta": {
+   "themes.delete_theme": {
+    "confirm": true,
+    "client_directive": true
+   },
+   "templates.delete_template": {
+    "confirm": true,
+    "client_directive": true
+   },
+   "templates.clear_template": {
+    "confirm": false,
+    "client_directive": true
+   },
+   "templates.set_template_mode": {
+    "confirm": false,
+    "client_directive": true
+   },
+   "themes.apply_theme_choice": {
+    "confirm": false,
+    "client_directive": true
+   }
+  },
+  "typed_c2": {
+   "qa": {
+    "confirm": false,
+    "client_directive": false
+   },
+   "resume": {
+    "confirm": false,
+    "client_directive": false
+   },
+   "new_deck_redirect": {
+    "confirm": true,
+    "client_directive": true
+   },
+   "compose_slide": {
+    "confirm": false,
+    "client_directive": false
+   },
+   "rebuild_slide": {
+    "confirm": true,
+    "client_directive": false
+   },
+   "delete_slide": {
+    "confirm": true,
+    "client_directive": false
+   },
+   "add_element": {
+    "confirm": false,
+    "client_directive": true
+   },
+   "build_control": {
+    "confirm": false,
+    "client_directive": false
+   },
+   "reorder_slide": {
+    "confirm": false,
+    "client_directive": false
+   },
+   "change_theme": {
+    "confirm": false,
+    "client_directive": true
+   },
+   "export": {
+    "confirm": false,
+    "client_directive": true
+   },
+   "theme_library": {
+    "confirm": false,
+    "client_directive": true
+   },
+   "identity": {
+    "confirm": false,
+    "client_directive": true
+   },
+   "templates": {
+    "confirm": false,
+    "client_directive": true
+   }
+  },
+  "typed_c2_operation_meta": {
+   "themes.delete_theme": {
+    "confirm": true,
+    "client_directive": true
+   },
+   "templates.delete_template": {
+    "confirm": true,
+    "client_directive": true
+   },
+   "templates.clear_template": {
+    "confirm": false,
+    "client_directive": true
+   },
+   "templates.set_template_mode": {
+    "confirm": false,
+    "client_directive": true
+   },
+   "themes.apply_theme_choice": {
+    "confirm": false,
+    "client_directive": true
+   },
+   "identity.generate_logo": {
+    "confirm": true,
+    "client_directive": true
+   },
+   "templates.save_template": {
+    "confirm": true,
+    "client_directive": true
+   },
+   "templates.optimize_template": {
+    "confirm": true,
+    "client_directive": true
+   },
+   "templates.stop": {
+    "confirm": false,
+    "client_directive": false
+   }
+  }
+ },
+ "cases": [
+  {
+   "id": "absent",
+   "payload": {},
+   "expect": {
+    "known": false
+   }
+  },
+  {
+   "id": "null",
+   "payload": {
+    "chat_capabilities": null
+   },
+   "expect": {
+    "known": false
+   }
+  },
+  {
+   "id": "array",
+   "payload": {
+    "chat_capabilities": [
+     [
+      "qa",
+      true
+     ]
+    ]
+   },
+   "expect": {
+    "known": false
+   }
+  },
+  {
+   "id": "string",
+   "payload": {
+    "chat_capabilities": "qa"
+   },
+   "expect": {
+    "known": false
+   }
+  },
+  {
+   "id": "known_empty",
+   "payload": {
+    "chat_capabilities": {}
+   },
+   "expect": {
+    "known": true,
+    "caps": {},
+    "operations": {}
+   }
+  },
+  {
+   "id": "legacy_defaults",
+   "payload": {
+    "chat_capabilities": "$legacy_defaults"
+   },
+   "expect": {
+    "known": true,
+    "capsAllUnknownHint": [
+     "qa",
+     "resume",
+     "new_deck_redirect",
+     "compose_slide",
+     "rebuild_slide",
+     "delete_slide",
+     "add_element",
+     "build_control",
+     "reorder_slide",
+     "change_theme",
+     "export"
+    ]
+   }
+  },
+  {
+   "id": "legacy_true_false",
+   "comment": "tests/test_chat_caps_meta.py: entries({'speaker_notes': False, 'qa': True}); a legacy false is dropped",
+   "payload": {
+    "chat_capabilities": {
+     "speaker_notes": false,
+     "qa": true
+    }
+   },
+   "expect": {
+    "known": true,
+    "caps": {
+     "qa": [
+      null,
+      null
+     ]
+    }
+   }
+  },
+  {
+   "id": "typed_defaults",
+   "payload": {
+    "chat_capabilities": "$typed_defaults"
+   },
+   "expect": {
+    "known": true,
+    "capsFromValues": "typed_defaults"
+   }
+  },
+  {
+   "id": "typed_true_and_false_fields",
+   "payload": {
+    "chat_capabilities": "$contract_example"
+   },
+   "expect": {
+    "known": true,
+    "caps": {
+     "qa": [
+      false,
+      false
+     ],
+     "delete_slide": [
+      true,
+      false
+     ],
+     "export": [
+      false,
+      true
+     ],
+     "publish_deck": [
+      true,
+      true
+     ]
+    }
+   }
+  },
+  {
+   "id": "mixed_malformed",
+   "comment": "tests/test_chat_caps_meta.py's bad entries, beside good ones",
+   "payload": {
+    "chat_capabilities": {
+     "qa": {
+      "confirm": false,
+      "client_directive": false
+     },
+     "resume": null,
+     "export": {
+      "confirm": "true",
+      "client_directive": true
+     },
+     "change_theme": {
+      "confirm": false
+     },
+     "add_element": {
+      "confirm": false,
+      "client_directive": true,
+      "enabled": true
+     },
+     "delete_slide": true,
+     "compose_slide": "true",
+     "rebuild_slide": 1,
+     "reorder_slide": [
+      false,
+      false
+     ]
+    }
+   },
+   "expect": {
+    "known": true,
+    "caps": {
+     "qa": [
+      false,
+      false
+     ],
+     "delete_slide": [
+      null,
+      null
+     ]
+    }
+   }
+  },
+  {
+   "id": "unknown_keys",
+   "payload": {
+    "chat_capabilities": {
+     "qa": true,
+     "deckops1": true,
+     "publish1": {
+      "confirm": true,
+      "client_directive": true
+     },
+     "themes2": true,
+     "templates2": true,
+     "__proto__": true,
+     "constructor": {
+      "confirm": false,
+      "client_directive": true
+     }
+    }
+   },
+   "expect": {
+    "known": true,
+    "caps": {
+     "qa": [
+      null,
+      null
+     ]
+    }
+   }
+  },
+  {
+   "id": "legacy_key_valid_sibling",
+   "payload": {
+    "chat_capabilities": {
+     "templates": true,
+     "export": true
+    },
+    "chat_capability_meta": {
+     "templates": {
+      "confirm": false,
+      "client_directive": true
+     },
+     "export": {
+      "confirm": false,
+      "client_directive": true
+     }
+    }
+   },
+   "expect": {
+    "known": true,
+    "caps": {
+     "templates": [
+      false,
+      true
+     ],
+     "export": [
+      false,
+      true
+     ]
+    }
+   }
+  },
+  {
+   "id": "legacy_key_no_sibling",
+   "payload": {
+    "chat_capabilities": {
+     "templates": true
+    }
+   },
+   "expect": {
+    "known": true,
+    "caps": {
+     "templates": [
+      null,
+      null
+     ]
+    }
+   }
+  },
+  {
+   "id": "legacy_key_malformed_sibling",
+   "payload": {
+    "chat_capabilities": {
+     "templates": true,
+     "export": true
+    },
+    "chat_capability_meta": {
+     "templates": {
+      "confirm": false
+     },
+     "export": {
+      "confirm": "false",
+      "client_directive": true
+     }
+    }
+   },
+   "expect": {
+    "known": true,
+    "caps": {
+     "templates": [
+      null,
+      null
+     ],
+     "export": [
+      null,
+      null
+     ]
+    }
+   }
+  },
+  {
+   "id": "nested_value_wins",
+   "payload": {
+    "chat_capabilities": {
+     "export": {
+      "confirm": false,
+      "client_directive": true
+     }
+    },
+    "chat_capability_meta": {
+     "export": {
+      "confirm": true,
+      "client_directive": false
+     }
+    }
+   },
+   "expect": {
+    "known": true,
+    "caps": {
+     "export": [
+      false,
+      true
+     ]
+    }
+   }
+  },
+  {
+   "id": "sibling_never_adds_a_key",
+   "payload": {
+    "chat_capabilities": {
+     "qa": true
+    },
+    "chat_capability_meta": {
+     "export": {
+      "confirm": false,
+      "client_directive": true
+     },
+     "delete_deck": {
+      "confirm": true,
+      "client_directive": true
+     }
+    }
+   },
+   "expect": {
+    "known": true,
+    "caps": {
+     "qa": [
+      null,
+      null
+     ]
+    }
+   }
+  },
+  {
+   "id": "c2_mixed_group_legacy",
+   "comment": "C2 on, C-D1 off: the group says confirm=false, its deletion still needs the card",
+   "payload": {
+    "chat_capabilities": "$legacy_c2",
+    "chat_capability_meta": "$legacy_c2_capability_meta",
+    "chat_operation_meta": "$legacy_c2_operation_meta"
+   },
+   "expect": {
+    "known": true,
+    "confirmHints": [
+     [
+      "templates",
+      null,
+      null
+     ],
+     [
+      "templates",
+      "templates.delete_template",
+      true
+     ],
+     [
+      "templates",
+      "templates.clear_template",
+      false
+     ],
+     [
+      "theme_library",
+      "themes.delete_theme",
+      true
+     ],
+     [
+      "theme_library",
+      null,
+      null
+     ],
+     [
+      "identity",
+      "identity.generate_logo",
+      null
+     ],
+     [
+      "export",
+      null,
+      false
+     ],
+     [
+      "new_deck_redirect",
+      null,
+      true
+     ],
+     [
+      "delete_deck",
+      null,
+      null
+     ]
+    ]
+   }
+  },
+  {
+   "id": "c2_mixed_group_typed",
+   "comment": "C2 and C-D1 on: the extra operation hints",
+   "payload": {
+    "chat_capabilities": "$typed_c2",
+    "chat_capability_meta": "$legacy_c2_capability_meta",
+    "chat_operation_meta": "$typed_c2_operation_meta"
+   },
+   "expect": {
+    "known": true,
+    "confirmHints": [
+     [
+      "templates",
+      null,
+      null
+     ],
+     [
+      "templates",
+      "templates.delete_template",
+      true
+     ],
+     [
+      "templates",
+      "templates.save_template",
+      true
+     ],
+     [
+      "templates",
+      "templates.optimize_template",
+      true
+     ],
+     [
+      "templates",
+      "templates.stop",
+      false
+     ],
+     [
+      "identity",
+      "identity.generate_logo",
+      true
+     ],
+     [
+      "identity",
+      null,
+      null
+     ],
+     [
+      "theme_library",
+      "themes.apply_theme_choice",
+      false
+     ]
+    ]
+   }
+  },
+  {
+   "id": "operation_hint_without_group",
+   "comment": "an operation hint does not turn its feature on",
+   "payload": {
+    "chat_capabilities": {
+     "qa": true
+    },
+    "chat_operation_meta": {
+     "templates.delete_template": {
+      "confirm": true,
+      "client_directive": true
+     },
+     "identity.generate_logo": {
+      "confirm": true,
+      "client_directive": true
+     },
+     "unknown.op": {
+      "confirm": true,
+      "client_directive": true
+     }
+    }
+   },
+   "expect": {
+    "known": true,
+    "caps": {
+     "qa": [
+      null,
+      null
+     ]
+    },
+    "operations": {}
+   }
+  }
+ ]
+}

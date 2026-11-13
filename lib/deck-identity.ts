@@ -262,3 +262,14 @@ export function isDeckIdentityEnabled(): boolean {
   const value = String(raw ?? '').trim().toLowerCase();
   return value === '1' || value === 'true';
 }
+// BRAND-KIT-CALLER (NEXT_PUBLIC_STUDIO_BRAND_KIT, BK-C17/C18): the brand kit of the STANDARD saved theme as a deck's identity form. Pure. No kit, or a kit with none of the three identity fields (a fonts-only kit), gives the browser form back as it is
+// BRAND-KIT-CALLER (the same object, so flag-off and kit-absent output is byte-identical to today). Otherwise the kit REPLACES the browser copy for all three fields (BK-Q2, whole record: a field the kit left empty stays empty, an old browser value never comes back):
+// BRAND-KIT-CALLER kit.logo_url to logoUrl, kit.confidentiality to confidentiality, kit.footer to company (the only free-text slot: DeckIdentity has no footer field and Director composes the footer from identity). `source` stays what buildDeckIdentity says ("form").
+// BRAND-KIT-CALLER brandKitIdentityOverride is that replacement on its own (null when the kit supplies none of the three): the Presenter details dialog reads it too, so what it tells the person is what a build sends.
+export interface BrandKitIdentityInput { logo_url?: string | null; footer?: string | null; confidentiality?: string | null } // BRAND-KIT-CALLER
+export function brandKitIdentityOverride(kit: BrandKitIdentityInput | null | undefined): DeckIdentityForm | null { // BRAND-KIT-CALLER
+  const logoUrl = cleanLogoUrl(kit?.logo_url), company = cleanIdentityValue(kit?.footer), confidentiality = cleanIdentityValue(kit?.confidentiality); // BRAND-KIT-CALLER
+  if (!logoUrl && !company && !confidentiality) return null; // BRAND-KIT-CALLER
+  return { ...(company ? { company } : {}), ...(confidentiality ? { confidentiality } : {}), ...(logoUrl ? { logoUrl } : {}) }; // BRAND-KIT-CALLER
+} // BRAND-KIT-CALLER
+export function resolveDeckIdentityForm(kit: BrandKitIdentityInput | null | undefined, form: DeckIdentityForm): DeckIdentityForm { return brandKitIdentityOverride(kit) ?? form; } // BRAND-KIT-CALLER

@@ -17,7 +17,9 @@ import path from 'node:path'
 import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
-import { stripLibraryManage } from './studio-library-manage-strip.mjs'
+import { stripLibraryManage as stripLibraryManageBase } from './studio-library-manage-strip.mjs' // LATER-CHANGES: registry read (BRAND-KIT-CALLER)
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (BRAND-KIT-CALLER)
+const stripLibraryManage = (rel, text) => stripLibraryManageBase(rel, stripLaterChanges(rel, text)) // LATER-CHANGES: registry read (BRAND-KIT-CALLER): a later change's marked lines (the Brand Kit's, in the Themes page) come out first
 
 const FLAG = 'NEXT_PUBLIC_THEME_FONT_SELECTION_ENABLED'
 const treeRoot = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
@@ -185,6 +187,7 @@ function userMessageBuilder(rootDir, overrides = {}) {
   context.CHAT_ELEMENT_EDIT_ENABLED = false // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT), stacked after #475: NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT's one flag-gated caps line in buildUserMessage (#522), off here like the other flags
   context.STUDIO_CHAT_COMMANDS_ENABLED = false // LATER-CHANGES: registry read (CHAT-COMMANDS), stacked after #475: NEXT_PUBLIC_STUDIO_CHAT_COMMANDS's two flag-gated lines in buildUserMessage (#532), off here like the other flags
   context.CHAT_PARITY_CAPS = [] // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): NEXT_PUBLIC_STUDIO_CHAT_PARITY_*'s one flag-gated line in buildUserMessage (themes1 / identity1 / templates1), empty (all off) here
+  context.STUDIO_AGENT_MODE_ENABLED = false // LATER-CHANGES: registry read (AGENT-MODE-WIRE), stacked after #475: NEXT_PUBLIC_AGENT_MODE / NEXT_PUBLIC_STUDIO_V4_SHELL's one flag name in buildUserMessage (the voice turn that never starts an Agent run), off here like the other flags
   vm.runInNewContext(js, context)
   // The frame the socket would send for `buildSendOptions` ({ theme, ... }), exactly as JSON.stringify writes it.
   return (theme, extra = {}) => {

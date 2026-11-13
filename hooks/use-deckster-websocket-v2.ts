@@ -1,3 +1,4 @@
+import { announceQuotaRefusal, isStudioQuotaScreensOn, walletPrecheckAllows } from '@/lib/studio-billing-usage' // BILLING-F5-USAGE
 import { useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from './use-auth';
 import { composerThemeFromSync, composerThemeSyncBlocked, readComposerAdoption, type ComposerAdoption } from '@/lib/composer-theme-policy';
@@ -22,6 +23,8 @@ import { STUDIO_TEMPLATE_MATCH_ENABLED, isTemplateMatchMessage } from '@/lib/stu
 import { addTemplateMatchCap, templateMatchBaseCaps } from '@/lib/studio-template-match-wire'; // STUDIO-TEMPLATE-MATCH
 import { templateMatchFrameReceived, templateMatchSocketOpened } from '@/hooks/use-studio-template-match'; // STUDIO-TEMPLATE-MATCH
 import { STUDIO_FLOW_AMEND_ENABLED, STUDIO_FLOW_FOCUS_ENABLED, flowBus, isFlowFocusFrameType, isFlowSettledPhase, takeFlowInstructions } from '@/lib/studio-flow-control'; // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_FOCUS / _FLOW_AMEND, default off)
+import { STUDIO_CHAT_CAPS_META_ENABLED, chatCapsSyncReceived } from '@/lib/studio-chat-caps'; // CHAT-CAPS-META (NEXT_PUBLIC_STUDIO_CHAT_CAPS_META, default off): Director's sync_response chat_capabilities, read into a read-only snapshot
+import { STUDIO_VOICE_CALL_UI_ENABLED, addVoiceCallFields, isVoiceCallFrameType, voiceCallBus } from '@/lib/studio-voice-call-ui'; // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL, default off)
 import type { ManualDeckContext } from '@/lib/manual-deck-workflow';
 import type { DeckFooterConfig, DeckIdentity } from '@/lib/deck-identity';
 import {
@@ -52,6 +55,7 @@ import {
   shouldReconnectDirectorOnOnline,
 } from '@/lib/director-reconnect-policy';
 import { STUDIO_ONE_LIVE_TAB_ENABLED, isDirectorSupersededClose } from '@/lib/studio-one-live-tab';
+import { STUDIO_AGENT_MODE_ENABLED, agentAnswerFrame, agentAnswerSendable, isAgentFrameType } from '@/lib/studio-agent-mode'; // AGENT-MODE-WIRE (NEXT_PUBLIC_AGENT_MODE and NEXT_PUBLIC_STUDIO_V4_SHELL, both exact "true"; default off)
 import { linkedItemIdsField } from '@/lib/connectors-gdrive-session-links';
 import {
   buildControlEndpointFromWsUrl,
@@ -624,6 +628,7 @@ export interface UserMessage {
     // One-shot key seeded by POST /api/sessions/{id}/handoff. Director uses it
     // to suppress navigation/reconnect retries of the pending build request.
     handoff_idempotency_key?: string;
+    build_mode?: 'standard' | 'author' | 'agent'; // AGENT-MODE-WIRE: Director's opt-in key (MR-604); omitted unless the picker chose and the plan allows it
   };
 }
 
@@ -635,6 +640,7 @@ export interface SendUserMessageOptions {
   deepResearch?: boolean;
   webSearch?: boolean;
   extendedGeneration?: boolean;
+  buildMode?: 'standard' | 'author' | 'agent'; // AGENT-MODE-WIRE
   fileUpload?: boolean;
   storeName?: string | null;
   useKnowledgeGraph?: boolean;
@@ -782,6 +788,7 @@ export interface UseDecksterWebSocketV2Options {
   // jobs list, possibly []). Never rendered in chat. Unused with the flag off.
   onJobUpdate?: (row: import('@/lib/studio-job-ledger').JobLedgerRow, owner: import('@/lib/studio-job-ledger').JobLedgerOwner) => void;
   onJobsSync?: (rows: import('@/lib/studio-job-ledger').JobLedgerRow[], owner: import('@/lib/studio-job-ledger').JobLedgerOwner) => void;
+  onAgentFrame?: (frame: unknown, owner: { sessionId: string | null; isCurrent: () => boolean }) => void; // AGENT-MODE-WIRE: Director's six agent_* frames ({ type, payload }, no session envelope) go to the page's run card, only with the flags. Unused with them off.
   onSlideComposeReady?: (message: SlideComposeReady) => void;
   onSlideComposeFailed?: (message: SlideComposeFailed) => void;
   onTemplateIngestReady?: (message: TemplateIngestReady) => void;
@@ -1290,6 +1297,15 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   // ws_auth caps any token at 20m), and the frame that arrives at expiry is
   // discarded server-side — which silently swallowed the strawman approval.
   const authRefreshTimerRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  // WS-BQ-CLAIM: build-quota claim (contract F-quota-bq-claim v1). `bqClaimActiveRef` is set
+  // WS-BQ-CLAIM: from the ws-token response, which carries `bq_claim: true` only when the
+  // WS-BQ-CLAIM: server flag DECKSTER_WS_BQ_CLAIM_ENABLED is on; with the flag off it stays
+  // WS-BQ-CLAIM: false and the forced refresh below never runs. `forceAuthRefreshRef` re-mints
+  // WS-BQ-CLAIM: the token now (after a coupon redeem / top-up / checkout) instead of waiting
+  // WS-BQ-CLAIM: for the ~9 minute timer.
+  const bqClaimActiveRef = useRef(false); // WS-BQ-CLAIM
+  const forceAuthRefreshRef = useRef<(() => void) | null>(null); // WS-BQ-CLAIM
+  const forcedAuthRefreshInFlightRef = useRef(false); // WS-BQ-CLAIM
   const pongDeadlineTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const awaitingPongRef = useRef(false);
   const lastCloseDiagnosticAtRef = useRef(0);
@@ -1361,6 +1377,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         if (!isCurrentRefresh()) return;
         if (body?.auth_enabled === false) return; // tokenless deployment
         if (!body?.auth_token) throw new Error('ws-token returned no token');
+        bqClaimActiveRef.current = body.bq_claim === true; // WS-BQ-CLAIM
         socket!.send(JSON.stringify({
           type: 'auth_refresh',
           payload: { token: body.auth_token },
@@ -1379,7 +1396,63 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         );
       }
     }, delayMs);
+    // WS-BQ-CLAIM: mirrors the timer callback above (scheduleAuthRefresh's setTimeout body); keep the two in step
+    const forceRefreshNow = async () => { // WS-BQ-CLAIM
+      if (!isCurrentRefresh()) return; // WS-BQ-CLAIM
+      try { // WS-BQ-CLAIM
+        const resp = await fetch( // WS-BQ-CLAIM
+          `/api/director/ws-token?session_id=${encodeURIComponent(refreshSessionId)}`, // WS-BQ-CLAIM
+          { cache: 'no-store' }, // WS-BQ-CLAIM
+        ); // WS-BQ-CLAIM
+        if (!isCurrentRefresh()) return; // WS-BQ-CLAIM
+        if (!resp.ok) throw new Error(`ws-token HTTP ${resp.status}`); // WS-BQ-CLAIM
+        const body = await resp.json(); // WS-BQ-CLAIM
+        if (!isCurrentRefresh()) return; // WS-BQ-CLAIM
+        if (body?.auth_enabled === false) return; // WS-BQ-CLAIM: tokenless deployment
+        if (!body?.auth_token) throw new Error('ws-token returned no token'); // WS-BQ-CLAIM
+        bqClaimActiveRef.current = body.bq_claim === true; // WS-BQ-CLAIM
+        socket!.send(JSON.stringify({ // WS-BQ-CLAIM
+          type: 'auth_refresh', // WS-BQ-CLAIM
+          payload: { token: body.auth_token }, // WS-BQ-CLAIM
+        })); // WS-BQ-CLAIM
+        // WS-BQ-CLAIM: browser send is not the server's auth_refreshed acknowledgement.
+        debugLog('🔐 Director WS auth refresh sent; awaiting acknowledgement'); // WS-BQ-CLAIM
+        scheduleAuthRefresh( // WS-BQ-CLAIM
+          typeof body.expires_in === 'number' ? body.expires_in : expiresInSeconds, // WS-BQ-CLAIM
+        ); // WS-BQ-CLAIM
+      } catch (refreshError) { // WS-BQ-CLAIM
+        if (!isCurrentRefresh()) return; // WS-BQ-CLAIM
+        // WS-BQ-CLAIM: retry once quickly; if the socket dies the reconnect path re-mints.
+        console.warn('[WS AUTH] Token refresh failed, retrying shortly:', refreshError); // WS-BQ-CLAIM
+        authRefreshTimerRef.current = setTimeout( // WS-BQ-CLAIM
+          () => { if (isCurrentRefresh()) scheduleAuthRefresh(expiresInSeconds); }, 30_000, // WS-BQ-CLAIM
+        ); // WS-BQ-CLAIM
+      } // WS-BQ-CLAIM
+    }; // WS-BQ-CLAIM
+    forceAuthRefreshRef.current = () => { // WS-BQ-CLAIM
+      if (!bqClaimActiveRef.current || forcedAuthRefreshInFlightRef.current || !isCurrentRefresh()) return; // WS-BQ-CLAIM
+      forcedAuthRefreshInFlightRef.current = true; // WS-BQ-CLAIM
+      clearAuthRefreshTimer(); // WS-BQ-CLAIM
+      void forceRefreshNow().finally(() => { forcedAuthRefreshInFlightRef.current = false; }); // WS-BQ-CLAIM
+    }; // WS-BQ-CLAIM
   }, [clearAuthRefreshTimer]);
+  // WS-BQ-CLAIM: a coupon redeem, top-up or checkout (on /redeem or /billing, usually in
+  // WS-BQ-CLAIM: another tab) asks this socket to re-mint its token now, so the build-quota
+  // WS-BQ-CLAIM: claim reflects the new plan or wallet at once. Inert unless the current
+  // WS-BQ-CLAIM: token carries a claim (server flag DECKSTER_WS_BQ_CLAIM_ENABLED). The channel
+  // WS-BQ-CLAIM: and event names are lib/ws-bq-refresh.ts's; they are spelled here rather than
+  // WS-BQ-CLAIM: imported so this hook's import list stays as it was.
+  useEffect(() => { // WS-BQ-CLAIM
+    const requestRefresh = () => forceAuthRefreshRef.current?.(); // WS-BQ-CLAIM
+    if (typeof BroadcastChannel !== 'undefined') { // WS-BQ-CLAIM
+      const channel = new BroadcastChannel('deckster-ws-bq-refresh'); // WS-BQ-CLAIM
+      channel.onmessage = requestRefresh; // WS-BQ-CLAIM
+      return () => channel.close(); // WS-BQ-CLAIM
+    } // WS-BQ-CLAIM
+    if (typeof window === 'undefined') return undefined; // WS-BQ-CLAIM
+    window.addEventListener('deckster:ws-bq-refresh', requestRefresh); // WS-BQ-CLAIM
+    return () => window.removeEventListener('deckster:ws-bq-refresh', requestRefresh); // WS-BQ-CLAIM
+  }, []); // WS-BQ-CLAIM
 
   const clearReconnectTimer = useCallback((preservePendingAttempt = false) => {
     if (reconnectTimeoutRef.current) {
@@ -1727,6 +1800,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             if (tokenBody?.auth_token) {
               // Never logged: the auth-bearing protocol carries the secret.
               protocols = ['deckster.v1', `deckster-auth.${tokenBody.auth_token}`];
+              bqClaimActiveRef.current = tokenBody.bq_claim === true; // WS-BQ-CLAIM
               expiresInSeconds =
                 typeof tokenBody.expires_in === 'number' ? tokenBody.expires_in : null;
               return { ok: true };
@@ -1902,6 +1976,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 ...(rawMessage.type === 'error' && typeof payload.detail === 'string' ? { detail: payload.detail } : {}),
                 ...(rawMessage.type === 'auth_expired' && typeof payload.discarded_message_type === 'string' ? { discardedMessageType: payload.discarded_message_type } : {}),
               };
+              if (rawMessage.type === 'error') announceQuotaRefusal(payload.code); // BILLING-F5-USAGE: Director D1 QUOTA_EXCEEDED / PLAN_REQUIRED -> the Builder's refusal screen (off: no-op)
               const previousNotice = transportNoticeRef.current;
               if (previousNotice?.requiresResend && previousNotice.sessionId === socketSessionId) {
                 // A later transport error is new information, not proof that the
@@ -1988,12 +2063,18 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_AMEND, default off): every build_phase is shown to the flow hook first (steer_pending, applied_to, settled). `settled` is a phase the narration does not know (it would read
             // FLOW-CONTROL: as "running"), so that frame goes no further. Every other build_phase carries on exactly as before.
             if (STUDIO_FLOW_AMEND_ENABLED && parsedMessage.type === 'build_phase') { if (parsedMessage.session_id === socketSessionId && isCurrentSocket()) flowBus.phase?.(parsedMessage.payload); if (isFlowSettledPhase(parsedMessage.payload)) return; } // FLOW-CONTROL
+            // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL, default off): the call is shown the frames that say what Director is doing (status_update, build_phase, build_event, slide_progress, chat_message, slide_built, slide_failed, action_request), for this socket's session only. The frame carries on exactly as before.
+            if (STUDIO_VOICE_CALL_UI_ENABLED && isVoiceCallFrameType(parsedMessage.type) && parsedMessage.session_id === socketSessionId && isCurrentSocket()) voiceCallBus.frame?.(parsedMessage); // VOICE-CALL
             // BULK-EDIT-UNDO (NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO, default off): Director's chat lines (the Undo chip's anchor), the bulk-edit confirm (its chip titles) and its receipts and summary,
             // BULK-EDIT-UNDO: change_recorded and undo_result go to this tab's store (lib/studio-bulk-edit-store.ts), here, ahead of the allowlist. The frames it takes (receipts, summary, change_recorded, undo_result) stop
             // BULK-EDIT-UNDO: here: they never reach the reducer, the transcript or the cache, and they do not unlock the turn. Director sends them only to a client that advertised bulk_edit1 / undo1 (the caps below, flag on only),
             // BULK-EDIT-UNDO: so a frame is its own capability, with or without a sync_response. Every other frame carries on as before. Flags off: nothing is routed.
             if (STUDIO_BULK_EDIT_UNDO_ENABLED && routeStudioBulkEditUndoFrame(parsedMessage, bulkEditUndoContext(socketSessionId, deckMutationOwnerRef.current, slideStructureRef.current, isCurrentSocket())) === 'consumed') return; // BULK-EDIT-UNDO
             if (STUDIO_CHAT_UNDO_ENABLED) normaliseDeckRestored(parsedMessage); // BULK-EDIT-UNDO: an undo's deck_mutation {mutation:"deck_restored"} is read as a whole-viewer refresh (slide_replaced, restored:true) before the checks below; flag off: untouched, ignored as before
+            // AGENT-MODE-WIRE (NEXT_PUBLIC_AGENT_MODE and NEXT_PUBLIC_STUDIO_V4_SHELL, default off): Director's six agent frames (agent_estimate, agent_step, agent_checkpoint, agent_research_offer, agent_failed, agent_done) go to the page's run card, here, ahead of the allowlist,
+            // AGENT-MODE-WIRE: so they never reach the reducer, the transcript or the cache, and they do not unlock the turn. Like the other server frames without the regular envelope, a frame carries no session id: its owner is this exact socket (a session id, if one is
+            // AGENT-MODE-WIRE: sent, must be this socket's). Flags off: an agent frame is an unknown type, dropped below as before.
+            if (STUDIO_AGENT_MODE_ENABLED && isAgentFrameType(parsedMessage.type)) { if (isCurrentSocket() && (rawMessage.session_id === undefined || rawMessage.session_id === socketSessionId)) transportCallbacksRef.current.onAgentFrame?.(parsedMessage, { sessionId: socketSessionId, isCurrent: isCurrentSocket }); return; } // AGENT-MODE-WIRE
             if (!isKnownDirectorMessageType(parsedMessage.type)) {
               return;
             }
@@ -2260,6 +2341,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                   break;
 
                 case 'sync_response':
+                  if (STUDIO_CHAT_CAPS_META_ENABLED) chatCapsSyncReceived(message.payload, { frameSessionId: message.session_id, socketSessionId, currentSessionId: sessionIdRef.current, isCurrent: isCurrentSocket }); // CHAT-CAPS-META: this socket's current-session sync replaces the read-only snapshot (lib/studio-chat-caps.ts: legacy true or C-D1 {confirm, client_directive}); nothing is sent and no state changes. Off: not read
                   if (COMPOSER_LIBRARY_ENABLED && socketSessionId === sessionIdRef.current &&
                       (!message.session_id || message.session_id === sessionIdRef.current)) {
                     const themeState = composerThemeFromSync(message.payload.composer_adoption, message.payload.presentation_id, Boolean(blockedIngress));
@@ -3435,6 +3517,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           ...(options?.ingestUploadRef && { ingest_upload_ref: options.ingestUploadRef }),
           ...(options?.manualDeck && { manual_deck: options.manualDeck }),
           ...(options?.deckIdentity && { deck_identity: options.deckIdentity }),
+          ...(options?.buildMode && { build_mode: options.buildMode }), // AGENT-MODE-WIRE
           ...(options?.handoffIdempotencyKey && {
             handoff_idempotency_key: options.handoffIdempotencyKey,
           }),
@@ -3461,6 +3544,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       if (BULK_EDIT_UNDO_CLIENT_CAPS.length > 0) addBulkEditUndoCaps(message.data as unknown as Record<string, unknown>); // BULK-EDIT-UNDO: bulk_edit1 / undo1 in client_caps, each with its own flag. Off: nothing.
       if (STUDIO_CHAT_COMMANDS_ENABLED) addChatCommandsFields(message.data as unknown as Record<string, unknown>, text); // CHAT-COMMANDS: mentions2 / commands1 in client_caps, the picked file / template / theme references whose token is still in the text, and the command hint. Off: nothing.
       if (CHAT_PARITY_CAPS.length > 0) addChatParityCaps(message.data as unknown as Record<string, unknown>); // CHAT-PARITY: themes1 / identity1 / templates1, after #522's element_edit1 / notes1, the bulk-edit caps and #532's mentions2 / commands1: the last caps line in client_caps, each with its own flag. Off: nothing.
+      if (typeof STUDIO_VOICE_CALL_UI_ENABLED !== 'undefined' && STUDIO_VOICE_CALL_UI_ENABLED) addVoiceCallFields(message.data as unknown as Record<string, unknown>, text); // VOICE-CALL: only the one armed voice turn (its exact words) gets data.mode "voice" and the cap voice1, after every other cap. Off, or any other message: nothing. (The typeof lets the older proofs that run buildUserMessage in a bare sandbox read this line without naming the flag there.)
+      if (STUDIO_AGENT_MODE_ENABLED && (message.data as unknown as Record<string, unknown>).mode === 'voice' && message.data.build_mode === 'agent') message.data.build_mode = 'standard'; // AGENT-MODE-WIRE: PK ruling, a voice turn never starts an Agent run: one marked mode "voice" never carries build_mode "agent" (the page already gave it "standard"; this is the last line, for a send that got past it), so Director's opt-in is dropped, never kept or set. Flags off: nothing.
       return message;
     };
 
@@ -3481,6 +3566,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}, use_knowledge_graph=${message.data.use_knowledge_graph ?? false}, theme=${message.data.theme?.mode ?? 'none'}, template_overrides=${message.data.element_overrides ? Object.keys(message.data.element_overrides).length : 0}, action=${message.data.action_value ?? 'none'}, manual_deck=${message.data.manual_deck?.policy ?? 'none'}, identity=${message.data.deck_identity ? 'yes' : 'no'}, handoff=${message.data.handoff_idempotency_key ? 'yes' : 'no'}]`
       );
       wsRef.current.send(JSON.stringify(message));
+      if (STUDIO_VOICE_CALL_UI_ENABLED && (message.data as unknown as Record<string, unknown>).mode === 'voice') voiceCallBus.sent?.(text); // VOICE-CALL: Director has the voice turn
       if (STUDIO_CHAT_COMMANDS_ENABLED) chatCommandsSent(text); // CHAT-COMMANDS: the picks and the command this message used are spent. Off: nothing.
       const turnSequence = ++sentTurnSequenceRef.current;
       const key = message.data.handoff_idempotency_key;
@@ -3532,6 +3618,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     timeoutMs: number = SEND_RECONNECT_TIMEOUT_MS,
     isCurrentRequest?: () => boolean,
   ): Promise<boolean> => {
+    if (isStudioQuotaScreensOn() && !(await walletPrecheckAllows())) return false; // BILLING-F5-USAGE: F4 pre-build check (404 = allowed)
     const origin = { ...turnSubmissionLifecycleRef.current };
     const isCurrentTurn = () => (
       turnSubmissionLifecycleRef.current.active &&
@@ -3610,6 +3697,13 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     try { wsRef.current.send(JSON.stringify(chatParityResultFrame(data))); return true; } catch { return false; } // CHAT-PARITY
   }, []); // CHAT-PARITY
   chatParityBus.send = sendChatParityResult // CHAT-PARITY: the page's runner answers through the bus (lib/studio-chat-parity.ts)
+  // AGENT-MODE-WIRE: the person's answer to an agent card (the contract's { type: 'agent_answer', data: { run_id, card, choice } }, lib/studio-agent-mode.ts agentAnswerFrame). It goes out ONLY on the live socket, never queued, never replayed after a reconnect
+  // AGENT-MODE-WIRE: (Director ignores an answer from a socket that is not the signed, current one); false (flags off, no live socket, a bad answer, a throwing send) leaves the card open for another click and sends nothing.
+  const sendAgentAnswer = useCallback((answer: import('@/lib/studio-agent-mode').AgentAnswer): boolean => { // AGENT-MODE-WIRE
+    const socket = wsRef.current; // AGENT-MODE-WIRE
+    if (!STUDIO_AGENT_MODE_ENABLED || !socket || !agentAnswerSendable(answer, socket.readyState === WebSocket.OPEN)) return false; // AGENT-MODE-WIRE
+    try { socket.send(JSON.stringify(agentAnswerFrame(answer))); return true; } catch { return false; } // AGENT-MODE-WIRE
+  }, []); // AGENT-MODE-WIRE
 
   const sendControlMessage = useCallback((type: ControlMessage['type'], data?: { job_id: string }): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
@@ -4233,6 +4327,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     sendElementDirectiveResult,
     sendElementEditResult, // CHAT-ELEMENT-EDIT
     sendControlMessage,
+    sendAgentAnswer, // AGENT-MODE-WIRE
     applyTemplateIngestReady,
     sendThemeSelection,
     sendBuildControl,

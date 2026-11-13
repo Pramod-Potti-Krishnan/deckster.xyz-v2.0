@@ -1,3 +1,4 @@
+import { stripVoiceCore, voiceCoreProofDiffLines } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): normalize only this port's exact proof metadata
 // FRONTEND-2 Pass 3 "model catalog on the Intelligence page" (flag NEXT_PUBLIC_STUDIO_MODEL_CATALOG, default off). Offline: no DOM, no network, no sign-in, no model call.
 //
 // What is proven, on the REAL sources (the TypeScript is transpiled and run in a vm; the page, workspace and chooser are the real files rendered with react-dom/server):
@@ -35,6 +36,7 @@ import React from 'react'
 import jsxRuntimeReal from 'react/jsx-runtime'
 import ReactDOMServer from 'react-dom/server'
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
+import { stripLaterChanges } from './studio-later-changes.mjs' // taught (FRONTEND-1, pre-promo UX-01): a later change's lines come out first, through the later-changes registry
 
 const { renderToStaticMarkup } = ReactDOMServer
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -71,7 +73,7 @@ const STACK_PKG_CHANGES = [['    "test:studio-model-catalog": "node scripts/test
 const STACK_SHOWN = new Map(), stackShow = (commit, rel) => { const key = `${commit}:${rel}`; if (!STACK_SHOWN.has(key)) STACK_SHOWN.set(key, git('show', key)); return STACK_SHOWN.get(key) } // stacked after #475: a commit's file, read once (the strip is held to fixed inputs, whatever HEAD carries)
 const OWN = [LIB, ROUTE, UI, CSS, LAYOUT, ENV, PKG, STRIP]
 for (const rel of [LIB, ROUTE, UI, CSS, LAYOUT, STRIP]) assert.ok(fs.existsSync(path.join(ROOT, rel)), `${rel} exists`)
-const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(ROOT, rel), 'utf8'))
+const read = rel => stripLaunchWording(rel, stripLaterChanges(rel, stripVoiceCore(rel, fs.readFileSync(path.join(ROOT, rel), 'utf8'))))
 const SOURCES = Object.fromEntries(OWN.map(rel => [rel, read(rel)]))
 const stripComments = text => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\'"`])\/\/[^\n]*/g, '$1')
 const git = (...args) => execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
@@ -838,7 +840,7 @@ function proveStackedScope() {
   changed.splice(0, changed.length, ...scope.checked) // stacked after #475: only this change's files, its family and its declared stack are checked below; a later PR's files are ignored, with a count
   for (const rel of changed) ok(own.has(rel) || rel.startsWith('scripts/fixtures/studio-model-catalog/') || STACKED_NARRATION_ROUTER.test(rel) || /^scripts\/(test-)?studio-env-append-tolerant\.mjs$/.test(rel), `stacked scope: ${rel} is this change's (or #475's, stacked on it, or the append-tolerant .env.example rule's)`)
   for (const rel of [...OWN, HARNESS]) ok(changed.includes(rel), `stacked scope: ${rel} is part of this change`)
-  const lines = (rel, sign) => git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\n').filter(line => line.startsWith(sign) && !line.startsWith(sign.repeat(3)))
+  const lines = (rel, sign) => voiceCoreProofDiffLines(rel, git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\n')).filter(line => line.startsWith(sign) && !line.startsWith(sign.repeat(3)))
   eq(lines(ENV, '-').length, 0, 'stacked scope: .env.example only gains lines (a pure insertion)')
   ok(lines(ENV, '+').every(line => /^\+(#|[A-Z][A-Z0-9_]*=|$)/.test(line)) && lines(ENV, '+').some(line => line.startsWith('+NEXT_PUBLIC_STUDIO_MODEL_CATALOG=')), 'stacked scope: and they are comments, blanks and assignments, this block among them (or #475\'s stacked block, or a later change\'s)')
   deepEq(lines(PKG, '-').map(line => line.replace(/,$/, '')), [lines(PKG, '-')[0]?.replace(/,$/, '')].filter(Boolean), 'stacked scope: package.json: at most the previous entry, which gains a comma')

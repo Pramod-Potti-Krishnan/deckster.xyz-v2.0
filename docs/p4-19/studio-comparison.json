@@ -1,0 +1,3954 @@
+{
+  "task": "P4-19",
+  "branch": "element3/p4-19-voice-core",
+  "pullRequest": "https://github.com/Pramod-Potti-Krishnan/deckster.xyz-v2.0/pull/558",
+  "baseHead": "abf52d4d4858b24cdb62549325ae5b9eed36624e",
+  "fullBranchHead": "466fc2503463be2213b6f1d267eed30fcc5cf078",
+  "latestFocusedHead": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
+  "status": "merged-91bcc908-light-checks-only-frozen-for-seat2-gate",
+  "voiceFixtureTests": {
+    "files": 11,
+    "passed": 225,
+    "command": "pnpm test:studio-voice-core"
+  },
+  "strictClientTypeCheck": "passed",
+  "exactProofAndMetadataViews": [
+    {
+      "file": "scripts/test-studio-deck-sync-truth.mjs",
+      "baselineSha256": "a5bf7a0cf1959912b118ca0b970ffd20cf72f3b4835826cfc7ac19e707581197",
+      "normalizedSha256": "a5bf7a0cf1959912b118ca0b970ffd20cf72f3b4835826cfc7ac19e707581197",
+      "exact": true
+    },
+    {
+      "file": "scripts/test-studio-chat-element-edit.mjs",
+      "baselineSha256": "1777f5e198decff3ab51b16cc6674b9fe42ef82c24c210db41857090a92bb8dc",
+      "normalizedSha256": "1777f5e198decff3ab51b16cc6674b9fe42ef82c24c210db41857090a92bb8dc",
+      "exact": true
+    },
+    {
+      "file": "scripts/test-studio-deck-mutation-dedupe.mjs",
+      "baselineSha256": "d11463600e0101eed6298ebdab38604b3e70714f29c6a451d99d72739b9c484f",
+      "normalizedSha256": "d11463600e0101eed6298ebdab38604b3e70714f29c6a451d99d72739b9c484f",
+      "exact": true
+    },
+    {
+      "file": "scripts/test-studio-launch-wording.mjs",
+      "baselineSha256": "b3c01957e374495b0a89b93bc32429196190e86ada2ea11e95d9f4684a116ac1",
+      "normalizedSha256": "b3c01957e374495b0a89b93bc32429196190e86ada2ea11e95d9f4684a116ac1",
+      "exact": true
+    },
+    {
+      "file": "scripts/test-studio-legal-short-links.mjs",
+      "baselineSha256": "914beb8d2148817c2241a8abbae1cc87095a8c7f9a2d454db757f1c3eab8769d",
+      "normalizedSha256": "914beb8d2148817c2241a8abbae1cc87095a8c7f9a2d454db757f1c3eab8769d",
+      "exact": true
+    },
+    {
+      "file": "scripts/test-studio-model-catalog.mjs",
+      "baselineSha256": "43c0733f92043c38c16e62f886b55209b3c1f48b48c1b69c0ca8a438e4051ff3",
+      "normalizedSha256": "43c0733f92043c38c16e62f886b55209b3c1f48b48c1b69c0ca8a438e4051ff3",
+      "exact": true
+    },
+    {
+      "file": "scripts/test-studio-narration-router.mjs",
+      "baselineSha256": "4042d6bb7c986a2bb2a641d3d02dae04d38f6feabdd2275a69eff08e92620ad3",
+      "normalizedSha256": "4042d6bb7c986a2bb2a641d3d02dae04d38f6feabdd2275a69eff08e92620ad3",
+      "exact": true
+    },
+    {
+      "file": "scripts/test-studio-p2-docs.mjs",
+      "baselineSha256": "dd6c7700503f949157df09a828f7c252bdd1f5d143a313da453b2f9827043ab8",
+      "normalizedSha256": "dd6c7700503f949157df09a828f7c252bdd1f5d143a313da453b2f9827043ab8",
+      "exact": true
+    },
+    {
+      "file": "scripts/test-studio-p2-polish.mjs",
+      "baselineSha256": "138ae8f00645d90cc32fd42c0c9b46112703c2350ae09ce661f2c84e414d1a8b",
+      "normalizedSha256": "138ae8f00645d90cc32fd42c0c9b46112703c2350ae09ce661f2c84e414d1a8b",
+      "exact": true
+    },
+    {
+      "file": "scripts/test-studio-p2-profile-page.mjs",
+      "baselineSha256": "75975689c31e5fabc5eef9c55b6ba4109481fffda4635564560e62ec3fa2a4b3",
+      "normalizedSha256": "75975689c31e5fabc5eef9c55b6ba4109481fffda4635564560e62ec3fa2a4b3",
+      "exact": true
+    },
+    {
+      "file": "scripts/test-studio-p2-publish.mjs",
+      "baselineSha256": "4ab71956ca33d3c76839e072b671d9a68a97027f488b2819220bd4bac881dafa",
+      "normalizedSha256": "4ab71956ca33d3c76839e072b671d9a68a97027f488b2819220bd4bac881dafa",
+      "exact": true
+    },
+    {
+      "file": "scripts/test-studio-uat-marketing.mjs",
+      "baselineSha256": "096287e4cb59d0b8aef610d9f1b1dc75e20c31e0270365451c3b888ce906addc",
+      "normalizedSha256": "096287e4cb59d0b8aef610d9f1b1dc75e20c31e0270365451c3b888ce906addc",
+      "exact": true
+    },
+    {
+      "file": "scripts/test-studio-stage-open-gate.mjs",
+      "baselineSha256": "67ee07ca0ca05f4a4ae09aad72fee64292c4e9aab0d235bcfb83e2408d5b38b6",
+      "normalizedSha256": "67ee07ca0ca05f4a4ae09aad72fee64292c4e9aab0d235bcfb83e2408d5b38b6",
+      "exact": true
+    },
+    {
+      "file": "scripts/test-studio-chat-element-refine.mjs",
+      "baselineSha256": "f4c4f8f895dadad7a0ffc2440b9adc4bdcb6d57c8aee8bad1acb5babfb08a773",
+      "normalizedSha256": "f4c4f8f895dadad7a0ffc2440b9adc4bdcb6d57c8aee8bad1acb5babfb08a773",
+      "exact": true
+    },
+    {
+      "file": "scripts/test-studio-model-choice.mjs",
+      "baselineSha256": "650eb3f415126d0a9b1f26f102a51dd4e0f4dbd31bcfc8b86296208044b68ec9",
+      "normalizedSha256": "650eb3f415126d0a9b1f26f102a51dd4e0f4dbd31bcfc8b86296208044b68ec9",
+      "exact": true
+    },
+    {
+      "file": "package.json",
+      "baselineSha256": "cacdc93d64e2ea7ad7065203c8eaaf50b12fb2c80ed7c30e6eb8f69360d061b5",
+      "normalizedSha256": "cacdc93d64e2ea7ad7065203c8eaaf50b12fb2c80ed7c30e6eb8f69360d061b5",
+      "exact": true
+    },
+    {
+      "file": "pnpm-lock.yaml",
+      "baselineSha256": "735a04a08456e6b07ec8736c173d163eb844b6591e363ef484a76d45cb4e971c",
+      "normalizedSha256": "735a04a08456e6b07ec8736c173d163eb844b6591e363ef484a76d45cb4e971c",
+      "exact": true
+    },
+    {
+      "file": "scripts/studio-later-changes.mjs",
+      "baselineSha256": "2266cdd71f937580d58aee9a8853e42e671caaaa5b59d3ce319a10e52602c5a1",
+      "normalizedSha256": "2266cdd71f937580d58aee9a8853e42e671caaaa5b59d3ce319a10e52602c5a1",
+      "exact": true
+    }
+  ],
+  "baseCounts": {
+    "1": 79,
+    "0": 212,
+    "excluded": 1
+  },
+  "branchCounts": {
+    "1": 79,
+    "0": 212,
+    "excluded": 1
+  },
+  "newFailures": [],
+  "changedFailureDiagnostics": [],
+  "focusedProofsPassed": 27,
+  "focusedProofs": {
+    "test-studio-chat-element-edit.mjs": {
+      "status": 0,
+      "allowanceSeconds": 300,
+      "elapsedSeconds": 69.65,
+      "worker": "element3-p4-19-worker",
+      "head": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "log": "/private/tmp/p4-19-proof-fix-results/test-studio-chat-element-edit.mjs.log"
+    },
+    "test-studio-deck-mutation-dedupe.mjs": {
+      "status": 0,
+      "allowanceSeconds": 300,
+      "elapsedSeconds": 18.1,
+      "worker": "element3-p4-19-worker",
+      "head": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "log": "/private/tmp/p4-19-proof-fix-results/test-studio-deck-mutation-dedupe.mjs.log"
+    },
+    "test-studio-launch-wording.mjs": {
+      "status": 0,
+      "allowanceSeconds": 300,
+      "elapsedSeconds": 2.36,
+      "worker": "element3-p4-19-worker",
+      "head": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "log": "/private/tmp/p4-19-proof-fix-results/test-studio-launch-wording.mjs.log"
+    },
+    "test-studio-legal-short-links.mjs": {
+      "status": 0,
+      "allowanceSeconds": 300,
+      "elapsedSeconds": 11.21,
+      "worker": "element3-p4-19-worker",
+      "head": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "log": "/private/tmp/p4-19-proof-fix-results/test-studio-legal-short-links.mjs.log"
+    },
+    "test-studio-model-catalog.mjs": {
+      "status": 0,
+      "allowanceSeconds": 300,
+      "elapsedSeconds": 6.82,
+      "worker": "element3-p4-19-worker",
+      "head": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
+      "log": "/private/tmp/p4-19-composed-proof-results/test-studio-model-catalog.mjs.log"
+    },
+    "test-studio-narration-router.mjs": {
+      "status": 0,
+      "allowanceSeconds": 300,
+      "elapsedSeconds": 122.02,
+      "worker": "element3-p4-19-worker",
+      "head": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
+      "log": "/private/tmp/p4-19-composed-proof-results/test-studio-narration-router.mjs.log"
+    },
+    "test-studio-p2-docs.mjs": {
+      "status": 0,
+      "allowanceSeconds": 300,
+      "elapsedSeconds": 12.79,
+      "worker": "element3-p4-19-worker",
+      "head": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "log": "/private/tmp/p4-19-proof-fix-results/test-studio-p2-docs.mjs.log"
+    },
+    "test-studio-p2-polish.mjs": {
+      "status": 0,
+      "allowanceSeconds": 300,
+      "elapsedSeconds": 115.12,
+      "worker": "element3-p4-19-worker",
+      "head": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "log": "/private/tmp/p4-19-proof-fix-results/test-studio-p2-polish.mjs.log"
+    },
+    "test-studio-p2-profile-page.mjs": {
+      "status": 0,
+      "allowanceSeconds": 300,
+      "elapsedSeconds": 5.06,
+      "worker": "element3-p4-19-worker",
+      "head": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "log": "/private/tmp/p4-19-proof-fix-results/test-studio-p2-profile-page.mjs.log"
+    },
+    "test-studio-deck-sync-truth.mjs": {
+      "status": 0,
+      "allowanceSeconds": 600,
+      "elapsedSeconds": 337.57,
+      "worker": "element3-p4-19",
+      "script": "test-studio-deck-sync-truth.mjs",
+      "head": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
+      "log": "/private/tmp/p4-19-isolated-deck-sync.log",
+      "initialParallelStatus": 124,
+      "isolatedRetry": true
+    },
+    "test-studio-uat-marketing.mjs": {
+      "status": 0,
+      "allowanceSeconds": 300,
+      "elapsedSeconds": 10.34,
+      "worker": "element3-p4-19",
+      "head": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "log": "/private/tmp/p4-19-proof-fix-results/test-studio-uat-marketing.mjs.log"
+    },
+    "test-studio-stage-open-gate.mjs": {
+      "status": 0,
+      "allowanceSeconds": 300,
+      "elapsedSeconds": 47.39,
+      "worker": "element3-p4-19-worker",
+      "head": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
+      "log": "/private/tmp/p4-19-composed-proof-results/test-studio-stage-open-gate.mjs.log"
+    },
+    "test-studio-p2-publish.mjs": {
+      "status": 0,
+      "allowanceSeconds": 300,
+      "elapsedSeconds": 102.11,
+      "worker": "element3-p4-19-worker",
+      "head": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "log": "/private/tmp/p4-19-proof-fix-results/test-studio-p2-publish.mjs.log"
+    },
+    "test-studio-chat-parity.mjs": {
+      "status": 0,
+      "allowanceSeconds": 300,
+      "elapsedSeconds": 3.28,
+      "worker": "element3-p4-19-worker",
+      "head": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "log": "/private/tmp/p4-19-proof-fix-results/test-studio-chat-parity.mjs.log"
+    },
+    "test-studio-chat-element-text-set.mjs": {
+      "status": 0,
+      "allowanceSeconds": 300,
+      "elapsedSeconds": 66.53,
+      "worker": "element3-p4-19-worker",
+      "head": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "log": "/private/tmp/p4-19-proof-fix-results/test-studio-chat-element-text-set.mjs.log"
+    },
+    "test-studio-chat-refine-structural-decline.mjs": {
+      "status": 0,
+      "allowanceSeconds": 300,
+      "elapsedSeconds": 36.46,
+      "worker": "element3-p4-19-worker",
+      "head": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "log": "/private/tmp/p4-19-proof-fix-results/test-studio-chat-refine-structural-decline.mjs.log"
+    },
+    "test-studio-chat-text-set-keep-look.mjs": {
+      "status": 0,
+      "allowanceSeconds": 300,
+      "elapsedSeconds": 32.24,
+      "worker": "element3-p4-19-worker",
+      "head": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "log": "/private/tmp/p4-19-proof-fix-results/test-studio-chat-text-set-keep-look.mjs.log"
+    },
+    "test-studio-d1-debug-routes.mjs": {
+      "status": 0,
+      "allowanceSeconds": 300,
+      "elapsedSeconds": 12.24,
+      "worker": "element3-p4-19-worker",
+      "head": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "log": "/private/tmp/p4-19-proof-fix-results/test-studio-d1-debug-routes.mjs.log"
+    },
+    "test-studio-model-choice.mjs": {
+      "status": 0,
+      "allowanceSeconds": 300,
+      "elapsedSeconds": 110.69,
+      "worker": "element3-p4-19-worker",
+      "head": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
+      "log": "/private/tmp/p4-19-composed-proof-results/test-studio-model-choice.mjs.log"
+    },
+    "test-studio-phone-shell-nav.mjs": {
+      "status": 0,
+      "allowanceSeconds": 300,
+      "elapsedSeconds": 8.74,
+      "worker": "element3-p4-19-worker",
+      "head": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "log": "/private/tmp/p4-19-proof-fix-results/test-studio-phone-shell-nav.mjs.log"
+    },
+    "test-studio-bulk-edit-prompt-text.mjs": {
+      "status": 0,
+      "allowanceSeconds": 300,
+      "elapsedSeconds": 0.97,
+      "worker": "element3-p4-19-worker",
+      "head": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "log": "/private/tmp/p4-19-proof-fix-results/test-studio-bulk-edit-prompt-text.mjs.log"
+    },
+    "test-studio-chat-add-stacking.mjs": {
+      "status": 0,
+      "allowanceSeconds": 300,
+      "elapsedSeconds": 48.52,
+      "worker": "element3-p4-19-worker",
+      "head": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
+      "log": "/private/tmp/p4-19-composed-proof-results/test-studio-chat-add-stacking.mjs.log"
+    },
+    "test-studio-later-changes.mjs": {
+      "status": 0,
+      "allowanceSeconds": 300,
+      "elapsedSeconds": 51.4,
+      "worker": "element3-p4-19-worker",
+      "head": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
+      "log": "/private/tmp/p4-19-composed-proof-results/test-studio-later-changes.mjs.log"
+    },
+    "test-studio-chat-element-refine.mjs": {
+      "status": 0,
+      "allowanceSeconds": 300,
+      "elapsedSeconds": 7.58,
+      "worker": "element3-p4-19-worker",
+      "head": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
+      "log": "/private/tmp/p4-19-composed-proof-results/test-studio-chat-element-refine.mjs.log"
+    },
+    "test-studio-chat-add-targeted.mjs": {
+      "status": 0,
+      "allowanceSeconds": 300,
+      "elapsedSeconds": 56.48,
+      "worker": "element3-p4-19",
+      "head": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
+      "log": "/private/tmp/p4-19-composed-proof-results/test-studio-chat-add-targeted.mjs.log"
+    },
+    "test-studio-chat-clean.mjs": {
+      "status": 0,
+      "allowanceSeconds": 300,
+      "elapsedSeconds": 22.95,
+      "worker": "element3-p4-19",
+      "head": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
+      "log": "/private/tmp/p4-19-composed-proof-results/test-studio-chat-clean.mjs.log"
+    },
+    "test-studio-model-choice-deck-save.mjs": {
+      "status": 0,
+      "allowanceSeconds": 300,
+      "elapsedSeconds": 22.52,
+      "worker": "element3-p4-19",
+      "head": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
+      "log": "/private/tmp/p4-19-composed-proof-results/test-studio-model-choice-deck-save.mjs.log"
+    }
+  },
+  "runtimeIdentity": {
+    "app": {
+      "unchanged": true,
+      "tree": "038dbb573c1925c57db25bd2f08f0470e0526212"
+    },
+    "components": {
+      "unchanged": true,
+      "tree": "d97c462d79c9b2b2a13c5031b92ae7800ed448eb"
+    },
+    "hooks": {
+      "unchanged": true,
+      "tree": "643b8dbbbb6439edadbda7ff088705a1afaecbaa"
+    },
+    "public": {
+      "unchanged": true,
+      "tree": "99f3d7a7b77057a1a7ff0392e495bd3876dd2028"
+    },
+    "styles": {
+      "unchanged": true,
+      "tree": "2f1948cd3ccaf78b3d3a95863c4d5f98006f4b9b"
+    },
+    "types": {
+      "unchanged": true,
+      "tree": "49687b892fdcf2f88a3601661a6d72f588320adc"
+    },
+    "productionDependenciesUnchanged": true
+  },
+  "clientCoreUnchangedSinceFullRun": true,
+  "directorRecordedSpokenReplay": [
+    {
+      "fixture": "scenario-V1.json",
+      "sha256": "21c53f79eca60d6f6d3173a1e39283973e28c0602e6940e99401ea45024470a4",
+      "spokenLinesPreserved": 21,
+      "questionCards": 3
+    },
+    {
+      "fixture": "scenario-V2.json",
+      "sha256": "506a7adb9573e1e83524b72d8270d10dd9ddb900fd7805bbba337ce77a7ec776",
+      "spokenLinesPreserved": 24,
+      "questionCards": 3
+    },
+    {
+      "fixture": "scenario-V0.json",
+      "sha256": "ad441d6e21da8b07709626067af639c0abd5ff8b99a9fe578c8b63696003abfb",
+      "spokenLinesPreserved": 0,
+      "questionCards": 0
+    }
+  ],
+  "environment": {
+    "node": "24.4.1",
+    "typescript": "5.9.3",
+    "vitest": "5.0.3",
+    "dependencies": "existing local dependency tree; test runner version matches the added dev dependency"
+  },
+  "scopeLimits": [
+    "Offline source and recorded-text evidence; live speech-to-text, TTS and call UI remain P4-20/P4-22 integration work.",
+    "test-studio-dev-server.mjs excluded on both revisions: requires separately owned compiled runtime on port 8843.",
+    "Node 22 clean-install/build CI is left to the program gate."
+  ],
+  "methodology": [
+    "Full 292-script inventories ran base then branch under one heavy-job slot per session.",
+    "Baseline initial 90-second timeouts were rerun individually with 300 seconds; all ten passed.",
+    "Branch used two isolated worktrees at one immutable head with a 300-second allowance.",
+    "Proof-only metadata compatibility fixes were checked with targeted and dependent proofs; unchanged client runtime evidence was reused.",
+    "Existing assertion-failure diagnostics were compared after normalizing checkout paths and stack line numbers.",
+    "One proof completed its assertions but exceeded 300 seconds in parallel mutation checks; it was rerun alone with a 600-second allowance, without changing the test."
+  ],
+  "paidCalls": 0,
+  "realProviderAudioInTests": false,
+  "flag": {
+    "name": "NEXT_PUBLIC_STUDIO_VOICE_CALL",
+    "default": false,
+    "enabledOnlyBy": "true"
+  },
+  "localLogDirectories": [
+    "/private/tmp/p4-19-base-results",
+    "/private/tmp/p4-19-branch-results",
+    "/private/tmp/p4-19-proof-fix-results",
+    "/private/tmp/p4-19-composed-proof-results"
+  ],
+  "scripts": [
+    {
+      "script": "test-studio-account-visual-fidelity.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "d467363aa3ea809b59bb3225d116566122fce4ff78b7340130288e73be7f9acc",
+      "branchDiagnosticSha256": "d467363aa3ea809b59bb3225d116566122fce4ff78b7340130288e73be7f9acc"
+    },
+    {
+      "script": "test-studio-add-element-ownership.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "9d65877726eb4b8721689a30c542426a14ed8f277dc491ebaf5c0d130bd13354",
+      "branchDiagnosticSha256": "9d65877726eb4b8721689a30c542426a14ed8f277dc491ebaf5c0d130bd13354"
+    },
+    {
+      "script": "test-studio-add-slide-ownership.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "53b1a0bf01b6cb0a48930f1cb842eabfdb8863c0db2fcb1550b0faeb43066f64",
+      "branchDiagnosticSha256": "53b1a0bf01b6cb0a48930f1cb842eabfdb8863c0db2fcb1550b0faeb43066f64"
+    },
+    {
+      "script": "test-studio-add-slide-status.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-add-slide-v2.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-approval-cover.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "0186895bce39702e881ed73874e4b0850713539e297306544c629a7ee6f1de0f",
+      "branchDiagnosticSha256": "0186895bce39702e881ed73874e4b0850713539e297306544c629a7ee6f1de0f"
+    },
+    {
+      "script": "test-studio-arrange-controls.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "4fc9e092826d0f3a3aab31564496db18cdf7def70d7b96ad8ab3a751e52bc216",
+      "branchDiagnosticSha256": "4fc9e092826d0f3a3aab31564496db18cdf7def70d7b96ad8ab3a751e52bc216"
+    },
+    {
+      "script": "test-studio-arrange.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-ask-card-identity.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-auth-host-option.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "1042152daacdb09cb3765659b327eb8aad952c9c6e8ec027a4632ea926a81ace",
+      "branchDiagnosticSha256": "1042152daacdb09cb3765659b327eb8aad952c9c6e8ec027a4632ea926a81ace"
+    },
+    {
+      "script": "test-studio-blank-deck-reload.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-blank-dismiss.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "50250ff74830e77ea945a644182315413e12f711a247454ae851b61f0e027836",
+      "branchDiagnosticSha256": "50250ff74830e77ea945a644182315413e12f711a247454ae851b61f0e027836"
+    },
+    {
+      "script": "test-studio-blank-start-new-session.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-blocked-send-feedback.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-build-failure-end.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-build-isolation.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-build-provenance.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "cee77944f355024bf4e2e196167064856d86e3307a4da58b189ef4e07e839b56",
+      "branchDiagnosticSha256": "cee77944f355024bf4e2e196167064856d86e3307a4da58b189ef4e07e839b56"
+    },
+    {
+      "script": "test-studio-build-resume.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-bulk-edit-prompt-text.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-bulk-edit-undo.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-canvas-lifecycle.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "45e2b90ccf523e28dc5a69f5e1e0940480d00933e4c85d97ff13ae1b9b3d140c",
+      "branchDiagnosticSha256": "45e2b90ccf523e28dc5a69f5e1e0940480d00933e4c85d97ff13ae1b9b3d140c"
+    },
+    {
+      "script": "test-studio-canvas-return.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "8c320a60293c66a756c14d8d1cc94b312866b07f5795e43c6de3fac9aebe0f1c",
+      "branchDiagnosticSha256": "8c320a60293c66a756c14d8d1cc94b312866b07f5795e43c6de3fac9aebe0f1c"
+    },
+    {
+      "script": "test-studio-canvas-shortcuts.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-chat-add-stacking.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-chat-add-targeted.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-chat-clean-held-all-built.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-chat-clean-order.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-chat-clean.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-chat-column-wide.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-chat-commands.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-chat-composer-recovery-answered.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-chat-edit-targeted.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-chat-element-edit-2.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-chat-element-edit.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 1,
+      "focusedProofHead": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-chat-element-refine.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-chat-element-text-set.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-chat-header-ask.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-chat-parity.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-chat-polish.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-chat-refine-structural-decline.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-chat-stale-viewer-guard.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-chat-text-set-keep-look.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-chat-theme-export.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-chat-transcripts.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-chat-undo-v2.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-chat-width-v2.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-compose-built-origin.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "57cb180005793d3c200f0837cd87ca2a144c284f298787d91cef976d4c01c9a4",
+      "branchDiagnosticSha256": "57cb180005793d3c200f0837cd87ca2a144c284f298787d91cef976d4c01c9a4"
+    },
+    {
+      "script": "test-studio-compose-entitlement.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-compose-entry.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "afd307a284930000c2bbc7614a260144bb539a6eec54c0facafac86eb788621a",
+      "branchDiagnosticSha256": "afd307a284930000c2bbc7614a260144bb539a6eec54c0facafac86eb788621a"
+    },
+    {
+      "script": "test-studio-compose-job-failsafe.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-compose-ownership.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "9884cb3a50a748c86fd493f874a6b9fa6003b5364dc0c259cb30ce85f6d421d6",
+      "branchDiagnosticSha256": "9884cb3a50a748c86fd493f874a6b9fa6003b5364dc0c259cb30ce85f6d421d6"
+    },
+    {
+      "script": "test-studio-compose-recovery.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "9884cb3a50a748c86fd493f874a6b9fa6003b5364dc0c259cb30ce85f6d421d6",
+      "branchDiagnosticSha256": "9884cb3a50a748c86fd493f874a6b9fa6003b5364dc0c259cb30ce85f6d421d6"
+    },
+    {
+      "script": "test-studio-composer-copy.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-composer-draft.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-composer-job-recovery.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-composer-library.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-composer-popups-v2.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-composer-send.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "bb9f5fc9fcc6b270bb0c6031631b3c33d5a3e223a5c66555ba2d00add5370205",
+      "branchDiagnosticSha256": "bb9f5fc9fcc6b270bb0c6031631b3c33d5a3e223a5c66555ba2d00add5370205"
+    },
+    {
+      "script": "test-studio-composer-stage-context.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-connected-runtime.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "335287bf20ad70f438d361c8f6b9f394974ceccfaceea65b1a0425edd8f5e549",
+      "branchDiagnosticSha256": "335287bf20ad70f438d361c8f6b9f394974ceccfaceea65b1a0425edd8f5e549"
+    },
+    {
+      "script": "test-studio-create-word.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-d1-debug-routes.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-deck-card-count.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-deck-card-thumbnail-cards.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-deck-card-thumbnail.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-deck-cards-v2.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-deck-changed-notice.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "4ed810909a9e8e56acc7e33d1335219fa2803fbd734c36149c83b96dbece99dd",
+      "branchDiagnosticSha256": "4ed810909a9e8e56acc7e33d1335219fa2803fbd734c36149c83b96dbece99dd"
+    },
+    {
+      "script": "test-studio-deck-grid-4.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-deck-identity-dialog.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-deck-import.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-deck-mutation-dedupe.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 1,
+      "focusedProofHead": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-deck-mutation-refresh.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-deck-save-refused-notice.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-deck-sync-truth.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 1,
+      "focusedProofHead": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-deck-title.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-dev-dependencies.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "6e34bf7bfd51bd62ea91ac5c3256dc40d9eabe51eea5d5e0257ec4c071c6688f",
+      "branchDiagnosticSha256": "6e34bf7bfd51bd62ea91ac5c3256dc40d9eabe51eea5d5e0257ec4c071c6688f"
+    },
+    {
+      "script": "test-studio-dev-deployment.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "187a13a435f567ceff2d2565af5907e386dd48acd17a261f133fcd0e7ed2ab72",
+      "branchDiagnosticSha256": "187a13a435f567ceff2d2565af5907e386dd48acd17a261f133fcd0e7ed2ab72"
+    },
+    {
+      "script": "test-studio-dev-server.mjs",
+      "baseStatus": "excluded",
+      "branchStatus": "excluded",
+      "initialBranchStatus": "excluded",
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-diagram-draft.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-director-code.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "228037eb638007faeb886b6f458d7bca5d2dd318bc2e1f012c29c776701e5981",
+      "branchDiagnosticSha256": "228037eb638007faeb886b6f458d7bca5d2dd318bc2e1f012c29c776701e5981"
+    },
+    {
+      "script": "test-studio-director-handoff.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "84aa56f2c9a6a65d0cfc158cf01c99edccf1d8a09398c15ff5f28eedbebcb580",
+      "branchDiagnosticSha256": "84aa56f2c9a6a65d0cfc158cf01c99edccf1d8a09398c15ff5f28eedbebcb580"
+    },
+    {
+      "script": "test-studio-director-header.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-director-notice.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-director-presence.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "46454d8e614cc4cfe14b20a3a6d77d9adc9a97662e721244ca381ccf7faabd7d",
+      "branchDiagnosticSha256": "46454d8e614cc4cfe14b20a3a6d77d9adc9a97662e721244ca381ccf7faabd7d"
+    },
+    {
+      "script": "test-studio-director-transport.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "5281459d81d5b5cb8bf4d9c5c1c4642db74a1a2595578bf414f018ac623ffa01",
+      "branchDiagnosticSha256": "5281459d81d5b5cb8bf4d9c5c1c4642db74a1a2595578bf414f018ac623ffa01"
+    },
+    {
+      "script": "test-studio-duplicate-copy-title.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-duplicate-deck.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-edit-mode-guide.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "ef9ef773ab20bf9285986af410e8b0c51baaaee6e6d44584713affd28a9ea2f3",
+      "branchDiagnosticSha256": "ef9ef773ab20bf9285986af410e8b0c51baaaee6e6d44584713affd28a9ea2f3"
+    },
+    {
+      "script": "test-studio-element-free-spot.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-element-gallery-fit.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-element-gallery.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-element-placeholder-fix.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-empty-catalog-hide.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-empty-prompt-guard.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "e348d83c40725b70c4b00005b8ab97d47e01b02cb3348d813aa7157bb6dff23a",
+      "branchDiagnosticSha256": "e348d83c40725b70c4b00005b8ab97d47e01b02cb3348d813aa7157bb6dff23a"
+    },
+    {
+      "script": "test-studio-env-append-tolerant.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-export-after-build.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-first-paint-viewer.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-first-paint.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-first-run-poster-hide.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-first-run-v2.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-flow-control.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-format-failures.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-fullscreen-picker.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "335287bf20ad70f438d361c8f6b9f394974ceccfaceea65b1a0425edd8f5e549",
+      "branchDiagnosticSha256": "335287bf20ad70f438d361c8f6b9f394974ceccfaceea65b1a0425edd8f5e549"
+    },
+    {
+      "script": "test-studio-generation-cover-fixture.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-generation-cover.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "aedc77c4c13032db7d9a2d8476dcf70d939f867b96928f15a96e296742da06c8",
+      "branchDiagnosticSha256": "aedc77c4c13032db7d9a2d8476dcf70d939f867b96928f15a96e296742da06c8"
+    },
+    {
+      "script": "test-studio-generation-feedback.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "1f9197e1e69651c95405ba4bf957c5e5386695ba98fb808a8525a80fe381e88a",
+      "branchDiagnosticSha256": "1f9197e1e69651c95405ba4bf957c5e5386695ba98fb808a8525a80fe381e88a"
+    },
+    {
+      "script": "test-studio-goto-new-slide.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-history-action-status.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-icon-label-draft.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-icon-label-mode-routing.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "cdb5dc2e12bdcd1fb14abeb43875a7be50f59aba23f4a651ecb917646b12049a",
+      "branchDiagnosticSha256": "cdb5dc2e12bdcd1fb14abeb43875a7be50f59aba23f4a651ecb917646b12049a"
+    },
+    {
+      "script": "test-studio-image-form.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-image-pending-write.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-infographic-draft.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-insert-persist.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-inspector-focus.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-intelligence-polish.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-intro-eligibility.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-intro-integration.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "37e4f779aa8fff5b85b2029efed52b905deb101d0d02287adfd9eff5986f06ab",
+      "branchDiagnosticSha256": "37e4f779aa8fff5b85b2029efed52b905deb101d0d02287adfd9eff5986f06ab"
+    },
+    {
+      "script": "test-studio-intro-radix-browser.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "d59a7598eef32572b8a18d0d490bbe5ace08215ea89d390d51177b370443c21f",
+      "branchDiagnosticSha256": "d59a7598eef32572b8a18d0d490bbe5ace08215ea89d390d51177b370443c21f"
+    },
+    {
+      "script": "test-studio-job-deadlines.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-job-ledger.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-jose-candidate.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "955195ca77ff0c855b52ca933d98ad272ce31ec7c551913a70125ad12958aa30",
+      "branchDiagnosticSha256": "955195ca77ff0c855b52ca933d98ad272ce31ec7c551913a70125ad12958aa30"
+    },
+    {
+      "script": "test-studio-jwt-type.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "1f8480e168dcea829b24eefa6ed47597eaa98d20aeccbf7940fe9cf749d9622c",
+      "branchDiagnosticSha256": "1f8480e168dcea829b24eefa6ed47597eaa98d20aeccbf7940fe9cf749d9622c"
+    },
+    {
+      "script": "test-studio-kg-ask.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-knowledge-empty-state.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-knowledge-filter-tabs.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-knowledge-fixes.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-knowledge-header-actions.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-knowledge-map-labels.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-knowledge-map-toolbar.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-later-changes.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-launch-wording.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 1,
+      "focusedProofHead": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-legacy-blank-deck-row.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-legacy-textbox.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-legal-short-links.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 1,
+      "focusedProofHead": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-library-back-link.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "d7811c0efd9308b2da7041a4402450499b28fe524c1304b1d1676e4ff60e223f",
+      "branchDiagnosticSha256": "d7811c0efd9308b2da7041a4402450499b28fe524c1304b1d1676e4ff60e223f"
+    },
+    {
+      "script": "test-studio-manual-deck-conflict.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-manual-handoff.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "3a39bab43596ba46659a917d28656b80cd8e05c46c33141c913a20484ea89b8b",
+      "branchDiagnosticSha256": "3a39bab43596ba46659a917d28656b80cd8e05c46c33141c913a20484ea89b8b"
+    },
+    {
+      "script": "test-studio-master-panel.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-mdc-element-fields.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-mention-selection.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-metric-chart-drafts.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "335287bf20ad70f438d361c8f6b9f394974ceccfaceea65b1a0425edd8f5e549",
+      "branchDiagnosticSha256": "335287bf20ad70f438d361c8f6b9f394974ceccfaceea65b1a0425edd8f5e549"
+    },
+    {
+      "script": "test-studio-model-catalog-2026-10.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-model-catalog.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 1,
+      "focusedProofHead": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-model-choice-deck-save.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-model-choice-prefs-version.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-model-choice.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-model-picker.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-narration-router.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 1,
+      "focusedProofHead": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-narrow-workspace.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "4f60186bfbc0d955422055556c0485d111d22cb24afcb232e6cb0477c3073bbe",
+      "branchDiagnosticSha256": "4f60186bfbc0d955422055556c0485d111d22cb24afcb232e6cb0477c3073bbe"
+    },
+    {
+      "script": "test-studio-native-recovery-types.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "3587aab8672c54a78d63d414b166a80b0090513cfbdc9e19c0d765383d6c10c9",
+      "branchDiagnosticSha256": "3587aab8672c54a78d63d414b166a80b0090513cfbdc9e19c0d765383d6c10c9"
+    },
+    {
+      "script": "test-studio-native-theme-recovery.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "ff3efb27c0c1c8dfc477d4f2481bc1ad04bf415ca2555478c416d6de02f3739e",
+      "branchDiagnosticSha256": "ff3efb27c0c1c8dfc477d4f2481bc1ad04bf415ca2555478c416d6de02f3739e"
+    },
+    {
+      "script": "test-studio-navigation-fidelity.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "8bbc867c2d77ab4d02e8264b1d0c036068b50307b2e2b4d7ca579df63ddd4b39",
+      "branchDiagnosticSha256": "8bbc867c2d77ab4d02e8264b1d0c036068b50307b2e2b4d7ca579df63ddd4b39"
+    },
+    {
+      "script": "test-studio-new-deck-handoff-send.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-new-logo.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-new-session-theme-policy.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-onboarding-order.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-one-live-tab.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-open-read-only.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-outline-canvas.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-outline-preview.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-p2-account.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-p2-admin.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-p2-details.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-p2-docs.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 1,
+      "focusedProofHead": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-p2-intelligence.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-p2-landing.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-p2-onboarding.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-p2-polish.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 1,
+      "focusedProofHead": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-p2-profile-menu.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-p2-profile-page.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 1,
+      "focusedProofHead": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-p2-publish.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 1,
+      "focusedProofHead": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-p2-second-brain.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-panel-eyebrow.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-panel-focus.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-panel-keep-canvas.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-pass2b-batch1.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "1805a92608ded0458e27315c07793f2e9155db7599e5808b5a731c2fe6b3010b",
+      "branchDiagnosticSha256": "1805a92608ded0458e27315c07793f2e9155db7599e5808b5a731c2fe6b3010b"
+    },
+    {
+      "script": "test-studio-pass2b-batch2.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "77630d3fecb4fd6004d55ccdcde6cf8c1be952875f5feec319c581bea054c38a",
+      "branchDiagnosticSha256": "77630d3fecb4fd6004d55ccdcde6cf8c1be952875f5feec319c581bea054c38a"
+    },
+    {
+      "script": "test-studio-pass2b-chat.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-pass3-polish-b.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-pass3-polish-c.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-pass3-polish-d.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-pass3-polish-e.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-pass3-polish-f.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-pass3-polish-g.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-pass3-polish.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-paused-label.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-payments-open-soon.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-pending-action.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-phone-shell-builder-top.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-phone-shell-nav.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-picker-escape.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "7640328e41166857548ee9f24ef477fd92817ef9136e583cee71abdb17dc925e",
+      "branchDiagnosticSha256": "7640328e41166857548ee9f24ef477fd92817ef9136e583cee71abdb17dc925e"
+    },
+    {
+      "script": "test-studio-plain-nav-labels.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-publish-fidelity.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "8d61ba96ccfca15f3c85a5be9b8293b762c6a0bcd36ee984bc3a6f3c84c13b1e",
+      "branchDiagnosticSha256": "8d61ba96ccfca15f3c85a5be9b8293b762c6a0bcd36ee984bc3a6f3c84c13b1e"
+    },
+    {
+      "script": "test-studio-publish-focus.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-publish-preview-inventory.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-publish-preview.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "0868b7aa71eebb78fcce098896b647081975e000537be441c09b0a688a8f79cc",
+      "branchDiagnosticSha256": "0868b7aa71eebb78fcce098896b647081975e000537be441c09b0a688a8f79cc"
+    },
+    {
+      "script": "test-studio-publish-review-fit.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-publish-session-drafts.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "19cd9ac09c0ca3ec4ffa4821225c0aa7039c0732e2072992d754fa63ec24a895",
+      "branchDiagnosticSha256": "19cd9ac09c0ca3ec4ffa4821225c0aa7039c0732e2072992d754fa63ec24a895"
+    },
+    {
+      "script": "test-studio-rail-add-slide.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-rail-build-count.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-rail-layout-labels.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-rail-live-preview.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-rail-slide-identity.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-reconnect-resync.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-refine-geometry.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-restored-preview-owner.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "a601223ba2cc06e04e49f8a635ce1c27db1e326455653f56988678ba94ddee58",
+      "branchDiagnosticSha256": "a601223ba2cc06e04e49f8a635ce1c27db1e326455653f56988678ba94ddee58"
+    },
+    {
+      "script": "test-studio-route-params.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "d241fb059af9a701216c5741536e32fbe7a0ebabc5f70f014afdbf7e95bb1fc1",
+      "branchDiagnosticSha256": "d241fb059af9a701216c5741536e32fbe7a0ebabc5f70f014afdbf7e95bb1fc1"
+    },
+    {
+      "script": "test-studio-session-bulk-delete.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-session-hygiene.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-session-row-quiet.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-session-usage-placement.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "424f2d5cc356e7bae4246f4b2622a53919a3e6b154da3ae21a10dfcc1bb0c88f",
+      "branchDiagnosticSha256": "424f2d5cc356e7bae4246f4b2622a53919a3e6b154da3ae21a10dfcc1bb0c88f"
+    },
+    {
+      "script": "test-studio-shape-draft.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "1631c8452685ba061476e2bb1fa3ad1685931a9ce21a8c1fc8e1b10cda43d115",
+      "branchDiagnosticSha256": "1631c8452685ba061476e2bb1fa3ad1685931a9ce21a8c1fc8e1b10cda43d115"
+    },
+    {
+      "script": "test-studio-shape-target-background.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-shared-continuation-types.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "3587aab8672c54a78d63d414b166a80b0090513cfbdc9e19c0d765383d6c10c9",
+      "branchDiagnosticSha256": "3587aab8672c54a78d63d414b166a80b0090513cfbdc9e19c0d765383d6c10c9"
+    },
+    {
+      "script": "test-studio-slide-count-sync.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-slide-delete-refresh.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-slide-menus.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "33a302e4fef49a1ed45f13afff263b93a2bd3fc8c05c07592126b3179e58a6c0",
+      "branchDiagnosticSha256": "33a302e4fef49a1ed45f13afff263b93a2bd3fc8c05c07592126b3179e58a6c0"
+    },
+    {
+      "script": "test-studio-slide-ops-via-viewer.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "c58b854fec40bafaeff41b08b1d50e77a3f02d2477a1969963a918f45d0a5a80",
+      "branchDiagnosticSha256": "c58b854fec40bafaeff41b08b1d50e77a3f02d2477a1969963a918f45d0a5a80"
+    },
+    {
+      "script": "test-studio-slide-panel-draft-context.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "d28709a361bec5d5ff3fe5960b2186f4891d81f5f80068e472035727033f6a0e",
+      "branchDiagnosticSha256": "d28709a361bec5d5ff3fe5960b2186f4891d81f5f80068e472035727033f6a0e"
+    },
+    {
+      "script": "test-studio-slide-panel-ownership.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "a044c1569ce27c3ef196185630f747e90286785f1f537d30f25c761cedeffb9a",
+      "branchDiagnosticSha256": "a044c1569ce27c3ef196185630f747e90286785f1f537d30f25c761cedeffb9a"
+    },
+    {
+      "script": "test-studio-slide-rail-v2.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-slide-shortcuts.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-slide-thumbnail-mutations.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "3aa06dde009302f5dfdeafa961ae6e168e31f37af691581b8425a7e3b71a630f",
+      "branchDiagnosticSha256": "3aa06dde009302f5dfdeafa961ae6e168e31f37af691581b8425a7e3b71a630f"
+    },
+    {
+      "script": "test-studio-slide-types-parity.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "6f32d522bf2ca93e497bde95965229bdf8dd563ef917e48ad7b00d432a450602",
+      "branchDiagnosticSha256": "6f32d522bf2ca93e497bde95965229bdf8dd563ef917e48ad7b00d432a450602"
+    },
+    {
+      "script": "test-studio-speed-perceived.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-stage-open-gate.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 1,
+      "focusedProofHead": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-stage-placeholder-fixture.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "cca8c08cfbf871a6cf742a67a80fdbc21a1da9e78dc9589905889b34a5ac84b4",
+      "branchDiagnosticSha256": "cca8c08cfbf871a6cf742a67a80fdbc21a1da9e78dc9589905889b34a5ac84b4"
+    },
+    {
+      "script": "test-studio-template-admission-report.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-template-display-names.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-template-ingest-ownership.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-template-library-manage.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-template-observation-recovery.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "11c6d14a3e06578d95c6bbdf4fc746d728613e2ec69ed7c7244899e912dd6bad",
+      "branchDiagnosticSha256": "11c6d14a3e06578d95c6bbdf4fc746d728613e2ec69ed7c7244899e912dd6bad"
+    },
+    {
+      "script": "test-studio-template-progress.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-template-readability.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "40c0f7d82307ad6b05c28db58995a96e3fe673d2c7f7fc4d4cd3b4e797152dce",
+      "branchDiagnosticSha256": "40c0f7d82307ad6b05c28db58995a96e3fe673d2c7f7fc4d4cd3b4e797152dce"
+    },
+    {
+      "script": "test-studio-template-readiness-warning.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "670d2a4b93c7111b54b5e1065d727a29777caa16e7650b7d9b27bff47d1489d5",
+      "branchDiagnosticSha256": "670d2a4b93c7111b54b5e1065d727a29777caa16e7650b7d9b27bff47d1489d5"
+    },
+    {
+      "script": "test-studio-template-retry-picker.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "335287bf20ad70f438d361c8f6b9f394974ceccfaceea65b1a0425edd8f5e549",
+      "branchDiagnosticSha256": "335287bf20ad70f438d361c8f6b9f394974ceccfaceea65b1a0425edd8f5e549"
+    },
+    {
+      "script": "test-studio-template-retry-save.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "11c6d14a3e06578d95c6bbdf4fc746d728613e2ec69ed7c7244899e912dd6bad",
+      "branchDiagnosticSha256": "11c6d14a3e06578d95c6bbdf4fc746d728613e2ec69ed7c7244899e912dd6bad"
+    },
+    {
+      "script": "test-studio-template-retry-types.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-template-save-ownership.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "5ca89c136e0304ce76d4bb7459224c50ee19f74089ed2185495a950783645586",
+      "branchDiagnosticSha256": "5ca89c136e0304ce76d4bb7459224c50ee19f74089ed2185495a950783645586"
+    },
+    {
+      "script": "test-studio-template-workspace.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-templates-notice-plain.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-text-role-default.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-textbox-drafts.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "335287bf20ad70f438d361c8f6b9f394974ceccfaceea65b1a0425edd8f5e549",
+      "branchDiagnosticSha256": "335287bf20ad70f438d361c8f6b9f394974ceccfaceea65b1a0425edd8f5e549"
+    },
+    {
+      "script": "test-studio-textbox-padding-reachable.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-theme-auto-pill.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-theme-base-dropdown.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-theme-blank-note.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-theme-brand-link.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-theme-dark-persist.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-theme-dark-toggle.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-theme-delete-undo.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-theme-draft-ownership.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-theme-dropdown.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-theme-library-manage.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-theme-own-choice.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-theme-picker-v2.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-theme-plain-words.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-theme-preview-canon.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-theme-refusal-readiness.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "335287bf20ad70f438d361c8f6b9f394974ceccfaceea65b1a0425edd8f5e549",
+      "branchDiagnosticSha256": "335287bf20ad70f438d361c8f6b9f394974ceccfaceea65b1a0425edd8f5e549"
+    },
+    {
+      "script": "test-studio-theme-restore.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-theme-saved-chips.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-theme-source-status.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-theme-support-access.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "b2387567dff44974a086312ac9c617b13f1c867fb8151b2d8a438431e1899776",
+      "branchDiagnosticSha256": "b2387567dff44974a086312ac9c617b13f1c867fb8151b2d8a438431e1899776"
+    },
+    {
+      "script": "test-studio-thumbnail-cache-admission.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "89dcff8716c719ebc48f62440c4049cb7395ee24121edf56999fc39bcecc81ca",
+      "branchDiagnosticSha256": "89dcff8716c719ebc48f62440c4049cb7395ee24121edf56999fc39bcecc81ca"
+    },
+    {
+      "script": "test-studio-thumbnail-failure-details.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "23e53650dfb6e8a15d1bf28de94e09a80161044d23a6451fede4d32c42626d80",
+      "branchDiagnosticSha256": "23e53650dfb6e8a15d1bf28de94e09a80161044d23a6451fede4d32c42626d80"
+    },
+    {
+      "script": "test-studio-thumbnail-failure-fixture.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-thumbnail-initial-visibility.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "d69e9872dde4eefa046c0fa6b1b410f30e2257173863673c6da6f65ce703b853",
+      "branchDiagnosticSha256": "d69e9872dde4eefa046c0fa6b1b410f30e2257173863673c6da6f65ce703b853"
+    },
+    {
+      "script": "test-studio-thumbnail-last-good.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-tl-signed-requests.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-toolbar-cleanup.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-toolbar-interact.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "af94abc41ac508ffcc1c387816b6131160a767a1b559cab02eff879b5f3137cb",
+      "branchDiagnosticSha256": "af94abc41ac508ffcc1c387816b6131160a767a1b559cab02eff879b5f3137cb"
+    },
+    {
+      "script": "test-studio-toolbar-save-feedback.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "aedc77c4c13032db7d9a2d8476dcf70d939f867b96928f15a96e296742da06c8",
+      "branchDiagnosticSha256": "aedc77c4c13032db7d9a2d8476dcf70d939f867b96928f15a96e296742da06c8"
+    },
+    {
+      "script": "test-studio-toolbar-template-list.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-top-bar-v2.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-uat-marketing.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 1,
+      "focusedProofHead": "9fa196b7c074b844eec9d0f9ef038975ce5bcc55",
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-upload-ownership.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "115955333ae995a8b2d17e029a7b72f413f07335665195afd4a63f2e24adebc8",
+      "branchDiagnosticSha256": "115955333ae995a8b2d17e029a7b72f413f07335665195afd4a63f2e24adebc8"
+    },
+    {
+      "script": "test-studio-usage-account-fixture.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-version-current-state.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "d1b061032183cb8e7ec82c08277e6858c6dcf1c3ec7eaedaf9aba3cc9de6d634",
+      "branchDiagnosticSha256": "d1b061032183cb8e7ec82c08277e6858c6dcf1c3ec7eaedaf9aba3cc9de6d634"
+    },
+    {
+      "script": "test-studio-version-history-deck-only.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-version-history-v2.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-viewer-load-order.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "72cf205a794f74e8bb3cc1dd3a6af8eb8b23ba9870d4d6d3fbc5649033c62ce9",
+      "branchDiagnosticSha256": "72cf205a794f74e8bb3cc1dd3a6af8eb8b23ba9870d4d6d3fbc5649033c62ce9"
+    },
+    {
+      "script": "test-studio-voice-ui.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "8f1096990d557de6f5b65f783f6648217fdc1e7b216fed03934a3a9561c0f24a",
+      "branchDiagnosticSha256": "8f1096990d557de6f5b65f783f6648217fdc1e7b216fed03934a3a9561c0f24a"
+    },
+    {
+      "script": "test-studio-waiting-state.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-websocket-configuration.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "b57ea164928abcb05681e110ffdaf8b71f60d275cbeb099c42a1a12a1f3c27bb",
+      "branchDiagnosticSha256": "b57ea164928abcb05681e110ffdaf8b71f60d275cbeb099c42a1a12a1f3c27bb"
+    },
+    {
+      "script": "test-studio-websocket-error-fallback.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-welcome-polish.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-welcome-trim.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-welcome-width.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-workflow.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    },
+    {
+      "script": "test-studio-workspace-fidelity.mjs",
+      "baseStatus": 1,
+      "branchStatus": 1,
+      "initialBranchStatus": 1,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": true,
+      "baseDiagnosticSha256": "4463653ff0d746838d85b06fb38747dd7f1ec95e68d3e463fa39d2afa1c4410b",
+      "branchDiagnosticSha256": "4463653ff0d746838d85b06fb38747dd7f1ec95e68d3e463fa39d2afa1c4410b"
+    },
+    {
+      "script": "test-studio-workspace-layout.mjs",
+      "baseStatus": 0,
+      "branchStatus": 0,
+      "initialBranchStatus": 0,
+      "focusedProofHead": null,
+      "failureDiagnosticsMatch": null,
+      "baseDiagnosticSha256": null,
+      "branchDiagnosticSha256": null
+    }
+  ],
+  "targetObservedAtHandoff": "1f7b9fc29537fb85cd166f82ce86eabe70293c62",
+  "integrationStatus": {
+    "pullRequestMergeable": "CONFLICTING",
+    "cause": "Studio PR #556 advanced the target after the comparison snapshot",
+    "owner": "PROGRAM-1 / OPS-2; assignment prohibits merges by ELEMENT-3",
+    "testedBaseRemains": "abf52d4d"
+  },
+  "targetRefresh": {
+    "targetHead": "1f7b9fc29537fb85cd166f82ce86eabe70293c62",
+    "testedRefreshHead": "bc8646426cc9077e5d8f9a49ffe55c17b827421a",
+    "scope": "29 affected Studio proofs; historical full inventory below remains on abf52d4d",
+    "baseline": {
+      "test-studio-bulk-edit-prompt-text.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 1.11,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-chat-add-stacking.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 46.42,
+        "worker": "element3-p4-19-refresh-base-worker"
+      },
+      "test-studio-chat-add-targeted.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 61.51,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-chat-clean.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 22.49,
+        "worker": "element3-p4-19-refresh-base-worker"
+      },
+      "test-studio-chat-element-refine.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 8.18,
+        "worker": "element3-p4-19-refresh-base-worker"
+      },
+      "test-studio-chat-element-edit.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 66.21,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-chat-parity.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 2.5,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-chat-element-text-set.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 57.85,
+        "worker": "element3-p4-19-refresh-base-worker"
+      },
+      "test-studio-chat-refine-structural-decline.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 45.76,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-chat-text-set-keep-look.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 46.17,
+        "worker": "element3-p4-19-refresh-base-worker"
+      },
+      "test-studio-chat-theme-export.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 12.13,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-d1-debug-routes.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 13.0,
+        "worker": "element3-p4-19-refresh-base-worker"
+      },
+      "test-studio-deck-mutation-dedupe.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 15.51,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-later-changes.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 66.76,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-launch-wording.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 2.55,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-legal-short-links.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 9.52,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-model-catalog.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 8.25,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-model-choice-deck-save.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 16.65,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-model-choice.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 133.88,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-deck-sync-truth.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 452.94,
+        "worker": "element3-p4-19-refresh-base-worker"
+      },
+      "test-studio-p2-docs.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 12.16,
+        "worker": "element3-p4-19-refresh-base-worker"
+      },
+      "test-studio-narration-router.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 267.24,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-p2-profile-page.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 5.53,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-p2-polish.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 113.04,
+        "worker": "element3-p4-19-refresh-base-worker"
+      },
+      "test-studio-phone-shell-nav.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 10.26,
+        "worker": "element3-p4-19-refresh-base-worker"
+      },
+      "test-studio-p2-publish.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 100.49,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-strawman-stage.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 3.08,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-uat-marketing.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 17.82,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-stage-open-gate.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 56.34,
+        "worker": "element3-p4-19-refresh-base-worker"
+      }
+    },
+    "initialBranch": {
+      "test-studio-bulk-edit-prompt-text.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 1.16,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-chat-add-stacking.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 54.52,
+        "worker": "element3-p4-19-worker"
+      },
+      "test-studio-chat-add-targeted.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 68.99,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-chat-clean.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 23.0,
+        "worker": "element3-p4-19-worker"
+      },
+      "test-studio-chat-element-refine.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 7.94,
+        "worker": "element3-p4-19-worker"
+      },
+      "test-studio-chat-element-edit.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 70.66,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-chat-parity.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 3.24,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-chat-element-text-set.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 66.63,
+        "worker": "element3-p4-19-worker"
+      },
+      "test-studio-chat-refine-structural-decline.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 55.9,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-chat-text-set-keep-look.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 56.03,
+        "worker": "element3-p4-19-worker"
+      },
+      "test-studio-chat-theme-export.mjs": {
+        "status": 1,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 12.45,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-d1-debug-routes.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 26.2,
+        "worker": "element3-p4-19-worker"
+      },
+      "test-studio-deck-mutation-dedupe.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 78.37,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-later-changes.mjs": {
+        "status": 1,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 152.14,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-launch-wording.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 4.79,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-legal-short-links.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 32.81,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-model-catalog.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 19.31,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-model-choice-deck-save.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 42.93,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-deck-sync-truth.mjs": {
+        "status": 124,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 600.49,
+        "worker": "element3-p4-19-worker"
+      },
+      "test-studio-model-choice.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 303.75,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-p2-docs.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 74.5,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-p2-polish.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 361.73,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-p2-profile-page.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 8.18,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-narration-router.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 484.83,
+        "worker": "element3-p4-19-worker"
+      },
+      "test-studio-phone-shell-nav.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 21.85,
+        "worker": "element3-p4-19-worker"
+      },
+      "test-studio-p2-publish.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 151.65,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-strawman-stage.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 7.88,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-stage-open-gate.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 112.93,
+        "worker": "element3-p4-19-worker"
+      },
+      "test-studio-uat-marketing.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 35.85,
+        "worker": "element3-p4-19"
+      }
+    },
+    "finalSerialReruns": {
+      "test-studio-chat-theme-export.mjs": {
+        "status": 0,
+        "elapsedSeconds": 24.26
+      },
+      "test-studio-model-catalog.mjs": {
+        "status": 0,
+        "elapsedSeconds": 12.88
+      },
+      "test-studio-narration-router.mjs": {
+        "status": 0,
+        "elapsedSeconds": 158.91
+      },
+      "test-studio-chat-element-refine.mjs": {
+        "status": 0,
+        "elapsedSeconds": 11.58
+      },
+      "test-studio-later-changes.mjs": {
+        "status": 0,
+        "elapsedSeconds": 54.12
+      },
+      "test-studio-deck-sync-truth.mjs": {
+        "status": 0,
+        "elapsedSeconds": 251.56
+      }
+    },
+    "effectiveBranchPassed": 29,
+    "newFailures": 0,
+    "voiceFixtures": 225,
+    "strictClientTypes": "passed",
+    "normalizedProofMetadataViews": {
+      "files": 19,
+      "mismatches": 0
+    },
+    "runtimeSources": "app/components/hooks/public/styles/types identical to target",
+    "clientCore": "lib/studio/voice identical to fullBranchHead 466fc250",
+    "rerunReason": "Second chat-theme sibling raw diff needed exact voice normalization; registry child spawn timed out and deck-sync hit outer 600s parallel allowance. Serial reruns retain original internal limits/assertions, outer allowance 2400s.",
+    "logs": {
+      "p4-19-refresh-base-results": {
+        "test-studio-bulk-edit-prompt-text.mjs.log": "7892b29f7e2e5aba87dc3315d8c214461941197f97aa1145893a9d412126619d",
+        "test-studio-chat-add-stacking.mjs.log": "234a52f9042e71503203b5e3fcb539f2dfbec5d82eb9ede437ee717c3cb1d0ed",
+        "test-studio-chat-add-targeted.mjs.log": "8ddf1f7d188ee46b37d9df0ba96ebcb9c6f90ce08fde9f3f66952578aade3f34",
+        "test-studio-chat-clean.mjs.log": "cae45640e93fc638a58aa615e13a45df687539567ddc2f013b1fd3703ece8d3d",
+        "test-studio-chat-element-edit.mjs.log": "3828dc86f48408607b25b200105e4c710ee13b61ba7668c951ef6d8dbad84706",
+        "test-studio-chat-element-refine.mjs.log": "e75f8e168ac026e2d7966a6aa42ec8474b6632fe97fc0ed2381b6ec409da2e80",
+        "test-studio-chat-element-text-set.mjs.log": "4d02ae68167ac630d81f485aa469571f5b095e03d05b6ab5a1d1bcd477e7dde5",
+        "test-studio-chat-parity.mjs.log": "110f21c5aa462fd7bbb17810ace3fe3a2f472565d548481b532f21e661b2d78b",
+        "test-studio-chat-refine-structural-decline.mjs.log": "ff031c5aeb2f2bdfffb3cc90bfee6184b0f46ab29e3b0aba7164ab8a463d9e6c",
+        "test-studio-chat-text-set-keep-look.mjs.log": "98bc4d8ef6c5a611447b9194c7c6722f35654dc92098d9e6cba8802decd27e16",
+        "test-studio-chat-theme-export.mjs.log": "e3cc68d19e3385cc3d87bc3f6b5914dcccd3d29edae87850a0d6dc4aa4479c6d",
+        "test-studio-d1-debug-routes.mjs.log": "bb18ae7c03aff7acaad9e8e6698a57302beac4a710ad14cde999fee6f541b930",
+        "test-studio-deck-mutation-dedupe.mjs.log": "898a96ddf347506740aeceb62b0b1ad162dc111e06c59915aa60f3569493af99",
+        "test-studio-deck-sync-truth.mjs.log": "6f62ae911352878552073eee6630527cfcdd8f30bc5bda44659d0c1de5373d7b",
+        "test-studio-later-changes.mjs.log": "c9bc1e62c273d929bf557efc26870b12fcb2dda7dc2a56bf1b7ae3862187459f",
+        "test-studio-launch-wording.mjs.log": "d64b09cb6b3b2a54f98827ccfbfcef0a33b907c51fec6a5b66264dbebd34cffc",
+        "test-studio-legal-short-links.mjs.log": "be99f99078f65dca4394993d558d9564f3c5849b3fee2405bb341fbfc3d75d8a",
+        "test-studio-model-catalog.mjs.log": "f0d118b3b4f41cce634009b39dce7d540a6ec6e3721fac7f4c984509bd436789",
+        "test-studio-model-choice-deck-save.mjs.log": "079d60c5cbbd1876a60e0df1185a6f2f59e045021b085351f83a1e03f0ed5101",
+        "test-studio-model-choice.mjs.log": "1c796e094d1dd851e5fa0b9a35833645896673d89fefa1cc3cb63f7600d99e2a",
+        "test-studio-narration-router.mjs.log": "1f18d2859b21d80937f4ff47a80d12ea65238411939e4dfccd32d7ce1582bb85",
+        "test-studio-p2-docs.mjs.log": "2fd0a253c3db37f613c20cb175fd30408029c037268e64653c8818bc363f56be",
+        "test-studio-p2-polish.mjs.log": "a638990f70801b09b516e67356752312c9c952333774bdd4512fcd8f5be381b5",
+        "test-studio-p2-profile-page.mjs.log": "98b9f40275d15e58b8fa8ea350358e3df519fd54ea82c04d48fee89209aaaa99",
+        "test-studio-p2-publish.mjs.log": "ffb89bf7763286930d23def9ff97323fc176a3511d15a82f632167e2e52b748b",
+        "test-studio-phone-shell-nav.mjs.log": "bb2e74fab202907348461c5f14b528c3b6056d1ffdd3c4bc4033cd5f006a9d0a",
+        "test-studio-stage-open-gate.mjs.log": "a70a20d4de656f2c64234839eaeefc3ff92c75d4d3ee39900fd43fec55fb93bf",
+        "test-studio-strawman-stage.mjs.log": "1cd99dc5aa8d7d9527c2bc51eb4317272f9896ea6c64d7c992dbf4c5d546bea6",
+        "test-studio-uat-marketing.mjs.log": "21e3f9e986e750c7767f1826e7f8887a0fc7b1fb5c892365e7762b7b6d24007f"
+      },
+      "p4-19-refresh-branch-results": {
+        "test-studio-bulk-edit-prompt-text.mjs.log": "7892b29f7e2e5aba87dc3315d8c214461941197f97aa1145893a9d412126619d",
+        "test-studio-chat-add-stacking.mjs.log": "234a52f9042e71503203b5e3fcb539f2dfbec5d82eb9ede437ee717c3cb1d0ed",
+        "test-studio-chat-add-targeted.mjs.log": "8ddf1f7d188ee46b37d9df0ba96ebcb9c6f90ce08fde9f3f66952578aade3f34",
+        "test-studio-chat-clean.mjs.log": "cae45640e93fc638a58aa615e13a45df687539567ddc2f013b1fd3703ece8d3d",
+        "test-studio-chat-element-edit.mjs.log": "79600858ed1708c464010843c13d234647b0a894659ebfa0ebcbd78ea84ccd18",
+        "test-studio-chat-element-refine.mjs.log": "397a2926d47986c559804284d93a3f698df266fcff8dbce1d9188f711f4fd84e",
+        "test-studio-chat-element-text-set.mjs.log": "302466b89cbf5713e4c8cf8a0e7a2704ad49de46b701f836f0e06ee179057dd1",
+        "test-studio-chat-parity.mjs.log": "110f21c5aa462fd7bbb17810ace3fe3a2f472565d548481b532f21e661b2d78b",
+        "test-studio-chat-refine-structural-decline.mjs.log": "ff031c5aeb2f2bdfffb3cc90bfee6184b0f46ab29e3b0aba7164ab8a463d9e6c",
+        "test-studio-chat-text-set-keep-look.mjs.log": "611c94a057835495687f7e30c38b28cac17acceb029cc8528df80feb15c4be36",
+        "test-studio-chat-theme-export.mjs.log": "3aa28a495aaecc149b8aa9ef24e40eef359f18103dd506142ad0a5f557d8ea1e",
+        "test-studio-d1-debug-routes.mjs.log": "bb18ae7c03aff7acaad9e8e6698a57302beac4a710ad14cde999fee6f541b930",
+        "test-studio-deck-mutation-dedupe.mjs.log": "898a96ddf347506740aeceb62b0b1ad162dc111e06c59915aa60f3569493af99",
+        "test-studio-deck-sync-truth.mjs.log": "41fc7de10f3b86ee8882a2997a6ad73c5d9f57e9192f895f0fd7735f93fed7d0",
+        "test-studio-later-changes.mjs.log": "34530cdff4ca8b08afdac96ee5c42be3ee64279a0b035b49e68d0d9c60e5f615",
+        "test-studio-launch-wording.mjs.log": "d64b09cb6b3b2a54f98827ccfbfcef0a33b907c51fec6a5b66264dbebd34cffc",
+        "test-studio-legal-short-links.mjs.log": "be99f99078f65dca4394993d558d9564f3c5849b3fee2405bb341fbfc3d75d8a",
+        "test-studio-model-catalog.mjs.log": "d181f3bd007f45df925586d05c7da341a9b114f20cbe9e9b808019d2002073f0",
+        "test-studio-model-choice-deck-save.mjs.log": "079d60c5cbbd1876a60e0df1185a6f2f59e045021b085351f83a1e03f0ed5101",
+        "test-studio-model-choice.mjs.log": "1c796e094d1dd851e5fa0b9a35833645896673d89fefa1cc3cb63f7600d99e2a",
+        "test-studio-narration-router.mjs.log": "a214d0f83ee8c8099ab5d6ef1618622d3e60e0051ec45862ae95c9e01428c06d",
+        "test-studio-p2-docs.mjs.log": "2fd0a253c3db37f613c20cb175fd30408029c037268e64653c8818bc363f56be",
+        "test-studio-p2-polish.mjs.log": "a638990f70801b09b516e67356752312c9c952333774bdd4512fcd8f5be381b5",
+        "test-studio-p2-profile-page.mjs.log": "98b9f40275d15e58b8fa8ea350358e3df519fd54ea82c04d48fee89209aaaa99",
+        "test-studio-p2-publish.mjs.log": "2e816cadcdf806338668aba26dd28e526aabcbb49e8ef31aa76c5b53d06cb1fe",
+        "test-studio-phone-shell-nav.mjs.log": "bb2e74fab202907348461c5f14b528c3b6056d1ffdd3c4bc4033cd5f006a9d0a",
+        "test-studio-stage-open-gate.mjs.log": "a70a20d4de656f2c64234839eaeefc3ff92c75d4d3ee39900fd43fec55fb93bf",
+        "test-studio-strawman-stage.mjs.log": "1cd99dc5aa8d7d9527c2bc51eb4317272f9896ea6c64d7c992dbf4c5d546bea6",
+        "test-studio-uat-marketing.mjs.log": "21e3f9e986e750c7767f1826e7f8887a0fc7b1fb5c892365e7762b7b6d24007f"
+      },
+      "p4-19-refresh-final-results": {
+        "test-studio-chat-element-refine.mjs.log": "397a2926d47986c559804284d93a3f698df266fcff8dbce1d9188f711f4fd84e",
+        "test-studio-chat-theme-export.mjs.log": "6a0a2cb038e336ad81bea0699411273400b16d42622390821edb831755863589",
+        "test-studio-deck-sync-truth.mjs.log": "6f62ae911352878552073eee6630527cfcdd8f30bc5bda44659d0c1de5373d7b",
+        "test-studio-later-changes.mjs.log": "45b571b57c3ca8f5a2d2aaa62b95938eb2a9ea03a9d50c00234117a7c996be3f",
+        "test-studio-model-catalog.mjs.log": "d181f3bd007f45df925586d05c7da341a9b114f20cbe9e9b808019d2002073f0",
+        "test-studio-narration-router.mjs.log": "a214d0f83ee8c8099ab5d6ef1618622d3e60e0051ec45862ae95c9e01428c06d"
+      }
+    }
+  },
+  "lightRefresh": {
+    "targetHead": "dc1540195b58630a345d4ada0f81edd9a31b4673",
+    "rebasedCodeHead": "3becf05ec0f39136d6a06ad19ddcf455aec45482",
+    "normalizedProofMetadataViews": {
+      "files": 19,
+      "mismatches": 0
+    },
+    "appSourceIdentity": "identical to dc154019 across app/components/hooks/public/styles/types",
+    "coreAndFixtureIdentity": "identical to ad5b5232",
+    "checks": [
+      "exact source/metadata views",
+      "JavaScript syntax",
+      "git diff --check",
+      "git merge-tree --write-tree dc154019 HEAD"
+    ],
+    "notRerun": [
+      "Vitest",
+      "TypeScript check",
+      "Studio suites",
+      "builds"
+    ],
+    "reason": "PROGRAM-1 2026-11-02T15:49Z Mac memory/disk hold; light rebase only, OPS-2 gates on seat 2"
+  },
+  "post559Refresh": {
+    "targetHead": "7ccc857be71ac5b4dd74b05838ffe77537fbb9ae",
+    "mergeCodeHead": "e59b7f1f054bffadea6260f34defbef6379fec4b",
+    "method": "merge-only; preserve existing feature ancestry",
+    "normalizedProofMetadataViews": {
+      "files": 19,
+      "mismatches": 0
+    },
+    "appSourceIdentity": "identical to target across app/components/hooks/public/styles/types",
+    "coreAndFixtureIdentity": "identical to 9f724934",
+    "checks": [
+      "exact source/metadata views",
+      "JavaScript syntax",
+      "git diff --check",
+      "clean merge-tree"
+    ],
+    "notRerun": [
+      "Vitest",
+      "TypeScript job",
+      "Studio suites",
+      "builds"
+    ],
+    "gateOwner": "OPS-2 seat2; current Mac hold remains in effect"
+  },
+  "postF13Refresh": {
+    "targetHead": "91bcc9083defa55aafce204be3949fd2ff8e5841",
+    "mergeCodeHead": "9d2b90d36c05bd8cbf0bcc8828ce332ba5ca88b9",
+    "method": "merge-only, preserve both sides of append conflicts",
+    "normalizedViews": {
+      "files": 19,
+      "mismatches": 0
+    },
+    "sourceIdentity": "application trees identical target; core and fixtures identical8d652288",
+    "checks": [
+      "19 exact views",
+      "JavaScript syntax",
+      "git diff --check",
+      "clean merge-tree"
+    ],
+    "suitesTypesBuilds": "not rerun; OPS-2 seat2 gate owns them",
+    "dependencyRuling": "PROGRAM-1 approved option a: retain Vitest5.0.3; OPS-2 one online install on seat2"
+  },
+  "mayaV2Followup": {
+    "base": "dcb9c9007423a4004d6ae98eb12c481997263fc4",
+    "branch": "element3/p4-19-maya-v2-core",
+    "sourceCommit": "b3a812e",
+    "sourceFaceSha256": "7ac34352e22e50f4973568b1d09d6f2a560f5d307b66c0f3ef0544f8648aa99e",
+    "sourceFaceIdentity": "byte-identical",
+    "voiceFixtures": {
+      "files": 13,
+      "passed": 286,
+      "retained": 225,
+      "new": 61
+    },
+    "strictClientCoreTypes": "passed",
+    "strictPinnedCompositorAndSamplerConsumerTypes": "passed",
+    "deliveredManifestValidation": [
+      {
+        "variant": "motion",
+        "bodyFrames": 77,
+        "angles": [
+          "front",
+          "left",
+          "right"
+        ],
+        "clips": 61,
+        "states": 23,
+        "totalBytes": 4791288
+      },
+      {
+        "variant": "face",
+        "bodyFrames": 77,
+        "angles": [
+          "front",
+          "left",
+          "right"
+        ],
+        "clips": 61,
+        "states": 23,
+        "totalBytes": 4999106
+      }
+    ],
+    "fullStudioSuites": "not rerun for this follow-up",
+    "noRuntimeChanges": "no app/components/hooks/public/styles/types/dependency/flag/transport edits",
+    "limits": [
+      "JSON validation only; no image decode",
+      "no actual rendering, audio sync or physical-device acceptance",
+      "no connected providers, paid calls or real audio"
+    ],
+    "fixtureTypeCorrection": {
+      "source": "FRONTEND-1 #573 fixture type annotation",
+      "runtimeChanges": false,
+      "strictCoreAndNewFixtureTypes": "passed using existing local Vitest type declarations",
+      "focusedFaceFixturesPassed": 19,
+      "prior286FixtureEvidence": "retained; only fixture annotations changed"
+    }
+  }
+}
