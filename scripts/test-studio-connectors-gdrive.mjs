@@ -306,8 +306,9 @@ await t('FRONTEND-2 N2 / N3 / N4: the sidebar edit has a strip pair (frozen: own
   const { LATER_STRIPS, stripLaterChanges } = await import('./studio-later-changes.mjs')
   const rel = 'components/settings/settings-sidebar.tsx'
   const DEV_BASE = process.env.CONNECTORS_GDRIVE_BASE || '2f06e51ec807d4ecd5cd00edc9bfd0005a5fd0b8' // studio-v4-dev-preparation-code, the base #566 stacks on (the sidebar's base)
-  // the hardening's own head, frozen (its PR's last code + proof commit; this pin is set by a commit of its own): what this change made of the sidebar, however much lands on top later
-  const OWN_HEAD = process.env.CONNECTORS_HARDENING_HEAD || 'ad4ab4cb02943d9773c851d6887e518951f296bd'
+  // the hardening's own frozen range: its merge base (#615's head ee01e2fe) .. its own head (its PR's last code + proof commit; a commit of its own sets only this pin)
+  const OWN_BASE = process.env.CONNECTORS_HARDENING_BASE || 'ee01e2fe447bb5e6987f47af19a6b1a33cb3560c'
+  const OWN_HEAD = process.env.CONNECTORS_HARDENING_HEAD || 'PENDING'
   const have = commit => { try { execFileSync('git', ['cat-file', '-e', `${commit}^{commit}`], { cwd: root, stdio: 'ignore' }); return true } catch { return false } }
   const show = ref => execFileSync('git', ['show', `${ref}:${rel}`], { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20 })
   assert.ok(LATER_STRIPS.includes(stripConnectorsGdrive), 'registered')
@@ -318,9 +319,12 @@ await t('FRONTEND-2 N2 / N3 / N4: the sidebar edit has a strip pair (frozen: own
   // live: the sidebar as it is now and the base read the same once every registered later change (this one included) is taken out
   assert.equal(stripLaterChanges(rel, fs.readFileSync(path.join(root, rel), 'utf8')), stripLaterChanges(rel, base), 'through the registry, both sides')
   // frozen: this change's own strip pair, on this change's own head
-  if (!have(OWN_HEAD)) { console.log(`   SKIP sidebar strip pair (frozen): ${OWN_HEAD.slice(0, 8)} is not in this clone`); return }
+  if (!have(OWN_BASE) || !have(OWN_HEAD)) { console.log(`   SKIP sidebar strip pair and N4 edit (frozen): ${OWN_BASE.slice(0, 8)} or ${OWN_HEAD.slice(0, 8)} is not in this clone`); return }
   const own = show(OWN_HEAD)
   assert.notEqual(own, base); assert.equal(stripConnectorsGdrive(rel, own), base, 'strip(sidebar at this change\'s head) === the base sidebar, byte for byte')
-  assert.match(own, /isGdriveConnectorEnabled\(\) \? \[\.\.\.ITEMS, CONNECTORS_ITEM\] : ITEMS/); assert.ok(!own.includes('process.env.NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED'))
+  // N4, on the hardening's own frozen range only: one import added, the flag read through isGdriveConnectorEnabled(), nothing else in the sidebar moved
+  const diff = execFileSync('git', ['diff', '-U0', OWN_BASE, OWN_HEAD, '--', rel], { cwd: root, encoding: 'utf8' }).split('\n')
+  assert.deepEqual(diff.filter(l => /^-(?!--)/.test(l)), ['-  const items = (process.env.NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED === "true" ? [...ITEMS, CONNECTORS_ITEM] : ITEMS).filter((item) => !item.authenticatedOnly || authenticated)'])
+  assert.deepEqual(diff.filter(l => /^\+(?!\+\+)/.test(l)), ['+import { isGdriveConnectorEnabled } from "@/lib/connectors-gdrive-flag"', '+  const items = (isGdriveConnectorEnabled() ? [...ITEMS, CONNECTORS_ITEM] : ITEMS).filter((item) => !item.authenticatedOnly || authenticated)'])
 })
 console.log(`\n${passed} passed`)
