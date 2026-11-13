@@ -235,11 +235,11 @@ export function useModelChoice(sessionId: string | null, options: UseModelChoice
     storageFailed: () => setLoaded(prior => (prior ? { ...prior, storageOk: false } : prior)), // CHAT-PARITY-MORE
     deckGone: why => setLoaded(prior => (prior ? { ...prior, deckState: why, deck: null } : prior)), // CHAT-PARITY-MORE
     meta: () => setMeta({ mode: latest.current.runtime.store.mode(), reason: latest.current.runtime.store.reason() }), // CHAT-PARITY-MORE
-    saving: setSaving, feedback: setFeedback, unconfirmed: result => PREFS_VERSION_ON && Boolean((result as { unconfirmed?: boolean }).unconfirmed), // CHAT-PARITY-MORE
+    saving: setSaving, feedback: setFeedback, unconfirmed: result => Boolean((result as { unconfirmed?: boolean }).unconfirmed), // CHAT-PARITY-MORE: the adapter sets `unconfirmed` only on its own version-refused path
   }, task, value), []) // CHAT-PARITY-MORE
   chatParityMoreLive.current = !chatParityMoreOn ? null : { ready: loaded !== null, scope: scope.kind, catalogue, state, userState, deckOwn, choices: scope.kind === "deck" ? (ownDeck ?? modelChoiceDefaults()) : userChoices, select, selectTask: chatParityMoreTask } // CHAT-PARITY-MORE
   useEffect(() => { if (!chatParityMoreOn) return; let off: (() => void) | null = null; let live = true; void Promise.all([import("@/lib/studio-chat-parity-more"), import("@/lib/studio-chat-parity-more-model")]).then(([bus, model]) => { if (!live) return; chatParityMoreMods.current = { bus, model }; off = bus.registerMoreModel(() => (chatParityMoreLive.current ? model.modelPartOf(chatParityMoreLive.current) : null)) }); return () => { live = false; off?.() } }, [chatParityMoreOn]) // CHAT-PARITY-MORE
-  useEffect(() => { if (chatParityMoreOn) chatParityMoreMods.current?.bus.publishMoreModel() }) // CHAT-PARITY-MORE: after every commit; the bus tells the composer only when the state it shows changed
+  useEffect(() => { if (chatParityMoreOn) chatParityMoreMods.current?.bus.publishMoreModel() }, [chatParityMoreOn, loaded, scope.kind, catalogue]) // CHAT-PARITY-MORE: when what the bus shows can have changed (the kept choices, the scope, the catalogue: everything the live object derives from); the bus tells the composer only when the state it shows changed
   return {
     ready: loaded !== null,
     scope: scope.kind,
