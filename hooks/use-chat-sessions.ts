@@ -60,7 +60,7 @@ async function ensureSessionRow(sessionId: string): Promise<boolean> {
       body: JSON.stringify({ sessionId }),
     });
 
-    if (response.ok || response.status === 409) {
+    if (response.ok) { // POST /api/sessions: 201 a new row, 200 the caller's own row; another account's id is a 404 and a 409 is never an adoption (P-73)
       console.warn('[useChatSessions] Recovered missing session row:', sessionId);
       return true;
     }
@@ -207,13 +207,6 @@ export function useChatSessions() {
       console.log('[useChatSessions] Response status:', response.status);
 
       if (!response.ok) {
-        // If conflict (409), session already exists - that's ok
-        if (response.status === 409) {
-          console.log('[useChatSessions] Session already exists (409)');
-          const data = await response.json();
-          return data.session;
-        }
-
         // Try to get error details from response
         let errorMessage = response.statusText;
         try {
