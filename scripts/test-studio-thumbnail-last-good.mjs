@@ -44,7 +44,8 @@ import { stripBulkEditUndo, BULK_EDIT_UNDO_FILES, BULK_EDIT_UNDO_NEW_FILES, BULK
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const nodeRequire = createRequire(import.meta.url)
 const BASE = process.env.THUMBNAIL_LAST_GOOD_BASE || BASE_COMMIT
-const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'ignore'] })
+const gitCache = new Map() // speed (tests only): the repo does not change while the proof runs, so a git answer is the same every time; the scope check (section 9) spawns git about 1600 times (one ls-tree per file) and every one of the 33 mutant runs repeats it
+const git = (...args) => { const key = args.join('\0'); if (!gitCache.has(key)) gitCache.set(key, execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'ignore'] })); return gitCache.get(key) }
 const baseCache = new Map()
 const baseOf = rel => { if (!baseCache.has(rel)) baseCache.set(rel, git('show', `${BASE}:${rel}`)); return baseCache.get(rel) }
 let overrides = {} // in-memory mutations: the suite reads every source through read()

@@ -23,8 +23,10 @@ import { createRequire } from 'node:module'
 import ts from 'typescript'
 import { stripLibraryManage } from './studio-library-manage-strip.mjs'
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
+import { stripChatParityMore, CHAT_PARITY_MORE_FILES } from './studio-chat-parity-more-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-MORE): the remaining slash commands (stacked after the workspace's) mark lines in the Knowledge, Themes and Templates files; this proof reads them as the workspace commands left them
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
+{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(repoRoot, file) : ''; return typeof out === 'string' && CHAT_PARITY_MORE_FILES.includes(rel) ? stripChatParityMore(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-MORE): every read of a file the remaining commands touched is the file without their marked lines (that change's own strip, never the registry, before this proof's own strips read it)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
 const React = nodeRequire('react')
 const jsxRuntime = nodeRequire('react/jsx-runtime')
