@@ -9,7 +9,7 @@
 //   3. The REAL inventory controller (lib/slide-rail-identity.ts, evaluated bare): 404/405 asks the fallback once and a derived inventory stands in for it; anything else does not; no fallback = the base's behaviour; the rail rows it gives.
 //   4. The marked lines of the four existing files and of the new hooks and component.
 //
-//   3. The sources: every marked line, the strip gives each touched file its base back byte for byte, the registry, .env.example, the voice-call proof's four-line pin edit (the same four lines FRONTEND-2's #603 carries), the scope (read from the
+//   3. The sources: every marked line, the strip gives each touched file its base back byte for byte, the registry, .env.example, the scope (read from the
 //      COMMITTED diff BASE..HEAD only, never the working tree), the commits.
 //   4. Mutants: each must be caught.
 //
@@ -33,7 +33,6 @@ const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const require = createRequire(import.meta.url)
 const STRIP = 'scripts/studio-audit-previews-strip.mjs'
 const SELF = 'scripts/test-studio-audit-previews.mjs'
-const VOICE_CALL = 'scripts/test-studio-voice-call.mjs'
 const REGISTRY = 'scripts/studio-later-changes.mjs'
 const read = rel => fs.readFileSync(path.join(repo, rel), 'utf8')
 let passed = 0, failed = 0
@@ -352,7 +351,7 @@ function sourceChecks(texts, mod = stripModule) {
     assert.equal(diff.removed.length, (edits[rel] || []).flatMap(([, was]) => was.split('\n')).filter(line => line !== '').length, `${rel}: the base lines this change rewrites (all of them, no other)`)
   }
   // the older proofs this change teaches: each gains one marked line (the first-parent walk leaves this change's commits out) and is the base's without it
-  const EXTRA_PIN_FILES = ["scripts/test-studio-deck-card-count.mjs","scripts/test-studio-create-word.mjs","scripts/test-studio-deck-cards-v2.mjs","scripts/test-studio-plain-nav-labels.mjs","scripts/test-atlas-decks-pagination.mjs","scripts/test-present-view-only.mjs","scripts/test-studio-deck-card-thumbnail-cards.mjs","scripts/test-studio-deck-card-thumbnail.mjs","scripts/test-studio-rail-slide-identity.mjs","scripts/test-studio-publish-preview.mjs","scripts/test-studio-publish-preview-inventory.mjs"]
+  const EXTRA_PIN_FILES = ["scripts/test-studio-deck-card-count.mjs","scripts/test-studio-deck-cards-v2.mjs","scripts/test-atlas-decks-pagination.mjs","scripts/test-present-view-only.mjs","scripts/test-studio-deck-card-thumbnail-cards.mjs","scripts/test-studio-deck-card-thumbnail.mjs","scripts/test-studio-rail-slide-identity.mjs","scripts/test-studio-publish-preview.mjs","scripts/test-studio-publish-preview-inventory.mjs"]
   assert.deepEqual([...mod.AUDIT_PREVIEWS_PIN_FILES].sort(), [...PIN_FILES, ...EXTRA_PIN_FILES].sort(), 'the older proofs this change teaches')
   // an older proof that compiles a touched file with a fixed import list: one marked insertion, the base's proof without it
   for (const rel of EXTRA_PIN_FILES) {
@@ -368,18 +367,7 @@ function sourceChecks(texts, mod = stripModule) {
     assert.deepEqual([diff.removed.length, diff.added.length], [0, 1], `${rel}: the proof gains one line and loses none`)
     assert.ok(diff.added[0].includes(mod.AUDIT_PREVIEWS_PIN_MARK) && diff.added[0].includes('^Audit fix:'), `${rel}: the line carries the pin mark and names this change's subject`)
   }
-  // the voice-call proof: FRONTEND-1's four-line after-merge edit (2 lines inserted after the strip import, 2 lines changed), the same four lines FRONTEND-2's #603 carries byte for byte (so every PR merges clean in any order)
-  assert.deepEqual([...mod.AUDIT_PREVIEWS_VOICE_CALL_PIN_FILES], [VOICE_CALL], 'the one voice-call proof this change edits')
-  {
-    const now = texts[VOICE_CALL], diff = lineDiff(baseText(VOICE_CALL), now)
-    assert.equal(strip(VOICE_CALL, laterStrips(VOICE_CALL, now)), baseText(VOICE_CALL), `${VOICE_CALL}: without the four lines the proof is the base's, byte for byte`)
-    assert.equal(strip(VOICE_CALL, strip(VOICE_CALL, now)), strip(VOICE_CALL, now), `${VOICE_CALL}: stripping twice changes nothing more`)
-    assert.deepEqual([diff.removed.length, diff.added.length], [2, 4], `${VOICE_CALL}: two base lines changed and two lines inserted, nothing else`)
-    for (const line of diff.added) assert.ok(line.endsWith(mod.AUDIT_PREVIEWS_VOICE_CALL_PIN_MARK), `${VOICE_CALL}: a line added carries the registry-read mark: ${line.trim().slice(0, 90)}`)
-    const lines = now.split('\n'), at = lines.indexOf(mod.AUDIT_PREVIEWS_VOICE_CALL_PIN_ANCHOR)
-    assert.ok(at >= 0 && lines[at + 1].startsWith('const laterRegistry = await import(') && lines[at + 2].startsWith('const laterEnvOut = text =>'), `${VOICE_CALL}: the two inserted lines sit right after the strip import`)
-    assert.equal(now.split('\n').filter(line => line.includes('laterEnvOut(')).length, 2, `${VOICE_CALL}: the helper is read by the two .env.example pins`)
-  }
+  // the voice-call proof: its four-line after-merge edit is in dev since 506bcbb3, so it is the base's own text and this change carries no edit of it (nothing to pin here)
   // the new libs: import-free, one literal env read each (nothing else reads the flag)
   for (const [rel, flag] of mod.AUDIT_PREVIEWS_LIB_FLAGS) {
     assert.equal((texts[rel].match(new RegExp(`process\\.env\\.${flag}\\b`, 'g')) || []).length, 1, `${rel} reads the literal env name ${flag} once`)
@@ -431,14 +419,14 @@ function messageProblems(subject, body) {
 // ============================================================================================================================================
 // run
 // ============================================================================================================================================
-const TEXTS = Object.fromEntries([...TOUCHED, ...NEW_FILES, '.env.example', REGISTRY, ...PIN_FILES, ...["scripts/test-studio-deck-card-count.mjs","scripts/test-studio-create-word.mjs","scripts/test-studio-deck-cards-v2.mjs","scripts/test-studio-plain-nav-labels.mjs","scripts/test-atlas-decks-pagination.mjs","scripts/test-present-view-only.mjs","scripts/test-studio-deck-card-thumbnail-cards.mjs","scripts/test-studio-deck-card-thumbnail.mjs","scripts/test-studio-rail-slide-identity.mjs","scripts/test-studio-publish-preview.mjs","scripts/test-studio-publish-preview-inventory.mjs"], VOICE_CALL].map(rel => [rel, read(rel)]))
+const TEXTS = Object.fromEntries([...TOUCHED, ...NEW_FILES, '.env.example', REGISTRY, ...PIN_FILES, ...["scripts/test-studio-deck-card-count.mjs","scripts/test-studio-deck-cards-v2.mjs","scripts/test-atlas-decks-pagination.mjs","scripts/test-present-view-only.mjs","scripts/test-studio-deck-card-thumbnail-cards.mjs","scripts/test-studio-deck-card-thumbnail.mjs","scripts/test-studio-rail-slide-identity.mjs","scripts/test-studio-publish-preview.mjs","scripts/test-studio-publish-preview-inventory.mjs"]].map(rel => [rel, read(rel)]))
 
 await check('1. the re-home lib: the flag, the id, the target rule, the read (status mapping, abort at the status, the limit), the store (one read per id, shared, three at once), the decision Duplicate reads', () => rehomeChecks())
 await check('2. the fallback lib: the flag, the 404/405 rule, titles, the inventory from a presentation body (every refusal), the read, the Publish frame gate', () => fallbackChecks())
 await check('3. the REAL inventory controller: 404/405 asks the fallback once and a derived inventory stands in; anything else does not; no fallback = the base\'s behaviour; the rail rows', () => controllerChecks())
 await check('4. the marked lines: the Decks page (card, note, Duplicate, page re-render), the rail hook and controller, the Publish preview and its frame; the hooks read no env', () => fileChecks())
 
-await check('3a. the strip gives every touched file its base back byte for byte; every marked line is where it should be; the libs, the flag reads, the older proofs\' pin lines, the voice-call pin and .env.example', () => sourceChecks(TEXTS))
+await check('3a. the strip gives every touched file its base back byte for byte; every marked line is where it should be; the libs, the flag reads, the older proofs\' pin lines and .env.example', () => sourceChecks(TEXTS))
 await check('3b. the registry names this change in all three lists (strip, block, files) and loses nothing; read through it, the files are the base\'s', () => registryChecks(TEXTS[REGISTRY]))
 await check('3c. the scope: every file that differs from the base (own commits, edited, new) is this change\'s; the own commits carry the subject and the co-author line; no secret-shaped literal in the new files', () => {
   const own = ownCommits()
@@ -580,14 +568,6 @@ await check('mutant caught: a taught proof with an unmarked extra line, or witho
     assert.ok(await throws(() => sourceChecks({ ...TEXTS, [rel]: text.replace('registry read (AUDIT-PREVIEWS)', 'registry read (OTHER)') })), 'the pin mark changed')
   }
 })
-await check('mutant caught: the voice-call proof without one of the four lines, or with one changed', async () => {
-  const text = TEXTS[VOICE_CALL], lines = text.split('\n')
-  for (const needle of ["const laterRegistry = await import(", "const laterEnvOut = text =>", "ok(laterEnvOut(env).endsWith(", "ok(laterEnvOut(`${envDiff"]) {
-    const at = lines.findIndex(line => line.includes(needle)); assert.ok(at >= 0, needle)
-    assert.ok(await throws(() => sourceChecks({ ...TEXTS, [VOICE_CALL]: lines.filter((_, index) => index !== at).join('\n') })), `without ${needle}`)
-    assert.ok(await throws(() => sourceChecks({ ...TEXTS, [VOICE_CALL]: lines.map((line, index) => index === at ? `${line} // changed` : line).join('\n') })), `${needle} changed`)
-  }
-})
 await check('mutant caught: .env.example with a flag on by default, or the block missing', async () => {
   for (const flag of stripModule.AUDIT_PREVIEWS_FLAGS) assert.ok(await throws(() => sourceChecks({ ...TEXTS, '.env.example': TEXTS['.env.example'].replace(`${flag}="false"`, `${flag}="true"`) })), `${flag} true by default`)
   assert.ok(await throws(() => sourceChecks({ ...TEXTS, '.env.example': baseText('.env.example') })))
@@ -595,9 +575,8 @@ await check('mutant caught: .env.example with a flag on by default, or the block
 const STRIP_TEXT = read(STRIP)
 const STRIP_MUTANTS = [
   ['the strip puts nothing back', 'return putBackAuditPreviews(rel, text)', 'return text'],
-  ['the strip touches a file it does not own', 'if (!(rel in AUDIT_PREVIEWS_EDITS) && !(rel in AUDIT_PREVIEWS_PIN_EDITS) && !(rel in AUDIT_PREVIEWS_VOICE_CALL_PIN_EDITS)) return text', "if (rel === 'app/builder/page.tsx') return text.toUpperCase()"],
-  ['the strip does not know the voice-call proof', 'if (!(rel in AUDIT_PREVIEWS_EDITS) && !(rel in AUDIT_PREVIEWS_PIN_EDITS) && !(rel in AUDIT_PREVIEWS_VOICE_CALL_PIN_EDITS)) return text', 'if (!(rel in AUDIT_PREVIEWS_EDITS) && !(rel in AUDIT_PREVIEWS_PIN_EDITS)) return text'],
-  ['the strip does not know the older proofs', 'if (!(rel in AUDIT_PREVIEWS_EDITS) && !(rel in AUDIT_PREVIEWS_PIN_EDITS) && !(rel in AUDIT_PREVIEWS_VOICE_CALL_PIN_EDITS)) return text', 'if (!(rel in AUDIT_PREVIEWS_EDITS) && !(rel in AUDIT_PREVIEWS_VOICE_CALL_PIN_EDITS)) return text'],
+  ['the strip touches a file it does not own', 'if (!(rel in AUDIT_PREVIEWS_EDITS) && !(rel in AUDIT_PREVIEWS_PIN_EDITS)) return text', "if (rel === 'app/builder/page.tsx') return text.toUpperCase()"],
+  ['the strip does not know the older proofs', 'if (!(rel in AUDIT_PREVIEWS_EDITS) && !(rel in AUDIT_PREVIEWS_PIN_EDITS)) return text', 'if (!(rel in AUDIT_PREVIEWS_EDITS)) return text'],
 ]
 for (const [name, from, to] of STRIP_MUTANTS) {
   await check(`mutant caught: strip: ${name}`, async () => {
