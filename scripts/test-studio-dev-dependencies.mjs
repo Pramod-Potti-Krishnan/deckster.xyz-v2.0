@@ -4,6 +4,7 @@ import { createRequire } from 'node:module'
 import { readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
+import { stripApiHardening } from './studio-api-hardening-strip.mjs' // LATER-CHANGE: PROGRAM-1 API hardening (STUDIO_API_HARDENING_V1_ENABLED): its lines come out before this pin reads them
 import { SignJWT, jwtVerify } from 'jose'
 
 const root = realpathSync(process.cwd())
@@ -17,7 +18,7 @@ const withinDependencies = entry => {
 }
 const prismaEntry = withinDependencies(require.resolve('@prisma/client'))
 const client = require('@prisma/client')
-const schema = readFileSync('prisma/schema.prisma', 'utf8')
+const schema = stripApiHardening('prisma/schema.prisma', readFileSync('prisma/schema.prisma', 'utf8')) // LATER-CHANGE: PROGRAM-1 API hardening reads through its strip
 assert.equal(schema, execFileSync('git', ['show', `${baseline}:prisma/schema.prisma`], { encoding: 'utf8' }))
 const modelNames = [...schema.matchAll(/^model\s+(\w+)\s*\{/gm)].map(match => match[1])
 assert.equal(modelNames.length, 19)

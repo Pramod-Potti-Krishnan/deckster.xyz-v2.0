@@ -968,8 +968,13 @@ async function secUi() {
   eq(ui.shown('error'), 'The import could not be started. Try again.'); eq(ui.uploads.length, 0, 'no session, no upload'); ok(ui.action('retry'))
   ui = mountDialog({ net: createNet(() => assert.fail('no request')), uploadFails: 'Storage upload failed (403)' }); await importFlow(ui)
   eq(ui.shown('error'), 'Storage upload failed (403)'); ok(ui.action('retry')); eq(ui.net.log.length, 0, 'no start after a failed upload')
-  ui = mountDialog({ net: createNet(() => assert.fail('no request')), researcherUrl: 'https://researcher-v1.up.railway.app' }); await importFlow(ui)
-  eq(ui.shown('error'), 'Deck import is not available right now.', 'the Researcher must be the UAT one or a local one, as for the template upload'); eq(ui.sessions.length, 0); eq(ui.action('retry'), null)
+  // taught (FRONTEND-1, pre-promo C-06): the Researcher host now comes from NEXT_PUBLIC_KNOWLEDGE_SERVICE_URL itself, so a production https
+  // Researcher is approved when it is the configured one (scripts/test-studio-composer-env-hosts.mjs proves that). What is still refused, and
+  // pinned here with the same strength: a plain-http non-local Researcher, a ported one and a credentialed one.
+  for (const researcherUrl of ['http://researcher-v1.up.railway.app', 'https://researcher-v1.up.railway.app:8443', 'https://u:p@researcher-v1.up.railway.app']) {
+  ui = mountDialog({ net: createNet(() => assert.fail('no request')), researcherUrl }); await importFlow(ui)
+  eq(ui.shown('error'), 'Deck import is not available right now.', `the Researcher must be https on its own host, or local: ${researcherUrl}`); eq(ui.sessions.length, 0); eq(ui.action('retry'), null)
+  }
   ui = mountDialog({ net: createNet(() => assert.fail('no request')), userId: null }); ui.mount(); await ui.choose(FILE)
   ok(ui.action('start').props.disabled, 'no account, no import')
   ui.action('start').props.onClick(); await ui.idle()
@@ -1302,6 +1307,8 @@ async function secStatic() {
   ok(seen.size > clientRoots.length, 'the closure follows imports')
   ok(!seen.has(HELPER), 'no "use client" module, and nothing a client module imports, reaches lib/director-rest-entitlement')
   text.delete('lib/studio-compose-entitlement.ts') // stacked after #475: Add Slide compose signs its user (STUDIO_COMPOSE_ENTITLEMENT_ENABLED) also reaches the minter, from one server-only lib that the compose route alone imports (scripts/test-studio-compose-entitlement.mjs proves it); the closure walk above already ran over it
+  text.delete('lib/studio-brand-kit-server.ts') // LATER-CHANGES: registry read (BRAND-KIT-CALLER): the Brand Kit's server-only lib (it signs the eight theme proxy fetches) also reaches the minter; scripts/test-studio-brand-kit.mjs proves it, and the closure walk above already ran over it
+  text.delete('app/api/themes/[id]/brand/route.ts') // LATER-CHANGES: registry read (BRAND-KIT-CALLER): the Brand Kit's brand record route signs its Director calls with the same helper (proved by scripts/test-studio-brand-kit.mjs)
   deepEq([...text.keys()].filter(rel => rel !== HELPER && /director-rest-entitlement/.test(text.get(rel))).sort(), [JOBS, START].sort(), 'the minter is imported by the two import routes only')
   for (const rel of [START, JOBS]) { ok(!isClient(rel), `${rel} is server code`); match(text.get(rel), /from '@\/lib\/director-rest-entitlement'/); eq((text.get(rel).match(/restEntitlementHeaders\(/g) ?? []).length, 1, `${rel}: one signed call`); eq((text.get(rel).match(/\bfetch\(/g) ?? []).length, 1, `${rel}: one Director fetch`) }
   match(text.get(START), /restEntitlementHeaders\(userId, 'POST'\)/); match(text.get(JOBS), /restEntitlementHeaders\(userId, 'GET'\)/)

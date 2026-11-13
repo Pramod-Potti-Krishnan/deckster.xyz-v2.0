@@ -7,6 +7,7 @@ import {
   nextDayResetEastUtc,
   nextWeekResetEastUtc,
 } from "@/lib/quota/est-time"
+import { monthlyOnlyCaps, startOfMonthUtc } from "@/lib/billing/wallet-debit-source" // BILLING-F4F6
 
 export type Tier = "free" | "starter" | "pro" | "premium"
 
@@ -101,6 +102,7 @@ export async function getQuotaStatus(userId: string, tier: Tier): Promise<QuotaS
   const dayStart = startOfDayEastUtc(now)
   const weekStart = startOfWeekEastUtc(now)
   const monthStart = startOfMonthEastUtc(now)
+  const monthFrom = monthlyOnlyCaps() ? startOfMonthUtc(now) : monthStart // BILLING-F4F6: flat_strict counts the UTC calendar month (PK ruling)
 
   const sumUsage = (gte?: Date) =>
     prisma.walletTransaction.aggregate({
@@ -112,7 +114,7 @@ export async function getQuotaStatus(userId: string, tier: Tier): Promise<QuotaS
     prisma.user.findUnique({ where: { id: userId }, select: { walletBalanceCents: true } }),
     sumUsage(dayStart),
     sumUsage(weekStart),
-    sumUsage(monthStart),
+    sumUsage(monthFrom), // BILLING-F4F6
     sumUsage(),
   ])
 
@@ -150,6 +152,7 @@ export async function getQuotaStatus(userId: string, tier: Tier): Promise<QuotaS
       lifetimeTokens: lifeSum._sum.tokens ?? 0,
       lifetimeSpendCents: lifeSum._sum.amountCents ?? 0,
     },
+    ...(monthlyOnlyCaps() ? { flags: { dailyNear: false, dailyAt: false, weeklyNear: false, weeklyAt: false }, remainingPct: { daily: 1, weekly: 1, monthly: remaining(monthlyCents, caps.monthlyCents) } } : {}), // BILLING-F4F6: flat_strict has no daily or weekly cap
   }
 }
 
@@ -163,6 +166,7 @@ export function fitsWithinCaps(
   costCents: number,
 ): boolean {
   if (caps.monthlyCents <= 0) return false
+  if (monthlyOnlyCaps()) return spent.monthlyCents + costCents <= caps.monthlyCents // BILLING-F4F6: flat_strict, the monthly cap only
   return (
     spent.dailyCents + costCents <= caps.dailyCents &&
     spent.weeklyCents + costCents <= caps.weeklyCents &&

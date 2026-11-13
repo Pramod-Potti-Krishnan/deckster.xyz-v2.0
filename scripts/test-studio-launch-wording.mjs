@@ -1,3 +1,4 @@
+import { stripVoiceCore } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): remove only this later port's exact test metadata
 // FRONTEND-1 Pass 3: launched wording on the signed-in pages (flag NEXT_PUBLIC_STUDIO_LAUNCH_WORDING, exact "true", default off, read at build time).
 // PK 23 Oct: "replace 'coming soon' / mock wording with launched wording (we are going out); grey out what is truly not ready instead of promising it."
 // Plan and evidence per row: streams/frontend/pass3/launched-wording/PLAN.md (workspace). The list of changed sentences is lib/studio-launch-wording.ts (import-free).
@@ -25,10 +26,11 @@ import { BASE_COMMIT, LAUNCH_FILES, LAUNCH_NEW_FILES, LAUNCH_PAIRS, stripLaunchW
 import { sameOrTolerant, stackScope } from './studio-stack-tolerant.mjs'
 import { sameAsBase } from './studio-env-append-tolerant.mjs'
 import { stripJobDeadlines } from './studio-job-deadlines-strip.mjs' // P3-4b (NEXT_PUBLIC_STUDIO_JOB_DEADLINES) is in the base and edits components/narration-voice-picker.tsx too: its lines come out first
+import { stripLaterChanges } from './studio-later-changes.mjs' // taught (FRONTEND-1, pre-promo UX-01): a later change's lines come out first, through the later-changes registry
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 })
-const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const read = rel => stripLaterChanges(rel, stripVoiceCore(rel, fs.readFileSync(path.join(root, rel), 'utf8')))
 const baseOf = rel => git('show', `${BASE_COMMIT}:${rel}`)
 const FLAG = 'NEXT_PUBLIC_STUDIO_LAUNCH_WORDING'
 const WORDS_LIB = 'lib/studio-launch-wording.ts'
@@ -86,7 +88,7 @@ function proveFlag({ heads }) {
 // ---------------------------------------------------------------- 2. flag off is the base
 function proveOff({ heads, bases }, strip = stripLaunchWording) {
   for (const rel of LAUNCH_FILES) {
-    const head = stripJobDeadlines(rel, heads[rel]) // the base's P3-4b lines out first (they change a base line in narration-voice-picker.tsx); a text without them is returned as it is
+    const head = stripJobDeadlines(rel, rel === 'app/(app)/billing/page.tsx' ? stripLaterChanges(rel, heads[rel]) : heads[rel]) // LATER-CHANGES: registry read (BILLING-F4F6); the base's P3-4b lines out first (they change a base line in narration-voice-picker.tsx); a text without them is returned as it is
     const stripped = strip(rel, head)
     if (rel === '.env.example') { assert.ok(sameAsBase(rel, stripped, bases[rel], /LAUNCH_WORDING/), `${rel}: with this change's block out the file is the base's (or a later flag block was added after it)`); continue }
     const verdict = sameOrTolerant(rel, head, stripped, bases[rel], LAUNCH_PAIRS[rel])

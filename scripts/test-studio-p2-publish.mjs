@@ -1,3 +1,4 @@
+import { stripVoiceCore } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): remove only this later port's exact test metadata
 // PASS2-PAGES publish flow + public viewer (FRONTEND-1; streams/ops/PASS2-PAGES/publish.md, PROGRAM-1's rulings ops/program/pass2-designs table D).
 // Flags (each exact "true", Studio shell only, default off): NEXT_PUBLIC_STUDIO_P2_PUBLISH, NEXT_PUBLIC_STUDIO_P2_PUBLISH_INBOX, NEXT_PUBLIC_STUDIO_P2_PUBLISH_ORIGIN_URL.
 //
@@ -53,7 +54,7 @@ const CSS = 'components/studio-publish.css'
 const ROUTES_WITH_RECORD = ['app/api/publish/route.ts', 'app/api/publish/by-session/[sessionId]/route.ts', 'app/api/publish/[slug]/route.ts', 'app/api/publish/[slug]/rotate/route.ts']
 
 // the Pass 2 polish change (scripts/test-studio-p2-polish.mjs) is put back out first: this test holds the files as this page's change left them
-const read = rel => stripP2Polish(rel, fs.readFileSync(path.join(root, rel), 'utf8'))
+const read = rel => stripP2Polish(rel, stripVoiceCore(rel, fs.readFileSync(path.join(root, rel), 'utf8')))
 const baseOf = rel => execFileSync('git', ['show', `${BASE}:${rel}`], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 })
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 const ser = value => JSON.stringify(value, (key, item) => typeof item === 'function' ? '[fn]' : item === undefined ? '__undefined__' : item)

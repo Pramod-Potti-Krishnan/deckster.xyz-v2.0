@@ -22,6 +22,8 @@ export const FILES = {
   slider: 'components/model-choice/model-slider.tsx',
   css: 'components/model-choice/model-picker.css',
   sliderCss: 'components/model-choice/model-slider.css',
+  simpleLib: 'lib/studio-model-picker-simple.ts', // MODEL-PICKER-SIMPLE
+  simple: 'components/model-choice/model-picker-simple.tsx', // MODEL-PICKER-SIMPLE
 }
 
 const compiled = new Map()
@@ -57,8 +59,11 @@ export function loadPicker({ read, react, jsx, radix, radixSlider, lucide, env =
     react, 'react/jsx-runtime': jsx, '@radix-ui/react-popover': radix, '@radix-ui/react-slider': radixSlider, 'lucide-react': lucide, '@/lib/studio-model-picker': picker, '@/lib/studio-model-slider': sliderLib,
     './model-option': option, './use-model-choice': hook, './model-picker.css': {}, './model-slider.css': {},
   }, opts)
+  const simpleLib = runModule(FILES.simpleLib, { '@/lib/studio-intelligence-p2': p2, '@/lib/studio-model-choice': choice, '@/lib/studio-model-picker': picker, '@/lib/studio-model-slider': sliderLib }, opts) // MODEL-PICKER-SIMPLE
+  const simple = runModule(FILES.simple, { react, 'react/jsx-runtime': jsx, '@radix-ui/react-dialog': nodeRequire('@radix-ui/react-dialog'), '@radix-ui/react-popover': radix, '@radix-ui/react-slider': radixSlider, 'lucide-react': lucide, '@/lib/studio-model-picker': picker, '@/lib/studio-model-slider': sliderLib, '@/lib/studio-model-picker-simple': simpleLib, './model-option': option, './use-model-choice': hook, './model-picker.css': {}, './model-slider.css': {}, './model-picker-simple.css': {} }, opts) // MODEL-PICKER-SIMPLE
   const component = runModule(FILES.component, {
     react, 'react/jsx-runtime': jsx, '@radix-ui/react-popover': radix, 'lucide-react': lucide, '@/lib/studio-model-picker': picker, '@/lib/studio-model-slider': sliderLib, './model-option': option, './model-slider': slider, './use-model-choice': hook, './model-picker.css': {},
+    '@/lib/studio-model-picker-simple': simpleLib, './model-picker-simple': simple, // MODEL-PICKER-SIMPLE
   }, opts)
   return { p2, cat, choice, picker, sliderLib, hook, option, slider, component }
 }

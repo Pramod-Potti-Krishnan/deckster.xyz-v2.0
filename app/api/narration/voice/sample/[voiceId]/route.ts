@@ -25,6 +25,7 @@ import { synthesize, isNarrationConfigured } from '@/lib/narration/tts';
 import { narrationCallContext } from '@/lib/narration/model-router';
 import { pcmToWav } from '@/lib/narration/wav';
 import { contentKey, getMedia, putMedia, voiceSamplePath } from '@/lib/narration/media-store';
+import { requireApprovedUser } from '@/lib/api-hardening'
 
 export const dynamic = 'force-dynamic';
 
@@ -67,6 +68,9 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ voiceId: string }> }
 ) {
+  // STUDIO_API_HARDENING_V1_ENABLED (server, default off): approved users only, read from the DB. Off, this returns null and nothing changes.
+  const notApproved = await requireApprovedUser()
+  if (notApproved) return notApproved
   try {
     const { voiceId } = await params;
 
