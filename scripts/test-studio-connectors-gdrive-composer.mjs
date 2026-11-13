@@ -25,7 +25,7 @@ const React = nodeRequire('react')
 const { renderToStaticMarkup } = nodeRequire('react-dom/server')
 const BASE = process.env.GDRIVE_COMPOSER_BASE || '11ff3c89502bdf1a3c71b8a1e7c16ec4e03a92bc'
 // this change's own head, FROZEN (#615's commit that holds its final code and proofs; the commit after it only sets this pin): BASE..OWN_HEAD is what this change did, whatever is merged on top later
-const OWN_HEAD = process.env.GDRIVE_COMPOSER_HEAD || '0000000000000000000000000000000000000000'
+const OWN_HEAD = process.env.GDRIVE_COMPOSER_HEAD || '8a7570cc821400d70727fdf301f56f30cb45e001'
 const gitShow = rel => execFileSync('git', ['show', `${BASE}:${rel}`], { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20 })
 const inClone = commit => { try { execFileSync('git', ['cat-file', '-e', `${commit}^{commit}`], { cwd: root, stdio: 'ignore' }); return true } catch { return false } }
 const frozen = () => inClone(BASE) && inClone(OWN_HEAD) // the change's own range is readable in this clone

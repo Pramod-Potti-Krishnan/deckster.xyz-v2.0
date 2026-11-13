@@ -22,7 +22,7 @@ const React = nodeRequire('react')
 const { renderToStaticMarkup } = nodeRequire('react-dom/server')
 const BASE = process.env.GDRIVE_BADGE_BASE || '11ff3c89502bdf1a3c71b8a1e7c16ec4e03a92bc' // the branch this change stacks on (#608's head refreshed onto studio-v4-dev-preparation-code 2f06e51e; was 1baf289d)
 // this change's own head, FROZEN (#615's commit that holds its final code and proofs; the commit after it only sets this pin): the strip is held to the base on BASE..OWN_HEAD, whatever is merged on top later
-const OWN_HEAD = process.env.GDRIVE_BADGE_HEAD || '0000000000000000000000000000000000000000'
+const OWN_HEAD = process.env.GDRIVE_BADGE_HEAD || '8a7570cc821400d70727fdf301f56f30cb45e001'
 
 const FLAG = 'NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED'
 const CARD = 'components/build-narration/slide-context-card.tsx', SOURCES = 'components/builder/studio-citation-sources.tsx', LIB = 'lib/connectors-gdrive-citations.ts'
