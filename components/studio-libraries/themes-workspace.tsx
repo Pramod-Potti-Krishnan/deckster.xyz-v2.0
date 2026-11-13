@@ -17,6 +17,7 @@ import { customEntryPaletteMode, paletteModeChoices, paletteModeSelectValue, the
 // FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE): rename / delete on a saved theme's row.
 import { ManagedLibraryRow, type ManagedRowChild } from './library-manage'
 import { BUSY_TEXT, isUserOwnedLibraryItem, runLibraryDelete, runLibraryRename, selectionAfterRemoval } from '@/lib/studio-library-manage'
+import { BRAND_KIT_ENABLED, BrandKitSavedDetails, BrandKitSection, BrandKitStatus, useBrandKitDraft } from './brand-kit-panel' // BRAND-KIT-CALLER (NEXT_PUBLIC_STUDIO_BRAND_KIT, exact "true", default off): the Brand Kit on this page
 import { takeBrowserHandoff } from '@/lib/studio-chat-parity-more-handoff' // CHAT-PARITY-MORE
 import './themes-fidelity.css'
 
@@ -99,6 +100,7 @@ export function ThemesWorkspace() {
   const [specimen, setSpecimen] = useState<ThemeSpecimen>('title')
   const [compareBase, setCompareBase] = useState(false)
   const [replacePrompt, setReplacePrompt] = useState<SavedThemeProfile | 'blank' | null>(null)
+  const brandKit = useBrandKitDraft(BRAND_KIT_ENABLED) // BRAND-KIT-CALLER: the kit's own state (the proposal, the form, the save status); with the flag off it holds an empty reducer and never starts a request
   // CHAT-PARITY-MORE (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS with NEXT_PUBLIC_STUDIO_CHAT_CLEAN, default off; acts only with NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE): /delete-theme <name> from the chat opens this page showing the saved themes, and asks that theme's row to open its OWN delete confirmation (the same one Delete… opens). A one-time hand-off, not the address. Nothing is deleted from here: the click on Delete in that dialog deletes.
   const [chatMoreDelete, setChatMoreDelete] = useState<string | null>(null) // CHAT-PARITY-MORE: the theme whose row is asked to open its confirmation
   const chatMoreAsked = useRef<{ id: string; name: string } | null>(null) // CHAT-PARITY-MORE: the theme the chat named, until the library has loaded
@@ -174,12 +176,13 @@ export function ThemesWorkspace() {
   const duplicateName = themes?.some(theme => theme.name.toLowerCase() === name.trim().toLowerCase())
   // A font Director refuses (422) names the allowed families; show that instead of the generic "not confirmed" text.
   const fontRefusal = actionError ? themeFontRefusal(profilesError) : null
-  const canSave = Boolean(name.trim() && draft.mode !== 'auto' && !invalidColors && !duplicateName && !operation)
+  const canSave = Boolean(name.trim() && draft.mode !== 'auto' && !invalidColors && !duplicateName && !operation && !brandKit.blocksSave) // BRAND-KIT-CALLER: a brand detail that cannot be saved (an http logo link, a footer over 200 characters) keeps Save off, so no theme is created without its kit
   const patchDraft = (next: BuildThemeSelection) => { if (!mounted.current || !accountIsCurrent()) return; setDraft(next); setDirty(true); setActionError(''); setNotice(''); setCompareBase(false) }
 
   const loadDraft = (source: SavedThemeProfile | 'blank') => {
     // A previously opened confirmation can outlive the click that starts save.
     if (!mounted.current || !accountCanStart() || busy.current) return
+    if (brandKit.enabled) brandKit.reset() // BRAND-KIT-CALLER: a new draft starts with an empty kit (a theme saved without its brand details keeps its retry)
     if (source === 'blank') { setName(''); setDescription(''); setDraft({ ...INITIAL_THEME }); setDirty(false) }
     else { setName(`${source.name} copy`); setDescription(source.description ?? ''); setDraft({ ...source.theme_payload, color_overrides: source.theme_payload.color_overrides ? { ...source.theme_payload.color_overrides } : undefined }); setDirty(true) }
     setMode('create'); setCompareBase(false); setReplacePrompt(null); setActionError(''); setNotice('')
@@ -201,6 +204,7 @@ export function ThemesWorkspace() {
       // A server that has not enabled theme fonts saves the colors and drops the fonts; say so instead of implying they were kept.
       const fontsKept = themeFontsEqual(sentDraft, result.theme_payload)
       setNotice(`“${result.name}” was saved to your library. Choose it in Studio when you are ready to use it.${fontsKept ? '' : ' The server did not keep the font choice, so it was saved without fonts.'}`)
+      if (brandKit.enabled) await brandKit.saveAfterTheme({ id: result.id, name: result.name, theme_payload: result.theme_payload }) // BRAND-KIT-CALLER: the theme row exists, so now the brand record is PUT once (nothing when the kit form is empty); a failure leaves the theme saved and a retry that repeats only the PUT
     } catch {
       if (mounted.current && request === operationRequest.current && accountIsCurrent(requestAccount)) setActionError('The save was not confirmed. Your draft is still here. Refresh the library before retrying to check whether it was saved.')
     } finally {
@@ -279,6 +283,7 @@ export function ThemesWorkspace() {
     <div className="sl-context" data-studio-themes-fidelity={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && account !== null ? 'true' : undefined}><Palette size={15} /><span>{standard ? <>Standard for new presentations: <strong>{standard.name}</strong></> : 'No saved standard · new presentations use the session default'}</span><span>Preview selection only</span></div>
     {!accountReady && <LibraryNotice>Verifying your account. Your draft and last loaded themes stay here; saving, refresh, standard changes, and Studio handoffs are paused.</LibraryNotice>}
     {notice && <LibraryNotice>{notice}</LibraryNotice>}{actionError && <LibraryNotice error>{fontRefusal ? `Theme not saved: ${fontRefusal}. Your draft is still here.` : actionError}</LibraryNotice>}
+    {brandKit.enabled && <BrandKitStatus kit={brandKit} standardId={standard?.id} selectedId={selectedId} busy={!accountReady || Boolean(operation)} onSetStandard={() => void changeStandard()} />}{/* BRAND-KIT-CALLER: the brand save's status, its retry and where it applies */}
     {replacePrompt && <div className="sl-confirm" role="alert"><span>Replace your unsaved theme draft?</span><button type="button" disabled={!accountReady || Boolean(operation)} onClick={() => loadDraft(replacePrompt)}>Discard & continue</button><button type="button" onClick={() => setReplacePrompt(null)}>Keep draft</button></div>}
     <div className="sl-split">
       <aside className="sl-side">
@@ -295,6 +300,7 @@ export function ThemesWorkspace() {
             {draft.mode === 'custom' && <><div className="sl-colors">{CUSTOM_FIELDS.map(([key, label]) => <ColorField key={key} label={label} value={draft[key]} fallback={palette[key.replace('_hex', '')]} onChange={value => patchDraft({ ...draft, [key]: value || undefined })} onReset={() => patchDraft({ ...draft, [key]: undefined })} />)}</div>
               <div className="sl-two-fields"><label className="sl-field">Color harmony<select value={draft.harmony_preference || 'auto'} onChange={event => patchDraft({ ...draft, harmony_preference: event.target.value as BuildThemeSelection['harmony_preference'] })}>{['auto', 'monochrome', 'analogous', 'complementary', 'triadic'].map(value => <option key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</option>)}</select></label><label className="sl-field">Palette mode<select value={paletteModeSelectValue(draft, THEME_DARK_MODE)} onChange={event => patchDraft({ ...draft, palette_mode: event.target.value as BuildThemeSelection['palette_mode'] })}>{paletteModeChoices(THEME_DARK_MODE).map(choice => <option key={choice.value} value={choice.value}>{choice.label}</option>)}</select></label></div></>}
             {THEME_FONT_SELECTION_ENABLED && draft.mode !== 'auto' && <FontFields draft={draft} onChange={patchDraft} />}
+            {brandKit.enabled && <BrandKitSection kit={brandKit} draft={draft} name={name} patchDraft={patchDraft} locked={Boolean(operation)} />}{/* BRAND-KIT-CALLER: colour suggestions from a logo, the kit form and a sample slide */}
             <details className="sl-disclosure"><summary>Individual colors <span>{Object.keys(draft.color_overrides || {}).length} overrides</span></summary><p className="sl-helper">Explicit colors stay yours when changing the base. Reset a color to follow the theme again.</p><div className="sl-colors">{THEME_TOKENS.map(([token, label]) => <ColorField key={token} label={label} value={draft.color_overrides?.[token]} fallback={palette[token]} onChange={value => setOverride(token, value)} onReset={() => setOverride(token)} />)}{Object.keys(draft.color_overrides || {}).filter(key => !THEME_TOKENS.some(([token]) => token === key)).map(key => <ColorField key={key} label={key} value={draft.color_overrides?.[key]} fallback="#64748b" onChange={value => setOverride(key, value)} onReset={() => setOverride(key)} />)}</div></details>
             <p className="sl-helper">{LAUNCH_WORDING ? (THEME_FONT_SELECTION_ENABLED ? 'Colors and fonts above are editable.' : 'Colors above are editable.') : THEME_FONT_SELECTION_ENABLED ? 'Website extraction and AI theme chat are not connected in this workspace. Colors and fonts above are editable now.' : 'Website extraction, font editing, and AI theme chat are not connected in this workspace. Colors above are editable now.'}</p>
           </fieldset></div>
@@ -314,6 +320,7 @@ export function ThemesWorkspace() {
         <div className="sl-preview-bottom">
           {mode === 'library' && selected && <div className="sl-actions"><StudioWorkflowAction action="theme" itemId={selected.id} canStart={canContinueInStudio} className="sl-primary" disabled={!accountReady || Boolean(operation)}>Choose theme in Studio</StudioWorkflowAction><button type="button" className="sl-button" disabled={!accountReady || Boolean(operation)} onClick={() => requestDraft(selected)}><Copy size={14} />Customize a copy</button><button type="button" className="sl-button" disabled={!accountReady || Boolean(operation)} onClick={() => void changeStandard()}><Star size={14} />{operation === 'standard' ? 'Updating…' : selected.is_standard ? 'Clear standard' : 'Set as standard'}</button></div>}
           {mode === 'create' && <div className="sl-actions"><button type="button" className="sl-text-button" disabled={!accountReady || Boolean(operation)} onClick={() => requestDraft('blank')}>Start another draft</button><span className="sl-helper">Saving a theme leaves existing presentations unchanged.</span></div>}
+          {brandKit.enabled && mode === 'library' && selected && <BrandKitSavedDetails key={selected.id} themeId={selected.id} isStandard={Boolean(selected.is_standard)} />}{/* BRAND-KIT-CALLER: the selected theme's saved brand details (one read, never one per row) */}
           <details className="sl-disclosure sl-theme-support">
             <summary>Theme details & use <span>{mode === 'library' && selected ? 'Saved settings · preview guide' : 'Preview guide · Studio workflow'}</span></summary>
             <div className="sl-theme-support-content" data-studio-theme-support-region={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'true' : undefined} tabIndex={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 0 : undefined} role={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'region' : undefined} aria-label={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'Theme details and use' : undefined}>

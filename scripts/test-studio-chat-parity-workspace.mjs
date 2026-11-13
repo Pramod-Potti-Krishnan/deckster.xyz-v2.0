@@ -468,7 +468,7 @@ function sourceChecks() {
     for (const sha of OWN) for (const rel of git('diff-tree', '--no-commit-id', '--name-only', '-r', '-m', '--first-parent', sha).split('\n').filter(Boolean)) touched.add(rel)
     const stray = [...touched].filter(rel => !strip.CHAT_PARITY_WORKSPACE_SCOPE_FILES.has(rel))
     eq(stray, [], 'the committed diff of this change\'s commits is its own files (strays: none)')
-    ok(OWN.every(sha => /Co-Authored-By: Claude Opus 5\.5 <noreply@anthropic\.com>/.test(git('log', '-1', '--format=%B', sha))), 'every commit of this change carries the Co-Authored-By line')
+    ok(OWN.every(sha => /Co-Authored-By: Claude (?:Opus|Sonnet) 5\.5 <noreply@anthropic\.com>/.test(git('log', '-1', '--format=%B', sha))), 'every commit of this change carries the Co-Authored-By line')
   } else console.log(`NOTE C  no own commit yet (subject "${strip.CHAT_PARITY_WORKSPACE_SUBJECT} ..."): the committed-diff check was skipped`)
 }
 

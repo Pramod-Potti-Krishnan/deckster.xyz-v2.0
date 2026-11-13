@@ -3,13 +3,14 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import { readAtlasBaseline } from './atlas-witness-baseline.mjs'
 import ts from 'typescript'
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (BRAND-KIT-CALLER)
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 
 // Native callbacks and native confirmation props extracted as AST. No save,
 // account or service request is made; deferred results are local test inputs.
 const root=new URL('../',import.meta.url), file='components/studio-libraries/themes-workspace.tsx'
 const rootURL=root
-const currentText=stripLaunchWording(file,fs.readFileSync(new URL(file,root),'utf8'))
+const currentText=stripLaunchWording(file,stripLaterChanges(file,fs.readFileSync(new URL(file,root),'utf8'))) // LATER-CHANGES: registry read (BRAND-KIT-CALLER): a later change's marked lines come out first
 const originalText=readAtlasBaseline(`4894987:${file}`)
 const parse=text=>ts.createSourceFile('themes.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX)
 const current=parse(currentText), original=parse(originalText)
