@@ -692,6 +692,15 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
   // UI state
   const [inputMessage, setInputMessage] = useState("")
+  const [buildMode, setBuildMode] = useState<BuildMode>('standard') // AGENT-MODE-WIRE: the build mode the picker holds; nothing is sent until a build request carries it (buildModeWire below)
+  const [buildModeFrom, setBuildModeFrom] = useState<BuildMode | undefined>(undefined) // AGENT-MODE-WIRE: set once the person picked Author or Agent, so that going back to Standard is sent as an explicit reset
+  const [agentRun, dispatchAgentRun] = React.useReducer(agentWireReducer, undefined, initialAgentRunState) // AGENT-MODE-WIRE: the run card's state (#607's reducer: Director's agent frames and the person's answers); idle with the flags off, and then never touched
+  const agentBuildModeRef = useRef<BuildMode | undefined>(undefined) // AGENT-MODE-WIRE: the build_mode the next build request carries (undefined omits the key); written each render from the picker, the flags and the plan
+  const agentVoiceModeRef = useRef<BuildMode | undefined>(undefined) // AGENT-MODE-WIRE: the build_mode a build send that came from the voice call carries (PK ruling: voice never starts Agent); written each render, never "agent"
+  const agentCardsRef = useRef<HTMLDivElement>(null) // AGENT-MODE-WIRE: the cards in the chat, to bring a new one into view
+  const agentSessionRef = useRef<string | null>(null) // AGENT-MODE-WIRE: the last session the page showed, to tell a move to another session from the first save of a new chat
+  const agentFinishedRef = useRef<string | null>(null) // AGENT-MODE-WIRE: the id of the finished run (done or failed) the page saw last; null at the start, so a page that mounts or reloads idle resets nothing (the picker goes back to Standard when a run finishes, not before)
+  const agentPlan = agentPlanOf(user?.tier) // AGENT-MODE-WIRE: the plan the signed-in session carries (read from the database, not from a frame); one that is not free / starter / pro / premium is null, and null keeps Agent disabled
   const [pendingManualDeckBuild, setPendingManualDeckBuild] = useState<PendingManualDeckBuild | null>(null)
   const [manualDeckHandoffBusy, setManualDeckHandoffBusy] = useState(false)
   const [manualDeckHandoffError, setManualDeckHandoffError] = useState<string | null>(null)
@@ -843,6 +852,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   useEffect(() => {
     deckIdentityRef.current = deckIdentity
   }, [deckIdentity])
+  const buildModeWire = STUDIO_AGENT_MODE_ENABLED ? buildModeOnWire(buildMode, { plan: agentPlan, previous: buildModeFrom }) : undefined // AGENT-MODE-WIRE: the picker's build_mode on the wire (undefined: Standard, and no other was ever picked; the two refs below turn it into the key a typed send and a voice send carry); with the flags off it is undefined and every frame is today's
+  agentBuildModeRef.current = STUDIO_AGENT_MODE_ENABLED ? typedBuildMode(buildModeWire, agentPlan) : undefined // AGENT-MODE-WIRE: read at send time by the four build sends below (typed message, outline accept), so a pick is on the very next request and a closure never holds an old mode; PK ruling (12 Nov): Standard on a plan that can have an Agent opt-in (Pro, Max) is sent as an explicit "standard" (Director's opt-in is sticky and the picker starts on Standard after a reload), the other plans leave the key out
+  agentVoiceModeRef.current = STUDIO_AGENT_MODE_ENABLED ? voiceBuildMode(buildModeWire, agentPlan) : undefined // AGENT-MODE-WIRE: the same, for a send that came from the voice call: "standard" for a plan that can have an Agent opt-in (Director's is sticky; this drops it), else no key; never "agent"
   const buildSendOptions = useMemo(
     () => ({
       ...templateSendOptions,
@@ -1957,6 +1969,19 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     }
     previousKnowledgeGraphSessionRef.current = currentSessionId
   }, [currentSessionId])
+  useEffect(() => { // AGENT-MODE-WIRE: a run, its cards and a picked mode belong to the session they were made in; another session starts clean (the first save of a new chat is not a move)
+    if (!STUDIO_AGENT_MODE_ENABLED) return // AGENT-MODE-WIRE
+    if (agentSessionChanged(agentSessionRef.current, currentSessionId)) { dispatchAgentRun(AGENT_WIRE_RESET); setBuildMode('standard'); setBuildModeFrom(undefined) } // AGENT-MODE-WIRE
+    agentSessionRef.current = currentSessionId ?? agentSessionRef.current // AGENT-MODE-WIRE
+  }, [currentSessionId]) // AGENT-MODE-WIRE
+  useEffect(() => { // AGENT-MODE-WIRE: PK ruling (12 Nov), reset to Standard: when an Agent run finishes (done or failed; a refusal is a failed run; a stopped run is not over, it can be resumed) the picker goes back to Standard, once, on that move only (never on mount); a pick made afterwards stays
+    if (!STUDIO_AGENT_MODE_ENABLED) return // AGENT-MODE-WIRE: nothing finishes with the flags off
+    const finishedBefore = agentFinishedRef.current // AGENT-MODE-WIRE
+    agentFinishedRef.current = agentFinishedRun(agentRun) // AGENT-MODE-WIRE
+    setBuildMode(mode => agentPickerAfterRun(finishedBefore, agentRun, mode)) // AGENT-MODE-WIRE: on Pro and Max the next send then says "standard" (typedBuildMode), which clears the Agent opt-in Director holds
+  }, [agentRun]) // AGENT-MODE-WIRE
+  const agentCardsViewKey = agentCardsKey(agentRun) // AGENT-MODE-WIRE
+  useEffect(() => { if (STUDIO_AGENT_MODE_ENABLED && agentCardsViewKey) agentCardsRef.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }) }, [agentCardsViewKey]) // AGENT-MODE-WIRE: a card that appears or changes (the estimate, a spend check, a failure) is brought into view; a run's steps and totals are not
   // PASS2D A1 (flag NEXT_PUBLIC_STUDIO_COMPOSER_DRAFT, default off; lib/studio-composer-draft.ts): the unsent composer text is kept per session
   // in sessionStorage and put back after a reload; a completed send clears the box and with it the stored draft. Off, the hook does nothing.
   useStudioComposerDraft({
@@ -2429,6 +2454,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     sendElementDirectiveResult,
     sendElementEditResult, // CHAT-ELEMENT-EDIT
     sendControlMessage,
+    sendAgentAnswer, // AGENT-MODE-WIRE
     sendThemeSelection,
     sendBuildControl,
     applyTemplateIngestReady,
@@ -2686,6 +2712,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     ...(CHAT_ELEMENT_EDIT_2_ENABLED && CHAT_ELEMENT_REFINE_ENABLED ? { getChatElementReference: () => chatElementEdit2Reference() } : {}), // CHAT-ELEMENT-EDIT-2: the reference of a send names the slide by no id (Director fills Layout's), overriding the refine option above
     // NEXT_PUBLIC_STUDIO_JOB_LEDGER: Director's job rows (job_update, sync_response jobs) go to this tab's ledger. Off: not passed.
     ...(STUDIO_JOB_LEDGER_ENABLED ? { onJobUpdate: studioJobLedger.onJobUpdate, onJobsSync: studioJobLedger.onJobsSync } : {}),
+    ...(STUDIO_AGENT_MODE_ENABLED ? { onAgentFrame: (frame: unknown, owner: { isCurrent: () => boolean }) => { if (owner.isCurrent()) dispatchAgentRun(frame) } } : {}), // AGENT-MODE-WIRE: Director's agent frames go to the run card's reducer; off: not passed
     // Build Narration: typed-frame ref-forwarders (WS options precede the
     // useBuildNarration hook, so the handlers land via a ref).
     onBuildPhase: (payload, ownerSessionId) => buildNarrationHandlersRef.current.onBuildPhase?.(payload, ownerSessionId),
@@ -6080,6 +6107,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     if (e) e.preventDefault()
     const messageText = (messageOverride ?? inputMessage).trim()
     if (!messageText) return
+    const agentModeRef = STUDIO_AGENT_MODE_ENABLED && voiceOriginatedSend(messageText) ? agentVoiceModeRef : agentBuildModeRef // AGENT-MODE-WIRE: PK ruling, a voice turn never starts Agent: asked here, before any await, whether these are the words the voice call armed; the sends below read the mode from this ref
     const submittedDraft = inputMessage
     const submittedAction = pendingActionInput
     const submittedActionRevision = pendingActionIntentRef.current.revision
@@ -6253,6 +6281,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           actionValue: action.value,
           actionLabel: action.label,
           ...buildSendOptions,
+          ...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE
           manualDeck: turnContext?.manualDeck,
         })
         if (!success || !isCurrentSubmission()) return
@@ -6332,6 +6361,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               fileUpload: !!sessionStoreName,
               storeName: sessionStoreName,
               ...buildSendOptions,
+              ...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE
               manualDeck: turnContext?.manualDeck,
             })
             if (!success || !isCurrentSubmission()) return
@@ -6435,6 +6465,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         fileUpload: !!sessionStoreName,
         storeName: sessionStoreName,
         ...buildSendOptions,
+        ...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE
         manualDeck: turnContext?.manualDeck,
       })
 
@@ -6827,6 +6858,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
   // Handle action button clicks
   const handleActionClick = useCallback(async (action: ActionRequest['payload']['actions'][0], actionRequestMessageId: string, answerKey: string = actionRequestMessageId) => {
+    const agentModeRef = STUDIO_AGENT_MODE_ENABLED && voiceOriginatedSend(action.label) ? agentVoiceModeRef : agentBuildModeRef // AGENT-MODE-WIRE: the same for a card's button: a spoken "yes" is this click with the call's words armed, and it sends "standard", not the picker's Agent
     const origin = { ...questionSubmissionScopeRef.current }
     const isCurrentSubmission = () => (
       questionSubmissionScopeRef.current.active &&
@@ -6870,6 +6902,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             actionValue: action.value,
             actionLabel: action.label,
             ...buildSendOptions,
+            ...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE
           }, undefined, isCurrentSubmission)
         } catch {
           // Reconnect can reject as well as refuse; preserve the native retry UI.
@@ -7888,6 +7921,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                         suppressEphemeral={effectiveBuildNarrationEnabled}
                       />
                       {process.env.NEXT_PUBLIC_STUDIO_SPEED_PERCEIVED === 'true' && speedPerceivedEcho.echo && <StudioSpeedEcho key={speedPerceivedEcho.echo.key} echo={speedPerceivedEcho.echo} studio={studioShell} rootProps={studioShell && process.env.NEXT_PUBLIC_STUDIO_CHAT_POLISH === 'true' ? { 'data-studio-chat-polish': 'message' } : undefined} />}{/* SPEED-PERCEIVED: the echo right after the transcript, where the real bubble appears; off, nothing */}
+                      {STUDIO_AGENT_MODE_ENABLED && agentRun.status !== 'idle' ? <div ref={agentCardsRef} className="space-y-4"><AgentRunCards state={agentRun} onAnswer={answer => { answerAgentCard(agentRun, answer, sendAgentAnswer, dispatchAgentRun, () => toast(AGENT_WIRE_COPY.answerNotSent)) }} onControl={action => { const requestId = sendBuildControl(action, buildNarration.buildId ?? undefined); if (requestId) markNarrationControl(AGENT_WIRE_CONTROL_MARK[action], buildNarration.buildId, requestId); else toast(AGENT_WIRE_COPY.controlNotSent(action)) }} /></div> : null}{/* AGENT-MODE-WIRE (NEXT_PUBLIC_AGENT_MODE and NEXT_PUBLIC_STUDIO_V4_SHELL): the estimate, run and A3 / A4 / A6 cards, in the chat after the messages; a card is answered only by a click, and the answer goes out only on the live socket; off, null */}
                       {/* NEXT_PUBLIC_STUDIO_JOB_LEDGER (Studio shell): a card per failed or timed-out job of this session; Retry sends job_retry. */}
                       {STUDIO_JOB_LEDGER_ENABLED && studioShell && (
                         <StudioJobLedgerCards sessionId={currentSessionId || wsSessionId} sendJobRetry={jobId => sendControlMessage('job_retry', { job_id: jobId })} />
@@ -7931,6 +7965,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                     <button type="button" onClick={() => resolveWorkflowBrief(true)}>Use brief</button>
                     <button type="button" onClick={() => resolveWorkflowBrief(false)}>Keep my message</button>
                   </div>}
+                  {STUDIO_AGENT_MODE_ENABLED ? <div className="mx-auto w-full max-w-[668px] px-3 pb-1"><BuildModePicker value={buildMode} plan={agentPlan} disabled={agentRunBusy(agentRun)} onChange={mode => { if (mode !== 'standard') setBuildModeFrom(mode); setBuildMode(mode) }} /></div> : null}{/* AGENT-MODE-WIRE (NEXT_PUBLIC_AGENT_MODE and NEXT_PUBLIC_STUDIO_V4_SHELL): Standard / Author / Agent above the composer; Agent only for Pro and Max, and the mode cannot change while a run is in progress; choosing sends nothing; off, null */}
                   <ChatInput
                     {...(voiceCall.composerProps ? { voiceCall: voiceCall.composerProps } : {})} // VOICE-CALL: the composer's call button (null with the flag off)
                     {...(chatCleanShell ? { studioChatClean: { composer: chatCleanComposer, onStop: chatCleanStop, onSendDirections: chatCleanSendDirections, sessionId: currentSessionId } } : {}) /* CHAT-CLEAN: Send <-> Stop, new directions while held, the "+" menu, the research chips and the model picker */}
@@ -8563,3 +8598,7 @@ export default function BuilderPage() {
   )
 }
 import { BuilderQuotaRefusal } from '@/components/billing/builder-quota-refusal' // BILLING-F5-USAGE
+import { AgentRunCards } from '@/components/builder/agent-mode/agent-run-cards' // AGENT-MODE-WIRE
+import { BuildModePicker } from '@/components/builder/agent-mode/build-mode-picker' // AGENT-MODE-WIRE
+import { STUDIO_AGENT_MODE_ENABLED, agentPlanOf, buildModeOnWire, initialAgentRunState, type BuildMode } from '@/lib/studio-agent-mode' // AGENT-MODE-WIRE
+import { AGENT_WIRE_CONTROL_MARK, AGENT_WIRE_COPY, AGENT_WIRE_RESET, agentCardsKey, agentFinishedRun, agentPickerAfterRun, agentRunBusy, agentSessionChanged, agentWireReducer, answerAgentCard, typedBuildMode, voiceBuildMode, voiceOriginatedSend } from '@/lib/studio-agent-mode-wire' // AGENT-MODE-WIRE
