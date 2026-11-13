@@ -10,10 +10,11 @@ import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { stripDeckCardThumbnail } from './studio-deck-card-thumbnail-strip.mjs'; // DECK-CARD-THUMBNAIL (NEXT_PUBLIC_STUDIO_DECK_CARD_THUMBNAILS_ENABLED, COMPOSER-2): its marked lines on the Decks page come out first, before every older change's strip
+import { stripAuditConsole } from './studio-audit-console-strip.mjs' // LATER-CHANGES: registry read (AUDIT-CONSOLE)
 import { stripAuditPreviews } from './studio-audit-previews-strip.mjs' // LATER-CHANGES: registry read (AUDIT-PREVIEWS)
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const read = file => stripDeckCardThumbnail(file, stripAuditPreviews(file, fs.readFileSync(path.join(root, file), 'utf8'))); // LATER-CHANGES: registry read (AUDIT-PREVIEWS); DECK-CARD-THUMBNAIL: its marked lines on the Decks page come out first
+const read = file => stripDeckCardThumbnail(file, stripAuditConsole(file, stripAuditPreviews(file, fs.readFileSync(path.join(root, file), 'utf8')))); // LATER-CHANGES: registry read (AUDIT-CONSOLE); LATER-CHANGES: registry read (AUDIT-PREVIEWS); DECK-CARD-THUMBNAIL: its marked lines on the Decks page come out first
 const PAGE = 'app/(app)/dashboard/page.tsx';
 const FLAG = 'NEXT_PUBLIC_STUDIO_DECK_CARDS_V2';
 

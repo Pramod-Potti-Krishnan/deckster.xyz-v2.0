@@ -35,6 +35,7 @@ import { studioTemplateDisplayName } from "@/lib/studio-template-display-name"
 import { toast } from "@/hooks/use-toast"
 import { duplicateTargetFor, runDuplicateDeck } from "@/lib/studio-duplicate-deck"
 import { useStudioDeckCardThumbnail } from "@/hooks/use-studio-deck-card-thumbnail" // DECK-CARD-THUMBNAIL (NEXT_PUBLIC_STUDIO_DECK_CARD_THUMBNAILS_ENABLED, default off): a card shows its first-slide image instead of the live viewer
+import { STUDIO_DECK_TABS_HONEST_ENABLED, deckBuiltTabLabel } from "@/lib/studio-deck-tabs-honest" // AUDIT-CONSOLE
 import { useStudioDeckCardRehome, useStudioDeckRehomeVersion, studioDeckRehomeDecision } from "@/hooks/use-studio-deck-card-rehome" // AUDIT-PREVIEWS (NEXT_PUBLIC_STUDIO_DECK_CARD_REHOME, default off): a card whose saved viewer URL is another environment's uses this one when the deck exists here
 
 // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
@@ -703,7 +704,7 @@ function DashboardForAccount({ user, isLoading }: Pick<ReturnType<typeof useAuth
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "completed" | "strawman")} className="space-y-6">
           <TabsList data-studio-deck-tabs="true" className="grid w-full max-w-md grid-cols-2">
             <TabsTrigger value="completed">
-              Completed Presentations ({completedPresentations.length})
+              {STUDIO_DECK_TABS_HONEST_ENABLED ? deckBuiltTabLabel(true, completedPresentations.length) : <>Completed Presentations ({completedPresentations.length})</>}{/* AUDIT-CONSOLE */}
             </TabsTrigger>
             <TabsTrigger value="strawman">
               {plainNavLabels ? <>Outline previews ({strawmanPresentations.length})</> : <>Strawman Previews ({strawmanPresentations.length})</>}

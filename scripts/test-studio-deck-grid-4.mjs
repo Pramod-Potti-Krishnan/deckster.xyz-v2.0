@@ -26,6 +26,7 @@ import { stripAuditPreviews, AUDIT_PREVIEWS_FILES } from './studio-audit-preview
 import { stripDeckTitle } from './studio-deck-title-strip.mjs'
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 import { stripDeckCardThumbnail } from './studio-deck-card-thumbnail-strip.mjs' // DECK-CARD-THUMBNAIL (NEXT_PUBLIC_STUDIO_DECK_CARD_THUMBNAILS_ENABLED, COMPOSER-2): its marked lines on the Decks page come out first, before every older change's strip
+import { stripAuditConsole } from './studio-audit-console-strip.mjs' // LATER-CHANGES: registry read (AUDIT-CONSOLE)
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 { const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(repoRoot, file) : ''; return typeof out === 'string' && AUDIT_PREVIEWS_FILES.includes(rel) ? stripAuditPreviews(rel, out) : out } } // LATER-CHANGES: registry read (AUDIT-PREVIEWS): every read of a file the previews fix touched is the file without its marked lines, before this proof's own strips run (the fix's own strip, never the registry: this proof's own lines stay visible to its pins)
@@ -84,6 +85,7 @@ const modules = {
   '@/lib/studio-deck-cards': { deckCardDescription: (title, description) => description, deckCardStatusLabel: deck => deck.status }, '@/lib/studio-create-word': createWordLib,
   '@/lib/studio-deck-card-count': { studioDeckCardCountLabel: () => { throw new Error('flag off: not called') } }, // PASS2D R5: flag NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT is off here, so the label helper is never called
   '@/hooks/use-toast': { toast: () => { throw new Error('flag off: not called') } }, '@/lib/studio-duplicate-deck': { duplicateTargetFor: () => { throw new Error('flag off: not called') }, runDuplicateDeck: () => { throw new Error('flag off: not called') } }, // FRONTEND-2 Pass 3: flag NEXT_PUBLIC_STUDIO_DUPLICATE_DECK is off here, so neither is ever called
+  '@/lib/studio-deck-tabs-honest': { STUDIO_DECK_TABS_HONEST_ENABLED: false, deckBuiltTabLabel: () => { throw new Error('flag off: not called') } }, // LATER-CHANGES: registry read (AUDIT-CONSOLE): flag NEXT_PUBLIC_STUDIO_DECK_TABS_HONEST is off here, so the label helper is never called
 }
 function renderPage(source, env, overrides = {}) {
   const names = [...source.matchAll(/const \[(\w+),\s*\w+\]\s*=\s*useState/g)].map(match => match[1])
@@ -141,6 +143,7 @@ const G56_CONST = `  // PASS2B G56 (NEXT_PUBLIC_STUDIO_CREATE_WORD, default off,
 `
 const revertG56 = text => stripDeckTitle(text).replace(G56_IMPORT, '').replace(G56_CONST, '').replace('{studioCreateLabel(createWord, "New Presentation")}', 'New Presentation').replace('{studioCreateLabel(createWord, "Create Presentation")}', 'Create Presentation')
 function proveSource(source, tailwind, label = 'source') {
+  source = stripAuditConsole(DASH, source) // LATER-CHANGES: registry read (AUDIT-CONSOLE): this change's marked lines on the page (the Decks tab label) come out before the page is compared with the base's; provePage renders them, over the stub above
   eq(source.split(CONST).length - 1, 1, `${label}: the exact-flag, Studio-shell decision, once`)
   eq(source.split(EXPR).length - 1, 1, `${label}: the one className expression, once`)
   eq((source.match(/process\.env\.NEXT_PUBLIC_STUDIO_DECK_GRID_4/g) ?? []).length, 1, `${label}: the flag is read once, inline`)
