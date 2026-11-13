@@ -23,3 +23,14 @@ export function uploadOwnerId(
   if (!enabled) return user?.email || ''
   return isCanonicalOwnerId(user?.id) ? user!.id! : ''
 }
+
+/**
+ * The page spreads this AFTER the base's own `userId: user?.email || ''` in the useFileUpload options, so the base's line stays
+ * as it is (a pure insertion): flag off is `{}` (the e-mail stays, byte-identical); flag on is `{ userId }` (the cuid, or '').
+ */
+export function uploadOwnerOverride(
+  user: { id?: string | null; email?: string | null } | null | undefined,
+  enabled: boolean = STUDIO_OWNER_CUID_ENABLED,
+): { userId?: string } {
+  return enabled ? { userId: uploadOwnerId(user, true) } : {}
+}

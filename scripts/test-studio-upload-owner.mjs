@@ -38,8 +38,26 @@ assert.equal(on.uploadOwnerId({ id: 'anonymous' }), ''); checks++
 assert.equal(on.uploadOwnerId({ id: 'uat-tpl-user' }), 'uat-tpl-user'); checks++ // dev-login id passes R2
 assert.notEqual(on.uploadOwnerId({ id: CUID }), on.uploadOwnerId({ id: 'czyxwvutsrqponmlkjihgfedc' })); checks++
 
+// the override the page spreads after the base's userId: flag off adds nothing, flag on the cuid (or '')
+for (const flag of [undefined, 'false', 'TRUE', '1']) {
+  const m = load(flag)
+  assert.deepEqual({ userId: user.email, ...m.uploadOwnerOverride(user) }, { userId: user.email }); checks++
+  assert.equal(JSON.stringify(m.uploadOwnerOverride(user)), '{}'); checks++ // (the vm realm's objects are compared as JSON)
+}
+assert.deepEqual({ userId: user.email, ...on.uploadOwnerOverride(user) }, { userId: CUID }); checks++
+assert.deepEqual({ userId: user.email, ...on.uploadOwnerOverride({ email: user.email }) }, { userId: '' }); checks++ // never the e-mail
+
 const page = fs.readFileSync(path.join(REPO, 'app/builder/page.tsx'), 'utf8')
-assert.match(page, /userId: uploadOwnerId\(user\),/); checks++
-assert.doesNotMatch(page, /userId: user\?\.email \|\| ''/); checks++
-assert.match(page, /import \{ uploadOwnerId \} from '@\/lib\/studio-upload-owner'/); checks++
+assert.match(page, /^    userId: user\?\.email \|\| '',\n    \.\.\.uploadOwnerOverride\(user\), \/\/ K-02/m); checks++ // the base's line stays, the override is spread right after it
+assert.equal((page.match(/uploadOwnerOverride\(/g) || []).length, 1); checks++
+assert.match(page, /import \{ uploadOwnerOverride \} from '@\/lib\/studio-upload-owner'/); checks++
+
+// the registry strip: the page's two marked lines go (the base's own userId line was never touched); any other file is returned as it is
+const { stripOwnerCuid } = await import('./studio-owner-cuid-strip.mjs')
+const stripped = stripOwnerCuid('app/builder/page.tsx', page)
+assert.doesNotMatch(stripped, /uploadOwnerId|studio-upload-owner|K-02/); checks++
+assert.match(stripped, /^    userId: user\?\.email \|\| '',$/m); checks++
+assert.equal(stripped.split('\n').length, page.split('\n').length - 2); checks++ // exactly two lines go: the import and the spread
+assert.equal(stripOwnerCuid('app/builder/page.tsx', stripped), stripped); checks++ // idempotent
+assert.equal(stripOwnerCuid('lib/studio-upload-owner.ts', 'x'), 'x'); checks++
 console.log(`test-studio-upload-owner: ${checks} checks passed`)
