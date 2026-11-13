@@ -7,7 +7,8 @@
 //   C. The sources: every marked line, the strip puts each file back to the viewer half's head byte for byte (and through the registry), the gates and the handlers of the page, the viewer, the notes panel and the introduction, the glue, the trigger,
 //      the chain's flag in every gate, the committed diff is this change's files (COMMITTED diff only), the menu markup.
 //   E. The trigger and the REAL composer (scripts/studio-chat-harness/composer-mount.mjs) with the commands flag on and the chain's flag off: dev's composer, step for step, for the workspace commands' texts; with the chain's flag on, the Workspace rows.
-//   D. MUTANTS: every one of them must be caught by A-C and E.
+//   F. A LATER CHANGE FOLLOWS (made up, in memory, registered after this change and before it): lines in the files this change marks and in the files it leaves alone (.env.example, the composer among them), a block at the end of .env.example and lines in the registry; every file is read as this change left it (scripts/studio-chat-harness/later-reader.mjs: the lines of every other registered change that this change's base does not have come out), so C holds with another change beside it, whichever side of this change it is registered on.
+//   D. MUTANTS: every one of them must be caught by A-C, E and F.
 //
 //   node scripts/test-studio-chat-parity-workspace.mjs
 //
@@ -15,9 +16,10 @@
 process.env.NODE_ENV = 'production'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { createRequire } from 'node:module'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 
@@ -31,8 +33,7 @@ const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
 const strip = await import('./studio-chat-parity-workspace-strip.mjs')
 const viewerStrip = await import('./studio-chat-parity-viewer-strip.mjs')
 const registry = await import('./studio-later-changes.mjs')
-const stripMore = await import('./studio-chat-parity-more-strip.mjs') // LATER-CHANGES: registry read (CHAT-PARITY-MORE): the remaining slash commands (stacked after this change) add marked lines to files this proof reads; it reads them as this change left them
-{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' ? stripMore.stripChatParityMore(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-MORE): every read is the file without the remaining commands' lines (the registry and the proofs that change taught included), as this change left it
+const { makeLaterReader } = await import('./studio-chat-harness/later-reader.mjs')
 const { createModuleLoader } = await import('./studio-chat-harness/module-loader.mjs')
 const { mountComposer, driveComposer: drive, labelsOf: menuOf, chainDev, PARITY } = await import('./studio-chat-harness/composer-mount.mjs')
 
@@ -54,6 +55,11 @@ const exists = sha => { try { git('cat-file', '-e', `${sha}^{commit}`); return t
 const hasBase = exists(strip.BASE_COMMIT) && exists(strip.BASE_UNDER_COMMIT)
 const baseCommitOf = rel => (strip.BASE_TOUCHED.includes(rel) ? strip.BASE_COMMIT : strip.BASE_UNDER_COMMIT)
 const baseOf = rel => git('show', `${baseCommitOf(rel)}:${rel}`)
+// Other changes registered in the registry (stacked on this one, or merged beside it: the remaining commands, another change's marked lines in the Builder page or the composer, its block at the end of .env.example) add lines to the files this proof reads.
+// This proof reads every file as THIS change left it (scripts/studio-chat-harness/later-reader.mjs): the lines of every other registered change that this change's base (the viewer half's head) does not have come out, whichever side of this change it is registered on, and so do the .env.example blocks the base does not have.
+// With no other change registered, a read is the file as it is. The scope and marker checks stay on this change's own frozen range (the committed diff of its own commits, below); only what a file LOOKS like is read through the registry.
+const readerFor = (reg, baseText = hasBase ? rel => { try { return git('show', `${strip.BASE_COMMIT}:${rel}`) } catch { return '' } } : null) => makeLaterReader({ registry: reg, ownStrip: strip.stripChatParityWorkspace, ownBlock: null, baseText })
+const rawRead = readerFor(registry).install(fs, root, path) // the disk as it is, for the made-up later change below; every read of a repo file (the proof's own, the harness loader's) is now the file as this change left it
 /** This change's own commits (newest first): subject "Chat parity workspace: ...". */
 const OWN = (() => { try { return git('log', '--format=%H%x09%s', '--no-merges', `${strip.BASE_COMMIT}..HEAD`).split('\n').filter(Boolean).map(line => line.split('\t')).filter(([, subject]) => subject.startsWith(strip.CHAT_PARITY_WORKSPACE_SUBJECT)).map(([sha]) => sha) } catch { return [] } })()
 
@@ -318,7 +324,15 @@ const VIEWER_MARK = viewerStrip.CHAT_PARITY_VIEWER_MARKER_RE
 const importLines = text => text.split('\n').filter(line => /^import\s/.test(line))
 const markedOf = text => text.split('\n').filter(line => MARK.test(line)).join('\n')
 const norm = value => value.replace(/\s+/g, ' ').trim()
-const diffLines = (rel, sign) => git('diff', '--no-color', '-U0', baseCommitOf(rel), '--', rel).split('\n').filter(line => (sign === '+' ? /^\+(?!\+\+)/ : /^-(?!--)/).test(line)).map(line => line.slice(1)).filter(line => !stripMore.CHAT_PARITY_MORE_MARKER_RE.test(line)) // LATER-CHANGES: registry read (CHAT-PARITY-MORE): the remaining commands' marked lines are a later change's
+/** git's own diff of the base's file against the file as this change left it (`now`: the later changes' lines are already out of a read), the added (+) or the removed (-) lines. */
+const diffLines = (rel, sign, now = read(rel), base = baseOf(rel)) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chat-parity-workspace-'))
+  try {
+    fs.writeFileSync(path.join(dir, 'before'), base); fs.writeFileSync(path.join(dir, 'after'), now)
+    const out = spawnSync('git', ['diff', '--no-index', '--no-color', '-U0', '--', path.join(dir, 'before'), path.join(dir, 'after')], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 }).stdout
+    return out.split('\n').filter(line => (sign === '+' ? /^\+(?!\+\+)/ : /^-(?!--)/).test(line)).map(line => line.slice(1))
+  } finally { fs.rmSync(dir, { recursive: true, force: true }) }
+}
 
 /** The Builder page's part: the gate, the handlers, the effects (a pure function of the page's text: the mutants run it). */
 function pageChecks(text, label = 'page') {
@@ -410,43 +424,53 @@ function glueChecks(glue, commandsUi, label = 'composer') {
   ok(/ready: template => isTemplateGenerationReady\(template\)/.test(code) && /why: template => NOT_READY_WHY\[templateGenerationStatus\(template\)\]/.test(code), `${label}: a template is ready by the picker's own rule`)
 }
 
+/** One changed file of this change, from the file as this change left it (`now`: the later changes' lines are out of it) and the viewer half's head (`base`). */
+function fileChecks(rel, now, base) {
+  ok(now !== base, `${rel}: it is changed`)
+  ok(strip.stripChatParityWorkspace(rel, now) === base, `${rel}: the strip puts it back to the viewer half's head, byte for byte`)
+  ok(registry.stripLaterChanges(rel, now) === registry.stripLaterChanges(rel, base), `${rel}: ...and through the registry (both sides: every registered change strips its own lines)`)
+  const added = diffLines(rel, '+', now, base), removed = diffLines(rel, '-', now, base)
+  eq(added.filter(line => !MARK.test(line)), [], `${rel}: every line added to it carries the marker`)
+  eq(removed.slice().sort(), (strip.CHAT_PARITY_WORKSPACE_EDITS[rel] || []).map(([, before]) => before).sort(), `${rel}: no line of the viewer half's file is changed or gone (every line this change adds is a pure insertion)`)
+  eq(Object.keys(strip.CHAT_PARITY_WORKSPACE_EDITS), [], `${rel}: ...so there are no recorded changed lines`)
+  for (const [has, before] of strip.CHAT_PARITY_WORKSPACE_EDITS[rel] || []) { ok(MARK.test(has) && now.split('\n').filter(line => line === has).length === 1, `${rel}: a changed line carries the marker and occurs once`); ok(!MARK.test(before), `${rel}: the line before is the viewer half's`) }
+  ok(added.length > 0, `${rel}: has marked lines`)
+  // the viewer half's own strip still works on it: none of its lines is changed or gone
+  const nowLines = new Set(now.split('\n'))
+  ok(base.split('\n').filter(line => VIEWER_MARK.test(line)).every(line => nowLines.has(line)), `${rel}: every marked line of the viewer half is still there, as it was (its strip is untouched)`)
+}
+
+/** The files this change does not touch (.env.example and the composer's files among them): as this change left them, each is the viewer half's head. `text` is the file as this change left it. */
+const UNTOUCHED = ['hooks/use-deckster-websocket-v2.ts', '.env.example', 'package.json', 'lib/studio-chat-commands-wire.ts', 'components/builder/studio-chat-commands.css', 'components/builder/studio-chat-parity-viewer.css', 'components/builder/chat-input.tsx', 'components/builder/chat/studio-chat-clean.tsx', 'lib/studio-chat-clean.ts', 'lib/studio-version-history-v2.ts', 'components/builder/template-picker.tsx']
+const untouchedCheck = (rel, text) => ok(text === git('show', `${strip.BASE_COMMIT}:${rel}`), `${rel}: not touched by this change`)
+
+/** The registry file as this change left it: this change's two lines, its files line above the end of its list. A change registered after this one may leave its own registry lines in the file (its strip need not take them out). */
+function registryTextChecks(reg) {
+  const regLines = reg.split('\n').filter(line => line.includes(strip.CHAT_PARITY_WORKSPACE_REGISTRY_MARK))
+  eq(regLines.length, 2, 'registry: two lines')
+  ok(regLines.every(line => line.includes('// LATER-CHANGE: ')), 'registry: both marked LATER-CHANGE')
+  const lastFilesLine = regLines.find(line => /^  \.\.\.\(await import\(/.test(line))
+  ok(lastFilesLine && reg.indexOf(lastFilesLine) < reg.indexOf('// one line per later change, above this comment'), 'registry: appended in the files list above the marker comment')
+}
+
 function sourceChecks() {
   // the strip: each file back to the viewer half's head, byte for byte
   if (hasBase) {
     const touchedByViewer = git('diff', '--name-only', strip.BASE_UNDER_COMMIT, strip.BASE_COMMIT).split('\n').filter(Boolean)
     eq(strip.CHAT_PARITY_WORKSPACE_FILES.filter(rel => touchedByViewer.includes(rel)).sort(), strip.BASE_TOUCHED.slice().sort(), 'BASE_TOUCHED is exactly the files of this change the viewer half touched (git says so)')
-    for (const rel of strip.CHAT_PARITY_WORKSPACE_FILES) {
-      const now = read(rel), base = baseOf(rel)
-      ok(now !== base, `${rel}: it is changed`)
-      ok(strip.stripChatParityWorkspace(rel, now) === base, `${rel}: the strip puts it back to the viewer half's head, byte for byte`)
-      ok(registry.stripLaterChanges(rel, now) === registry.stripLaterChanges(rel, base), `${rel}: ...and through the registry (both sides: every registered change strips its own lines)`)
-      const added = diffLines(rel, '+'), removed = diffLines(rel, '-')
-      eq(added.filter(line => !MARK.test(line)), [], `${rel}: every line added to it carries the marker`)
-      eq(removed.slice().sort(), (strip.CHAT_PARITY_WORKSPACE_EDITS[rel] || []).map(([, before]) => before).sort(), `${rel}: no line of the viewer half's file is changed or gone (every line this change adds is a pure insertion)`)
-      eq(Object.keys(strip.CHAT_PARITY_WORKSPACE_EDITS), [], `${rel}: ...so there are no recorded changed lines`)
-      for (const [has, before] of strip.CHAT_PARITY_WORKSPACE_EDITS[rel] || []) { ok(MARK.test(has) && now.split('\n').filter(line => line === has).length === 1, `${rel}: a changed line carries the marker and occurs once`); ok(!MARK.test(before), `${rel}: the line before is the viewer half's`) }
-      ok(added.length > 0, `${rel}: has marked lines`)
-      // the viewer half's own strip still works on it: none of its lines is changed or gone
-      const nowLines = new Set(now.split('\n'))
-      ok(base.split('\n').filter(line => VIEWER_MARK.test(line)).every(line => nowLines.has(line)), `${rel}: every marked line of the viewer half is still there, as it was (its strip is untouched)`)
-    }
+    for (const rel of strip.CHAT_PARITY_WORKSPACE_FILES) fileChecks(rel, read(rel), baseOf(rel))
     ok(strip.stripChatParityWorkspace(REGISTRY, read(REGISTRY)).split('\n').length === read(REGISTRY).split('\n').length - 2, `${REGISTRY}: the strip takes this change's two registry lines out`)
     for (const rel of strip.CHAT_PARITY_WORKSPACE_PIN_FILES) ok(strip.stripChatParityWorkspace(rel, read(rel)) !== read(rel), `${rel}: the strip gives the older proof its previous lines back`)
-    for (const rel of ['hooks/use-deckster-websocket-v2.ts', '.env.example', 'package.json', 'lib/studio-chat-commands-wire.ts', 'components/builder/studio-chat-commands.css', 'components/builder/studio-chat-parity-viewer.css', 'components/builder/chat-input.tsx', 'components/builder/chat/studio-chat-clean.tsx', 'lib/studio-chat-clean.ts', 'lib/studio-version-history-v2.ts', 'components/builder/template-picker.tsx']) ok(read(rel) === git('show', `${strip.BASE_COMMIT}:${rel}`), `${rel}: not touched by this change`)
+    for (const rel of UNTOUCHED) untouchedCheck(rel, read(rel))
     // the base files of a file the viewer half left alone: the two commits agree
     for (const rel of strip.CHAT_PARITY_WORKSPACE_FILES.filter(rel => !strip.BASE_TOUCHED.includes(rel))) ok(git('show', `${strip.BASE_COMMIT}:${rel}`) === git('show', `${strip.BASE_UNDER_COMMIT}:${rel}`), `${rel}: the viewer half left it alone (its head and the commit under it agree)`)
   } else console.log(`NOTE C  git has no ${strip.BASE_COMMIT.slice(0, 8)} or ${strip.BASE_UNDER_COMMIT.slice(0, 8)}: the base-identity checks were skipped`)
   pageChecks(read(PAGE)); viewerChecks(read(VIEWER)); notesChecks(read(NOTES)); introChecks(read(INTRO)); glueChecks(read(GLUE), read(COMMANDS_UI))
   // the registry: two lines, in their lists, naming this change's files and strip
-  const reg = read(REGISTRY)
-  const regLines = reg.split('\n').filter(line => line.includes(strip.CHAT_PARITY_WORKSPACE_REGISTRY_MARK))
-  eq(regLines.length, 2, 'registry: two lines')
-  ok(regLines.every(line => line.includes('// LATER-CHANGE: ')), 'registry: both marked LATER-CHANGE')
+  registryTextChecks(read(REGISTRY))
   for (const rel of strip.CHAT_PARITY_WORKSPACE_SCOPE_FILES) ok(registry.LATER_CHANGE_FILES.has(rel), `registry: ${rel} is registered`)
   ok(registry.LATER_STRIPS.includes(strip.stripChatParityWorkspace) && registry.LATER_STRIPS.indexOf(strip.stripChatParityWorkspace) > registry.LATER_STRIPS.indexOf(viewerStrip.stripChatParityViewer), 'registry: the strip is registered, after the viewer half\'s')
   eq(registry.LATER_ENV_BLOCKS.some(block => /STUDIO_CHAT_PARITY_WORKSPACE/.test(String(block))), false, 'registry: no .env.example block (no flag of its own)')
-  const lastFilesLine = regLines.find(line => /^  \.\.\.\(await import\(/.test(line))
-  ok(lastFilesLine && reg.indexOf(lastFilesLine) < reg.indexOf('// one line per later change, above this comment'), 'registry: appended in the files list above the marker comment')
   // no flag of its own: the only env names this change reads are the chain's flag, the commands flag, chat clean (its gate) and the composer library flag the picker reads
   const flagNames = new Set()
   const scan = text => { for (const match of text.matchAll(/NEXT_PUBLIC_[A-Z0-9_]+/g)) flagNames.add(match[0]) }
@@ -549,6 +573,45 @@ async function composerChecks(chainRead = null, label = 'composer') {
   eq(await menuOf({ root, env: {}, read: identity, text: '/template pitch' }), null, `${label}: off: "/template pitch" opens nothing`)
   eq(await menuOf({ root, env: {}, read: identity, text: '/notes' }), null, `${label}: off: "/notes" opens nothing`)
 }
+
+// ============================================================================================================================================
+// F. A later change follows: made up, in memory, never read from a branch (a real one is proved in the throwaway merge of the later branch with this one)
+// ============================================================================================================================================
+/** A change made up to be registered after this one: a marked line in every file this change marks and in the files it leaves alone, a block at the end of .env.example, a line at the end of each of the registry's lists, and the strip that takes them out. */
+const FAKE = 'LATER-FAKE-CHANGE'
+const FAKE_FILE_LINE = `// ${FAKE}: a change registered after this one adds this line`
+const FAKE_ENV_BLOCK = `# A LATER CHANGE (made up). On for the exact value "true"; default off.\nNEXT_PUBLIC_STUDIO_LATER_FAKE_CHANGE="false"\n`
+const FAKE_REGISTRY_LINES = [`  ...(await import('./studio-later-fake-strip.mjs')).FAKE_SCOPE_FILES, // LATER-CHANGE: FAKE, a change made up to come after this one`, `  (await import('./studio-later-fake-strip.mjs')).FAKE_ENV_BLOCK, // LATER-CHANGE: FAKE, a change made up to come after this one`, `  (await import('./studio-later-fake-strip.mjs')).stripFake, // LATER-CHANGE: FAKE, a change made up to come after this one`]
+const stripFake = (rel, text) => (typeof text === 'string' ? text.split('\n').filter(line => !line.includes(FAKE) && !line.includes('studio-later-fake-strip.mjs')).join('\n') : text)
+const stripFakeKeepingRegistry = (rel, text) => (rel === REGISTRY ? text : stripFake(rel, text)) // a strip that leaves its registry lines in the file (K-02's does)
+/** The registry with the made-up change registered AFTER this one (stacked on it or merged below it) or BEFORE it (merged first: this change's base does not have its lines). */
+const fakeRegistry = (where, { strip: fakeStrip = stripFake, block = FAKE_ENV_BLOCK } = {}) => ({
+  LATER_STRIPS: where === 'before' ? [fakeStrip, ...registry.LATER_STRIPS] : [...registry.LATER_STRIPS, fakeStrip],
+  LATER_ENV_BLOCKS: where === 'before' ? [block, ...registry.LATER_ENV_BLOCKS] : [...registry.LATER_ENV_BLOCKS, block],
+})
+
+/** Every check of C that reads a file as this change left it, on files into which the made-up later change put its lines, read through `reader`. A reader that leaves any of them in must fail one of these. */
+function laterFollowsChecks(reader, where = 'after') {
+  if (!hasBase) return
+  const raw = rel => rawRead(path.join(root, rel), 'utf8')
+  for (const rel of strip.CHAT_PARITY_WORKSPACE_FILES) {
+    const lines = raw(rel).split('\n'), at = lines.findIndex(line => MARK.test(line))
+    ok(at !== -1, `${rel}: a marked line to put the later change's line next to`)
+    lines.splice(at + 1, 0, FAKE_FILE_LINE)
+    fileChecks(rel, reader.out(rel, lines.join('\n')), baseOf(rel))
+  }
+  for (const rel of UNTOUCHED) untouchedCheck(rel, reader.out(rel, rel === '.env.example' ? `${raw(rel)}\n${FAKE_ENV_BLOCK}` : `${raw(rel)}${FAKE_FILE_LINE}\n`))
+  let list = 0 // its registry lines: at the end of each of the three lists (registered after this change), or just above each of this change's two lines (registered before it)
+  const registryText = raw(REGISTRY).split('\n').flatMap(line => {
+    if (where === 'after' && line === '  // one line per later change, above this comment') return [FAKE_REGISTRY_LINES[list++ % 3], line]
+    if (where === 'before' && line.includes(strip.CHAT_PARITY_WORKSPACE_REGISTRY_MARK)) { list++; return [FAKE_REGISTRY_LINES[/SCOPE_FILES/.test(line) ? 0 : 2], line] }
+    return [line]
+  }).join('\n')
+  ok(list >= 2 && registryText !== raw(REGISTRY), `registry: the later change has a line in each list (${where} this change's)`)
+  registryTextChecks(reader.out(REGISTRY, registryText))
+}
+/** The made-up change before and after this one, its strip taking its registry lines out or leaving them (K-02's strip leaves them: this change's lines are found all the same). */
+function laterFollowsAll() { for (const where of ['after', 'before']) for (const fakeStrip of [stripFake, stripFakeKeepingRegistry]) laterFollowsChecks(readerFor(fakeRegistry(where, { strip: fakeStrip })), where) }
 
 // ============================================================================================================================================
 // D. Mutants: each must be caught by A-C and E
@@ -742,6 +805,23 @@ async function mutantsSuite() {
     hit(threw, `mutant caught: ${name}`)
   }
   { const icons = read(ICONS); const mutated = icons.replace(' history: History,', ''); assert.notEqual(mutated, icons); let threw = false; try { menuChecks(read(MENU), mutated) } catch { threw = true } hit(threw, 'mutant caught: a command has no icon') }
+  // a later change follows: the reader that does not take its lines, or its .env.example block, out of what this proof reads, or does not read past a change registered before this one
+  for (const [name, reader, where] of [
+    ['nothing registered: the reader takes no later change out', readerFor({ LATER_STRIPS: [], LATER_ENV_BLOCKS: [] }), 'after'],
+    ['the reader leaves the later change\'s lines in the files', readerFor(fakeRegistry('after', { strip: (rel, text) => text })), 'after'],
+    ['the reader leaves the later change\'s .env.example block in', readerFor(fakeRegistry('after', { block: 'NOT THE BLOCK\n' })), 'after'],
+    ['the reader only reads out the changes registered after this one (a change registered before it stays in)', readerFor(fakeRegistry('before'), null), 'before'],
+  ]) {
+    let threw = false
+    try { laterFollowsChecks(reader, where) } catch { threw = true }
+    hit(threw || !hasBase, `mutant caught: ${name}`)
+  }
+  { // a reader that reads out the changes this change's base has (the viewer half's, the older changes of dev): the page it gives back is not the base's page with this change's lines on top
+    const greedy = makeLaterReader({ registry, ownStrip: strip.stripChatParityWorkspace, ownBlock: null, baseText: () => '' })
+    let threw = false
+    try { fileChecks(PAGE, greedy.out(PAGE, rawRead(path.join(root, PAGE), 'utf8')), baseOf(PAGE)) } catch { threw = true }
+    hit(threw || !hasBase, 'mutant caught: the reader reads out the changes this change\'s base has (the viewer half\'s lines stay in the page)')
+  }
   return mutantsCaught
 }
 
@@ -771,5 +851,8 @@ console.log(`PASS C  the sources: markers, the strip back to the viewer half's h
 const afterC = checks
 await composerChecks()
 console.log(`PASS E  the real composer: the chain's flag off is dev's composer for every workspace text, step for step; on, the Workspace rows after the viewer's (${checks - afterC} checks)`)
+const afterE = checks
+laterFollowsAll()
+console.log(`PASS F  a later change follows (made up, in memory): its lines in the files, its block at the end of .env.example and its lines in the registry read out, every check of C still holds (${checks - afterE} checks)`)
 const mutants = await mutantsSuite()
 console.log(`test-studio-chat-parity-workspace: ${checks} checks, ${mutants} mutants caught (${OWN.length ? `own commits ${OWN.map(sha => sha.slice(0, 8)).join(', ')}` : 'no own commit yet'})${hasBase ? '' : ' (base commit not in this clone: some checks skipped)'}`)
