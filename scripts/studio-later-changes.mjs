@@ -99,6 +99,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-ws-bq-claim-strip.mjs')).WS_BQ_CLAIM_SCOPE_FILES, // LATER-CHANGE: OPS-2, J8.1 WS token bq claim (DECKSTER_WS_BQ_CLAIM_ENABLED)
   ...(await import('./studio-agent-mode-wire-strip.mjs')).AGENT_MODE_WIRE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, Agent mode wire: the picker, the agent frames and the card answer mounted in the Studio, stacked on the Agent build shell (NEXT_PUBLIC_AGENT_MODE and NEXT_PUBLIC_STUDIO_V4_SHELL; no .env.example block of its own: the flag's block is the shell's)
   ...(await import('./studio-brand-kit-strip.mjs')).BRAND_KIT_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, Brand Kit caller: colour suggestions from a logo, the kit form, the brand record proxy and the signed theme proxies (NEXT_PUBLIC_STUDIO_BRAND_KIT)
+  ...(await import('./studio-upload-session-token-strip.mjs')).UPLOAD_SESSION_TOKEN_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE-3, DSB-5a upload session token: the browser's Researcher upload calls carry a signed session token from a same-origin mint route (NEXT_PUBLIC_STUDIO_UPLOAD_SESSION_TOKEN_ENABLED)
   // one line per later change, above this comment
 ])
 
@@ -163,6 +164,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-avatar-spawn-strip.mjs')).AVATAR_SPAWN_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B66 AVATAR-SPAWN (NEXT_PUBLIC_STUDIO_AVATAR_SPAWN)
   (await import('./studio-ws-bq-claim-strip.mjs')).WS_BQ_CLAIM_ENV_BLOCK, // LATER-CHANGE: OPS-2, J8.1 WS token bq claim (DECKSTER_WS_BQ_CLAIM_ENABLED)
   (await import('./studio-brand-kit-strip.mjs')).BRAND_KIT_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, Brand Kit caller (NEXT_PUBLIC_STUDIO_BRAND_KIT / THEME_BUILDER_BRAND_EXTRACT_KEY / STUDIO_BRAND_EXTRACT_DAILY_CAP)
+  (await import('./studio-upload-session-token-strip.mjs')).UPLOAD_SESSION_TOKEN_ENV_BLOCK, // LATER-CHANGE: KNOWLEDGE-3, DSB-5a upload session token (NEXT_PUBLIC_STUDIO_UPLOAD_SESSION_TOKEN_ENABLED)
   // one line per later change, above this comment
 ]
 
@@ -243,6 +245,7 @@ export const LATER_STRIPS = [
   (await import('./studio-ws-bq-claim-strip.mjs')).stripWsBqClaim, // LATER-CHANGE: OPS-2, J8.1 WS token bq claim (DECKSTER_WS_BQ_CLAIM_ENABLED)
   (await import('./studio-agent-mode-wire-strip.mjs')).stripAgentModeWire, // LATER-CHANGE: FRONTEND-1, Agent mode wire (NEXT_PUBLIC_AGENT_MODE and NEXT_PUBLIC_STUDIO_V4_SHELL; no .env.example block of its own)
   (await import('./studio-brand-kit-strip.mjs')).stripBrandKit, // LATER-CHANGE: FRONTEND-1, Brand Kit caller (NEXT_PUBLIC_STUDIO_BRAND_KIT)
+  (await import('./studio-upload-session-token-strip.mjs')).stripUploadSessionToken, // LATER-CHANGE: KNOWLEDGE-3, DSB-5a upload session token (NEXT_PUBLIC_STUDIO_UPLOAD_SESSION_TOKEN_ENABLED)
   // one line per later change, above this comment
 ]
 
