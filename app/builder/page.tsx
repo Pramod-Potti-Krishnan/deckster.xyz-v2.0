@@ -1879,7 +1879,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     return null
   })
   const gdriveLinkedIdsRef = useRef<string[] | undefined>(undefined) // GDRIVE-COMPOSER: the Drive items linked to this chat (undefined until the user links one, [] once cleared); read at send time by the four build sends below, so it is never stale
-  const gdriveComposer = useGdriveComposer({ sessionId: currentSessionId, onLinkedIdsChange: ids => { gdriveLinkedIdsRef.current = ids } }) // GDRIVE-COMPOSER: a no-op unless both Drive flags are on
+  const gdriveComposer = useGdriveComposer({ sessionId: currentSessionId, onLinkedIdsChange: ids => { gdriveLinkedIdsRef.current = ids }, enabled: gdriveOffer }) // GDRIVE-COMPOSER: a no-op unless both Drive flags are on AND the user is entitled (gdriveOffer, FRONTEND-2 N1)
 
   // A socket receipt can arrive before the submission effect. Keep the owned
   // in-memory receipt ahead of an older staged copy in browser storage.

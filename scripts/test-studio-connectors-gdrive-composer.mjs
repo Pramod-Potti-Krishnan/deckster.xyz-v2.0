@@ -70,6 +70,7 @@ const ENV_ON = { NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED: 'true', NEXT_PUBL
 const lib = createWorld({ env: ENV_ON }).load('lib/connectors-gdrive-composer.ts')
 const libOff = createWorld({ env: {} }).load('lib/connectors-gdrive-composer.ts')
 const CHAT = 'chatsess00000001'
+const MARK = 'm'.repeat(16) + 'K_-9'.repeat(4), MARK2 = 'n'.repeat(16) + 'K_-9'.repeat(4) // hardening: two well-formed one-time markers (32 base64url chars, as newNonce())
 const FILE_A = '1AbCdEfGhIjKlMnOpQrStUvWxYz0123456'
 const FILE_B = '1ZyXwVuTsRqPoNmLkJiHgFeDcBa9876543'
 const FILE_C = '1QqQqQqQqQqQqQqQqQqQqQqQqQqQqQqQq1'
@@ -138,12 +139,35 @@ await t('connect round trip helpers: only /builder?session_id=<id> may be return
     assert.equal(lib.validReturnPath(bad), null, String(bad))
   assert.equal(lib.gdriveStartHref(CHAT), `/api/connectors/gdrive/start?return=${encodeURIComponent(`/builder?session_id=${CHAT}`)}`)
   for (const none of [null, undefined, 'new', 'lib:owner', 'a b']) assert.equal(lib.gdriveStartHref(none), '/api/connectors/gdrive/start')
-  assert.equal(lib.returnRedirectPath(`/builder?session_id=${CHAT}`, 'connected'), `/builder?session_id=${CHAT}&gdrive=connected`)
-  assert.deepEqual(plain(lib.takeGdriveReturn(`?session_id=${CHAT}&gdrive=connected`)), { status: 'connected', search: `?session_id=${CHAT}` })
-  assert.deepEqual(plain(lib.takeGdriveReturn('?gdrive=cancelled')), { status: 'cancelled', search: '' })
-  assert.deepEqual(plain(lib.takeGdriveReturn('?gdrive=failed&theme=x')), { status: 'failed', search: '?theme=x' })
-  assert.deepEqual(plain(lib.takeGdriveReturn('?gdrive=evil')), { status: null, search: '' }, 'an unknown status is taken off and ignored')
-  assert.deepEqual(plain(lib.takeGdriveReturn(`?session_id=${CHAT}`)), { status: null, search: `?session_id=${CHAT}` }, 'no param: the address is left alone')
+  assert.equal(lib.returnRedirectPath(`/builder?session_id=${CHAT}`, 'connected', MARK), `/builder?session_id=${CHAT}&gdrive=connected&gdrive_marker=${MARK}`)
+  assert.deepEqual(plain(lib.takeGdriveReturn(`?session_id=${CHAT}&gdrive=connected&gdrive_marker=${MARK}`)), { status: 'connected', marker: MARK, sessionId: CHAT, search: `?session_id=${CHAT}` })
+  assert.deepEqual(plain(lib.takeGdriveReturn(`?session_id=${CHAT}&gdrive=connected`)), { status: 'connected', marker: null, sessionId: CHAT, search: `?session_id=${CHAT}` })
+  assert.deepEqual(plain(lib.takeGdriveReturn('?gdrive=cancelled')), { status: 'cancelled', marker: null, sessionId: null, search: '' })
+  assert.deepEqual(plain(lib.takeGdriveReturn('?gdrive=failed&theme=x')), { status: 'failed', marker: null, sessionId: null, search: '?theme=x' })
+  assert.deepEqual(plain(lib.takeGdriveReturn('?gdrive=evil')), { status: null, marker: null, sessionId: null, search: '' }, 'an unknown status is taken off and ignored')
+  assert.deepEqual(plain(lib.takeGdriveReturn(`?session_id=${CHAT}&gdrive_marker=${MARK}`)), { status: null, marker: MARK, sessionId: CHAT, search: `?session_id=${CHAT}` }, 'a lone marker is taken off too')
+  assert.deepEqual(plain(lib.takeGdriveReturn(`?session_id=${CHAT}`)), { status: null, marker: null, sessionId: CHAT, search: `?session_id=${CHAT}` }, 'no param: the address is left alone')
+})
+await t('hardening (REVIEW-1 #1) marker helpers: genuine only when the address marker is well formed and equals the cookie\'s; the cookie is read by name and cleared on its path', async () => {
+  assert.equal(lib.isGenuineReturn(MARK, MARK), true)
+  for (const [q, c] of [[MARK, null], [null, MARK], [MARK, MARK2], ['', ''], ['short', 'short'], [`${MARK}x`, `${MARK}x`], ['a b'.repeat(11).slice(0, 32), 'a b'.repeat(11).slice(0, 32)], [undefined, undefined]])
+    assert.equal(lib.isGenuineReturn(q, c), false, `${q} / ${c}`)
+  assert.equal(lib.markerFromCookies(`a=1; deckster_gdrive_return_marker=${MARK}; b=2`), MARK)
+  assert.equal(lib.markerFromCookies(`xdeckster_gdrive_return_marker=${MARK}`), null); assert.equal(lib.markerFromCookies(''), null); assert.equal(lib.markerFromCookies(undefined), null)
+  assert.equal(lib.GDRIVE_MARKER_CLEAR, 'deckster_gdrive_return_marker=; Max-Age=0; Path=/builder; Secure; SameSite=Lax')
+  assert.ok(lib.GDRIVE_MARKER_MAX_AGE_SECONDS <= 120)
+})
+await t('hardening (REVIEW-1 #1 / #4) wording: NOT_OWNED in plain words; the 401 / 403 / 404 words only for Studio\'s own refusals (no error_code); UNAVAILABLE keeps the route\'s retry words', async () => {
+  assert.equal(lib.GDRIVE_NOT_OWNED_TEXT, "Drive files can't be added to this chat yet.")
+  for (const status of [403, 404, 410]) assert.deepEqual(plain(lib.requestFailure(status, { error: 'x', error_code: 'CONNECTOR_SESSION_NOT_OWNED' })), { kind: 'error', message: lib.GDRIVE_NOT_OWNED_TEXT })
+  assert.match(lib.requestFailure(403, { error: 'Knowledge plan required' }).message, /isn't available on your plan/, 'Studio\'s own entitlement 403')
+  assert.equal(lib.requestFailure(403, { error: 'Could not add your Drive files to this chat. Please try again.', error_code: 'CONNECTOR_OWNER_MISMATCH' }).message, 'Could not add your Drive files to this chat. Please try again.')
+  assert.equal(lib.requestFailure(401, { error: 'Could not load your Drive files. Please try again.', error_code: 'CONNECTOR_IDENTITY_INVALID' }).message, 'Could not load your Drive files. Please try again.')
+  assert.equal(lib.requestFailure(401, { error: 'Unauthorized' }).message, 'Sign in again to use Google Drive.')
+  assert.equal(lib.requestFailure(502, { error: 'Could not add your Drive files to this chat. Please try again.', error_code: 'CONNECTOR_SESSION_UNAVAILABLE' }).message, 'Could not add your Drive files to this chat. Please try again.')
+  const waiting = [{ id: FILE_A, title: 'Q3 plan', state: 'linking' }, { id: FILE_B, title: 'Done', state: 'linked' }]
+  assert.deepEqual(plain(lib.chipsLinkFailed(waiting, true)), [{ id: FILE_A, title: 'Q3 plan', state: 'error', errorKind: 'generic', message: `"Q3 plan" can't be added to this chat yet.` }, waiting[1]])
+  assert.match(lib.chipsLinkFailed(waiting)[0].message, /Please try again/)
 })
 
 // ================================================ 2. server: connect round trip
@@ -151,10 +175,13 @@ class FakeRes { constructor(body, status = 200, location) { this.body = body; th
 const NextResponse = { json: (b, i = {}) => new FakeRes(b, i.status ?? 200), redirect: (u) => new FakeRes(null, 307, String(u)) }
 let calls = []
 globalThis.fetch = async (url, init) => { calls.push({ url, init }); return { ok: true, status: 200, json: async () => ({}) } }
+// round 2 (REVIEW-1 note 1): `start` looks the return chat up; the table is a fake (no row unless a test sets one), so nothing here ever loads the real Prisma client
+let chatRow = null, prismaError = null, prismaCalls = []
 const serverStubs = (userId = 'cuid_session_user') => ({
   'next/server': { NextResponse },
   '@/lib/kg-proxy': { requireKgEntitled: async () => (userId ? { userId } : { error: new FakeRes({ error: 'Unauthorized' }, 401) }), kgHeaders: x => ({ ...x }) },
   '@/lib/service-url': { requireServiceUrl: (_l, c) => c[0].value },
+  '@/lib/prisma': { prisma: { chatSession: { findUnique: async q => { prismaCalls.push(q); if (prismaError) throw prismaError; return chatRow } } } },
 })
 const SERVER_ENV = { ...ENV_ON, NEXTAUTH_SECRET: 's3cret', NEXTAUTH_URL: 'https://app.test', GOOGLE_CONNECTOR_CLIENT_ID: 'cid', KNOWLEDGE_SERVICE_URL: 'https://researcher.test', RESEARCHER_SESSION_TOKEN_SECRET: 'test-only-researcher-session-secret-0123456789' }
 const serverWorld = (env = SERVER_ENV) => createWorld({ env, stubs: serverStubs() }).load('lib/connectors-gdrive-server.ts')
@@ -180,6 +207,29 @@ await t('start: no ?return= / an invalid one => no return cookie (the Settings r
   }
   const r0 = await s.handleStart(); assert.equal('deckster_gdrive_return' in r0.cookies.jar, false)
 })
+await t('start (round 2, REVIEW-1 note 1): the chat to come back to must be the caller\'s: someone else\'s row, a deleted row or a failed lookup => no return cookie, the callback lands on Settings (no error page); no row yet or the caller\'s own row => back in the chat', async () => {
+  const round = async (found, error = null) => {
+    chatRow = found; prismaError = error; prismaCalls = []
+    const s = serverWorld()
+    const started = await s.handleStart(startReq(`?return=${encodeURIComponent(RET)}`))
+    assert.equal(started.status, 307); assert.match(started.location, /^https:\/\/accounts\.google\.com\//)
+    assert.deepEqual(plain(prismaCalls), [{ where: { id: CHAT }, select: { userId: true, status: true } }])
+    const ret = started.cookies.jar.deckster_gdrive_return?.v
+    const state = new URL(started.location).searchParams.get('state'), nonce = started.cookies.jar.deckster_gdrive_oauth_nonce.v
+    const back = await s.handleCallback(cbReq(state, { deckster_gdrive_oauth_nonce: nonce, ...(ret ? { deckster_gdrive_return: ret } : {}) }))
+    return { ret, back: back.location }
+  }
+  const settings = 'https://app.test/settings/connectors?gdrive=connected'
+  for (const [what, found, error] of [['someone else\'s row', { userId: 'someone_else', status: 'active' }], ['a deleted row', { userId: 'cuid_session_user', status: 'deleted' }], ['a failed lookup', null, new Error('db down')]]) {
+    const r = await round(found, error); assert.equal(r.ret, undefined, `${what}: no return cookie`); assert.equal(r.back, settings, `${what}: Settings`)
+  }
+  for (const [what, found] of [['no row yet', null], ['the caller\'s own row', { userId: 'cuid_session_user', status: 'active' }]]) {
+    const r = await round(found); assert.equal(r.ret, RET, what); assert.match(r.back, new RegExp(`^https://app\\.test/builder\\?session_id=${CHAT}&gdrive=connected&gdrive_marker=`), what)
+  }
+  chatRow = null; prismaError = null; prismaCalls = []
+  await serverWorld().handleStart(startReq()); await serverWorld().handleStart(); assert.deepEqual(prismaCalls, [], 'no ?return= => no lookup')
+  calls = [] // the callbacks above called the (fake) exchange; the tests below count their own
+})
 await t('start: flag off (either) => 404, nothing set', async () => {
   for (const env of [{ ...SERVER_ENV, NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED: undefined }, { ...SERVER_ENV, NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED: 'false' }]) {
     const r = await serverWorld(env).handleStart(startReq(`?return=${encodeURIComponent(RET)}`)); assert.equal(r.status, 404); assert.deepEqual(r.cookies.jar, {})
@@ -189,19 +239,28 @@ await t('callback: with the return cookie the user lands back in the same chat w
   const s = serverWorld()
   const st = gdriveLib.signState('s3cret', 'cuid_session_user', 'n1')
   const r = await s.handleCallback(cbReq(st, { deckster_gdrive_oauth_nonce: 'n1', deckster_gdrive_return: RET }))
-  assert.equal(r.location, `https://app.test/builder?session_id=${CHAT}&gdrive=connected`)
+  // hardening (REVIEW-1 #1): the way back carries a fresh one-time marker, in the address and in a 120 s cookie on /builder (readable by the composer, Secure, Lax)
+  const backTo = (res, status) => {
+    assert.match(res.location, new RegExp(`^https://app\\.test/builder\\?session_id=${CHAT}&gdrive=${status}&gdrive_marker=[A-Za-z0-9_-]{32}$`))
+    const marker = new URL(res.location).searchParams.get('gdrive_marker'), c = res.cookies.jar.deckster_gdrive_return_marker
+    assert.equal(c.v, marker); assert.deepEqual(plain(c.o), { httpOnly: false, secure: true, sameSite: 'lax', path: '/builder', maxAge: 120 })
+    return marker
+  }
+  const m1 = backTo(r, 'connected')
   assert.equal(r.cookies.jar.deckster_gdrive_return.o.maxAge, 0); assert.equal(r.cookies.jar.deckster_gdrive_oauth_nonce.o.maxAge, 0)
   assert.equal(calls.length, 1, 'the exchange still happens server to server'); assert.equal(calls[0].url, 'https://researcher.test/api/v1/connectors/gdrive/exchange')
   const bad = await s.handleCallback(cbReq(gdriveLib.signState('s3cret', 'someone_else', 'n1'), { deckster_gdrive_oauth_nonce: 'n1', deckster_gdrive_return: RET }))
-  assert.equal(bad.location, `https://app.test/builder?session_id=${CHAT}&gdrive=invalid`)
+  const m2 = backTo(bad, 'invalid')
   const cancelled = await s.handleCallback({ url: 'https://app.test/cb?error=access_denied', cookies: { get: n => (n === 'deckster_gdrive_return' ? { value: RET } : undefined) } })
-  assert.equal(cancelled.location, `https://app.test/builder?session_id=${CHAT}&gdrive=cancelled`)
+  const m3 = backTo(cancelled, 'cancelled')
+  assert.equal(new Set([m1, m2, m3]).size, 3, 'a new marker every time')
 })
 await t('callback: no / tampered return cookie => the Settings landing, exactly as before', async () => {
   const s = serverWorld()
   const st = gdriveLib.signState('s3cret', 'cuid_session_user', 'n1')
   const plainBack = await s.handleCallback(cbReq(st, { deckster_gdrive_oauth_nonce: 'n1' }))
   assert.equal(plainBack.location, 'https://app.test/settings/connectors?gdrive=connected'); assert.equal('deckster_gdrive_return' in plainBack.cookies.jar, false)
+  assert.equal('deckster_gdrive_return_marker' in plainBack.cookies.jar, false, 'the Settings landing gets no marker (it never opens the Picker)')
   for (const evil of ['https://evil.test/', '//evil.test', '/builder?session_id=x', '/settings/connectors']) {
     const r = await s.handleCallback(cbReq(st, { deckster_gdrive_oauth_nonce: 'n1', deckster_gdrive_return: evil }))
     assert.equal(r.location, 'https://app.test/settings/connectors?gdrive=connected', evil)
@@ -239,12 +298,18 @@ function hookRuntime() {
 }
 const settle = async () => { for (let i = 0; i < 12; i++) await new Promise(r => setTimeout(r, 0)) }
 
-function makeHookWorld({ enabled = true, search = '', picks = [], fetchPlan = () => null, pickError = null } = {}) {
+function makeHookWorld({ enabled = true, envOn = enabled, search = '', picks = [], fetchPlan = () => null, pickError = null, cookies = {} } = {}) {
   const runtime = hookRuntime()
   const storage = new MemStorage()
-  const log = { fetch: [], assigned: [], replaced: [], published: [], picker: 0 }
+  const log = { fetch: [], assigned: [], replaced: [], published: [], picker: 0, cookieWrites: [] }
   const timers = []
-  const win = { sessionStorage: storage, location: { search, pathname: '/builder', hash: '', assign: u => log.assigned.push(u) }, history: { replaceState: (_s, _t, u) => { log.replaced.push(u); win.location.search = u.includes('?') ? u.slice(u.indexOf('?')) : '' } } }
+  // hardening: a tiny cookie jar behind document.cookie (name=value pairs; a write with Max-Age=0 removes)
+  const jar = new Map(Object.entries(cookies))
+  const document = {
+    get cookie() { return [...jar].map(([k, v]) => `${k}=${v}`).join('; ') },
+    set cookie(v) { log.cookieWrites.push(String(v)); const [pair, ...attrs] = String(v).split(';'); const at = pair.indexOf('='); const k = pair.slice(0, at).trim(); if (attrs.some(a => /^\s*max-age=0\s*$/i.test(a))) jar.delete(k); else jar.set(k, pair.slice(at + 1).trim()) },
+  }
+  const win = { sessionStorage: storage, document, location: { search, pathname: '/builder', hash: '', assign: u => log.assigned.push(u) }, history: { replaceState: (_s, _t, u) => { log.replaced.push(u); win.location.search = u.includes('?') ? u.slice(u.indexOf('?')) : '' } } }
   const fakeFetch = async (url, init) => {
     const body = init?.body ? JSON.parse(init.body) : undefined
     log.fetch.push({ url, method: init?.method, body })
@@ -254,13 +319,13 @@ function makeHookWorld({ enabled = true, search = '', picks = [], fetchPlan = ()
   }
   const pickQueue = [...picks]
   const world = createWorld({
-    env: enabled ? ENV_ON : {},
+    env: envOn ? ENV_ON : {},
     stubs: { react: runtime.impl, '@/lib/gdrive-picker-loader': { openDrivePicker: async () => { log.picker++; if (pickError) throw pickError; return pickQueue.shift() ?? [] } } },
     globals: { window: win, fetch: fakeFetch, setTimeout: (fn, ms) => { if (ms >= 1000) { timers.push(fn); return timers.length } return setTimeout(fn, 0) }, clearTimeout: () => {} },
   })
   const hook = world.load('hooks/use-gdrive-composer.ts')
   const inst = runtime.instance(p => hook.useGdriveComposer(p))
-  const host = { log, storage, win, timers, props: { sessionId: CHAT, onLinkedIdsChange: ids => log.published.push(ids === undefined ? 'undefined' : ids), enabled } }
+  const host = { log, storage, win, timers, jar, props: { sessionId: CHAT, onLinkedIdsChange: ids => log.published.push(ids === undefined ? 'undefined' : ids), enabled } }
   host.mount = () => inst.set(host.props)
   host.rerender = (over = {}) => { host.props = { ...host.props, ...over }; return inst.set(host.props) }
   Object.defineProperty(host, 'api', { get: () => inst.result })
@@ -332,6 +397,17 @@ await t('D2a: not connected (picker rejects with CONNECTOR_NOT_CONNECTED) => the
   h.api.addFromDrive(async () => {}); await settle(); h.api.connect(); await settle()
   assert.deepEqual(h.log.assigned, [`/api/connectors/gdrive/start?return=${encodeURIComponent(`/builder?session_id=${CHAT}`)}`]); assert.equal(h.api.startHref, h.log.assigned[0])
 })
+await t('D2a, round 2 (REVIEW-1 note 1): the Connect / Reconnect link can only be followed after the composer\'s draft-session creator has finished (the chat\'s Studio row exists): while it is still creating, no Picker, no prompt, no link; if it fails, never', async () => {
+  const err = Object.assign(new Error('Google Drive is not available right now.'), { code: 'CONNECTOR_NOT_CONNECTED', status: 404 })
+  const h = makeHookWorld({ pickError: err }); h.mount()
+  let finish; const creating = new Promise(r => { finish = r })
+  h.api.addFromDrive(() => creating); await settle()
+  assert.equal(h.log.picker, 0, 'the Picker waits for the creator'); assert.equal(h.api.connectOpen, false, 'no connect prompt yet'); assert.deepEqual(h.log.assigned, [])
+  finish(); await settle()
+  assert.equal(h.log.picker, 1); assert.equal(h.api.connectOpen, true, 'the prompt appears only after the creator resolved')
+  const failing = makeHookWorld({ pickError: err }); failing.mount(); failing.api.addFromDrive(async () => { throw new Error('no row') }); await settle()
+  assert.equal(failing.log.picker, 0); assert.equal(failing.api.connectOpen, false); assert.deepEqual(failing.log.assigned, [])
+})
 await t('D8a: an expired grant (picker or /items) => warn notice with Reconnect, never the connect prompt', async () => {
   const revoked = Object.assign(new Error('x'), { code: 'CONNECTOR_GRANT_REVOKED', status: 409 })
   const h = makeHookWorld({ pickError: revoked }); h.mount(); h.api.addFromDrive(async () => {}); await settle()
@@ -361,24 +437,62 @@ await t('the 25-file cap: only what fits is added, and the user is told', async 
   assert.equal(h.api.chips.length, 25)
   h.api.addFromDrive(async () => {}); await settle(); assert.equal(h.api.chips.length, 25); assert.equal(h.log.picker, 1, 'full: the Picker is not even opened'); assert.match(h.api.notices.at(-1).text, /up to 25/)
 })
-await t('D2c: back from Google (?gdrive=connected): the param is taken off the address once, a toast says so, the Picker opens and the files are linked', async () => {
-  const h = makeHookWorld({ search: `?session_id=${CHAT}&gdrive=connected`, picks: [[FILE_A]], fetchPlan: happyPlan }); h.mount(); await settle()
+const GENUINE = { deckster_gdrive_return_marker: MARK }
+const back = status => `?session_id=${CHAT}&gdrive=${status}&gdrive_marker=${MARK}`
+await t('D2c: back from Google (?gdrive=connected + the matching marker): the params are taken off the address once, the marker cookie is cleared, a toast says so, the Picker opens and the files are linked', async () => {
+  const h = makeHookWorld({ search: back('connected'), cookies: GENUINE, picks: [[FILE_A]], fetchPlan: happyPlan }); h.mount(); await settle()
   assert.deepEqual(h.log.replaced, [`/builder?session_id=${CHAT}`]); assert.equal(h.log.picker, 1)
+  assert.equal(h.jar.has('deckster_gdrive_return_marker'), false, 'the marker is single use'); assert.deepEqual(h.log.cookieWrites, [lib.GDRIVE_MARKER_CLEAR])
   assert.deepEqual(plain(h.api.chips.map(c => c.state)), ['linked']); assert.deepEqual(h.log.published.at(-1), [FILE_A])
   assert.ok(h.api.notices.some(n => n.tone === 'info' && n.text === 'Google Drive connected. Opening Picker…'), 'the toast')
   h.timers.forEach(fn => fn()); await settle(); assert.deepEqual(plain(h.api.notices.filter(n => n.tone === 'info')), [], 'the toast goes by itself')
   h.rerender({ sessionId: CHAT }); h.rerender({}); await settle(); assert.equal(h.log.picker, 1, 'it never reopens on later renders')
 })
-await t('?gdrive=cancelled / failed / invalid: a plain note, no Picker; failed and invalid offer Reconnect', async () => {
+await t('?gdrive=cancelled / failed / invalid (with the matching marker): a plain note, no Picker; failed and invalid offer Reconnect', async () => {
   for (const [status, tone, action] of [['cancelled', 'info', null],['failed', 'warn', 'reconnect'], ['invalid', 'warn', 'reconnect']]) {
-    const h = makeHookWorld({ search: `?session_id=${CHAT}&gdrive=${status}` }); h.mount(); await settle()
+    const h = makeHookWorld({ search: back(status), cookies: GENUINE }); h.mount(); await settle()
     assert.equal(h.log.picker, 0, status); assert.deepEqual(h.log.replaced, [`/builder?session_id=${CHAT}`]); assert.deepEqual(plain(h.api.notices.map(n => [n.tone, n.action])), [[tone, action]], status)
   }
   const none = makeHookWorld({ search: `?session_id=${CHAT}` }); none.mount(); await settle(); assert.deepEqual(none.log.replaced, [], 'no param: the address bar is never touched')
 })
-await t('the return is held until the chat id is known, then handled once', async () => {
-  const h = makeHookWorld({ search: '?session_id=new&gdrive=connected', picks: [[FILE_A]], fetchPlan: happyPlan }); h.props.sessionId = null; h.mount(); await settle()
-  assert.equal(h.log.picker, 0); h.rerender({ sessionId: CHAT }); await settle(); assert.equal(h.log.picker, 1)
+await t('the return is held until the chat id is known, then handled once, and only in the chat the address names (hardening: never in another chat)', async () => {
+  const h = makeHookWorld({ search: back('connected'), cookies: GENUINE, picks: [[FILE_A]], fetchPlan: happyPlan }); h.props.sessionId = null; h.mount(); await settle()
+  assert.equal(h.log.picker, 0); h.rerender({ sessionId: 'otherchat0000002' }); await settle(); assert.equal(h.log.picker, 0, 'another chat: nothing')
+  assert.deepEqual(h.log.fetch, []); assert.deepEqual(plain(h.api.notices), [])
+  h.rerender({ sessionId: CHAT }); await settle(); assert.equal(h.log.picker, 1)
+  h.rerender({ sessionId: 'otherchat0000002' }); h.rerender({ sessionId: CHAT }); await settle(); assert.equal(h.log.picker, 1, 'once')
+})
+await t('hardening (REVIEW-1 #1): a crafted return does nothing: no marker, a wrong marker, a marker without its cookie, a malformed pair; the params still come off the address', async () => {
+  for (const [name, search, cookies] of [
+    ['no marker', `?session_id=${CHAT}&gdrive=connected`, GENUINE],
+    ['no marker, no cookie', `?session_id=${CHAT}&gdrive=connected`, {}],
+    ['wrong marker', back('connected'), { deckster_gdrive_return_marker: MARK2 }],
+    ['marker without its cookie', back('connected'), {}],
+    ['malformed pair', `?session_id=${CHAT}&gdrive=connected&gdrive_marker=abc`, { deckster_gdrive_return_marker: 'abc' }],
+    ['failed, no marker', `?session_id=${CHAT}&gdrive=failed`, {}],
+  ]) {
+    const h = makeHookWorld({ search, cookies, picks: [[FILE_A]], fetchPlan: happyPlan }); h.mount(); await settle()
+    assert.equal(h.log.picker, 0, name); assert.deepEqual(h.log.fetch, [], name); assert.deepEqual(plain(h.api.notices), [], name); assert.deepEqual(plain(h.api.chips), [], name)
+    assert.deepEqual(h.log.replaced, [`/builder?session_id=${CHAT}`], `${name}: taken off the address`)
+    assert.equal(h.jar.has('deckster_gdrive_return_marker'), false, `${name}: any marker cookie is cleared`)
+  }
+})
+await t('FRONTEND-2 N1 / REVIEW-1 #8: flags on but not entitled (the page passes enabled: gdriveOffer) => the hook is inert, a genuine return included', async () => {
+  const h = makeHookWorld({ enabled: false, envOn: true, search: back('connected'), cookies: GENUINE, picks: [[FILE_A]], fetchPlan: happyPlan })
+  h.storage.setItem(`deckster_gdrive_links_${CHAT}`, JSON.stringify([{ id: FILE_A, title: 'x' }]))
+  h.mount(); h.api.addFromDrive(async () => {}); h.api.removeChip(FILE_A); await settle()
+  assert.deepEqual(h.log.fetch, []); assert.deepEqual(h.log.published, [], 'no stored ids published: no linked_item_ids on the build frame'); assert.deepEqual(h.log.replaced, []); assert.equal(h.log.picker, 0)
+  assert.deepEqual(plain(h.api.chips), []); assert.equal(h.jar.has('deckster_gdrive_return_marker'), true, 'not even read')
+})
+await t('hardening (REVIEW-1 #1): a chat Drive files can\'t be added to yet (CONNECTOR_SESSION_NOT_OWNED, Studio\'s 404 or Researcher\'s 403) => error chips in plain words, one notice, no retry', async () => {
+  for (const status of [404, 403]) {
+    const h = makeHookWorld({ picks: [[FILE_A, FILE_B]], fetchPlan: (u, m, b) => (u.endsWith('/session-links') ? { status, body: { error: "Drive files can't be added to this chat yet.", error_code: 'CONNECTOR_SESSION_NOT_OWNED' } } : happyPlan(u, m, b)) })
+    h.mount(); h.api.addFromDrive(async () => {}); await settle()
+    assert.deepEqual(plain(h.api.chips.map(c => [c.state, c.message])), [['error', `"Title 1AbC" can't be added to this chat yet.`], ['error', `"Title 1ZyX" can't be added to this chat yet.`]])
+    assert.deepEqual(plain(h.api.notices.map(n => [n.tone, n.text])), [['error', "Drive files can't be added to this chat yet."]])
+    assert.deepEqual(h.log.published.at(-1), [], 'nothing linked, nothing on the build message')
+    const n = h.log.fetch.length; h.rerender({}); h.timers.forEach(fn => fn()); await settle(); assert.equal(h.log.fetch.length, n, 'no retry')
+  }
 })
 
 // ================================================ 4. the components (static markup)
@@ -549,7 +663,8 @@ await t('FLAG ON (a `gdrive` prop): the Paperclip becomes the menu, the chips si
 const page = read(PAGE)
 await t('page: the hook is called once, after the chat id exists; the gate is the existing Knowledge check; the four build sends read the ref; the prop is a marked spread', async () => {
   assert.equal(page.split('useGdriveComposer({').length - 1, 1)
-  const hookAt = page.indexOf('const gdriveComposer = useGdriveComposer({ sessionId: currentSessionId, onLinkedIdsChange: ids => { gdriveLinkedIdsRef.current = ids } })')
+  const hookAt = page.indexOf('const gdriveComposer = useGdriveComposer({ sessionId: currentSessionId, onLinkedIdsChange: ids => { gdriveLinkedIdsRef.current = ids }, enabled: gdriveOffer })') // FRONTEND-2 N1: the entitlement gates the hook too
+  assert.ok(hookAt > 0 && page.indexOf('const gdriveOffer = isGdriveComposerEnabled(kgIsPremium)') < hookAt, 'gdriveOffer is declared before the hook that reads it')
   assert.ok(page.indexOf('const [currentSessionId, setCurrentSessionId]') > 0 && page.indexOf('const [currentSessionId, setCurrentSessionId]') < hookAt)
   assert.ok(page.indexOf('const gdriveLinkedIdsRef = useRef<string[] | undefined>(undefined)') > 0 && page.indexOf('const gdriveLinkedIdsRef') < hookAt, 'the ref is declared before the hook that fills it')
   assert.ok(page.includes('const gdriveOffer = isGdriveComposerEnabled(kgIsPremium)') && page.indexOf('const gdriveOffer') > page.indexOf('isPremium: kgIsPremium'))

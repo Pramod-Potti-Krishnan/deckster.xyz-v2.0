@@ -30,6 +30,11 @@ export const GDRIVE_MAX_FILE_MB = 20
 export const GDRIVE_SUPPORTED_LABEL = 'Docs, Slides, Sheets, PDF, DOCX, PPTX, XLSX, CSV, TXT, MD'
 export const GDRIVE_UNTITLED = 'Drive file'
 export const GDRIVE_EXPIRED_TEXT = 'Drive connection expired. Reconnect to keep using your files.'
+/**
+ * Hardening (REVIEW-1 #1, #4): CONNECTOR_SESSION_NOT_OWNED, from Studio's owner check or from Researcher, in plain words. Researcher refuses a chat until its
+ * own owner record for that chat exists and is the caller's (written by the first upload; the cuid owner needs #586), so it says "yet", and nothing retries.
+ */
+export const GDRIVE_NOT_OWNED_TEXT = "Drive files can't be added to this chat yet."
 
 export const contextLabel = (count: number) => `${count} Drive ${count === 1 ? 'file' : 'files'} linked to this chat`
 export const linkedIdsOf = (chips: readonly GdriveChip[]): string[] => chips.filter(c => c.state === 'linked').map(c => c.id)
@@ -74,9 +79,12 @@ export function requestFailure(status: number, body: { error?: unknown; error_co
   const code = body?.error_code
   if (code === 'CONNECTOR_NOT_CONNECTED') return { kind: 'not_connected' }
   if (code === 'CONNECTOR_GRANT_REVOKED') return { kind: 'expired', message: GDRIVE_EXPIRED_TEXT }
-  if (status === 401) return { kind: 'error', message: 'Sign in again to use Google Drive.' }
-  if (status === 403) return { kind: 'error', message: "Google Drive isn't available on your plan." }
-  if (status === 404) return { kind: 'error', message: 'Google Drive is not available right now.' }
+  if (code === 'CONNECTOR_SESSION_NOT_OWNED') return { kind: 'error', message: GDRIVE_NOT_OWNED_TEXT }
+  // Hardening (REVIEW-1 #4): these three are Studio's own refusals (signed out, not entitled, flag off), which carry no error_code; a relayed Researcher code keeps the route's words.
+  const own = code === undefined || code === null
+  if (status === 401 && own) return { kind: 'error', message: 'Sign in again to use Google Drive.' }
+  if (status === 403 && own) return { kind: 'error', message: "Google Drive isn't available on your plan." }
+  if (status === 404 && own) return { kind: 'error', message: 'Google Drive is not available right now.' }
   const message = typeof body?.error === 'string' && body.error.trim() ? body.error.trim() : 'Google Drive is not available right now. Please try again.'
   return { kind: 'error', message }
 }
@@ -110,9 +118,9 @@ export function chipsAfterLink(chips: readonly GdriveChip[], link: { linked?: un
     return errorChip(chip.id, chip.title, itemFailure(chip.title, rejected.get(chip.id)))
   })
 }
-/** The session-links call itself failed: the chips that waited for it did not make it into the chat. */
-export const chipsLinkFailed = (chips: readonly GdriveChip[]): GdriveChip[] =>
-  chips.map(chip => chip.state === 'linking' ? errorChip(chip.id, chip.title, { kind: 'generic', message: `Couldn't add "${chip.title}" to this chat. Please try again.` }) : chip)
+/** The session-links call itself failed: the chips that waited for it did not make it into the chat. `notOwned` (CONNECTOR_SESSION_NOT_OWNED): they stay errors that do not ask for a retry. */
+export const chipsLinkFailed = (chips: readonly GdriveChip[], notOwned = false): GdriveChip[] =>
+  chips.map(chip => chip.state === 'linking' ? errorChip(chip.id, chip.title, { kind: 'generic', message: notOwned ? `"${chip.title}" can't be added to this chat yet.` : `Couldn't add "${chip.title}" to this chat. Please try again.` }) : chip)
 
 // ---- connect round trip (D2a-c) --------------------------------------------------------------------------------------------------
 
@@ -133,19 +141,44 @@ export function gdriveStartHref(sessionId: string | null | undefined): string {
   const back = builderReturnPath(sessionId)
   return back ? `${GDRIVE_START_PATH}?${GDRIVE_RETURN_QUERY}=${encodeURIComponent(back)}` : GDRIVE_START_PATH
 }
-/** The callback's redirect when the start route remembered a return path. */
-export const returnRedirectPath = (path: string, status: string): string => `${path}&${GDRIVE_STATUS_PARAM}=${status}`
+// Hardening (REVIEW-1 #1): a one-time marker proves that a return came from this server's callback. The callback puts the same random value in the
+// address and in a short-lived cookie that only this origin can set; the composer acts on ?gdrive= only when the two match, then clears both.
+export const GDRIVE_MARKER_PARAM = 'gdrive_marker'
+export const GDRIVE_MARKER_COOKIE = 'deckster_gdrive_return_marker'
+export const GDRIVE_MARKER_COOKIE_PATH = '/builder'
+export const GDRIVE_MARKER_MAX_AGE_SECONDS = 120
+const MARKER_RE = /^[A-Za-z0-9_-]{32}$/ // newNonce(): 24 random bytes, base64url
 
-/** Reads and removes ?gdrive=<status> from a query string; `search` is what to put back in the address bar. */
-export function takeGdriveReturn(search: string): { status: GdriveReturnStatus | null; search: string } {
+/** The callback's redirect when the start route remembered a return path. */
+export const returnRedirectPath = (path: string, status: string, marker: string): string => `${path}&${GDRIVE_STATUS_PARAM}=${status}&${GDRIVE_MARKER_PARAM}=${marker}`
+
+export interface GdriveReturn { status: GdriveReturnStatus | null; marker: string | null; sessionId: string | null; search: string }
+/** Reads and removes ?gdrive=<status> and its marker from a query string; `sessionId` is the chat the address names; `search` is what to put back in the address bar. */
+export function takeGdriveReturn(search: string): GdriveReturn {
   const params = new URLSearchParams(search)
-  const raw = params.get(GDRIVE_STATUS_PARAM)
-  if (raw === null) return { status: null, search }
+  const raw = params.get(GDRIVE_STATUS_PARAM), marker = params.get(GDRIVE_MARKER_PARAM), sessionId = params.get('session_id')
+  if (raw === null && marker === null) return { status: null, marker: null, sessionId, search }
   params.delete(GDRIVE_STATUS_PARAM)
+  params.delete(GDRIVE_MARKER_PARAM)
   const rest = params.toString()
   const status = raw === 'connected' || raw === 'cancelled' || raw === 'invalid' || raw === 'failed' ? raw : null
-  return { status, search: rest ? `?${rest}` : '' }
+  return { status, marker, sessionId, search: rest ? `?${rest}` : '' }
 }
+
+/** The marker cookie's value in a document.cookie string, or null. */
+export function markerFromCookies(cookies: unknown): string | null {
+  if (typeof cookies !== 'string') return null
+  for (const part of cookies.split(';')) {
+    const at = part.indexOf('=')
+    if (at > 0 && part.slice(0, at).trim() === GDRIVE_MARKER_COOKIE) return part.slice(at + 1).trim()
+  }
+  return null
+}
+/** Written to document.cookie to clear the marker (the name, path and attributes the callback set it with). */
+export const GDRIVE_MARKER_CLEAR = `${GDRIVE_MARKER_COOKIE}=; Max-Age=0; Path=${GDRIVE_MARKER_COOKIE_PATH}; Secure; SameSite=Lax`
+/** A return is genuine only when the address's marker is well formed and equals the cookie's. */
+export const isGenuineReturn = (queryMarker: unknown, cookieMarker: unknown): boolean =>
+  typeof queryMarker === 'string' && MARKER_RE.test(queryMarker) && queryMarker === cookieMarker
 
 // ---- per-chat memory (a reload keeps the chips, so the next build message still carries them) -------------------------------------
 

@@ -49,12 +49,14 @@ function parseHttpUrl(value: unknown): URL | null {
   }
 }
 
-/** A Drive webViewLink: https on a Google host (drive.google.com, docs.google.com, ...). Anything else is shown without a link. */
+/** Hardening (REVIEW-1 #6): the only hosts a Drive file opens on. Not any *.google.com: sites.google.com pages and www.google.com/url?q= redirects are not Drive files. */
+export const DRIVE_LINK_HOSTS: readonly string[] = ['drive.google.com', 'docs.google.com']
+
+/** A Drive webViewLink: https on drive.google.com or docs.google.com, default port. Anything else is shown without a link (here and in Settings > Connectors). */
 export function driveFileHref(value: unknown): string | undefined {
   const url = parseHttpUrl(value)
-  if (!url || url.protocol !== 'https:') return undefined
-  const host = url.hostname.toLowerCase()
-  return host === 'google.com' || host.endsWith('.google.com') ? url.href : undefined
+  if (!url || url.protocol !== 'https:' || url.port) return undefined
+  return DRIVE_LINK_HOSTS.includes(url.hostname.toLowerCase()) ? url.href : undefined
 }
 
 function webHref(value: unknown): { href: string; host: string } | null {

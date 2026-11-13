@@ -88,6 +88,8 @@ export const CONNECTOR_ERROR_CODES = [
   'CONNECTOR_NOT_CONNECTED', 'CONNECTOR_GRANT_REVOKED', 'CONNECTOR_CRYPTO_UNAVAILABLE', 'CONNECTOR_UPSTREAM_ERROR',
   'CONNECTOR_EXCHANGE_FAILED', 'CONNECTOR_NO_REFRESH_TOKEN',
   'CONNECTOR_ERASE_UNAVAILABLE', 'CONNECTOR_ITEM_ID_INVALID', // piece C: remove one item (Researcher DELETE /gdrive/items)
+  // hardening (REVIEW-1 #1, #4): Researcher's chat-owner refusal (403; also Studio's own when the chat is not the caller's) and its retryable "owner record unreadable" (503)
+  'CONNECTOR_SESSION_NOT_OWNED', 'CONNECTOR_SESSION_UNAVAILABLE',
 ] as const
 export function connectorErrorCode(detail: unknown): string | null {
   return typeof detail === 'string' && (CONNECTOR_ERROR_CODES as readonly string[]).includes(detail) ? detail : null
