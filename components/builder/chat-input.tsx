@@ -61,6 +61,8 @@ import type { ChatCommandsPageProps } from '@/lib/studio-chat-commands' // CHAT-
 import { VoiceCallButtons } from './voice-call/voice-call-buttons' // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL, default off)
 import type { VoiceCallComposerProps } from '@/lib/studio-voice-call-ui' // VOICE-CALL
 import { callEndFocusGoesToComposer } from '@/lib/studio-voice-call-ui' // VOICE-CALL
+import { GdriveAttachMenu, GdriveChipsBar } from './gdrive-composer' // GDRIVE-COMPOSER (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED + _SESSION_LINKS_ENABLED, default off)
+import type { GdriveComposerApi } from '@/hooks/use-gdrive-composer' // GDRIVE-COMPOSER
 
 const TEXTAREA_MIN_HEIGHT = 96
 const TEXTAREA_MAX_HEIGHT = 220
@@ -149,6 +151,8 @@ export interface ChatInputProps {
   studioChatClean?: ChatCleanComposerProps // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN): the composer's mode and the page's Stop / send-directions handlers; passed only with the flag on
   studioChatCommands?: ChatCommandsPageProps // CHAT-COMMANDS (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS): the deck's slides, the current slide, the selected element and the export runner for the "/" and "@" menus; passed only with the flag on
   voiceCall?: VoiceCallComposerProps // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL): the two call buttons' handler and state, and `active` (a call is on: the composer is not drawn); passed only with the flag on (the page's call hook)
+  /** GDRIVE-COMPOSER: "Add from Google Drive" in the attach menu, the Drive chips above the composer. The page passes it only with both Drive flags on and an entitled user; absent, the composer is exactly the base's. */
+  gdrive?: GdriveComposerApi // GDRIVE-COMPOSER
 }
 
 export function ChatInput({
@@ -206,6 +210,7 @@ export function ChatInput({
   studioChatClean, // CHAT-CLEAN
   studioChatCommands, // CHAT-COMMANDS
   voiceCall, // VOICE-CALL
+  gdrive, // GDRIVE-COMPOSER
 }: ChatInputProps) {
   const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN, Studio shell only, default off): PK's v3 composer (lib/studio-chat-clean.ts). Every line carrying this marker renders or applies only with the flag on and the page's props present; off, every spread adds nothing and every branch is null, so the element tree is exactly the base's.
@@ -566,6 +571,8 @@ export function ChatInput({
     openTheme: () => { setThemeOpen(true); void refreshSavedThemes() }, themeBlocked: !user ? 'Sign in to choose a build theme.' : isLoadingSession ? 'Loading your conversation…' : templateSelectionLocked ? 'Build theme selection is locked for this deck.' : null, // CHAT-COMMANDS: /theme opens the theme popup as its button does (the same open state and the same saved-themes read), blocked for the same reasons
     openTemplatePopup: () => popupSetter('template')(true), template: { available: Boolean((templateBuilderEnabled && onSelectTemplate) || onOpenComposerLibrary), saved: Boolean(templateBuilderEnabled && onSelectTemplate), blocked: !user || isLoadingSession ? 'Templates open once your conversation has loaded.' : templateSelectionLocked && !onOpenComposerLibrary ? 'Template selection is locked for this deck.' : null }, // CHAT-COMMANDS: /template opens the template popup (the picker's own open state), blocked as the picker's button is
     research: { deep: researchEnabled, web: webSearchEnabled, locked: researchSettingsLocked, onDeep: onResearchEnabledChange, onWeb: onWebSearchEnabledChange, openOptions: () => setResearchOpen(true) }, // CHAT-COMMANDS: /research and /web are the options menu's switches: the same props, the same lock
+    account: typeof user?.id === 'string' && user.id ? user.id : null, // CHAT-PARITY-MORE: the signed-in account, written into a hand-off so that only a page of the same account takes it
+    choosePreset: presetId => handlePresetChange(presetId), // CHAT-PARITY-VIEWER: /theme <preset> is the popup's own preset chip (handlePresetChange, then the page's handleBuildThemeChange)
     files: uploadedFiles, presets: themePresets.map(preset => ({ id: preset.preset_id, name: preset.name })), saved: visibleSavedThemes.map(theme => ({ id: theme.id, name: theme.name })), savedStatus: studioThemeReadOwned && studioThemeRead?.phase === 'loaded' ? 'ready' : studioThemeReadFailed ? 'failed' : 'loading', refreshSaved: () => { void refreshSavedThemes() } }) // CHAT-COMMANDS: the "@" menu lists what the pickers already hold: this deck's uploads, the preset and saved themes (read once through the composer's own refresh) and the saved templates (the template popup's own list call)
   const handlePresetChange = (presetId: string) => {
     if (studio) studioThemeSelection.current.epoch += 1
@@ -804,6 +811,11 @@ export function ChatInput({
     if (stillReady) void refreshSavedThemes(true)
   }
   // Studio theme mutations END.
+  const gdriveUpload = async () => { // GDRIVE-COMPOSER: "Upload file" in the attach menu does what the Paperclip does without the menu
+    if (popupsV2) setComposerPopup(null) // GDRIVE-COMPOSER
+    try { await onRequestSession() } catch { return } // GDRIVE-COMPOSER
+    fileInputRef.current?.click() // GDRIVE-COMPOSER
+  } // GDRIVE-COMPOSER
   const hiddenFileInput = (
     <input
       ref={fileInputRef}
@@ -1027,6 +1039,7 @@ export function ChatInput({
         </div>
       )}
 
+      {gdrive ? <GdriveChipsBar gdrive={gdrive} /> : null}{/* GDRIVE-COMPOSER: the Drive chips, their alerts and the connect prompt, above the composer box; off, null */}
       {/* Main input container - Claude style */}
       <form onSubmit={guardedSubmit}>
         <div data-studio-v4-prompt="true"
@@ -1162,6 +1175,7 @@ export function ChatInput({
             className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-2 bg-gray-50 rounded-b-xl dark:bg-slate-800">
             {/* Left: Action buttons */}
             <div className="flex items-center gap-1">
+              {gdrive ? <GdriveAttachMenu studio={studio} uploadEnabled={features.enableFileUploads} uploadDisabled={uploadedFiles.length >= 5} busy={gdrive.busy} onUpload={() => void gdriveUpload()} onAddFromDrive={() => gdrive.addFromDrive(onRequestSession)} /> : null}{/* GDRIVE-COMPOSER: the attach menu (Upload file / Add from Google Drive), beside the direct Paperclip it hides; off, null */}
               {/* Direct file upload */}
               {features.enableFileUploads && (
                 <StudioComposerHint enabled={studio} label="Attach files">
@@ -1180,6 +1194,7 @@ export function ChatInput({
                   }}
                   title={studio ? undefined : "Upload a file"}
                   aria-label="Upload a file"
+                  {...(gdrive ? { style: { display: 'none' }, 'aria-hidden': true, tabIndex: -1 } : {})} // GDRIVE-COMPOSER: with the Drive menu beside it, this direct button is hidden (the menu's Upload file does the same job)
                 >
                   <Paperclip className="h-4 w-4" />
                 </button>
