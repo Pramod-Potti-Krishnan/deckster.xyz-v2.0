@@ -851,7 +851,7 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
   }, [clearSearchResults, searchQuery, operationOwner, operationLifetime, waitForAdmission])
   // CHAT-PARITY-MORE (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS with NEXT_PUBLIC_STUDIO_CHAT_CLEAN, default off): /kg-search <words> from the chat opens this page with the words in the search box and runs the page's own search (runSearch) once the account is ready. The words come from a one-time hand-off, not the address. Flag off: nothing is read.
   const chatMoreSearch = useRef<string | null>(null) // CHAT-PARITY-MORE
-  useEffect(() => { const handed = takeBrowserHandoff("kg-search"); if (handed?.text) { chatMoreSearch.current = handed.text; setSearchQuery(handed.text) } }, []) // CHAT-PARITY-MORE
+  useEffect(() => { if (process.env.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS !== "true" || process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN !== "true") return; const handed = takeBrowserHandoff("kg-search"); if (handed?.text) { chatMoreSearch.current = handed.text; setSearchQuery(handed.text) } }, []) // CHAT-PARITY-MORE
   useEffect(() => { if (chatMoreSearch.current && searchQuery === chatMoreSearch.current && accessStatus === "ready") { chatMoreSearch.current = null; void runSearch() } }, [accessStatus, searchQuery, runSearch]) // CHAT-PARITY-MORE: the box holds the handed words and the page can search: the same search a click on Run search makes
 
   const runImport = useCallback(async () => {

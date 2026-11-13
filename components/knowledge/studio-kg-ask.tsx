@@ -78,7 +78,7 @@ export function StudioKgAsk() {
   const headingId = useId()
   const inputId = useId()
   const noteId = useId()
-  useEffect(() => { const handed = takeBrowserHandoff("kg-ask"); if (handed?.text) { setText(handed.text); inputRef.current?.focus() } }, []) // CHAT-PARITY-MORE (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS with NEXT_PUBLIC_STUDIO_CHAT_CLEAN, default off): /ask <question> from the chat opens this page with the question FILLED in the box (a one-time hand-off, not the address). Nothing is sent from here: Ask costs money, so the person presses Ask. Flag off: nothing is read.
+  useEffect(() => { if (process.env.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS !== "true" || process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN !== "true") return; const handed = takeBrowserHandoff("kg-ask"); if (handed?.text) { setText(handed.text); inputRef.current?.focus() } }, []) // CHAT-PARITY-MORE (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS with NEXT_PUBLIC_STUDIO_CHAT_CLEAN, default off): /ask <question> from the chat opens this page with the question FILLED in the box (a one-time hand-off, not the address). Nothing is sent from here: Ask costs money, so the person presses Ask. Flag off: nothing is read.
 
   const loading = state.phase === "loading"
   const length = studioKgAskLength(text)
