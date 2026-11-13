@@ -1,6 +1,6 @@
 /**
  * FRONTEND-1, overnight chat parity (11 Nov), the WORKSPACE half: "/" commands that do what a workspace button does.
- * Gated by NEXT_PUBLIC_STUDIO_CHAT_COMMANDS (which already needs NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell), the same gate as the viewer commands under it. No new flag, no backend, no Director change.
+ * Gated by NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS (default off) on top of NEXT_PUBLIC_STUDIO_CHAT_COMMANDS (which already needs NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell), the same gate as the viewer commands under it. The flag is read where this bus is used (the Builder page, the viewer, the Notes panel, the introduction, the composer's hook), never here. No backend, no Director change.
  * Stacked on lib/studio-chat-parity-viewer.ts: it reuses that file's words, waits, loose matching and result type, and its menu draws these rows in one more group, "Workspace".
  *
  * ONE small bus, module level, in PARTS (the viewer's bus has one owner; the workspace is owned by five places, so each registers the part it owns):

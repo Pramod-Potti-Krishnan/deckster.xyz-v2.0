@@ -68,8 +68,8 @@ export function StudioIntroductionProvider({ enabled, eligibility, getEligibilit
       modalOpen: risks.modalOpen === false && !document.querySelector(MODAL) ? false : true })
     if (permitted.manual) setReplay(value => value + 1)
   }, [])
-  // CHAT-PARITY-WORKSPACE (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS with NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell, default off): the Replay intro button for /intro. The composer reaches it through ONE small bus (lib/studio-chat-parity-workspace.ts): this owner registers a getter of whether the introduction is playing and the button's own handler (requestReplay, which still drops a request the eligibility refuses). Flag off: null, and neither effect does anything.
-  const chatParityWorkspaceOn = enabled && process.env.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS === 'true' && process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true' // CHAT-PARITY-WORKSPACE
+  // CHAT-PARITY-WORKSPACE (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS, default off, with NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell): the Replay intro button for /intro. The composer reaches it through ONE small bus (lib/studio-chat-parity-workspace.ts): this owner registers a getter of whether the introduction is playing and the button's own handler (requestReplay, which still drops a request the eligibility refuses). Flag off: null, and neither effect does anything.
+  const chatParityWorkspaceOn = enabled && process.env.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS === 'true' && process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true' && process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === 'true' // CHAT-PARITY-WORKSPACE
   const chatParityWorkspaceLive = useRef<import('@/lib/studio-chat-parity-workspace').WorkspacePart | null>(null) // CHAT-PARITY-WORKSPACE
   const chatParityWorkspaceMod = useRef<typeof import('@/lib/studio-chat-parity-workspace') | null>(null) // CHAT-PARITY-WORKSPACE: the bus module, once the gated effect below has loaded it
   chatParityWorkspaceLive.current = !chatParityWorkspaceOn ? null : { state: { intro: { active } }, actions: { replayIntro: requestReplay } } // CHAT-PARITY-WORKSPACE
