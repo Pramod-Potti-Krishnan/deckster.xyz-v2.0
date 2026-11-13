@@ -129,6 +129,8 @@ function viewerChecks(text = read(VIEWER)) {
 const laterStrips = (rel, text) => { const strips = registry.LATER_STRIPS, at = strips.indexOf(STRIP_FN); return (at === -1 ? [] : strips.slice(at + 1)).reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text) }
 /** The older proofs this change teaches (their first-parent scope checks leave the commits whose subject starts "Audit fix:" out). */
 const PIN_FILES = ['scripts/test-studio-chat-element-edit.mjs', 'scripts/test-studio-deck-sync-truth.mjs']
+/** The older proofs that hold the viewer byte for byte or count its lines read it past this change's three lines: [file, marked lines it gains] (a read hook with its import, the phone proofs' scope line, the rail proof's diff filter). */
+const READ_PIN_FILES = { 'scripts/test-studio-arrange.mjs': 2, 'scripts/test-studio-first-paint-viewer.mjs': 2, 'scripts/test-studio-phone-hints.mjs': 3, 'scripts/test-studio-phone-landscape.mjs': 3, 'scripts/test-studio-rail-add-slide.mjs': 3 }
 const SECRET = /(sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{12,}|eyJ[A-Za-z0-9_-]{20,}\.|-----BEGIN [A-Z ]*PRIVATE KEY|ghp_[A-Za-z0-9]{20,}|xox[bp]-)/
 /** The lines added to and removed from `was` to make `now` (a multiset difference by line). */
 function lineDiff(was, now) {
@@ -160,12 +162,21 @@ function sourceChecks(texts, mod = stripModule) {
     assert.equal(diff.removed.length, (edits[rel] || []).flatMap(([, was]) => was.split('\n')).filter(line => line !== '').length, `${rel}: the base lines this change rewrites (all of them, no other)`)
   }
   // the older proofs this change teaches: each gains one marked line (the first-parent walk leaves this change's commits out) and is the base's without it
-  assert.deepEqual([...mod.AUDIT_PRESENT_EXIT_PIN_FILES].sort(), PIN_FILES, 'the older proofs this change teaches')
+  assert.deepEqual([...mod.AUDIT_PRESENT_EXIT_PIN_FILES].sort(), [...PIN_FILES, ...Object.keys(READ_PIN_FILES)].sort(), 'the older proofs this change teaches')
   for (const rel of PIN_FILES) {
     const now = laterStrips(rel, texts[rel]), diff = lineDiff(baseText(rel), now)
     assert.equal(strip(rel, now), baseText(rel), `${rel}: without this change's line the proof is the base's, byte for byte`)
     assert.deepEqual([diff.removed.length, diff.added.length], [0, 1], `${rel}: the proof gains one line and loses none`)
     assert.ok(diff.added[0].includes(mod.AUDIT_PRESENT_EXIT_PIN_MARK) && diff.added[0].includes('^Audit fix:'), `${rel}: the line carries the pin mark and names this change's subject`)
+  }
+  // the older proofs that read the viewer: each gains its marked lines and loses none, and is the base's without them; a read hook reads the viewer through this change's own strip, never the registry
+  for (const [rel, gained] of Object.entries(READ_PIN_FILES)) {
+    const now = laterStrips(rel, texts[rel]), diff = lineDiff(baseText(rel), now)
+    assert.equal(strip(rel, now), baseText(rel), `${rel}: without this change's lines the proof is the base's, byte for byte`)
+    assert.equal(strip(rel, strip(rel, now)), baseText(rel), `${rel}: putting back twice changes nothing more`)
+    assert.deepEqual([diff.removed.length, diff.added.length], [0, gained], `${rel}: the proof gains ${gained} marked lines and loses none`)
+    for (const line of diff.added) assert.ok(line.includes(mod.AUDIT_PRESENT_EXIT_PIN_MARK), `${rel}: a line added to the proof carries the pin mark: ${line.trim().slice(0, 100)}`)
+    for (const line of diff.added.filter(added => added.includes('fs.readFileSync = '))) assert.ok(line.includes('stripAuditPresentExit(rel, out)') && !line.includes('stripLaterChanges') && !line.includes('registry.'), `${rel}: the read hook uses this change's own strip, never the registry`)
   }
   // the voice-call proof: its four-line after-merge edit is in dev since 506bcbb3, so it is the base's own text and this change carries no edit of it (nothing to pin here)
   // the new libs: import-free, one literal env read each (nothing else reads the flag)
@@ -219,7 +230,7 @@ function messageProblems(subject, body) {
 // ============================================================================================================================================
 // run
 // ============================================================================================================================================
-const TEXTS = Object.fromEntries([...TOUCHED, ...NEW_FILES, '.env.example', REGISTRY, ...PIN_FILES].map(rel => [rel, read(rel)]))
+const TEXTS = Object.fromEntries([...TOUCHED, ...NEW_FILES, '.env.example', REGISTRY, ...PIN_FILES, ...Object.keys(READ_PIN_FILES)].map(rel => [rel, read(rel)]))
 
 await check('1. the lib: the flag, the desync rule (whole truth table, odd values), leaving the browser\'s fullscreen', () => libChecks())
 await check('2. the viewer: the check is the first thing in the toggle\'s try, waits for the browser, sets the page state and returns; the page state is read through a ref that follows isFullscreen; no env read', () => viewerChecks())
@@ -293,11 +304,23 @@ for (const rel of TOUCHED) {
   })
 }
 await check('mutant caught: a taught proof with an unmarked extra line, or without this change\'s line', async () => {
-  for (const rel of PIN_FILES) {
+  for (const rel of [...PIN_FILES, ...Object.keys(READ_PIN_FILES)]) {
     const text = TEXTS[rel]
     assert.ok(await throws(() => sourceChecks({ ...TEXTS, [rel]: text + '// stray\n' })), 'an unmarked extra line')
     assert.ok(await throws(() => sourceChecks({ ...TEXTS, [rel]: text.split('\n').filter(line => !line.includes('registry read (AUDIT-PRESENT-EXIT)')).join('\n') })), 'the line removed (the proof would fail on this change\'s own commits)')
     assert.ok(await throws(() => sourceChecks({ ...TEXTS, [rel]: text.replace('registry read (AUDIT-PRESENT-EXIT)', 'registry read (OTHER)') })), 'the pin mark changed')
+  }
+})
+await check('mutant caught: a taught viewer-reading proof whose read hook goes through the registry, whose import is gone, or that loses one of its lines', async () => {
+  for (const rel of Object.keys(READ_PIN_FILES)) {
+    const text = TEXTS[rel], lines = text.split('\n')
+    const hook = lines.findIndex(line => line.includes('fs.readFileSync = '))
+    if (hook >= 0) {
+      assert.ok(await throws(() => sourceChecks({ ...TEXTS, [rel]: lines.map((line, at) => at === hook ? line.replace('stripAuditPresentExit(rel, out)', 'registry.stripLaterChanges(rel, out)') : line).join('\n') })), `${rel}: a read hook through the registry`)
+      assert.ok(await throws(() => sourceChecks({ ...TEXTS, [rel]: lines.map((line, at) => at === hook ? line.replace('stripAuditPresentExit(rel, out)', 'out') : line).join('\n') })), `${rel}: a read hook that strips nothing`)
+    }
+    const marked = lines.map((line, at) => [line, at]).filter(([line]) => line.includes(stripModule.AUDIT_PRESENT_EXIT_PIN_MARK))
+    for (const [, at] of marked) assert.ok(await throws(() => sourceChecks({ ...TEXTS, [rel]: lines.filter((_, index) => index !== at).join('\n') })), `${rel}: line ${at + 1} lost`)
   }
 })
 await check('mutant caught: .env.example with a flag on by default, or the block missing', async () => {
@@ -325,6 +348,17 @@ await check('mutant caught: strip: a [has, was] pair is missing, or puts back a 
       for (const mod of [dropped, changed]) {
         const mutantStrip = (r, text) => (typeof text !== 'string' || !(r in mod.AUDIT_PRESENT_EXIT_EDITS)) ? stripModule.stripAuditPresentExit(r, text) : (mod.AUDIT_PRESENT_EXIT_EDITS[r] || []).reduce((out, [has, was]) => out.replace(has, () => was), text)
         assert.ok(await throws(() => sourceChecks(TEXTS, { ...mod, stripAuditPresentExit: mutantStrip })), `${rel} pair ${at}`)
+      }
+    }
+  }
+})
+await check('mutant caught: strip: a pair of an older proof is missing, or puts back a changed line (each pair of every taught proof in turn)', async () => {
+  const PIN_EDITS = stripModule.AUDIT_PRESENT_EXIT_PIN_EDITS
+  for (const rel of [...PIN_FILES, ...Object.keys(READ_PIN_FILES)]) {
+    for (let at = 0; at < PIN_EDITS[rel].length; at++) {
+      for (const pairs of [PIN_EDITS[rel].filter((_, index) => index !== at), PIN_EDITS[rel].map((pair, index) => index === at ? [pair[0], `${pair[1]}// changed\n`] : pair)]) {
+        const mutantStrip = (r, text) => (typeof text !== 'string' || r !== rel) ? stripModule.stripAuditPresentExit(r, text) : pairs.reduce((out, [has, was]) => out.replace(has, () => was), text)
+        assert.ok(await throws(() => sourceChecks(TEXTS, { ...stripModule, stripAuditPresentExit: mutantStrip })), `${rel} pair ${at}`)
       }
     }
   }
