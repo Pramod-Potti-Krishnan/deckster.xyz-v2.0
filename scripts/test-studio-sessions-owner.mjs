@@ -8,9 +8,14 @@
 // and the same database calls as the own-id path; the client adopts only a 2xx and never a 409 (REVIEW-1's two checks, 13 Nov).
 // Then mutants (each must make the proof FAIL): owner check removed, owner check inverted, allow-list widened, each log restored,
 // raw error text restored, an extra database round trip or a write on the foreign path, and the client adopting a 409 again.
+// FOLLOW-UP (13 Nov, REVIEW-1's two P3s and DIRECTOR-2's 14:55Z recommendation): no log line carries an account id or a chat id; and a URL session id that POST /api/sessions
+// refuses (404) is never kept by the Builder: it mints a fresh id, creates the caller's own row, replaces the URL and opens the Director socket on the fresh id only (the REAL
+// use-builder-session and use-chat-sessions hooks on a hook runtime against the real route; the caller's own id and new ids give the base hook's exact trace). Mutants for each.
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
+import path from 'node:path'
+import { createRequire } from 'node:module'
 import { execFileSync } from 'node:child_process'
 import ts from 'typescript'
 import { LATER_CHANGE_FILES, LATER_STRIPS, stripLaterChanges } from './studio-later-changes.mjs'
@@ -121,6 +126,10 @@ function loadHook(source, world, routeSource) {
   return { hook: exports.useChatSessions(), sent, seen }
 }
 
+const git = (...args) => execFileSync('git', args, { cwd: ROOT.pathname, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] })
+const baseTexts = new Map()
+const baseOf = rel => { if (!baseTexts.has(rel)) baseTexts.set(rel, git('show', `${process.env.SESSIONS_OWNER_BASE || strip.BASE_COMMIT}:${rel}`)); return baseTexts.get(rel) }
+
 // ---- the cases: each returns on success and throws on a failure -------------------------------------------------------------
 const noLeak = (value, label) => {
   const text = JSON.stringify(value)
@@ -130,6 +139,13 @@ const noLeak = (value, label) => {
 const noSecretInLogs = (logs, label, extra = []) => {
   const all = logs.join('\n')
   for (const bad of [CALLER.email, 'caller@', VICTIM.email, SECRET_URL, SECRET_URL.slice(0, 40), 'postgresql://', DB_SECRET, 'db.example.invalid', ...extra]) assert.equal(all.includes(bad), false, `${label}: the server log carries "${bad}"`)
+}
+// REVIEW-1's P3 (13 Nov): the route logs no account id and no chat id, in any line, on any path (neither is an e-mail, but both identify a person or their chat).
+const UUID_SHAPE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+const noIdInLogs = (logs, label, extra = []) => {
+  const all = logs.join('\n')
+  for (const bad of [CALLER.id, VICTIM.id, 'user-other', 'user-new-', OWN_ID, FOREIGN_ID, FRESH_ID, ...extra]) assert.equal(all.includes(bad), false, `${label}: the server log carries the id "${bad}"`)
+  assert.equal(UUID_SHAPE.test(all), false, `${label}: the server log carries a UUID-shaped id`)
 }
 const ALLOWED = ['geminiStoreName', 'id']
 
@@ -224,6 +240,35 @@ const cases = [
       assert.ok(logs.length > 0, `${label}: the route still logs its steps`)
       noSecretInLogs(logs, label, ['newcomer@mail.example', 'newcomer@'])
     }
+  }],
+  ['P-74 (REVIEW-1 P3): no path logs an account id or a chat id: not when it creates, finds, refuses or fails, and every line still reads as a step', async ({ routeSource }) => {
+    class PrismaClientKnownRequestError extends Error { constructor(message) { super(message); this.name = 'PrismaClientKnownRequestError' } }
+    const boom = () => Object.assign(new PrismaClientKnownRequestError('x'), { code: 'P1001', clientVersion: '5.22.0' })
+    for (const [label, setup, body] of [
+      ['fresh id', () => makeWorld(), { sessionId: FRESH_ID, title: 'a' }],
+      ['own id', () => makeWorld(), { sessionId: OWN_ID }],
+      ['foreign id', () => makeWorld(), { sessionId: FOREIGN_ID, title: 'mine now' }],
+      ['new account (its row is created)', () => { const w = makeWorld(); w.session = { user: { email: 'newcomer@mail.example' } }; return w }, { sessionId: FRESH_ID }],
+      ['an existing account', () => makeWorld(), { sessionId: FRESH_ID }],
+      ['no sessionId', () => makeWorld(), {}],
+      ['signed out', () => { const w = makeWorld(); w.session = null; return w }, { sessionId: FRESH_ID }],
+      ['the user lookup fails', () => { const w = makeWorld(); w.userLookupError = boom(); return w }, { sessionId: FRESH_ID }],
+      ['the session create fails', () => { const w = makeWorld(); w.prisma.chatSession.create = async () => { throw boom() }; return w }, { sessionId: FRESH_ID }],
+    ]) {
+      const world = setup(); const { post, logs } = loadRoute(routeSource, world)
+      await post(body)
+      assert.ok(logs.length > 0, `${label}: the route still logs its steps`)
+      noIdInLogs(logs, label, world.userCreated.map(user => user.id))
+    }
+    // the steps the ids used to ride on are still logged, as booleans or bare
+    const world = makeWorld(); const { post, logs } = loadRoute(routeSource, world)
+    await post({ sessionId: FRESH_ID, title: 'a' })
+    const all = logs.join('\n')
+    for (const step of ['User found in database', 'Session ID given: true', 'Title given: true', 'Chat session created successfully']) assert.ok(all.includes(step), `the step "${step}" is still logged`)
+    const foreign = makeWorld(); const refused = loadRoute(routeSource, foreign); await refused.post({ sessionId: FOREIGN_ID })
+    assert.ok(refused.logs.join('\n').includes('belongs to another user, refused'), 'a refusal is still logged (without the id)')
+    const own = makeWorld(); const found = loadRoute(routeSource, own); await found.post({ sessionId: OWN_ID })
+    assert.ok(found.logs.join('\n').includes('Session already exists'), 'a found own row is still logged (without the id)')
   }],
   ['P-74: a failure answers a bare 500 and logs the error kind and code, not its text, in every catch', async ({ routeSource }) => {
     const rawMessage = `Invalid \`prisma.user.findUnique()\` invocation: where: { email: "${CALLER.email}" } Can't reach database server at ${SECRET_URL}`
@@ -352,6 +397,263 @@ cases.push(['P-73 client: a 200 with the row (the caller\'s own) IS recovered, a
   assert.equal(patches, 5)
 }])
 
+// ================================================================================================================================
+// FOLLOW-UP (13 Nov, REVIEW-1's P3 on the unsaved local session, DIRECTOR-2's 14:55Z recommendation): a URL session id that POST /api/sessions refuses (404:
+// another account's chat) is never kept. With session hygiene off the Builder used to keep that id as an unsaved local session and open its Director socket on it;
+// now it mints a fresh id, creates the caller's own row, replaces the URL (no history entry) and opens the socket on the fresh id only. The REAL
+// hooks/use-builder-session.ts and hooks/use-chat-sessions.ts run on a tiny hook runtime against the REAL route (the same accounts and rows as above), the way the
+// Builder page wires them (it hands the socket hook `existingSessionId: currentSessionId` and does not auto-connect for a URL id: pinned on the page below).
+// ================================================================================================================================
+const nodeRequire = createRequire(new URL('../package.json', import.meta.url))
+const transpiledModules = new Map()
+function compileModule(rel, source) {
+  const key = `${rel}\0${source}`
+  if (!transpiledModules.has(key)) {
+    const out = ts.transpileModule(source, { fileName: rel, reportDiagnostics: true, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } })
+    const errors = (out.diagnostics ?? []).filter(d => d.category === ts.DiagnosticCategory.Error)
+    assert.equal(errors.length, 0, `${rel} does not transpile: ${errors.map(d => ts.flattenDiagnosticMessageText(d.messageText, ' ')).join('; ')}`)
+    transpiledModules.set(key, out.outputText)
+  }
+  return transpiledModules.get(key)
+}
+/** Repo files, transpiled on require; `overrides`: repo-relative path -> source text; `stubs`: import specifier as written -> module object. */
+function createWorld({ env = {}, overrides = {}, stubs = {}, globals = {} } = {}) {
+  const cache = new Map()
+  const names = Object.keys(globals)
+  const exists = rel => rel in overrides || (fs.existsSync(new URL(rel, ROOT)) && fs.statSync(new URL(rel, ROOT)).isFile())
+  const resolve = (spec, fromRel) => {
+    const base = spec.startsWith('@/') ? spec.slice(2) : path.posix.join(path.posix.dirname(fromRel), spec)
+    for (const ext of ['', '.ts', '.tsx', '/index.ts', '/index.tsx']) if (exists(base + ext) && /\.tsx?$/.test(base + ext)) return base + ext
+    throw new Error(`unresolved ${spec} from ${fromRel}`)
+  }
+  function load(rel) {
+    if (cache.has(rel)) return cache.get(rel).exports
+    const module = { exports: {} }
+    cache.set(rel, module)
+    const source = rel in overrides ? overrides[rel] : read(rel)
+    const require = spec => {
+      if (spec in stubs) return stubs[spec]
+      if (spec.startsWith('@/') || spec.startsWith('.')) return load(resolve(spec, rel))
+      return nodeRequire(spec)
+    }
+    new Function('module', 'exports', 'require', 'process', ...names, compileModule(rel, source))(module, module.exports, require, { env }, ...names.map(name => globals[name]))
+    return module.exports
+  }
+  return { load }
+}
+function hookRuntime() {
+  let current = null
+  const impl = { useState: (...a) => current.useState(...a), useRef: (...a) => current.useRef(...a), useCallback: (...a) => current.useCallback(...a), useMemo: (...a) => current.useMemo(...a), useEffect: (...a) => current.useEffect(...a) }
+  function instance(call, onDirty) {
+    let cursor = 0
+    const slots = []
+    let pending = []
+    const sameDeps = (a, b) => a && b && a.length === b.length && a.every((dep, n) => Object.is(dep, b[n]))
+    const hooks = {
+      useState(initial) {
+        const i = cursor++
+        if (!slots[i]) {
+          const slot = { value: typeof initial === 'function' ? initial() : initial }
+          slot.set = next => { const value = typeof next === 'function' ? next(slot.value) : next; if (!Object.is(value, slot.value)) { slot.value = value; onDirty() } }
+          slots[i] = slot
+        }
+        return [slots[i].value, slots[i].set]
+      },
+      useRef(initial) { const i = cursor++; return slots[i] ??= { current: initial } },
+      useCallback(fn, deps) { const i = cursor++, old = slots[i]; if (old && sameDeps(deps, old.deps)) return old.fn; slots[i] = { fn, deps }; return fn },
+      useMemo(fn, deps) { const i = cursor++, old = slots[i]; if (old && sameDeps(deps, old.deps)) return old.value; slots[i] = { value: fn(), deps }; return slots[i].value },
+      useEffect(callback, deps) {
+        const i = cursor++, old = slots[i]
+        if (!old || !deps || !sameDeps(deps, old.deps)) { const next = { deps, cleanup: old?.cleanup }; slots[i] = next; pending.push(() => { next.cleanup?.(); next.cleanup = callback() }) }
+      },
+    }
+    return {
+      render() { current = hooks; cursor = 0; pending = []; let result; try { result = call() } finally { current = null } for (const effect of pending) effect(); return result },
+      unmount() { for (const slot of slots) if (slot && typeof slot.cleanup === 'function') slot.cleanup() },
+    }
+  }
+  return { impl, instance }
+}
+class MemStorage {
+  constructor() { this.map = new Map() }
+  getItem(key) { return this.map.has(key) ? this.map.get(key) : null }
+  setItem(key, value) { this.map.set(key, String(value)) }
+  removeItem(key) { this.map.delete(key) }
+}
+const unsavedKey = id => `deckster_unsaved_v2_${encodeURIComponent(CALLER.id)}_${id}`
+const UUID_ONLY = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const NO_LAYOUT_ROW = { blankPresentationUrl: null, strawmanPreviewUrl: null, finalPresentationUrl: null, blankPresentationId: null, strawmanPresentationId: null, finalPresentationId: null }
+const turns = async (n = 6) => { for (let i = 0; i < n; i++) await Promise.resolve(); await new Promise(resolve => setImmediate(resolve)) }
+
+/**
+ * One Builder page: it owns what page.tsx owns (the URL, currentSessionId, isUnsavedSession) and runs the real hooks as the page wires them. The history API is the
+ * real route for the create call and the [id] routes' answers (404 no row, 403 another owner, 200 yours) for the rest. `sockets` is the session id each Director socket
+ * is opened with: the page gives the socket hook `existingSessionId: currentSessionId`, so it is the page's current id at the moment the session hook asks to connect.
+ */
+async function runPage({ routeSource, hookSource, builderSource, url, mutateWorld, hygiene = false, postFaults = 0 }) {
+  const { log, warn, error } = console
+  console.log = console.warn = console.error = () => {}
+  try {
+    const world = makeWorld()
+    world.rows.set(OWN_ID, fullRow(OWN_ID, CALLER, { ...NO_LAYOUT_ROW, geminiStoreName: 'fileSearchStores/own-store' }))
+    mutateWorld?.(world)
+    const storage = new MemStorage()
+    const { post } = loadRoute(routeSource, world)
+    const calls = [], sockets = [], navigation = []
+    let faults = postFaults
+    const reply = (status, body) => ({ ok: status >= 200 && status < 300, status, statusText: String(status), json: async () => JSON.parse(JSON.stringify(body)), text: async () => JSON.stringify(body) })
+    const fetchStub = async (target, init = {}) => {
+      await Promise.resolve()
+      const method = String(init.method || 'GET').toUpperCase()
+      const body = init.body ? JSON.parse(init.body) : null
+      let answer
+      if (target === '/api/sessions' && method === 'POST') answer = faults > 0 && faults-- ? { status: 500, body: { error: 'Internal server error' } } : await post(body)
+      else {
+        const match = /^\/api\/sessions\/([^/?]+)(\/messages)?$/.exec(target)
+        if (!match) throw new Error(`unexpected request ${method} ${target}`)
+        const row = world.rows.get(match[1])
+        if (!row) answer = { status: 404, body: { error: 'Session not found' } }
+        else if (row.userId !== CALLER.id) answer = { status: 403, body: { error: 'Forbidden' } }
+        else if (method === 'GET') answer = { status: 200, body: { session: { ...row, messages: [] } } }
+        else answer = { status: 200, body: match[2] ? { saved: 1, failed: 0, total: 1 } : { session: { id: row.id } } }
+      }
+      calls.push({ method, url: target, sessionId: body?.sessionId ?? (/^\/api\/sessions\/([^/?]+)/.exec(target)?.[1] ?? null), status: answer.status })
+      return reply(answer.status, answer.body)
+    }
+    const runtime = hookRuntime()
+    const page = { url, currentSessionId: null, isUnsavedSession: false, dirty: false }
+    const route = () => new URLSearchParams(page.url.split('?')[1] ?? '').get('session_id')
+    const initialRoute = route()
+    page.currentSessionId = initialRoute && initialRoute !== 'new' ? initialRoute : null // page.tsx's initial state
+    page.isUnsavedSession = Boolean(page.currentSessionId && storage.getItem(unsavedKey(page.currentSessionId)) === 'true')
+    const win = { location: { get search() { return '?' + (page.url.split('?')[1] ?? '') } }, sessionStorage: storage, addEventListener() {}, removeEventListener() {} }
+    const worldOfModules = createWorld({
+      env: hygiene ? { NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: 'true' } : {},
+      overrides: { 'hooks/use-builder-session.ts': builderSource, 'hooks/use-chat-sessions.ts': hookSource },
+      globals: { window: win, sessionStorage: storage, fetch: fetchStub, setTimeout: (fn, ms) => (ms >= 5000 ? 0 : setImmediate(fn)), clearTimeout: handle => { if (handle) clearImmediate(handle) } }, // the 10 s loading safety net never fires inside this run
+      stubs: {
+        react: runtime.impl,
+        'next/navigation': { useRouter: () => ({ replace: next => { navigation.push({ kind: 'replace', href: next }); page.url = next; page.dirty = true }, push: next => { navigation.push({ kind: 'push', href: next }); page.url = next; page.dirty = true } }) },
+        '@/lib/config': { features: { immediateConnection: true } },
+        '@/lib/layout-service-client': { getLayoutServiceUrl: () => 'https://layout.invalid', LAYOUT_URL_CONFIG_ERROR: null, LAYOUT_VIEWER_URL_POLICY: { configuredOrigin: null, allowedOrigins: [] } },
+      },
+    })
+    const builder = worldOfModules.load('hooks/use-builder-session.ts')
+    const chat = worldOfModules.load('hooks/use-chat-sessions.ts')
+    let latest = null, hookDirty = false
+    const instance = runtime.instance(() => {
+      const sessions = chat.useChatSessions()
+      return builder.useBuilderSession({
+        user: { id: CALLER.id, email: CALLER.email }, isAuthLoading: false, searchParams: new URLSearchParams(page.url.split('?')[1] ?? ''),
+        loadSession: sessions.loadSession, loadSessionResult: sessions.loadSessionResult, createSession: sessions.createSession, persistence: null,
+        connected: false, connecting: false, reconnectStatus: 'idle',
+        ensureConnected: () => { sockets.push(page.currentSessionId); return true }, disconnect() {}, clearMessages() {}, restoreMessages() {}, updateCacheUserMessages() {}, messages: [], toast() {},
+        isUnsavedSession: page.isUnsavedSession, setIsUnsavedSession: v => { if (v !== page.isUnsavedSession) { page.isUnsavedSession = v; page.dirty = true } },
+        currentSessionId: page.currentSessionId, setCurrentSessionId: v => { if (v !== page.currentSessionId) { page.currentSessionId = v; page.dirty = true } },
+        setSessionStoreName() {},
+      })
+    }, () => { hookDirty = true })
+    const render = () => { page.dirty = false; hookDirty = false; latest = instance.render() }
+    render()
+    let stable = 0, last = -1
+    for (let i = 0; i < 400 && stable < 10; i++) {
+      await turns(3)
+      if (page.dirty || hookDirty) render()
+      const now = calls.length + navigation.length + sockets.length
+      if (now === last && !page.dirty && !hookDirty) stable++; else stable = 0
+      last = now
+    }
+    instance.unmount()
+    return { world, page, calls, sockets, navigation, storage, latest, problem: latest?.sessionProblem ?? null }
+  } finally { console.log = log; console.warn = warn; console.error = error }
+}
+
+const pageCases = {
+  'a foreign id in the URL (hygiene off)': { url: `/builder?session_id=${FOREIGN_ID}` },
+  'an id that is the caller\'s own, with a row': { url: `/builder?session_id=${OWN_ID}` },
+  'an id nobody has (adopted: the row is created for it)': { url: `/builder?session_id=${FRESH_ID}` },
+  'an id nobody has, the create answers 500 (a failed adoption that is not a refusal)': { url: `/builder?session_id=${FRESH_ID}`, postFaults: 1 },
+  'a bare /builder (a local id is minted, as before)': { url: '/builder' },
+  'session_id=new': { url: '/builder?session_id=new' },
+}
+/** Ids made of random UUIDs (the minted ones) come out as <local>, so a run on the base hook and one on this hook can be compared. */
+const named = value => JSON.stringify(value).replaceAll(OWN_ID, '<own>').replaceAll(FRESH_ID, '<fresh>').replaceAll(FOREIGN_ID, '<foreign>').replace(/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/gi, '<local>')
+const traceOf = run => named({ calls: run.calls.map(c => [c.method, c.url, c.sessionId, c.status]), sockets: run.sockets, navigation: run.navigation, id: run.page.currentSessionId, unsaved: run.page.isUnsavedSession, rows: [...run.world.rows.keys()].map(id => named(id)).sort(), markers: [...run.storage.map.keys()].map(key => named(key)).sort() })
+
+cases.push(['P3 (REVIEW-1, DIRECTOR-2): a foreign id in the URL is never kept: a fresh id is minted, its row is created, the URL is replaced (no history entry) and the socket opens on the fresh id only; nothing is written or opened with the foreign id', async sources => {
+  const run = await runPage({ ...sources, ...pageCases['a foreign id in the URL (hygiene off)'] })
+  const minted = run.page.currentSessionId
+  assert.match(minted, UUID_ONLY, 'a fresh UUID')
+  assert.notEqual(minted, FOREIGN_ID)
+  assert.deepEqual(run.navigation, [{ kind: 'replace', href: `/builder?session_id=${minted}` }], 'one router.replace to the fresh id, no push (Back does not return to the foreign id)')
+  assert.deepEqual(run.sockets, [minted], 'the Director socket is opened once, on the fresh id')
+  assert.deepEqual(run.calls.map(c => `${c.method} ${c.url.replace(minted, '<fresh>')} ${c.status}`), [`GET /api/sessions/${FOREIGN_ID} 403`, 'POST /api/sessions 404', 'POST /api/sessions 201'], 'the lookup, the refused create, the create of the fresh id: nothing else, and no second load of the fresh id after the URL changed')
+  assert.deepEqual(run.calls.filter(c => c.sessionId === FOREIGN_ID).map(c => `${c.method} ${c.url}`), [`GET /api/sessions/${FOREIGN_ID}`, 'POST /api/sessions'], 'the foreign id is only ever asked about (the lookup and the one refused create); nothing is written under it and no PATCH or message save carries it')
+  assert.equal(run.world.rows.get(minted)?.userId, CALLER.id, 'the row for the fresh id is the caller\'s')
+  assert.equal(run.world.rows.get(FOREIGN_ID).userId, VICTIM.id, 'the other account\'s row is untouched')
+  assert.equal(run.page.isUnsavedSession, false, 'the row exists, so the session is saved')
+  assert.equal(run.storage.getItem(unsavedKey(FOREIGN_ID)), null, 'no unsaved marker for the foreign id')
+  assert.ok(run.latest.studioInitialFreshCanonicalEntry && run.latest.studioInitialFreshCanonicalEntry.sessionId === minted, 'a local fresh id, as the bare /builder one: the Studio stage knows it is a new session')
+  assert.equal(run.latest.isLoadingSession, false)
+  assert.equal(run.problem, null)
+}])
+cases.push(['P3: the fresh id\'s own create fails: it stays an unsaved local session (marker set), the URL is still replaced, the socket still opens on it only', async sources => {
+  const run = await runPage({ ...sources, url: `/builder?session_id=${FOREIGN_ID}`, postFaults: 0, mutateWorld: world => { world.prisma.chatSession.create = async () => { throw new Error('database down') } } })
+  const minted = run.page.currentSessionId
+  assert.match(minted, UUID_ONLY); assert.notEqual(minted, FOREIGN_ID)
+  assert.equal(run.page.isUnsavedSession, true)
+  assert.equal(run.storage.getItem(unsavedKey(minted)), 'true', 'the guard the page reads on reload')
+  assert.equal(run.storage.getItem(unsavedKey(FOREIGN_ID)), null)
+  assert.deepEqual(run.sockets, [minted])
+  assert.deepEqual(run.navigation, [{ kind: 'replace', href: `/builder?session_id=${minted}` }])
+  assert.equal(run.world.rows.has(minted), false, 'no row yet: the first real action creates it')
+}])
+cases.push(['P3: only a refusal (404) mints: any other failed adoption keeps the id as an unsaved local session, as before (a 500 never swaps a person\'s own id)', async sources => {
+  const run = await runPage({ ...sources, ...pageCases['an id nobody has, the create answers 500 (a failed adoption that is not a refusal)'] })
+  assert.equal(run.page.currentSessionId, FRESH_ID)
+  assert.equal(run.page.isUnsavedSession, true)
+  assert.deepEqual(run.navigation, [])
+  assert.deepEqual(run.sockets, [FRESH_ID])
+  assert.equal(run.storage.getItem(unsavedKey(FRESH_ID)), 'true')
+}])
+cases.push(['P3: the caller\'s own id and an id nobody has behave as before: the same requests, socket, URL and state as the base hook (own id, new id, a failed adoption, bare /builder, session_id=new)', async sources => {
+  const baseBuilder = baseOf('hooks/use-builder-session.ts')
+  for (const [name, options] of Object.entries(pageCases)) {
+    if (name.startsWith('a foreign id')) continue
+    const now = await runPage({ ...sources, ...options })
+    const before = await runPage({ ...sources, builderSource: baseBuilder, ...options })
+    assert.equal(traceOf(now), traceOf(before), `${name}: the trace is the base hook's`)
+  }
+  const own = await runPage({ ...sources, ...pageCases['an id that is the caller\'s own, with a row'] })
+  assert.deepEqual(own.sockets, [OWN_ID]); assert.deepEqual(own.navigation, []); assert.deepEqual(own.calls.map(c => `${c.method} ${c.status}`), ['GET 200'])
+  const fresh = await runPage({ ...sources, ...pageCases['an id nobody has (adopted: the row is created for it)'] })
+  assert.equal(fresh.page.currentSessionId, FRESH_ID); assert.deepEqual(fresh.sockets, [FRESH_ID]); assert.deepEqual(fresh.navigation, []); assert.equal(fresh.world.rows.get(FRESH_ID)?.userId, CALLER.id)
+}])
+cases.push(['P3: session hygiene on is untouched: a foreign id is still "not found" with no write and no socket (it never reaches the adoption branch)', async sources => {
+  const run = await runPage({ ...sources, url: `/builder?session_id=${FOREIGN_ID}`, hygiene: true })
+  assert.equal(run.problem?.kind, 'not_found')
+  assert.deepEqual(run.sockets, []); assert.deepEqual(run.navigation, [])
+  assert.deepEqual(run.calls.map(c => `${c.method} ${c.url} ${c.status}`), [`GET /api/sessions/${FOREIGN_ID} 403`], 'one lookup, no create, nothing else')
+}])
+cases.push(['P3: createSessionWasRefused says "refused" only for an id whose latest create was answered 404 (another id, a later answer, a call with no answer, any other status: no; each id has its own mark)', async ({ hookSource }) => {
+  let script = []
+  const quiet = () => {}
+  const exports = evaluate(hookSource, 'hooks/use-chat-sessions.ts', {
+    react: { useState: initial => [initial, () => {}], useCallback: fn => fn },
+    '@/lib/studio-session-hygiene': { sessionLoadKindForStatus: () => 'error' },
+    '@/lib/studio-blank-start-new-session': { STUDIO_BLANK_START_NEW_SESSION_ENABLED: false, browserBlankStartStorage: () => null, forgetBlankStartEverywhere: () => {} },
+  }, { fetch: async () => { const next = script.shift(); if (next === 'network') throw new TypeError('Failed to fetch'); return responseOf(next, next >= 200 && next < 300 ? { session: { id: 'x' } } : { error: 'e' }) }, setTimeout: fn => { fn(); return 0 }, console: { log: quiet, warn: quiet, error: quiet, info: quiet, debug: quiet } })
+  const hook = exports.useChatSessions()
+  const refused = exports.createSessionWasRefused
+  assert.equal(refused(OWN_ID), false, 'before any call')
+  script = [404]; assert.equal(await hook.createSession(OWN_ID), null); assert.equal(refused(OWN_ID), true, 'a 404 for that id'); assert.equal(refused(FRESH_ID), false, 'another id')
+  script = [201]; assert.notEqual(await hook.createSession(OWN_ID), null); assert.equal(refused(OWN_ID), false, 'the next answer for that id replaces it')
+  script = [404]; await hook.createSession(OWN_ID); script = ['network']; assert.equal(await hook.createSession(OWN_ID), null); assert.equal(refused(OWN_ID), false, 'a call that got no answer leaves no old refusal behind')
+  script = [404]; await hook.createSession(OWN_ID); script = [404]; await hook.createSession(FRESH_ID); assert.equal(refused(OWN_ID), true, 'a call for another id leaves this id\'s mark alone (two creates in flight)'); assert.equal(refused(FRESH_ID), true)
+  script = [201]; await hook.createSession(FRESH_ID); assert.equal(refused(FRESH_ID), false); assert.equal(refused(OWN_ID), true)
+  for (const status of [400, 401, 403, 409, 429, 500, 502, 503]) { script = [status]; assert.equal(await hook.createSession(OWN_ID), null); assert.equal(refused(OWN_ID), false, `a ${status} is not a refusal as another account's chat`) }
+}])
+
 async function runSuite(sources) {
   const failures = []
   for (const [name, fn] of cases) {
@@ -361,12 +663,10 @@ async function runSuite(sources) {
 }
 
 // ---- real sources ---------------------------------------------------------------------------------------------------------------
-const real = { routeSource: read('app/api/sessions/route.ts'), hookSource: read('hooks/use-chat-sessions.ts') }
+const real = { routeSource: read('app/api/sessions/route.ts'), hookSource: read('hooks/use-chat-sessions.ts'), builderSource: read('hooks/use-builder-session.ts') }
 const realFailures = await runSuite(real)
 assert.deepEqual(realFailures, [], `the real sources fail the proof:\n  ${realFailures.join('\n  ')}`)
 
-const git = (...args) => execFileSync('git', args, { cwd: ROOT.pathname, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] })
-const baseOf = rel => git('show', `${process.env.SESSIONS_OWNER_BASE || strip.BASE_COMMIT}:${rel}`)
 // ---- mutants: each must be caught ---------------------------------------------------------------------------------------------
 const swap = (key, from, to) => ({ ...real, [key]: (() => { assert.equal(real[key].split(from).length, 2, `mutant text must be there once: ${from}`); return real[key].replace(from, () => to) })() })
 const mutants = {
@@ -384,6 +684,14 @@ const mutants = {
   'the foreign answer carries the owner in a message': swap('routeSource', "{ error: 'Session not found' },\n          { status: 404 }", "{ error: 'Session belongs to another user' },\n          { status: 404 }"),
   'the foreign answer is a 403 (the [id] routes\' pattern: it names the id as taken)': swap('routeSource', "{ error: 'Session not found' },\n          { status: 404 }", "{ error: 'Forbidden' },\n          { status: 403 }"),
   'the foreign answer is a 409 with a row': swap('routeSource', "{ error: 'Session not found' },\n          { status: 404 }", "{ error: 'Session already exists', session: existing },\n          { status: 409 }"),
+  'the account id is logged when the user is created (P3)': swap('routeSource', "console.log('[Session Create] ✅ User created successfully');", "console.log('[Session Create] ✅ User created successfully:', user.id);"),
+  'the account id is logged when the user is found (P3)': swap('routeSource', "console.log('[Session Create] ✅ User found in database');", "console.log('[Session Create] ✅ User found in database:', user.id);"),
+  'the chat id is logged when the body is read (P3)': swap('routeSource', "console.log('[Session Create] Session ID given:', !!sessionId);", "console.log('[Session Create] Session ID:', sessionId);"),
+  'the chat id is logged on a refusal (P3)': swap('routeSource', "console.warn('[Session Create] ⚠️ Session id belongs to another user, refused');", "console.warn('[Session Create] ⚠️ Session id belongs to another user, refused:', sessionId);"),
+  'the chat id is logged when the own row is found (P3)': swap('routeSource', "console.log('[Session Create] ⚠️ Session already exists (the caller\\'s own)');", "console.log('[Session Create] ⚠️ Session already exists:', sessionId);"),
+  'the chat id is logged in the Data line again (P3)': swap('routeSource', "console.log('[Session Create] Data:', {\n      hasTitle: !!title,", "console.log('[Session Create] Data:', {\n      id: sessionId,\n      hasTitle: !!title,"),
+  'the account id is logged in the Data line again (P3)': swap('routeSource', "console.log('[Session Create] Data:', {\n      hasTitle: !!title,", "console.log('[Session Create] Data:', {\n      userId: user.id,\n      hasTitle: !!title,"),
+  'the chat id is logged when the row is created (P3)': swap('routeSource', "console.log('[Session Create] ✅ Chat session created successfully');", "console.log('[Session Create] ✅ Chat session created successfully:', newSession.id);"),
   'the DATABASE_URL prefix log is restored': swap('routeSource', "  console.log('[Session Create] DIRECT_URL configured:', !!process.env.DIRECT_URL);", "  console.log('[Session Create] DATABASE_URL prefix:', process.env.DATABASE_URL?.substring(0, 40) + '...');\n  console.log('[Session Create] DIRECT_URL configured:', !!process.env.DIRECT_URL);"),
   'the e-mail is logged after sign-in again': swap('routeSource', "console.log('[Session Create] ✅ Authenticated');", "console.log('[Session Create] ✅ Authenticated user:', session.user.email);"),
   'the e-mail is logged in the query line again': swap('routeSource', "console.log('[Session Create] Attempting Prisma query: user.findUnique by email');", "console.log('[Session Create] Attempting Prisma query: user.findUnique({ where: { email:', session.user.email, '}})');"),
@@ -400,6 +708,23 @@ const mutants = {
   'the hook as the base had it (a 409 row is always adopted)': { ...real, hookSource: baseOf('hooks/use-chat-sessions.ts') },
   'the client adopts a 409 row again (createSession)': swap('hookSource', "      if (!response.ok) {\n        // Try to get error details from response", "      if (response.status === 409) return (await response.json()).session;\n\n      if (!response.ok) {\n        // Try to get error details from response"),
   'the client treats any 409 as recovered again (ensureSessionRow)': swap('hookSource', 'if (response.ok) { // POST /api/sessions', 'if (response.ok || response.status === 409) { // POST /api/sessions'),
+  // the follow-up: a refused URL id is replaced by a fresh one
+  'P3: the refusal branch is gone (the foreign id is kept as an unsaved session again)': swap('builderSource', 'if (!adopted && createSessionWasRefused(sessionParam)) {', 'if (false) {'),
+  'P3: any failed adoption mints a new id, not only a refusal': swap('builderSource', 'if (!adopted && createSessionWasRefused(sessionParam)) {', 'if (!adopted) {'),
+  'P3: the URL is pushed, not replaced (Back would return to the foreign id)': swap('builderSource', 'router.replace(getInitializedBuilderHref(searchParams, ownSessionId,', 'router.push(getInitializedBuilderHref(searchParams, ownSessionId,'),
+  'P3: the fresh id gets no row': swap('builderSource', 'const ownRow = await createSession(ownSessionId)', 'const ownRow = null'),
+  'P3: the page keeps the foreign id as its current id (the socket opens on it)': swap('builderSource', 'setCurrentSessionId(ownSessionId)', 'setCurrentSessionId(sessionParam)'),
+  'P3: the "fresh" id is the foreign id': swap('builderSource', 'const ownSessionId = crypto.randomUUID()', 'const ownSessionId = sessionParam'),
+  'P3: the URL change loads the fresh id again': swap('builderSource', 'lastLoadedSessionRef.current = ownSessionId', 'lastLoadedSessionRef.current = null'),
+  'P3: the fresh session is never marked saved': swap('builderSource', 'setIsUnsavedSession(!ownRow)', 'setIsUnsavedSession(true)'),
+  'P3: a fresh id with no row leaves no unsaved marker': swap('builderSource', "else sessionStorage.setItem(unsavedBuilderSessionKey(builderCacheOwner, ownSessionId), 'true')", 'else {}'),
+  'P3: the fresh id is not recorded as a local fresh assignment': swap('builderSource', "              recordStudioFreshAssignment(ownSessionId, { kind: 'local_uuid', generatedSessionId: ownSessionId }) // SESSIONS-OWNER\n", ''),
+  'P3: the branch falls through to the adoption below (it puts the foreign id back)': swap('builderSource', "              return // SESSIONS-OWNER\n            } // SESSIONS-OWNER", '            } // SESSIONS-OWNER'),
+  'P3: the refusal is never recorded by the chat hook': swap('hookSource', 'if (response.status === 404) refusedCreateIds.add(sessionId);', 'if (false) refusedCreateIds.add(sessionId);'),
+  'P3: any 4xx or 5xx counts as a refusal': swap('hookSource', 'if (response.status === 404) refusedCreateIds.add(sessionId);', 'if (response.status >= 400) refusedCreateIds.add(sessionId);'),
+  'P3: a 403 counts as a refusal': swap('hookSource', 'if (response.status === 404) refusedCreateIds.add(sessionId);', 'if (response.status === 404 || response.status === 403) refusedCreateIds.add(sessionId);'),
+  'P3: the refusal is not tied to the id asked about': swap('hookSource', 'return refusedCreateIds.has(sessionId);', 'return refusedCreateIds.size > 0;'),
+  'P3: an old refusal survives a later call for the same id': swap('hookSource', '      refusedCreateIds.delete(sessionId); // SESSIONS-OWNER\n', ''),
 }
 let killed = 0
 for (const [name, sources] of Object.entries(mutants)) {
@@ -418,6 +743,24 @@ for (const rel of Object.keys(strip.SESSIONS_OWNER_PAIRS)) {
   assert.equal(strip.stripSessionsOwner(rel, 'unrelated\n'), 'unrelated\n', `${rel}: a file without this change's text comes back as it is`)
 }
 assert.equal(strip.stripSessionsOwner('lib/other.ts', 'x'), 'x')
+// the follow-up's edits to the two hooks are PURE INSERTIONS, each line marked SESSIONS-OWNER (a whole token): older proofs hold every base line of these files, in order
+const markerProblems = pairs => pairs.filter(([, before]) => before === '').flatMap(([now]) => now.split('\n').filter(line => line.trim() && !strip.SESSIONS_OWNER_MARKER_RE.test(line)))
+assert.ok(strip.SESSIONS_OWNER_MARKER_RE.test('x // SESSIONS-OWNER: y') && !strip.SESSIONS_OWNER_MARKER_RE.test('x // SESSIONS-OWNER-X') && !strip.SESSIONS_OWNER_MARKER_RE.test('x // X-SESSIONS-OWNER'), 'the marker is a whole token')
+assert.deepEqual(strip.SESSIONS_OWNER_INSERTED_FILES, ['hooks/use-builder-session.ts', 'hooks/use-chat-sessions.ts'])
+assert.ok(strip.SESSIONS_OWNER_PAIRS['hooks/use-builder-session.ts'].length >= 2 && strip.SESSIONS_OWNER_PAIRS['hooks/use-builder-session.ts'].every(([, before]) => before === ''), 'the builder hook: every pair is an insertion (empty base text)')
+assert.equal(strip.SESSIONS_OWNER_PAIRS['hooks/use-chat-sessions.ts'].filter(([, before]) => before === '').length, 3, 'the chat hook: this follow-up adds three insertions to the two edits of the change itself')
+for (const rel of strip.SESSIONS_OWNER_INSERTED_FILES) assert.deepEqual(markerProblems(strip.SESSIONS_OWNER_PAIRS[rel]), [], `${rel}: every inserted line carries the marker`)
+assert.ok(markerProblems([['// SESSIONS-OWNER: a\nunmarked();\n', '']]).length === 1, 'an unmarked inserted line is caught')
+for (const rel of strip.SESSIONS_OWNER_INSERTED_FILES) {
+  const lines = read(rel).split('\n'), baseLines = baseOf(rel).split('\n')
+  const marked = lines.filter(line => strip.SESSIONS_OWNER_MARKER_RE.test(line))
+  assert.ok(marked.length > 0 && baseLines.every(line => !strip.SESSIONS_OWNER_MARKER_RE.test(line)), `${rel}: the marker is this follow-up's alone (no base line carries it)`)
+}
+// the Builder page is not touched (the socket's id comes from it: existingSessionId follows currentSessionId and a URL id does not auto-connect), and the page still hands the socket hook what the proof ran
+const PAGE = 'app/builder/page.tsx'
+assert.equal(others(PAGE, read(PAGE)), others(PAGE, baseOf(PAGE)), 'app/builder/page.tsx is the base\'s file (this follow-up does not touch it)')
+const pageText = read(PAGE)
+for (const line of ['    autoConnect: features.immediateConnection && !currentSessionId,', '    existingSessionId: currentSessionId || undefined,', '  const { loadSession, loadSessionResult, createSession } = useChatSessions()']) assert.equal(pageText.split(line + '\n').length, 2, `the page keeps: ${line.trim()}`)
 const registry = read('scripts/studio-later-changes.mjs')
 for (const [list, name] of [['LATER_CHANGE_FILES', 'SESSIONS_OWNER_SCOPE_FILES'], ['LATER_STRIPS', 'stripSessionsOwner']]) {
   const body = (registry.split(`export const ${list} = `)[1] || '').split('\n  // one line per later change, above this comment')[0]

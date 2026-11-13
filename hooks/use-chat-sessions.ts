@@ -79,6 +79,12 @@ async function ensureSessionRow(sessionId: string): Promise<boolean> {
   }
 }
 
+// SESSIONS-OWNER (13 Nov, REVIEW-1 P3 and DIRECTOR-2): POST /api/sessions answers 404 for an id that is another account's chat (a missing id is created, 201). createSession answers null for that, as it does for every failure,
+// SESSIONS-OWNER: so the Builder's URL-session adoption asks here, right after its own call, whether the id it tried was refused as someone else's (it then starts a new session under a fresh id and never keeps that one).
+const refusedCreateIds = new Set<string>(); // SESSIONS-OWNER
+/** True when the latest createSession call made for this id was answered 404: the id is another account's chat. Every call for an id clears its mark first (a call that got no answer leaves none), so a mark is never older than its call. */ // SESSIONS-OWNER
+export function createSessionWasRefused(sessionId: string): boolean { return refusedCreateIds.has(sessionId); } // SESSIONS-OWNER
+
 export function useChatSessions() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -195,6 +201,7 @@ export function useChatSessions() {
 
     try {
       console.log('[useChatSessions] Creating session:', sessionId);
+      refusedCreateIds.delete(sessionId); // SESSIONS-OWNER
 
       const response = await fetch('/api/sessions', {
         method: 'POST',
@@ -205,6 +212,7 @@ export function useChatSessions() {
       });
 
       console.log('[useChatSessions] Response status:', response.status);
+      if (response.status === 404) refusedCreateIds.add(sessionId); // SESSIONS-OWNER
 
       if (!response.ok) {
         // Try to get error details from response
