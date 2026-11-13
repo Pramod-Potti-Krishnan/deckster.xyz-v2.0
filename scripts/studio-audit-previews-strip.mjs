@@ -7,7 +7,7 @@
 // The four-line edit of FRONTEND-1's test-studio-voice-call.mjs (the .env.example "last thing in the file" pin reads the blocks registered after voice-call's) that this change used to carry, byte-identical to #603's, is in dev since 506bcbb3: no edit of that proof is carried here.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '2f06e51ec807d4ecd5cd00edc9bfd0005a5fd0b8' // origin/studio-v4-dev-preparation-code (#621 merged), the trunk this change sits on (restacked from 796d8442, #624 merged)
+export const BASE_COMMIT = '580a4fd9cf660078c58dec1b25e8a3f9faeccb58' // frontend1/audit-console (#617) head: this change is stacked on it (and #617 on #616, on origin/studio-v4-dev-preparation-code 2f06e51e, #621 merged); the head under it moves with it
 export const AUDIT_PREVIEWS_FLAGS = ["NEXT_PUBLIC_STUDIO_DECK_CARD_REHOME","NEXT_PUBLIC_STUDIO_INVENTORY_FALLBACK"]
 export const AUDIT_PREVIEWS_MARKER = 'AUDIT-PREVIEWS'
 /** The marker as a WHOLE token: AUDIT-PREVIEWS-X and X-AUDIT-PREVIEWS are not this change's. */
@@ -73,27 +73,27 @@ export const AUDIT_PREVIEWS_PIN_EDITS = {
   ],
   "scripts/test-studio-deck-card-count.mjs": [
     ["import { stripAuditPreviews } from './studio-audit-previews-strip.mjs' // LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", ""],
-    ["const read = rel => stripDeckCardThumbnail(rel, stripAuditPreviews(rel, fs.readFileSync(path.join(root, rel), 'utf8'))) // LATER-CHANGES: registry read (AUDIT-PREVIEWS); DECK-CARD-THUMBNAIL: its marked lines on the Decks page come out first\n", "const read = rel => stripDeckCardThumbnail(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // DECK-CARD-THUMBNAIL: its marked lines on the Decks page come out first\n"],
+    ["const read = rel => stripDeckCardThumbnail(rel, stripAuditConsole(rel, stripAuditPreviews(rel, fs.readFileSync(path.join(root, rel), 'utf8')))) // LATER-CHANGES: registry read (AUDIT-CONSOLE); LATER-CHANGES: registry read (AUDIT-PREVIEWS); DECK-CARD-THUMBNAIL: its marked lines on the Decks page come out first\n", "const read = rel => stripDeckCardThumbnail(rel, stripAuditConsole(rel, fs.readFileSync(path.join(root, rel), 'utf8'))) // LATER-CHANGES: registry read (AUDIT-CONSOLE); DECK-CARD-THUMBNAIL: its marked lines on the Decks page come out first\n"],
   ],
   "scripts/test-studio-deck-cards-v2.mjs": [
     ["import { stripAuditPreviews } from './studio-audit-previews-strip.mjs' // LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", ""],
-    ["const read = file => stripDeckCardThumbnail(file, stripAuditPreviews(file, fs.readFileSync(path.join(root, file), 'utf8'))); // LATER-CHANGES: registry read (AUDIT-PREVIEWS); DECK-CARD-THUMBNAIL: its marked lines on the Decks page come out first\n", "const read = file => stripDeckCardThumbnail(file, fs.readFileSync(path.join(root, file), 'utf8')); // DECK-CARD-THUMBNAIL: its marked lines on the Decks page come out first\n"],
+    ["const read = file => stripDeckCardThumbnail(file, stripAuditConsole(file, stripAuditPreviews(file, fs.readFileSync(path.join(root, file), 'utf8')))); // LATER-CHANGES: registry read (AUDIT-CONSOLE); LATER-CHANGES: registry read (AUDIT-PREVIEWS); DECK-CARD-THUMBNAIL: its marked lines on the Decks page come out first\n", "const read = file => stripDeckCardThumbnail(file, stripAuditConsole(file, fs.readFileSync(path.join(root, file), 'utf8'))); // LATER-CHANGES: registry read (AUDIT-CONSOLE); DECK-CARD-THUMBNAIL: its marked lines on the Decks page come out first\n"],
   ],
   "scripts/test-atlas-decks-pagination.mjs": [
     ["import { stripAuditPreviews } from './studio-audit-previews-strip.mjs' // LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", ""],
-    ["const source = stripAuditPreviews('app/(app)/dashboard/page.tsx', fs.readFileSync(new URL('../app/(app)/dashboard/page.tsx', import.meta.url), 'utf8')) // LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", "const source = fs.readFileSync(new URL('../app/(app)/dashboard/page.tsx', import.meta.url), 'utf8')\n"],
+    ["const source = stripAuditConsole('app/(app)/dashboard/page.tsx', stripAuditPreviews('app/(app)/dashboard/page.tsx', fs.readFileSync(new URL('../app/(app)/dashboard/page.tsx', import.meta.url), 'utf8'))) // LATER-CHANGES: registry read (AUDIT-CONSOLE); LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", "const source = stripAuditConsole('app/(app)/dashboard/page.tsx', fs.readFileSync(new URL('../app/(app)/dashboard/page.tsx', import.meta.url), 'utf8')) // LATER-CHANGES: registry read (AUDIT-CONSOLE)\n"],
   ],
   "scripts/test-present-view-only.mjs": [
     ["import { stripAuditPreviews } from './studio-audit-previews-strip.mjs' // LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", ""],
-    ["const read = path => stripAuditPreviews(path, fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')) // LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", "const read = path => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')\n"],
+    ["const read = path => stripAuditConsole(path, stripAuditPreviews(path, fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'))) // LATER-CHANGES: registry read (AUDIT-CONSOLE); LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", "const read = path => stripAuditConsole(path, fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')) // LATER-CHANGES: registry read (AUDIT-CONSOLE)\n"],
   ],
   "scripts/test-studio-deck-card-thumbnail-cards.mjs": [
     ["import { stripAuditPreviews } from './studio-audit-previews-strip.mjs' // LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", ""],
-    ["const read = rel => stripAuditPreviews(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", "const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')\n"],
+    ["const read = rel => stripAuditConsole(rel, stripAuditPreviews(rel, fs.readFileSync(path.join(root, rel), 'utf8'))) // LATER-CHANGES: registry read (AUDIT-CONSOLE); LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", "const read = rel => stripAuditConsole(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // LATER-CHANGES: registry read (AUDIT-CONSOLE)\n"],
   ],
   "scripts/test-studio-deck-card-thumbnail.mjs": [
     ["import { stripAuditPreviews } from './studio-audit-previews-strip.mjs' // LATER-CHANGES: registry read (AUDIT-PREVIEWS)\n", ""],
-    ["const pageText = stripAuditPreviews(DASHBOARD_PAGE, read(DASHBOARD_PAGE)) // LATER-CHANGES: registry read (AUDIT-PREVIEWS): this change's lines come out first\n", "const pageText = read(DASHBOARD_PAGE)\n"],
+    ["const pageText = stripAuditConsole(DASHBOARD_PAGE, stripAuditPreviews(DASHBOARD_PAGE, read(DASHBOARD_PAGE))) // LATER-CHANGES: registry read (AUDIT-CONSOLE); LATER-CHANGES: registry read (AUDIT-PREVIEWS): this change's lines come out first\n", "const pageText = stripAuditConsole(DASHBOARD_PAGE, read(DASHBOARD_PAGE)) // LATER-CHANGES: registry read (AUDIT-CONSOLE): this change's lines come out first\n"],
   ],
   "scripts/test-studio-rail-slide-identity.mjs": [
     ["    if (name === '@/lib/studio-inventory-fallback') return { STUDIO_INVENTORY_FALLBACK_ENABLED: false, readInventoryFallback: async () => ({ kind: 'unavailable', reason: 'stub' }) } // LATER-CHANGES: registry read (AUDIT-PREVIEWS): the hook now imports the fallback lib (flag off here: the base's hook)\n", ""],
