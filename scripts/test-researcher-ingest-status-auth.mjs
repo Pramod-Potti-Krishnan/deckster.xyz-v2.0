@@ -39,7 +39,8 @@ const ok = (cond, label) => { assert.ok(cond, label); checks += 1 }
 const norm = value => (value && typeof value === 'object' ? JSON.parse(JSON.stringify(value)) : value)
 const eq = (actual, expected, label) => { assert.deepEqual(norm(actual), norm(expected), label); checks += 1 }
 
-const read = relative => fs.readFileSync(path.join(REPO, relative), 'utf8')
+const { stripLaterChanges } = await import('./studio-later-changes.mjs') // LATER-CHANGES: registry read (UPLOAD-SESSION-TOKEN)
+const read = relative => stripLaterChanges(relative, fs.readFileSync(path.join(REPO, relative), 'utf8')) // LATER-CHANGES: registry read (UPLOAD-SESSION-TOKEN): a later change's lines come out first (the upload session token's, in the upload hook: its import is not in this proof's closed dependency list), so the hook, the route, the libs and .env.example are read as this proof's base has them
 const transpile = (relative, source = read(relative)) => ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText

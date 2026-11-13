@@ -28,6 +28,8 @@ export interface ChatCommandsPageProps {
   getElement: () => ElementMentionReference | null
   /** The export directive's own runner (lib/chat-theme-export.ts runExportDirective: the Download menu's downloadPDF / downloadPPTX with its rule), answered as a status. */
   exportDeck: ((format: ExportFormat) => Promise<{ status: string; error_code: string | null }>) | null
+  /** Chat parity, viewer commands (lib/studio-chat-parity-viewer.ts): where a note goes (the thread). Passed with the flag on. */ // CHAT-PARITY-VIEWER
+  parity?: import('@/lib/studio-chat-parity-viewer').ChatParityPage // CHAT-PARITY-VIEWER
 }
 
 // ---- the words (one place) ------------------------------------------------------------------------------------------------------------------
@@ -130,11 +132,24 @@ export type MenuTrigger = CommandTrigger | MentionTrigger
 const COMMAND_RE = /(^|\s)\/([\w-]*)(?: ([\w-]*))?$/
 /** The composer's own K1 "@" expression, unchanged. */
 const MENTION_RE = /@([\w ]{0,30})$/
+/** "/layout image text", "/theme dark blue": these two take several words after the name, and only when the draft STARTS with the command (the rest of the commands keep the one-word rule above, which also reads after a space); read only with the second argument of detectTrigger (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS). */ // CHAT-PARITY-VIEWER
+const COMMAND_WORDS_RE = /^\/(layout|theme) ([^\n]*)$/i // CHAT-PARITY-VIEWER
+/** "/template Quarterly Review": a saved template's name is several words (/template-mode keeps the one-word rule: the name has to be followed by a space); read only when the draft STARTS with it and only with detectTrigger's second argument (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS). */ // CHAT-PARITY-WORKSPACE
+const COMMAND_TEMPLATE_RE = /^\/(template) ([^\n]*)$/i // CHAT-PARITY-WORKSPACE
+/** "/model research gemini", "/ask what did we learn?", "/kg-search q3 churn", "/delete-theme brand blue": the remaining commands take several words after the name (a name, a question, a model); read only when the draft STARTS with the command and only with detectTrigger's second argument (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS). */ // CHAT-PARITY-MORE
+const COMMAND_MORE_RE = /^\/(model|ask|kg-search|delete-theme|delete-template|switch-template) ([^\n]*)$/i // CHAT-PARITY-MORE
 
-export function detectTrigger(text: string): MenuTrigger | null {
+/** `parity`: the chat parity commands' flag (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS) is on, so the several-word commands are read; off (the default), this is the commands flag's own trigger, byte for byte. */ // CHAT-PARITY-VIEWER
+export function detectTrigger(text: string, parity = false): MenuTrigger | null { // CHAT-PARITY-VIEWER
   if (typeof text !== 'string') return null
   const mention = MENTION_RE.exec(text)
   if (mention) return { kind: 'mention', start: mention.index, query: mention[1] ?? '' }
+  const words = parity ? COMMAND_WORDS_RE.exec(text) : null // CHAT-PARITY-VIEWER
+  if (words) return { kind: 'command', start: 0, name: words[1], arg: words[2] } // CHAT-PARITY-VIEWER: several words after /layout or /theme, at the start of the draft
+  const template = parity ? COMMAND_TEMPLATE_RE.exec(text) : null // CHAT-PARITY-WORKSPACE
+  if (template) return { kind: 'command', start: 0, name: template[1], arg: template[2] } // CHAT-PARITY-WORKSPACE: several words after /template, at the start of the draft
+  const more = parity ? COMMAND_MORE_RE.exec(text) : null // CHAT-PARITY-MORE
+  if (more) return { kind: 'command', start: 0, name: more[1], arg: more[2] } // CHAT-PARITY-MORE: several words after the remaining commands, at the start of the draft
   const command = COMMAND_RE.exec(text)
   if (command) return { kind: 'command', start: command.index + command[1].length, name: command[2] ?? '', arg: command[3] === undefined ? null : command[3] }
   return null

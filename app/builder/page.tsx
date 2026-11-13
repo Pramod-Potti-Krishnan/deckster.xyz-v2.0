@@ -17,6 +17,8 @@ import { STUDIO_PHONE_SHELL_ENABLED } from '@/lib/studio-phone-shell' // PHONE-S
 import { StudioPhoneBuilderTop } from '@/components/builder/studio-phone-builder-top' // PHONE-SHELL-TOP (NEXT_PUBLIC_STUDIO_PHONE_SHELL, default off): on a phone one top row, the switch below it with a Director dot
 import { StudioPhoneLandscape } from '@/components/builder/studio-phone-landscape' // PHONE-LANDSCAPE (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE, default off, with the phone shell): a phone turned sideways gets a viewing stage
 import { STUDIO_PHONE_LANDSCAPE_ENABLED } from '@/lib/studio-phone-landscape' // PHONE-LANDSCAPE
+import { useGdriveComposer } from '@/hooks/use-gdrive-composer' // GDRIVE-COMPOSER (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED + _SESSION_LINKS_ENABLED, default off): "Add from Google Drive" in the composer's attach menu
+import { isGdriveComposerEnabled } from '@/lib/connectors-gdrive-composer' // GDRIVE-COMPOSER
 import { useStudioPhoneWorkspaceClamp } from '@/hooks/use-studio-phone-landscape' // PHONE-LANDSCAPE
 import { StudioPhoneHints } from '@/components/builder/studio-phone-hints' // PHONE-HINTS (NEXT_PUBLIC_STUDIO_PHONE_HINTS, default off, needs the landscape flag too): the portrait rotate and swipe hints, Full screen
 import { STUDIO_PHONE_HINTS_ENABLED } from '@/lib/studio-phone-hints' // PHONE-HINTS
@@ -896,6 +898,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const kgAccessLoading = kgIsLoading
   const [knowledgeGraphEnabled, setKnowledgeGraphEnabled] = useState(false)
   const canUseKnowledgeGraph = kgIsPremium && kgSubscribed && kgServiceAvailable
+  const gdriveOffer = isGdriveComposerEnabled(kgIsPremium) // GDRIVE-COMPOSER: both Drive flags on AND the existing Knowledge entitlement; off, the composer gets no gdrive prop
   // Keep the feature discoverable for every user. The chat row renders an
   // upgrade/setup affordance until both paid entitlement and explicit consent
   // are present; only the ready state can send KG=true.
@@ -1875,6 +1878,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       if (urlSessionId && urlSessionId !== 'new') return urlSessionId
     return null
   })
+  const gdriveLinkedIdsRef = useRef<string[] | undefined>(undefined) // GDRIVE-COMPOSER: the Drive items linked to this chat (undefined until the user links one, [] once cleared); read at send time by the four build sends below, so it is never stale
+  const gdriveComposer = useGdriveComposer({ sessionId: currentSessionId, onLinkedIdsChange: ids => { gdriveLinkedIdsRef.current = ids }, enabled: gdriveOffer }) // GDRIVE-COMPOSER: a no-op unless both Drive flags are on AND the user is entitled (gdriveOffer, FRONTEND-2 N1)
 
   // A socket receipt can arrive before the submission effect. Keep the owned
   // in-memory receipt ahead of an older staged copy in browser storage.
@@ -5535,6 +5540,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   } = useFileUpload({
     sessionId: currentSessionId || '',
     userId: user?.email || '',
+    ...uploadOwnerOverride(user), // K-02: NEXT_PUBLIC_STUDIO_OWNER_CUID_ENABLED sends user.id (cuid); off = {} (the e-mail line above stays)
     onUploadComplete: (files) => {
       console.log('Files uploaded:', files)
       const storeName = files.find(f => f.geminiStoreName)?.geminiStoreName
@@ -6232,6 +6238,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       }
 
       const sendTypedTurn = async (options: Parameters<typeof sendMessageWhenConnected>[3]) => {
+        if (gdriveLinkedIdsRef.current) options = { ...options, linkedItemIds: gdriveLinkedIdsRef.current } // GDRIVE-COMPOSER: linked_item_ids on handleSendMessage's three typed build sends, added here so their option literals stay the base's (#608 hook; dropped there with the session-links flag off)
         let success = false
         try {
           success = await sendMessageWhenConnected(messageText, undefined, fileCount,
@@ -6546,6 +6553,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const chatCommandsExport = (format: 'pdf' | 'pptx') => { const shown = elementDirectiveGenerationOwnerRef.current; return runExportDirective({ type: 'export_directive', payload: { directive_id: 'chat-command', presentation_id: shown.presentationId as string, format } } as ExportDirectiveMessage, { sessionId: shown.sessionId ?? null, isCurrent: () => true }, { displayed: () => elementDirectiveGenerationOwnerRef.current, exportState: () => ({ presentationUrl: effectivePresentationUrl ?? null, slideCount: effectiveSlideCount ?? null, stage: currentStage, hasFinalDeck: Boolean(finalPresentationId || finalPresentationUrl), exportAfterBuild: process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && process.env.NEXT_PUBLIC_STUDIO_EXPORT_AFTER_BUILD === 'true', partialArtifact: Boolean(studioShell && studioPartialMetadata), narrationActive: Boolean(effectiveBuildNarrationEnabled && buildNarration?.active), narrationPhase: (effectiveBuildNarrationEnabled ? buildNarration?.phase : null) ?? 'idle' }), downloadPDF, downloadPPTX }) } // CHAT-COMMANDS: /export runs the export directive's own runner (the Download menu's downloadPDF / downloadPPTX and its enable rule) with the same state the runner above is given
   const chatCommandsPage: ChatCommandsPageProps | undefined = chatCommandsOn ? { slides: chatCommandsSlides, currentSlide: chatCommandsSlides.length ? Math.min(Math.max(currentSlideIndex + 1, 1), chatCommandsSlides.length) : null, getElement: () => (CHAT_ELEMENT_REFINE_ENABLED ? chatElementReferenceFor(chatElementSelectionRef.current) : null), exportDeck: chatCommandsExport } : undefined // CHAT-COMMANDS: the current slide, the element reference Studio already builds (NEXT_PUBLIC_CHAT_ELEMENT_REFINE), the export runner
   if (CHAT_ELEMENT_EDIT_2_ENABLED && chatCommandsPage) chatCommandsPage.getElement = () => (CHAT_ELEMENT_REFINE_ENABLED ? chatElementEdit2Reference() : null) // CHAT-ELEMENT-EDIT-2: a picked @Element token carries the same reference (slide_id null)
+  const chatParityOn = chatCommandsOn && process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === 'true' // CHAT-PARITY-VIEWER (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS, default off): the chat parity commands act only with this flag on top of the commands flag (and what it needs)
+  if (chatCommandsPage && chatParityOn) chatCommandsPage.parity = { addNote: text => { chatCleanNotes.addNote(text); setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 60) } } // CHAT-PARITY-VIEWER: a viewer command's one short note goes into the thread's notes (chat clean's own note style) and the thread shows the end
+  if (chatCommandsPage?.parity) { const thread = chatCommandsPage.parity.addNote; chatCommandsPage.parity = { addNote: text => { if (chatParityThreadOn.current) thread?.(text); else toast({ title: text }) } } } // CHAT-PARITY-WORKSPACE: a chosen template turns the build narration off (effectiveNarrationEnabled), so chat clean's thread, and its notes, are off too: a command's note, read when it is made (not when the command was picked), goes to the thread while it is on, else to a toast, never dropped
 
   const handleCancelManualDeckBuild = useCallback(() => {
     if (manualDeckHandoffBusy) return
@@ -6902,6 +6912,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             actionLabel: action.label,
             ...buildSendOptions,
             ...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE
+            ...(gdriveLinkedIdsRef.current ? { linkedItemIds: gdriveLinkedIdsRef.current } : {}), // GDRIVE-COMPOSER: linked_item_ids on the build message (#608 hook; dropped there with the session-links flag off)
           }, undefined, isCurrentSubmission)
         } catch {
           // Reconnect can reject as well as refuse; preserve the native retry UI.
@@ -7351,6 +7362,21 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     transcript: studioVoiceTranscriptReceipt, chatRootRef: studioVoiceChatRootRef,
     transcriptRootRef: studioVoiceTranscriptRootRef, textareaRef,
   })
+  // CHAT-PARITY-WORKSPACE (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS, default off, with NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell): the Builder's part of the workspace "/" commands (lib/studio-chat-parity-workspace.ts): what the Research options switch, the template chip and its Stop button,
+  // the workspace switcher and the Replay intro button read, and the handlers they call. Flag off: the live part is null, and neither effect below does anything. // CHAT-PARITY-WORKSPACE
+  const chatParityWorkspaceLive = useRef<import('@/lib/studio-chat-parity-workspace').WorkspacePart | null>(null) // CHAT-PARITY-WORKSPACE
+  const chatParityWorkspaceMod = useRef<typeof import('@/lib/studio-chat-parity-workspace') | null>(null) // CHAT-PARITY-WORKSPACE: the bus module, once the gated effect below has loaded it
+  const chatParityThreadOn = useRef(false) // CHAT-PARITY-WORKSPACE
+  chatParityThreadOn.current = chatCleanOn // CHAT-PARITY-WORKSPACE: whether chat clean's thread (and its notes) is on now; read by the note function above when a command's note is made
+  chatParityWorkspaceLive.current = !chatParityOn ? null : { // CHAT-PARITY-WORKSPACE
+    state: { kg: { access: knowledgeGraphAccess, on: knowledgeGraphEnabled, locked: researchSettingsLocked }, // CHAT-PARITY-WORKSPACE: the switch's access, value and the research lock
+      template: { builder: templateBuilderEnabled, active: activeTemplate ? { id: activeTemplate.id, name: activeTemplate.name } : null, locked: templateSelectionLocked, running: Boolean(activeTemplate && isGeneratingFinal) }, // CHAT-PARITY-WORKSPACE: the chip, the lock, and "Stop template reuse" (isTemplateReuseRunning)
+      pane: { dual: workspaceLayout.dualPane, overlay: studioOverlayWorkspace, inspector: Boolean(activeInspector), showing: studioOverlayWorkspace && (studioStageSelected || (!workspaceLayout.chatVisible && !workspaceLayout.inspectorVisible)) ? 'slides' : (studioOverlayWorkspace ? workspaceLayout.inspectorVisible : workspaceLayout.presentedPane === 'inspector') ? 'inspector' : 'chat' }, // CHAT-PARITY-WORKSPACE: the switcher's own "pressed" rules
+      introReady: studioShell && studioIntroEligibility({ ...studioIntroInputs, dirtyDraft: uploadedFiles.length > 0 || !!workflowBrief || templateBlueprintDirty || !!generationPanel.currentDraft || studioViewerEditing || !!selectedElementId || !!selectedTextBoxId || isElementDrawerOpen || isSlideDrawerOpen || isTemplateParamsDrawerOpen || !!studioViewerSafety?.dirty }).manual }, // CHAT-PARITY-WORKSPACE: the Replay intro rule with the typed command left out of the draft (studioIntroInputs.dirtyDraft without its first term: the proof compares the two)
+    actions: { setKg: setKnowledgeGraphEnabled, selectTemplate: handleSelectTemplate, clearTemplate: handleClearTemplate, stopTemplateReuse: handleCancelTemplateReuse, // CHAT-PARITY-WORKSPACE: the switch's, the picker's, the chip's and the Stop button's own handlers
+      selectPane: (pane: 'chat' | 'slides' | 'inspector') => { if (pane === 'slides') { retireStudioVoiceOwner(); setStudioStageSelected(true) } else if (pane === 'chat') { selectWorkspacePane('chat'); if (!showChat) setShowChat(true) } else selectWorkspacePane('inspector') } } } // CHAT-PARITY-WORKSPACE: the three buttons of the switcher, one onClick each
+  useEffect(() => { if (!chatParityOn) return; let off: (() => void) | null = null; let live = true; void import('@/lib/studio-chat-parity-workspace').then(mod => { if (!live) return; chatParityWorkspaceMod.current = mod; off = mod.registerWorkspacePart('page', () => chatParityWorkspaceLive.current) }); return () => { live = false; off?.() } }, [chatParityOn]) // CHAT-PARITY-WORKSPACE
+  useEffect(() => { if (chatParityOn) chatParityWorkspaceMod.current?.publishWorkspaceState() }) // CHAT-PARITY-WORKSPACE: after every commit; the bus tells the composer only when the merged state it shows changed
 
   // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the URL names a session this account cannot open. Show that, not an empty builder.
   if (STUDIO_SESSION_HYGIENE_ENABLED && session.sessionProblem) {
@@ -7968,6 +7994,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   <ChatInput
                     {...(voiceCall.composerProps ? { voiceCall: voiceCall.composerProps } : {})} // VOICE-CALL: the composer's call button (null with the flag off)
                     {...(chatCleanShell ? { studioChatClean: { composer: chatCleanComposer, onStop: chatCleanStop, onSendDirections: chatCleanSendDirections, sessionId: currentSessionId } } : {}) /* CHAT-CLEAN: Send <-> Stop, new directions while held, the "+" menu, the research chips and the model picker */}
+                    {...(gdriveOffer ? { gdrive: gdriveComposer } : {}) /* GDRIVE-COMPOSER: the attach menu's Drive item and the Drive chips; off, nothing is added */}
                     composerTextareaRef={studioShell ? textareaRef : undefined}
                     studioSavedThemeRequest={savedThemeWorkflowId ? { id: savedThemeWorkflowId, key: workflowKey } : undefined}
                     inputMessage={inputMessage}
@@ -8525,7 +8552,9 @@ import { STUDIO_STAGE_OPEN_GATE_ENABLED, stepStudioStageGate, studioStageGatePro
 import { STUDIO_STRAWMAN_CHAT_ENABLED } from '@/lib/studio-strawman-chat' // STRAWMAN-CHAT: placed here with the other late imports, after the Builder's runners, for the same older proofs
 import { useStudioStrawmanChat } from '@/hooks/use-studio-strawman-chat' // STRAWMAN-CHAT
 import { StudioStrawmanChatLine } from '@/components/builder/chat/studio-strawman-chat' // STRAWMAN-CHAT
+import { uploadOwnerOverride } from '@/lib/studio-upload-owner' // K-02 owner cuid
 import { useStudioStageOpen } from '@/lib/studio-stage-open-gate' // STRAWMAN-CHAT: FRONTEND-2's gate, read on the one stage-open line
+import { studioIntroEligibility } from '@/lib/studio-intro-eligibility' // CHAT-PARITY-WORKSPACE: placed here with the other late imports, for the same older proofs (the replay rule, read for /intro)
 
 function BuilderLoadingState({ message = 'Loading builder...' }: { message?: string }) {
   // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the route loader is the builder shell, not a blank page with a spinner.
