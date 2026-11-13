@@ -61,7 +61,7 @@ export const CHAT_PARITY_VIEWER_NEW_FILES = [
   "scripts/test-studio-chat-parity-viewer.mjs",
 ]
 
-/** The older proofs this change teaches: [line now, line before] per edit, whole lines (a line now carries "registry read (CHAT-PARITY-VIEWER)" and occurs once in its file). */
+/** The older proofs this change teaches: [line now, line before] per edit, whole lines (a line now carries "registry read (CHAT-PARITY-VIEWER)" and occurs once in its file; a line before of "" is an inserted line). Arrange, first paint's viewer proof and the two phone proofs read the viewer (and the page) raw: one import and one read hook each, this strip only, never the registry. The phone proofs' scope check also drops the viewer, which a later change marks, from the files an own commit touched. Structural decline's commit-subject check skips this chain's subjects. */
 export const CHAT_PARITY_VIEWER_PIN_EDITS = {
   "scripts/test-studio-chat-commands.mjs": [
     ["import { stripChatParityViewer, CHAT_PARITY_VIEWER_FILES } from './studio-chat-parity-viewer-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): the viewer's slash commands (stacked after chat commands) add rows and lines to files this proof reads; it reads them as chat commands had them\n",
@@ -72,6 +72,38 @@ export const CHAT_PARITY_VIEWER_PIN_EDITS = {
   "scripts/test-studio-chat-parity.mjs": [
     ["const OWN = (() => { try { return git('log', '--format=%H%x09%s', '-E', '--grep=^Chat parity', 'HEAD').split('\\n').filter(Boolean).map(line => line.split('\\t')).find(([, subject]) => !subject.startsWith('Chat parity viewer:'))?.[0] || null } catch { return null } })() // a merge of dev into this branch is this change's commit too (its subject starts the same way) // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): the viewer's slash commands (commits \"Chat parity viewer: ...\") are a later change's, not this one's",
      "const OWN = (() => { try { return git('log', '-1', '--format=%H', '-E', '--grep=^Chat parity', 'HEAD').trim() || null } catch { return null } })() // a merge of dev into this branch is this change's commit too (its subject starts the same way)"]
+  ],
+  "scripts/test-studio-arrange.mjs": [
+    ["import { stripChatParityViewer, CHAT_PARITY_VIEWER_FILES } from './studio-chat-parity-viewer-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): the viewer's slash commands (stacked after this change) mark lines in the viewer and the page; this proof reads them as the change before the viewer's left them\n",
+     ""],
+    ["{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && CHAT_PARITY_VIEWER_FILES.includes(rel) ? stripChatParityViewer(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): every read of a file the viewer's change touched is the file without its marked lines (the viewer's own strip, never the registry: this proof's own lines stay visible to its pins)\n",
+     ""]
+  ],
+  "scripts/test-studio-first-paint-viewer.mjs": [
+    ["import { stripChatParityViewer, CHAT_PARITY_VIEWER_FILES } from './studio-chat-parity-viewer-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): the viewer's slash commands (stacked after this change) mark lines in the viewer and the page; this proof reads them as the change before the viewer's left them\n",
+     ""],
+    ["{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && CHAT_PARITY_VIEWER_FILES.includes(rel) ? stripChatParityViewer(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): every read of a file the viewer's change touched is the file without its marked lines (the viewer's own strip, never the registry: this proof's own lines stay visible to its pins)\n",
+     ""]
+  ],
+  "scripts/test-studio-phone-hints.mjs": [
+    ["import { stripChatParityViewer, CHAT_PARITY_VIEWER_FILES } from './studio-chat-parity-viewer-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): the viewer's slash commands (stacked after this change) mark lines in the viewer and the page; this proof reads them as the change before the viewer's left them\n",
+     ""],
+    ["{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && CHAT_PARITY_VIEWER_FILES.includes(rel) ? stripChatParityViewer(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): every read of a file the viewer's change touched is the file without its marked lines (the viewer's own strip, never the registry: this proof's own lines stay visible to its pins)\n",
+     ""],
+    ["  for (const rel of [...touched]) if (!PHONE_HINTS_SCOPE_FILES.has(rel) && (() => { try { return registry.stripLaterChanges(rel, git('show', `${head}:${rel}`)) === registry.stripLaterChanges(rel, git('show', `${BASE_COMMIT}:${rel}`)) } catch { return false } })()) touched.delete(rel) // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): a file this change did not take (the viewer) that a later change marks is touched by no net change of this one's once every registered change strips its own lines; any other foreign file still counts\n",
+     ""]
+  ],
+  "scripts/test-studio-phone-landscape.mjs": [
+    ["import { stripChatParityViewer, CHAT_PARITY_VIEWER_FILES } from './studio-chat-parity-viewer-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): the viewer's slash commands (stacked after this change) mark lines in the viewer and the page; this proof reads them as the change before the viewer's left them\n",
+     ""],
+    ["{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && CHAT_PARITY_VIEWER_FILES.includes(rel) ? stripChatParityViewer(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): every read of a file the viewer's change touched is the file without its marked lines (the viewer's own strip, never the registry: this proof's own lines stay visible to its pins)\n",
+     ""],
+    ["  for (const rel of [...touched]) if (!PHONE_LANDSCAPE_SCOPE_FILES.has(rel) && (() => { try { return registry.stripLaterChanges(rel, git('show', `${head}:${rel}`)) === registry.stripLaterChanges(rel, git('show', `${BASE_COMMIT}:${rel}`)) } catch { return false } })()) touched.delete(rel) // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): a file this change did not take (the viewer) that a later change marks is touched by no net change of this one's once every registered change strips its own lines; any other foreign file still counts\n",
+     ""]
+  ],
+  "scripts/test-studio-chat-refine-structural-decline.mjs": [
+    ["  for (const c of git('rev-list', '--no-merges', `${BASE_COMMIT}..${head}`).split('\\n').filter(Boolean).filter(c => !/^Chat parity (viewer|workspace|more):/.test(subjectOf(c)))) assert.doesNotMatch(subjectOf(c), OLDER_SUBJECTS, `${c.slice(0, 8)} would be taken for an older change's own commit`); return own // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): the chat parity changes stacked after this one (commits \"Chat parity viewer: / workspace: / more: ...\") are later changes', not an older change's own commits: they are skipped here, the same check runs over every other commit\n",
+     ""]
   ]
 }
 export const CHAT_PARITY_VIEWER_PIN_FILES = Object.keys(CHAT_PARITY_VIEWER_PIN_EDITS)
