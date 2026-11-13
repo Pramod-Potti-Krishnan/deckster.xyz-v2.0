@@ -149,6 +149,12 @@ function sections(files) {
     assert.equal(href('https://docs.google.com/spreadsheets/d/1AbC/edit'), 'https://docs.google.com/spreadsheets/d/1AbC/edit')
     for (const bad of ['javascript:alert(1)', 'data:text/html,x', 'http://drive.google.com/file/d/1/view', 'https://evil.example/drive.google.com', 'https://drive.google.com.evil.example/x', 'https://notgoogle.com/x', 'https://u:p@drive.google.com/x', '//drive.google.com/x', 'drive.google.com/x', '', null, 5])
       assert.equal(href(bad), undefined, String(bad))
+    // hardening (REVIEW-1 #6): drive.google.com and docs.google.com only, default port; no other Google host (a Sites page, the redirector, the bare domain)
+    assert.equal(href('https://DRIVE.google.com/file/d/1AbC/view'), 'https://drive.google.com/file/d/1AbC/view')
+    assert.equal(href('https://docs.google.com:443/document/d/1AbC/edit'), 'https://docs.google.com/document/d/1AbC/edit')
+    for (const bad of ['https://sites.google.com/view/evil', 'https://www.google.com/url?q=https://evil.example/', 'https://google.com/url?q=https://evil.example/', 'https://accounts.google.com/x', 'https://script.google.com/macros/s/x/exec', 'https://drive.google.com:8443/file/d/1/view', 'https://docs.google.com.evil.example/x', 'https://evil.example/?u=https://docs.google.com/'])
+      assert.equal(href(bad), undefined, bad)
+    assert.deepEqual([...on.lib.DRIVE_LINK_HOSTS], ['drive.google.com', 'docs.google.com'])
     const html = renderToStaticMarkup(React.createElement(on.sources.StudioCitationSources, { rows: plain(on.lib.citationSourceRows({ source_citations: [drive({}, { source_url: 'javascript:alert(1)' })] })) }))
     assert.doesNotMatch(html, /<a /)
     assert.match(html, /from Google Drive/)
@@ -200,7 +206,9 @@ check('scope: the flag is the existing one, read as the exact string, and no new
 const MUTANTS = {
   'flag ignored (always on)': { [LIB]: s => s.replace('if (!enabled) return []', '') },
   'rel="noopener noreferrer" dropped': { [SOURCES]: s => s.replace('rel="noopener noreferrer" ', '') },
-  'Drive link accepts any https host': { [LIB]: s => s.replace("return host === 'google.com' || host.endsWith('.google.com') ? url.href : undefined", 'return url.href') },
+  'Drive link accepts any https host': { [LIB]: s => s.replace('return DRIVE_LINK_HOSTS.includes(url.hostname.toLowerCase()) ? url.href : undefined', 'return url.href') },
+  'Drive link accepts any *.google.com host (the rule before the hardening)': { [LIB]: s => s.replace('return DRIVE_LINK_HOSTS.includes(url.hostname.toLowerCase()) ? url.href : undefined', "return url.hostname === 'google.com' || url.hostname.endsWith('.google.com') ? url.href : undefined") },
+  'Drive link accepts any port': { [LIB]: s => s.replace("if (!url || url.protocol !== 'https:' || url.port) return undefined", "if (!url || url.protocol !== 'https:') return undefined") },
   'rows kept without a Drive citation': { [LIB]: s => s.replace('return drive > 0 ? rows : []', 'return rows') },
   'uploads:// url used as the upload link': { [LIB]: s => s.replace("row = { key: `upload:${name}`, kind: 'upload', name }", "row = { key: `upload:${name}`, kind: 'upload', name, href: text(citation.url) }") },
   'card ignores the rows': { [CARD]: s => s.replace('return driveRows.length > 0 ?', 'return false ?') },

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { cn } from "@/lib/utils"
 import { User, Palette, Bell, ShieldCheck, Lock, Brain, Plug } from "lucide-react"
+import { isGdriveConnectorEnabled } from "@/lib/connectors-gdrive-flag"
 
 interface NavItem {
   href: string
@@ -31,7 +32,7 @@ export function SettingsSidebar() {
   const pathname = usePathname()
   const { data: session, status } = useSession()
   const authenticated = status === "authenticated" && Boolean(session?.user?.id)
-  const items = (process.env.NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED === "true" ? [...ITEMS, CONNECTORS_ITEM] : ITEMS).filter((item) => !item.authenticatedOnly || authenticated)
+  const items = (isGdriveConnectorEnabled() ? [...ITEMS, CONNECTORS_ITEM] : ITEMS).filter((item) => !item.authenticatedOnly || authenticated)
 
   return (
     <nav

@@ -26,7 +26,7 @@ function load(file, stubs, env) {
       if (spec.startsWith('@/')) { const base = path.join(root, spec.slice(2)); for (const s of ['.ts', '.tsx']) if (fs.existsSync(base + s)) return run(base + s) }
       return nodeRequire(spec)
     }
-    vm.runInNewContext(js, { require: req, module: mod, exports: mod.exports, process: { env }, console, URL, URLSearchParams, Buffer, JSON, Date, Promise, fetch: (...a) => globalThis.fetch(...a) }, { filename: abs })
+    vm.runInNewContext(js, { require: req, module: mod, exports: mod.exports, process: { env }, console, URL, URLSearchParams, Buffer, JSON, Date, Promise, AbortSignal, fetch: (...a) => globalThis.fetch(...a) }, { filename: abs })
     return mod.exports
   }
   return run(path.join(root, file))
@@ -34,10 +34,17 @@ function load(file, stubs, env) {
 
 // ---- fakes ----
 class FakeRes {
-  constructor(body, status = 200, location) { this.body = body; this.status = status; this.location = location; this.cookies = { jar: {}, set: (n, v, o) => { this.cookies.jar[n] = { v, o } } } }
+  constructor(body, status = 200, location, headers) { this.body = body; this.status = status; this.location = location; this.headers = new Headers(headers); this.cookies = { jar: {}, set: (n, v, o) => { this.cookies.jar[n] = { v, o } } } }
 }
 const plain = v => JSON.parse(JSON.stringify(v))
-const NextResponse = { json: (b, i = {}) => new FakeRes(b, i.status ?? 200), redirect: (u) => new FakeRes(null, 307, String(u)) }
+const NextResponse = { json: (b, i = {}) => new FakeRes(b, i.status ?? 200, undefined, i.headers), redirect: (u) => new FakeRes(null, 307, String(u)) }
+// hardening: the server reads Researcher answers as real Responses (a capped stream), so every fake answer becomes one
+async function asResponse(r) {
+  if (r instanceof Response) return r
+  let text
+  try { text = JSON.stringify(await r.json()) } catch { text = 'not json' }
+  return new Response(text, { status: r.status })
+}
 let calls = []
 let entitlementChecks = 0
 let reply = () => ({ ok: true, status: 200, json: async () => ({}) })
@@ -50,7 +57,7 @@ const stubsFor = (userId = 'cuid_session_user') => ({
   '@/lib/service-url': { requireServiceUrl: (_l, c) => { if (!c[0].value) throw new Error('nc'); return c[0].value } },
 })
 const ENV_ON = { NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED: 'true', NEXTAUTH_SECRET: 's3cret', NEXTAUTH_URL: 'https://app.test', GOOGLE_CONNECTOR_CLIENT_ID: 'cid', KNOWLEDGE_SERVICE_URL: 'https://researcher.test', RESEARCHER_SESSION_TOKEN_SECRET: 'test-only-researcher-session-secret-0123456789' }
-const fakeFetch = async (url, init) => { calls.push({ url, init, body: init?.body ? JSON.parse(init.body) : undefined }); return reply(url, init) }
+const fakeFetch = async (url, init) => { calls.push({ url, init, body: init?.body ? JSON.parse(init.body) : undefined }); return asResponse(await reply(url, init)) }
 globalThis.fetch = fakeFetch
 const SERVER = 'lib/connectors-gdrive-server.ts'
 let jsonReads = 0
@@ -115,12 +122,12 @@ await t('upstream 503 CONNECTOR_ERASE_UNAVAILABLE => 502 + error_code, "nothing 
   assert.equal(r.status, 502); assert.equal(r.body.error_code, 'CONNECTOR_ERASE_UNAVAILABLE'); assert.match(r.body.error, /Nothing was changed/)
   assert.ok(!('removed' in r.body))
 })
-await t('upstream 404 / 422 / 403 pass their status through with an allow-listed error_code only', async () => {
+await t('upstream 422 / 403 with an allow-listed error_code keep their status; an unlisted 404 is a 502 (hardening, REVIEW-1 #4)', async () => {
   const s = load(SERVER, stubsFor(), ENV_ON)
-  for (const [status, detail, code] of [[404, 'Not Found', null], [422, 'CONNECTOR_ITEM_ID_INVALID', 'CONNECTOR_ITEM_ID_INVALID'], [403, 'CONNECTOR_OWNER_MISMATCH', 'CONNECTOR_OWNER_MISMATCH'], [500, 'Traceback...', null]]) {
+  for (const [status, detail, code, want] of [[404, 'Not Found', null, 502], [422, 'CONNECTOR_ITEM_ID_INVALID', 'CONNECTOR_ITEM_ID_INVALID', 422], [403, 'CONNECTOR_OWNER_MISMATCH', 'CONNECTOR_OWNER_MISMATCH', 403], [500, 'Traceback...', null, 502]]) {
     reply = () => ({ ok: false, status, json: async () => ({ detail }) })
     const r = await s.handleItemsDelete(req({ item_ids: [DOC] }))
-    assert.equal(r.status, status === 500 ? 502 : status); assert.equal(r.body.error_code, code)
+    assert.equal(r.status, want); assert.equal(r.body.error_code, code); assert.equal(r.headers.get('cache-control'), 'no-store')
     assert.ok(!JSON.stringify(plain(r.body)).includes('Traceback'))
   }
 })
@@ -210,6 +217,19 @@ await t('page: flag on => every listed file with an id gets a Remove from librar
   assert.ok(none.includes('data-connectors-gdrive="true"') && !none.includes('Remove from library'))
 })
 
+await t('page (hardening, REVIEW-1 #6): an item links only to https drive.google.com / docs.google.com (the citation badge\'s rule); anything else is plain text', async () => {
+  const items = [
+    { id: 'i_drive_01', title: 'Drive file', url: 'https://drive.google.com/file/d/1AbC/view' }, { id: 'i_docs_002', title: 'Docs file', url: 'https://docs.google.com/document/d/1AbC/edit' },
+    { id: 'i_sites_03', title: 'Sites page', url: 'https://sites.google.com/view/evil' }, { id: 'i_redir_04', title: 'Redirector', url: 'https://www.google.com/url?q=https://evil.example/' },
+    { id: 'i_js_00005', title: 'Script', url: 'javascript:alert(1)' }, { id: 'i_http_006', title: 'Plain http', url: 'http://drive.google.com/file/d/1/view' }, { id: 'i_none_007', title: 'No url' },
+  ]
+  const html = renderToStaticMarkup(React.createElement(load('app/(app)/settings/connectors/page.tsx', pageStubs({ n: 0 }, { connected: true, items }), ENV_ON).default))
+  const links = [...html.matchAll(/<a href="([^"]*)"[^>]*>([^<]*)<\/a>/g)].map(m => [m[1], m[2]]).filter(([, text]) => !/Connect/.test(text))
+  assert.deepEqual(links, [['https://drive.google.com/file/d/1AbC/view', 'Drive file'], ['https://docs.google.com/document/d/1AbC/edit', 'Docs file']])
+  for (const title of ['Sites page', 'Redirector', 'Script', 'Plain http', 'No url']) assert.match(html, new RegExp(`<span class="font-medium">${title}</span>`), title)
+  assert.ok(!/sites\.google|www\.google\.com\/url|javascript:/.test(html))
+})
+
 // 6. flag-off identity: every edit to an older file is additive (only the lines named here are replaced), so with the Drive flag off nothing
 //    older changes; the new code is reachable only through the Drive-flag-gated page and the handler's own gate (section 1).
 await t('older files: this change only ADDS lines, except the named replaced lines (vs the base)', async () => {
@@ -218,6 +238,9 @@ await t('older files: this change only ADDS lines, except the named replaced lin
   git('cat-file', '-e', `${base}^{commit}`)
   // composer A + badge B sit between that base and piece C here: only their own edits, read from history (#608 1baf289d -> the pre-C merge f4192aa0), are allowed besides this change's
   const AB = ['1baf289da2aca08b83a996ac0c4dd3b30aea315a', 'f4192aa0']
+  // the hardening follow-up sits on #615's head 815ea9cf (its merge base): its own edits, read as 815ea9cf -> the working tree, are allowed besides these
+  const HARDENING_BASE = process.env.CONNECTORS_HARDENING_BASE || '815ea9cf7bcc8605450ef817b905864299900a5d'
+  git('cat-file', '-e', `${HARDENING_BASE}^{commit}`)
   const removedLines = (range, f) => git('diff', '--unified=0', ...range, '--', f).split('\n').filter(l => l.startsWith('-') && !l.startsWith('---')).map(l => l.slice(1))
   const REPLACED = {
     'app/api/connectors/gdrive/items/route.ts': ["import { handleItemsGet, handleItemsPost } from '@/lib/connectors-gdrive-server'"],
@@ -225,13 +248,16 @@ await t('older files: this change only ADDS lines, except the named replaced lin
   }
   const older = ['app/(app)/settings/connectors/page.tsx', 'app/api/connectors/gdrive/items/route.ts', 'lib/connectors-gdrive-server.ts', 'lib/connectors-gdrive.ts', 'package.json', 'docs/CONNECTORS_E2E_STATUS.md', 'scripts/studio-later-changes.mjs']
   for (const f of older) {
-    assert.deepEqual(removedLines([base], f).sort(), [...removedLines(AB, f), ...(REPLACED[f] ?? [])].sort(), f)
+    // the hardening's removed lines count only where the base had them (a line composer A added and the hardening rewrote was never the base's)
+    const baseLines = new Set(git('show', `${base}:${f}`).split('\n'))
+    const hardeningRemoved = removedLines([HARDENING_BASE], f).filter(l => baseLines.has(l))
+    assert.deepEqual(removedLines([base], f).sort(), [...removedLines(AB, f), ...hardeningRemoved, ...(REPLACED[f] ?? [])].sort(), f)
   }
   // and nothing else older moved: the whole diff vs base is this change's files only
   const touched = git('diff', '--name-only', base).split('\n').filter(Boolean)
   const registry = await import('./studio-connectors-item-remove-strip.mjs')
   const own = new Set([...registry.CONNECTORS_ITEM_REMOVE_SCOPE_FILES, 'lib/connectors-gdrive-remove.ts'])
-  const abTouched = new Set(git('diff', '--name-only', ...AB).split('\n').filter(Boolean))
+  const abTouched = new Set([...git('diff', '--name-only', ...AB).split('\n'), ...git('diff', '--name-only', HARDENING_BASE).split('\n')].filter(Boolean))
   for (const f of touched) assert.ok(own.has(f) || abTouched.has(f), `stray file in the diff: ${f}`)
 })
 

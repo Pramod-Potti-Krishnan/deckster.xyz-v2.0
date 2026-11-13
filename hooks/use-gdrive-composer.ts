@@ -13,6 +13,7 @@ import { isGdriveSessionLinksEnabled, validChatSessionId } from '@/lib/connector
 import {
   GDRIVE_EXPIRED_TEXT, MAX_LINKED_ITEMS, chipsAfterLink, chipsFromItems, chipsLinkFailed, chipsRoom, chipsStorageKey, gdriveStartHref, linkedIdsOf,
   mergeChips, parseChips, removeChipById, requestFailure, serializeChips, takeGdriveReturn,
+  GDRIVE_MARKER_CLEAR, isGenuineReturn, markerFromCookies,
   type GdriveChip, type GdriveNotice, type GdriveReturnStatus, type RequestFailure,
 } from '@/lib/connectors-gdrive-composer'
 
@@ -65,7 +66,7 @@ export function useGdriveComposer({ sessionId, onLinkedIdsChange, enabled = isGd
   publishRef.current = onLinkedIdsChange
   const busyRef = useRef(false)
   const noticeSeq = useRef(0)
-  const returnRef = useRef<{ status: GdriveReturnStatus | null; handled: boolean } | null>(null)
+  const returnRef = useRef<{ status: GdriveReturnStatus | null; sessionId: string | null; handled: boolean } | null>(null)
 
   const pushNotice = useCallback((notice: Omit<GdriveNotice, 'id'>) => {
     const id = `n${++noticeSeq.current}`
@@ -127,7 +128,7 @@ export function useGdriveComposer({ sessionId, onLinkedIdsChange, enabled = isGd
     const linked = await call('/api/connectors/gdrive/session-links', 'POST', { session_id: sid, item_ids: toLink })
     if (sessionRef.current !== sid) return
     if (!linked.ok) {
-      commit(chipsLinkFailed(chipsRef.current), sid)
+      commit(chipsLinkFailed(chipsRef.current, linked.data.error_code === 'CONNECTOR_SESSION_NOT_OWNED'), sid) // hardening: a chat Drive files can't be added to yet stays an error, no retry
       fail(requestFailure(linked.status, linked.data))
       return
     }
@@ -154,15 +155,21 @@ export function useGdriveComposer({ sessionId, onLinkedIdsChange, enabled = isGd
   }, [enabled, runExclusive, pushNotice, pickAndLink])
 
   // D2c: back from Google (?gdrive=connected on this chat's URL): say so and open the Picker. The param is taken off the address bar at once, so a reload does not repeat it.
+  // Hardening (REVIEW-1 #1): it is acted on only when it is genuine (the address's marker equals the cookie the callback set; both are cleared here) and only in the
+  // chat the address names, so a crafted /builder?...&gdrive=connected link does nothing and a return never opens the Picker in another chat.
   useEffect(() => {
     if (!enabled) return
     if (!returnRef.current) {
-      const { status, search } = takeGdriveReturn(window.location.search)
-      returnRef.current = { status, handled: status === null }
+      const { status, marker, sessionId: returnSessionId, search } = takeGdriveReturn(window.location.search)
+      let genuine = false
+      if (status !== null || marker !== null) {
+        try { genuine = status !== null && isGenuineReturn(marker, markerFromCookies(window.document.cookie)); window.document.cookie = GDRIVE_MARKER_CLEAR } catch { genuine = false }
+      }
+      returnRef.current = { status: genuine ? status : null, sessionId: returnSessionId, handled: !genuine }
       if (status !== null || search !== window.location.search) window.history.replaceState(null, '', `${window.location.pathname}${search}${window.location.hash}`)
     }
     const pending = returnRef.current
-    if (pending.handled || !validChatSessionId(sessionId)) return
+    if (pending.handled || !validChatSessionId(sessionId) || sessionId !== pending.sessionId) return
     pending.handled = true
     if (pending.status === 'connected') {
       pushNotice({ tone: 'info', text: 'Google Drive connected. Opening Picker…' })

@@ -10,6 +10,7 @@ import { openDrivePicker } from "@/lib/gdrive-picker-loader"
 import { useToast } from "@/hooks/use-toast"
 import { DriveRemoveButton } from "@/components/settings/gdrive-remove-item"
 import { removeDriveItem } from "@/lib/connectors-gdrive-remove"
+import { driveFileHref } from "@/lib/connectors-gdrive-citations"
 
 export const dynamic = "force-dynamic"
 
@@ -82,7 +83,7 @@ function GoogleDriveCard() {
           <ul className="divide-y text-sm" aria-label="Files added from Google Drive">
             {state.items.map((item, i) => (
               <li key={item.id ?? i} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                <span className="font-medium">{item.url ? <a href={item.url} target="_blank" rel="noopener noreferrer">{item.title ?? "Untitled"}</a> : (item.title ?? "Untitled")}</span>
+                <span className="font-medium">{driveFileHref(item.url) ? <a href={driveFileHref(item.url)} target="_blank" rel="noopener noreferrer">{item.title ?? "Untitled"}</a> : (item.title ?? "Untitled")}{/* hardening (REVIEW-1 #6): the citation badge's host rule (https drive.google.com / docs.google.com only); anything else is plain text */}</span>
                 <span className="text-slate-500">{item.modified_time ? `Modified ${new Date(item.modified_time).toLocaleString()}` : ""}</span>
                 <span>{item.status ?? "queued"}{item.error ? `: ${item.error}` : ""}</span>
                 {item.id && <DriveRemoveButton title={item.title} disabled={busy} onConfirm={() => removeItem(item.id!)} />}
