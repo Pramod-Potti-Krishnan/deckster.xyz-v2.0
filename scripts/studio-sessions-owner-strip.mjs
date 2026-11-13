@@ -13,6 +13,8 @@ export const SESSIONS_OWNER_SCOPE_FILES = [
   'scripts/test-studio-sessions-owner.mjs',
   'scripts/studio-sessions-owner-strip.mjs',
   'scripts/studio-later-changes.mjs',
+  'scripts/test-studio-deck-sync-truth.mjs', // taught: one registry-read line (the first-parent commit filter), as every later change before it
+  'scripts/test-studio-chat-element-edit.mjs', // taught: the same line
 ]
 
 /** [now, before] pairs per file: the strip puts the base's text back (each `now` sits in the head's file exactly once). Generated from the diff against BASE_COMMIT. */
