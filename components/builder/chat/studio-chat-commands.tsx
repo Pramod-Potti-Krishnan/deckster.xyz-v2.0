@@ -24,6 +24,9 @@ import { useSyncExternalStore } from 'react' // CHAT-PARITY-VIEWER
 import { ChatParityRows } from '@/components/builder/chat/studio-chat-parity-viewer-menu' // CHAT-PARITY-VIEWER
 import { parityRows, runParity, subscribeViewerState, viewerStateSnapshot, type ParityEnv, type ParityResult, type ParityRow } from '@/lib/studio-chat-parity-viewer' // CHAT-PARITY-VIEWER
 import { useStudioStageShowCanvas } from '@/lib/studio-stage-open-gate' // CHAT-PARITY-VIEWER
+import { useChatNavDecks } from '@/components/builder/chat/studio-chat-parity-nav-decks' // CHAT-PARITY-NAV
+import { ChatNavAbout } from '@/components/builder/chat/studio-chat-parity-nav-about' // CHAT-PARITY-NAV
+import { navWantsDecks, setNavLive } from '@/lib/studio-chat-parity-nav' // CHAT-PARITY-NAV
 import '../studio-chat-commands.css'
 
 // the model gauge is drawn only with this flag (components/model-choice/use-model-choice.ts STUDIO_MODEL_PICKER_ENABLED, the same literal read)
@@ -146,6 +149,8 @@ export function useStudioChatCommands(input: StudioChatCommandsInput): StudioCha
   const parityViewer = useSyncExternalStore(subscribeViewerState, viewerStateSnapshot, viewerStateSnapshot) // CHAT-PARITY-VIEWER: the viewer's own state (lib/studio-chat-parity-viewer.ts), read the way a button reads it
   const showCanvas = useStudioStageShowCanvas() // CHAT-PARITY-VIEWER: the Show canvas button's own function (null while the canvas is open)
   const parityEnv: ParityEnv = { viewer: parityViewer, building: input.stop.visible, themeBlocked: input.themeBlocked, presets: input.presets, canvasClosed: Boolean(showCanvas) } // CHAT-PARITY-VIEWER
+  const navDecks = useChatNavDecks(Boolean(enabled && page?.nav && navWantsDecks(trigger)), page?.nav?.loadSessions) // CHAT-PARITY-NAV: the deck list, read once when the text becomes "/open ..." or "/decks ..." (the Sessions panel's own list call)
+  setNavLive(enabled ? page?.nav ?? null : null, navDecks) // CHAT-PARITY-NAV: the page's handles and that list, for the Go to rows and their run (set while rendering, the way the viewer sets its own handle)
   const parity: ParityRow[] = enabled && trigger?.kind === 'command' ? parityRows(trigger, parityEnv) : [] // CHAT-PARITY-VIEWER: the viewer commands' rows, after the existing commands (a command that cannot run is a disabled row with its reason)
   const mention: MentionModel | null = trigger?.kind === 'mention' && source ? buildMentionModel(source, trigger.query) : null
   const count = trigger?.kind === 'command' ? rows.length + parity.length : mention ? mention.items.length : 0 // CHAT-PARITY-VIEWER
@@ -288,7 +293,7 @@ export function useStudioChatCommands(input: StudioChatCommandsInput): StudioCha
     : note ? <ChatCommandsNote note={note} onButton={press} onDismiss={() => setNote(null)} /> : null
   return {
     active: true,
-    menu,
+    menu: <>{menu}<ChatNavAbout /></>, // CHAT-PARITY-NAV: the menu, and the existing About dialog /about opens (closed, it draws nothing)
     onKeyDown,
     templatePicker: input.popupsV2 ? {} : { open: templateOpen, onOpenChange: setTemplateOpen },
     textareaProps: menuOpen && count > 0 ? { 'aria-controls': LIST_ID, 'aria-activedescendant': optionId(active), 'aria-autocomplete': 'list' } : {},

@@ -6,6 +6,7 @@
 // aria-disabled; picking it does nothing and the menu stays open, so a reason is always on screen.
 import React from 'react'
 import { ChevronLeft, ChevronRight, Eye, FilePlus, Grid2x2, Hash, Layers, Layout, Monitor, Palette, PanelLeft, Pencil, Play, RotateCcw, Save, Square } from 'lucide-react'
+import { BookOpen, Copy, Cpu, CreditCard, FolderOpen, Gauge, HelpCircle, Info, Keyboard, LayoutDashboard, LayoutGrid, LayoutTemplate, MoreHorizontal, Settings, UserRound } from 'lucide-react' // CHAT-PARITY-NAV
 import type { ParityGroup, ParityName, ParityRow } from '@/lib/studio-chat-parity-viewer'
 import '../studio-chat-parity-viewer.css'
 
@@ -13,6 +14,7 @@ const ICONS: Record<ParityName, React.ComponentType<{ className?: string }>> = {
   goto: Hash, next: ChevronRight, prev: ChevronLeft, 'blank-slide': FilePlus, layout: Layout,
   present: Play, edit: Pencil, view: Eye, rail: PanelLeft, grid: Grid2x2, borders: Square,
   save: Save, discard: RotateCcw, version: Layers, theme: Palette, canvas: Monitor,
+  open: FolderOpen, decks: LayoutGrid, 'duplicate-deck': Copy, dashboard: LayoutDashboard, themes: Palette, templates: LayoutTemplate, intelligence: Cpu, knowledge: BookOpen, settings: Settings, details: UserRound, usage: Gauge, billing: CreditCard, help: HelpCircle, shortcuts: Keyboard, about: Info, more: MoreHorizontal, // CHAT-PARITY-NAV
 }
 
 export interface ChatParityRowsProps {

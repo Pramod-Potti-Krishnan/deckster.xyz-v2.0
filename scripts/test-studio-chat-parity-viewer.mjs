@@ -17,8 +17,10 @@ import { createRequire } from 'node:module'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
+import { stripChatParityNav, CHAT_PARITY_NAV_READ_FILES } from './studio-chat-parity-nav-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-NAV): the navigation slash commands (stacked after this change) add lines to files this proof reads and edit three of this change's own; it reads them as this change had them
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && CHAT_PARITY_NAV_READ_FILES.includes(rel) ? stripChatParityNav(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-NAV): every read of a file that change touched (the module loader's too) is the file as this change left it
 const require = createRequire(import.meta.url)
 let checks = 0
 const ok = (condition, message) => { checks++; assert.ok(condition, message) }
@@ -279,8 +281,8 @@ async function busSuite(text = read(LIB)) {
 // ============================================================================================================================================
 const MARK = strip.CHAT_PARITY_VIEWER_MARKER_RE
 const importLines = text => text.split('\n').filter(line => /^import\s/.test(line))
-const addedLines = (rel, from = strip.BASE_COMMIT) => git('diff', '--no-color', '-U0', from, '--', rel).split('\n').filter(line => /^\+(?!\+\+)/.test(line)).map(line => line.slice(1))
-const removedLines = (rel, from = strip.BASE_COMMIT) => git('diff', '--no-color', '-U0', from, '--', rel).split('\n').filter(line => /^-(?!--)/.test(line)).map(line => line.slice(1))
+const addedLines = (rel, from = strip.BASE_COMMIT) => git('diff', '--no-color', '-U0', from, ...(OWN[0] ? [OWN[0]] : []), '--', rel).split('\n').filter(line => /^\+(?!\+\+)/.test(line)).map(line => line.slice(1)) // LATER-CHANGES: registry read (CHAT-PARITY-NAV): this change's lines are the diff to ITS newest commit (a later change's lines in the tree are not this change's)
+const removedLines = (rel, from = strip.BASE_COMMIT) => git('diff', '--no-color', '-U0', from, ...(OWN[0] ? [OWN[0]] : []), '--', rel).split('\n').filter(line => /^-(?!--)/.test(line)).map(line => line.slice(1)) // LATER-CHANGES: registry read (CHAT-PARITY-NAV): this change's lines are the diff to ITS newest commit (a later change's lines in the tree are not this change's)
 
 /** The viewer's added lines: the gate, the handlers, the effects (a pure function of the viewer's text: the mutants run it). */
 function viewerChecks(text, label = 'viewer') {
@@ -337,7 +339,7 @@ function sourceChecks() {
   eq(regLines.length, 2, 'registry: two lines')
   ok(regLines.every(line => line.includes('// LATER-CHANGE: ')), 'registry: both marked LATER-CHANGE')
   for (const rel of strip.CHAT_PARITY_VIEWER_SCOPE_FILES) ok(registry.LATER_CHANGE_FILES.has(rel), `registry: ${rel} is registered`)
-  ok(registry.LATER_STRIPS.includes(strip.stripChatParityViewer) && registry.LATER_STRIPS[registry.LATER_STRIPS.length - 1] === strip.stripChatParityViewer, 'registry: the strip is registered, last')
+  ok(registry.LATER_STRIPS.includes(strip.stripChatParityViewer), 'registry: the strip is registered') // LATER-CHANGES: registry read (CHAT-PARITY-NAV): later changes' strips follow it
   eq(registry.LATER_ENV_BLOCKS.some(block => /STUDIO_CHAT_PARITY_VIEWER/.test(String(block))), false, 'registry: no .env.example block (no flag of its own)')
   const lastFilesLine = reg.split('\n').filter(line => /^  \.\.\.\(await import\(/.test(line)).pop()
   ok(/studio-chat-parity-viewer-strip\.mjs/.test(lastFilesLine) && reg.indexOf(lastFilesLine) < reg.indexOf('// one line per later change, above this comment'), 'registry: appended at the end of the files list, above the marker comment')

@@ -99,6 +99,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-ws-bq-claim-strip.mjs')).WS_BQ_CLAIM_SCOPE_FILES, // LATER-CHANGE: OPS-2, J8.1 WS token bq claim (DECKSTER_WS_BQ_CLAIM_ENABLED)
   ...(await import('./studio-brand-kit-strip.mjs')).BRAND_KIT_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, Brand Kit caller: colour suggestions from a logo, the kit form, the brand record proxy and the signed theme proxies (NEXT_PUBLIC_STUDIO_BRAND_KIT)
   ...(await import('./studio-chat-parity-viewer-strip.mjs')).CHAT_PARITY_VIEWER_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, overnight chat parity, viewer slash commands: /goto /next /prev /blank-slide /layout /present /edit /view /rail /grid /borders /save /discard /version /canvas and /theme <preset> (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS; no flag of its own, no .env.example block)
+  ...(await import('./studio-chat-parity-nav-strip.mjs')).CHAT_PARITY_NAV_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, overnight chat parity, navigation slash commands: a Go to group (/open /decks /duplicate-deck /dashboard /themes /templates /intelligence /knowledge /settings /help /shortcuts /about) (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS; no flag of its own, no .env.example block)
   // one line per later change, above this comment
 ])
 
@@ -243,6 +244,7 @@ export const LATER_STRIPS = [
   (await import('./studio-ws-bq-claim-strip.mjs')).stripWsBqClaim, // LATER-CHANGE: OPS-2, J8.1 WS token bq claim (DECKSTER_WS_BQ_CLAIM_ENABLED)
   (await import('./studio-brand-kit-strip.mjs')).stripBrandKit, // LATER-CHANGE: FRONTEND-1, Brand Kit caller (NEXT_PUBLIC_STUDIO_BRAND_KIT)
   (await import('./studio-chat-parity-viewer-strip.mjs')).stripChatParityViewer, // LATER-CHANGE: FRONTEND-1, overnight chat parity, viewer slash commands (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS)
+  (await import('./studio-chat-parity-nav-strip.mjs')).stripChatParityNavAfterViewer, // LATER-CHANGE: FRONTEND-1, overnight chat parity, navigation slash commands (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS)
   // one line per later change, above this comment
 ]
 

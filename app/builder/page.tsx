@@ -689,6 +689,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
   // Session management
   const { loadSession, loadSessionResult, createSession } = useChatSessions()
+  const { loadSessions: chatNavLoadSessions } = useChatSessions() // CHAT-PARITY-NAV: the list call the Sessions panel makes, for /open and /decks <words> (the hook's own state is per call, so the line above is untouched)
 
   // UI state
   const [inputMessage, setInputMessage] = useState("")
@@ -6516,6 +6517,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const chatCommandsPage: ChatCommandsPageProps | undefined = chatCommandsOn ? { slides: chatCommandsSlides, currentSlide: chatCommandsSlides.length ? Math.min(Math.max(currentSlideIndex + 1, 1), chatCommandsSlides.length) : null, getElement: () => (CHAT_ELEMENT_REFINE_ENABLED ? chatElementReferenceFor(chatElementSelectionRef.current) : null), exportDeck: chatCommandsExport } : undefined // CHAT-COMMANDS: the current slide, the element reference Studio already builds (NEXT_PUBLIC_CHAT_ELEMENT_REFINE), the export runner
   if (CHAT_ELEMENT_EDIT_2_ENABLED && chatCommandsPage) chatCommandsPage.getElement = () => (CHAT_ELEMENT_REFINE_ENABLED ? chatElementEdit2Reference() : null) // CHAT-ELEMENT-EDIT-2: a picked @Element token carries the same reference (slide_id null)
   if (chatCommandsPage) chatCommandsPage.parity = { addNote: text => { chatCleanNotes.addNote(text); setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 60) } } // CHAT-PARITY-VIEWER: a viewer command's one short note goes into the thread's notes (chat clean's own note style) and the thread shows the end
+  if (chatCommandsPage) chatCommandsPage.nav = { sessionId: currentSessionId, decksOpen: showChatHistory, openDeck: id => handleSessionSelectWrapped(id), toggleDecks: () => setShowChatHistory(prev => !prev), go: path => router.push(path), openTab: path => { window.open(path, '_blank', 'noopener') }, loadSessions: () => chatNavLoadSessions({ limit: 50, status: 'active' }), duplicate: process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_DECK === 'true' ? { run: async () => { if (!currentSessionId) return { ok: false as const, message: 'Open or build a deck first.' }; const row = await loadSession(currentSessionId); if (!row) return { ok: false as const, message: "Couldn't read this deck. Nothing was created." }; return (await import('@/lib/studio-duplicate-deck-deps')).duplicateSessionDeck(row) } } : null, usage: process.env.NEXT_PUBLIC_STUDIO_USAGE_PAGE === 'true' } // CHAT-PARITY-NAV: the Go to commands' handles: the Sessions panel's own pick, toggle and list call, router.push, a new tab (window.open, noopener), the Decks page's copy (runDuplicateDeck, NEXT_PUBLIC_STUDIO_DUPLICATE_DECK) for the saved deck on screen, and whether /usage exists (NEXT_PUBLIC_STUDIO_USAGE_PAGE: the route is a 404 with it off)
 
   const handleCancelManualDeckBuild = useCallback(() => {
     if (manualDeckHandoffBusy) return
