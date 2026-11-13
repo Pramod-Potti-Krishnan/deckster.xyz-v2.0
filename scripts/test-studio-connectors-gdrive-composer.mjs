@@ -1,7 +1,7 @@
 // KNOWLEDGE P4-15 composer half (DARK): "Add from Google Drive" in the Builder composer's attach menu, the Drive chips, D2 connect round trip, D8 errors.
 // Flags: NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED AND NEXT_PUBLIC_STUDIO_CONNECTORS_SESSION_LINKS_ENABLED (exact "true", default off) + the Knowledge entitlement.
 // Run: node scripts/test-studio-connectors-gdrive-composer.mjs   (transpile + vm, fake fetch / Picker / storage / timers, no network, no Google, no writes)
-//   GDRIVE_COMPOSER_BASE=<commit>  the base the flag-off identity is proven against (default: #608's head 1baf289d, the branch this change is cut from)
+//   GDRIVE_COMPOSER_BASE=<commit>  the base the flag-off identity is proven against (default: #608's head c2dfebba, the branch this change stacks on, refreshed onto studio-v4-dev-preparation-code 2f06e51e; first cut from 1baf289d)
 //   1 pure helpers   2 server: the connect round trip returns to the chat   3 the hook, on a tiny hook runtime   4 the components (static markup)
 //   5 FLAG-OFF IDENTITY: the REAL ChatInput with no `gdrive` prop renders exactly what the base's ChatInput renders (markup + element tree), and the marked lines
 //     stripped (scripts/studio-connectors-gdrive-composer-strip.mjs) give the base's chat-input.tsx and builder page byte for byte, and no base line is rewritten (pure insertions)   6 page wiring   7 the wire
@@ -21,7 +21,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const nodeRequire = createRequire(path.join(root, 'package.json'))
 const React = nodeRequire('react')
 const { renderToStaticMarkup } = nodeRequire('react-dom/server')
-const BASE = process.env.GDRIVE_COMPOSER_BASE || '1baf289da2aca08b83a996ac0c4dd3b30aea315a'
+const BASE = process.env.GDRIVE_COMPOSER_BASE || 'c2dfebba447214883dfdab2e469affff2e6249de'
 const gitShow = rel => execFileSync('git', ['show', `${BASE}:${rel}`], { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20 })
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
 const plain = v => JSON.parse(JSON.stringify(v))
@@ -458,6 +458,7 @@ const inputStubs = {
   '@/components/builder/chat/studio-chat-commands': { useStudioChatCommands: () => ({ menu: null, onKeyDown: () => false, textareaProps: {}, templatePicker: {} }) },
   '@/lib/studio-chat-parity': { CHAT_PARITY_THEME_LIBRARY_EVENT: 'x', STUDIO_CHAT_PARITY_THEMES_ENABLED: false },
   './gdrive-composer': gdriveComponents,
+  './voice-call/voice-call-buttons': { VoiceCallButtons: nothing }, '@/lib/studio-voice-call-ui': { callEndFocusGoesToComposer: () => false }, // the base's VOICE-CALL imports (no voiceCall prop here: null / inert)
 }
 function loadChatInput(source) {
   const mod = { exports: {} }
@@ -541,7 +542,7 @@ await t('page: the hook is called once, after the chat id exists; the gate is th
   assert.ok(page.indexOf('const gdriveLinkedIdsRef = useRef<string[] | undefined>(undefined)') > 0 && page.indexOf('const gdriveLinkedIdsRef') < hookAt, 'the ref is declared before the hook that fills it')
   assert.ok(page.includes('const gdriveOffer = isGdriveComposerEnabled(kgIsPremium)') && page.indexOf('const gdriveOffer') > page.indexOf('isPremium: kgIsPremium'))
   assert.ok(page.includes('{...(gdriveOffer ? { gdrive: gdriveComposer } : {})'))
-  const sends = page.split('\n').flatMap((line, i, all) => (line.trim() === '...buildSendOptions,' ? [all[i + 1].trim()] : []))
+  const sends = page.split('\n').flatMap((line, i, all) => { if (line.trim() !== '...buildSendOptions,') return []; let j = i + 1; while (/ \/\/ AGENT-MODE-WIRE$/.test(all[j])) j++; return [all[j].trim()] }) // the base's AGENT-MODE-WIRE line keeps its pinned place right after buildSendOptions; ours follows it
   assert.equal(sends.length, 4, 'the four build sends spread buildSendOptions')
   for (const next of sends) assert.ok(next.startsWith('...(gdriveLinkedIdsRef.current ? { linkedItemIds: gdriveLinkedIdsRef.current } : {}),'), `each is followed by the ids: ${next.slice(0, 60)}`)
   assert.ok(!/useGdriveComposer|gdriveLinkedIdsRef|isGdriveComposerEnabled|gdriveOffer/.test(stripConnectorsGdriveComposer(PAGE, page)), 'nothing of it survives the strip')

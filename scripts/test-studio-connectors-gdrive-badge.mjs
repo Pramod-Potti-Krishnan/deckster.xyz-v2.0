@@ -20,7 +20,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const nodeRequire = createRequire(path.join(root, 'package.json'))
 const React = nodeRequire('react')
 const { renderToStaticMarkup } = nodeRequire('react-dom/server')
-const BASE = '1baf289da2aca08b83a996ac0c4dd3b30aea315a' // the branch this change stacks on
+const BASE = 'c2dfebba447214883dfdab2e469affff2e6249de' // the branch this change stacks on (#608's head refreshed onto studio-v4-dev-preparation-code 2f06e51e; was 1baf289d)
 
 const FLAG = 'NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED'
 const CARD = 'components/build-narration/slide-context-card.tsx', SOURCES = 'components/builder/studio-citation-sources.tsx', LIB = 'lib/connectors-gdrive-citations.ts'
