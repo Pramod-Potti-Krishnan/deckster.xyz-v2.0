@@ -111,8 +111,12 @@ export const CHAT_PARITY_MORE_PIN_EDITS = {
       ""
     ],
     [
-      "const addedLines = (rel, from = strip.BASE_COMMIT) => git('diff', '--no-color', '-U0', from, '--', rel).split('\\n').filter(line => /^\\+(?!\\+\\+)/.test(line)).map(line => line.slice(1)).filter(line => !stripWorkspace.CHAT_PARITY_WORKSPACE_MARKER_RE.test(line)).filter(line => !stripMore.CHAT_PARITY_MORE_MARKER_RE.test(line)) // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): the workspace commands' marked lines are a later change's // LATER-CHANGES: registry read (CHAT-PARITY-MORE): so are the remaining commands'\n",
+      "const addedLines = (rel, from = strip.BASE_COMMIT) => git('diff', '--no-color', '--patience', '-U0', from, '--', rel).split('\\n').filter(line => /^\\+(?!\\+\\+)/.test(line)).map(line => line.slice(1)).filter(line => !stripWorkspace.CHAT_PARITY_WORKSPACE_MARKER_RE.test(line)).filter(line => !stripMore.CHAT_PARITY_MORE_MARKER_RE.test(line)) // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): the workspace commands' marked lines are a later change's // LATER-CHANGES: registry read (CHAT-PARITY-MORE): so are the remaining commands'\n",
       "const addedLines = (rel, from = strip.BASE_COMMIT) => git('diff', '--no-color', '-U0', from, '--', rel).split('\\n').filter(line => /^\\+(?!\\+\\+)/.test(line)).map(line => line.slice(1)).filter(line => !stripWorkspace.CHAT_PARITY_WORKSPACE_MARKER_RE.test(line)) // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): the workspace commands' marked lines are a later change's\n"
+    ],
+    [
+      "const removedLines = (rel, from = strip.BASE_COMMIT) => git('diff', '--no-color', '--patience', '-U0', from, '--', rel).split('\\n').filter(line => /^-(?!--)/.test(line)).map(line => line.slice(1)) // LATER-CHANGES: registry read (CHAT-PARITY-MORE): the same hunk placement as the line above: git's default places a hunk next to a blank line of its own choosing, and with the remaining commands' lines in the commands lib it moves dev's blank line (a patience diff keeps it where dev has it)\n",
+      "const removedLines = (rel, from = strip.BASE_COMMIT) => git('diff', '--no-color', '-U0', from, '--', rel).split('\\n').filter(line => /^-(?!--)/.test(line)).map(line => line.slice(1))\n"
     ]
   ],
   "scripts/test-studio-chat-parity-workspace.mjs": [
