@@ -1,6 +1,6 @@
 /**
  * FRONTEND-1, overnight chat parity (11 Nov), the REMAINING commands: the model rows of the "/" menu (/model fast, /model reset, /model <work> <model>).
- * Gated by NEXT_PUBLIC_STUDIO_CHAT_COMMANDS (which already needs NEXT_PUBLIC_STUDIO_CHAT_CLEAN). No new flag, no backend, no Director change.
+ * Gated by NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS (default off) on top of NEXT_PUBLIC_STUDIO_CHAT_COMMANDS (which already needs NEXT_PUBLIC_STUDIO_CHAT_CLEAN): the model hook reads the flag where it registers. No backend, no Director change.
  *
  * The model gauge's own hook (components/model-choice/use-model-choice.ts useModelChoice) registers ONE getter of its latest state on lib/studio-chat-parity-more.ts's bus, in a gated effect, and this file turns that
  * state into what the rows read (the stops the gauge shows, the choices the Intelligence page offers per kind of work) and what a row calls (the SAME save the gauge's stop calls: select; the same store and checks as the

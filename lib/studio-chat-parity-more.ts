@@ -1,7 +1,7 @@
 /**
  * FRONTEND-1, overnight chat parity (11 Nov), the REMAINING commands: "/" commands that open or call what an existing control does. Stacked on the workspace half (lib/studio-chat-parity-workspace.ts, PR #614) and the viewer half
  * (lib/studio-chat-parity-viewer.ts, PR #611): it reuses their words, loose matching, row and result types, and its rows draw in the same menu and the same index.
- * Gated by NEXT_PUBLIC_STUDIO_CHAT_COMMANDS (which already needs NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell). No new flag, no backend, no Director change.
+ * Gated by NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS (default off) on top of NEXT_PUBLIC_STUDIO_CHAT_COMMANDS (which already needs NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell): the composer's hook passes it as `enabled`. No backend, no Director change.
  *
  *   /delete-theme <name>     the Themes page's own delete confirmation (components/studio-libraries/library-manage.tsx), opened for that theme: the page is opened, the person clicks Delete there
  *   /delete-template <name>  the Templates page's own, the same way (a Composer template shows the page's own reason)

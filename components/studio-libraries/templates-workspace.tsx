@@ -105,10 +105,10 @@ export function TemplatesWorkspace() {
   const [renameUnavailable, setRenameUnavailable] = useState(false)
   const optimizeBusy = useRef(false)
   const mounted = useRef(true)
-  // CHAT-PARITY-MORE (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS with NEXT_PUBLIC_STUDIO_CHAT_CLEAN, default off; acts only with NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE): /delete-template <name> from the chat opens this page showing the saved templates, and asks that template's row to open its OWN delete confirmation (the same one Delete… opens). A one-time hand-off, not the address. Nothing is deleted from here: the click on Delete in that dialog deletes.
+  // CHAT-PARITY-MORE (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS, default off, with NEXT_PUBLIC_STUDIO_CHAT_COMMANDS and NEXT_PUBLIC_STUDIO_CHAT_CLEAN; acts only with NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE): /delete-template <name> from the chat opens this page showing the saved templates, and asks that template's row to open its OWN delete confirmation (the same one Delete… opens). A one-time hand-off, not the address. Nothing is deleted from here: the click on Delete in that dialog deletes.
   const [chatMoreDelete, setChatMoreDelete] = useState<string | null>(null) // CHAT-PARITY-MORE: the template whose row is asked to open its confirmation
   const chatMoreAsked = useRef<{ id: string; name: string } | null>(null) // CHAT-PARITY-MORE: the template the chat named, until the library has loaded
-  useEffect(() => { const handed = TEMPLATE_LIBRARY_MANAGE ? takeBrowserHandoff('delete-template') : null; if (handed?.id) { chatMoreAsked.current = { id: handed.id, name: handed.text }; setMode('library') } }, []) // CHAT-PARITY-MORE
+  useEffect(() => { const handed = TEMPLATE_LIBRARY_MANAGE ? takeBrowserHandoff('delete-template', account?.owner ?? null) : null; if (handed?.id) { chatMoreAsked.current = { id: handed.id, name: handed.text }; setMode('library') } }, []) // CHAT-PARITY-MORE
   useEffect(() => { const asked = chatMoreAsked.current; if (!asked || !templates || loading || !accountReady) return; chatMoreAsked.current = null; const hit = templates.find(template => template.id === asked.id); if (hit && isUserOwnedLibraryItem(hit) && !('stage_template_summary' in hit)) setChatMoreDelete(hit.id); else setActionNotice(`“${asked.name}” can't be deleted here any more: it isn't in your saved templates.`) }, [templates, loading, accountReady]) // CHAT-PARITY-MORE
   const mountEpoch = useRef({})
   const renderedEpoch = mountEpoch.current

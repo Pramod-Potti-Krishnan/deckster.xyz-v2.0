@@ -1,17 +1,17 @@
-// FRONTEND-1 (overnight chat parity, 11 Nov 2026), the REMAINING commands, stacked on the workspace half (PR #614, head 470aec94), which sits on the viewer half (PR #611, head 99e02976); all on dev 2f06e51e. Flag NEXT_PUBLIC_STUDIO_CHAT_COMMANDS (the string "true", default off, build-time; it already needs
+// FRONTEND-1 (overnight chat parity, 11 Nov 2026), the REMAINING commands, stacked on the workspace half (PR #614, head bc84a6fe), which sits on the viewer half (PR #611, head ca41ae33); all on dev 2f06e51e. The flag is the chain's one flag, NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS (the string "true", default off, build-time; the viewer half adds it and its .env.example block), on top of NEXT_PUBLIC_STUDIO_CHAT_COMMANDS (which already needs
 // NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell): the composer's "/" menu gains /delete-theme <name> and /delete-template <name> (the Themes and Templates pages' own delete confirmation, opened; the click there deletes), /model auto|fast|balanced|best, /model reset
 // and /model <work> <model> (the gauge's own save, and the Intelligence page's per-task save), /kg-search <words> (the Knowledge page's own search), /ask <question> (the Ask box FILLED, never sent) and /switch-template <name> (the Template picker's switch); the existing /publish row
-// now presses the Publish button (the wizard opens), and a picked @template is chosen the way the toolbar chooses it. No new flag, no .env.example block, no backend, no Director change.
+// now presses the Publish button (the wizard opens), and a picked @template is chosen the way the toolbar chooses it. No flag of its own beyond the chain's, no .env.example block of its own, no backend, no Director change. Flag off, the composer's hook is inert (no row, no pick, no hand-off written), the pages take no hand-off and the gauge's hook registers nothing; /publish and an @template pick are what the commands flag alone gave. The hand-off carries the signed-in account's id and a page takes only its own account's entry (the Ask box is handed it by the Knowledge page).
 // lib/studio-chat-parity-more.ts decides (the rows, what cannot run and why, the words, the bus for the gauge, the runs), lib/studio-chat-parity-more-model.ts turns the gauge's hook into the rows' state and the saves, lib/studio-chat-parity-more-handoff.ts is the one-time hand-off to
 // the page a command opens, components/builder/chat/studio-chat-parity-more.tsx is the composer's glue, and the pages that receive a hand-off (Knowledge, the Ask box, Themes, Templates, the library row) carry marked lines.
-// Every line this change adds to an EXISTING file carries the marker CHAT-PARITY-MORE (matched as a whole token; CHAT-PARITY-WORKSPACE is the workspace half's, CHAT-PARITY-VIEWER the viewer half's, CHAT-PARITY is another change's). Almost all are pure insertions; the three that
-// change a line (the library row's props, and the two workspaces' row) are listed in CHAT_PARITY_MORE_EDITS as [line now, line before]. Take the marked lines out (and put those three back) and each file is the workspace half's head, byte for byte.
+// Every line this change adds to an EXISTING file carries the marker CHAT-PARITY-MORE (matched as a whole token; CHAT-PARITY-WORKSPACE is the workspace half's, CHAT-PARITY-VIEWER the viewer half's, CHAT-PARITY is another change's). Almost all are pure insertions; the five that
+// change a line (the library row's props, the two workspaces' row, the Ask box's signature and the Knowledge page's line that draws it) are listed in CHAT_PARITY_MORE_EDITS as [line now, line before]. Take the marked lines out (and put those five back) and each file is the workspace half's head, byte for byte.
 // The base is the workspace half's head, not the commit under it: for a file that half touched that is its text; for a file it left alone the two commits agree (BASE_TOUCHED says which is which: the proof reads each from its own commit and checks the list against git).
 // How the older pins reach it: this change REGISTERS its files and this strip (scripts/studio-later-changes.mjs, two lines; no .env.example block), and teaches the older proofs that read files this change touched without going through the registry.
 // Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '470aec940d3dffa69ab9302471ee8ef145c0c83f' // origin/frontend1/chat-parity-workspace (#614's head, on dev 2f06e51e); the tree diff from it to this change's newest commit is this change
-export const BASE_UNDER_COMMIT = '99e029760c06800fd1186bda60592404a7ba569a' // origin/frontend1/chat-parity-viewer (#611's head, on dev 2f06e51e): what a file the workspace half left alone is, in either commit
+export const BASE_COMMIT = 'bc84a6fe6c72d518d8be362aea37f939d8a95e6e' // origin/frontend1/chat-parity-workspace (#614's head, on dev 2f06e51e); the tree diff from it to this change's newest commit is this change
+export const BASE_UNDER_COMMIT = 'ca41ae3322386bdea92a4c05a3606527d23f527c' // origin/frontend1/chat-parity-viewer (#611's head, on dev 2f06e51e): what a file the workspace half left alone is, in either commit
 export const CHAT_PARITY_MORE_FLAG = 'NEXT_PUBLIC_STUDIO_CHAT_COMMANDS'
 export const CHAT_PARITY_MORE_MARKER = 'CHAT-PARITY-MORE'
 /** The marker as a WHOLE token: CHAT-PARITY-MORE-X and X-CHAT-PARITY-MORE are not this change's (CHAT-PARITY-WORKSPACE is the workspace half's, CHAT-PARITY-VIEWER the viewer half's, CHAT-PARITY is chat parity's). */
@@ -24,6 +24,7 @@ export const CHAT_PARITY_MORE_FILES = [
   "components/builder/chat/studio-chat-commands.tsx",
   "components/builder/chat/studio-chat-parity-viewer-menu.tsx",
   "lib/studio-chat-commands.ts",
+  "components/builder/chat-input.tsx",
   "components/model-choice/use-model-choice.ts",
   "components/knowledge/studio-kg-ask.tsx",
   "app/(app)/knowledge/page.tsx",
@@ -34,6 +35,18 @@ export const CHAT_PARITY_MORE_FILES = [
 
 /** The changed lines: [line now, line before] per edit, whole lines; every line now carries the marker and occurs once in its file. */
 export const CHAT_PARITY_MORE_EDITS = {
+  "components/knowledge/studio-kg-ask.tsx": [
+    [
+      "export function StudioKgAsk({ handoffAccount = null }: { handoffAccount?: string | null } = {}) { // CHAT-PARITY-MORE\n",
+      "export function StudioKgAsk() {\n"
+    ]
+  ],
+  "app/(app)/knowledge/page.tsx": [
+    [
+      "      {KG_ASK && <StudioKgAsk handoffAccount={kg.userId ?? null} /> /* CHAT-PARITY-MORE */}\n",
+      "      {KG_ASK && <StudioKgAsk />}\n"
+    ]
+  ],
   "components/studio-libraries/library-manage.tsx": [
     [
       "export function ManagedLibraryRow({ kind, name, isStandard = false, disabled = false, deleteBlockedReason, renameBlockedReason, otherNames = [], onRename, onDelete, children, confirmRequest = false, onConfirmRequest }: { // CHAT-PARITY-MORE\n",

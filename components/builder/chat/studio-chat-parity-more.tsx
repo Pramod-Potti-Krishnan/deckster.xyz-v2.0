@@ -1,6 +1,6 @@
 "use client"
 
-// CHAT PARITY, MORE (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, default off; needs NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell): the composer's half of the remaining "/" commands and the two picks that were declines (/publish, @template).
+// CHAT PARITY, MORE (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS, default off; needs NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell): the composer's half of the remaining "/" commands and the two picks that were declines (/publish, @template).
 // lib/studio-chat-parity-more.ts decides every row (its words, whether it can run now, why not) and runs the command; this file is the glue the composer's hook calls through ONE marked line:
 //   - it reads the model gauge's state from the bus the gauge's own hook registers on (useSyncExternalStore), the suggested templates from the template-match store, and the saved themes and templates the way the toolbar and the Themes page read them;
 //   - it hands the lib the browser calls it may use (the router, a new tab, the hand-off write, the Publish press, the template switch) on every commit;
@@ -56,8 +56,10 @@ async function loadDeleteChoices(list: ListTemplates): Promise<{ status: MoreLis
 }
 
 export interface ChatParityMoreInput {
-  /** The composer's own "the commands are on and this composer takes them" (the flag, the page's props, not disabled). */
+  /** The composer's own "the chat parity commands are on and this composer takes them" (the commands flag, the chain's flag, the page's props, not disabled): the hook's parityOn. Off, this hook returns no rows and no picks, writes no hand-off and registers nothing. */
   enabled: boolean
+  /** The signed-in account (its user id), or null: a hand-off is written for that account only, and with none it is not written. */
+  account: string | null
   trigger: CommandTrigger | null
   /** The "/" menu is not dismissed. */
   menuOpen: boolean
@@ -130,12 +132,12 @@ export function useChatParityMore(input: ChatParityMoreInput): ChatParityMoreApi
     flags: { themeDelete: THEME_DELETE_ON, templateDelete: TEMPLATE_DELETE_ON, ask: ASK_ON },
     checkQuestion: text => { const checked = studioKgAskCheck(text); return checked.ok ? { ok: true, question: checked.question } : { ok: false, message: checked.message } },
   }
-  const live = useRef({ env, building: input.building, viewer })
-  live.current = { env, building: input.building, viewer }
+  const live = useRef({ env, building: input.building, viewer, account: input.account })
+  live.current = { env, building: input.building, viewer, account: input.account }
   useEffect(() => {
     if (!input.enabled) return
     setMoreLive({
-      env: () => live.current.env, building: () => live.current.building, viewer: () => live.current.viewer, handoff: putBrowserHandoff,
+      env: () => live.current.env, building: () => live.current.building, viewer: () => live.current.viewer, handoff: request => putBrowserHandoff({ ...request, account: live.current.account }),
       go: path => { if (router) router.push(path); else window.location.assign(path) }, openTab: path => { window.open(path, '_blank', 'noopener') },
       pressPublish: () => pressControl(document, CONTROL_SELECTORS.publish), switchTemplate,
     })

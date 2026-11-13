@@ -224,9 +224,9 @@ export function useModelChoice(sessionId: string | null, options: UseModelChoice
     return outcome
   }, [])
 
-  // CHAT-PARITY-MORE (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS with NEXT_PUBLIC_STUDIO_CHAT_CLEAN, default off): the model rows of the "/" menu (/model fast, /model reset, /model <work> <model>). The composer reaches this hook's state through ONE small bus
+  // CHAT-PARITY-MORE (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS, default off, with NEXT_PUBLIC_STUDIO_CHAT_COMMANDS and NEXT_PUBLIC_STUDIO_CHAT_CLEAN): the model rows of the "/" menu (/model fast, /model reset, /model <work> <model>). The composer reaches this hook's state through ONE small bus
   // (lib/studio-chat-parity-more.ts): this hook registers a getter of what the gauge reads and the saves it makes (lib/studio-chat-parity-more-model.ts), so every variant of the gauge is on it and a save from chat lands in the state the gauge draws. Flag off: null, and neither effect loads anything. // CHAT-PARITY-MORE
-  const chatParityMoreOn = process.env.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS === "true" && process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === "true" // CHAT-PARITY-MORE
+  const chatParityMoreOn = process.env.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS === "true" && process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === "true" && process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === "true" // CHAT-PARITY-MORE
   const chatParityMoreLive = useRef<import("@/lib/studio-chat-parity-more-model").ModelHookLive | null>(null) // CHAT-PARITY-MORE
   const chatParityMoreMods = useRef<{ bus: typeof import("@/lib/studio-chat-parity-more"); model: typeof import("@/lib/studio-chat-parity-more-model") } | null>(null) // CHAT-PARITY-MORE: the bus and the model helper, once the gated effect below has loaded them
   const chatParityMoreTask = useCallback((task: string, value: string) => chatParityMoreMods.current!.model.saveTaskChoice({ // CHAT-PARITY-MORE: the Intelligence page's per-kind-of-work save, on this hook's own state (the same setters select writes)

@@ -1,5 +1,5 @@
 // FRONTEND-1 (overnight chat parity, the REMAINING commands): proof of /delete-theme, /delete-template, /model <choice>, /kg-search, /ask, /switch-template, the existing /publish row opening the Publish wizard, and an @template that chooses the template,
-// behind NEXT_PUBLIC_STUDIO_CHAT_COMMANDS (the string "true", default off, build-time; it already needs NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell), stacked on the workspace half (#614) and the viewer half (#611).
+// behind NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS (the chain's one flag, added by the viewer half: the string "true", default off, build-time) on top of NEXT_PUBLIC_STUDIO_CHAT_COMMANDS (which already needs NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell), stacked on the workspace half (#614) and the viewer half (#611).
 //   lib/studio-chat-parity-more.ts (the rows, what cannot run and why, the words, the runs, the gauge's bus), lib/studio-chat-parity-more-model.ts (the gauge's hook as rows and saves), lib/studio-chat-parity-more-handoff.ts (the one-time hand-off),
 //   components/builder/chat/studio-chat-parity-more.tsx (the composer's glue), and marked lines in the composer, the commands lib and the menu, the gauge's hook, the Knowledge page and its Ask box, and the Themes / Templates pages and their row.
 //
@@ -7,8 +7,9 @@
 //   B. The runs on FAKE handles: every command calls its handle with the right arguments, says what it saw (and never a change it did not see), opens a NEW TAB while a build runs or edits are unsaved, never deletes / asks / publishes;
 //      the model helper on a fake hook (the stops, the three saves, the Intelligence page's save with its refusals); the hand-off.
 //   C. The sources: every marked line, the strip puts each file back to the workspace half's head byte for byte (and through the registry), the confirms are never bypassed (the row's effect only OPENS its dialog; the Ask box is only filled),
-//      the gates, no new flag, the committed diff is this change's files (COMMITTED diff only), the menu markup.
-//   D. MUTANTS: every one of them must be caught by A-C.
+//      the gates (the chain's flag in every one), the hand-off's account, the committed diff is this change's files (COMMITTED diff only), the menu markup.
+//   E. The REAL composer (scripts/studio-chat-harness/composer-mount.mjs) with the commands flag on and the chain's flag off: dev's composer for these commands' texts, /publish and an @template pick included, step for step; on, the rows, the two picks and the hand-off (written for the signed-in account).
+//   D. MUTANTS: every one of them must be caught by A-C and E.
 //
 //   node scripts/test-studio-chat-parity-more.mjs
 //
@@ -32,6 +33,7 @@ const wsStrip = await import('./studio-chat-parity-workspace-strip.mjs')
 const viewerStrip = await import('./studio-chat-parity-viewer-strip.mjs')
 const registry = await import('./studio-later-changes.mjs')
 const { createModuleLoader } = await import('./studio-chat-harness/module-loader.mjs')
+const { mountComposer, driveComposer: drive, labelsOf: menuOf, chainDev, PARITY } = await import('./studio-chat-harness/composer-mount.mjs')
 
 const LIB = 'lib/studio-chat-parity-more.ts'
 const MODEL = 'lib/studio-chat-parity-more-model.ts'
@@ -41,6 +43,7 @@ const ICONS = 'components/builder/chat/studio-chat-parity-more-icons.ts'
 const VIEWER_LIB = 'lib/studio-chat-parity-viewer.ts'
 const MENU = 'components/builder/chat/studio-chat-parity-viewer-menu.tsx'
 const COMMANDS_UI = 'components/builder/chat/studio-chat-commands.tsx'
+const COMPOSER = 'components/builder/chat-input.tsx'
 const COMMANDS_LIB = 'lib/studio-chat-commands.ts'
 const HOOK = 'components/model-choice/use-model-choice.ts'
 const KNOWLEDGE = 'app/(app)/knowledge/page.tsx'
@@ -465,38 +468,68 @@ async function handoffSuite(text = read(HANDOFF)) {
   const handoff = loadHandoff(text)
   const fake = () => { const map = new Map(); return { map, getItem: key => (map.has(key) ? map.get(key) : null), setItem: (key, value) => { map.set(key, value) }, removeItem: key => { map.delete(key) } } }
   const store = fake()
-  eq([handoff.putHandoff(store, { kind: 'kg-ask', text: 'what did we learn?', id: null }, 1000), [...store.map.keys()]], [true, [handoff.MORE_HANDOFF_KEY]], 'put writes one entry under one key')
-  eq(JSON.parse(store.map.get(handoff.MORE_HANDOFF_KEY)), { kind: 'kg-ask', text: 'what did we learn?', id: null, at: 1000 }, 'the entry is the request and the time')
-  eq([handoff.takeHandoff(store, 'kg-search', 1500), store.map.size], [null, 1], 'another page\'s kind: not taken, and it stays for its own page')
-  eq([handoff.takeHandoff(store, 'kg-ask', 1500), store.map.size], [{ text: 'what did we learn?', id: null }, 0], 'its own page takes it, once: the entry is gone')
-  eq(handoff.takeHandoff(store, 'kg-ask', 1600), null, 'a second take finds nothing')
-  handoff.putHandoff(store, { kind: 'delete-theme', text: 'Brand Blue', id: 'th1' }, 1000)
-  eq([handoff.takeHandoff(store, 'delete-theme', 1000 + handoff.MORE_HANDOFF_TTL_MS + 1), store.map.size], [null, 0], 'older than two minutes: dropped, not taken')
-  handoff.putHandoff(store, { kind: 'delete-theme', text: 'Brand Blue', id: 'th1' }, 1000)
-  eq(handoff.takeHandoff(store, 'delete-theme', 1000 + handoff.MORE_HANDOFF_TTL_MS), { text: 'Brand Blue', id: 'th1' }, 'at two minutes it is still good')
-  handoff.putHandoff(store, { kind: 'kg-search', text: 'x', id: null }, 5000)
-  eq([handoff.takeHandoff(store, 'kg-search', 4000), store.map.size], [null, 0], 'a time in the future: not a real entry, dropped')
-  store.setItem(handoff.MORE_HANDOFF_KEY, 'not json'); eq([handoff.takeHandoff(store, 'kg-search', 1), store.map.size], [null, 1], 'garbage: nothing taken, nothing thrown')
-  store.setItem(handoff.MORE_HANDOFF_KEY, JSON.stringify({ kind: 'bogus', text: 'x', at: 1 })); eq([handoff.takeHandoff(store, 'kg-search', 2), store.map.size], [null, 0], 'an unknown kind: dropped')
-  eq([handoff.putHandoff(null, { kind: 'kg-ask', text: 'x', id: null }, 1), handoff.takeHandoff(null, 'kg-ask', 1), handoff.putHandoff({ getItem: () => null, setItem: () => { throw new Error('full') }, removeItem: () => {} }, { kind: 'kg-ask', text: 'x', id: null }, 1), handoff.putHandoff(store, { kind: 'nope', text: 'x', id: null }, 1)], [false, null, false, false], 'no storage, a storage that throws, or a kind that is not one: false, never thrown')
+  const A = 'acct-a', B = 'acct-b'
+  eq([handoff.putHandoff(store, { kind: 'kg-ask', text: 'what did we learn?', id: null, account: A }, 1000), [...store.map.keys()]], [true, [handoff.MORE_HANDOFF_KEY]], 'put writes one entry under one key')
+  eq(JSON.parse(store.map.get(handoff.MORE_HANDOFF_KEY)), { kind: 'kg-ask', text: 'what did we learn?', id: null, account: A, at: 1000 }, 'the entry is the request, the account that wrote it and the time')
+  eq([handoff.takeHandoff(store, 'kg-search', 1500, A), store.map.size], [null, 1], 'another page\'s kind: not taken, and it stays for its own page')
+  eq([handoff.takeHandoff(store, 'kg-ask', 1500, A), store.map.size], [{ text: 'what did we learn?', id: null }, 0], 'its own page takes it, once: the entry is gone')
+  eq(handoff.takeHandoff(store, 'kg-ask', 1600, A), null, 'a second take finds nothing')
+  handoff.putHandoff(store, { kind: 'delete-theme', text: 'Brand Blue', id: 'th1', account: A }, 1000)
+  eq([handoff.takeHandoff(store, 'delete-theme', 1000 + handoff.MORE_HANDOFF_TTL_MS + 1, A), store.map.size], [null, 0], 'older than two minutes: dropped, not taken')
+  handoff.putHandoff(store, { kind: 'delete-theme', text: 'Brand Blue', id: 'th1', account: A }, 1000)
+  eq(handoff.takeHandoff(store, 'delete-theme', 1000 + handoff.MORE_HANDOFF_TTL_MS, A), { text: 'Brand Blue', id: 'th1' }, 'at two minutes it is still good')
+  handoff.putHandoff(store, { kind: 'kg-search', text: 'x', id: null, account: A }, 5000)
+  eq([handoff.takeHandoff(store, 'kg-search', 4000, A), store.map.size], [null, 0], 'a time in the future: not a real entry, dropped')
+  store.setItem(handoff.MORE_HANDOFF_KEY, 'not json'); eq([handoff.takeHandoff(store, 'kg-search', 1, A), store.map.size], [null, 1], 'garbage: nothing taken, nothing thrown')
+  store.setItem(handoff.MORE_HANDOFF_KEY, JSON.stringify({ kind: 'bogus', text: 'x', account: A, at: 1 })); eq([handoff.takeHandoff(store, 'kg-search', 2, A), store.map.size], [null, 0], 'an unknown kind: dropped')
+  eq([handoff.putHandoff(null, { kind: 'kg-ask', text: 'x', id: null, account: A }, 1), handoff.takeHandoff(null, 'kg-ask', 1, A), handoff.putHandoff({ getItem: () => null, setItem: () => { throw new Error('full') }, removeItem: () => {} }, { kind: 'kg-ask', text: 'x', id: null, account: A }, 1), handoff.putHandoff(store, { kind: 'nope', text: 'x', id: null, account: A }, 1)], [false, null, false, false], 'no storage, a storage that throws, or a kind that is not one: false, never thrown')
+  // the account (REVIEW-1 finding 3): an entry is the account's that wrote it
+  store.map.clear()
+  eq([handoff.putHandoff(store, { kind: 'kg-ask', text: 'x', id: null }, 1000), handoff.putHandoff(store, { kind: 'kg-ask', text: 'x', id: null, account: null }, 1000), handoff.putHandoff(store, { kind: 'kg-ask', text: 'x', id: null, account: '' }, 1000), store.map.size], [false, false, false, 0], 'no account known: nothing is written')
+  handoff.putHandoff(store, { kind: 'kg-search', text: 'a private search', id: null, account: A }, 1000)
+  eq([handoff.takeHandoff(store, 'kg-search', 1100, B), store.map.size], [null, 1], 'another account\'s page takes nothing, and the entry stays (its two minutes run out)')
+  eq([handoff.takeHandoff(store, 'kg-search', 1100, null), handoff.takeHandoff(store, 'kg-search', 1100, ''), handoff.takeHandoff(store, 'kg-search', 1100, undefined), store.map.size], [null, null, null, 1], 'a page that does not know its account yet takes nothing and removes nothing')
+  eq([handoff.takeHandoff(store, 'kg-search', 1100, A), store.map.size], [{ text: 'a private search', id: null }, 0], 'the account that wrote it takes it')
+  store.setItem(handoff.MORE_HANDOFF_KEY, JSON.stringify({ kind: 'kg-search', text: 'an old entry with no account', id: null, at: 1000 })); eq([handoff.takeHandoff(store, 'kg-search', 1100, A), store.map.size], [null, 1], 'an entry that names no account is nobody\'s: not taken')
+  eq([handoff.takeHandoff(store, 'kg-search', 1100, null), handoff.takeHandoff(store, 'kg-search', 1100, ''), store.map.size], [null, null, 1], 'an entry that names no account is not taken by a page that does not know its own either (nothing matches nothing)')
   // the browser take: nothing with the flag off, even with an entry waiting
   const realWindow = globalThis.window
-  const waiting = fake(); handoff.putHandoff(waiting, { kind: 'kg-ask', text: 'x', id: null }, Date.now())
+  const waiting = fake(); handoff.putHandoff(waiting, { kind: 'kg-ask', text: 'x', id: null, account: A }, Date.now())
   globalThis.window = { localStorage: waiting }
+  const ON3 = { NEXT_PUBLIC_STUDIO_CHAT_COMMANDS: 'true', NEXT_PUBLIC_STUDIO_CHAT_CLEAN: 'true', NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS: 'true' }
   try {
-    eq([handoff.takeBrowserHandoff('kg-ask'), waiting.map.size], [null, 1], 'flag off: nothing is read or removed')
-    const on = loadHandoff(text, { NEXT_PUBLIC_STUDIO_CHAT_COMMANDS: 'true', NEXT_PUBLIC_STUDIO_CHAT_CLEAN: 'true' })
-    eq([on.takeBrowserHandoff('kg-ask'), waiting.map.size], [{ text: 'x', id: null }, 0], 'flag on: the page takes it')
-    eq([on.takeBrowserHandoff('kg-ask'), waiting.map.size], [{ text: 'x', id: null }, 0], 'a remount of the same page (it is keyed by the account, so it mounts twice on a cold load) gets the same entry again: the storage entry is already gone')
-    eq(on.takeBrowserHandoff('kg-search'), null, 'the hold is for that page\'s own entry, not another\'s')
+    eq([handoff.takeBrowserHandoff('kg-ask', A), waiting.map.size], [null, 1], 'flag off: nothing is read or removed')
+    eq([handoff.putBrowserHandoff({ kind: 'kg-search', text: 'y', id: null, account: A }), waiting.map.size], [false, 1], 'flag off: nothing is written either')
+    for (const [name, env] of [['the commands flag and chat clean without the chain\'s flag', { NEXT_PUBLIC_STUDIO_CHAT_COMMANDS: 'true', NEXT_PUBLIC_STUDIO_CHAT_CLEAN: 'true' }], ['the chain\'s flag without chat clean', { ...ON3, NEXT_PUBLIC_STUDIO_CHAT_CLEAN: undefined }], ['the chain\'s flag without the commands flag', { ...ON3, NEXT_PUBLIC_STUDIO_CHAT_COMMANDS: undefined }], ['the chain\'s flag as "TRUE"', { ...ON3, NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS: 'TRUE' }]]) {
+      const partial = loadHandoff(text, env)
+      eq([partial.takeBrowserHandoff('kg-ask', A), partial.putBrowserHandoff({ kind: 'kg-search', text: 'y', id: null, account: A }), waiting.map.size], [null, false, 1], `${name}: nothing is read, removed or written`)
+    }
+    const on = loadHandoff(text, ON3)
+    eq([on.takeBrowserHandoff('kg-ask', B), waiting.map.size], [null, 1], 'flag on: another account\'s page takes nothing')
+    eq([on.takeBrowserHandoff('kg-ask'), on.takeBrowserHandoff('kg-ask', null), waiting.map.size], [null, null, 1], 'flag on: a page that does not know its account takes nothing')
+    eq([on.takeBrowserHandoff('kg-ask', A), waiting.map.size], [{ text: 'x', id: null }, 0], 'flag on: the account\'s page takes it')
+    eq([on.takeBrowserHandoff('kg-ask', A), waiting.map.size], [{ text: 'x', id: null }, 0], 'a remount of the same page (it is keyed by the account, so it mounts twice on a cold load) gets the same entry again: the storage entry is already gone')
+    eq(on.takeBrowserHandoff('kg-ask', B), null, 'the kept entry is the account\'s that took it: another account\'s page does not get it')
+    eq(on.takeBrowserHandoff('kg-search', A), null, 'the hold is for that page\'s own entry, not another\'s')
     const realNow = Date.now
     try {
       Date.now = () => realNow() + on.MORE_HANDOFF_HOLD_MS + 1
-      eq(on.takeBrowserHandoff('kg-ask'), null, 'after the hold it is gone: a later visit to the page finds nothing')
+      eq(on.takeBrowserHandoff('kg-ask', A), null, 'after the hold it is gone: a later visit to the page finds nothing')
     } finally { Date.now = realNow }
-    const half = loadHandoff(text, { NEXT_PUBLIC_STUDIO_CHAT_COMMANDS: 'true' })
-    handoff.putHandoff(waiting, { kind: 'kg-ask', text: 'x', id: null }, Date.now()); eq([half.takeBrowserHandoff('kg-ask'), waiting.map.size], [null, 1], 'it needs chat clean too, like the other commands')
-    eq(on.putBrowserHandoff({ kind: 'kg-search', text: 'y', id: null }), true, 'the composer\'s put goes to this browser\'s storage')
+    // REVIEW-1 finding 2: a second command within the hold acts on ITS target, not the first one's
+    waiting.map.clear()
+    const themes = loadHandoff(text, ON3)
+    eq([themes.putBrowserHandoff({ kind: 'delete-theme', text: 'Brand A', id: 'th-a', account: A }), themes.takeBrowserHandoff('delete-theme', A)], [true, { text: 'Brand A', id: 'th-a' }], '/delete-theme A: the Themes page takes A')
+    eq([themes.putBrowserHandoff({ kind: 'delete-theme', text: 'Brand B', id: 'th-b', account: A }), themes.takeBrowserHandoff('delete-theme', A), waiting.map.size], [true, { text: 'Brand B', id: 'th-b' }, 0], '/delete-theme B within the hold: the page takes B, not the kept A, and B\'s entry is gone from the storage')
+    eq(themes.takeBrowserHandoff('delete-theme', A), { text: 'Brand B', id: 'th-b' }, 'a remount after that keeps B (the entry taken last), never A')
+    themes.putBrowserHandoff({ kind: 'kg-search', text: 'q3 churn', id: null, account: A })
+    eq([themes.takeBrowserHandoff('delete-theme', A), waiting.map.size], [{ text: 'Brand B', id: 'th-b' }, 1], 'another kind waiting in the storage does not replace the kept entry, and stays for its own page')
+    waiting.map.clear()
+    themes.putBrowserHandoff({ kind: 'delete-theme', text: 'Brand C', id: 'th-c', account: B })
+    eq([themes.takeBrowserHandoff('delete-theme', A), waiting.map.size], [{ text: 'Brand B', id: 'th-b' }, 1], 'another account\'s newer entry is not taken, and does not replace this account\'s kept one')
+    eq(on.putBrowserHandoff({ kind: 'kg-search', text: 'y', id: null, account: A }), true, 'the composer\'s put goes to this browser\'s storage')
+    eq(JSON.parse(waiting.map.get(on.MORE_HANDOFF_KEY)).account, A, 'and carries the account')
+    eq(on.putBrowserHandoff({ kind: 'kg-search', text: 'y', id: null }), false, 'a put with no account is not written')
   } finally { if (realWindow === undefined) delete globalThis.window; else globalThis.window = realWindow }
 }
 
@@ -534,11 +567,11 @@ function sourceChecks() {
     for (const rel of strip.CHAT_PARITY_MORE_PIN_FILES) { ok(strip.stripChatParityMore(rel, read(rel)) !== read(rel), `${rel}: the strip gives the older proof its previous lines back`); ok(strip.stripChatParityMore(rel, read(rel)) === baseOf(rel), `${rel}: ...exactly the workspace half's lines`) }
     for (const rel of ['hooks/use-deckster-websocket-v2.ts', '.env.example', 'package.json', 'lib/studio-chat-commands-wire.ts', 'app/builder/page.tsx', 'components/presentation-viewer.tsx', 'lib/studio-chat-parity-viewer.ts', 'lib/studio-chat-parity-workspace.ts']) ok(strip.stripChatParityMore(rel, read(rel)) === read(rel), `${rel}: this change does not touch it, the strip leaves it as it is`)
   }
-  // no new flag, no env block, the registry
+  // no flag of its own (the chain's flag is the viewer half's), no env block, the registry
   const everyText = [LIB, MODEL, HANDOFF, GLUE, ICONS, ...strip.CHAT_PARITY_MORE_FILES].map(rel => markedOrWhole(rel)).join('\n')
   const flags = new Set(everyText.match(/NEXT_PUBLIC_[A-Z0-9_]+/g))
-  const allowed = ['NEXT_PUBLIC_STUDIO_CHAT_COMMANDS', 'NEXT_PUBLIC_STUDIO_CHAT_CLEAN', 'NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE', 'NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE', 'NEXT_PUBLIC_STUDIO_KG_ASK', 'NEXT_PUBLIC_STUDIO_V4_SHELL', 'NEXT_PUBLIC_STUDIO_MODEL_CHOICE', 'NEXT_PUBLIC_STUDIO_LAUNCH_WORDING', 'NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED', 'NEXT_PUBLIC_STUDIO_MODEL_CATALOG_2026_10', 'NEXT_PUBLIC_STUDIO_MODEL_CHOICE_PREFS_VERSION']
-  eq([...flags].filter(flag => !allowed.includes(flag)), [], 'no new flag: every NEXT_PUBLIC_ name this change reads is one that already exists')
+  const allowed = ['NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS', 'NEXT_PUBLIC_STUDIO_CHAT_COMMANDS', 'NEXT_PUBLIC_STUDIO_CHAT_CLEAN', 'NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE', 'NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE', 'NEXT_PUBLIC_STUDIO_KG_ASK', 'NEXT_PUBLIC_STUDIO_V4_SHELL', 'NEXT_PUBLIC_STUDIO_MODEL_CHOICE', 'NEXT_PUBLIC_STUDIO_LAUNCH_WORDING', 'NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED', 'NEXT_PUBLIC_STUDIO_MODEL_CATALOG_2026_10', 'NEXT_PUBLIC_STUDIO_MODEL_CHOICE_PREFS_VERSION']
+  eq([...flags].filter(flag => !allowed.includes(flag)), [], 'no flag of its own: every NEXT_PUBLIC_ name this change reads is one that already exists (the chain\'s flag is the viewer half\'s)')
   ok(!read('.env.example').includes('CHAT_PARITY_MORE') && read('.env.example') === registry.stripLaterEnvBlocks('.env.example', read('.env.example')) || true, 'no .env.example block')
   const reg = read(REGISTRY)
   for (const rel of strip.CHAT_PARITY_MORE_SCOPE_FILES) ok(registry.LATER_CHANGE_FILES.has(rel), `registry: ${rel} is registered`)
@@ -581,7 +614,9 @@ function modelSources(text) {
   ok(!/\bfetch\(|localStorage|document\.|window\./.test(text.replace(/\/\/.*$/gm, '')), 'the helper touches no network, no storage, no DOM')
 }
 function handoffSources(text) {
-  ok(/process\.env\.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS === 'true' && process\.env\.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true'/.test(text) && /if \(!CHAT_PARITY_MORE_ON\) return null/.test(text), 'the page\'s take answers null with the flag off (the commands flag, with chat clean)')
+  ok(/process\.env\.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS === 'true' && process\.env\.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true' && process\.env\.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === 'true'/.test(text) && /if \(!CHAT_PARITY_MORE_ON\) return null/.test(text) && /\(CHAT_PARITY_MORE_ON \? putHandoff\(browserStore\(\), request, Date\.now\(\)\) : false\)/.test(text), 'the page\'s take answers null, and the composer\'s put writes nothing, with the flag off (the commands flag, chat clean and the chain\'s flag)')
+  ok(text.indexOf('const taken = takeHandoff(browserStore(), kind, now, who)') > 0 && text.indexOf('const taken = takeHandoff(browserStore(), kind, now, who)') < text.indexOf('const kept = held.get(kind)'), 'REVIEW-1 finding 2: the storage is read BEFORE the kept entry: a newer hand-off replaces it')
+  ok(/if \(accountOf\(\(entry as \{ account\?: unknown \}\)\.account\) !== account\) return null/.test(text) && /if \(!store \|\| !accountOf\(account\)\) return null/.test(text) && /if \(!store \|\| !account \|\| !KINDS\.includes\(request\.kind\)/.test(text) && /kept\.account === who/.test(text), 'REVIEW-1 finding 3: an entry is written for an account, taken only by that account\'s page (kept or stored), and a page that does not know its account takes nothing')
   ok(/store\.removeItem\(MORE_HANDOFF_KEY\)/.test(text) && !/location|URLSearchParams|history\./.test(text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')), 'a take removes the entry, and nothing is put in the address')
 }
 function glueSources(glue, ui) {
@@ -589,19 +624,20 @@ function glueSources(glue, ui) {
   ok(/if \(!input\.enabled\) return INERT/.test(glue) && /if \(!input\.enabled\) return\n/.test(glue.replace(/\r/g, '')) && /Object\.freeze\(\{ rows: \[\], template: null, publish: null \}\)/.test(glue), 'flag off: the hook returns the inert constant, its effects return first')
   ok(/pressControl\(document, CONTROL_SELECTORS\.publish\)/.test(glue) && /const NOT_READY_WHY = /.test(glue) && /templateGenerationStatus\(template\)/.test(glue), 'the Publish press is the existing trigger\'s own selector; a template that is not ready says the picker\'s reason')
   ok(/await loadWorkspaceTemplates\(\(\) => listRef\.current\(\), MENTION_RULES\)/.test(glue) && /runParity\(answer\.run as never/.test(glue), 'a picked @template goes through the workspace half\'s own select (its block, its handler, what it saw)')
-  ok(/handoff: putBrowserHandoff/.test(glue) && /window\.open\(path, '_blank', 'noopener'\)/.test(glue) && /router\.push\(path\)/.test(glue), 'the handles are the router, a new tab and the hand-off write')
+  ok(/handoff: request => putBrowserHandoff\(\{ \.\.\.request, account: live\.current\.account \}\)/.test(glue) && /window\.open\(path, '_blank', 'noopener'\)/.test(glue) && /router\.push\(path\)/.test(glue), 'the handles are the router, a new tab and the hand-off write')
   const code = glue.replace(/\/\/.*$/gm, '')
   ok(!/\b(deleteTheme|deleteTemplate|runLibraryDelete|confirmDelete|studioKgAsk\(|\.ask\()/.test(code.replace('studioKgAskCheck', '')), 'CONFIRMS: the glue deletes nothing and asks nothing (studioKgAskCheck only checks the words)')
   // the composer's lines
   ok(/^import \{ useChatParityMore \} from '@\/components\/builder\/chat\/studio-chat-parity-more' \/\/ CHAT-PARITY-MORE$/m.test(ui), 'the composer imports the hook on a marked line')
   const hookLine = lineWith(ui, 'const more = useChatParityMore(')
-  ok(/\/\/ CHAT-PARITY-MORE/.test(hookLine) && /enabled, trigger:/.test(hookLine) && /building: input\.stop\.visible/.test(hookLine) && /saved: input\.saved, savedStatus: input\.savedStatus, refreshSaved: input\.refreshSaved/.test(hookLine) && /templateSaved: input\.template\.saved, listTemplates/.test(hookLine), 'ONE marked line calls the hook with the composer\'s own gate, its build state, the saved themes and the template list call')
+  ok(/\/\/ CHAT-PARITY-MORE/.test(hookLine) && /enabled: parityOn, account: input\.account \?\? null, trigger:/.test(hookLine) && /building: input\.stop\.visible/.test(hookLine) && /saved: input\.saved, savedStatus: input\.savedStatus, refreshSaved: input\.refreshSaved/.test(hookLine) && /templateSaved: input\.template\.saved, listTemplates/.test(hookLine), 'ONE marked line calls the hook with the composer\'s own gate, its build state, the saved themes and the template list call')
   ok(ui.indexOf('parity.push(...workspaceRows)') < ui.indexOf('parity.push(...more.rows)') && ui.indexOf('parity.push(...more.rows)') < ui.indexOf('const mention: MentionModel'), 'this change\'s rows come after the workspace half\'s, before the counts are taken')
   const publishLine = lineWith(ui, "if (row.id === 'publish' && more.publish)")
   ok(/postNote\(more\.publish\(\)\); return \} \/\/ CHAT-PARITY-MORE/.test(publishLine) && ui.indexOf(publishLine) < ui.indexOf('execute(resolveCommand(row.id as ChatCommandId, row.arg, ctx), before)'), '/publish: the pick presses the Publish button (and says what it saw) before the old decline can be reached')
   const mentionLine = lineWith(ui, "if (item.section === 'template' && item.reference?.kind === 'template' && more.template)")
   ok(/more\.template\(item\.reference\.template_id\)\.then\(postNote\); return \}/.test(mentionLine) && /input\.setText\(input\.text\.slice\(0, at\.start\)\)/.test(mentionLine) && ui.indexOf(mentionLine) < ui.indexOf('if (item.reference) registerMention(item.token, item.reference)'), '@template: the pick chooses the template, writes no token and registers no reference (Director declines a template mention), before the old path can be reached')
-  ok(ui.split('\n').filter(line => MARK.test(line)).length === 5, 'the composer carries exactly five marked lines: the import, the hook, the push, the @template pick, the /publish pick')
+  ok(ui.split('\n').filter(line => MARK.test(line)).length === 7, 'the composer carries exactly seven marked lines: the import, the hook, the push, the @template pick, the /publish pick, and the account field with its doc line')
+  ok(/account\?: string \| null \/\/ CHAT-PARITY-MORE/.test(ui) && /account: typeof user\?\.id === 'string' && user\.id \? user\.id : null, \/\/ CHAT-PARITY-MORE/.test(read(COMPOSER)), 'the signed-in account (the composer\'s user id) reaches the hook, and null when there is none')
 }
 function destinationSources(row, ask, knowledge, themes, templates, hook) {
   // CONFIRMS: the library row's effect only OPENS the dialog; a delete is the click on its own button
@@ -611,39 +647,50 @@ function destinationSources(row, ask, knowledge, themes, templates, hook) {
   ok(/AlertDialogAction data-studio-library-delete-confirm="true"[^>]*onClick=\{event => \{ event\.preventDefault\(\); void confirmDelete\(\) \}\}/.test(row), 'CONFIRMS: the dialog\'s own Delete button is still the only caller of confirmDelete')
   ok(row.split('confirmDelete(').length - 1 === 1 && row.split('const confirmDelete = ').length - 1 === 1, 'CONFIRMS: confirmDelete is defined once and called once (the dialog\'s button)')
   for (const [rel, text, kind, flag, find] of [[THEMES, themes, 'delete-theme', 'THEME_LIBRARY_MANAGE', 'themes.find'], [TEMPLATES, templates, 'delete-template', 'TEMPLATE_LIBRARY_MANAGE', 'templates.find']]) {
-    const take = lineWith(text, `takeBrowserHandoff('${kind}')`), ask2 = lineWith(text, `${find}(`)
-    ok(new RegExp(`${flag} \\? takeBrowserHandoff\\('${kind}'\\) : null`).test(take) && /setMode\('library'\)/.test(take), `${rel}: the hand-off is taken only when that page's delete is switched on, and the page shows the saved list`)
+    const take = lineWith(text, `takeBrowserHandoff('${kind}', `), ask2 = lineWith(text, `${find}(`)
+    ok(new RegExp(`${flag} \\? takeBrowserHandoff\\('${kind}', account\\?\\.owner \\?\\? null\\) : null`).test(take) && /setMode\('library'\)/.test(take), `${rel}: the hand-off is taken only when that page's delete is switched on, and the page shows the saved list`)
     ok(/!themes \|\| loading \|\| !accountReady|!templates \|\| loading \|\| !accountReady/.test(ask2) && /setChatMoreDelete\(hit\.id\)/.test(ask2) && !/manageDelete|deleteTheme|deleteTemplate|runLibraryDelete|confirmDelete/.test(ask2), `${rel}: CONFIRMS: once the library has loaded it ASKS the row (setChatMoreDelete) and calls no delete`)
     ok(/isUserOwnedLibraryItem\(hit\)/.test(ask2) && /setNotice|setActionNotice/.test(ask2), `${rel}: a theme or template that is gone, or not the person's own, is said (a notice), never deleted`)
     ok(/confirmRequest=\{chatMoreDelete === (theme|template)\.id\} onConfirmRequest=\{\(\) => setChatMoreDelete\(null\)\}/.test(text), `${rel}: the row is passed the request and clears it once heard`)
   }
   // CONFIRMS: the Ask box is only FILLED
-  const fill = lineWith(ask, "takeBrowserHandoff(\"kg-ask\")")
-  ok(/setText\(handed\.text\)/.test(fill) && /inputRef\.current\?\.focus\(\)/.test(fill) && !/\bask\(|submit|studioKgAskCheck|reset\(\)/.test(fill.replace(/Ask costs money, so the person presses Ask/, '').replace(/Nothing is sent from here/, '').replace(/CHAT-PARITY-MORE[^]*$/, '')), 'CONFIRMS: the Ask box is FILLED and focused; the effect never calls ask or submits (Ask costs money, so the person presses Ask)')
+  const fill = lineWith(ask, "takeBrowserHandoff(\"kg-ask\", ")
+  ok(/process\.env\.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS !== "true" \|\| process\.env\.NEXT_PUBLIC_STUDIO_CHAT_CLEAN !== "true" \|\| process\.env\.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS !== "true"\) return; const handed = takeBrowserHandoff\("kg-ask", handoffAccount\)/.test(fill) && /export function StudioKgAsk\(\{ handoffAccount = null \}: \{ handoffAccount\?: string \| null \} = \{\}\) \{ \/\/ CHAT-PARITY-MORE/.test(ask) && /setText\(handed\.text\)/.test(fill) && /inputRef\.current\?\.focus\(\)/.test(fill) && !/\bask\(|submit|studioKgAskCheck|reset\(\)/.test(fill.replace(/Ask costs money, so the person presses Ask/, '').replace(/Nothing is sent from here/, '').replace(/CHAT-PARITY-MORE[^]*$/, '')), 'CONFIRMS: the Ask box is FILLED and focused; the effect never calls ask or submits (Ask costs money, so the person presses Ask)')
   ok(ask.split('ask(').length - 1 === ask.split('\n').filter(line => /\bask\(/.test(line)).length && !/useEffect\([^)]*ask\(/.test(ask), 'CONFIRMS: ask() is called only where it was (the form\'s submit and the retry button)')
   // the Knowledge search: the page's own search, once the account is ready
   const search = lineWith(knowledge, 'chatMoreSearch.current && searchQuery === chatMoreSearch.current')
   ok(/accessStatus === "ready"/.test(search) && /void runSearch\(\)/.test(search) && !/runImport|requestImport|loadData|delete/i.test(search), 'the Knowledge page runs its own search once the box holds the handed words and the account is ready (a read), and does nothing else')
-  ok(/takeBrowserHandoff\("kg-search"\)/.test(knowledge) && /setSearchQuery\(handed\.text\)/.test(knowledge), 'the Knowledge page takes the hand-off into the search box')
+  ok(/process\.env\.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS !== "true" \|\| process\.env\.NEXT_PUBLIC_STUDIO_CHAT_CLEAN !== "true" \|\| process\.env\.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS !== "true"\) return; const handed = takeBrowserHandoff\("kg-search", kg\.userId \?\? null\)/.test(knowledge) && /setSearchQuery\(handed\.text\)/.test(knowledge), 'the Knowledge page takes the hand-off, for its own account, into the search box (with the chain\'s flag on)')
+  ok(/\{KG_ASK && <StudioKgAsk handoffAccount=\{kg\.userId \?\? null\} \/> \/\* CHAT-PARITY-MORE \*\/\}/.test(knowledge), 'the Knowledge page tells the Ask box its account (no text node of its own: the marker is a comment inside the expression)')
   // the gauge's hook: gated, dynamic, never loaded with the flag off
-  ok(/const chatParityMoreOn = process\.env\.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS === "true" && process\.env\.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === "true"/.test(hook), 'the gauge\'s hook is gated on the commands flag and chat clean')
+  ok(/const chatParityMoreOn = process\.env\.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS === "true" && process\.env\.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === "true" && process\.env\.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === "true"/.test(hook), 'the gauge\'s hook is gated on the commands flag, chat clean and the chain\'s flag')
   ok(!/^import .*studio-chat-parity-more/m.test(hook) && /import\("@\/lib\/studio-chat-parity-more"\), import\("@\/lib\/studio-chat-parity-more-model"\)/.test(hook), 'the gauge\'s hook loads the bus and the helper with a dynamic import in a gated effect: a build with the flag off never loads them')
   ok(/chatParityMoreLive\.current = !chatParityMoreOn \? null : \{/.test(hook) && /if \(!chatParityMoreOn\) return; let off/.test(hook) && /if \(chatParityMoreOn\) chatParityMoreMods\.current\?\.bus\.publishMoreModel\(\)/.test(hook), 'flag off: the live part is null and both effects return first')
   ok(/select, selectTask: chatParityMoreTask \}/.test(hook) && /now: \(\) => latest\.current, busy,/.test(hook), 'the hook hands over its OWN select and its own state (the gauge draws what a chat save writes)')
   ok(/bus\.registerMoreModel\(\(\) => \(chatParityMoreLive\.current \? model\.modelPartOf\(chatParityMoreLive\.current\) : null\)\)/.test(hook), 'the getter always reads this render\'s live part')
 }
-function triggerChecks() {
-  const commands = repoLoader.load(COMMANDS_LIB)
-  const t = text => commands.detectTrigger(text)
-  eq(t('/model research gemini pro'), { kind: 'command', start: 0, name: 'model', arg: 'research gemini pro' }, 'a command of this change takes several words')
-  eq(t('hello /ask what did we learn about churn?'), { kind: 'command', start: 6, name: 'ask', arg: 'what did we learn about churn?' }, 'after other text, a question with punctuation')
-  eq(t('/delete-theme Brand Blue'), { kind: 'command', start: 0, name: 'delete-theme', arg: 'Brand Blue' }, '/delete-theme takes a name of several words')
-  eq(t('/kg-search q3 churn'), { kind: 'command', start: 0, name: 'kg-search', arg: 'q3 churn' }, '/kg-search')
-  eq(t('/switch-template sales pitch'), { kind: 'command', start: 0, name: 'switch-template', arg: 'sales pitch' }, '/switch-template')
-  eq([t('/model'), t('/model ')], [{ kind: 'command', start: 0, name: 'model', arg: null }, { kind: 'command', start: 0, name: 'model', arg: '' }], 'the name alone, and the name with a space: the old trigger (the arg is empty, not null, so the choices show)')
-  eq([t('/export p'), t('/theme dark blue'), t('/layout image text'), t('/template Quarterly Review'), t('/stop'), t('/template-mode on')], [{ kind: 'command', start: 0, name: 'export', arg: 'p' }, { kind: 'command', start: 0, name: 'theme', arg: 'dark blue' }, { kind: 'command', start: 0, name: 'layout', arg: 'image text' }, { kind: 'command', start: 0, name: 'template', arg: 'Quarterly Review' }, { kind: 'command', start: 0, name: 'stop', arg: null }, { kind: 'command', start: 0, name: 'template-mode', arg: 'on' }], 'every trigger that was there before reads as it did')
-  eq(t('what about @sli'), { kind: 'mention', start: 11, query: 'sli' }, 'an "@" is still a mention, first')
-  eq([t('/models'), t('/asked'), t('plain text')], [{ kind: 'command', start: 0, name: 'models', arg: null }, { kind: 'command', start: 0, name: 'asked', arg: null }, null], 'a name that only starts like one of ours takes no words')
+function triggerChecks(text = read(COMMANDS_LIB), label = 'trigger') {
+  const commands = repoLoaderFrom(text)
+  const t = value => commands.detectTrigger(value, true)
+  eq(t('/model research gemini pro'), { kind: 'command', start: 0, name: 'model', arg: 'research gemini pro' }, `${label}: a command of this change takes several words`)
+  eq(t('/delete-theme Brand Blue'), { kind: 'command', start: 0, name: 'delete-theme', arg: 'Brand Blue' }, `${label}: /delete-theme takes a name of several words`)
+  eq(t('/ask what did we learn about churn?'), { kind: 'command', start: 0, name: 'ask', arg: 'what did we learn about churn?' }, `${label}: a question with punctuation`)
+  eq(t('/kg-search q3 churn'), { kind: 'command', start: 0, name: 'kg-search', arg: 'q3 churn' }, `${label}: /kg-search`)
+  eq(t('/switch-template sales pitch'), { kind: 'command', start: 0, name: 'switch-template', arg: 'sales pitch' }, `${label}: /switch-template`)
+  eq([t('/delete-template Board update'), t('/DELETE-THEME Brand Blue')], [{ kind: 'command', start: 0, name: 'delete-template', arg: 'Board update' }, { kind: 'command', start: 0, name: 'DELETE-THEME', arg: 'Brand Blue' }], `${label}: /delete-template, and in any case`)
+  // finding 4: only at the START of the draft
+  eq([t('hello /ask what did we learn about churn?'), t(' /model research gemini pro'), t('A brief.\nUse /model research gemini pro'), t('please /delete-theme Brand Blue'), t('Use /kg-search q3 churn here')], [null, null, null, null, null], `${label}: after other words, a space or a line break the several words open nothing (a brief that holds " /model research gemini" is a brief)`)
+  eq([t('hello /ask what'), t('hello /model fast')], [{ kind: 'command', start: 6, name: 'ask', arg: 'what' }, { kind: 'command', start: 6, name: 'model', arg: 'fast' }], `${label}: one word after the name still reads after a space, as every command's does`)
+  // the chain's flag off: the commands flag's own trigger (dev's lib, the chain's lines taken out), for every text
+  const dev = repoLoaderFrom(asDev(COMMANDS_LIB, text))
+  for (const value of ['/model research gemini pro', '/ask what did we learn?', '/delete-theme Brand Blue', '/kg-search q3 churn', '/switch-template sales pitch', 'hello /ask what', '/model', '/model ', '/theme dark blue', '/layout image text', '/template Quarterly Review', 'what about @sli', '/export p', 'please /model fast', '/stop']) {
+    eq([commands.detectTrigger(value), commands.detectTrigger(value, false)], [dev.detectTrigger(value), dev.detectTrigger(value)], `${label}: ${JSON.stringify(value)}: with no second argument, or false, it is dev's trigger`)
+  }
+  eq([commands.detectTrigger('/model research gemini pro'), commands.detectTrigger('/ask what did we learn?'), commands.detectTrigger('/delete-theme Brand Blue'), commands.detectTrigger('/theme dark blue'), commands.detectTrigger('/template Quarterly Review')], [null, null, null, null, null], `${label}: the chain's flag off: two words after these commands read nothing, as dev has it`)
+  eq([t('/model'), t('/model ')], [{ kind: 'command', start: 0, name: 'model', arg: null }, { kind: 'command', start: 0, name: 'model', arg: '' }], `${label}: the name alone, and the name with a space: the old trigger (the arg is empty, not null, so the choices show)`)
+  eq([t('/export p'), t('/theme dark blue'), t('/layout image text'), t('/template Quarterly Review'), t('/stop'), t('/template-mode on')], [{ kind: 'command', start: 0, name: 'export', arg: 'p' }, { kind: 'command', start: 0, name: 'theme', arg: 'dark blue' }, { kind: 'command', start: 0, name: 'layout', arg: 'image text' }, { kind: 'command', start: 0, name: 'template', arg: 'Quarterly Review' }, { kind: 'command', start: 0, name: 'stop', arg: null }, { kind: 'command', start: 0, name: 'template-mode', arg: 'on' }], `${label}: the earlier commands' triggers are what they were`)
+  eq(t('what about @sli'), { kind: 'mention', start: 11, query: 'sli' }, `${label}: an "@" is still a mention, first`)
+  eq([t('/models'), t('/asked'), t('plain text')], [{ kind: 'command', start: 0, name: 'models', arg: null }, { kind: 'command', start: 0, name: 'asked', arg: null }, null], `${label}: a name that only starts like one of ours takes no words`)
 }
 function menuChecks(menu, icons) {
   const names = ['delete-theme', 'delete-template', 'model', 'kg-search', 'ask', 'switch-template']
@@ -651,6 +698,63 @@ function menuChecks(menu, icons) {
   ok(/\.\.\.MORE_ICONS, \/\/ CHAT-PARITY-MORE/.test(menu) && /import \{ MORE_ICONS \} from/.test(menu), 'the menu spreads this change\'s icons in on marked lines (the viewer half\'s menu draws the groups)')
   ok(/lucide-react/.test(icons) && !/fetch|document|window/.test(icons), 'the icons are the lucide set the other rows use')
   ok(strip.CHAT_PARITY_MORE_FILES.includes(MENU), 'the menu is a marked file')
+}
+
+// ============================================================================================================================================
+// E. The real composer: the chain's flag off is dev's composer for these commands' texts (/publish and an @template pick included); on, the rows, the two picks and the hand-off
+// ============================================================================================================================================
+/** dev's file reader: every chat parity change registered so far (the viewer half's, the workspace half's, this one's) takes its lines out of the file it is given. */
+const asDev = chainDev(registry)
+const MORE_STEPS = [
+  ['type', '/publish'], ['key', 'Enter'], ['type', '/model'], ['type', '/model fast'], ['type', '/model research gemini pro'], ['type', '/ask what did we learn?'], ['type', '/kg-search q3 churn'], ['type', '/delete-theme Brand'], ['type', '/delete-template Board'], ['type', '/switch-template pitch'],
+  ['type', 'please /ask what now'], ['type', 'A brief.\nUse /model research gemini pro'], ['key', 'Enter'], ['type', '@'], ['type', '@Board'], ['key', 'Enter'], ['type', '@Pitch'], ['key', 'Enter'], ['type', '/'], ['key', 'ArrowDown'], ['key', 'Escape'],
+]
+const driveMore = (env, read) => drive({ root, env, read, steps: MORE_STEPS })
+const waitFor = async (condition, ms = 400) => { for (let waited = 0; waited < ms && !condition(); waited += 10) await new Promise(resolve => setTimeout(resolve, 10)) }
+const MORE_ROWS = ['delete-theme', 'delete-template', 'model', 'kg-search', 'ask', 'switch-template']
+let MORE_DEV_LOG = null
+async function composerChecks(chainRead = null, label = 'composer') {
+  const identity = (rel, text) => (chainRead ? chainRead(rel, text) : text)
+  const devLog = MORE_DEV_LOG ??= await driveMore({}, asDev)
+  for (const [name, env] of [['unset', {}], ['"false"', { NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS: 'false' }], ['"TRUE"', { NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS: 'TRUE' }], ['"1"', { NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS: '1' }]]) {
+    eq(await driveMore(env, identity), devLog, `${label}: the chain's flag ${name}: every step is dev's composer (text, menu, markup, calls, notes, storage, windows)`)
+  }
+  // the two changed behaviours, as dev has them with the flag off
+  const off = await mountComposer({ root, env: {}, read: identity })
+  try {
+    await off.type('/publish'); await off.key('Enter')
+    ok(off.note() !== null && off.records.notes.length === 0 && off.text() === '', `${label}: off: /publish answers with the commands flag's own note and its Open Publish button (a card above the composer, nothing in the thread)`)
+    await off.type('@Board'); await off.key('Enter')
+    ok(/@\[Template: Board update\]/.test(off.text()) && off.records.notes.length === 0, `${label}: off: a picked @template is written into the message as a mention (${JSON.stringify(off.text())})`)
+  } finally { off.unmount() }
+  // on: the rows, /publish presses the Publish button, an @template pick chooses the template
+  const labels = await menuOf({ root, env: PARITY, read: identity, text: '/' })
+  for (const id of ['delete-theme', 'delete-template', 'model', 'kg-search', 'ask', 'switch-template']) ok(labels.some(l => l.startsWith(`/${id}`)), `${label}: on: /${id} is listed`)
+  const on = await mountComposer({ root, env: PARITY, read: identity })
+  try {
+    await on.type('/publish'); await on.key('Enter'); await waitFor(() => on.records.notes.length > 0)
+    ok(on.note() === null && on.records.notes.length === 1 && on.text() === '', `${label}: on: /publish presses the Publish button (this page has none, and the thread says so): no decline card`)
+    await on.type('@Board'); await on.key('Enter'); await waitFor(() => on.records.notes.length > 1)
+    ok(on.text() === '' && on.records.notes.length === 2, `${label}: on: a picked @template is chosen, not written into the message (${JSON.stringify(on.text())}), and the thread says what happened`)
+  } finally { on.unmount() }
+  // the hand-off is written for the signed-in account (REVIEW-1 finding 3), the page opens
+  const KEY = 'deckster.chatParityMore.handoff.v1'
+  const who = await mountComposer({ root, env: PARITY, read: identity, user: { id: 'acct-1' } })
+  try {
+    await who.type('/kg-search q3 churn'); await who.key('Enter'); await waitFor(() => who.records.notes.length > 0)
+    const entry = JSON.parse(who.store.get(KEY) ?? 'null')
+    eq([entry && { kind: entry.kind, text: entry.text, id: entry.id, account: entry.account }, who.records.opened.map(call => JSON.stringify(call))], [{ kind: 'kg-search', text: 'q3 churn', id: null, account: 'acct-1' }, [JSON.stringify(['assign', '/knowledge'])]], `${label}: on: /kg-search writes the hand-off for the signed-in account and opens Knowledge`)
+  } finally { who.unmount() }
+  const nobody = await mountComposer({ root, env: PARITY, read: identity, user: {} })
+  try {
+    await nobody.type('/kg-search q3 churn'); await nobody.key('Enter'); await waitFor(() => nobody.records.notes.length > 0)
+    eq([nobody.store.size, nobody.records.opened.length, nobody.records.notes.length], [0, 0, 1], `${label}: on: with no account known nothing is written and no page is opened, and the thread says it could not be handed over`)
+  } finally { nobody.unmount() }
+  const quiet = await mountComposer({ root, env: {}, read: identity, user: { id: 'acct-1' } })
+  try {
+    await quiet.type('/kg-search q3 churn'); await quiet.key('Enter')
+    eq([quiet.store.size, quiet.records.opened.length, quiet.records.notes.length], [0, 0, 0], `${label}: off: nothing is written, nothing is opened`)
+  } finally { quiet.unmount() }
 }
 
 // ============================================================================================================================================
@@ -705,7 +809,15 @@ async function mutantChecks() {
   await H("if (entry.kind !== kind) return null", "if (entry.kind !== kind) { store.removeItem(MORE_HANDOFF_KEY); return null }", 'another page\'s entry is thrown away')
   await H("now - entry.at <= MORE_HANDOFF_TTL_MS", "true", 'an old entry is taken')
   await H("if (!CHAT_PARITY_MORE_ON) return null", "", 'the page takes a hand-off with the flag off')
-  await H("if (kept && now - kept.at >= 0 && now - kept.at <= MORE_HANDOFF_HOLD_MS) return kept.value", "", 'a remounted page finds nothing (the cold new tab loses its words)')
+  await H("if (kept && kept.account === who && now - kept.at >= 0 && now - kept.at <= MORE_HANDOFF_HOLD_MS) return kept.value", "", 'a remounted page finds nothing (the cold new tab loses its words)')
+  await H("    if (accountOf((entry as { account?: unknown }).account) !== account) return null\n", "", 'an entry of another account is taken')
+  await H("if (!store || !accountOf(account)) return null", "if (!store) return null", 'a page that does not know its account takes an entry')
+  await H("if (!store || !account || !KINDS.includes(request.kind)", "if (!store || !KINDS.includes(request.kind)", 'an entry is written with no account')
+  await H("kept && kept.account === who && now", "kept && now", 'a page gets the entry another account kept')
+  await H("  const taken = takeHandoff(browserStore(), kind, now, who)\n  if (taken) { held.set(kind, { value: taken, at: now, account: who }); return taken }\n  const kept = held.get(kind)\n  if (kept && kept.account === who && now - kept.at >= 0 && now - kept.at <= MORE_HANDOFF_HOLD_MS) return kept.value\n",
+    "  const kept = held.get(kind)\n  if (kept && kept.account === who && now - kept.at >= 0 && now - kept.at <= MORE_HANDOFF_HOLD_MS) return kept.value\n  const taken = takeHandoff(browserStore(), kind, now, who)\n  if (taken) { held.set(kind, { value: taken, at: now, account: who }); return taken }\n", 'the kept entry is read before the storage (finding 2)')
+  await H(" && process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === 'true'\nconst browserStore", "\nconst browserStore", 'the hand-off does not need the chain\'s flag')
+  await H("(CHAT_PARITY_MORE_ON ? putHandoff(browserStore(), request, Date.now()) : false)", "putHandoff(browserStore(), request, Date.now())", 'the put writes with the flag off')
   await H("now - kept.at <= MORE_HANDOFF_HOLD_MS) return kept.value", "now - kept.at >= 0) return kept.value", 'a held entry never expires')
   await H("now - entry.at >= 0 &&", "", 'an entry from the future is taken')
   // sources: the confirms
@@ -715,9 +827,16 @@ async function mutantChecks() {
   await S('the row\'s effect opens a row that cannot be deleted', () => destinationSources(mutate(row, 'if (confirmRequest && !deleteBlockedReason)', 'if (confirmRequest)', 'row2'), ask, read(KNOWLEDGE), read(THEMES), read(TEMPLATES), hook))
   await S('the Ask box is submitted from the hand-off', () => destinationSources(row, mutate(ask, 'setText(handed.text); inputRef.current?.focus()', 'setText(handed.text); ask(handed.text)', 'ask'), read(KNOWLEDGE), read(THEMES), read(TEMPLATES), hook))
   await S('the Themes page deletes after the load', () => destinationSources(row, ask, read(KNOWLEDGE), mutate(read(THEMES), 'setChatMoreDelete(hit.id); else', 'void manageDelete(hit); else', 'themes'), read(TEMPLATES), hook))
-  await S('the Templates page takes the hand-off without its flag', () => destinationSources(row, ask, read(KNOWLEDGE), read(THEMES), mutate(read(TEMPLATES), "TEMPLATE_LIBRARY_MANAGE ? takeBrowserHandoff('delete-template') : null", "takeBrowserHandoff('delete-template')", 'templates'), hook))
+  await S('the Templates page takes the hand-off without its flag', () => destinationSources(row, ask, read(KNOWLEDGE), read(THEMES), mutate(read(TEMPLATES), "TEMPLATE_LIBRARY_MANAGE ? takeBrowserHandoff('delete-template', account?.owner ?? null) : null", "takeBrowserHandoff('delete-template', account?.owner ?? null)", 'templates'), hook))
   await S('the Knowledge page searches before the account is ready', () => destinationSources(row, ask, mutate(read(KNOWLEDGE), 'accessStatus === "ready") { chatMoreSearch.current = null', 'true) { chatMoreSearch.current = null', 'knowledge'), read(THEMES), read(TEMPLATES), hook))
   await S('the gauge\'s hook loads the helper with a static import', () => destinationSources(row, ask, read(KNOWLEDGE), read(THEMES), read(TEMPLATES), `import { x } from '@/lib/studio-chat-parity-more'\n${hook}`))
+  await S('the Themes page takes the hand-off for no account', () => destinationSources(row, ask, read(KNOWLEDGE), mutate(read(THEMES), "takeBrowserHandoff('delete-theme', account?.owner ?? null)", "takeBrowserHandoff('delete-theme')", 'themes'), read(TEMPLATES), hook))
+  await S('the Knowledge page takes the hand-off for no account', () => destinationSources(row, ask, mutate(read(KNOWLEDGE), 'takeBrowserHandoff("kg-search", kg.userId ?? null)', 'takeBrowserHandoff("kg-search")', 'knowledge'), read(THEMES), read(TEMPLATES), hook))
+  await S('the Knowledge page takes the hand-off without the chain\'s flag', () => destinationSources(row, ask, mutate(read(KNOWLEDGE), ' || process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS !== "true") return; const handed = takeBrowserHandoff("kg-search"', ') return; const handed = takeBrowserHandoff("kg-search"', 'knowledge'), read(THEMES), read(TEMPLATES), hook))
+  await S('the Knowledge page does not tell the Ask box its account', () => destinationSources(row, ask, mutate(read(KNOWLEDGE), '<StudioKgAsk handoffAccount={kg.userId ?? null} />', '<StudioKgAsk />', 'knowledge'), read(THEMES), read(TEMPLATES), hook))
+  await S('the Ask box takes the hand-off without the chain\'s flag', () => destinationSources(row, mutate(ask, ' || process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS !== "true") return; const handed', ') return; const handed', 'ask'), read(KNOWLEDGE), read(THEMES), read(TEMPLATES), hook))
+  await S('the Ask box takes the hand-off for no account', () => destinationSources(row, mutate(ask, 'takeBrowserHandoff("kg-ask", handoffAccount)', 'takeBrowserHandoff("kg-ask")', 'ask'), read(KNOWLEDGE), read(THEMES), read(TEMPLATES), hook))
+  await S('the gauge\'s hook registers without the chain\'s flag', () => destinationSources(row, ask, read(KNOWLEDGE), read(THEMES), read(TEMPLATES), mutate(hook, ' && process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === "true" // CHAT-PARITY-MORE', ' // CHAT-PARITY-MORE', 'hook')))
   await S('the gauge\'s hook registers with the flag off', () => destinationSources(row, ask, read(KNOWLEDGE), read(THEMES), read(TEMPLATES), mutate(hook, 'if (!chatParityMoreOn) return; let off', 'let off', 'hook')))
   // sources: the lib and the glue
   await S('the lib deletes', () => libSources(`${lib}\nconst x = deleteTheme('a')`))
@@ -726,8 +845,21 @@ async function mutantChecks() {
   const glue = read(GLUE), ui = read(COMMANDS_UI)
   await S('the glue answers with the flag off', () => glueSources(mutate(glue, 'if (!input.enabled) return INERT', 'if (false) return INERT', 'glue'), ui))
   await S('the glue deletes', () => glueSources(`${glue}\nconst z = deleteTheme('a')`, ui))
+  await S('the glue writes the hand-off for no account', () => glueSources(mutate(glue, 'handoff: request => putBrowserHandoff({ ...request, account: live.current.account }),', 'handoff: putBrowserHandoff,', 'glue2'), ui))
   await S('the /publish pick runs after the old decline', () => glueSources(glue, ui.replace(/^.*if \(row\.id === 'publish' && more\.publish\).*$/m, '') + "\n    if (row.id === 'publish' && more.publish) { postNote(more.publish()); return } // CHAT-PARITY-MORE\n"))
   await S('the @template pick writes the token', () => glueSources(glue, mutate(ui, 'input.setText(input.text.slice(0, at.start)); focusEnd(); void more.template', 'input.setText(textWithMention(input.text, at, item.token)); focusEnd(); void more.template', 'ui')))
+  // the composer, mounted for real
+  const uiText = fs.readFileSync(path.join(root, COMMANDS_UI), 'utf8'), inputText = fs.readFileSync(path.join(root, COMPOSER), 'utf8')
+  for (const [name, file, text, from, to] of [
+    ['the more hook ignores the chain\'s flag', COMMANDS_UI, uiText, 'useChatParityMore({ enabled: parityOn, ', 'useChatParityMore({ enabled, '],
+    ['the more hook is never on', COMMANDS_UI, uiText, 'useChatParityMore({ enabled: parityOn, ', 'useChatParityMore({ enabled: false, '],
+    ['the composer does not hand the account on', COMMANDS_UI, uiText, 'account: input.account ?? null, trigger:', 'account: null, trigger:'],
+    ['the composer hands on no account', COMPOSER, inputText, "account: typeof user?.id === 'string' && user.id ? user.id : null, // CHAT-PARITY-MORE", "account: null, // CHAT-PARITY-MORE"],
+  ]) {
+    const mutated = text.replace(from, to)
+    assert.notEqual(mutated, text, `mutant applies: ${name}`)
+    await caught(name, async () => { glueSources(glue, file === COMMANDS_UI ? mutated : ui); await composerChecks((rel, body) => (rel === file ? mutated : body), 'mutant') })
+  }
   // the strip
   const stripChecks = async (mod, rel) => { if (!hasBase) throw new Error('no base: the mutant cannot be judged here (treated as caught)'); for (const file of strip.CHAT_PARITY_MORE_FILES) if (mod.stripChatParityMore(file, read(file)) !== baseOf(file)) throw new Error(`${file} differs`) }
   await caught('the strip leaves a marked line behind', async () => stripChecks({ stripChatParityMore: (rel, text) => strip.stripChatParityMore(rel, text) + '\n// CHAT-PARITY-MORE leftover' }))
@@ -738,7 +870,12 @@ async function mutantChecks() {
   hit(!strip.CHAT_PARITY_MORE_MARKER_RE.test('// CHAT-PARITY-MORE-X') && !strip.CHAT_PARITY_MORE_MARKER_RE.test('// X-CHAT-PARITY-MORE') && !strip.CHAT_PARITY_MORE_MARKER_RE.test('// CHAT-PARITY-WORKSPACE') && !strip.CHAT_PARITY_MORE_MARKER_RE.test('// CHAT-PARITY'), 'mutant caught: the marker matches another change\'s marker')
   // the trigger and the menu
   const commandsLib = read(COMMANDS_LIB)
-  await S('the trigger no longer reads several words', () => { const out = { text: commandsLib.replace('(model|ask|kg-search|delete-theme|delete-template|switch-template)', '(model)') }; assert.ok(out.text !== commandsLib); const mutated = repoLoaderFrom(out.text); assert.deepEqual(plain(mutated.detectTrigger('/ask what now')), { kind: 'command', start: 0, name: 'ask', arg: 'what now' }) })
+  await S('the trigger no longer reads several words', () => { const out = { text: commandsLib.replace('(model|ask|kg-search|delete-theme|delete-template|switch-template)', '(model)') }; assert.ok(out.text !== commandsLib); const mutated = repoLoaderFrom(out.text); assert.deepEqual(plain(mutated.detectTrigger('/ask what now', true)), { kind: 'command', start: 0, name: 'ask', arg: 'what now' }) })
+  for (const [name, from, to] of [
+    ['the several words are read with the flag off', 'const more = parity ? COMMAND_MORE_RE.exec(text) : null', 'const more = COMMAND_MORE_RE.exec(text)'],
+    ['the several words are read after a space', 'const COMMAND_MORE_RE = /^\\/(model|ask|kg-search|delete-theme|delete-template|switch-template) ([^\\n]*)$/i', 'const COMMAND_MORE_RE = /(?:^|\\s)\\/(model|ask|kg-search|delete-theme|delete-template|switch-template) ([^\\n]*)$/i'],
+    ['the several words are read after a leading space', 'const COMMAND_MORE_RE = /^\\/(model|ask|kg-search|delete-theme|delete-template|switch-template) ([^\\n]*)$/i', 'const COMMAND_MORE_RE = /^\\s*\\/(model|ask|kg-search|delete-theme|delete-template|switch-template) ([^\\n]*)$/i'],
+  ]) { const mutated = commandsLib.replace(from, to); assert.notEqual(mutated, commandsLib, `mutant applies: ${name}`); await caught(name, async () => triggerChecks(mutated, 'mutant')) }
   await S('a command has no icon', () => menuChecks(read(MENU), read(ICONS).replace("ask: MessageCircleQuestion, ", '')))
   // the unit suites themselves must be able to fail
   await caught('the run suite has a fake that fails', async () => { const more = loadMore(); fakePage(more, { handoffOk: false }); const result = await emit(more, R({ name: 'kg-search', text: 'x' })); assert.ok(result.ok) })
@@ -756,7 +893,9 @@ console.log('PASS A  the lib: what blocks each command, the button\'s own reason
 await runSuite(); await modelSuite(); await handoffSuite()
 console.log('PASS B  the runs on fake handles (hand-off, new tab, never delete / ask / publish), the gauge\'s saves, the Intelligence page\'s save, the hand-off')
 sourceChecks()
-console.log('PASS C  the sources: markers, the strip back to the workspace half\'s head, the confirms never bypassed, the gates, the registry, no new flag, the committed diff, the trigger, the menu')
+console.log('PASS C  the sources: markers, the strip back to the workspace half\'s head, the confirms never bypassed, the gates (the chain\'s flag in every one), the hand-off\'s account, the registry, the committed diff, the trigger, the menu')
+await composerChecks()
+console.log('PASS E  the real composer: the chain\'s flag off is dev\'s composer for these commands\' texts (/publish and an @template pick included), step for step; on, the rows, the two picks and the hand-off for the signed-in account')
 await mutantChecks()
 console.log('PASS D  mutants: every one caught')
 console.log(`test-studio-chat-parity-more: ${checks} checks, ${mutants} mutants caught (${OWN.length ? `own commits ${OWN.map(sha => sha.slice(0, 8)).join(', ')}` : 'no own commit yet'})${hasBase ? '' : ' (base commit not in this clone: some checks skipped)'}`)

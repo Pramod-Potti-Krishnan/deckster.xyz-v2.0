@@ -63,6 +63,8 @@ export interface StudioChatCommandsInput {
   refreshSaved: () => void
   /** /theme <preset>: the theme popup's own preset chip (ChatInput handlePresetChange -> the page's handleBuildThemeChange). */ // CHAT-PARITY-VIEWER
   choosePreset?: (presetId: string) => void // CHAT-PARITY-VIEWER
+  /** The signed-in account (its user id): a hand-off a command writes is taken only by a page of that account. */ // CHAT-PARITY-MORE
+  account?: string | null // CHAT-PARITY-MORE
   disabled: boolean
 }
 
@@ -152,7 +154,7 @@ export function useStudioChatCommands(input: StudioChatCommandsInput): StudioCha
   const parity: ParityRow[] = parityOn && trigger?.kind === 'command' ? parityRows(trigger, parityEnv) : [] // CHAT-PARITY-VIEWER: the viewer commands' rows, after the existing commands (a command that cannot run is a disabled row with its reason)
   const workspaceRows = useChatParityWorkspace({ enabled: parityOn, trigger: trigger?.kind === 'command' ? trigger : null, text: input.text, template: input.template, listTemplates, menuOpen: dismissed !== key }) // CHAT-PARITY-WORKSPACE: the Workspace group's rows (kg, template, template-mode, notes, appearance, intro, pane, history); a command that cannot run is a disabled row with its reason
   parity.push(...workspaceRows) // CHAT-PARITY-WORKSPACE: after the viewer's rows, so they draw as the last group
-  const more = useChatParityMore({ enabled, trigger: trigger?.kind === 'command' ? trigger : null, menuOpen: dismissed !== key, building: input.stop.visible, saved: input.saved, savedStatus: input.savedStatus, refreshSaved: input.refreshSaved, templateSaved: input.template.saved, listTemplates }) // CHAT-PARITY-MORE: the remaining commands' rows (/delete-theme, /delete-template, /model <choice>, /kg-search, /ask, /switch-template), and the two picks that were declines (/publish, an @template); a command that cannot run is a disabled row with its reason
+  const more = useChatParityMore({ enabled: parityOn, account: input.account ?? null, trigger: trigger?.kind === 'command' ? trigger : null, menuOpen: dismissed !== key, building: input.stop.visible, saved: input.saved, savedStatus: input.savedStatus, refreshSaved: input.refreshSaved, templateSaved: input.template.saved, listTemplates }) // CHAT-PARITY-MORE: the remaining commands' rows (/delete-theme, /delete-template, /model <choice>, /kg-search, /ask, /switch-template), and the two picks that were declines (/publish, an @template); a command that cannot run is a disabled row with its reason
   parity.push(...more.rows) // CHAT-PARITY-MORE: after the workspace rows
   const mention: MentionModel | null = trigger?.kind === 'mention' && source ? buildMentionModel(source, trigger.query) : null
   const count = trigger?.kind === 'command' ? rows.length + parity.length : mention ? mention.items.length : 0 // CHAT-PARITY-VIEWER
