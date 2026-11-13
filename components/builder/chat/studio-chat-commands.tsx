@@ -88,6 +88,7 @@ const optionId = (index: number) => `${LIST_ID}-option-${index}`
 /** The composer's hook. All state is here; with the flag off (or no page props) it returns INERT and its effects do nothing. */
 export function useStudioChatCommands(input: StudioChatCommandsInput): StudioChatCommandsApi {
   const enabled = STUDIO_CHAT_COMMANDS_ENABLED && input.page !== null && !input.disabled
+  const parityOn = enabled && process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === 'true' // CHAT-PARITY-VIEWER (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS, default off): the chat parity commands (the viewer's, and those stacked on them) and their triggers act only with this flag on top of the commands flag; off, this hook is the commands flag's own
   const [dismissed, setDismissed] = useState<string | null>(null)
   const [cursor, setCursor] = useState<{ sig: string; index: number }>({ sig: '', index: 0 })
   const [note, setNote] = useState<CommandNote | null>(null)
@@ -100,7 +101,7 @@ export function useStudioChatCommands(input: StudioChatCommandsInput): StudioCha
   const savedAsked = useRef(false)
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
 
-  const trigger = enabled ? detectTrigger(input.text) : null
+  const trigger = enabled ? detectTrigger(input.text, parityOn) : null // CHAT-PARITY-VIEWER
   const key = triggerKey(trigger)
   useEffect(() => { if (!key) setDismissed(null) }, [key])
 
@@ -147,8 +148,8 @@ export function useStudioChatCommands(input: StudioChatCommandsInput): StudioCha
   const parityViewer = useSyncExternalStore(subscribeViewerState, viewerStateSnapshot, viewerStateSnapshot) // CHAT-PARITY-VIEWER: the viewer's own state (lib/studio-chat-parity-viewer.ts), read the way a button reads it
   const showCanvas = useStudioStageShowCanvas() // CHAT-PARITY-VIEWER: the Show canvas button's own function (null while the canvas is open)
   const parityEnv: ParityEnv = { viewer: parityViewer, building: input.stop.visible, themeBlocked: input.themeBlocked, presets: input.presets, canvasClosed: Boolean(showCanvas) } // CHAT-PARITY-VIEWER
-  const parity: ParityRow[] = enabled && trigger?.kind === 'command' ? parityRows(trigger, parityEnv) : [] // CHAT-PARITY-VIEWER: the viewer commands' rows, after the existing commands (a command that cannot run is a disabled row with its reason)
-  const workspaceRows = useChatParityWorkspace({ enabled, trigger: trigger?.kind === 'command' ? trigger : null, text: input.text, template: input.template, listTemplates, menuOpen: dismissed !== key }) // CHAT-PARITY-WORKSPACE: the Workspace group's rows (kg, template, template-mode, notes, appearance, intro, pane, history); a command that cannot run is a disabled row with its reason
+  const parity: ParityRow[] = parityOn && trigger?.kind === 'command' ? parityRows(trigger, parityEnv) : [] // CHAT-PARITY-VIEWER: the viewer commands' rows, after the existing commands (a command that cannot run is a disabled row with its reason)
+  const workspaceRows = useChatParityWorkspace({ enabled: parityOn, trigger: trigger?.kind === 'command' ? trigger : null, text: input.text, template: input.template, listTemplates, menuOpen: dismissed !== key }) // CHAT-PARITY-WORKSPACE: the Workspace group's rows (kg, template, template-mode, notes, appearance, intro, pane, history); a command that cannot run is a disabled row with its reason
   parity.push(...workspaceRows) // CHAT-PARITY-WORKSPACE: after the viewer's rows, so they draw as the last group
   const mention: MentionModel | null = trigger?.kind === 'mention' && source ? buildMentionModel(source, trigger.query) : null
   const count = trigger?.kind === 'command' ? rows.length + parity.length : mention ? mention.items.length : 0 // CHAT-PARITY-VIEWER

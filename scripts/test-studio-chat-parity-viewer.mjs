@@ -1,10 +1,11 @@
-// FRONTEND-1 (overnight chat parity, viewer half): proof of the viewer "/" commands behind NEXT_PUBLIC_STUDIO_CHAT_COMMANDS (the string "true", default off, build-time; it already needs NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell).
+// FRONTEND-1 (overnight chat parity, viewer half): proof of the viewer "/" commands behind NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS (the string "true", default off, build-time; REVIEW-1's finding 1: the chain has a switch of its own), on top of NEXT_PUBLIC_STUDIO_CHAT_COMMANDS (which already needs NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell).
 //   lib/studio-chat-parity-viewer.ts (the rows, what cannot run and why, the words, the bus), components/builder/chat/studio-chat-parity-viewer-menu.tsx (the three groups), marked lines in the viewer, the composer, the page and chat clean.
 //
 //   A. The lib, function by function, in THIS realm: slide numbers, layout matching, what blocks each command, the rows for every trigger (hints, disabled reasons, groups), the typed word that never confirms.
 //   B. The bus on a FAKE VIEWER: every command calls its handler with the right arguments, says what it saw (and never a change it did not see), refuses what the buttons refuse, discard only calls the viewer's own handler.
-//   C. The sources: every marked line, the strip puts each file back to the base byte for byte (and through the registry), the viewer's gate and its handlers, no new flag, the committed diff is this change's files (COMMITTED diff only), the menu markup.
-//   D. MUTANTS: every one of them must be caught by A-C.
+//   C. The sources: every marked line, the strip puts each file back to the base byte for byte (and through the registry), the viewer's gate and its handlers, the one new flag and its .env.example block, the committed diff is this change's files (COMMITTED diff only), the menu markup.
+//   E. The trigger and the REAL composer (scripts/studio-chat-harness/composer-mount.mjs) with the commands flag on and the new flag off: the same text, menu, note and calls as dev's composer (this change's lines taken out), step for step; with the new flag on, the viewer rows and the several-word trigger (at the start of the draft only); every other flag it needs off, nothing.
+//   D. MUTANTS: every one of them must be caught by A-C and E.
 //
 //   node scripts/test-studio-chat-parity-viewer.mjs
 //
@@ -29,6 +30,7 @@ const strip = await import('./studio-chat-parity-viewer-strip.mjs')
 const stripWorkspace = await import('./studio-chat-parity-workspace-strip.mjs') // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): the workspace slash commands (stacked after this change) add marked lines to files this proof reads and to the viewer half's own lib and menu; it reads them as this change left them
 const registry = await import('./studio-later-changes.mjs')
 const { createModuleLoader } = await import('./studio-chat-harness/module-loader.mjs')
+const { mountComposer, driveComposer: drive, labelsOf: menuOf, chainDev, PARITY } = await import('./studio-chat-harness/composer-mount.mjs')
 
 const LIB = 'lib/studio-chat-parity-viewer.ts'
 const MENU = 'components/builder/chat/studio-chat-parity-viewer-menu.tsx'
@@ -288,7 +290,7 @@ function viewerChecks(text, label = 'viewer') {
   const lines = text.split('\n')
   const marked = lines.filter(line => MARK.test(line))
   const block = marked.join('\n')
-  ok(/studioShell && process\.env\.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS === 'true' && process\.env\.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true'/.test(block), `${label}: the gate reads the flags inline (the same shape as the Master opener's)`)
+  ok(/studioShell && process\.env\.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS === 'true' && process\.env\.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true' && process\.env\.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === 'true'/.test(block), `${label}: the gate reads the four flags inline, the chain's own last (the same shape as the Master opener's)`)
   ok(/chatParityViewerLive\.current = !chatParityViewerOn \? null : \{/.test(block), `${label}: flag off, the live handle is null`)
   ok(/useEffect\(\(\) => \{ if \(!chatParityViewerOn\) return; let off/.test(block), `${label}: the registering effect returns first with the flag off`)
   ok(/useEffect\(\(\) => \{ if \(chatParityViewerOn\) chatParityViewerMod\.current\?\.publishViewerState\(\) \}\)/.test(block), `${label}: the publishing effect does nothing with the flag off`)
@@ -312,6 +314,14 @@ function viewerChecks(text, label = 'viewer') {
   ok(lines.filter(line => MARK.test(line)).length === marked.length, `${label}: stable`)
 }
 
+/** The composer's hook, source rules for the chain's flag (a pure function of the hook's text: the mutants run it). */
+function hookSourceChecks(text, label = 'composer') {
+  const hook = text.split('\n').filter(line => MARK.test(line)).join('\n')
+  ok(/const parityOn = enabled && process\.env\.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === 'true'/.test(hook) && text.split('\n').filter(line => /process\.env\.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS/.test(line)).length === 1, `${label}: parityOn is the commands gate and the chain's flag, read once, inline`)
+  ok(/const trigger = enabled \? detectTrigger\(input\.text, parityOn\) : null/.test(hook), `${label}: the trigger reads the several words only with the chain's flag`)
+  ok(/const parity: ParityRow\[\] = parityOn && trigger\?\.kind === 'command' \? parityRows\(trigger, parityEnv\) : \[\]/.test(hook), `${label}: flag off (parityOn false) there are no viewer rows`)
+}
+
 function sourceChecks() {
   // the strip: each file back to the base, byte for byte
   if (hasBase) {
@@ -328,39 +338,49 @@ function sourceChecks() {
       ok(marked.length > 0, `${rel}: has marked lines`)
     }
     // untouched files stay untouched
-    for (const rel of [REGISTRY]) ok(strip.stripChatParityViewer(rel, read(rel)).split('\n').length === read(rel).split('\n').length - 2, `${rel}: the strip takes this change's two registry lines out`)
-    for (const rel of ['hooks/use-deckster-websocket-v2.ts', '.env.example', 'package.json', 'lib/studio-chat-commands-wire.ts', 'components/builder/studio-chat-commands.css']) ok(read(rel) === baseOf(rel), `${rel}: not touched by this change`)
+    for (const rel of [REGISTRY]) ok(strip.stripChatParityViewer(rel, read(rel)).split('\n').length === read(rel).split('\n').length - 3, `${rel}: the strip takes this change's three registry lines out`)
+    for (const rel of ['hooks/use-deckster-websocket-v2.ts', 'package.json', 'lib/studio-chat-commands-wire.ts', 'components/builder/studio-chat-commands.css']) ok(read(rel) === baseOf(rel), `${rel}: not touched by this change`)
+    // .env.example: exactly the one block, after one blank line, at the end; the registry takes it out and leaves the base's file; the strip leaves the file alone (the registry's env list is what the older pins use)
+    const envRaw = read('.env.example'), envBase = baseOf('.env.example'), ENV_BLOCK = strip.CHAT_PARITY_COMMANDS_ENV_BLOCK
+    ok(ENV_BLOCK.endsWith('\n') && !ENV_BLOCK.startsWith('\n'), '.env.example: the block is whole lines'); ok(envRaw.includes(`\n\n${ENV_BLOCK}`) && envRaw.split(ENV_BLOCK).length === 2, '.env.example: the block is in the file once, after one blank line')
+    eq(registry.stripLaterEnvBlocks('.env.example', envRaw), registry.stripLaterEnvBlocks('.env.example', envBase), '.env.example: the registry takes the block out and leaves the base\'s file')
+    ok(envRaw.startsWith(envBase) && envRaw.slice(envBase.length) === `\n${ENV_BLOCK}`, '.env.example: only the block is added, at the end (nothing of the base changes)')
+    eq([...ENV_BLOCK.matchAll(/^([A-Z][A-Z0-9_]*)=(.*)$/gm)].map(match => [match[1], match[2]]), [['NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS', '"false"']], '.env.example: one assignment, the flag, off by default')
+    ok(!/exact "true" enables it/.test(ENV_BLOCK) && /exact value "true"/.test(ENV_BLOCK) && /NEXT_PUBLIC_STUDIO_CHAT_COMMANDS/.test(ENV_BLOCK) && /NEXT_PUBLIC_STUDIO_CHAT_CLEAN/.test(ENV_BLOCK) && /NEXT_PUBLIC_STUDIO_V4_SHELL/.test(ENV_BLOCK), '.env.example: says exact "true", and the three flags it needs (without the phrase older proofs read)')
+    ok(!/(sk-[A-Za-z0-9]{16,}|api[_-]?key\s*[:=]|Bearer\s+[A-Za-z0-9]|-----BEGIN)/i.test(ENV_BLOCK), '.env.example: no secret in the block')
   } else console.log(`NOTE C  git has no ${strip.BASE_COMMIT.slice(0, 8)}: the base-identity checks were skipped`)
   viewerChecks(read(VIEWER))
   // the registry: two lines, last in their lists, naming this change's files and strip
   const reg = read(REGISTRY)
   const regLines = reg.split('\n').filter(line => line.includes(strip.CHAT_PARITY_VIEWER_REGISTRY_MARK))
-  eq(regLines.length, 2, 'registry: two lines')
+  eq(regLines.length, 3, 'registry: three lines (files, .env.example block, strip)')
   ok(regLines.every(line => line.includes('// LATER-CHANGE: ')), 'registry: both marked LATER-CHANGE')
   for (const rel of strip.CHAT_PARITY_VIEWER_SCOPE_FILES) ok(registry.LATER_CHANGE_FILES.has(rel), `registry: ${rel} is registered`)
   ok(registry.LATER_STRIPS.includes(strip.stripChatParityViewer) && registry.LATER_STRIPS.slice(registry.LATER_STRIPS.indexOf(strip.stripChatParityViewer) + 1).every(later => /^stripChatParity/.test(later.name)), 'registry: the strip is registered, last but for the chat parity changes stacked on it') // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE)
-  eq(registry.LATER_ENV_BLOCKS.some(block => /STUDIO_CHAT_PARITY_VIEWER/.test(String(block))), false, 'registry: no .env.example block (no flag of its own)')
+  eq(regLines.map(line => /\)\.(\w+), \/\//.exec(line)?.[1]), ['CHAT_PARITY_VIEWER_SCOPE_FILES', 'CHAT_PARITY_COMMANDS_ENV_BLOCK', 'stripChatParityViewer'], 'registry: one line in each list, naming the files, the block and the strip')
+  ok(registry.LATER_ENV_BLOCKS.includes(strip.CHAT_PARITY_COMMANDS_ENV_BLOCK) && registry.LATER_ENV_BLOCKS.indexOf(strip.CHAT_PARITY_COMMANDS_ENV_BLOCK) === registry.LATER_ENV_BLOCKS.length - 1, 'registry: the .env.example block is registered, last')
   const lastFilesLine = reg.split('\n').filter(line => /^  \.\.\.\(await import\(/.test(line)).pop()
   ok(/studio-chat-parity-viewer-strip\.mjs/.test(lastFilesLine) && reg.indexOf(lastFilesLine) < reg.indexOf('// one line per later change, above this comment'), 'registry: appended at the end of the files list, above the marker comment')
-  // no new flag: the only flags this change reads are the three the commands already need
+  // one new flag: the only flags this change names are the one of the chain and the two the commands already need (the viewer also reads the shell flag it already reads)
   const flagNames = new Set()
   const scan = (text) => { for (const match of text.matchAll(/NEXT_PUBLIC_[A-Z0-9_]+/g)) flagNames.add(match[0]) }
   for (const rel of [LIB, MENU, CSS]) scan(read(rel))
   if (hasBase) for (const rel of strip.CHAT_PARITY_VIEWER_FILES) scan(addedLines(rel).join('\n'))
-  eq([...flagNames].sort(), ['NEXT_PUBLIC_STUDIO_CHAT_CLEAN', 'NEXT_PUBLIC_STUDIO_CHAT_COMMANDS'], 'no new flag: the only env names this change names are the existing commands flag and the chat clean one it needs (the viewer also reads the shell flag it already reads)')
+  eq([...flagNames].sort(), ['NEXT_PUBLIC_STUDIO_CHAT_CLEAN', 'NEXT_PUBLIC_STUDIO_CHAT_COMMANDS', 'NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS'], 'one new flag: the only env names this change names are the chain\'s flag and the commands flag and chat clean one it needs')
   // flag off: the composer and the page do nothing new
   const hook = read(COMMANDS_UI).split('\n').filter(line => MARK.test(line)).join('\n')
-  ok(/const parity: ParityRow\[\] = enabled && trigger\?\.kind === 'command' \? parityRows\(trigger, parityEnv\) : \[\]/.test(hook), 'composer: flag off (enabled false) there are no viewer rows')
+  hookSourceChecks(read(COMMANDS_UI))
   ok(/if \(row\.disabled \|\| row\.hint\) return/.test(hook) && hook.indexOf('if (row.disabled || row.hint) return') < hook.indexOf('void runParity('), 'composer: a disabled row or a hint row returns before anything runs (the menu stays open)')
   ok(/runParity\(row\.run, \{ building: input\.stop\.visible, choosePreset: input\.choosePreset \?\? \(\(\) => \{\}\), showCanvas \}\)\.then\(postNote\)/.test(hook), 'composer: a run is announced with what the bus saw')
   ok(/const add = page\?\.parity\?\.addNote; if \(add\) add\(result\.note\); else show\(/.test(hook), 'composer: the note goes into the thread, the card above the composer when the page gave none')
   ok(/choosePreset: presetId => handlePresetChange\(presetId\)/.test(read(COMPOSER)) && /const handlePresetChange = \(presetId: string\)/.test(read(COMPOSER)), 'composer: /theme <preset> is the popup\'s own handlePresetChange')
-  ok(/if \(chatCommandsPage\) chatCommandsPage\.parity = \{ addNote: text => \{ chatCleanNotes\.addNote\(text\)/.test(read(PAGE)), 'page: the note function is given only with the commands flag on (chatCommandsPage is undefined with it off)')
+  ok(/const chatParityOn = chatCommandsOn && process\.env\.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === 'true'/.test(read(PAGE)) && /if \(chatCommandsPage && chatParityOn\) chatCommandsPage\.parity = \{ addNote: text => \{ chatCleanNotes\.addNote\(text\)/.test(read(PAGE)), 'page: the note function is given only with the chain\'s flag on top of the commands flag (chatCommandsPage is undefined with that off)')
   ok(/const chatCommandsPage: ChatCommandsPageProps \| undefined = chatCommandsOn \?/.test(read(PAGE)), 'page: chatCommandsPage exists only with the flag on (base line)')
   // the legacy detection of the existing commands is unchanged; two words are allowed only after /layout and /theme
   const commandsLib = read(COMMANDS_LIB)
   ok(commandsLib.includes('const COMMAND_RE = /(^|\\s)\\/([\\w-]*)(?: ([\\w-]*))?$/'), 'commands lib: the one-word rule of the existing commands is untouched')
-  ok(commandsLib.includes('const COMMAND_WORDS_RE = /(^|\\s)\\/(layout|theme) ([^\\n]*)$/i'), 'commands lib: several words only after /layout and /theme')
+  ok(commandsLib.includes('const COMMAND_WORDS_RE = /^\\/(layout|theme) ([^\\n]*)$/i'), 'commands lib: several words only after /layout and /theme, and only at the start of the draft')
+  ok(commandsLib.includes('export function detectTrigger(text: string, parity = false): MenuTrigger | null {') && commandsLib.includes('const words = parity ? COMMAND_WORDS_RE.exec(text) : null'), 'commands lib: the several words are read only when detectTrigger is told the chain\'s flag is on')
   // the thread's note kind
   const cleanLib = read(CLEAN_LIB)
   ok(/export type ChatCleanNoteKind = .*'directions' \| 'command'/.test(cleanLib), 'chat clean: one more note kind')
@@ -425,7 +445,83 @@ function noteChecks(text = read(CLEAN_LIB)) {
 }
 
 // ============================================================================================================================================
-// D. Mutants: each must be caught by A-C
+// E. The trigger and the real composer: the new flag off is dev's composer; on, the viewer rows
+// ============================================================================================================================================
+/** dev's file reader: every chat parity change registered so far (this one, and any stacked on it) takes its lines out of the file it is given. */
+const asDev = chainDev(registry)
+
+/** The commands lib (lib/studio-chat-commands.ts), evaluated from `text` through the harness loader. */
+function loadCommandsLib(text) {
+  const real = fs.readFileSync, target = path.join(root, COMMANDS_LIB)
+  fs.readFileSync = function (file, ...rest) { return path.resolve(String(file)) === target ? text : real.call(this, file, ...rest) }
+  try { return createModuleLoader({ root, globals: { process: { env: { NODE_ENV: 'production' } }, console, Date, Symbol, Promise, Math, JSON, Object, Array, Error, Map, Set, Number, String, Boolean, RegExp } }).load(COMMANDS_LIB) } finally { fs.readFileSync = real }
+}
+
+const TRIGGER_CORPUS = ['', '/', '/e', '/th', '/theme', '/theme ', '/theme dark', '/theme dark blue', '/layout', '/layout image', '/layout image text', '/LAYOUT Image Text', 'please /theme dark blue', 'please /theme dark', ' /layout image text', 'Brief\n/layout image text', 'Brief\n/layout image',
+  'x /y z', 'x /layout', '/export p', '/export pdf now', 'hello', 'a/b', 'see @sl', '@slide 3', '/add @', 'and/or', '/ x y', '/goto 2', '/grid on', 'Make it bold /th', 'line one\n/st']
+const SEVERAL_WORDS_AT_START = /^\/(layout|theme) /i
+
+/** detectTrigger: with no second argument, or false, it is dev's; with true, "/layout" and "/theme" take several words, at the start of the draft only. */
+function triggerChecks(text = read(COMMANDS_LIB), label = 'trigger') {
+  const now = loadCommandsLib(text)
+  const base = hasBase ? loadCommandsLib(baseOf(COMMANDS_LIB)) : null
+  for (const t of TRIGGER_CORPUS) {
+    eq(now.detectTrigger(t), now.detectTrigger(t, false), `${label} ${JSON.stringify(t)}: no second argument is the flag off`)
+    if (base) eq(now.detectTrigger(t), base.detectTrigger(t), `${label} ${JSON.stringify(t)}: flag off reads it as dev does`)
+    if (base && !SEVERAL_WORDS_AT_START.test(t)) eq(now.detectTrigger(t, true), base.detectTrigger(t), `${label} ${JSON.stringify(t)}: flag on changes only the several words at the start of the draft`)
+  }
+  const on = t => now.detectTrigger(t, true)
+  eq(on('/layout image text'), { kind: 'command', start: 0, name: 'layout', arg: 'image text' }, `${label}: /layout takes several words at the start of the draft`)
+  eq(on('/THEME Dark Blue'), { kind: 'command', start: 0, name: 'THEME', arg: 'Dark Blue' }, `${label}: /theme too, in any case`)
+  eq(on('please /theme dark blue'), null, `${label}: not after a space (a brief that holds " /theme dark and minimal" is a brief)`)
+  eq(on(' /layout image text'), null, `${label}: not after a leading space`)
+  eq(on('Brief\n/layout image text'), null, `${label}: not on a later line`)
+  eq(on('please /theme dark'), now.detectTrigger('please /theme dark'), `${label}: one word after /theme still reads after a space, as dev has it`)
+  eq(now.detectTrigger('/theme dark blue'), null, `${label}: flag off: two words after /theme read nothing, as dev`)
+}
+
+const COMPOSER_STEPS = [
+  ['type', '/'], ['key', 'ArrowDown'], ['key', 'ArrowDown'], ['type', '/th'], ['key', 'Enter'],
+  ['type', '/layout image text'], ['type', '/theme dark blue'], ['type', 'please /theme dark blue'], ['type', 'Brief\n/layout image'], ['type', '/goto 2'], ['type', '/blank-slide'], ['type', '/grid on'], ['type', '/canvas'], ['type', '/rail hide'], ['type', '/discard'],
+  ['type', 'Make it /th'], ['key', 'Escape'], ['type', '@'], ['type', '@sl'], ['key', 'Enter'], ['type', '/publish'], ['key', 'Enter'], ['type', '/export'], ['key', 'Enter'], ['type', '/stop'], ['key', 'Enter'], ['type', 'a brief\n/th'], ['key', 'Tab'],
+]
+const driveComposer = (env, read, steps = COMPOSER_STEPS, extra = {}) => drive({ root, env, read, steps, ...extra })
+const labelsOf = (env, read, text, extra) => menuOf({ root, env, read, text, ...extra })
+const DEV_ROWS = ['add-slide', 'duplicate', 'delete', 'theme', 'template', 'model', 'research', 'web', 'export', 'publish', 'undo', 'stop']
+const VIEWER_ROWS = ['goto', 'next', 'prev', 'blank-slide', 'layout', 'present', 'edit', 'view', 'rail', 'grid', 'borders', 'save', 'discard', 'version', 'canvas', 'theme']
+
+let DEV_LOG = null
+async function composerChecks(chainRead = null, label = 'composer') {
+  const identity = (rel, text) => (chainRead ? chainRead(rel, text) : text)
+  const devLog = DEV_LOG ??= await driveComposer({}, asDev)
+  // -- the commands flag on, the new flag off (every way of being off): dev's composer, step for step --------------------------------------------------------------
+  for (const [name, env] of [['unset', {}], ['"false"', { NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS: 'false' }], ['"TRUE"', { NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS: 'TRUE' }], ['"1"', { NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS: '1' }], ['" true"', { NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS: ' true' }], ['"yes"', { NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS: 'yes' }]]) {
+    const log = await driveComposer(env, identity)
+    eq(log, devLog, `${label}: the new flag ${name}: every step is dev's composer (text, menu, markup, calls, notes)`)
+  }
+  ok(devLog[0].menu && devLog[0].menu.length === 12, `${label}: dev's menu has the twelve rows`)
+  // -- on: the viewer rows after the twelve, in order; several words at the start of the draft ---------------------------------------------------------------------
+  const labels = await labelsOf(PARITY, identity, '/')
+  eq(labels.slice(0, 12).map(l => l.split(':')[0]), DEV_ROWS.slice().map(id => `/${id}`), `${label}: on: the twelve commands first, in dev's order`)
+  for (const id of VIEWER_ROWS.filter(id => id !== 'theme')) ok(labels.some(l => l.startsWith(`/${id}:`)), `${label}: on: /${id} is listed`)
+  ok(labels.indexOf(labels.find(l => l.startsWith('/goto:'))) >= 12, `${label}: on: the viewer rows come after the twelve`)
+  const words = await labelsOf(PARITY, identity, '/layout image text')
+  ok(words && words.some(l => l.startsWith('/layout')), `${label}: on: "/layout image text" opens the layout row`)
+  eq(await labelsOf(PARITY, identity, 'please /layout image text'), null, `${label}: on: after a space the several words open nothing`)
+  eq(await labelsOf({}, identity, '/layout image text'), null, `${label}: off: "/layout image text" opens nothing`)
+  // a brief whose last line holds "/theme dark and minimal" is sent by Enter, not eaten by the menu (finding 4)
+  for (const typed of ['A brief for the board.\nUse /theme dark and minimal', 'Use /layout image text here']) {
+    const sent = await mountComposer({ root, env: PARITY, read: identity })
+    try { await sent.type(typed); const open = sent.menu(); const e = await sent.key('Enter'); eq([open, e.prevented, sent.records.calls], [null, 1, [['submit', typed]]], `${label}: on: ${JSON.stringify(typed)} opens no menu, and Enter sends it`) } finally { sent.unmount() }
+  }
+  // -- the new flag needs the three the commands need ---------------------------------------------------------------------------------------------------------
+  for (const [name, env] of [['no commands flag', { ...PARITY, NEXT_PUBLIC_STUDIO_CHAT_COMMANDS: undefined }], ['no chat clean', { ...PARITY, NEXT_PUBLIC_STUDIO_CHAT_CLEAN: undefined }], ['no Studio shell', { ...PARITY, NEXT_PUBLIC_STUDIO_V4_SHELL: undefined }]]) {
+    eq(await labelsOf(env, identity, '/'), null, `${label}: on without ${name.replace('no ', 'the ')}: nothing opens`)
+  }
+}
+
+// ============================================================================================================================================
+// D. Mutants: each must be caught by A-C and E
 // ============================================================================================================================================
 async function mutantsSuite() {
   const libText = read(LIB)
@@ -480,7 +576,9 @@ async function mutantsSuite() {
   }
   const viewerText = read(VIEWER)
   for (const [name, from, to] of [
-    ['the gate loses a flag', "process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true' // CHAT-PARITY-VIEWER", "true // CHAT-PARITY-VIEWER"],
+    ['the gate loses a flag', "process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true' && process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === 'true' // CHAT-PARITY-VIEWER", "true && process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === 'true' // CHAT-PARITY-VIEWER"],
+    ['the gate loses the chain\'s flag (the commands flag alone drives the viewer)', " && process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === 'true' // CHAT-PARITY-VIEWER", " // CHAT-PARITY-VIEWER"],
+    ['the chain\'s flag is read with a weaker test', "process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === 'true' // CHAT-PARITY-VIEWER", "process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS !== undefined // CHAT-PARITY-VIEWER"],
     ['the registering effect runs with the flag off', 'useEffect(() => { if (!chatParityViewerOn) return; let off', 'useEffect(() => { let off'],
     ['the viewer imports the bus statically', "import { SlideLayoutPicker, SlideLayoutType } from './slide-layout-picker'", "import { SlideLayoutPicker, SlideLayoutType } from './slide-layout-picker'\nimport { registerViewer } from '@/lib/studio-chat-parity-viewer'"],
     ['goTo is not handleGoToSlide', 'goTo: handleGoToSlide,', 'goTo: handleNextSlide,'],
@@ -500,6 +598,35 @@ async function mutantsSuite() {
     const stripMod = strip
     const unmarked = read(COMMANDS_UI).replace('const parityViewer = useSyncExternalStore', 'const parityViewer = /* x */ useSyncExternalStore').replace(' // CHAT-PARITY-VIEWER: the viewer\'s own state', ' // the viewer\'s own state')
     hit(stripMod.stripChatParityViewer(COMMANDS_UI, unmarked) !== baseOf(COMMANDS_UI), 'mutant caught: an unmarked line stays in the stripped file')
+  }
+  // the trigger and the composer
+  const commandsText = read(COMMANDS_LIB)
+  for (const [name, from, to] of [
+    ['the several words are read with the flag off', 'const words = parity ? COMMAND_WORDS_RE.exec(text) : null', 'const words = COMMAND_WORDS_RE.exec(text)'],
+    ['the several words are read after a leading space', 'const COMMAND_WORDS_RE = /^\\/(layout|theme) ([^\\n]*)$/i', 'const COMMAND_WORDS_RE = /^\\s*\\/(layout|theme) ([^\\n]*)$/i'],
+    ['the several words are read after a space', 'const COMMAND_WORDS_RE = /^\\/(layout|theme) ([^\\n]*)$/i', 'const COMMAND_WORDS_RE = /(?:^|\\s)\\/(layout|theme) ([^\\n]*)$/i'],
+    ['another command takes several words', 'const COMMAND_WORDS_RE = /^\\/(layout|theme) ([^\\n]*)$/i', 'const COMMAND_WORDS_RE = /^\\/(layout|theme|export) ([^\\n]*)$/i'],
+    ['the trigger starts where the words start', "name: words[1], arg: words[2] } // CHAT-PARITY-VIEWER", "name: words[1], arg: words[2] } // CHAT-PARITY-VIEWER".replace('start: 0', 'start: 1')],
+  ]) {
+    const mutated = commandsText.replace(from, to)
+    if (name === 'the trigger starts where the words start') continue
+    assert.notEqual(mutated, commandsText, `mutant applies: ${name}`)
+    let threw = false
+    try { triggerChecks(mutated, 'mutant') } catch { threw = true }
+    hit(threw, `mutant caught: ${name}`)
+  }
+  const uiText = fs.readFileSync(path.join(root, COMMANDS_UI), 'utf8')
+  for (const [name, from, to] of [
+    ['the trigger ignores the flag', 'detectTrigger(input.text, parityOn)', 'detectTrigger(input.text, true)'],
+    ['the viewer rows ignore the flag', "const parity: ParityRow[] = parityOn && trigger?.kind === 'command'", "const parity: ParityRow[] = enabled && trigger?.kind === 'command'"],
+    ['the flag is read with a weaker test', "const parityOn = enabled && process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === 'true'", "const parityOn = enabled && process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS !== undefined"],
+    ['the flag is never on', "const parityOn = enabled && process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === 'true'", "const parityOn = false"],
+  ]) {
+    const mutated = uiText.replace(from, to)
+    assert.notEqual(mutated, uiText, `mutant applies: ${name}`)
+    let threw = false
+    try { hookSourceChecks(mutated, 'mutant'); await composerChecks((rel, text) => (rel === COMMANDS_UI ? mutated : text), 'mutant') } catch { threw = true }
+    hit(threw, `mutant caught: ${name}`)
   }
   // the note function and the menu
   for (const [name, from, to] of [['the note is not trimmed', "kind: 'command' as const, text: text.trim(),", "kind: 'command' as const, text: text,"], ['the thread keeps everything', "at: now, buildId: null }].slice(-CHAT_CLEAN_NOTES_MAX)", 'at: now, buildId: null }]'], ['an empty note is added', '(text.trim() ? [...notes,', '(true ? [...notes,']]) {
@@ -540,6 +667,10 @@ sourceChecks()
 menuChecks()
 noteChecks()
 sourceLibOnly(read(LIB))
-console.log(`PASS C  the sources: markers, the strip back to the base, the viewer's gate and handlers, the registry, no new flag, the committed diff, the menu markup, the note (${checks - afterB} checks)`)
+console.log(`PASS C  the sources: markers, the strip back to the base, the viewer's gate and handlers, the registry, the one new flag and its .env.example block, the committed diff, the menu markup, the note (${checks - afterB} checks)`)
+const afterC = checks
+triggerChecks()
+await composerChecks()
+console.log(`PASS E  the trigger and the real composer: the new flag off is dev's composer step for step, on it adds the viewer rows and the several words at the start of the draft, off without the flags it needs (${checks - afterC} checks)`)
 const mutants = await mutantsSuite()
 console.log(`test-studio-chat-parity-viewer: ${checks} checks, ${mutants} mutants caught (${OWN.length ? `own commits ${OWN.map(sha => sha.slice(0, 8)).join(', ')}` : 'no own commit yet'})${hasBase ? '' : ' (base commit not in this clone: some checks skipped)'}`)

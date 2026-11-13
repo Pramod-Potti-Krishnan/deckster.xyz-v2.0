@@ -132,17 +132,18 @@ export type MenuTrigger = CommandTrigger | MentionTrigger
 const COMMAND_RE = /(^|\s)\/([\w-]*)(?: ([\w-]*))?$/
 /** The composer's own K1 "@" expression, unchanged. */
 const MENTION_RE = /@([\w ]{0,30})$/
-/** "/layout image text", "/theme dark blue": these two take several words after the name (the rest of the commands keep the one-word rule above). */ // CHAT-PARITY-VIEWER
-const COMMAND_WORDS_RE = /(^|\s)\/(layout|theme) ([^\n]*)$/i // CHAT-PARITY-VIEWER
+/** "/layout image text", "/theme dark blue": these two take several words after the name, and only when the draft STARTS with the command (the rest of the commands keep the one-word rule above, which also reads after a space); read only with the second argument of detectTrigger (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS). */ // CHAT-PARITY-VIEWER
+const COMMAND_WORDS_RE = /^\/(layout|theme) ([^\n]*)$/i // CHAT-PARITY-VIEWER
 /** "/template Quarterly Review": a saved template's name is several words (/template-mode keeps the one-word rule: the name has to be followed by a space). */ // CHAT-PARITY-WORKSPACE
 const COMMAND_TEMPLATE_RE = /(^|\s)\/(template) ([^\n]*)$/i // CHAT-PARITY-WORKSPACE
 
-export function detectTrigger(text: string): MenuTrigger | null {
+/** `parity`: the chat parity commands' flag (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS) is on, so the several-word commands are read; off (the default), this is the commands flag's own trigger, byte for byte. */ // CHAT-PARITY-VIEWER
+export function detectTrigger(text: string, parity = false): MenuTrigger | null { // CHAT-PARITY-VIEWER
   if (typeof text !== 'string') return null
   const mention = MENTION_RE.exec(text)
   if (mention) return { kind: 'mention', start: mention.index, query: mention[1] ?? '' }
-  const words = COMMAND_WORDS_RE.exec(text) // CHAT-PARITY-VIEWER
-  if (words) return { kind: 'command', start: words.index + words[1].length, name: words[2], arg: words[3] } // CHAT-PARITY-VIEWER: several words after /layout or /theme
+  const words = parity ? COMMAND_WORDS_RE.exec(text) : null // CHAT-PARITY-VIEWER
+  if (words) return { kind: 'command', start: 0, name: words[1], arg: words[2] } // CHAT-PARITY-VIEWER: several words after /layout or /theme, at the start of the draft
   const template = COMMAND_TEMPLATE_RE.exec(text) // CHAT-PARITY-WORKSPACE
   if (template) return { kind: 'command', start: template.index + template[1].length, name: template[2], arg: template[3] } // CHAT-PARITY-WORKSPACE: several words after /template
   const command = COMMAND_RE.exec(text)

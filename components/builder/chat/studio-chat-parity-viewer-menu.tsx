@@ -1,6 +1,6 @@
 "use client"
 
-// CHAT PARITY, VIEWER (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, default off; needs NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell): the rows of the "/" menu for the viewer commands, in three groups (Slides · View · Deck).
+// CHAT PARITY, VIEWER (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS, default off; needs NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell): the rows of the "/" menu for the viewer commands, in three groups (Slides · View · Deck).
 // Presentation only: lib/studio-chat-parity-viewer.ts decides every row (its words, whether it can run now, why not). The rows sit on the same surface and take the same row props as the existing
 // commands, so the arrows, Enter, Tab, hover and the ARIA ids work through the one index the composer's menu already keeps. A row that cannot run says why in place of its description and is marked
 // aria-disabled; picking it does nothing and the menu stays open, so a reason is always on screen.

@@ -910,7 +910,7 @@ export function PresentationViewer({
   const [showVersionHistory, setShowVersionHistory] = useState(false)
   const [showPresentationSettings, setShowPresentationSettings] = useState(false)
   useEffect(() => { if (process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY !== 'true') return; let bus: typeof import('@/lib/studio-chat-parity').chatParityBus | null = null; void import('@/lib/studio-chat-parity').then(mod => { bus = mod.chatParityBus; bus.openMaster = () => setShowPresentationSettings(true) }); return () => { if (bus) bus.openMaster = null } }, []) // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY, read inline): a chat footer / logo request opens the Master panel, the Show menu's own "Master…"; the bus is loaded inside the gated effect so the viewer's proofs see no new import
-  // CHAT-PARITY-VIEWER (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS with NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell, default off): the composer's "/" commands drive this viewer through ONE small bus (lib/studio-chat-parity-viewer.ts). The refs are plain; nothing below reads or loads anything with the flags off.
+  // CHAT-PARITY-VIEWER (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS, default off, with NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell): the composer's "/" commands drive this viewer through ONE small bus (lib/studio-chat-parity-viewer.ts). The refs are plain; nothing below reads or loads anything with the flags off.
   const chatParityViewerLive = useRef<import('@/lib/studio-chat-parity-viewer').ViewerHandle | null>(null) // CHAT-PARITY-VIEWER: this render's { state, actions }: the state is what the buttons read, each action calls the handler the matching button calls
   const chatParityViewerMod = useRef<typeof import('@/lib/studio-chat-parity-viewer') | null>(null) // CHAT-PARITY-VIEWER: the bus module, once the gated effect below has loaded it
   const chatParityLayoutDone = useRef(false) // CHAT-PARITY-VIEWER: raised by handleChangeLayout's own success path, so /layout says it only after the viewer confirmed it
@@ -3763,7 +3763,7 @@ export function PresentationViewer({
     }
   }, [studioShell, isEditMode, onEditModeChange, isGridActive, isBordersActive, beginStudioViewerInteraction])
   // CHAT-PARITY-VIEWER: the state the buttons read, and the handlers they call, for the "/" commands (flag off: null, and no effect below does anything).
-  const chatParityViewerOn = studioShell && process.env.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS === 'true' && process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true' // CHAT-PARITY-VIEWER
+  const chatParityViewerOn = studioShell && process.env.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS === 'true' && process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true' && process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === 'true' // CHAT-PARITY-VIEWER
   chatParityViewerLive.current = !chatParityViewerOn ? null : { // CHAT-PARITY-VIEWER
     state: { ready: viewerIsReady, slideCount: totalSlides, slide: currentSlide, editing: isEditMode, grid: isGridActive, borders: isBordersActive, rail: railShown, presenting: isFullscreen, building: Boolean(isGenerating), // CHAT-PARITY-VIEWER
       slideReason: studioToolbarDisabledReason('add-slide', { tabPausedHint: studioTabPausedHint, viewerIsReady, templateModeOn, slideMutationPending: isSlideMutationPending }), save: isSaving ? 'saving' : saveStatus, // CHAT-PARITY-VIEWER
