@@ -241,7 +241,7 @@ await t('older files: this change only ADDS lines, except the named replaced lin
   // the hardening follow-up (on #615's head 497408d5): its own edits are allowed besides these, read from ITS OWN frozen range 497408d5..its head
   // (never ..HEAD, never the worktree: later changes on HEAD are not the hardening's); either commit missing = no allowance, and a SKIP is printed
   const HARDENING_BASE = process.env.CONNECTORS_HARDENING_BASE || '497408d56860b07a7900f2e94fe51e50101e85bd'
-  const HARDENING_HEAD = process.env.CONNECTORS_HARDENING_HEAD || 'PENDING'
+  const HARDENING_HEAD = process.env.CONNECTORS_HARDENING_HEAD || 'ad4ab4cb02943d9773c851d6887e518951f296bd'
   const hardening = [HARDENING_BASE, HARDENING_HEAD].every(c => { try { git('cat-file', '-e', `${c}^{commit}`); return true } catch { return false } }) ? [HARDENING_BASE, HARDENING_HEAD] : null
   if (!hardening) console.log(`   SKIP the hardening's allowance: ${HARDENING_BASE.slice(0, 8)} or ${HARDENING_HEAD.slice(0, 8)} is not in this clone`)
   const removedLines = (range, f) => git('diff', '--unified=0', ...range, '--', f).split('\n').filter(l => l.startsWith('-') && !l.startsWith('---')).map(l => l.slice(1))

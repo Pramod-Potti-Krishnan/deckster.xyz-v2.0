@@ -307,7 +307,7 @@ await t('FRONTEND-2 N2 / N3 / N4: the sidebar edit has a strip pair (frozen: own
   const rel = 'components/settings/settings-sidebar.tsx'
   const DEV_BASE = process.env.CONNECTORS_GDRIVE_BASE || '2f06e51ec807d4ecd5cd00edc9bfd0005a5fd0b8' // studio-v4-dev-preparation-code, the base #566 stacks on (the sidebar's base)
   // the hardening's own head, frozen (its PR's last code + proof commit; this pin is set by a commit of its own): what this change made of the sidebar, however much lands on top later
-  const OWN_HEAD = process.env.CONNECTORS_HARDENING_HEAD || 'PENDING'
+  const OWN_HEAD = process.env.CONNECTORS_HARDENING_HEAD || 'ad4ab4cb02943d9773c851d6887e518951f296bd'
   const have = commit => { try { execFileSync('git', ['cat-file', '-e', `${commit}^{commit}`], { cwd: root, stdio: 'ignore' }); return true } catch { return false } }
   const show = ref => execFileSync('git', ['show', `${ref}:${rel}`], { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20 })
   assert.ok(LATER_STRIPS.includes(stripConnectorsGdrive), 'registered')
