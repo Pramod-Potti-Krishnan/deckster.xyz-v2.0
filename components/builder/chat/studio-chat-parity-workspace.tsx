@@ -1,6 +1,6 @@
 "use client"
 
-// CHAT PARITY, WORKSPACE (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, default off; needs NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell): the composer's half of the workspace "/" commands (the "Workspace" group of the menu).
+// CHAT PARITY, WORKSPACE (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS, default off; needs NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell): the composer's half of the workspace "/" commands (the "Workspace" group of the menu).
 // lib/studio-chat-parity-workspace.ts decides every row (its words, whether it can run now, why not) and runs the command on the bus; this file is the glue the composer's hook calls through ONE marked line:
 //   - it reads the bus's merged state the way the viewer commands read theirs (useSyncExternalStore), and gives back the rows;
 //   - it owns the two parts only the composer can say: the appearance (next-themes: /dark /light /system) and the Version history row (the profile menu's own bridge: /history);
@@ -49,7 +49,7 @@ function useWorkspaceTemplates(open: boolean, saved: boolean, list: () => Promis
 const themeChoice = (value: string | undefined): ThemeChoice | null => (value === 'light' || value === 'dark' || value === 'system' ? value : null)
 
 export interface ChatParityWorkspaceInput {
-  /** The composer's own "the commands are on and this composer takes them" (the flag, the page's props, not disabled). */
+  /** The composer's own "the chat parity commands are on and this composer takes them" (the commands flag, the chain's flag, the page's props, not disabled): the hook's parityOn. */
   enabled: boolean
   trigger: CommandTrigger | null
   text: string

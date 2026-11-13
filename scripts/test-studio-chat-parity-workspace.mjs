@@ -1,12 +1,13 @@
-// FRONTEND-1 (overnight chat parity, workspace half): proof of the workspace "/" commands behind NEXT_PUBLIC_STUDIO_CHAT_COMMANDS (the string "true", default off, build-time; it already needs NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell), stacked on the viewer half (#611).
+// FRONTEND-1 (overnight chat parity, workspace half): proof of the workspace "/" commands behind NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS (the chain's one flag, added by the viewer half: the string "true", default off, build-time) on top of NEXT_PUBLIC_STUDIO_CHAT_COMMANDS (which already needs NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell), stacked on the viewer half (#611).
 //   lib/studio-chat-parity-workspace.ts (the rows, what cannot run and why, the words, the bus in parts), components/builder/chat/studio-chat-parity-workspace.tsx (the composer's glue), marked lines in the Builder page, the viewer, the notes panel, the introduction,
 //   the composer's hook and the commands lib, and two marked lines in the viewer half's own lib and menu.
 //
 //   A. The lib, function by function, in THIS realm: what blocks each command (and the button's own reason), the rows for every trigger (hints, disabled reasons, one group), the saved templates, the typed word that never confirms.
 //   B. The bus on FAKE PARTS: every command calls its handler with the right arguments, says what it saw (and never a change it did not see), refuses what the buttons refuse, restore stays a click; the viewer half's runParity hands a workspace run on.
 //   C. The sources: every marked line, the strip puts each file back to the viewer half's head byte for byte (and through the registry), the gates and the handlers of the page, the viewer, the notes panel and the introduction, the glue, the trigger,
-//      no new flag, the committed diff is this change's files (COMMITTED diff only), the menu markup.
-//   D. MUTANTS: every one of them must be caught by A-C.
+//      the chain's flag in every gate, the committed diff is this change's files (COMMITTED diff only), the menu markup.
+//   E. The trigger and the REAL composer (scripts/studio-chat-harness/composer-mount.mjs) with the commands flag on and the chain's flag off: dev's composer, step for step, for the workspace commands' texts; with the chain's flag on, the Workspace rows.
+//   D. MUTANTS: every one of them must be caught by A-C and E.
 //
 //   node scripts/test-studio-chat-parity-workspace.mjs
 //
@@ -31,6 +32,7 @@ const strip = await import('./studio-chat-parity-workspace-strip.mjs')
 const viewerStrip = await import('./studio-chat-parity-viewer-strip.mjs')
 const registry = await import('./studio-later-changes.mjs')
 const { createModuleLoader } = await import('./studio-chat-harness/module-loader.mjs')
+const { mountComposer, driveComposer: drive, labelsOf: menuOf, chainDev, PARITY } = await import('./studio-chat-harness/composer-mount.mjs')
 
 const LIB = 'lib/studio-chat-parity-workspace.ts'
 const GLUE = 'components/builder/chat/studio-chat-parity-workspace.tsx'
@@ -319,13 +321,13 @@ const diffLines = (rel, sign) => git('diff', '--no-color', '-U0', baseCommitOf(r
 /** The Builder page's part: the gate, the handlers, the effects (a pure function of the page's text: the mutants run it). */
 function pageChecks(text, label = 'page') {
   const block = markedOf(text)
-  ok(/chatParityWorkspaceLive\.current = !chatCommandsOn \? null : \{/.test(block), `${label}: flag off (chatCommandsOn is the commands flag with chat clean and the shell), the live part is null`)
+  ok(/chatParityWorkspaceLive\.current = !chatParityOn \? null : \{/.test(block), `${label}: flag off (chatParityOn is the commands flag with chat clean and the shell, and the chain's flag), the live part is null`)
   ok(/if \(chatCommandsPage\?\.parity\) \{ const thread = chatCommandsPage\.parity\.addNote; chatCommandsPage\.parity = \{ addNote: text => \{ if \(chatParityThreadOn\.current\) thread\?\.\(text\); else toast\(\{ title: text \}\) \} \} \}/.test(block) && /const chatParityThreadOn = useRef\(false\)/.test(block) && /chatParityThreadOn\.current = chatCleanOn/.test(block) && /const chatCleanOn = chatCleanShell && effectiveBuildNarrationEnabled/.test(text) && /effectiveBuildNarrationEnabled = effectiveNarrationEnabled\(\s*features\.buildNarrationEnabled,\s*Boolean\(activeTemplate\),/.test(text), `${label}: with the thread's notes off (a chosen template turns the build narration off) a note is not dropped: it goes to a toast, decided when the note is made`)
-  ok(/useEffect\(\(\) => \{ if \(!chatCommandsOn\) return; let off/.test(block), `${label}: the registering effect returns first with the flag off`)
-  ok(/useEffect\(\(\) => \{ if \(chatCommandsOn\) chatParityWorkspaceMod\.current\?\.publishWorkspaceState\(\) \}\)/.test(block), `${label}: the publishing effect does nothing with the flag off`)
+  ok(/useEffect\(\(\) => \{ if \(!chatParityOn\) return; let off/.test(block) && /\}, \[chatParityOn\]\) \/\/ CHAT-PARITY-WORKSPACE/.test(block), `${label}: the registering effect returns first with the flag off`)
+  ok(/useEffect\(\(\) => \{ if \(chatParityOn\) chatParityWorkspaceMod\.current\?\.publishWorkspaceState\(\) \}\)/.test(block), `${label}: the publishing effect does nothing with the flag off`)
   ok(/import\('@\/lib\/studio-chat-parity-workspace'\)\.then/.test(block) && /registerWorkspacePart\('page', \(\) => chatParityWorkspaceLive\.current\)/.test(block), `${label}: the bus module is loaded dynamically, in the gated effect only, and registers the page's part`)
   eq(importLines(text).filter(line => /studio-chat-parity-workspace/.test(line)), [], `${label}: no static import of the bus (the page's proofs see no new import of it)`)
-  ok(/const chatCommandsOn = STUDIO_CHAT_COMMANDS_ENABLED && chatCleanShell/.test(text), `${label}: chatCommandsOn is the base's own gate (commands flag with chat clean and the shell)`)
+  ok(/const chatCommandsOn = STUDIO_CHAT_COMMANDS_ENABLED && chatCleanShell/.test(text) && /const chatParityOn = chatCommandsOn && process\.env\.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === 'true'/.test(text), `${label}: chatCommandsOn is the base's own gate (commands flag with chat clean and the shell); chatParityOn adds the chain's flag (the viewer half's line)`)
   for (const [action, handler] of Object.entries({ setKg: 'setKnowledgeGraphEnabled', selectTemplate: 'handleSelectTemplate', clearTemplate: 'handleClearTemplate', stopTemplateReuse: 'handleCancelTemplateReuse' })) ok(new RegExp(`(?:\\{ |, )${action}: ${handler}[,\\s]`).test(block), `${label}: ${action} is ${handler}`)
   // each handler is the one the button gets (a base prop of the composer)
   ok(/onKnowledgeGraphEnabledChange=\{setKnowledgeGraphEnabled\}/.test(text) && /onSelectTemplate=\{handleSelectTemplate\}/.test(text) && /onClearTemplate=\{handleClearTemplate\}/.test(text) && /onCancelTemplateReuse=\{handleCancelTemplateReuse\}/.test(text), `${label}: those four are the very handlers the composer's switch, picker, chip and Stop button get`)
@@ -362,7 +364,7 @@ function viewerChecks(text, label = 'viewer') {
 
 function notesChecks(text, label = 'notes panel') {
   const block = markedOf(text)
-  ok(/const chatParityWorkspaceOn = studioShell && process\.env\.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS === 'true' && process\.env\.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true'/.test(block), `${label}: the gate reads the flags inline, with the shell`)
+  ok(/const chatParityWorkspaceOn = studioShell && process\.env\.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS === 'true' && process\.env\.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true' && process\.env\.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === 'true'/.test(block), `${label}: the gate reads the flags inline, with the shell, the chain's own last`)
   ok(/chatParityWorkspaceLive\.current = !chatParityWorkspaceOn \? null : \{ state: \{ notes: \{ shown: expanded \} \}, actions: \{ toggleNotes: handleToggleExpanded \} \}/.test(block), `${label}: flag off null; else the bar's open state and the bar's own handler`)
   ok(/useEffect\(\(\) => \{ if \(!chatParityWorkspaceOn\) return; let off/.test(block) && /useEffect\(\(\) => \{ if \(chatParityWorkspaceOn\) chatParityWorkspaceMod\.current\?\.publishWorkspaceState\(\) \}\)/.test(block), `${label}: both effects do nothing with the flag off`)
   ok(/import\('@\/lib\/studio-chat-parity-workspace'\)\.then/.test(block) && /registerWorkspacePart\('notes', /.test(block), `${label}: dynamic import in the gated effect, registers the notes part`)
@@ -372,7 +374,7 @@ function notesChecks(text, label = 'notes panel') {
 
 function introChecks(text, label = 'introduction') {
   const block = markedOf(text)
-  ok(/const chatParityWorkspaceOn = enabled && process\.env\.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS === 'true' && process\.env\.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true'/.test(block), `${label}: the gate reads the flags inline, with the owner's own enabled (the Studio shell)`)
+  ok(/const chatParityWorkspaceOn = enabled && process\.env\.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS === 'true' && process\.env\.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true' && process\.env\.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === 'true'/.test(block), `${label}: the gate reads the flags inline, with the owner's own enabled (the Studio shell), the chain's own last`)
   ok(/chatParityWorkspaceLive\.current = !chatParityWorkspaceOn \? null : \{ state: \{ intro: \{ active \} \}, actions: \{ replayIntro: requestReplay \} \}/.test(block), `${label}: flag off null; else whether it is playing and the button's own requestReplay`)
   ok(/useEffect\(\(\) => \{ if \(!chatParityWorkspaceOn\) return; let off/.test(block) && /useEffect\(\(\) => \{ if \(chatParityWorkspaceOn\) chatParityWorkspaceMod\.current\?\.publishWorkspaceState\(\) \}\)/.test(block), `${label}: both effects do nothing with the flag off`)
   ok(/registerWorkspacePart\('intro', /.test(block) && /import\('@\/lib\/studio-chat-parity-workspace'\)\.then/.test(block), `${label}: dynamic import in the gated effect, registers the intro part`)
@@ -384,7 +386,7 @@ function introChecks(text, label = 'introduction') {
 /** The composer's glue and its call line. */
 function glueChecks(glue, commandsUi, label = 'composer') {
   const hook = markedOf(commandsUi)
-  ok(/const workspaceRows = useChatParityWorkspace\(\{ enabled, trigger: trigger\?\.kind === 'command' \? trigger : null, text: input\.text, template: input\.template, listTemplates, menuOpen: dismissed !== key \}\)/.test(hook), `${label}: the hook gets the composer's own enabled (the flag, the page's props, not disabled), only a command trigger, the template gate and the template popup's own list call`)
+  ok(/const workspaceRows = useChatParityWorkspace\(\{ enabled: parityOn, trigger: trigger\?\.kind === 'command' \? trigger : null, text: input\.text, template: input\.template, listTemplates, menuOpen: dismissed !== key \}\)/.test(hook), `${label}: the hook gets the composer's parityOn (the commands gate and the chain's flag), only a command trigger, the template gate and the template popup's own list call`)
   ok(/parity\.push\(\.\.\.workspaceRows\)/.test(hook) && hook.indexOf('useChatParityWorkspace({') < hook.indexOf('parity.push('), `${label}: its rows go after the viewer half's, so Workspace is the last group`)
   ok(/const \{ listTemplates \} = useTemplates\(\)/.test(commandsUi) && /const dismissed|const \[dismissed, setDismissed\]/.test(commandsUi), `${label}: listTemplates is the template popup's own call (base line)`)
   const code = glue.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
@@ -443,16 +445,16 @@ function sourceChecks() {
   eq(registry.LATER_ENV_BLOCKS.some(block => /STUDIO_CHAT_PARITY_WORKSPACE/.test(String(block))), false, 'registry: no .env.example block (no flag of its own)')
   const lastFilesLine = regLines.find(line => /^  \.\.\.\(await import\(/.test(line))
   ok(lastFilesLine && reg.indexOf(lastFilesLine) < reg.indexOf('// one line per later change, above this comment'), 'registry: appended in the files list above the marker comment')
-  // no new flag: the only env names this change reads are the commands flag, chat clean (its gate) and the composer library flag the picker reads
+  // no flag of its own: the only env names this change reads are the chain's flag, the commands flag, chat clean (its gate) and the composer library flag the picker reads
   const flagNames = new Set()
   const scan = text => { for (const match of text.matchAll(/NEXT_PUBLIC_[A-Z0-9_]+/g)) flagNames.add(match[0]) }
   for (const rel of [LIB, GLUE, ICONS]) scan(read(rel))
   if (hasBase) for (const rel of strip.CHAT_PARITY_WORKSPACE_FILES) scan(diffLines(rel, '+').join('\n'))
-  eq([...flagNames].sort(), ['NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED', 'NEXT_PUBLIC_STUDIO_CHAT_CLEAN', 'NEXT_PUBLIC_STUDIO_CHAT_COMMANDS'], 'no new flag: the only env names this change names are the commands flag, chat clean, and the composer library flag the template picker reads')
+  eq([...flagNames].sort(), ['NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED', 'NEXT_PUBLIC_STUDIO_CHAT_CLEAN', 'NEXT_PUBLIC_STUDIO_CHAT_COMMANDS', 'NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS'], 'no flag of its own: the only env names this change names are the chain\'s flag, the commands flag, chat clean, and the composer library flag the template picker reads')
   // the trigger: "/template" takes several words; every other trigger is what it was
   const commandsLib = read(COMMANDS_LIB)
-  ok(commandsLib.includes('const COMMAND_RE = /(^|\\s)\\/([\\w-]*)(?: ([\\w-]*))?$/') && commandsLib.includes('const COMMAND_WORDS_RE = /(^|\\s)\\/(layout|theme) ([^\\n]*)$/i'), 'commands lib: the existing rules are untouched')
-  ok(commandsLib.includes('const COMMAND_TEMPLATE_RE = /(^|\\s)\\/(template) ([^\\n]*)$/i'), 'commands lib: several words only after /template (a space after the name: /template-mode keeps the one-word rule)')
+  ok(commandsLib.includes('const COMMAND_RE = /(^|\\s)\\/([\\w-]*)(?: ([\\w-]*))?$/') && commandsLib.includes('const COMMAND_WORDS_RE = /^\\/(layout|theme) ([^\\n]*)$/i'), 'commands lib: the existing rules are untouched')
+  ok(commandsLib.includes('const COMMAND_TEMPLATE_RE = /^\\/(template) ([^\\n]*)$/i') && commandsLib.includes('const template = parity ? COMMAND_TEMPLATE_RE.exec(text) : null'), 'commands lib: several words only after /template, at the start of the draft and only with the chain\'s flag (a space after the name: /template-mode keeps the one-word rule)')
   triggerChecks()
   // the lib: pure, nothing from the browser, no network, no confirm, no secrets
   const libText = read(LIB)
@@ -470,16 +472,22 @@ function sourceChecks() {
   } else console.log(`NOTE C  no own commit yet (subject "${strip.CHAT_PARITY_WORKSPACE_SUBJECT} ..."): the committed-diff check was skipped`)
 }
 
-/** detectTrigger of the commands lib, now and as the viewer half had it: the same for every text but "/template" followed by several words. */
-function triggerChecks(nowText = read(COMMANDS_LIB)) {
+/** detectTrigger of the commands lib, now and as the viewer half had it: the same for every text with the chain's flag off; with it on, the same too but for "/template" followed by several words, at the start of the draft. */
+function triggerChecks(nowText = read(COMMANDS_LIB), label = 'trigger') {
   const load = text => evaluate(text, COMMANDS_LIB, specifier => repoLoader.load(specifier.replace(/^@\//, '')))
   const now = load(nowText)
   const headText = strip.stripChatParityWorkspace(COMMANDS_LIB, nowText)
   const head = load(headText)
-  eq(now.detectTrigger('please /template Quarterly Review'), { kind: 'command', start: 7, name: 'template', arg: 'Quarterly Review' }, 'trigger: "/template Quarterly Review" is the command with the whole name')
-  eq([now.detectTrigger('/template'), now.detectTrigger('/template '), now.detectTrigger('/templat'), now.detectTrigger('/template-mode on'), now.detectTrigger('/kg off'), now.detectTrigger('/notes sh')],
-    [{ kind: 'command', start: 0, name: 'template', arg: null }, { kind: 'command', start: 0, name: 'template', arg: '' }, { kind: 'command', start: 0, name: 'templat', arg: null }, { kind: 'command', start: 0, name: 'template-mode', arg: 'on' }, { kind: 'command', start: 0, name: 'kg', arg: 'off' }, { kind: 'command', start: 0, name: 'notes', arg: 'sh' }], 'trigger: /template alone, with a space, a prefix, /template-mode on, /kg off, /notes sh')
-  for (const text of ['', '/', '/e', '/export p', '/theme dark blue', '/layout image text', '/kg on', '@abc', 'hi /notes show', 'say hi', '/template-mode', '/template-mode o', 'a /pane slides', '/history', 'x @slide 3 /template', '/template-mode on please', '/kg on please', '/notes show me', '/templatemode a b']) eq(now.detectTrigger(text), head.detectTrigger(text), `trigger: ${JSON.stringify(text)} is what the viewer half had`)
+  const on = text => now.detectTrigger(text, true)
+  eq(on('/template Quarterly Review'), { kind: 'command', start: 0, name: 'template', arg: 'Quarterly Review' }, `${label}: "/template Quarterly Review" is the command with the whole name`)
+  eq([on('please /template Quarterly Review'), on(' /template Quarterly Review'), on('Brief\n/template Quarterly Review')], [null, null, null], `${label}: not after a space, a leading space or a line break: the several words are read only at the start of the draft`)
+  eq([now.detectTrigger('/template Quarterly Review'), now.detectTrigger('/template Quarterly Review', false)], [null, null], `${label}: the chain's flag off: "/template Quarterly Review" reads nothing, as dev has it`)
+  eq([on('/template'), on('/template '), on('/templat'), on('/template-mode on'), on('/kg off'), on('/notes sh')],
+    [{ kind: 'command', start: 0, name: 'template', arg: null }, { kind: 'command', start: 0, name: 'template', arg: '' }, { kind: 'command', start: 0, name: 'templat', arg: null }, { kind: 'command', start: 0, name: 'template-mode', arg: 'on' }, { kind: 'command', start: 0, name: 'kg', arg: 'off' }, { kind: 'command', start: 0, name: 'notes', arg: 'sh' }], `${label}: /template alone, with a space, a prefix, /template-mode on, /kg off, /notes sh`)
+  for (const text of ['', '/', '/e', '/export p', '/theme dark blue', '/layout image text', '/kg on', '@abc', 'hi /notes show', 'say hi', '/template-mode', '/template-mode o', 'a /pane slides', '/history', 'x @slide 3 /template', '/template-mode on please', '/kg on please', '/notes show me', '/templatemode a b', 'please /template', 'a /template ']) {
+    eq(on(text), head.detectTrigger(text, true), `${label}: ${JSON.stringify(text)} is what the viewer half had (flag on)`)
+    eq(now.detectTrigger(text), head.detectTrigger(text), `${label}: ${JSON.stringify(text)} is what the viewer half had (flag off)`)
+  }
 }
 
 /** The group's markup, rendered on the viewer half's real menu component with this change's icons. */
@@ -512,7 +520,36 @@ function menuChecks(text = read(MENU), icons = read(ICONS)) {
 }
 
 // ============================================================================================================================================
-// D. Mutants: each must be caught by A-C
+// E. The real composer: the chain's flag off is dev's composer for every workspace text; on, the Workspace rows
+// ============================================================================================================================================
+/** dev's file reader: every chat parity change registered so far (the viewer half's, this one's, and any stacked on them) takes its lines out of the file it is given. */
+const asDev = chainDev(registry)
+const WS_STEPS = [
+  ['type', '/kg'], ['key', 'Enter'], ['type', '/kg on'], ['type', '/template'], ['key', 'Enter'], ['type', '/template Quarterly Review'], ['type', 'please /template Quarterly Review'], ['type', 'Brief\n/template Quarterly'], ['type', '/template-mode on'], ['type', '/template clear'], ['type', '/template stop'],
+  ['type', '/notes show'], ['type', '/notes'], ['key', 'Enter'], ['type', '/dark'], ['key', 'Enter'], ['type', '/light'], ['type', '/system'], ['type', '/intro'], ['type', '/pane chat'], ['type', '/pane'], ['type', '/history'],
+  ['type', 'Say /kg now'], ['key', 'Tab'], ['type', '/'], ['key', 'ArrowUp'], ['key', 'ArrowUp'], ['key', 'Escape'], ['type', '@'], ['type', '@Board'], ['key', 'Enter'], ['type', '/publish'], ['key', 'Enter'],
+]
+const WS_ROWS = ['kg', 'template-mode', 'notes', 'dark', 'light', 'system', 'intro', 'pane', 'history']
+const driveWs = (env, read) => drive({ root, env, read, steps: WS_STEPS })
+let WS_DEV_LOG = null
+async function composerChecks(chainRead = null, label = 'composer') {
+  const identity = (rel, text) => (chainRead ? chainRead(rel, text) : text)
+  const devLog = WS_DEV_LOG ??= await driveWs({}, asDev)
+  for (const [name, env] of [['unset', {}], ['"false"', { NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS: 'false' }], ['"TRUE"', { NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS: 'TRUE' }], ['"1"', { NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS: '1' }]]) {
+    eq(await driveWs(env, identity), devLog, `${label}: the chain's flag ${name}: every workspace step is dev's composer (text, menu, markup, calls, notes)`)
+  }
+  const labels = await menuOf({ root, env: PARITY, read: identity, text: '/' })
+  for (const id of WS_ROWS) ok(labels.some(l => l.startsWith(`/${id}`)), `${label}: on: /${id} is listed`)
+  ok(labels.indexOf(labels.find(l => l.startsWith('/goto:'))) < labels.indexOf(labels.find(l => l.startsWith('/kg'))), `${label}: on: the Workspace rows come after the viewer's`)
+  const named = await menuOf({ root, env: PARITY, read: identity, text: '/template pitch' })
+  ok(named && named.some(l => l.startsWith('/template pitch')), `${label}: on: "/template pitch" opens the template row for that name (disabled here: no Builder page part is registered on the harness)`)
+  eq(await menuOf({ root, env: PARITY, read: identity, text: 'please /template pitch deck' }), null, `${label}: on: after a space a several-word template name opens nothing`)
+  eq(await menuOf({ root, env: {}, read: identity, text: '/template pitch' }), null, `${label}: off: "/template pitch" opens nothing`)
+  eq(await menuOf({ root, env: {}, read: identity, text: '/notes' }), null, `${label}: off: "/notes" opens nothing`)
+}
+
+// ============================================================================================================================================
+// D. Mutants: each must be caught by A-C and E
 // ============================================================================================================================================
 async function mutantsSuite() {
   const libText = read(LIB)
@@ -592,8 +629,10 @@ async function mutantsSuite() {
     }
   }
   mutateSource(PAGE, pageChecks, 'mutant', [
-    ['the page part runs with the flag off', 'chatParityWorkspaceLive.current = !chatCommandsOn ? null : {', 'chatParityWorkspaceLive.current = false ? null : {'],
-    ['the registering effect runs with the flag off', 'useEffect(() => { if (!chatCommandsOn) return; let off', 'useEffect(() => { let off'],
+    ['the page part runs with the flag off', 'chatParityWorkspaceLive.current = !chatParityOn ? null : {', 'chatParityWorkspaceLive.current = false ? null : {'],
+    ['the page part runs on the commands flag alone', 'chatParityWorkspaceLive.current = !chatParityOn ? null : {', 'chatParityWorkspaceLive.current = !chatCommandsOn ? null : {'],
+    ['the registering effect runs with the flag off', 'useEffect(() => { if (!chatParityOn) return; let off', 'useEffect(() => { let off'],
+    ['the publishing effect runs with the flag off', 'useEffect(() => { if (chatParityOn) chatParityWorkspaceMod.current?.publishWorkspaceState() })', 'useEffect(() => { chatParityWorkspaceMod.current?.publishWorkspaceState() })'],
     ['the page imports the bus statically', "import { studioIntroEligibility } from '@/lib/studio-intro-eligibility' // CHAT-PARITY-WORKSPACE", "import { studioIntroEligibility } from '@/lib/studio-intro-eligibility' // CHAT-PARITY-WORKSPACE\nimport { registerWorkspacePart } from '@/lib/studio-chat-parity-workspace'"],
     ['a note is dropped when the thread is off', 'if (chatParityThreadOn.current) thread?.(text); else toast({ title: text })', 'thread?.(text)'],
     ['the thread state is read when the command was picked, not when the note is made', 'chatParityThreadOn.current = chatCleanOn', 'chatParityThreadOn.current = true'],
@@ -619,13 +658,15 @@ async function mutantsSuite() {
     ['a template chosen is not what unlocks Template Mode', 'available: templateModeAvailable, blocked:', 'available: true, blocked:'],
   ])
   mutateSource(NOTES, notesChecks, 'mutant', [
-    ['the notes gate loses a flag', "process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true' // CHAT-PARITY-WORKSPACE", "true // CHAT-PARITY-WORKSPACE"],
+    ['the notes gate loses a flag', "process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true' && process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === 'true' // CHAT-PARITY-WORKSPACE", "true && process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === 'true' // CHAT-PARITY-WORKSPACE"],
+    ['the notes gate loses the chain\'s flag', " && process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === 'true' // CHAT-PARITY-WORKSPACE", " // CHAT-PARITY-WORKSPACE"],
     ['the notes part is not the bar\'s handler', 'toggleNotes: handleToggleExpanded }', 'toggleNotes: () => {} }'],
     ['the notes part reads something else', 'notes: { shown: expanded }', 'notes: { shown: !expanded }'],
     ['the notes effect runs with the flag off', 'useEffect(() => { if (!chatParityWorkspaceOn) return; let off', 'useEffect(() => { let off'],
   ])
   mutateSource(INTRO, introChecks, 'mutant', [
     ['the intro gate loses the owner\'s enabled', 'const chatParityWorkspaceOn = enabled && ', 'const chatParityWorkspaceOn = '],
+    ['the intro gate loses the chain\'s flag', " && process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === 'true' // CHAT-PARITY-WORKSPACE", " // CHAT-PARITY-WORKSPACE"],
     ['the intro part is not the button\'s handler', 'replayIntro: requestReplay }', 'replayIntro: () => setReplay(value => value + 1) }'],
     ['the intro part does not say it is playing', 'intro: { active } }', 'intro: { active: true } }'],
   ])
@@ -659,15 +700,29 @@ async function mutantsSuite() {
   }
   // the trigger
   for (const [name, from, to] of [
-    ['/template takes only one word', 'const COMMAND_TEMPLATE_RE = /(^|\\s)\\/(template) ([^\\n]*)$/i // CHAT-PARITY-WORKSPACE', 'const COMMAND_TEMPLATE_RE = /(^|\\s)\\/(template) ([\\w-]*)$/i // CHAT-PARITY-WORKSPACE'],
-    ['/template-mode takes several words', 'const COMMAND_TEMPLATE_RE = /(^|\\s)\\/(template) ([^\\n]*)$/i // CHAT-PARITY-WORKSPACE', 'const COMMAND_TEMPLATE_RE = /(^|\\s)\\/(template[\\w-]*) ([^\\n]*)$/i // CHAT-PARITY-WORKSPACE'],
-    ['every command takes several words', 'const COMMAND_TEMPLATE_RE = /(^|\\s)\\/(template) ([^\\n]*)$/i // CHAT-PARITY-WORKSPACE', 'const COMMAND_TEMPLATE_RE = /(^|\\s)\\/([\\w-]+) ([^\\n]*)$/i // CHAT-PARITY-WORKSPACE'],
+    ['/template takes only one word', 'const COMMAND_TEMPLATE_RE = /^\\/(template) ([^\\n]*)$/i // CHAT-PARITY-WORKSPACE', 'const COMMAND_TEMPLATE_RE = /^\\/(template) ([\\w-]*)$/i // CHAT-PARITY-WORKSPACE'],
+    ['/template-mode takes several words', 'const COMMAND_TEMPLATE_RE = /^\\/(template) ([^\\n]*)$/i // CHAT-PARITY-WORKSPACE', 'const COMMAND_TEMPLATE_RE = /^\\/(template[\\w-]*) ([^\\n]*)$/i // CHAT-PARITY-WORKSPACE'],
+    ['every command takes several words', 'const COMMAND_TEMPLATE_RE = /^\\/(template) ([^\\n]*)$/i // CHAT-PARITY-WORKSPACE', 'const COMMAND_TEMPLATE_RE = /^\\/([\\w-]+) ([^\\n]*)$/i // CHAT-PARITY-WORKSPACE'],
+    ['/template takes several words after a space', 'const COMMAND_TEMPLATE_RE = /^\\/(template) ([^\\n]*)$/i // CHAT-PARITY-WORKSPACE', 'const COMMAND_TEMPLATE_RE = /(?:^|\\s)\\/(template) ([^\\n]*)$/i // CHAT-PARITY-WORKSPACE'],
+    ['/template takes several words with the flag off', 'const template = parity ? COMMAND_TEMPLATE_RE.exec(text) : null // CHAT-PARITY-WORKSPACE', 'const template = COMMAND_TEMPLATE_RE.exec(text) // CHAT-PARITY-WORKSPACE'],
   ]) {
     const text = read(COMMANDS_LIB)
     const mutated = text.replace(from, to)
     assert.notEqual(mutated, text, `mutant applies: ${name}`)
     let threw = false
-    try { triggerChecks(mutated) } catch { threw = true }
+    try { triggerChecks(mutated, 'mutant') } catch { threw = true }
+    hit(threw, `mutant caught: ${name}`)
+  }
+  // the composer, mounted for real
+  const commandsUiText = fs.readFileSync(path.join(root, COMMANDS_UI), 'utf8')
+  for (const [name, from, to] of [
+    ['the workspace rows ignore the chain\'s flag', 'useChatParityWorkspace({ enabled: parityOn, ', 'useChatParityWorkspace({ enabled, '],
+    ['the workspace rows are never on', 'useChatParityWorkspace({ enabled: parityOn, ', 'useChatParityWorkspace({ enabled: false, '],
+  ]) {
+    const mutated = commandsUiText.replace(from, to)
+    assert.notEqual(mutated, commandsUiText, `mutant applies: ${name}`)
+    let threw = false
+    try { glueChecks(read(GLUE), mutated, 'mutant'); await composerChecks((rel, text) => (rel === COMMANDS_UI ? mutated : text), 'mutant') } catch { threw = true }
     hit(threw, `mutant caught: ${name}`)
   }
   // an unmarked line left in a stripped file
@@ -711,5 +766,8 @@ sourceChecks()
 menuChecks()
 sourceLibOnly(read(LIB))
 console.log(`PASS C  the sources: markers, the strip back to the viewer half's head, the gates and handlers of the page, viewer, notes panel and introduction, the glue, the trigger, the registry, no new flag, the committed diff, the menu markup (${checks - afterB} checks)`)
+const afterC = checks
+await composerChecks()
+console.log(`PASS E  the real composer: the chain's flag off is dev's composer for every workspace text, step for step; on, the Workspace rows after the viewer's (${checks - afterC} checks)`)
 const mutants = await mutantsSuite()
 console.log(`test-studio-chat-parity-workspace: ${checks} checks, ${mutants} mutants caught (${OWN.length ? `own commits ${OWN.map(sha => sha.slice(0, 8)).join(', ')}` : 'no own commit yet'})${hasBase ? '' : ' (base commit not in this clone: some checks skipped)'}`)
