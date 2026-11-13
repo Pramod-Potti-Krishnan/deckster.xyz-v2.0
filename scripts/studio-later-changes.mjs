@@ -113,6 +113,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-connectors-gdrive-composer-strip.mjs')).CONNECTORS_GDRIVE_COMPOSER_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE, P4-15 composer half: Add from Google Drive in the attach menu + Drive chips (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED + _SESSION_LINKS_ENABLED; no .env.example block)
   ...(await import('./studio-connectors-gdrive-badge-strip.mjs')).CONNECTORS_GDRIVE_BADGE_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE, P4-15 piece B Drive badge on citations (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED)
   ...(await import('./studio-connectors-item-remove-strip.mjs')).CONNECTORS_ITEM_REMOVE_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE, P4-15 piece C remove one Drive item (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED; no .env.example block, no strip)
+  ...(await import('./studio-sessions-owner-strip.mjs')).SESSIONS_OWNER_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, P-73 / P-74: POST /api/sessions no longer hands another user's chat to a caller and logs no secret (no flag: a data leak is closed for everyone; no .env.example block)
   // one line per later change, above this comment
 ])
 
@@ -278,6 +279,7 @@ export const LATER_STRIPS = [
   (await import('./studio-connectors-gdrive-composer-strip.mjs')).stripConnectorsGdriveComposer, // LATER-CHANGE: KNOWLEDGE, P4-15 composer half: Add from Google Drive in the attach menu + Drive chips (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED + _SESSION_LINKS_ENABLED; no .env.example block)
   (await import('./studio-connectors-gdrive-badge-strip.mjs')).stripConnectorsGdriveBadge, // LATER-CHANGE: KNOWLEDGE, P4-15 piece B Drive badge on citations (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED)
   (await import('./studio-connectors-gdrive-strip.mjs')).stripConnectorsGdrive, // LATER-CHANGE: KNOWLEDGE, P4-15 slice 1 settings sidebar Connectors entry, the in-place edit's strip pair (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED)
+  (await import('./studio-sessions-owner-strip.mjs')).stripSessionsOwner, // LATER-CHANGE: FRONTEND-1, P-73 / P-74 sessions owner check (no flag: security)
   // one line per later change, above this comment
 ]
 

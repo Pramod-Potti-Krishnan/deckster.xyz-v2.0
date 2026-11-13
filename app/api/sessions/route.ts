@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
+import { pickAllowedKeys } from '@/lib/api-hardening-core';
 
 /**
  * GET /api/sessions
@@ -121,12 +122,25 @@ export async function GET(req: NextRequest) {
 }
 
 /**
+ * What POST answers with for a chat session row: the two fields the Builder's clients read (the id, and geminiStoreName
+ * when it adopts an id), nothing else. The row also holds userId, the presentation urls and ids and the Knowledge store
+ * ids, which a caller never needs back from a create (P-73).
+ */
+const SESSION_CREATE_RESPONSE_KEYS = ['id', 'geminiStoreName'] as const;
+
+/**
  * POST /api/sessions
  * Create a new chat session
  *
  * Body:
  * - sessionId: string (UUID from WebSocket)
  * - title?: string (optional initial title)
+ *
+ * Answers (a 2xx always means the row is the caller's):
+ * - 201 { session }                      a new row, owned by the caller
+ * - 200 { session }                      the caller's OWN row already has that id (it was a 409 with the whole row before P-73)
+ * - 404 { error: 'Session not found' }   the id is another user's chat: no row, nothing about its owner, nothing written (P-73)
+ * Logs carry no e-mail, no DATABASE_URL and no raw error text; a 500 answers a generic message (P-74).
  */
 export async function POST(req: NextRequest) {
   console.log('='.repeat(80));
@@ -134,7 +148,6 @@ export async function POST(req: NextRequest) {
   console.log('[Session Create] Timestamp:', new Date().toISOString());
   console.log('[Session Create] Environment:', process.env.NODE_ENV);
   console.log('[Session Create] DATABASE_URL configured:', !!process.env.DATABASE_URL);
-  console.log('[Session Create] DATABASE_URL prefix:', process.env.DATABASE_URL?.substring(0, 40) + '...');
   console.log('[Session Create] DIRECT_URL configured:', !!process.env.DIRECT_URL);
 
   try {
@@ -149,11 +162,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log('[Session Create] ✅ Authenticated user:', session.user.email);
+    console.log('[Session Create] ✅ Authenticated');
 
     // Get user from database
     console.log('[Session Create] Step 2: Finding user in database...');
-    console.log('[Session Create] Attempting Prisma query: user.findUnique({ where: { email:', session.user.email, '}})');
+    console.log('[Session Create] Attempting Prisma query: user.findUnique by email');
 
     let user;
     try {
@@ -164,16 +177,14 @@ export async function POST(req: NextRequest) {
     } catch (dbError: any) {
       console.error('[Session Create] ❌ Database error during user lookup:');
       console.error('[Session Create] Error name:', dbError.name);
-      console.error('[Session Create] Error message:', dbError.message);
       console.error('[Session Create] Error code:', dbError.code);
-      console.error('[Session Create] Error meta:', dbError.meta);
       console.error('[Session Create] Client version:', dbError.clientVersion);
       throw dbError; // Re-throw to be caught by outer catch
     }
 
     // If user doesn't exist in DB (shouldn't happen with PrismaAdapter, but handle gracefully)
     if (!user) {
-      console.warn('[Session Create] ⚠️ User not found in database, creating:', session.user.email);
+      console.warn('[Session Create] ⚠️ User not found in database, creating');
       console.log('[Session Create] Step 3: Creating user in database...');
 
       // Create user record (fallback in case PrismaAdapter didn't create it)
@@ -190,10 +201,9 @@ export async function POST(req: NextRequest) {
         console.log('[Session Create] ✅ User created successfully:', user.id);
       } catch (createError: any) {
         console.error('[Session Create] ❌ Failed to create user:');
-        console.error('[Session Create] Error:', createError.message);
         console.error('[Session Create] Code:', createError.code);
         return NextResponse.json(
-          { error: 'Failed to create user account', details: createError.message },
+          { error: 'Failed to create user account' },
           { status: 500 }
         );
       }
@@ -206,7 +216,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { sessionId, title } = body;
     console.log('[Session Create] Session ID:', sessionId);
-    console.log('[Session Create] Title:', title || '(no title)');
+    console.log('[Session Create] Title given:', !!title);
 
     if (!sessionId) {
       console.error('[Session Create] ❌ sessionId is required');
@@ -223,10 +233,20 @@ export async function POST(req: NextRequest) {
     });
 
     if (existing) {
+      // Another user's chat is answered exactly like an id that cannot be used: no row, nothing about its owner (P-73).
+      // The [id] routes check the owner the same way (app/api/sessions/[id]/route.ts).
+      if (existing.userId !== user.id) {
+        console.warn('[Session Create] ⚠️ Session id belongs to another user, refused:', sessionId);
+        return NextResponse.json(
+          { error: 'Session not found' },
+          { status: 404 }
+        );
+      }
+
       console.log('[Session Create] ⚠️ Session already exists:', sessionId);
       return NextResponse.json(
-        { error: 'Session already exists', session: existing },
-        { status: 409 }
+        { session: pickAllowedKeys(existing, SESSION_CREATE_RESPONSE_KEYS) },
+        { status: 200 }
       );
     }
 
@@ -237,7 +257,7 @@ export async function POST(req: NextRequest) {
     console.log('[Session Create] Data:', {
       id: sessionId,
       userId: user.id,
-      title: title || null,
+      hasTitle: !!title,
       currentStage: 1,
       status: 'active'
     });
@@ -256,27 +276,20 @@ export async function POST(req: NextRequest) {
     console.log('='.repeat(80));
 
     return NextResponse.json({
-      session: newSession
+      session: pickAllowedKeys(newSession, SESSION_CREATE_RESPONSE_KEYS)
     }, { status: 201 });
 
   } catch (error: any) {
+    // The error's kind and code only: a Prisma message quotes the query (the e-mail included) and a connection error can quote the URL.
     console.error('='.repeat(80));
     console.error('[Session Create] ❌ FATAL ERROR creating session');
-    console.error('[Session Create] Error type:', error.constructor?.name);
-    console.error('[Session Create] Error message:', error.message);
-    console.error('[Session Create] Error code:', error.code);
-    console.error('[Session Create] Error meta:', error.meta);
-    console.error('[Session Create] Client version:', error.clientVersion);
-    console.error('[Session Create] Full error:', JSON.stringify(error, null, 2));
-    console.error('[Session Create] Stack trace:', error.stack);
+    console.error('[Session Create] Error type:', error?.constructor?.name);
+    console.error('[Session Create] Error code:', error?.code);
+    console.error('[Session Create] Client version:', error?.clientVersion);
     console.error('='.repeat(80));
 
     return NextResponse.json(
-      {
-        error: 'Internal server error',
-        details: error.message,
-        code: error.code
-      },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
