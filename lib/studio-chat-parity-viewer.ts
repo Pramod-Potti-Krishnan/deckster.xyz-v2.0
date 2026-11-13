@@ -11,7 +11,7 @@
  *   /goto N            handleGoToSlide(N - 1)                  /next, /prev       handleNextSlide / handlePrevSlide
  *   /blank-slide       handleAddSlide('B1-blank', {position})  /layout <name>     handleChangeLayout(this slide, id)   the names are SLIDE_LAYOUTS, matched loosely
  *   /present           handleFullscreen                        /edit, /view       handleToggleEditModeButton(the mode asked for)
- *   /rail show|hide    setShowThumbnails                       /grid, /borders    handleToggleGrid / handleToggleBorders
+ *   /rail show|hide    handleToggleOverview (the rail button)  /grid, /borders    handleToggleGrid / handleToggleBorders
  *   /save              handleSaveChanges                       /discard           handleCancelEdits (its own confirm box: a typed word never confirms)
  *   /version custom|strawman|final   the Version menu's onVersionSwitch            /canvas   the Show canvas button's own function
  *   /theme <preset>    the theme popup's preset chip (ChatInput handlePresetChange -> the page's handleBuildThemeChange), before the build only
@@ -164,7 +164,7 @@ export const PARITY_HANDLERS: Readonly<Record<string, string>> = Object.freeze({
   present: 'handleFullscreen',
   edit: 'handleToggleEditModeButton',
   view: 'handleToggleEditModeButton',
-  rail: 'setShowThumbnails',
+  rail: 'handleToggleOverview',
   grid: 'handleToggleGrid',
   borders: 'handleToggleBorders',
   save: 'handleSaveChanges',
