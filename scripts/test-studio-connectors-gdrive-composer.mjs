@@ -21,7 +21,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const nodeRequire = createRequire(path.join(root, 'package.json'))
 const React = nodeRequire('react')
 const { renderToStaticMarkup } = nodeRequire('react-dom/server')
-const BASE = process.env.GDRIVE_COMPOSER_BASE || '0578e0a1c6e3e77fe8b9c88534c2c30d2280175c'
+const BASE = process.env.GDRIVE_COMPOSER_BASE || 'f06501285747f4943a31d8d3985c97958b2f80cd'
 const gitShow = rel => execFileSync('git', ['show', `${BASE}:${rel}`], { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20 })
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
 const plain = v => JSON.parse(JSON.stringify(v))
@@ -500,7 +500,7 @@ await t('marked lines stripped = the base file, byte for byte (chat-input.tsx an
   assert.equal(stripConnectorsGdriveComposer(PAGE, 7), 7)
   // every added line in the two files carries the marker, and the only rewritten base lines are the two put-backs
   for (const rel of CONNECTORS_GDRIVE_COMPOSER_FILES) {
-    const diff = execFileSync('git', ['diff', '-U0', BASE, '--', rel], { cwd: root, encoding: 'utf8' }).split('\n')
+    const diff = execFileSync('git', ['diff', '-U0', BASE, 'HEAD', '--', rel], { cwd: root, encoding: 'utf8' }).split('\n')
     const removed = diff.filter(l => /^-(?!--)/.test(l)), added = diff.filter(l => /^\+(?!\+\+)/.test(l))
     assert.deepEqual(removed, [], `${rel}: no base line is rewritten or removed (pure insertions: older pins hold the base's lines in order)`)
     assert.ok(added.every(l => /(?<![\w-])GDRIVE-COMPOSER(?![\w-])/.test(l)), `${rel}: every added line carries the marker`)

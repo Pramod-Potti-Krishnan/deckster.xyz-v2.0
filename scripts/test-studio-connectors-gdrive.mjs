@@ -305,9 +305,9 @@ await t('FRONTEND-2 N2 / N3 / N4: the sidebar edit has a strip pair (== the base
   const { stripConnectorsGdrive, CONNECTORS_GDRIVE_SCOPE_FILES } = await import('./studio-connectors-gdrive-strip.mjs')
   const { LATER_STRIPS, stripLaterChanges } = await import('./studio-later-changes.mjs')
   const rel = 'components/settings/settings-sidebar.tsx'
-  const DEV_BASE = process.env.CONNECTORS_GDRIVE_BASE || '2f06e51ec807d4ecd5cd00edc9bfd0005a5fd0b8' // studio-v4-dev-preparation-code, the base #566 stacks on (the sidebar's base); #615 815ea9cf is this PR's merge base
-  const base = execFileSync('git', ['show', `${DEV_BASE}:${rel}`], { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20 })
-  const now = fs.readFileSync(path.join(root, rel), 'utf8')
+  const DEV_BASE = process.env.CONNECTORS_GDRIVE_BASE || '2f06e51ec807d4ecd5cd00edc9bfd0005a5fd0b8' // studio-v4-dev-preparation-code, the base #566 stacks on (the sidebar's base); #615 497408d5 is the hardening's merge base
+  const show = ref => execFileSync('git', ['show', `${ref}:${rel}`], { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20 })
+  const base = show(DEV_BASE), now = show('HEAD') // commits, not the live worktree (other scripts may rewrite files mid-sweep)
   assert.notEqual(now, base); assert.equal(stripConnectorsGdrive(rel, now), base, 'strip(sidebar) === the base sidebar')
   assert.equal(stripLaterChanges(rel, now), stripLaterChanges(rel, base), 'through the registry too')
   assert.ok(LATER_STRIPS.includes(stripConnectorsGdrive), 'registered')
