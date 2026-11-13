@@ -1,0 +1,27 @@
+/* BRAND-KIT-CALLER (FRONTEND-1, Brand Kit, Studio caller half): the Brand Kit section on the Themes page. Mounted only with NEXT_PUBLIC_STUDIO_BRAND_KIT "true". It reuses the library's own tokens and classes (.sl-field, .sl-helper, .sl-button, .sl-primary). */
+.studio-library .sl-brand-kit { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--sl-line); border-radius: 9px; background: var(--sl-panel); min-width: 0; }
+.studio-library .sl-brand-kit h3 { margin: 0; font-size: 13px; }
+.studio-library .sl-brand-kit h4 { margin: 4px 0 0; font-size: 11px; letter-spacing: .02em; }
+.studio-library .sl-bk-extract { display: flex; flex-direction: column; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--sl-line); }
+.studio-library .sl-bk-consent, .studio-library .sl-bk-proposal, .studio-library .sl-bk-fonts { display: flex; flex-direction: column; gap: 8px; }
+.studio-library .sl-bk-check { display: flex; gap: 8px; align-items: flex-start; font-size: 11px; line-height: 1.5; }
+.studio-library .sl-bk-check input { margin-top: 2px; }
+.studio-library .sl-bk-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.studio-library .sl-bk-list, .studio-library .sl-bk-roles { display: flex; flex-direction: column; gap: 5px; margin: 0; padding: 0; list-style: none; font-size: 11px; }
+.studio-library .sl-bk-roles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 10px; }
+.studio-library .sl-bk-list li, .studio-library .sl-bk-roles li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.studio-library .sl-bk-list li > span:first-of-type { min-width: 88px; }
+.studio-library .sl-bk-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 4px; border: 1px solid var(--sl-line); flex: none; }
+.studio-library .sl-bk-edited { color: var(--sl-muted, inherit); font-size: 10px; }
+.studio-library .sl-bk-warnings ul { margin: 0; padding-left: 16px; font-size: 11px; line-height: 1.5; }
+.studio-library .sl-bk-sample { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.studio-library .sl-bk-slide { position: relative; aspect-ratio: 16 / 9; border: 1px solid var(--sl-line); border-radius: 6px; overflow: hidden; padding: 9% 7% 11%; display: flex; flex-direction: column; justify-content: center; gap: 6%; container-type: inline-size; }
+.studio-library .sl-bk-slide > strong { font-size: 7cqw; line-height: 1.15; max-width: 70%; }
+.studio-library .sl-bk-slide > span[aria-hidden] { display: block; width: 46%; height: 7%; border-radius: 3px; }
+/* the logo slot: 150 by 50 of 1600 by 900, top right (Layout's logo-slot renderer) */
+.studio-library .sl-bk-logo { position: absolute; top: 4%; right: 3%; width: 9.375%; height: 5.556%; display: flex; align-items: center; justify-content: flex-end; }
+.studio-library .sl-bk-logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.studio-library .sl-bk-slide > footer { position: absolute; left: 7%; right: 7%; bottom: 4%; display: flex; justify-content: space-between; gap: 8px; border-top: 1px solid; padding-top: 2%; font-size: 3cqw; opacity: .85; }
+.studio-library .sl-bk-saved { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.studio-library .sl-bk-saved-list { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 10px; margin: 0; font-size: 11px; }
+.studio-library .sl-bk-saved-list dd { margin: 0; overflow-wrap: anywhere; }
