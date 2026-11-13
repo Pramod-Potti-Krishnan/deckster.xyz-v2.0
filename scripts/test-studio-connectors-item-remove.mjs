@@ -213,7 +213,7 @@ await t('page: flag on => every listed file with an id gets a Remove from librar
 // 6. flag-off identity: every edit to an older file is additive (only the lines named here are replaced), so with the Drive flag off nothing
 //    older changes; the new code is reachable only through the Drive-flag-gated page and the handler's own gate (section 1).
 await t('older files: this change only ADDS lines, except the named replaced lines (vs the base)', async () => {
-  const base = process.env.ITEM_REMOVE_BASE || 'c2dfebba447214883dfdab2e469affff2e6249de' // the merge base: #608's head refreshed onto studio-v4-dev-preparation-code 2f06e51e (before the refresh: f4192aa0, the pre-C merge; piece C alone was measured vs 1baf289d)
+  const base = process.env.ITEM_REMOVE_BASE || '0578e0a1c6e3e77fe8b9c88534c2c30d2280175c' // the merge base: #608's head refreshed onto studio-v4-dev-preparation-code 2f06e51e (before the refresh: f4192aa0, the pre-C merge; piece C alone was measured vs 1baf289d)
   const git = (...a) => execFileSync('git', a, { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20 })
   git('cat-file', '-e', `${base}^{commit}`)
   // composer A + badge B sit between that base and piece C here: only their own edits, read from history (#608 1baf289d -> the pre-C merge f4192aa0), are allowed besides this change's
@@ -221,7 +221,6 @@ await t('older files: this change only ADDS lines, except the named replaced lin
   const removedLines = (range, f) => git('diff', '--unified=0', ...range, '--', f).split('\n').filter(l => l.startsWith('-') && !l.startsWith('---')).map(l => l.slice(1))
   const REPLACED = {
     'app/api/connectors/gdrive/items/route.ts': ["import { handleItemsGet, handleItemsPost } from '@/lib/connectors-gdrive-server'"],
-    'package.json': ['    "test:studio-connectors-session-links": "node scripts/test-studio-connectors-session-links.mjs"'],
     'docs/CONNECTORS_E2E_STATUS.md': ['| 11s | Studio proxy + UI for remove-one-item | MISSING (follow-up once 11 lands) | — | — |'],
   }
   const older = ['app/(app)/settings/connectors/page.tsx', 'app/api/connectors/gdrive/items/route.ts', 'lib/connectors-gdrive-server.ts', 'lib/connectors-gdrive.ts', 'package.json', 'docs/CONNECTORS_E2E_STATUS.md', 'scripts/studio-later-changes.mjs']

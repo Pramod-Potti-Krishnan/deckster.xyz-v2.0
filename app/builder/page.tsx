@@ -6237,6 +6237,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       }
 
       const sendTypedTurn = async (options: Parameters<typeof sendMessageWhenConnected>[3]) => {
+        if (gdriveLinkedIdsRef.current) options = { ...options, linkedItemIds: gdriveLinkedIdsRef.current } // GDRIVE-COMPOSER: linked_item_ids on handleSendMessage's three typed build sends, added here so their option literals stay the base's (#608 hook; dropped there with the session-links flag off)
         let success = false
         try {
           success = await sendMessageWhenConnected(messageText, undefined, fileCount,
@@ -6287,7 +6288,6 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           actionLabel: action.label,
           ...buildSendOptions,
           ...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE
-          ...(gdriveLinkedIdsRef.current ? { linkedItemIds: gdriveLinkedIdsRef.current } : {}), // GDRIVE-COMPOSER: linked_item_ids on the build message (#608 hook; dropped there with the session-links flag off)
           manualDeck: turnContext?.manualDeck,
         })
         if (!success || !isCurrentSubmission()) return
@@ -6368,7 +6368,6 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               storeName: sessionStoreName,
               ...buildSendOptions,
               ...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE
-              ...(gdriveLinkedIdsRef.current ? { linkedItemIds: gdriveLinkedIdsRef.current } : {}), // GDRIVE-COMPOSER: linked_item_ids on the build message (#608 hook; dropped there with the session-links flag off)
               manualDeck: turnContext?.manualDeck,
             })
             if (!success || !isCurrentSubmission()) return
@@ -6473,7 +6472,6 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         storeName: sessionStoreName,
         ...buildSendOptions,
         ...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE
-        ...(gdriveLinkedIdsRef.current ? { linkedItemIds: gdriveLinkedIdsRef.current } : {}), // GDRIVE-COMPOSER: linked_item_ids on the build message (#608 hook; dropped there with the session-links flag off)
         manualDeck: turnContext?.manualDeck,
       })
 
