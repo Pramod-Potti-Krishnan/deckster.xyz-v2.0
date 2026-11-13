@@ -41,6 +41,8 @@ const VICTIM = { id: 'user-victim', email: 'victim@mail.example' }
 const OWN_ID = '11111111-1111-4111-8111-111111111111'
 const FOREIGN_ID = '22222222-2222-4222-8222-222222222222'
 const FRESH_ID = '33333333-3333-4333-8333-333333333333'
+const DELETED_ID = '44444444-4444-4444-8444-444444444444' // FOLLOW-UP 2: a deleted chat of the caller's own
+const OTHER_FRESH_ID = '55555555-5555-4555-8555-555555555555' // FOLLOW-UP 2: a second id nobody has (a client navigation)
 const DB_SECRET = 'fake-pass-for-proof'
 const SECRET_URL = ['postgresql://postgres.fakeproject', `${DB_SECRET}@db.example.invalid`, '6543/postgres'].join(':') // made up: the proof's stand-in for DATABASE_URL (assembled so no scanner reads a credential in the source)
 const fullRow = (id, owner, extra = {}) => ({
@@ -490,7 +492,7 @@ const turns = async (n = 6) => { for (let i = 0; i < n; i++) await Promise.resol
  * real route for the create call and the [id] routes' answers (404 no row, 403 another owner, 200 yours) for the rest. `sockets` is the session id each Director socket
  * is opened with: the page gives the socket hook `existingSessionId: currentSessionId`, so it is the page's current id at the moment the session hook asks to connect.
  */
-async function runPage({ routeSource, hookSource, builderSource, url, mutateWorld, hygiene = false, postFaults = 0 }) {
+async function runPage({ routeSource, hookSource, builderSource, url, mutateWorld, hygiene = false, postFaults = 0, postNetworkFaults = 0, seedStorage, slow = false, script }) {
   const { log, warn, error } = console
   console.log = console.warn = console.error = () => {}
   try {
@@ -498,15 +500,20 @@ async function runPage({ routeSource, hookSource, builderSource, url, mutateWorl
     world.rows.set(OWN_ID, fullRow(OWN_ID, CALLER, { ...NO_LAYOUT_ROW, geminiStoreName: 'fileSearchStores/own-store' }))
     mutateWorld?.(world)
     const storage = new MemStorage()
+    seedStorage?.(storage)
     const { post } = loadRoute(routeSource, world)
-    const calls = [], sockets = [], navigation = []
-    let faults = postFaults
+    const calls = [], sockets = [], navigation = [], toasts = []
+    let faults = postFaults, networkFaults = postNetworkFaults, slowNetwork = slow
+    const heldRequests = [] // FOLLOW-UP 2: while `slowNetwork` is on, every history request waits here until the script lets it through (a cold start, a poor line)
+    const longTimers = new Set() // FOLLOW-UP 2: the timers of 5 s or more (the 10 s loading safety net), fired only when the script says so
     const reply = (status, body) => ({ ok: status >= 200 && status < 300, status, statusText: String(status), json: async () => JSON.parse(JSON.stringify(body)), text: async () => JSON.stringify(body) })
     const fetchStub = async (target, init = {}) => {
       await Promise.resolve()
+      if (slowNetwork) await new Promise(resolve => heldRequests.push(resolve))
       const method = String(init.method || 'GET').toUpperCase()
       const body = init.body ? JSON.parse(init.body) : null
       let answer
+      if (target === '/api/sessions' && method === 'POST' && networkFaults > 0 && networkFaults--) throw new TypeError('Failed to fetch') // FOLLOW-UP 2: no answer at all
       if (target === '/api/sessions' && method === 'POST') answer = faults > 0 && faults-- ? { status: 500, body: { error: 'Internal server error' } } : await post(body)
       else {
         const match = /^\/api\/sessions\/([^/?]+)(\/messages)?$/.exec(target)
@@ -530,7 +537,7 @@ async function runPage({ routeSource, hookSource, builderSource, url, mutateWorl
     const worldOfModules = createWorld({
       env: hygiene ? { NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: 'true' } : {},
       overrides: { 'hooks/use-builder-session.ts': builderSource, 'hooks/use-chat-sessions.ts': hookSource },
-      globals: { window: win, sessionStorage: storage, fetch: fetchStub, setTimeout: (fn, ms) => (ms >= 5000 ? 0 : setImmediate(fn)), clearTimeout: handle => { if (handle) clearImmediate(handle) } }, // the 10 s loading safety net never fires inside this run
+      globals: { window: win, sessionStorage: storage, fetch: fetchStub, setTimeout: (fn, ms) => { if (ms >= 5000) { const timer = { fn }; longTimers.add(timer); return timer } return setImmediate(fn) }, clearTimeout: handle => { if (handle && typeof handle.fn === 'function') longTimers.delete(handle); else if (handle) clearImmediate(handle) } }, // the 10 s loading safety net fires only when a script runs it (fireSafetyNet): in every other run it never does
       stubs: {
         react: runtime.impl,
         'next/navigation': { useRouter: () => ({ replace: next => { navigation.push({ kind: 'replace', href: next }); page.url = next; page.dirty = true }, push: next => { navigation.push({ kind: 'push', href: next }); page.url = next; page.dirty = true } }) },
@@ -541,13 +548,15 @@ async function runPage({ routeSource, hookSource, builderSource, url, mutateWorl
     const builder = worldOfModules.load('hooks/use-builder-session.ts')
     const chat = worldOfModules.load('hooks/use-chat-sessions.ts')
     let latest = null, hookDirty = false
+    const signedInUser = { id: CALLER.id, email: CALLER.email } // FOLLOW-UP 2: one object for the whole run, as next-auth's session user is: a fresh object per render would re-run the connection effect on every render and hide a missing dependency
+    const ensureConnected = () => { sockets.push(page.currentSessionId); return true } // FOLLOW-UP 2: stable across renders (a useCallback in the real socket hook), for the same reason as the user object
     const instance = runtime.instance(() => {
       const sessions = chat.useChatSessions()
       return builder.useBuilderSession({
-        user: { id: CALLER.id, email: CALLER.email }, isAuthLoading: false, searchParams: new URLSearchParams(page.url.split('?')[1] ?? ''),
+        user: signedInUser, isAuthLoading: false, searchParams: new URLSearchParams(page.url.split('?')[1] ?? ''),
         loadSession: sessions.loadSession, loadSessionResult: sessions.loadSessionResult, createSession: sessions.createSession, persistence: null,
         connected: false, connecting: false, reconnectStatus: 'idle',
-        ensureConnected: () => { sockets.push(page.currentSessionId); return true }, disconnect() {}, clearMessages() {}, restoreMessages() {}, updateCacheUserMessages() {}, messages: [], toast() {},
+        ensureConnected, disconnect() {}, clearMessages() {}, restoreMessages() {}, updateCacheUserMessages() {}, messages: [], toast: t => { toasts.push(t) },
         isUnsavedSession: page.isUnsavedSession, setIsUnsavedSession: v => { if (v !== page.isUnsavedSession) { page.isUnsavedSession = v; page.dirty = true } },
         currentSessionId: page.currentSessionId, setCurrentSessionId: v => { if (v !== page.currentSessionId) { page.currentSessionId = v; page.dirty = true } },
         setSessionStoreName() {},
@@ -555,16 +564,32 @@ async function runPage({ routeSource, hookSource, builderSource, url, mutateWorl
     }, () => { hookDirty = true })
     const render = () => { page.dirty = false; hookDirty = false; latest = instance.render() }
     render()
-    let stable = 0, last = -1
-    for (let i = 0; i < 400 && stable < 10; i++) {
-      await turns(3)
-      if (page.dirty || hookDirty) render()
-      const now = calls.length + navigation.length + sockets.length
-      if (now === last && !page.dirty && !hookDirty) stable++; else stable = 0
-      last = now
+    const settle = async () => {
+      let stable = 0, last = -1
+      for (let i = 0; i < 400 && stable < 10; i++) {
+        await turns(3)
+        if (page.dirty || hookDirty) render()
+        const now = calls.length + navigation.length + sockets.length + toasts.length
+        if (now === last && !page.dirty && !hookDirty) stable++; else stable = 0
+        last = now
+      }
     }
+    await settle()
+    // FOLLOW-UP 2: a script drives a slow start: it fires the 10 s safety net while requests are still in flight, lets requests through one at a time, or moves the URL (a client navigation), settling after each step
+    const control = {
+      settle,
+      pending: () => heldRequests.length,
+      sockets: () => [...sockets],
+      fireSafetyNet: async () => { for (const timer of [...longTimers]) { longTimers.delete(timer); timer.fn() } await settle() },
+      release: async () => { heldRequests.shift()?.(); await settle() },
+      releaseAll: async () => { while (heldRequests.length) { heldRequests.shift()(); await settle() } },
+      slow: async on => { slowNetwork = on; if (!on) await control.releaseAll() },
+      navigate: async next => { page.url = next; page.dirty = true; await settle() },
+      snapshot: () => ({ id: page.currentSessionId, loading: latest?.isLoadingSession, sockets: [...sockets], unsaved: page.isUnsavedSession }),
+    }
+    await script?.(control)
     instance.unmount()
-    return { world, page, calls, sockets, navigation, storage, latest, problem: latest?.sessionProblem ?? null }
+    return { world, page, calls, sockets, navigation, storage, latest, toasts, problem: latest?.sessionProblem ?? null }
   } finally { console.log = log; console.warn = warn; console.error = error }
 }
 
@@ -572,9 +597,15 @@ const pageCases = {
   'a foreign id in the URL (hygiene off)': { url: `/builder?session_id=${FOREIGN_ID}` },
   'an id that is the caller\'s own, with a row': { url: `/builder?session_id=${OWN_ID}` },
   'an id nobody has (adopted: the row is created for it)': { url: `/builder?session_id=${FRESH_ID}` },
-  'an id nobody has, the create answers 500 (a failed adoption that is not a refusal)': { url: `/builder?session_id=${FRESH_ID}`, postFaults: 1 },
+  'an id nobody has, the create answers 500 (a failed adoption that is not a refusal)': { url: `/builder?session_id=${FRESH_ID}`, postFaults: 1, noBaseTrace: true }, // FOLLOW-UP 2: no socket on it, by design: its own case below
   'a bare /builder (a local id is minted, as before)': { url: '/builder' },
   'session_id=new': { url: '/builder?session_id=new' },
+  // FOLLOW-UP 2 (REVIEW-1 P2 and DIRECTOR-2): the starts that must stay exactly as they were, with the new gate in the connection effect
+  'a bare /builder whose create for the minted local id answers 500': { url: '/builder', postFaults: 1 },
+  'a deleted chat of the caller\'s own (loadSession answers null for it: the adoption path, the row is the caller\'s)': { url: `/builder?session_id=${DELETED_ID}`, mutateWorld: world => world.rows.set(DELETED_ID, fullRow(DELETED_ID, CALLER, { ...NO_LAYOUT_ROW, status: 'deleted' })) },
+  'hygiene on: the caller\'s own id': { url: `/builder?session_id=${OWN_ID}`, hygiene: true },
+  'hygiene on: a local unsaved id this tab minted (its unsaved marker; no row under any account)': { url: `/builder?session_id=${FRESH_ID}`, hygiene: true, seedStorage: storage => storage.setItem(unsavedKey(FRESH_ID), 'true') },
+  'hygiene on: a staged hand-off id (the row is created for it)': { url: `/builder?session_id=${FRESH_ID}`, hygiene: true, seedStorage: storage => storage.setItem(`deckster_composer_ready_${FRESH_ID}`, '1') },
 }
 /** Ids made of random UUIDs (the minted ones) come out as <local>, so a run on the base hook and one on this hook can be compared. */
 const named = value => JSON.stringify(value).replaceAll(OWN_ID, '<own>').replaceAll(FRESH_ID, '<fresh>').replaceAll(FOREIGN_ID, '<foreign>').replace(/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/gi, '<local>')
@@ -608,18 +639,25 @@ cases.push(['P3: the fresh id\'s own create fails: it stays an unsaved local ses
   assert.deepEqual(run.navigation, [{ kind: 'replace', href: `/builder?session_id=${minted}` }])
   assert.equal(run.world.rows.has(minted), false, 'no row yet: the first real action creates it')
 }])
-cases.push(['P3: only a refusal (404) mints: any other failed adoption keeps the id as an unsaved local session, as before (a 500 never swaps a person\'s own id)', async sources => {
-  const run = await runPage({ ...sources, ...pageCases['an id nobody has, the create answers 500 (a failed adoption that is not a refusal)'] })
-  assert.equal(run.page.currentSessionId, FRESH_ID)
-  assert.equal(run.page.isUnsavedSession, true)
-  assert.deepEqual(run.navigation, [])
-  assert.deepEqual(run.sockets, [FRESH_ID])
-  assert.equal(run.storage.getItem(unsavedKey(FRESH_ID)), 'true')
+cases.push(['P3: only a refusal (404) mints: any other failed adoption keeps the id as an unsaved session as before (a 500 never swaps a person\'s own id), and (FOLLOW-UP 2) the Director socket never opens on it', async sources => {
+  for (const [label, options, answered] of [['a 500', { postFaults: 1 }, ['GET /api/sessions/' + FRESH_ID + ' 404', 'POST /api/sessions 500']], ['no answer at all (a network error)', { postNetworkFaults: 1 }, ['GET /api/sessions/' + FRESH_ID + ' 404']]]) {
+    const run = await runPage({ ...sources, url: `/builder?session_id=${FRESH_ID}`, ...options })
+    assert.equal(run.page.currentSessionId, FRESH_ID, `${label}: the id stays`)
+    assert.equal(run.page.isUnsavedSession, true, `${label}: unsaved, as before`)
+    assert.deepEqual(run.navigation, [], `${label}: no new id, no URL change`)
+    assert.deepEqual(run.sockets, [], `${label}: nobody has said whose this id is: no Director socket on it`)
+    assert.equal(run.storage.getItem(unsavedKey(FRESH_ID)), 'true', `${label}: the unsaved guard is kept, as before`)
+    assert.equal(run.world.rows.has(FRESH_ID), false, `${label}: no row`)
+    assert.deepEqual(run.calls.map(c => `${c.method} ${c.url} ${c.status}`), answered, `${label}: the requests`)
+    assert.equal(run.toasts.length, 1, `${label}: the person is told`)
+    assert.deepEqual(run.toasts[0], { title: 'This chat could not be opened', description: 'Check your connection and reload the page to try again.', variant: 'destructive' }, `${label}: and told only that (nothing about any account)`)
+    assert.equal(run.latest.isLoadingSession, false, `${label}: the loading screen is over`)
+  }
 }])
 cases.push(['P3: the caller\'s own id and an id nobody has behave as before: the same requests, socket, URL and state as the base hook (own id, new id, a failed adoption, bare /builder, session_id=new)', async sources => {
   const baseBuilder = baseOf('hooks/use-builder-session.ts')
   for (const [name, options] of Object.entries(pageCases)) {
-    if (name.startsWith('a foreign id')) continue
+    if (name.startsWith('a foreign id') || options.noBaseTrace) continue
     const now = await runPage({ ...sources, ...options })
     const before = await runPage({ ...sources, builderSource: baseBuilder, ...options })
     assert.equal(traceOf(now), traceOf(before), `${name}: the trace is the base hook's`)
@@ -654,6 +692,190 @@ cases.push(['P3: createSessionWasRefused says "refused" only for an id whose lat
   for (const status of [400, 401, 403, 409, 429, 500, 502, 503]) { script = [status]; assert.equal(await hook.createSession(OWN_ID), null); assert.equal(refused(OWN_ID), false, `a ${status} is not a refusal as another account's chat`) }
 }])
 
+// ================================================================================================================================
+// FOLLOW-UP 2 (13 Nov, REVIEW-1's P2 on #629 and DIRECTOR-2's 17:10Z note): through the Builder the Director socket never opens on a session id the caller does not own, or that is not
+// confirmed new or the caller's own. (a) A slow start: the page's chat id starts as the URL's id, the 10 s loading safety net ends "loading" whatever is in flight, and the connection
+// effect used to open the socket as soon as loading was over. (b) A failed create that is not a 404 (a 500, no answer) kept the URL's id and connected on it. Now the connection effect also waits
+// for "this id has been checked" (the caller's own row answered 200, the create for it answered 2xx, or a local id this tab minted). The runs below RUN the safety net (the harness above no
+// longer drops timers of 5 s or more: a script fires them) with the history requests held back, and assert the socket log at every step.
+// (c) The ws-token mint: it already refuses another account's chat id before it signs (route.ts, `existingSession.userId !== session.user.id` -> 403); no route change, the cases below prove it.
+// ================================================================================================================================
+const neverOn = (sockets, id, label) => assert.equal(sockets.includes(id), false, `${label}: the Director socket was opened on ${id === FOREIGN_ID ? 'the other account\'s id' : id}`)
+const callLine = c => `${c.method} ${c.url.replace(/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/gi, id => (id === OWN_ID ? '<own>' : id === FOREIGN_ID ? '<foreign>' : id === FRESH_ID ? '<fresh>' : '<local>'))} ${c.status}`
+
+cases.push(['follow-up 2 (a): a slow start on another account\'s id: the 10 s safety net ends "loading" with the requests still in flight and the socket does NOT open on the foreign id at any step; it opens once, on the fresh id, after the swap', async sources => {
+  const steps = []
+  const run = await runPage({ ...sources, url: `/builder?session_id=${FOREIGN_ID}`, slow: true, script: async ctl => {
+    assert.equal(ctl.pending(), 1, 'the first lookup is in flight')
+    await ctl.fireSafetyNet()
+    steps.push(['after the safety net', ctl.snapshot()])
+    assert.equal(ctl.snapshot().loading, false, 'the safety net ended "loading": the proof really runs it')
+    assert.equal(ctl.pending(), 1, 'and the lookup is still in flight')
+    for (let n = 0; ctl.pending() > 0 && n < 8; n++) { await ctl.release(); steps.push([`after answer ${n + 1}`, ctl.snapshot()]) }
+  } })
+  assert.deepEqual(steps[0][1].sockets, [], 'nothing connected while the id was unchecked, with loading over')
+  for (const [label, snapshot] of steps) neverOn(snapshot.sockets, FOREIGN_ID, label)
+  const minted = run.page.currentSessionId
+  assert.match(minted, UUID_ONLY); assert.notEqual(minted, FOREIGN_ID)
+  assert.deepEqual(run.sockets, [minted], 'the socket opened once, on the fresh id')
+  assert.deepEqual(run.calls.map(callLine), [`GET /api/sessions/<foreign> 403`, 'POST /api/sessions 404', 'POST /api/sessions 201'], 'the same three requests as a fast start')
+  assert.deepEqual(run.navigation, [{ kind: 'replace', href: `/builder?session_id=${minted}` }])
+}])
+cases.push(['follow-up 2 (a): a slow start on the caller\'s own id: no socket while the lookup is in flight (loading over), then one socket on that id when the lookup answers; the base hook opens it at the safety net, before the answer', async sources => {
+  const seen = {}
+  const run = await runPage({ ...sources, url: `/builder?session_id=${OWN_ID}`, slow: true, script: async ctl => {
+    await ctl.fireSafetyNet(); seen.atNet = ctl.sockets(); seen.loading = ctl.snapshot().loading
+    await ctl.releaseAll()
+  } })
+  assert.equal(seen.loading, false); assert.deepEqual(seen.atNet, [], 'no socket at the safety net')
+  assert.deepEqual(run.sockets, [OWN_ID], 'one socket, on the own id, once the lookup answered')
+  assert.deepEqual(run.calls.map(c => `${c.method} ${c.status}`), ['GET 200']); assert.deepEqual(run.navigation, [])
+  assert.equal(run.page.isUnsavedSession, false)
+  const baseSeen = {}
+  await runPage({ ...sources, builderSource: baseOf('hooks/use-builder-session.ts'), url: `/builder?session_id=${OWN_ID}`, slow: true, script: async ctl => { await ctl.fireSafetyNet(); baseSeen.atNet = ctl.sockets(); await ctl.releaseAll() } })
+  assert.deepEqual(baseSeen.atNet, [OWN_ID], 'the base hook connected at the safety net on an id nobody had checked: the gap this closes')
+  const baseForeign = {}
+  await runPage({ ...sources, builderSource: baseOf('hooks/use-builder-session.ts'), url: `/builder?session_id=${FOREIGN_ID}`, slow: true, script: async ctl => { await ctl.fireSafetyNet(); baseForeign.atNet = ctl.sockets(); await ctl.releaseAll() } })
+  assert.deepEqual(baseForeign.atNet, [FOREIGN_ID], 'and on the other account\'s id: the proof can see the P2 (REVIEW-1 saw it only by reading)')
+}])
+cases.push(['follow-up 2 (a): a slow start on an id nobody has: no socket at the safety net, then one on that id after the create (201) that makes it the caller\'s', async sources => {
+  const seen = {}
+  const run = await runPage({ ...sources, url: `/builder?session_id=${FRESH_ID}`, slow: true, script: async ctl => { await ctl.fireSafetyNet(); seen.atNet = ctl.sockets(); await ctl.releaseAll() } })
+  assert.deepEqual(seen.atNet, []); assert.deepEqual(run.sockets, [FRESH_ID])
+  assert.deepEqual(run.calls.map(c => `${c.method} ${c.status}`), ['GET 404', 'POST 201']); assert.equal(run.world.rows.get(FRESH_ID)?.userId, CALLER.id)
+}])
+cases.push(['follow-up 2 (a), hygiene on: a slow start: the caller\'s own id waits for its row; another account\'s id is "not found" and never connects; a local unsaved id (its marker) connects after the 404 that says nobody has it', async sources => {
+  let seen = {}
+  let run = await runPage({ ...sources, url: `/builder?session_id=${OWN_ID}`, hygiene: true, slow: true, script: async ctl => { await ctl.fireSafetyNet(); seen.atNet = ctl.sockets(); await ctl.releaseAll() } })
+  assert.deepEqual(seen.atNet, []); assert.deepEqual(run.sockets, [OWN_ID])
+  seen = {}; run = await runPage({ ...sources, url: `/builder?session_id=${FOREIGN_ID}`, hygiene: true, slow: true, script: async ctl => { await ctl.fireSafetyNet(); seen.atNet = ctl.sockets(); await ctl.releaseAll() } })
+  assert.deepEqual(seen.atNet, []); assert.deepEqual(run.sockets, []); assert.equal(run.problem?.kind, 'not_found')
+  seen = {}; run = await runPage({ ...sources, url: `/builder?session_id=${FRESH_ID}`, hygiene: true, slow: true, seedStorage: storage => storage.setItem(unsavedKey(FRESH_ID), 'true'), script: async ctl => { await ctl.fireSafetyNet(); seen.atNet = ctl.sockets(); await ctl.releaseAll() } })
+  assert.deepEqual(seen.atNet, []); assert.deepEqual(run.sockets, [FRESH_ID]); assert.equal(run.page.isUnsavedSession, true)
+}])
+cases.push(['follow-up 2 (b): the create fails with a 500 or no answer on another account\'s id too: the id is kept as before, and the socket never opens on it, with the safety net run or not', async sources => {
+  for (const options of [{ postFaults: 1 }, { postNetworkFaults: 1 }]) {
+    const quick = await runPage({ ...sources, url: `/builder?session_id=${FOREIGN_ID}`, ...options })
+    assert.deepEqual(quick.sockets, []); assert.equal(quick.toasts.length, 1); assert.equal(quick.page.currentSessionId, FOREIGN_ID); assert.deepEqual(quick.navigation, [])
+    assert.equal(quick.world.rows.get(FOREIGN_ID).userId, VICTIM.id, 'the other account\'s row is untouched')
+    const steps = []
+    const slow = await runPage({ ...sources, url: `/builder?session_id=${FOREIGN_ID}`, slow: true, ...options, script: async ctl => { await ctl.fireSafetyNet(); steps.push(ctl.sockets()); for (let n = 0; ctl.pending() > 0 && n < 8; n++) { await ctl.release(); steps.push(ctl.sockets()) } } })
+    for (const seen of steps) assert.deepEqual(seen, [], 'no socket at any step')
+    assert.deepEqual(slow.sockets, []); assert.equal(slow.toasts.length, 1)
+  }
+}])
+cases.push(['follow-up 2: the starts that must not change keep the base hook\'s trace and make no sound: a bare /builder whose create fails (the local id this tab minted still connects, no toast), a deleted chat of the caller\'s, hygiene on with an own id, a local unsaved id or a staged hand-off', async sources => {
+  const baseBuilder = baseOf('hooks/use-builder-session.ts')
+  for (const name of ['a bare /builder whose create for the minted local id answers 500', 'a deleted chat of the caller\'s own (loadSession answers null for it: the adoption path, the row is the caller\'s)', 'hygiene on: the caller\'s own id', 'hygiene on: a local unsaved id this tab minted (its unsaved marker; no row under any account)', 'hygiene on: a staged hand-off id (the row is created for it)']) {
+    const options = pageCases[name]
+    assert.ok(options, name)
+    const now = await runPage({ ...sources, ...options })
+    const before = await runPage({ ...sources, builderSource: baseBuilder, ...options })
+    assert.equal(traceOf(now), traceOf(before), `${name}: the trace is the base hook's`)
+    assert.equal(now.toasts.filter(t => t?.title === 'This chat could not be opened').length, 0, `${name}: no "could not be opened" word`)
+    assert.ok(now.sockets.length >= 1, `${name}: it still connects`)
+  }
+  const staged = await runPage({ ...sources, ...pageCases['hygiene on: a staged hand-off id (the row is created for it)'] })
+  assert.deepEqual(staged.sockets, [FRESH_ID]); assert.equal(staged.world.rows.get(FRESH_ID)?.userId, CALLER.id)
+  const bare = await runPage({ ...sources, ...pageCases['a bare /builder whose create for the minted local id answers 500'] })
+  assert.equal(bare.sockets.length, 1); assert.match(bare.sockets[0], UUID_ONLY); assert.equal(bare.page.isUnsavedSession, true)
+}])
+cases.push(['follow-up 2 (hygiene on): a staged hand-off id whose create fails (500, no answer): kept unsaved as before, no socket on it, the person is told', async sources => {
+  for (const options of [{ postFaults: 1 }, { postNetworkFaults: 1 }]) {
+    const run = await runPage({ ...sources, ...pageCases['hygiene on: a staged hand-off id (the row is created for it)'], ...options })
+    assert.deepEqual(run.sockets, []); assert.equal(run.page.currentSessionId, FRESH_ID); assert.equal(run.page.isUnsavedSession, true); assert.equal(run.toasts.length, 1)
+  }
+}])
+cases.push(['follow-up 2: client navigation inside the Builder: the page keeps its own connected chat while another account\'s id is checked (slowly) and is never connected to it; an id whose create fails is held too (the hold is not only the first URL id)', async sources => {
+  const seen = {}
+  const run = await runPage({ ...sources, url: `/builder?session_id=${OWN_ID}`, script: async ctl => {
+    assert.deepEqual(ctl.sockets(), [OWN_ID], 'the own chat connected')
+    await ctl.slow(true)
+    await ctl.navigate(`/builder?session_id=${FOREIGN_ID}`)
+    await ctl.fireSafetyNet(); seen.duringForeign = ctl.sockets(); seen.idDuringForeign = ctl.snapshot().id
+    await ctl.slow(false)
+    seen.afterForeign = ctl.sockets(); seen.idAfterForeign = ctl.snapshot().id
+  } })
+  assert.deepEqual(seen.duringForeign, [OWN_ID], 'no new socket while the foreign id is unchecked'); assert.equal(seen.idDuringForeign, OWN_ID, 'the page still holds its own id')
+  assert.equal(seen.afterForeign.length, 2); assert.equal(seen.afterForeign[0], OWN_ID); assert.match(seen.afterForeign[1], UUID_ONLY); neverOn(seen.afterForeign, FOREIGN_ID, 'after the swap')
+  assert.equal(seen.idAfterForeign, seen.afterForeign[1])
+  assert.deepEqual(run.sockets, seen.afterForeign)
+  const failed = await runPage({ ...sources, url: `/builder?session_id=${OWN_ID}`, postFaults: 1, script: async ctl => {
+    assert.deepEqual(ctl.sockets(), [OWN_ID])
+    await ctl.navigate(`/builder?session_id=${OTHER_FRESH_ID}`)
+  } })
+  assert.equal(failed.page.currentSessionId, OTHER_FRESH_ID, 'the page moved to the id in the URL (unsaved, as before)')
+  assert.deepEqual(failed.sockets, [OWN_ID], 'and no socket opened on it: the hold follows the id the failed create left as current, not only the first URL id')
+  assert.equal(failed.toasts.length, 1)
+}])
+
+// ---- (c) the ws-token mint: the REAL route, signing only for the caller's own or a new id --------------------------------------------------
+const nodeCrypto = nodeRequire('node:crypto')
+function loadMint(source, { rows, userId = CALLER.id, lookupError = null, signedIn = true, signingKey = 'proof-only-hmac-key' }) {
+  const reads = []
+  const prisma = { chatSession: { findUnique: async args => { reads.push(plain(args)); if (lookupError) throw lookupError; return rows.get(args.where.id) ?? null } }, user: { findUnique: async () => ({ tier: 'free' }) } }
+  const quiet = () => {}
+  const exports = evaluate(source, 'app/api/director/ws-token/route.ts', {
+    crypto: nodeCrypto,
+    'next/server': { NextRequest: class {}, NextResponse },
+    'next-auth': { getServerSession: async () => (signedIn ? { user: { id: userId } } : null) },
+    '@/lib/auth-options': { authOptions: {} },
+    '@/lib/kg-entitlement': { isKgEntitled: () => false },
+    '@/lib/prisma': { prisma },
+    '@/lib/quota/build-quota': { isWsBqClaimEnabled: () => false },
+    '@/lib/quota/build-quota-claim': { mintBuildQuotaClaim: async () => null },
+    '@/lib/stripe/stripe-utils': { getUserSubscription: async () => null },
+    '@/lib/api-hardening': { requireApprovedUser: async () => null },
+  }, { Buffer, console: { log: quiet, warn: quiet, error: quiet, info: quiet, debug: quiet }, process: { env: { DIRECTOR_WS_AUTH_SECRET: signingKey } } })
+  const get = async sessionId => {
+    const res = await exports.GET({ nextUrl: { searchParams: new URLSearchParams(sessionId === undefined ? '' : { session_id: sessionId }) } })
+    return { status: res.status, body: plain(res.body) }
+  }
+  const claims = body => { const [payload, signature] = String(body.auth_token).split('.'); assert.equal(nodeCrypto.createHmac('sha256', signingKey).update(payload).digest('base64url'), signature, 'a real signature'); return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) }
+  return { get, reads, claims }
+}
+const mintRows = () => new Map([[OWN_ID, fullRow(OWN_ID, CALLER)], [FOREIGN_ID, fullRow(FOREIGN_ID, VICTIM)], [DELETED_ID, fullRow(DELETED_ID, CALLER, { status: 'deleted' })]])
+
+cases.push(['mint (c): another account\'s chat id is refused (403, a generic body) before anything is signed, with exactly one read of the row by id and nothing about its owner', async ({ mintSource }) => {
+  for (const owner of [VICTIM, { id: 'user-other' }]) for (const status of ['active', 'archived', 'deleted']) {
+    const rows = mintRows(); rows.set(FOREIGN_ID, fullRow(FOREIGN_ID, owner, { status }))
+    const { get, reads } = loadMint(mintSource, { rows })
+    const res = await get(FOREIGN_ID)
+    assert.deepEqual(res, { status: 403, body: { error: 'Forbidden' } }, `owner ${owner.id}, status ${status}`)
+    assert.equal(JSON.stringify(res).includes('auth_token'), false); assert.equal(JSON.stringify(res).includes(owner.id), false, 'no owner in the answer')
+    assert.deepEqual(reads, [{ where: { id: FOREIGN_ID }, select: { userId: true, status: true } }], 'one read, by id, selecting only the owner and the status')
+  }
+}])
+cases.push(['mint (c): the caller\'s own id and an id with no row are signed (sub is the caller, sid is the id asked for); a deleted own chat is 410; a failed lookup is 503 and signs nothing', async ({ mintSource }) => {
+  const own = loadMint(mintSource, { rows: mintRows() })
+  const signed = await own.get(OWN_ID)
+  assert.equal(signed.status, 200); assert.equal(signed.body.auth_enabled, true)
+  const claims = own.claims(signed.body)
+  assert.equal(claims.sub, CALLER.id); assert.equal(claims.sid, OWN_ID); assert.ok(claims.exp > claims.iat)
+  assert.equal(own.reads.length, 1)
+  const fresh = loadMint(mintSource, { rows: mintRows() })
+  const minted = await fresh.get(FRESH_ID)
+  assert.equal(minted.status, 200); assert.equal(fresh.claims(minted.body).sid, FRESH_ID); assert.equal(fresh.reads.length, 1)
+  assert.deepEqual(await loadMint(mintSource, { rows: mintRows() }).get(DELETED_ID), { status: 410, body: { error: 'Session is deleted' } })
+  const broken = loadMint(mintSource, { rows: mintRows(), lookupError: new Error('database down') })
+  assert.deepEqual(await broken.get(OWN_ID), { status: 503, body: { error: 'Could not verify session ownership' } })
+  assert.deepEqual(await broken.get(FOREIGN_ID), { status: 503, body: { error: 'Could not verify session ownership' } }, 'a failed lookup never falls through to a signature')
+}])
+cases.push(['mint (c): signed out is 401 and a missing session_id is 400, each before any read of a row', async ({ mintSource }) => {
+  const out = loadMint(mintSource, { rows: mintRows(), signedIn: false })
+  assert.deepEqual(await out.get(OWN_ID), { status: 401, body: { error: 'Unauthorized' } }); assert.equal(out.reads.length, 0)
+  const none = loadMint(mintSource, { rows: mintRows() })
+  assert.deepEqual(await none.get(undefined), { status: 400, body: { error: 'session_id is required' } }); assert.deepEqual(await none.get('  '), { status: 400, body: { error: 'session_id is required' } }); assert.equal(none.reads.length, 0)
+}])
+cases.push(['mint (c), the client side: the socket hook asks for the token with the id it is about to open (session_id) and opens no socket when the mint does not answer 2xx (it retries instead), so a 403 for another account\'s id is no socket at all where the route signs', async ({ wsHookSource }) => {
+  assert.ok(wsHookSource.includes('`/api/director/ws-token?session_id=${encodeURIComponent(socketSessionId)}`'), 'the start-of-connection request names the session')
+  const refusal = wsHookSource.indexOf("if (!tokenResponse.ok) {\n              return { ok: false, reason: `ws-token HTTP ${tokenResponse.status}` };")
+  const gate = wsHookSource.indexOf('if (!tokenOutcome.ok) {')
+  const open = wsHookSource.indexOf('ws = protocols ? new WebSocket(wsUrl, protocols) : new WebSocket(wsUrl);')
+  assert.ok(refusal > 0 && gate > refusal && open > gate, 'a non-2xx answer becomes { ok: false }, which returns before the socket is built')
+  assert.match(wsHookSource.slice(gate, open), /scheduleReconnect\('ws_token_failed'\);\s*return;/)
+}])
+
 async function runSuite(sources) {
   const failures = []
   for (const [name, fn] of cases) {
@@ -663,7 +885,7 @@ async function runSuite(sources) {
 }
 
 // ---- real sources ---------------------------------------------------------------------------------------------------------------
-const real = { routeSource: read('app/api/sessions/route.ts'), hookSource: read('hooks/use-chat-sessions.ts'), builderSource: read('hooks/use-builder-session.ts') }
+const real = { routeSource: read('app/api/sessions/route.ts'), hookSource: read('hooks/use-chat-sessions.ts'), builderSource: read('hooks/use-builder-session.ts'), mintSource: read('app/api/director/ws-token/route.ts'), wsHookSource: read('hooks/use-deckster-websocket-v2.ts') }
 const realFailures = await runSuite(real)
 assert.deepEqual(realFailures, [], `the real sources fail the proof:\n  ${realFailures.join('\n  ')}`)
 
@@ -725,6 +947,30 @@ const mutants = {
   'P3: a 403 counts as a refusal': swap('hookSource', 'if (response.status === 404) refusedCreateIds.add(sessionId);', 'if (response.status === 404 || response.status === 403) refusedCreateIds.add(sessionId);'),
   'P3: the refusal is not tied to the id asked about': swap('hookSource', 'return refusedCreateIds.has(sessionId);', 'return refusedCreateIds.size > 0;'),
   'P3: an old refusal survives a later call for the same id': swap('hookSource', '      refusedCreateIds.delete(sessionId); // SESSIONS-OWNER\n', ''),
+  // follow-up 2 (a) and (b): the connection effect waits for the id to be checked
+  'follow-up 2: the follow-up\'s own insertions are all gone (the hook as #629 left it: the socket opens as soon as loading is over)': { ...real, builderSource: strip.SESSIONS_OWNER_PAIRS['hooks/use-builder-session.ts'].slice(2).reduce((out, [now]) => { assert.equal(out.split(now).length, 2, 'each follow-up 2 insertion is there once'); return out.replace(now, () => '') }, real.builderSource) },
+  'follow-up 2: the connection effect does not wait for the check': swap('builderSource', 'if (ownerUnconfirmedId && currentSessionId === ownerUnconfirmedId) return', 'if (false) return'),
+  'follow-up 2: the wait ends with "loading" (the 10 s safety net lets the socket open again)': swap('builderSource', 'if (ownerUnconfirmedId && currentSessionId === ownerUnconfirmedId) return', 'if (ownerUnconfirmedId && currentSessionId === ownerUnconfirmedId && isLoadingSession) return'),
+  'follow-up 2: the URL\'s first id is not held (only ids a failed create left are)': swap('builderSource', 'useState<string | null>(() => currentSessionId)', 'useState<string | null>(() => null)'),
+  'follow-up 2: the effect does not run again when the id is confirmed': swap('builderSource', '    ownerUnconfirmedId, // SESSIONS-OWNER\n', ''),
+  'follow-up 2: the caller\'s own row (found) never confirms the id': swap('builderSource', 'confirmSessionOwner(sessionParam) // SESSIONS-OWNER (found)', 'void 0 // SESSIONS-OWNER (found)'),
+  'follow-up 2: a 2xx create (adopted) never confirms the id': swap('builderSource', 'confirmSessionOwner(adopted.id) // SESSIONS-OWNER (adopted)', 'void 0 // SESSIONS-OWNER (adopted)'),
+  'follow-up 2: a local unsaved id this tab minted (hygiene on) never confirms the id': swap('builderSource', 'confirmSessionOwner(sessionParam) // SESSIONS-OWNER (local id)', 'void 0 // SESSIONS-OWNER (local id)'),
+  'follow-up 2: a failed create does not hold the id it left as current': swap('builderSource', 'setOwnerUnconfirmedId(sessionParam) // SESSIONS-OWNER (adoption failed, a URL id)', 'void 0 // SESSIONS-OWNER (adoption failed, a URL id)'),
+  'follow-up 2: a failed create says nothing to the person': swap('builderSource', "toast({ title: 'This chat could not be opened',", "void ({ title: 'This chat could not be opened',"),
+  'follow-up 2: a failed create on a local id this tab minted is held too (the bare /builder start loses its socket and gets the word)': swap('builderSource', 'if (freshStageAssignmentRef.current?.sessionId === sessionParam) confirmSessionOwner(sessionParam)', 'if (false) confirmSessionOwner(sessionParam)'),
+  'follow-up 2: a failed create on a URL id counts as confirmed (the socket opens on it)': swap('builderSource', 'if (freshStageAssignmentRef.current?.sessionId === sessionParam) confirmSessionOwner(sessionParam)', 'if (true) confirmSessionOwner(sessionParam)'),
+  // follow-up 2 (c): the mint (unchanged route) and the socket hook's side of it
+  'mint: the owner check is removed': swap('mintSource', 'existingSession.userId !== session.user.id', 'false'),
+  'mint: the owner check is inverted': swap('mintSource', 'existingSession.userId !== session.user.id', 'existingSession.userId === session.user.id'),
+  'mint: the owner check compares the e-mail': swap('mintSource', 'existingSession.userId !== session.user.id', 'existingSession.userId !== session.user.email'),
+  'mint: the refusal names the owner': swap('mintSource', "return NextResponse.json({ error: 'Forbidden' }, { status: 403 })", "return NextResponse.json({ error: 'Forbidden', owner: existingSession.userId }, { status: 403 })"),
+  'mint: a failed lookup falls through to a signature': swap('mintSource', "    return NextResponse.json(\n      { error: 'Could not verify session ownership' },\n      { status: 503 },\n    )\n", ''),
+  'mint: the lookup reads more than the owner and the status': swap('mintSource', 'select: { userId: true, status: true },', 'select: { userId: true, status: true, title: true },'),
+  'mint: a second read of the row': swap('mintSource', '    const existingSession = await prisma.chatSession.findUnique({', '    await prisma.chatSession.findUnique({ where: { id: sessionId }, select: { userId: true } })\n    const existingSession = await prisma.chatSession.findUnique({'),
+  'mint: a deleted own chat is signed': swap('mintSource', "existingSession?.status === 'deleted'", 'false'),
+  'socket hook: a failed token goes on to build the socket': swap('wsHookSource', "scheduleReconnect('ws_token_failed');\n          return;", "scheduleReconnect('ws_token_failed');"),
+  'socket hook: the token request does not name the session': swap('wsHookSource', '`/api/director/ws-token?session_id=${encodeURIComponent(socketSessionId)}`', "'/api/director/ws-token'"),
 }
 let killed = 0
 for (const [name, sources] of Object.entries(mutants)) {
@@ -768,7 +1014,7 @@ for (const [list, name] of [['LATER_CHANGE_FILES', 'SESSIONS_OWNER_SCOPE_FILES']
   assert.equal(mine.length, 1, `${list}: one marked line`)
 }
 assert.ok(strip.SESSIONS_OWNER_SCOPE_FILES.every(rel => LATER_CHANGE_FILES.has(rel)), 'every scope file is registered')
-for (const rel of ['app/api/sessions/route.ts', 'hooks/use-chat-sessions.ts', 'scripts/test-studio-sessions-owner.mjs', 'scripts/studio-sessions-owner-strip.mjs', 'scripts/studio-later-changes.mjs', 'scripts/test-studio-deck-sync-truth.mjs', 'scripts/test-studio-chat-element-edit.mjs', 'scripts/test-studio-session-hygiene.mjs']) assert.ok(strip.SESSIONS_OWNER_SCOPE_FILES.includes(rel), `${rel} is in scope`)
+for (const rel of ['app/api/sessions/route.ts', 'hooks/use-chat-sessions.ts', 'scripts/test-studio-sessions-owner.mjs', 'scripts/studio-sessions-owner-strip.mjs', 'scripts/studio-later-changes.mjs', 'scripts/test-studio-deck-sync-truth.mjs', 'scripts/test-studio-chat-element-edit.mjs', 'scripts/test-studio-new-deck-handoff-send.mjs', 'scripts/test-studio-session-hygiene.mjs']) assert.ok(strip.SESSIONS_OWNER_SCOPE_FILES.includes(rel), `${rel} is in scope`)
 assert.equal(stripLaterChanges('.env.example', read('.env.example')), stripLaterChanges('.env.example', baseOf('.env.example')), 'no flag, no .env.example block (read through the later changes\' blocks)')
 
 // the two older proofs that read their own first-parent commits skip a later change's by subject: this change's commits start "Sessions:"
