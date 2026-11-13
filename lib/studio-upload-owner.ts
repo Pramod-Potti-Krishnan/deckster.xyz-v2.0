@@ -5,7 +5,8 @@
  * Flag NEXT_PUBLIC_STUDIO_OWNER_CUID_ENABLED (exact 'true', default off):
  *  - off: `user.email` (today's behaviour, byte-identical);
  *  - on:  `user.id` (the NextAuth cuid, auth_users.id) when it passes the identity/v1 R2 charset
- *         and is not a placeholder; otherwise '' (never the e-mail: an e-mail is never an owner id).
+ *         and is not a placeholder; otherwise the base's own value (`user.email`, as with the flag off), so the flag on is
+ *         never worse than the flag off and never turns a known owner into the empty value the upload hook sends as 'anonymous'.
  */
 export const STUDIO_OWNER_CUID_ENABLED = process.env.NEXT_PUBLIC_STUDIO_OWNER_CUID_ENABLED === 'true'
 
@@ -20,17 +21,20 @@ export function uploadOwnerId(
   user: { id?: string | null; email?: string | null } | null | undefined,
   enabled: boolean = STUDIO_OWNER_CUID_ENABLED,
 ): string {
-  if (!enabled) return user?.email || ''
-  return isCanonicalOwnerId(user?.id) ? user!.id! : ''
+  if (enabled && isCanonicalOwnerId(user?.id)) return user!.id!
+  return user?.email || ''
 }
 
 /**
  * The page spreads this AFTER the base's own `userId: user?.email || ''` in the useFileUpload options, so the base's line stays
- * as it is (a pure insertion): flag off is `{}` (the e-mail stays, byte-identical); flag on is `{ userId }` (the cuid, or '').
+ * as it is (a pure insertion): `{}` when the flag is off or the account id is not a canonical owner id (the base's e-mail stands,
+ * byte-identical), `{ userId: <the id> }` only when the flag is on and the id passes the check. It never carries an empty or
+ * placeholder `userId`, so the override can never produce the 'anonymous' the upload hook sends for an empty owner.
  */
 export function uploadOwnerOverride(
   user: { id?: string | null; email?: string | null } | null | undefined,
   enabled: boolean = STUDIO_OWNER_CUID_ENABLED,
 ): { userId?: string } {
-  return enabled ? { userId: uploadOwnerId(user, true) } : {}
+  const id = user?.id
+  return enabled && isCanonicalOwnerId(id) ? { userId: id } : {}
 }
