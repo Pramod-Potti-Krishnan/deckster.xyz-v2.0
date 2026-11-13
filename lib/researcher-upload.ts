@@ -11,6 +11,7 @@
 
 import { getKnowledgeServiceUrl } from '@/lib/config'
 import { requireServiceUrl } from '@/lib/service-url'
+import { researcherUploadOwnerId } from '@/lib/upload-owner'
 
 export interface ResearcherUploadProgress {
   /** 0–100 coarse progress across the four steps. */
@@ -73,13 +74,17 @@ export async function uploadFileToResearcher(options: ResearcherUploadOptions): 
   const researcherBaseUrl = getKnowledgeServiceUrl().replace(/\/$/, '')
   const contentType = file.type || 'application/octet-stream'
 
+  // Flag NEXT_PUBLIC_UPLOAD_OWNER_ID_ENABLED on: refuse before any request when the
+  // owner is not an account id. Off: `userId || 'anonymous'`, as before.
+  const ownerUserId = researcherUploadOwnerId(userId)
+
   // 1) Ensure a Researcher session exists for this frontend session.
   onProgress?.({ percent: 5, stage: 'session' })
   const sessionResponse = await fetch(`${researcherBaseUrl}/api/v1/sessions/create`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      user_id: userId || 'anonymous',
+      user_id: ownerUserId,
       session_id: sessionId,
       session_name: `Session_${sessionId.slice(0, 8)}`,
       metadata: {
