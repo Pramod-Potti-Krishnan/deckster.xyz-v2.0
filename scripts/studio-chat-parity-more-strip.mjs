@@ -10,8 +10,8 @@
 // How the older pins reach it: this change REGISTERS its files and this strip (scripts/studio-later-changes.mjs, two lines; no .env.example block), and teaches the older proofs that read files this change touched without going through the registry.
 // Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = 'bc84a6fe6c72d518d8be362aea37f939d8a95e6e' // origin/frontend1/chat-parity-workspace (#614's head, on dev 2f06e51e); the tree diff from it to this change's newest commit is this change
-export const BASE_UNDER_COMMIT = 'ca41ae3322386bdea92a4c05a3606527d23f527c' // origin/frontend1/chat-parity-viewer (#611's head, on dev 2f06e51e): what a file the workspace half left alone is, in either commit
+export const BASE_COMMIT = 'ce8afb2bdd0537e44db39fc0b92a83e06e879162' // origin/frontend1/chat-parity-workspace (#614's head, on dev 2f06e51e); the tree diff from it to this change's newest commit is this change
+export const BASE_UNDER_COMMIT = '92af6e9d9c4296aec3c6d62bd5dd7b0b00bf4777' // origin/frontend1/chat-parity-viewer (#611's head, on dev 2f06e51e): what a file the workspace half left alone is, in either commit
 export const CHAT_PARITY_MORE_FLAG = 'NEXT_PUBLIC_STUDIO_CHAT_COMMANDS'
 export const CHAT_PARITY_MORE_MARKER = 'CHAT-PARITY-MORE'
 /** The marker as a WHOLE token: CHAT-PARITY-MORE-X and X-CHAT-PARITY-MORE are not this change's (CHAT-PARITY-WORKSPACE is the workspace half's, CHAT-PARITY-VIEWER the viewer half's, CHAT-PARITY is chat parity's). */
@@ -86,7 +86,7 @@ export const CHAT_PARITY_MORE_NEW_FILES = [
 ]
 
 /**
- * The older proofs this change teaches: [line now, line before] per edit, whole lines (a line now carries "registry read (CHAT-PARITY-MORE)" and occurs once in its file). Each goes back to the workspace half's line (its strip never reads these).
+ * The older proofs this change teaches: [line now, line before] per edit, whole lines (a line now carries "registry read (CHAT-PARITY-MORE)" and occurs once in its file). Each goes back to the workspace half's line (its strip never reads these). The viewer half's and the workspace half's own proofs are not taught: each reads every change registered after it through the registry itself.
  * The three atlas Templates proofs, the Templates notice proof, the Knowledge Ask proof and the two library manage proofs read the Knowledge page and UI and the two workspaces with an older strip innermost or none: one import and one read hook each (this strip only, never the registry), pure insertions;
  * the two library manage proofs' flag walks also drop a file a later change registers (the remaining commands' own glue names the manage flags) from the files that read them, one inserted line each.
  */
@@ -99,38 +99,6 @@ export const CHAT_PARITY_MORE_PIN_EDITS = {
     [
       "{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && CHAT_PARITY_MORE_FILES.includes(rel) ? stripChatParityMore(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-MORE): every read of a file that change touched (the module loader's too) is the file as the workspace commands left it (each hook only drops its own marked lines, so the order they are installed in does not matter)\n",
       ""
-    ]
-  ],
-  "scripts/test-studio-chat-parity-viewer.mjs": [
-    [
-      "const stripMore = await import('./studio-chat-parity-more-strip.mjs') // LATER-CHANGES: registry read (CHAT-PARITY-MORE): the remaining slash commands (stacked after the workspace's) add marked lines to files this proof reads and to the viewer half's own menu; it reads them as the workspace commands left them\n",
-      ""
-    ],
-    [
-      "{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' ? stripMore.stripChatParityMore(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-MORE): every read is the file without the remaining commands' lines (the registry and the proofs that change taught included), as the workspace commands left it\n",
-      ""
-    ],
-    [
-      "const addedLines = (rel, from = strip.BASE_COMMIT) => git('diff', '--no-color', '--patience', '-U0', from, '--', rel).split('\\n').filter(line => /^\\+(?!\\+\\+)/.test(line)).map(line => line.slice(1)).filter(line => !stripWorkspace.CHAT_PARITY_WORKSPACE_MARKER_RE.test(line)).filter(line => !stripMore.CHAT_PARITY_MORE_MARKER_RE.test(line)) // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): the workspace commands' marked lines are a later change's // LATER-CHANGES: registry read (CHAT-PARITY-MORE): so are the remaining commands'\n",
-      "const addedLines = (rel, from = strip.BASE_COMMIT) => git('diff', '--no-color', '-U0', from, '--', rel).split('\\n').filter(line => /^\\+(?!\\+\\+)/.test(line)).map(line => line.slice(1)).filter(line => !stripWorkspace.CHAT_PARITY_WORKSPACE_MARKER_RE.test(line)) // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): the workspace commands' marked lines are a later change's\n"
-    ],
-    [
-      "const removedLines = (rel, from = strip.BASE_COMMIT) => git('diff', '--no-color', '--patience', '-U0', from, '--', rel).split('\\n').filter(line => /^-(?!--)/.test(line)).map(line => line.slice(1)) // LATER-CHANGES: registry read (CHAT-PARITY-MORE): the same hunk placement as the line above: git's default places a hunk next to a blank line of its own choosing, and with the remaining commands' lines in the commands lib it moves dev's blank line (a patience diff keeps it where dev has it)\n",
-      "const removedLines = (rel, from = strip.BASE_COMMIT) => git('diff', '--no-color', '-U0', from, '--', rel).split('\\n').filter(line => /^-(?!--)/.test(line)).map(line => line.slice(1))\n"
-    ]
-  ],
-  "scripts/test-studio-chat-parity-workspace.mjs": [
-    [
-      "const stripMore = await import('./studio-chat-parity-more-strip.mjs') // LATER-CHANGES: registry read (CHAT-PARITY-MORE): the remaining slash commands (stacked after this change) add marked lines to files this proof reads; it reads them as this change left them\n",
-      ""
-    ],
-    [
-      "{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' ? stripMore.stripChatParityMore(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-MORE): every read is the file without the remaining commands' lines (the registry and the proofs that change taught included), as this change left it\n",
-      ""
-    ],
-    [
-      "const diffLines = (rel, sign) => git('diff', '--no-color', '-U0', baseCommitOf(rel), '--', rel).split('\\n').filter(line => (sign === '+' ? /^\\+(?!\\+\\+)/ : /^-(?!--)/).test(line)).map(line => line.slice(1)).filter(line => !stripMore.CHAT_PARITY_MORE_MARKER_RE.test(line)) // LATER-CHANGES: registry read (CHAT-PARITY-MORE): the remaining commands' marked lines are a later change's\n",
-      "const diffLines = (rel, sign) => git('diff', '--no-color', '-U0', baseCommitOf(rel), '--', rel).split('\\n').filter(line => (sign === '+' ? /^\\+(?!\\+\\+)/ : /^-(?!--)/).test(line)).map(line => line.slice(1))\n"
     ]
   ],
   "scripts/test-studio-chat-parity.mjs": [
@@ -220,7 +188,7 @@ export const CHAT_PARITY_MORE_PIN_EDITS = {
 }
 export const CHAT_PARITY_MORE_PIN_FILES = Object.keys(CHAT_PARITY_MORE_PIN_EDITS)
 /** Files this change edits that are neither marked app code nor new: the registry (two lines) and the older proofs it teaches. No package.json script: run the proof with `node scripts/test-studio-chat-parity-more.mjs`. */
-export const CHAT_PARITY_MORE_OWN_EDITS = ['scripts/studio-later-changes.mjs', ...CHAT_PARITY_MORE_PIN_FILES]
+export const CHAT_PARITY_MORE_OWN_EDITS = ['scripts/studio-later-changes.mjs', 'scripts/test-studio-chat-parity-viewer.mjs', 'scripts/test-studio-chat-parity-workspace.mjs', ...CHAT_PARITY_MORE_PIN_FILES] // the viewer half's and the workspace half's proofs: this change's earlier commits edited them (the lines that taught them to read this change are gone: each reads every later change through the registry itself)
 
 /** Every file this change's commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
 export const CHAT_PARITY_MORE_SCOPE_FILES = new Set([...CHAT_PARITY_MORE_FILES, ...CHAT_PARITY_MORE_NEW_FILES, ...CHAT_PARITY_MORE_OWN_EDITS])
