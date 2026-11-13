@@ -108,6 +108,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-chat-parity-more-strip.mjs')).CHAT_PARITY_MORE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, overnight chat parity, the remaining slash commands: /delete-theme /delete-template /model <choice> /kg-search /ask /switch-template, /publish opening the wizard and an @template that chooses it (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS; no flag of its own, no .env.example block)
   ...(await import('./studio-owner-cuid-strip.mjs')).OWNER_CUID_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE, K-02 chat upload owner = user.id cuid (NEXT_PUBLIC_STUDIO_OWNER_CUID_ENABLED)
   ...(await import('./studio-upload-session-token-strip.mjs')).UPLOAD_SESSION_TOKEN_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE-3, DSB-5a upload session token: the browser's Researcher upload calls carry a signed session token from a same-origin mint route (NEXT_PUBLIC_STUDIO_UPLOAD_SESSION_TOKEN_ENABLED)
+  ...(await import('./studio-connectors-gdrive-strip.mjs')).CONNECTORS_GDRIVE_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE, P4-15 slice 1 Google Drive picker connector (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED)
   // one line per later change, above this comment
 ])
 
@@ -178,6 +179,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-chat-parity-viewer-strip.mjs')).CHAT_PARITY_COMMANDS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, overnight chat parity, the one flag of the chain (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS)
   (await import('./studio-owner-cuid-strip.mjs')).OWNER_CUID_ENV_BLOCK, // LATER-CHANGE: KNOWLEDGE, K-02 chat upload owner = user.id cuid (NEXT_PUBLIC_STUDIO_OWNER_CUID_ENABLED)
   (await import('./studio-upload-session-token-strip.mjs')).UPLOAD_SESSION_TOKEN_ENV_BLOCK, // LATER-CHANGE: KNOWLEDGE-3, DSB-5a upload session token (NEXT_PUBLIC_STUDIO_UPLOAD_SESSION_TOKEN_ENABLED)
+  (await import('./studio-connectors-gdrive-strip.mjs')).CONNECTORS_GDRIVE_ENV_BLOCK, // LATER-CHANGE: KNOWLEDGE, P4-15 slice 1 Google Drive picker connector (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED)
   // one line per later change, above this comment
 ]
 
