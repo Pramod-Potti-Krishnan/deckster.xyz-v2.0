@@ -4,10 +4,10 @@
 // P-31 (the box/violin plugin 404 on cdn.jsdelivr.net) is NOT here: the reference is in the Layout service's viewer page (backend repo), not in this frontend.
 // Every line this change adds to an EXISTING file carries the marker AUDIT-CONSOLE (matched as a whole token). Some base lines are rewritten, so the strip is a list of [has, was] pairs, not a marker filter: putting each pair back gives the file at BASE_COMMIT
 // byte for byte (a pair is one hunk of the committed diff: the lines the file has now, the lines it had). The new files have no base text.
-// FRONTEND-2's UX findings E (#603) carries the same four-line edit of FRONTEND-1's test-studio-voice-call.mjs (the .env.example "last thing in the file" pin must take out the env blocks registered after voice-call's); this change carries it too, BYTE-IDENTICAL, so every PR merges clean in any order.
+// The four-line edit of FRONTEND-1's test-studio-voice-call.mjs (the .env.example "last thing in the file" pin reads the blocks registered after voice-call's) that this change used to carry, byte-identical to #603's, is in dev since 506bcbb3: no edit of that proof is carried here.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = 'eeb78d4f4b7676d75c244746f1edc7da1d269478' // origin/studio-v4-dev-preparation-code (#598 merged) at the start of this change
+export const BASE_COMMIT = '796d84420e0f1b233c91365e3053adc71441eb90' // origin/studio-v4-dev-preparation-code (#624 merged), the trunk this change sits on (restacked from eeb78d4f, #598 merged)
 export const AUDIT_CONSOLE_FLAGS = ["NEXT_PUBLIC_STUDIO_ANALYTICS_GATE","NEXT_PUBLIC_STUDIO_ANALYTICS_SERVED","NEXT_PUBLIC_STUDIO_DECK_TABS_HONEST"]
 export const AUDIT_CONSOLE_MARKER = 'AUDIT-CONSOLE'
 /** The marker as a WHOLE token: AUDIT-CONSOLE-X and X-AUDIT-CONSOLE are not this change's. */
@@ -42,6 +42,7 @@ export const AUDIT_CONSOLE_EDITS = {
 }
 
 /** The older proofs this change teaches: [text the proof has now, text the proof had before] per edit, so putting them back gives the previous file byte for byte. */
+// test-studio-create-word.mjs and test-studio-plain-nav-labels.mjs are not here: dev reads them through stripLaterChanges (RESTACK-UX-PC), which applies this change's strip once it is registered, so no edit of them is carried.
 export const AUDIT_CONSOLE_PIN_MARK = "LATER-CHANGES: registry read (AUDIT-CONSOLE)"
 export const AUDIT_CONSOLE_PIN_EDITS = {
   "scripts/test-studio-chat-element-edit.mjs": [
@@ -54,17 +55,9 @@ export const AUDIT_CONSOLE_PIN_EDITS = {
     ["import { stripAuditConsole } from './studio-audit-console-strip.mjs' // LATER-CHANGES: registry read (AUDIT-CONSOLE)\n", ""],
     ["const read = rel => stripDeckCardThumbnail(rel, stripAuditConsole(rel, fs.readFileSync(path.join(root, rel), 'utf8'))) // LATER-CHANGES: registry read (AUDIT-CONSOLE); DECK-CARD-THUMBNAIL: its marked lines on the Decks page come out first\n", "const read = rel => stripDeckCardThumbnail(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // DECK-CARD-THUMBNAIL: its marked lines on the Decks page come out first\n"],
   ],
-  "scripts/test-studio-create-word.mjs": [
-    ["import { stripAuditConsole } from './studio-audit-console-strip.mjs' // LATER-CHANGES: registry read (AUDIT-CONSOLE)\n", ""],
-    ["const read = rel => stripLaunchWording(rel, stripDeckCardThumbnail(rel, stripAuditConsole(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))) // LATER-CHANGES: registry read (AUDIT-CONSOLE); DECK-CARD-THUMBNAIL: its lines out first\n", "const read = rel => stripLaunchWording(rel, stripDeckCardThumbnail(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))) // DECK-CARD-THUMBNAIL: its lines out first\n"],
-  ],
   "scripts/test-studio-deck-cards-v2.mjs": [
     ["import { stripAuditConsole } from './studio-audit-console-strip.mjs' // LATER-CHANGES: registry read (AUDIT-CONSOLE)\n", ""],
     ["const read = file => stripDeckCardThumbnail(file, stripAuditConsole(file, fs.readFileSync(path.join(root, file), 'utf8'))); // LATER-CHANGES: registry read (AUDIT-CONSOLE); DECK-CARD-THUMBNAIL: its marked lines on the Decks page come out first\n", "const read = file => stripDeckCardThumbnail(file, fs.readFileSync(path.join(root, file), 'utf8')); // DECK-CARD-THUMBNAIL: its marked lines on the Decks page come out first\n"],
-  ],
-  "scripts/test-studio-plain-nav-labels.mjs": [
-    ["import { stripAuditConsole } from './studio-audit-console-strip.mjs' // LATER-CHANGES: registry read (AUDIT-CONSOLE)\n", ""],
-    ["const read = rel => stripLaunchWording(rel, stripDeckCardThumbnail(rel, stripAuditConsole(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))) // LATER-CHANGES: registry read (AUDIT-CONSOLE); DECK-CARD-THUMBNAIL: its lines out first\n", "const read = rel => stripLaunchWording(rel, stripDeckCardThumbnail(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))) // DECK-CARD-THUMBNAIL: its lines out first\n"],
   ],
   "scripts/test-atlas-decks-pagination.mjs": [
     ["import { stripAuditConsole } from './studio-audit-console-strip.mjs' // LATER-CHANGES: registry read (AUDIT-CONSOLE)\n", ""],
@@ -89,27 +82,12 @@ export const AUDIT_CONSOLE_PIN_EDITS = {
   ],
 }
 
-/**
- * FRONTEND-1's voice-call proof with the four-line after-merge edit FRONTEND-1 OK'd for UX findings E (FE1-OK-REQUEST-2.md section 2, #603 carries the same lines): its .env.example pins read the file raw, so a later change's env block
- * shows up in it. [line now, line before] per edit, whole lines; was = '' for an inserted line. Put back, the proof is the base's.
- */
-export const AUDIT_CONSOLE_VOICE_CALL_PIN_MARK = '// LATER-CHANGES: registry read (UX-FINDINGS-E)'
-export const AUDIT_CONSOLE_VOICE_CALL_PIN_EDITS = {
-  "scripts/test-studio-voice-call.mjs": [
-    ["const laterRegistry = await import('./studio-later-changes.mjs') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", ""],
-    ["const laterEnvOut = text => laterRegistry.LATER_ENV_BLOCKS.slice(laterRegistry.LATER_ENV_BLOCKS.indexOf(strip.VOICE_CALL_ENV_BLOCK) + 1).reduce((out, block) => out.replace(`\\n${block}`, ''), text) // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", ""],
-    ["  ok(laterEnvOut(env).endsWith(`\\n${strip.VOICE_CALL_ENV_BLOCK}`) && strip.VOICE_CALL_ENV_BLOCK.endsWith('\\n'), '.env.example: the block is the last thing in the file, after one blank line') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", "  ok(env.endsWith(`\\n${strip.VOICE_CALL_ENV_BLOCK}`) && strip.VOICE_CALL_ENV_BLOCK.endsWith('\\n'), '.env.example: the block is the last thing in the file, after one blank line')\n"],
-    ["    ok(laterEnvOut(`${envDiff.map(line => line.slice(1)).join('\\n')}\\n`).trimEnd().endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly its block (after ELEMENT-3\\'s two lines)') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", "    ok(envDiff.map(line => line.slice(1)).join('\\n').endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly its block (after ELEMENT-3\\'s two lines)')\n"],
-  ],
-}
-/** The proof it edits, and the anchor the two inserted lines go right after. */
-export const AUDIT_CONSOLE_VOICE_CALL_PIN_FILES = Object.keys(AUDIT_CONSOLE_VOICE_CALL_PIN_EDITS)
-export const AUDIT_CONSOLE_VOICE_CALL_PIN_ANCHOR = "const core = await import('./studio-voice-core-strip.mjs')"
+// FRONTEND-1's voice-call proof (the four-line after-merge edit): in dev since 506bcbb3, so it is the base's own text and no edit of it is carried (nothing to put back).
 
 /** The older proofs this change teaches. */
 export const AUDIT_CONSOLE_PIN_FILES = Object.keys(AUDIT_CONSOLE_PIN_EDITS)
 
-export const AUDIT_CONSOLE_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', ...AUDIT_CONSOLE_PIN_FILES, ...AUDIT_CONSOLE_VOICE_CALL_PIN_FILES]
+export const AUDIT_CONSOLE_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', ...AUDIT_CONSOLE_PIN_FILES]
 
 /** Every file this change's commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
 export const AUDIT_CONSOLE_SCOPE_FILES = new Set([...AUDIT_CONSOLE_FILES, ...AUDIT_CONSOLE_NEW_FILES, ...AUDIT_CONSOLE_OWN_EDITS])
@@ -119,12 +97,12 @@ export const AUDIT_CONSOLE_ENV_BLOCK = "# STUDIO ANALYTICS GATE (FRONTEND-1; pro
 
 /** The file with this change's edits put back (the previous text). Used by the strip and the proof. */
 export function putBackAuditConsole(rel, text) {
-  return (AUDIT_CONSOLE_EDITS[rel] || AUDIT_CONSOLE_PIN_EDITS[rel] || AUDIT_CONSOLE_VOICE_CALL_PIN_EDITS[rel] || []).reduce((out, [has, was]) => out.replace(has, () => was), text)
+  return (AUDIT_CONSOLE_EDITS[rel] || AUDIT_CONSOLE_PIN_EDITS[rel] || []).reduce((out, [has, was]) => out.replace(has, () => was), text)
 }
 
 /** The file without this change's edits: each [has, was] pair put back; every other byte stays. Any other file is returned as it is. */
 export function stripAuditConsole(rel, text) {
   if (typeof text !== 'string') return text
-  if (!(rel in AUDIT_CONSOLE_EDITS) && !(rel in AUDIT_CONSOLE_PIN_EDITS) && !(rel in AUDIT_CONSOLE_VOICE_CALL_PIN_EDITS)) return text
+  if (!(rel in AUDIT_CONSOLE_EDITS) && !(rel in AUDIT_CONSOLE_PIN_EDITS)) return text
   return putBackAuditConsole(rel, text)
 }
