@@ -3,7 +3,7 @@
 // document.fullscreenElement alone, so a page that says "presenting" while the browser says "not full screen" takes the ENTER branch when Exit is pressed. With the flag on, that state leaves Present on the page's own authority.
 // Every line this change adds to an EXISTING file carries the marker AUDIT-PRESENT-EXIT (matched as a whole token). Some base lines are rewritten, so the strip is a list of [has, was] pairs, not a marker filter: putting each pair back gives the file at BASE_COMMIT
 // byte for byte (a pair is one hunk of the committed diff: the lines the file has now, the lines it had). The new files have no base text.
-// FRONTEND-2's UX findings E (#603) carries the same four-line edit of FRONTEND-1's test-studio-voice-call.mjs (the .env.example "last thing in the file" pin must take out the env blocks registered after voice-call's); this change carries it too, BYTE-IDENTICAL, so every PR merges clean in any order.
+// The four-line edit of FRONTEND-1's test-studio-voice-call.mjs (the .env.example "last thing in the file" pin reads the blocks registered after voice-call's) that this change used to carry, byte-identical to #603's, is in dev since 506bcbb3: no edit of that proof is carried here.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
 export const BASE_COMMIT = '796d84420e0f1b233c91365e3053adc71441eb90' // origin/studio-v4-dev-preparation-code (#624 merged) the trunk this change sits on (restacked from eeb78d4f, #598 merged)
@@ -47,27 +47,12 @@ export const AUDIT_PRESENT_EXIT_PIN_EDITS = {
   ],
 }
 
-/**
- * FRONTEND-1's voice-call proof with the four-line after-merge edit FRONTEND-1 OK'd for UX findings E (FE1-OK-REQUEST-2.md section 2, #603 carries the same lines): its .env.example pins read the file raw, so a later change's env block
- * shows up in it. [line now, line before] per edit, whole lines; was = '' for an inserted line. Put back, the proof is the base's.
- */
-export const AUDIT_PRESENT_EXIT_VOICE_CALL_PIN_MARK = '// LATER-CHANGES: registry read (UX-FINDINGS-E)'
-export const AUDIT_PRESENT_EXIT_VOICE_CALL_PIN_EDITS = {
-  "scripts/test-studio-voice-call.mjs": [
-    ["const laterRegistry = await import('./studio-later-changes.mjs') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", ""],
-    ["const laterEnvOut = text => laterRegistry.LATER_ENV_BLOCKS.slice(laterRegistry.LATER_ENV_BLOCKS.indexOf(strip.VOICE_CALL_ENV_BLOCK) + 1).reduce((out, block) => out.replace(`\\n${block}`, ''), text) // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", ""],
-    ["  ok(laterEnvOut(env).endsWith(`\\n${strip.VOICE_CALL_ENV_BLOCK}`) && strip.VOICE_CALL_ENV_BLOCK.endsWith('\\n'), '.env.example: the block is the last thing in the file, after one blank line') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", "  ok(env.endsWith(`\\n${strip.VOICE_CALL_ENV_BLOCK}`) && strip.VOICE_CALL_ENV_BLOCK.endsWith('\\n'), '.env.example: the block is the last thing in the file, after one blank line')\n"],
-    ["    ok(laterEnvOut(`${envDiff.map(line => line.slice(1)).join('\\n')}\\n`).trimEnd().endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly its block (after ELEMENT-3\\'s two lines)') // LATER-CHANGES: registry read (UX-FINDINGS-E)\n", "    ok(envDiff.map(line => line.slice(1)).join('\\n').endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly its block (after ELEMENT-3\\'s two lines)')\n"],
-  ],
-}
-/** The proof it edits, and the anchor the two inserted lines go right after. */
-export const AUDIT_PRESENT_EXIT_VOICE_CALL_PIN_FILES = Object.keys(AUDIT_PRESENT_EXIT_VOICE_CALL_PIN_EDITS)
-export const AUDIT_PRESENT_EXIT_VOICE_CALL_PIN_ANCHOR = "const core = await import('./studio-voice-core-strip.mjs')"
+// FRONTEND-1's voice-call proof (the four-line after-merge edit): in dev since 506bcbb3, so it is the base's own text and no edit of it is carried (nothing to put back).
 
 /** The older proofs this change teaches. */
 export const AUDIT_PRESENT_EXIT_PIN_FILES = Object.keys(AUDIT_PRESENT_EXIT_PIN_EDITS)
 
-export const AUDIT_PRESENT_EXIT_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', ...AUDIT_PRESENT_EXIT_PIN_FILES, ...AUDIT_PRESENT_EXIT_VOICE_CALL_PIN_FILES]
+export const AUDIT_PRESENT_EXIT_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', ...AUDIT_PRESENT_EXIT_PIN_FILES]
 
 /** Every file this change's commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
 export const AUDIT_PRESENT_EXIT_SCOPE_FILES = new Set([...AUDIT_PRESENT_EXIT_FILES, ...AUDIT_PRESENT_EXIT_NEW_FILES, ...AUDIT_PRESENT_EXIT_OWN_EDITS])
@@ -77,12 +62,12 @@ export const AUDIT_PRESENT_EXIT_ENV_BLOCK = "# STUDIO PRESENT EXIT FIX (FRONTEND
 
 /** The file with this change's edits put back (the previous text). Used by the strip and the proof. */
 export function putBackAuditPresentExit(rel, text) {
-  return (AUDIT_PRESENT_EXIT_EDITS[rel] || AUDIT_PRESENT_EXIT_PIN_EDITS[rel] || AUDIT_PRESENT_EXIT_VOICE_CALL_PIN_EDITS[rel] || []).reduce((out, [has, was]) => out.replace(has, () => was), text)
+  return (AUDIT_PRESENT_EXIT_EDITS[rel] || AUDIT_PRESENT_EXIT_PIN_EDITS[rel] || []).reduce((out, [has, was]) => out.replace(has, () => was), text)
 }
 
 /** The file without this change's edits: each [has, was] pair put back; every other byte stays. Any other file is returned as it is. */
 export function stripAuditPresentExit(rel, text) {
   if (typeof text !== 'string') return text
-  if (!(rel in AUDIT_PRESENT_EXIT_EDITS) && !(rel in AUDIT_PRESENT_EXIT_PIN_EDITS) && !(rel in AUDIT_PRESENT_EXIT_VOICE_CALL_PIN_EDITS)) return text
+  if (!(rel in AUDIT_PRESENT_EXIT_EDITS) && !(rel in AUDIT_PRESENT_EXIT_PIN_EDITS)) return text
   return putBackAuditPresentExit(rel, text)
 }
