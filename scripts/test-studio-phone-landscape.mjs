@@ -27,6 +27,7 @@ import * as jsxRuntime from 'react/jsx-runtime'
 import { renderToStaticMarkup } from 'react-dom/server'
 import ts from 'typescript'
 import postcss from 'postcss'
+import { stripAuditPresentExit, AUDIT_PRESENT_EXIT_FILES } from './studio-audit-present-exit-strip.mjs' // LATER-CHANGES: registry read (AUDIT-PRESENT-EXIT): the Present exit fix (stacked after this change) marks lines in the viewer; this proof reads it as the change before the viewer's left it
 import {
   BASE_COMMIT, PHONE_LANDSCAPE_FILES, PHONE_LANDSCAPE_NEW_FILES, PHONE_LANDSCAPE_PIN_EDITS, PHONE_LANDSCAPE_PIN_FILES, PHONE_LANDSCAPE_PIN_MARK, PHONE_LANDSCAPE_SCOPE_FILES, PHONE_LANDSCAPE_ENV_BLOCK, PHONE_LANDSCAPE_MARKER_RE, PHONE_LANDSCAPE_SUBJECT, PHONE_LANDSCAPE_FLAG, stripPhoneLandscape,
 } from './studio-phone-landscape-strip.mjs'
@@ -36,6 +37,7 @@ import { stripChatParityViewer, CHAT_PARITY_VIEWER_FILES } from './studio-chat-p
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 { const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && CHAT_PARITY_VIEWER_FILES.includes(rel) ? stripChatParityViewer(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): every read of a file the viewer's change touched is the file without its marked lines (the viewer's own strip, never the registry: this proof's own lines stay visible to its pins)
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && AUDIT_PRESENT_EXIT_FILES.includes(rel) ? stripAuditPresentExit(rel, out) : out } } // LATER-CHANGES: registry read (AUDIT-PRESENT-EXIT): every read of a file the Present exit fix touched is the file without its marked lines (the fix's own strip, never the registry: this proof's own lines stay visible to its pins)
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000 })
 const baseText = rel => git('show', `${BASE_COMMIT}:${rel}`)
 /** Every OTHER registered change's strip, in the registry's order (this change's is left out): a file is read as this change left it, whatever other changes marked in it. */
@@ -529,6 +531,7 @@ const scopeCommittedFiles = (head, ctx = REAL) => {
   const own = scopeOwnCommits(head)
   const touched = new Set()
   for (const c of own) for (const rel of git('show', '--name-only', '--format=', c).split('\n').filter(Boolean)) touched.add(rel)
+  for (const rel of [...touched]) if (!PHONE_LANDSCAPE_SCOPE_FILES.has(rel) && (() => { try { return registry.stripLaterChanges(rel, git('show', `${head}:${rel}`)) === registry.stripLaterChanges(rel, git('show', `${BASE_COMMIT}:${rel}`)) } catch { return false } })()) touched.delete(rel) // LATER-CHANGES: registry read (AUDIT-PRESENT-EXIT): a file this change did not take (the viewer) that the Present exit fix marks (stacked after this change) is touched by no net change of this one's once every registered change strips its own lines; any other foreign file still counts
   // a file an own commit touched and a later own commit put back (the viewer, which an earlier version of this change edited) has no net change: it is not this change's file
   const net = new Set(git('diff', '--name-only', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)); for (const rel of [...touched]) if (!net.has(rel)) touched.delete(rel)
   for (const rel of [...touched]) if (!PHONE_LANDSCAPE_SCOPE_FILES.has(rel) && (() => { try { return registry.stripLaterChanges(rel, git('show', `${head}:${rel}`)) === registry.stripLaterChanges(rel, git('show', `${BASE_COMMIT}:${rel}`)) } catch { return false } })()) touched.delete(rel) // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): a file this change did not take (the viewer) that a later change marks is touched by no net change of this one's once every registered change strips its own lines; any other foreign file still counts

@@ -16,6 +16,8 @@ function load(file, dependencies = {}) {
   const module = { exports: {} }
   vm.runInNewContext(compile(file), { module, exports: module.exports, require: name => {
     if (Object.hasOwn(dependencies, name)) return dependencies[name]
+    if (name === '@/hooks/use-studio-publish-preview-frame') return { useStudioPublishPreviewFrame: () => null } // LATER-CHANGES: registry read (AUDIT-PREVIEWS): flag off, the frame hook answers null
+    if (name === '@/components/studio-publish-preview-frame') return { PublishPreviewFrame: 'PublishPreviewFrame' } // LATER-CHANGES: registry read (AUDIT-PREVIEWS)
     if (name === '@/hooks/use-studio-publish-preview-inventory') return { useStudioPublishPreviewInventory: (_sessionId, _source, base) => base } // stacked after #475: NEXT_PUBLIC_STUDIO_PUBLISH_PREVIEW_INVENTORY_ENABLED is off here (its default), where the hook returns the resolver's answer as it is; scripts/test-studio-publish-preview-inventory.mjs holds it on
     throw new Error(`Unexpected dependency ${name}`)
   } })
