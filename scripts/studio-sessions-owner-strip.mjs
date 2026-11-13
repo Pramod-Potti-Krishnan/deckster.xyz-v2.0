@@ -4,7 +4,7 @@
 // the DATABASE_URL prefix, the e-mail or raw error text, nor echoes raw error text in a 500.
 // How the older pins reach it: this change REGISTERS its files and its strip in scripts/studio-later-changes.mjs (two lines; no .env.example block: there is no flag). The strip puts back each edited file's base text:
 // SESSIONS_OWNER_PAIRS holds, per file, [the text this change left, the base text it replaced] (each with two lines of context, each present exactly once), applied in order, only when every one of them is there. Any other file, and a
-// file that does not carry this change's text, comes back as it is. Plain node, no imports, nothing read from disk or git here.
+// file that does not carry this change's text, comes back as it is. The two older proofs' taught line is a pair with an empty base text (the line comes out). Plain node, no imports, nothing read from disk or git here.
 
 export const BASE_COMMIT = '2f06e51ec807d4ecd5cd00edc9bfd0005a5fd0b8' // origin/studio-v4-dev-preparation-code when FRONTEND-1 cut this change
 export const SESSIONS_OWNER_SCOPE_FILES = [
@@ -17,8 +17,13 @@ export const SESSIONS_OWNER_SCOPE_FILES = [
   'scripts/test-studio-chat-element-edit.mjs', // taught: the same line
 ]
 
+/** The one line this change taught the two older proofs that read their own first-parent commits (a filter by this change's commit subject). Read through the registry, an older pin or a later change's pin sees them as they were. */
+export const SESSIONS_OWNER_PIN_LINE = "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Sessions:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (SESSIONS-OWNER): on a branch stacked after this change (the sessions owner check, P-73 / P-74), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files\n"
+
 /** [now, before] pairs per file: the strip puts the base's text back (each `now` sits in the head's file exactly once). Generated from the diff against BASE_COMMIT. */
 export const SESSIONS_OWNER_PAIRS = {
+ "scripts/test-studio-chat-element-edit.mjs": [[SESSIONS_OWNER_PIN_LINE, '']],
+ "scripts/test-studio-deck-sync-truth.mjs": [[SESSIONS_OWNER_PIN_LINE, '']],
  "app/api/sessions/route.ts": [
   [
    "import { authOptions } from '@/lib/auth-options';\nimport { prisma } from '@/lib/prisma';\nimport { pickAllowedKeys } from '@/lib/api-hardening-core';\n\n/**\n",
