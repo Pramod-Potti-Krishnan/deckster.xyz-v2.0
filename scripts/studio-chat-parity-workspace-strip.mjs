@@ -4,7 +4,7 @@
 // lib/studio-chat-parity-workspace.ts decides (the rows, what cannot run and why, the words, the bus), components/builder/chat/studio-chat-parity-workspace.tsx is the composer's glue (appearance, history, the saved templates), and the viewer half's menu draws the group.
 // Every line this change adds to an EXISTING file carries the marker CHAT-PARITY-WORKSPACE (matched as a whole token; CHAT-PARITY-VIEWER is the viewer half's and CHAT-PARITY is another change's). All are pure insertions (CHAT_PARITY_WORKSPACE_EDITS is empty: another change's strip never meets one of its lines changed). Take the marked lines out and each file is the viewer half's head, byte for byte.
 // The base is the viewer half's head, not the commit under it: for a file the viewer half touched that is its text; for a file it left alone the two commits agree (BASE_TOUCHED says which is which: the proof reads each from its own commit and checks the list against git).
-// How the older pins reach it: this change REGISTERS its files and this strip (scripts/studio-later-changes.mjs, two lines; no .env.example block), and teaches the older proofs that read files this change touched without going through the registry (the chat element edit proof: one inserted line, its two lines kept as they were).
+// How the older pins reach it: this change REGISTERS its files and this strip (scripts/studio-later-changes.mjs, two lines; no .env.example block), and teaches the older proofs that read files this change touched without going through the registry (arrange, first paint's viewer proof and the two phone proofs: one import and one read hook each, this strip only; the chat element edit proof: one inserted line, its two lines kept as they were).
 // Plain node, no imports, nothing read from disk or git here.
 
 export const BASE_COMMIT = '99e029760c06800fd1186bda60592404a7ba569a' // origin/frontend1/chat-parity-viewer (#611's head, on dev 2f06e51e); the tree diff from it to this change's newest commit is this change
@@ -79,6 +79,30 @@ export const CHAT_PARITY_WORKSPACE_PIN_EDITS = {
   "scripts/test-studio-chat-parity.mjs": [
     ["const OWN = (() => { try { return git('log', '--format=%H%x09%s', '-E', '--grep=^Chat parity', 'HEAD').split('\\n').filter(Boolean).map(line => line.split('\\t')).find(([, subject]) => !subject.startsWith('Chat parity viewer:') && !subject.startsWith('Chat parity workspace:'))?.[0] || null } catch { return null } })() // a merge of dev into this branch is this change's commit too (its subject starts the same way) // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): the viewer's slash commands (commits \"Chat parity viewer: ...\") are a later change's, not this one's // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): so are the workspace commands (commits \"Chat parity workspace: ...\")\n",
      "const OWN = (() => { try { return git('log', '-1', '--format=%H', '-E', '--grep=^Chat parity', 'HEAD').trim() || null } catch { return null } })() // a merge of dev into this branch is this change's commit too (its subject starts the same way)\n"]
+  ],
+  "scripts/test-studio-arrange.mjs": [
+    ["import { stripChatParityWorkspace, CHAT_PARITY_WORKSPACE_FILES } from './studio-chat-parity-workspace-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): the workspace slash commands (stacked after the viewer's) mark lines in the viewer and the page; this proof reads them as the viewer's commands left them\n",
+     ""],
+    ["{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && CHAT_PARITY_WORKSPACE_FILES.includes(rel) ? stripChatParityWorkspace(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): every read of a file the workspace's change touched is the file without its marked lines (the workspace's own strip, never the registry; each of the two hooks only drops its own marked lines, so the order they are installed in does not matter)\n",
+     ""]
+  ],
+  "scripts/test-studio-first-paint-viewer.mjs": [
+    ["import { stripChatParityWorkspace, CHAT_PARITY_WORKSPACE_FILES } from './studio-chat-parity-workspace-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): the workspace slash commands (stacked after the viewer's) mark lines in the viewer and the page; this proof reads them as the viewer's commands left them\n",
+     ""],
+    ["{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && CHAT_PARITY_WORKSPACE_FILES.includes(rel) ? stripChatParityWorkspace(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): every read of a file the workspace's change touched is the file without its marked lines (the workspace's own strip, never the registry; each of the two hooks only drops its own marked lines, so the order they are installed in does not matter)\n",
+     ""]
+  ],
+  "scripts/test-studio-phone-hints.mjs": [
+    ["import { stripChatParityWorkspace, CHAT_PARITY_WORKSPACE_FILES } from './studio-chat-parity-workspace-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): the workspace slash commands (stacked after the viewer's) mark lines in the viewer and the page; this proof reads them as the viewer's commands left them\n",
+     ""],
+    ["{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && CHAT_PARITY_WORKSPACE_FILES.includes(rel) ? stripChatParityWorkspace(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): every read of a file the workspace's change touched is the file without its marked lines (the workspace's own strip, never the registry; each of the two hooks only drops its own marked lines, so the order they are installed in does not matter)\n",
+     ""]
+  ],
+  "scripts/test-studio-phone-landscape.mjs": [
+    ["import { stripChatParityWorkspace, CHAT_PARITY_WORKSPACE_FILES } from './studio-chat-parity-workspace-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): the workspace slash commands (stacked after the viewer's) mark lines in the viewer and the page; this proof reads them as the viewer's commands left them\n",
+     ""],
+    ["{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && CHAT_PARITY_WORKSPACE_FILES.includes(rel) ? stripChatParityWorkspace(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): every read of a file the workspace's change touched is the file without its marked lines (the workspace's own strip, never the registry; each of the two hooks only drops its own marked lines, so the order they are installed in does not matter)\n",
+     ""]
   ]
 }
 export const CHAT_PARITY_WORKSPACE_PIN_FILES = Object.keys(CHAT_PARITY_WORKSPACE_PIN_EDITS)

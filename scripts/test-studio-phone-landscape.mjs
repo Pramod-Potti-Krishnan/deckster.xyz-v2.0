@@ -32,9 +32,11 @@ import {
 } from './studio-phone-landscape-strip.mjs'
 import * as registry from './studio-later-changes.mjs'
 import { stripChatParityViewer, CHAT_PARITY_VIEWER_FILES } from './studio-chat-parity-viewer-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): the viewer's slash commands (stacked after this change) mark lines in the viewer and the page; this proof reads them as the change before the viewer's left them
+import { stripChatParityWorkspace, CHAT_PARITY_WORKSPACE_FILES } from './studio-chat-parity-workspace-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): the workspace slash commands (stacked after the viewer's) mark lines in the viewer and the page; this proof reads them as the viewer's commands left them
 
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 { const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && CHAT_PARITY_VIEWER_FILES.includes(rel) ? stripChatParityViewer(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): every read of a file the viewer's change touched is the file without its marked lines (the viewer's own strip, never the registry: this proof's own lines stay visible to its pins)
+{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && CHAT_PARITY_WORKSPACE_FILES.includes(rel) ? stripChatParityWorkspace(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): every read of a file the workspace's change touched is the file without its marked lines (the workspace's own strip, never the registry; each of the two hooks only drops its own marked lines, so the order they are installed in does not matter)
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000 })
 const baseText = rel => git('show', `${BASE_COMMIT}:${rel}`)
