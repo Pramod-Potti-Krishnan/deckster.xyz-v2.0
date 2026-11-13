@@ -26,10 +26,11 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import React from 'react'
 import { BASE_COMMIT, DASHBOARD_PAGE, DECK_CARD_THUMBNAIL_MARKER, stripDeckCardThumbnail } from './studio-deck-card-thumbnail-strip.mjs'
+import { stripAuditConsole } from './studio-audit-console-strip.mjs' // LATER-CHANGES: registry read (AUDIT-CONSOLE)
 
 const require = createRequire(import.meta.url)
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const read = rel => stripAuditConsole(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // LATER-CHANGES: registry read (AUDIT-CONSOLE)
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 })
 const HOOK = 'hooks/use-studio-deck-card-thumbnail.tsx'
