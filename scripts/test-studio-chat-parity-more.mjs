@@ -556,7 +556,7 @@ function sourceChecks() {
     const touched = new Set()
     for (const sha of OWN) for (const rel of git('diff-tree', '--no-commit-id', '--name-only', '-r', '-m', '--first-parent', sha).split('\n').filter(Boolean)) touched.add(rel)
     eq([...touched].filter(rel => !strip.CHAT_PARITY_MORE_SCOPE_FILES.has(rel)), [], 'the committed diff of this change\'s own commits touches only the files this change lists (its marked app files, its new files, the registry and the older proofs it teaches)')
-    ok(OWN.every(sha => /Co-Authored-By: Claude Opus 5\.5 <noreply@anthropic\.com>/.test(git('log', '-1', '--format=%B', sha))), 'every commit of this change carries the Co-Authored-By line')
+    ok(OWN.every(sha => /Co-Authored-By: Claude (?:Opus|Sonnet) 5\.5 <noreply@anthropic\.com>/.test(git('log', '-1', '--format=%B', sha))), 'every commit of this change carries the Co-Authored-By line')
     ok(OWN.every(sha => git('log', '-1', '--format=%s', sha).startsWith(strip.CHAT_PARITY_MORE_SUBJECT)), 'every commit subject starts "Chat parity more:"')
   }
 }
