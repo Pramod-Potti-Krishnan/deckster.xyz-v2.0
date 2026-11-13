@@ -80,6 +80,11 @@ export const AUDIT_CONSOLE_PIN_EDITS = {
     ["import { stripAuditConsole } from './studio-audit-console-strip.mjs' // LATER-CHANGES: registry read (AUDIT-CONSOLE)\n", ""],
     ["const pageText = stripAuditConsole(DASHBOARD_PAGE, read(DASHBOARD_PAGE)) // LATER-CHANGES: registry read (AUDIT-CONSOLE): this change's lines come out first\n", "const pageText = read(DASHBOARD_PAGE)\n"],
   ],
+  "scripts/test-studio-deck-grid-4.mjs": [
+    ["import { stripAuditConsole } from './studio-audit-console-strip.mjs' // LATER-CHANGES: registry read (AUDIT-CONSOLE)\n", ""],
+    ["  '@/lib/studio-deck-tabs-honest': { STUDIO_DECK_TABS_HONEST_ENABLED: false, deckBuiltTabLabel: () => { throw new Error('flag off: not called') } }, // LATER-CHANGES: registry read (AUDIT-CONSOLE): flag NEXT_PUBLIC_STUDIO_DECK_TABS_HONEST is off here, so the label helper is never called\n", ""],
+    ["  source = stripAuditConsole(DASH, source) // LATER-CHANGES: registry read (AUDIT-CONSOLE): this change's marked lines on the page (the Decks tab label) come out before the page is compared with the base's; provePage renders them, over the stub above\n", ""],
+  ],
 }
 
 // FRONTEND-1's voice-call proof (the four-line after-merge edit): in dev since 506bcbb3, so it is the base's own text and no edit of it is carried (nothing to put back).
