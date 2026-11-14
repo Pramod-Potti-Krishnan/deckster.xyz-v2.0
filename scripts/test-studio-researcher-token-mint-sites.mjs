@@ -1,20 +1,34 @@
 /**
  * KNOWLEDGE-3, the F1 follow-up (test only): Studio signs a Researcher K-06 session token (lib/researcher-session-token.ts,
- * mintResearcherSessionToken) at exactly four places, and each one signs only for an owner it has already checked.
+ * mintResearcherSessionToken) at exactly four places. Two sign for a chat Studio has just checked belongs to the caller (the session-token route and the
+ * connector file's chat token), one signs the owner's own library id (no chat), and one, in the ingest-status route, signs a different name from the
+ * chat it checked and is protected by something else (site 1 below).
  *
  * Why it is pinned: Researcher's DSB-3 (RESEARCHER_CONNECTOR_BIND_ON_LINK_ENABLED) binds a chat that has no owner record to the owner named
  * in the token, so the token is the whole proof of ownership. That holds only while nobody can get a token for a chat they do not own, and that
  * rests on there being exactly these four mint sites (KNOWLEDGE-3's F1 note streams/knowledge-3/reviews/F1-OWNER-CHECKED-CLAIM.md; REVIEW-1's
- * streams/review1/uploads-v1.0-277.md, F1, closed by construction). A fifth site, or a site that moves above its owner check, must fail here
- * and be read by a person.
+ * streams/review1/uploads-v1.0-277.md, F1, closed by construction; REVIEW-1's #633 review streams/review1/deckster.xyz-v2.0-633.md, P3 1-4, which this
+ * file now follows). A fifth site, or a site that moves above its check, must fail here and be read by a person.
  *
- *   1. app/api/researcher/ingest-status/[jobId]/route.ts   x1, chat-scoped: prisma.chatSession.findUnique, then a userId !== accountId refusal, then the mint
- *   2. app/api/researcher/session-token/route.ts           x1, chat-scoped: same order
+ *   1. app/api/researcher/ingest-status/[jobId]/route.ts   x1: prisma.chatSession.findUnique, then a userId !== accountId refusal, then the mint. It does NOT sign the chat it checked: it signs the
+ *                                                              chat's stored Researcher session name (ChatSession.geminiStoreName), and the browser can set that name (POST /api/sessions/[id]/files).
+ *                                                              What protects it is that the token is used once, on the server, as a header of the single upstream request to Researcher's ingest-status
+ *                                                              job route, which then checks its own owner record for that session (REVIEW-1's reading: it refuses a session with no stored owner); the token
+ *                                                              is never returned, logged or sent to the browser (check h), and never goes to the connector routes (the bind-on-link path), which need the service key.
+ *   2. app/api/researcher/session-token/route.ts           x1: same order. It signs the checked chat id itself (check g). The token goes to the browser by design, for 15 minutes.
  *   3. lib/connectors-gdrive-server.ts                     x2: connectorIdentityHeader (sessionId: connectorSessionId(owner), the owner's own library token, not a chat)
  *                                                              and chatSessionIdentityHeader (chat-scoped; one caller, handleSessionLinks, after ownChatRefusal)
  *
- * Assertions: a. call sites  b. importers  c. the connector file's shape  d. route order  e. where RESEARCHER_SESSION_TOKEN_SECRET is read
- *   f. nothing else signs: researcherSessionTokenSecret (the secret helper) is imported only by the same three files, and those three never call or import createHmac.
+ * Assertions: a. call sites  b. importers  c. the connector file's shape
+ *   d. route order: in the two routes the lookup, the owner-mismatch refusal and the mint sit directly in one function, the exported GET handler (a mint in a helper fails), in that order
+ *   e. where RESEARCHER_SESSION_TOKEN_SECRET is read
+ *   f. what else could sign, as far as source can show: researcherSessionTokenSecret (the secret helper) is imported only by the same three files; every result of calling it there goes only into the
+ *      minter's secret property or a truthiness test; those three files and the library never use Web Crypto's subtle; the three never call or import createHmac and take no whole crypto module
+ *   g. session-token route: the mint's sessionId is the same variable the lookup uses as where.id
+ *   h. ingest-status route: minted.token is used once, as a header value of the one upstream fetch, and is never part of a response, a log or a return
+ *   i. the library: its export list is pinned to today's names, createHmac is called once, inside the minter, and nothing but createHmac is taken from crypto
+ * What this does not show: a secret read built from pieces of its name or by taking process.env whole (check e looks for the name as written), or a signer from a package other than
+ * crypto that is handed a secret read that way. A reviewer reads those; the check holds the rest.
  * Plain node, no new dependency (typescript, which the other Studio source tests already use, parses the source, so comments and strings never
  * count and line breaks and spacing do not matter). Names are strict; no line numbers are pinned. No network, no secret, nothing is written.
  *
@@ -44,6 +58,9 @@ const CHAT_HEADER = 'chatSessionIdentityHeader'
 const OWNER_GATE = 'ownChatRefusal'
 const LINKS_HANDLER = 'handleSessionLinks'
 const SECRET_ENV = 'RESEARCHER_SESSION_TOKEN_SECRET'
+// the names lib/researcher-session-token.ts exports today (values and types); a new one is a new way to sign and must be read by a person (check i)
+const LIBRARY_EXPORTS = ['MintResearcherSessionTokenInput', 'MintedResearcherSessionToken', 'RESEARCHER_SESSION_TOKEN_HEADER', 'RESEARCHER_SESSION_TOKEN_MAX_TTL_SECONDS',
+  'RESEARCHER_SESSION_TOKEN_MIN_SECRET_BYTES', 'RESEARCHER_SESSION_TOKEN_VERSION', 'isTokenClaim', 'mintResearcherSessionToken', 'researcherSessionTokenSecret']
 const NOTES = 'See KNOWLEDGE-3 streams/knowledge-3/reviews/F1-OWNER-CHECKED-CLAIM.md and REVIEW-1 streams/review1/uploads-v1.0-277.md (F1) before adding or moving a mint site.'
 
 const ALLOWED_CALLS = { [INGEST_ROUTE]: 1, [TOKEN_ROUTE]: 1, [CONNECTORS]: 2 }
@@ -102,6 +119,107 @@ const isNamedDeclaration = (n, name) => (ts.isFunctionDeclaration(n) || ts.isVar
 const hasExport = (n) => {
   const decl = ts.isVariableDeclaration(n) ? n.parent?.parent : n
   return !!decl && ts.canHaveModifiers(decl) && (ts.getModifiers(decl) ?? []).some(m => m.kind === ts.SyntaxKind.ExportKeyword)
+}
+const hasModifier = (n, kind) => ts.canHaveModifiers(n) && (ts.getModifiers(n) ?? []).some(m => m.kind === kind)
+/** The nearest function-like ancestor (an arrow or a callback counts), or null at module level. */
+const nearestFunction = (n) => { for (let p = n.parent; p; p = p.parent) if (ts.isFunctionLike(p)) return p; return null }
+const describeFunction = (fn) => (fn ? `${functionName(fn) ?? '(anonymous function)'} (${where(fn.getSourceFile(), fn)})` : '(module level)')
+/** `fn` is the function a route exports under `name`: `export function NAME` or `export const NAME = (async) function / arrow`. */
+const isExportedHandler = (fn, name) => {
+  if (!fn) return false
+  if (ts.isFunctionDeclaration(fn)) return !!fn.name && fn.name.text === name && hasExport(fn)
+  const p = fn.parent
+  return (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn)) && !!p && ts.isVariableDeclaration(p) && ts.isIdentifier(p.name) && p.name.text === name && hasExport(p)
+}
+/** The value of property `name` in an object literal: `name: value` gives value, the shorthand `name` gives its identifier; null when there is none (or `obj` is no object literal). */
+const objectProp = (obj, name) => {
+  if (!obj || !ts.isObjectLiteralExpression(obj)) return null
+  for (const prop of obj.properties) {
+    if (ts.isPropertyAssignment(prop) && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)) && prop.name.text === name) return prop.initializer
+    if (ts.isShorthandPropertyAssignment(prop) && prop.name.text === name) return prop.name
+  }
+  return null
+}
+/** `n` with the wrappers that do not change its value (parentheses, `!`, `as`, `satisfies`, a type assertion) taken off the outside: the outermost such node. */
+const unwrapUp = (n) => {
+  let e = n
+  while (e.parent && (ts.isParenthesizedExpression(e.parent) || ts.isNonNullExpression(e.parent) || ts.isAsExpression(e.parent) || ts.isSatisfiesExpression(e.parent) || ts.isTypeAssertionExpression(e.parent))) e = e.parent
+  return e
+}
+/** An identifier that names a property (`x.NAME`, `{ NAME: v }`, `{ NAME: local } = o`) and so is no use of a variable called NAME. */
+const isPropertyNameOnly = (id) => {
+  const p = id.parent
+  return (ts.isPropertyAccessExpression(p) && p.name === id) || (ts.isPropertyAssignment(p) && p.name === id) || (ts.isBindingElement(p) && p.propertyName === id)
+}
+const chatSessionLookups = (sf) => nodesOf(sf, n => isCallTo(n, 'findUnique') && ts.isPropertyAccessExpression(n.expression) && ts.isPropertyAccessExpression(n.expression.expression)
+  && n.expression.expression.name.text === 'chatSession' && ts.isIdentifier(n.expression.expression.expression) && n.expression.expression.expression.text === 'prisma')
+
+/** The identifiers a name or binding pattern declares. */
+function bindingIdentifiers(name, out = []) {
+  if (ts.isIdentifier(name)) out.push(name)
+  else if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)) for (const el of name.elements) if (ts.isBindingElement(el)) bindingIdentifiers(el.name, out)
+  return out
+}
+/** The identifier that declares `name` directly in scope node `scope`, or null: parameters, const / let / var, function and class declarations, catch and for-loop variables. */
+function declaredIn(scope, name) {
+  const pickNamed = (ids) => ids.find(id => id.text === name) ?? null
+  if (ts.isFunctionLike(scope)) {
+    for (const param of scope.parameters) { const d = pickNamed(bindingIdentifiers(param.name)); if (d) return d }
+    return ts.isFunctionExpression(scope) && scope.name && scope.name.text === name ? scope.name : null
+  }
+  if (ts.isCatchClause(scope)) return scope.variableDeclaration ? pickNamed(bindingIdentifiers(scope.variableDeclaration.name)) : null
+  if (ts.isForStatement(scope) || ts.isForOfStatement(scope) || ts.isForInStatement(scope)) {
+    const init = scope.initializer
+    return init && ts.isVariableDeclarationList(init) ? pickNamed(init.declarations.flatMap(d => bindingIdentifiers(d.name))) : null
+  }
+  const statements = ts.isSourceFile(scope) || ts.isBlock(scope) || ts.isModuleBlock(scope) ? scope.statements : ts.isCaseBlock(scope) ? scope.clauses.flatMap(c => [...c.statements]) : null
+  if (!statements) return null
+  for (const st of statements) {
+    if (ts.isVariableStatement(st)) { const d = pickNamed(st.declarationList.declarations.flatMap(x => bindingIdentifiers(x.name))); if (d) return d }
+    else if ((ts.isFunctionDeclaration(st) || ts.isClassDeclaration(st)) && st.name && st.name.text === name) return st.name
+  }
+  return null
+}
+/** The identifier node that declares the variable `use` refers to: the nearest enclosing scope that declares its name. Null for an import or a global. Two uses are the same variable exactly when this gives the same node. */
+function bindingOf(use) {
+  for (let p = use.parent; p; p = p.parent) { const d = declaredIn(p, use.text); if (d) return d }
+  return null
+}
+/** The names a module exports, from its top-level statements: declarations with `export`, `export { a, b as c }`, `export * from`, `export default`, `export =`. Types and interfaces count. */
+function exportedNames(sf) {
+  const names = []
+  for (const st of sf.statements) {
+    if (ts.isExportAssignment(st)) names.push(st.isExportEquals ? 'export =' : 'default')
+    else if (ts.isExportDeclaration(st)) {
+      if (!st.exportClause) names.push(`* from ${st.moduleSpecifier && ts.isStringLiteral(st.moduleSpecifier) ? st.moduleSpecifier.text : '?'}`)
+      else if (ts.isNamespaceExport(st.exportClause)) names.push(st.exportClause.name.text)
+      else for (const el of st.exportClause.elements) names.push(el.name.text)
+    } else if (hasModifier(st, ts.SyntaxKind.ExportKeyword)) {
+      if (hasModifier(st, ts.SyntaxKind.DefaultKeyword)) names.push('default')
+      else if (ts.isVariableStatement(st)) for (const d of st.declarationList.declarations) for (const id of bindingIdentifiers(d.name)) names.push(id.text)
+      else if (st.name && ts.isIdentifier(st.name)) names.push(st.name.text)
+      else names.push('(unnamed export)')
+    }
+  }
+  return names
+}
+/** True when the value of `n` is used only as a truthiness test: `!n` (a boolean whatever surrounds it), `if (n)`, `n ? a : b`, or an operand of && or || whose own value is used that way. */
+function isTruthinessOnly(n) {
+  const e = unwrapUp(n), p = e.parent
+  if (!p) return false
+  if (ts.isPrefixUnaryExpression(p) && p.operator === ts.SyntaxKind.ExclamationToken) return true
+  if (ts.isIfStatement(p) && p.expression === e) return true
+  if (ts.isConditionalExpression(p) && p.condition === e) return true
+  if (ts.isBinaryExpression(p) && (p.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken || p.operatorToken.kind === ts.SyntaxKind.BarBarToken) && (p.left === e || p.right === e)) return isTruthinessOnly(p)
+  return false
+}
+/** True when `n` is the value of the `secret` property of the object literal that is the first argument of a mintResearcherSessionToken( call. */
+function isMinterSecret(n) {
+  const e = unwrapUp(n), p = e.parent
+  const isSecretProp = !!p && ((ts.isPropertyAssignment(p) && p.initializer === e && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name)) && p.name.text === 'secret')
+    || (ts.isShorthandPropertyAssignment(p) && p.name === e && e.text === 'secret'))
+  const obj = isSecretProp ? p.parent : null
+  return !!obj && ts.isObjectLiteralExpression(obj) && !!obj.parent && ts.isCallExpression(obj.parent) && obj.parent.arguments[0] === obj && isCallTo(obj.parent, MINT)
 }
 
 /** Every use of an identifier named `name`, sorted into: call (called, directly or through a namespace/member), import (an import specifier), declaration, other (anything else: passed as a value, re-exported, aliased). */
@@ -205,15 +323,7 @@ check(`c. ${CONNECTORS}: one mint is the owner's library token (sessionId: conne
   const sf = need(parsed.get(CONNECTORS), CONNECTORS)
   const mints = callsTo(sf, MINT)
   equal(mints.length, 2, `${CONNECTORS} has ${mints.length} ${MINT}( calls, expected 2. ${NOTES}`)
-  const sessionIdInit = (call) => {
-    const arg = call.arguments[0]
-    if (!arg || !ts.isObjectLiteralExpression(arg)) return null
-    for (const prop of arg.properties) {
-      if (ts.isPropertyAssignment(prop) && ts.isIdentifier(prop.name) && prop.name.text === 'sessionId') return prop.initializer
-      if (ts.isShorthandPropertyAssignment(prop) && prop.name.text === 'sessionId') return prop.name
-    }
-    return null
-  }
+  const sessionIdInit = (call) => objectProp(call.arguments[0], 'sessionId')
   const libraryMints = mints.filter(c => { const init = sessionIdInit(c); return !!init && isCallTo(init, 'connectorSessionId') })
   const chatMints = mints.filter(c => enclosingNamedFunction(c) && functionName(enclosingNamedFunction(c)) === CHAT_HEADER)
   equal(libraryMints.length, 1, `expected one mint that passes sessionId: connectorSessionId(...), found ${libraryMints.length}. ${NOTES}`)
@@ -251,28 +361,34 @@ check(`c. ${CHAT_HEADER}( has exactly one caller, inside ${LINKS_HANDLER}, after
   assert.ok(returns.length > 0, `in ${LINKS_HANDLER}, no \`if (${refusedName}) return ...\` sits between ${OWNER_GATE}( and ${CHAT_HEADER}(. ${NOTES}`)
 })
 
-// ---- d. route order
+// ---- d. route order, and one function
 function routeOrder(rel) {
   const sf = need(parsed.get(rel), rel)
   const mints = callsTo(sf, MINT)
   equal(mints.length, 1, `${rel} has ${mints.length} ${MINT}( calls, expected 1. ${NOTES}`)
-  const mintAt = startOf(mints[0])
-  const lookups = nodesOf(sf, n => isCallTo(n, 'findUnique') && ts.isPropertyAccessExpression(n.expression) && ts.isPropertyAccessExpression(n.expression.expression)
-    && n.expression.expression.name.text === 'chatSession' && ts.isIdentifier(n.expression.expression.expression) && n.expression.expression.expression.text === 'prisma')
+  const mint = mints[0], mintAt = startOf(mint)
+  const lookups = chatSessionLookups(sf)
   assert.ok(lookups.length > 0, `${rel} has no prisma.chatSession.findUnique( call. ${NOTES}`)
+  equal(lookups.length, 1, `${rel} has ${lookups.length} prisma.chatSession.findUnique( calls (${lookups.map(l => where(sf, l)).join(', ')}), expected 1: which one checks the chat the mint signs for would be a guess. ${NOTES}`)
   const lookup = lookups[0]
-  assert.ok(startOf(lookup) < mintAt, `${rel}: ${MINT}( (${where(sf, mints[0])}) comes before prisma.chatSession.findUnique( (${where(sf, lookup)}). ${NOTES}`)
-  // the owner-mismatch refusal: an if on `<x>.userId !== accountId` (either side, !== or !=) whose body returns
+  assert.ok(startOf(lookup) < mintAt, `${rel}: ${MINT}( (${where(sf, mint)}) comes before prisma.chatSession.findUnique( (${where(sf, lookup)}). ${NOTES}`)
+  // the owner-mismatch refusal: an if on `<x>.userId !== accountId` (either side, !== or !=) whose body returns (from the function the if is in)
   const isOwnerMismatch = (e) => ts.isBinaryExpression(e) && (e.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsEqualsToken || e.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsToken)
     && [[e.left, e.right], [e.right, e.left]].some(([a, b]) => ts.isPropertyAccessExpression(a) && a.name.text === 'userId' && ts.isIdentifier(b) && b.text === 'accountId')
-  const refusals = nodesOf(sf, n => ts.isIfStatement(n) && nodesOf(n.expression, isOwnerMismatch).length > 0 && nodesOf(n.thenStatement, x => ts.isReturnStatement(x)).length > 0)
+  const refusals = nodesOf(sf, n => ts.isIfStatement(n) && nodesOf(n.expression, isOwnerMismatch).length > 0 && nodesOf(n.thenStatement, x => ts.isReturnStatement(x) && nearestFunction(x) === nearestFunction(n)).length > 0)
   assert.ok(refusals.length > 0, `${rel} has no owner-mismatch refusal (an if on <row>.userId !== accountId that returns). ${NOTES}`)
   const refusal = refusals.find(r => startOf(r) > startOf(lookup))
   assert.ok(refusal, `${rel}: the owner-mismatch refusal (${where(sf, refusals[0])}) does not come after prisma.chatSession.findUnique( (${where(sf, lookup)}). ${NOTES}`)
-  assert.ok(refusal.getEnd() <= mintAt, `${rel}: ${MINT}( (${where(sf, mints[0])}) comes before the owner-mismatch refusal (${where(sf, refusal)}). ${NOTES}`)
+  assert.ok(refusal.getEnd() <= mintAt, `${rel}: ${MINT}( (${where(sf, mint)}) comes before the owner-mismatch refusal (${where(sf, refusal)}). ${NOTES}`)
+  // the lookup, the refusal and the mint sit directly in one function (no callback, no helper between them), and it is the exported GET handler: a mint moved into a helper that GET calls, or that
+  // a second handler calls without the check, would otherwise keep the text order above
+  const home = nearestFunction(mint)
+  assert.ok(nearestFunction(lookup) === home && nearestFunction(refusal) === home,
+    `${rel}: the lookup (in ${describeFunction(nearestFunction(lookup))}), the owner-mismatch refusal (in ${describeFunction(nearestFunction(refusal))}) and ${MINT}( (in ${describeFunction(home)}) must sit directly in one function. ${NOTES}`)
+  assert.ok(isExportedHandler(home, 'GET'), `${rel}: the lookup, the refusal and ${MINT}( sit in ${describeFunction(home)}, expected the exported GET handler itself. ${NOTES}`)
 }
-check(`d. ${TOKEN_ROUTE}: the mint comes after prisma.chatSession.findUnique( and after the owner-mismatch refusal`, () => routeOrder(TOKEN_ROUTE))
-check(`d. ${INGEST_ROUTE}: the mint comes after prisma.chatSession.findUnique( and after the owner-mismatch refusal`, () => routeOrder(INGEST_ROUTE))
+check(`d. ${TOKEN_ROUTE}: the lookup, the owner-mismatch refusal and the mint sit in the exported GET handler, in that order`, () => routeOrder(TOKEN_ROUTE))
+check(`d. ${INGEST_ROUTE}: the lookup, the owner-mismatch refusal and the mint sit in the exported GET handler, in that order`, () => routeOrder(INGEST_ROUTE))
 
 // ---- e. secret reads
 check(`e. process.env.${SECRET_ENV} is read in exactly one place, ${DEFINITION}`, () => {
@@ -292,7 +408,7 @@ check(`e. process.env.${SECRET_ENV} is read in exactly one place, ${DEFINITION}`
   assert.ok(viaEnv, `the one occurrence in ${DEFINITION} (${where(hits[0].sf, n)}) is no longer process.env.${SECRET_ENV}; re-read this test before changing it`)
 })
 
-// ---- f. nothing else signs: the secret helper stays with the three, and the three sign only through the minter
+// ---- f. what else could sign, as far as source can show: the secret helper stays with the three, its result goes only into the minter, and the three sign only through the minter
 check(`f. ${SECRET_HELPER} is imported only by the same three files, and is declared in ${DEFINITION}`, () => {
   deepEqual(helperUses.declarations.map(d => d.rel), [DEFINITION], `${SECRET_HELPER} must be declared once, in ${DEFINITION}; found ${fmt(count(helperUses.declarations))}. ${NOTES}`)
   const got = count(helperUses.imports)
@@ -304,6 +420,26 @@ check(`f. ${SECRET_HELPER} is imported only by the same three files, and is decl
   equal(stray.length, 0, `${SECRET_HELPER} is used outside the three files at ${stray.map(s => where(s.sf, s.node)).join(', ')}. ${NOTES}`)
   const reached = reachWholeModule(isTokenModule, [DEFINITION, ...CALL_SITE_FILES])
   equal(reached.length, 0, `lib/${TOKEN_MODULE} is reached as a whole module (namespace import, export *, require or import()) outside the three: ${reached.join(', ')}. ${NOTES}`)
+})
+check(`f. in the three files every result of calling ${SECRET_HELPER}( goes only into the minter's secret or a truthiness test`, () => {
+  // allowed: the call itself, or a const holding it whose every reference is one of these, as (a) the `secret` property of the object passed to ${MINT}( or (b) a truthiness test (!x, if (x), x ? a : b, an && / || operand in one)
+  const problems = []
+  for (const rel of CALL_SITE_FILES) {
+    const sf = need(parsed.get(rel), rel)
+    for (const s of helperUses.other.filter(u => u.rel === rel)) problems.push(`${where(sf, s.node)}: ${SECRET_HELPER} is named without being called (an alias, a value passed on, a re-export or a string)`)
+    for (const s of helperUses.calls.filter(u => u.rel === rel)) {
+      const call = unwrapUp(s.call)
+      if (isMinterSecret(call) || isTruthinessOnly(call)) continue
+      const holder = call.parent
+      if (ts.isVariableDeclaration(holder) && holder.initializer === call && ts.isIdentifier(holder.name) && (ts.getCombinedNodeFlags(holder) & ts.NodeFlags.Const)) {
+        const scope = nearestFunction(holder) ?? sf
+        for (const ref of nodesOf(scope, n => ts.isIdentifier(n) && n.text === holder.name.text && n !== holder.name && !isPropertyNameOnly(n))) {
+          if (!isMinterSecret(ref) && !isTruthinessOnly(ref)) problems.push(`${where(sf, ref)}: \`${holder.name.text}\` holds the result of ${SECRET_HELPER}( (${where(sf, s.call)}) and is used other than as the minter's secret or in a truthiness test`)
+        }
+      } else problems.push(`${where(sf, s.call)}: the result of ${SECRET_HELPER}( is used other than as the minter's secret or in a truthiness test, and is not held in a const`)
+    }
+  }
+  equal(problems.length, 0, `${problems.join('\n')}\nthe secret may go only into ${MINT}({ secret, ... }) or a test such as \`!secret\`, \`secret ? a : b\`, \`if (secret)\`. ${NOTES}`)
 })
 check(`f. none of the three files calls ${SIGNER} or imports it from crypto / node:crypto: they sign only through ${MINT}`, () => {
   for (const rel of CALL_SITE_FILES) {
@@ -317,6 +453,95 @@ check(`f. none of the three files calls ${SIGNER} or imports it from crypto / no
   // the whole crypto module taken without naming createHmac (namespace or default import, require('crypto'), import('crypto'), export *) would hand it over unseen
   const reached = reachWholeModule(isCryptoModule, [...parsed.keys()].filter(rel => !CALL_SITE_FILES.includes(rel)))
   equal(reached.length, 0, `${reached.join(', ')} take the whole crypto module (namespace or default import, export *, require or import()); a mint site must sign only through ${MINT}. ${NOTES}`)
+})
+check(`f. none of the three files, nor ${DEFINITION}, uses Web Crypto's subtle`, () => {
+  for (const rel of [...CALL_SITE_FILES, DEFINITION]) {
+    const sf = need(parsed.get(rel), rel)
+    const hits = []
+    walkNodes(sf, n => {
+      if ((ts.isIdentifier(n) && n.text === 'subtle') || ((ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) && n.text === 'subtle')) hits.push(where(sf, n)) // crypto.subtle, crypto['subtle'], { subtle } = crypto
+    })
+    equal(hits.length, 0, `${rel} names subtle (Web Crypto, crypto.subtle) at ${hits.join(', ')}; the three files sign only through ${MINT} and the library only with ${SIGNER}. ${NOTES}`)
+  }
+})
+
+// ---- g. session-token route: the mint signs the very chat the lookup checked
+check(`g. ${TOKEN_ROUTE}: the mint's sessionId is the same variable the prisma.chatSession.findUnique( lookup uses as where.id`, () => {
+  const sf = need(parsed.get(TOKEN_ROUTE), TOKEN_ROUTE)
+  const mints = callsTo(sf, MINT)
+  equal(mints.length, 1, `${TOKEN_ROUTE} has ${mints.length} ${MINT}( calls, expected 1. ${NOTES}`)
+  const lookups = chatSessionLookups(sf)
+  equal(lookups.length, 1, `${TOKEN_ROUTE} has ${lookups.length} prisma.chatSession.findUnique( calls, expected 1. ${NOTES}`)
+  const checkedId = objectProp(objectProp(lookups[0].arguments[0], 'where'), 'id')
+  assert.ok(checkedId && ts.isIdentifier(checkedId), `${TOKEN_ROUTE}: the lookup's where.id (${where(sf, lookups[0])}) is not a plain variable, so what the mint signs cannot be tied to what was checked. ${NOTES}`)
+  const signedId = objectProp(mints[0].arguments[0], 'sessionId')
+  assert.ok(signedId && ts.isIdentifier(signedId), `${TOKEN_ROUTE}: the mint's sessionId (${where(sf, mints[0])}) is not a plain variable (it must be \`${checkedId.text}\`, the one the lookup checked). ${NOTES}`)
+  const checkedDecl = bindingOf(checkedId), signedDecl = bindingOf(signedId)
+  assert.ok(checkedDecl, `${TOKEN_ROUTE}: where.id names \`${checkedId.text}\` (${where(sf, checkedId)}), which is not declared in this file. ${NOTES}`)
+  assert.ok(signedDecl === checkedDecl, `${TOKEN_ROUTE}: the mint signs \`${signedId.text}\` (${where(sf, signedId)}, declared ${signedDecl ? `at ${where(sf, signedDecl)}` : 'nowhere in this file'}) but the lookup checked \`${checkedId.text}\` (${where(sf, checkedId)}, declared at ${where(sf, checkedDecl)}); they are not the same variable, so the token may be for a chat nobody checked. ${NOTES}`)
+  const decl = checkedDecl.parent
+  assert.ok(ts.isVariableDeclaration(decl) && (ts.getCombinedNodeFlags(decl) & ts.NodeFlags.Const), `${TOKEN_ROUTE}: \`${checkedId.text}\` is not a const, so it could change between the lookup and the mint. ${NOTES}`)
+})
+
+// ---- h. ingest-status route: the minted token goes into the one upstream request and nowhere else
+check(`h. ${INGEST_ROUTE}: the minted token is used once, as a header value of the one upstream fetch, and never in a response, a log or a return`, () => {
+  const sf = need(parsed.get(INGEST_ROUTE), INGEST_ROUTE)
+  const mints = callsTo(sf, MINT)
+  equal(mints.length, 1, `${INGEST_ROUTE} has ${mints.length} ${MINT}( calls, expected 1. ${NOTES}`)
+  const holder = unwrapUp(mints[0]).parent
+  assert.ok(ts.isVariableDeclaration(holder) && ts.isIdentifier(holder.name) && (ts.getCombinedNodeFlags(holder) & ts.NodeFlags.Const), `${INGEST_ROUTE}: the result of ${MINT}( (${where(sf, mints[0])}) is not held in a const, so this test cannot follow where the token goes. ${NOTES}`)
+  const name = holder.name.text
+  const tokenUses = [], stray = []
+  for (const ref of nodesOf(sf, n => ts.isIdentifier(n) && n.text === name && n !== holder.name && !isPropertyNameOnly(n))) {
+    const p = ref.parent
+    if (ts.isPrefixUnaryExpression(p) && p.operator === ts.SyntaxKind.ExclamationToken) continue // the null guard, !minted: a boolean
+    if (ts.isPropertyAccessExpression(p) && p.expression === ref && p.name.text === 'token') tokenUses.push(p)
+    else stray.push(ref)
+  }
+  equal(stray.length, 0, `${INGEST_ROUTE}: \`${name}\` (the minted token) is used at ${stray.map(r => where(sf, r)).join(', ')} other than as \`!${name}\` or \`${name}.token\`; the token must never be returned, logged or passed on. ${NOTES}`)
+  equal(tokenUses.length, 1, `${INGEST_ROUTE}: \`${name}.token\` is used ${tokenUses.length} times (${tokenUses.map(u => where(sf, u)).join(', ') || 'never'}), expected exactly once, as the header value of the upstream request; a response, a log line or a second request must not carry it. ${NOTES}`)
+  // that one use is `headers: { <key>: minted.token }` in the options argument of a fetch( call, and it is the file's only fetch( call, made by the same function as the mint
+  const use = tokenUses[0]
+  const entry = ts.isPropertyAssignment(use.parent) && use.parent.initializer === use ? use.parent : null
+  const headers = entry && ts.isObjectLiteralExpression(entry.parent) ? entry.parent : null
+  const headersProp = headers && ts.isPropertyAssignment(headers.parent) && headers.parent.initializer === headers && ts.isIdentifier(headers.parent.name) && headers.parent.name.text === 'headers' ? headers.parent : null
+  const options = headersProp && ts.isObjectLiteralExpression(headersProp.parent) ? headersProp.parent : null
+  const fetchCall = options && ts.isCallExpression(options.parent) && options.parent.arguments[1] === options && calleeName(options.parent) === 'fetch' ? options.parent : null
+  assert.ok(fetchCall, `${INGEST_ROUTE}: \`${name}.token\` (${where(sf, use)}) is not the value of an entry in the \`headers\` of the options argument of a fetch( call. ${NOTES}`)
+  const fetches = callsTo(sf, 'fetch')
+  equal(fetches.length, 1, `${INGEST_ROUTE} has ${fetches.length} fetch( calls (${fetches.map(f => where(sf, f)).join(', ')}), expected exactly 1, the upstream request that carries the token. ${NOTES}`)
+  assert.ok(fetches[0] === fetchCall, `${INGEST_ROUTE}: the fetch( that carries the token (${where(sf, fetchCall)}) is not the file's only fetch( call. ${NOTES}`)
+  assert.ok(nearestFunction(fetchCall) === nearestFunction(mints[0]), `${INGEST_ROUTE}: the fetch( that carries the token is in ${describeFunction(nearestFunction(fetchCall))} but the mint is in ${describeFunction(nearestFunction(mints[0]))}. ${NOTES}`)
+})
+
+// ---- i. the library: the one place that signs
+check(`i. ${DEFINITION} exports exactly today's names (${LIBRARY_EXPORTS.length}), so a second signing function cannot be imported unseen`, () => {
+  const sf = need(parsed.get(DEFINITION), DEFINITION)
+  const got = exportedNames(sf).sort(), want = [...LIBRARY_EXPORTS].sort()
+  const added = got.filter(x => !want.includes(x)), missing = want.filter(x => !got.includes(x))
+  deepEqual(got, want, `${DEFINITION} exports ${got.length} names, expected ${want.length}. Added: ${added.join(', ') || '(none)'}. Missing: ${missing.join(', ') || '(none)'}. A new export here (a sibling of ${MINT} with another lifetime, say) is a new way to sign: a person must read it before this list changes. ${NOTES}`)
+})
+check(`i. ${DEFINITION}: ${SIGNER} is called once, inside ${MINT}, and nothing but ${SIGNER} is taken from crypto`, () => {
+  const sf = need(parsed.get(DEFINITION), DEFINITION)
+  const calls = callsTo(sf, SIGNER)
+  equal(calls.length, 1, `${DEFINITION} has ${calls.length} ${SIGNER}( calls (${calls.map(c => where(sf, c)).join(', ') || 'none'}), expected exactly 1, inside ${MINT}. ${NOTES}`)
+  const home = nearestFunction(calls[0])
+  assert.ok(home && ts.isFunctionDeclaration(home) && home.name?.text === MINT && hasExport(home), `the one ${SIGNER}( call in ${DEFINITION} (${where(sf, calls[0])}) is in ${describeFunction(home)}, expected the exported function ${MINT}. ${NOTES}`)
+  // every other mention of createHmac (an alias, a value passed on, obj['createHmac']) would hide a second use
+  const callee = calls[0].expression
+  const calleeNode = ts.isIdentifier(callee) ? callee : callee.name
+  const mentions = nodesOf(sf, n => n !== calleeNode && ((ts.isIdentifier(n) && n.text === SIGNER) || ((ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) && n.text === SIGNER)))
+  const importSpecifiers = mentions.filter(n => ts.isImportSpecifier(n.parent) && n.parent.name === n && !n.parent.propertyName)
+  const loose = mentions.filter(n => !importSpecifiers.includes(n))
+  equal(loose.length, 0, `${DEFINITION} names ${SIGNER} other than in its one call and its import at ${loose.map(n => where(sf, n)).join(', ')} (an alias, a value passed on, a string). ${NOTES}`)
+  const taken = nodesOf(sf, n => ts.isImportDeclaration(n) && isCryptoModule(n.moduleSpecifier)).flatMap(d => {
+    const clause = d.importClause, bound = clause?.namedBindings
+    return [...(clause?.name ? [`default ${clause.name.text}`] : []), ...(bound && ts.isNamespaceImport(bound) ? ['* as namespace'] : []),
+      ...(bound && ts.isNamedImports(bound) ? bound.elements.map(el => (el.propertyName ? `${el.propertyName.text} as ${el.name.text}` : el.name.text)) : [])]
+  })
+  deepEqual(taken, [SIGNER], `${DEFINITION} takes ${taken.join(', ') || 'nothing'} from crypto; expected only { ${SIGNER} }. ${NOTES}`)
+  const reached = reachWholeModule(isCryptoModule, [...parsed.keys()].filter(rel => rel !== DEFINITION))
+  equal(reached.length, 0, `${reached.join(', ')} takes the whole crypto module (require or import()); the library may take only ${SIGNER}. ${NOTES}`)
 })
 
 console.log(`\n${passed} passed, ${failed} failed`)

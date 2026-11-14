@@ -115,6 +115,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-connectors-item-remove-strip.mjs')).CONNECTORS_ITEM_REMOVE_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE, P4-15 piece C remove one Drive item (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED; no .env.example block, no strip)
   ...(await import('./studio-sessions-owner-strip.mjs')).SESSIONS_OWNER_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, P-73 / P-74: POST /api/sessions no longer hands another user's chat to a caller and logs no secret (no flag: a data leak is closed for everyone; no .env.example block)
   ...(await import('./studio-researcher-token-mint-sites-strip.mjs')).RESEARCHER_TOKEN_MINT_SITES_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE-3, the F1 follow-up: a source test pins the four Researcher session-token mint sites (test only; no flag, no .env.example block, no strip)
+  ...(await import('./studio-ingest-status-comment-strip.mjs')).INGEST_STATUS_COMMENT_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE-3, the #633 follow-up (REVIEW-1 P3 1-4): the ingest-status route's header comment says its session name is browser-settable, and the mint-site test pins more (comment text and a test; no flag, no .env.example block, no strip)
   // one line per later change, above this comment
 ])
 
