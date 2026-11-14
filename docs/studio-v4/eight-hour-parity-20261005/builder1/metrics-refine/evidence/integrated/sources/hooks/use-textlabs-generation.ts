@@ -97,6 +97,21 @@ import {
   type ElementGenerationSubmitIntent,
 } from '@/lib/element-generation-retry'
 import type { TextLabsResponse } from '@/types/textlabs'
+import {
+  STUDIO_ELEMENT_PLACEHOLDER_FIX_ENABLED,
+  createPlaceholderDeferral,
+  isBlankPlaceholderInsert,
+  type PlaceholderDeferral,
+} from '@/lib/element-placeholder-defer'
+import {
+  STUDIO_ELEMENT_FREE_SPOT_ENABLED,
+  pickElementFreeSpot,
+  type FreeSpot,
+} from '@/lib/element-free-spot'
+// IMAGE-PENDING-WRITE begin
+import { STUDIO_IMAGE_PENDING_WRITE_ENABLED, imageJobWritesPending, type ImageJobEnd, type ImagePendingJob } from '@/lib/studio-image-pending-write'
+import { startImagePendingJob } from '@/lib/studio-image-pending-runtime'
+// IMAGE-PENDING-WRITE end
 
 export type TextLabsGenerationResult =
   | { status: 'inserted'; presentationId: string | null; slideIndex: number; elementIds: string[] }
@@ -282,7 +297,7 @@ export function useTextLabsGeneration({
   generationPanel,
   blankElements,
   textLabsSession,
-  layoutServiceApis,
+  layoutServiceApis: layoutServiceApisProp,
   presentationId,
   currentSlideIndex,
   getCurrentSlideIndex,
@@ -300,6 +315,9 @@ export function useTextLabsGeneration({
     && process.env.NEXT_PUBLIC_ELEMENT_FAILURE_IMMEDIATE_FEEDBACK_ENABLED === 'true'
   const pendingPlaceholderAddsRef = useRef<Set<string>>(new Set())
   const placeholderSequenceRef = useRef(0)
+  // PASS2D (NEXT_PUBLIC_STUDIO_ELEMENT_FREE_SPOT): the spot handleOpenPanelFreeSpot found for the card being opened, handed to handleOpenPanel.
+  const freeSpotRef = useRef<FreeSpot | null>(null)
+  const freeSpotOpeningRef = useRef<Set<string>>(new Set())
   const placeholderMountRevisionRef = useRef(0)
   const activeGenerationKeysRef = useRef<Set<string>>(new Set())
   const retryCandidateRef = useRef<DiagramRetryCandidate | null>(null)
@@ -326,6 +344,42 @@ export function useTextLabsGeneration({
     }
   }
   const renderPresentationTarget = activePresentationTargetRef.current
+
+  // PASS2-J3 P1 (flag NEXT_PUBLIC_STUDIO_ELEMENT_PLACEHOLDER_FIX, Studio shell only, default off): choosing an Add Element card puts
+  // nothing on the slide. The card click's placeholder insertion is held back (lib/element-placeholder-defer.ts) and sent only when
+  // Generate first needs the element; a Generate that ends without the generated element takes the empty placeholder out again.
+  // Off: `layoutServiceApis` below is the prop itself and the hook behaves exactly as before.
+  const placeholderFixEnabled = studio && STUDIO_ELEMENT_PLACEHOLDER_FIX_ENABLED
+  const placeholderDeferralRef = useRef<PlaceholderDeferral | null>(null)
+  if (placeholderFixEnabled && !placeholderDeferralRef.current) placeholderDeferralRef.current = createPlaceholderDeferral()
+  const placeholderDeferral = placeholderFixEnabled ? placeholderDeferralRef.current : null
+  const deferringPlaceholderInsertRef = useRef(false)
+  const layoutApisProxyRef = useRef<{ source: NonNullable<UseTextLabsGenerationParams['layoutServiceApis']>, proxy: NonNullable<UseTextLabsGenerationParams['layoutServiceApis']> } | null>(null)
+  if (placeholderDeferral && layoutServiceApisProp && layoutApisProxyRef.current?.source !== layoutServiceApisProp) {
+    layoutApisProxyRef.current = {
+      source: layoutServiceApisProp,
+      proxy: {
+        ...layoutServiceApisProp,
+        // handleOpenPanel's placeholder insertion (only while handleOpenPanelDeferred is calling it) is held back, answered as Layout would.
+        sendElementCommand: (action, params) => deferringPlaceholderInsertRef.current && isBlankPlaceholderInsert(action, params)
+          ? Promise.resolve(placeholderDeferral.defer(params, { ...activePresentationTargetRef.current }))
+          : layoutServiceApisProp.sendElementCommand(action, params),
+        // A Generate's lease sends the held-back insertion just before its first command on that placeholder.
+        captureStudioElementGeneration: layoutServiceApisProp.captureStudioElementGeneration
+          ? () => {
+              const lease = layoutServiceApisProp.captureStudioElementGeneration?.() ?? null
+              return lease ? placeholderDeferral.wrapLease(lease, owner => (
+                activePresentationTargetRef.current.presentationId === owner.presentationId
+                && activePresentationTargetRef.current.epoch === owner.epoch
+              )) : null
+            }
+          : undefined,
+      },
+    }
+  }
+  const layoutServiceApis = placeholderDeferral && layoutServiceApisProp
+    ? layoutApisProxyRef.current?.proxy ?? layoutServiceApisProp
+    : layoutServiceApisProp
 
   const themePreflightRecoveryEnabled = process.env.NEXT_PUBLIC_ELEMENT_THEME_PREFLIGHT_RECOVERY_ENABLED === 'true'
   const themePreflightFailureRef = useRef<{
@@ -363,7 +417,7 @@ export function useTextLabsGeneration({
   const handleGenerate = useCallback(async (
     formData: TextLabsFormData,
     submitIntent: ElementGenerationSubmitIntent = 'generate',
-    invocation?: { kind: 'chat-add'; slideIndex: number },
+    invocation?: { kind: 'chat-add'; slideIndex: number } | { kind: 'chat-refine'; slideIndex: number; refineContext: RefineContext }, // chat-refine: NEXT_PUBLIC_CHAT_ELEMENT_REFINE
   ): Promise<TextLabsGenerationResult> => {
     const expectedPresentationTarget = renderPresentationTarget
     const nativeGenerationLease = studio
@@ -459,7 +513,10 @@ export function useTextLabsGeneration({
       )
       return failureOutcome()
     }
-    const refineContext = !invocation && generationPanel.mode === 'refine' ? generationPanel.refineContext : null
+    // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: a chat refine (lib/chat-element-refine.ts) brings its own target, read from the viewer, into the
+    // same refine branch the Element panel uses. Only that runner passes kind 'chat-refine', and only with the flag on.
+    const refineContext = invocation?.kind === 'chat-refine' && process.env.NEXT_PUBLIC_CHAT_ELEMENT_REFINE === 'true' ? invocation.refineContext
+      : !invocation && generationPanel.mode === 'refine' ? generationPanel.refineContext : null
     // Chart's explicit Manual control is request intent. Preserve that snapshot
     // while still reading the original native element for identity and metadata.
     // Other forms use auto_position:false by default and do not prove an edit.
@@ -509,6 +566,10 @@ export function useTextLabsGeneration({
     let captionRefineState: CaptionRowRefineState | null = null
     let captionRowInserted = false
     let captionRowInsertFailed = false
+    // IMAGE-PENDING-WRITE begin (NEXT_PUBLIC_STUDIO_IMAGE_PENDING_WRITE): the stored "image job pending" state of a hero-background image job, and how the job ended.
+    let imagePendingJob: ImagePendingJob | null = null
+    let imagePendingOutcome: ImageJobEnd = 'failed'
+    // IMAGE-PENDING-WRITE end
     const captionNotices: string[] = []
     let dispatchedDiagramRequestFingerprint: string | null = null
     let diagramRequestWasDispatched = false
@@ -609,6 +670,7 @@ export function useTextLabsGeneration({
     const cleanupGenerationLifecycle = async () => {
       if (generationLifecycleCleaned) return
       generationLifecycleCleaned = true
+      if (imagePendingJob) void imagePendingJob.end(imagePendingOutcome) // IMAGE-PENDING-WRITE: ready or failed, in the background; never rejects
       const refineOverlayTargetSurvived = !refineElementDeleted
         || Boolean(refineContext && insertedElementIds.includes(refineContext.elementId))
       if ((!studio || presentationIsStillAuthoritative())
@@ -1356,6 +1418,11 @@ export function useTextLabsGeneration({
     const lifecycleMutationId = createLayoutMutationId(
       refineContext ? `refine:${refineContext.elementId}` : 'generate',
     )
+    // IMAGE-PENDING-WRITE begin: the request is about to go out. A hero-background image job stores "pending" on its slide (in the background; the job never waits for it).
+    if (STUDIO_IMAGE_PENDING_WRITE_ENABLED && imageJobWritesPending({ componentType: formData.componentType, slotName: formData.slotName })) {
+      imagePendingJob = startImagePendingJob(expectedPresentationTarget.presentationId ?? '', generationSlideIndex)
+    }
+    // IMAGE-PENDING-WRITE end
 
     try {
       const sessionId = await textLabsSession.ensureSession(controller.signal)
@@ -2084,6 +2151,7 @@ export function useTextLabsGeneration({
           + (captionNotices.length > 0 ? `. ${captionNotices.join(' ')}` : ''),
       })
       console.log(`[TextLabs] Generated ${elements.length} ${formData.componentType} element(s)`)
+      imagePendingOutcome = 'ready' // IMAGE-PENDING-WRITE
       return { status: 'inserted', presentationId: expectedPresentationTarget.presentationId,
         slideIndex: generationSlideIndex, elementIds: [...insertedElementIds] }
     } catch (err) {
@@ -2334,8 +2402,8 @@ export function useTextLabsGeneration({
     if (studio && !ownerIsCurrent()) return
     const componentType = type as TextLabsComponentType
     const defaults = getDefaultSize(componentType)
-    const startCol = 2
-    const startRow = 4
+    const startCol = freeSpotRef.current?.startCol ?? 2
+    const startRow = freeSpotRef.current?.startRow ?? 4
 
     const pendingKey = JSON.stringify([expectedMountRevision, expectedPresentationTarget.epoch, expectedPresentationTarget.presentationId, studioTargetSlideIndex, componentType])
     if (studio && pendingPlaceholderAddsRef.current.has(pendingKey)) return
@@ -2412,5 +2480,94 @@ export function useTextLabsGeneration({
     }
   }, [generationPanel, layoutServiceApis, blankElements, currentSlideIndex, getCurrentSlideIndex, toast, renderPresentationTarget, studio])
 
+  // PASS2-J3 P1 (NEXT_PUBLIC_STUDIO_ELEMENT_PLACEHOLDER_FIX): the same two handlers, with the placeholder's insertion deferred to Generate.
+  const blankElementsRef = useRef(blankElements)
+  blankElementsRef.current = blankElements
+  const generationPanelRef = useRef(generationPanel)
+  generationPanelRef.current = generationPanel
+
+  const handleOpenPanelDeferred = useCallback(async (type: string) => {
+    // handleOpenPanel reaches its placeholder insertion before its first await, so the hold-back window is the synchronous call.
+    deferringPlaceholderInsertRef.current = true
+    let opening: Promise<void>
+    try { opening = handleOpenPanel(type) } finally { deferringPlaceholderInsertRef.current = false }
+    await opening
+  }, [handleOpenPanel])
+
+  const handleGenerateDeferred = useCallback(async (
+    formData: TextLabsFormData,
+    submitIntent: ElementGenerationSubmitIntent = 'generate',
+    invocation?: { kind: 'chat-add'; slideIndex: number } | { kind: 'chat-refine'; slideIndex: number; refineContext: RefineContext }, // chat-refine: NEXT_PUBLIC_CHAT_ELEMENT_REFINE
+  ): Promise<TextLabsGenerationResult> => {
+    const blankId = invocation ? null : generationPanel.blankElementId
+    const held = placeholderDeferral && blankId ? placeholderDeferral.get(blankId) : undefined
+    // A second click while a Generate owns the placeholder is only ever refused by handleGenerate; it must not own the clean-up.
+    if (!placeholderDeferral || !held || held.inFlight) return handleGenerate(formData, submitIntent, invocation)
+    held.inFlight = true
+    let outcome: TextLabsGenerationResult | null = null
+    try {
+      outcome = await handleGenerate(formData, submitIntent, invocation)
+      return outcome
+    } finally {
+      held.inFlight = false
+      if (outcome?.status === 'inserted') {
+        // The generated element replaced the placeholder (handleGenerate deleted it): nothing is held any more.
+        placeholderDeferral.forget(held.elementId)
+      } else {
+        // The Generate ended without the generated element (a refusal, a failure, a stop). The empty placeholder must not stay on
+        // the slide: take it out; the form keeps its draft and the next Generate inserts it again.
+        const removed = await placeholderDeferral.takeOut(held.elementId)
+        const panel = generationPanelRef.current.getSnapshot()
+        if (removed && !(panel.isOpen && panel.blankElementId === held.elementId)) {
+          placeholderDeferral.forget(held.elementId)
+          blankElementsRef.current.removeElement(held.elementId)
+        }
+      }
+    }
+  }, [generationPanel, handleGenerate, placeholderDeferral])
+
+  // The panel moved on from a held-back placeholder (closed, or another card chosen): nothing of it was ever on the slide, so just
+  // forget it (and take out an inserted one nobody can reach any more).
+  const sweepPanelBlankId = generationPanel.isOpen ? generationPanel.blankElementId : null
+  useEffect(() => {
+    if (!placeholderDeferral) return
+    for (const gone of placeholderDeferral.sweep(sweepPanelBlankId)) {
+      void placeholderDeferral.takeOut(gone.elementId).then(removed => {
+        if (!removed) return // still on the slide: it stays tracked and reachable, as before
+        placeholderDeferral.forget(gone.elementId)
+        blankElementsRef.current.removeElement(gone.elementId)
+      })
+    }
+  }, [placeholderDeferral, sweepPanelBlankId])
+
+  // PASS2D (flag NEXT_PUBLIC_STUDIO_ELEMENT_FREE_SPOT, Studio shell only, default off): choosing a card first asks the viewer where the slide's
+  // elements are (lib/element-free-spot.ts) and hands the first free spot to the same open handler, which then runs as before. The read is
+  // done up front, outside the open handler, so the placeholder insertion stays in the open handler's own synchronous window (the hold-back
+  // window of NEXT_PUBLIC_STUDIO_ELEMENT_PLACEHOLDER_FIX). No room, no answer or a viewer that moved on: the open handler's own position.
+  const handleOpenPanelFreeSpot = useCallback(async (type: string) => {
+    const open = placeholderDeferral ? handleOpenPanelDeferred : handleOpenPanel
+    const sendElementCommand = layoutServiceApis?.sendElementCommand
+    if (!sendElementCommand) { freeSpotRef.current = null; return open(type) }
+    // A second click on the same card while the first is still reading is dropped, as handleOpenPanel drops one while its insertion is out.
+    if (freeSpotOpeningRef.current.has(type)) return
+    freeSpotOpeningRef.current.add(type)
+    let spot: FreeSpot | null = null
+    try {
+      const slideIndex = getCurrentSlideIndex?.() ?? currentSlideIndex
+      const defaults = getDefaultSize(type as TextLabsComponentType)
+      spot = await pickElementFreeSpot({ sendElementCommand, slideIndex, width: defaults.width, height: defaults.height })
+      // The open handler takes the slide current when it runs, and drops the click itself if the deck changed meanwhile (its owner check).
+      if ((getCurrentSlideIndex?.() ?? currentSlideIndex) !== slideIndex) spot = null
+    } finally {
+      freeSpotOpeningRef.current.delete(type)
+    }
+    freeSpotRef.current = spot // read by the open handler's first lines, in this same synchronous stretch; every open sets it afresh
+    await open(type)
+  }, [handleOpenPanel, handleOpenPanelDeferred, placeholderDeferral, layoutServiceApis, getCurrentSlideIndex, currentSlideIndex])
+
+  if (studio && STUDIO_ELEMENT_FREE_SPOT_ENABLED) {
+    return { handleGenerate: placeholderDeferral ? handleGenerateDeferred : handleGenerate, handleOpenPanel: handleOpenPanelFreeSpot }
+  }
+  if (placeholderDeferral) return { handleGenerate: handleGenerateDeferred, handleOpenPanel: handleOpenPanelDeferred }
   return { handleGenerate, handleOpenPanel }
 }

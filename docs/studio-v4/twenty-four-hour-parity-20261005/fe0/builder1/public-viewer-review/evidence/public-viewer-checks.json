@@ -132,7 +132,7 @@
     },
     {
       "file": "components/presenter-question.tsx",
-      "sha256": "820d50370724c954fbbb3d309319a575ddd5a4c76ee56f14e2656039f4fbab2f"
+      "sha256": "9f999c88da798759aaac0919ee6411c2adeae3cd97409a3e5f5ae2ea7b961471"
     },
     {
       "file": "components/published-qa-panel.tsx",
@@ -141,6 +141,10 @@
     {
       "file": "lib/publish/qa-threads.ts",
       "sha256": "29ef016c1e08ef882672356ed02f310c8c7e0cc5d51356dc3e35b35902df4eea"
+    },
+    {
+      "file": "lib/studio-p2-publish.ts",
+      "sha256": "e1da87aa66c56c5adc5e2b8619fd501426b6f28200988829e71eddec62042f40"
     },
     {
       "file": "app/p/[slug]/page.tsx",

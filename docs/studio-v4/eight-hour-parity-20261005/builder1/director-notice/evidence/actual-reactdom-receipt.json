@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-10-13T20:26:53.327Z",
+  "timestamp": "2026-10-25T00:01:38.458Z",
   "level": "Complete actual new component mounted/updated/unmounted with installed ReactDOM in an inert synthetic DOM. No browser layout/pixels, native viewer, services, real socket, ownership filter or durable-chat integration claim.",
   "runtime": {
     "node": "v26.10.0",
@@ -344,7 +344,7 @@
   ],
   "sourceHashes": {
     "components/builder/studio-director-notice.tsx": "a65a505785f70ae17863a9141655c69efd49115bb7b83f5229baa1f70847e750",
-    "hooks/use-deckster-websocket-v2.ts": "a8869897d6a6dbe648b1e4e0b55766c216189fbdc03a1c9c7b812b733ebc2502"
+    "hooks/use-deckster-websocket-v2.ts": "bfc9ca449c986a9122d2770faa8d3366af20cb8c6e935f38ed8ce913747b4b2d"
   },
   "scriptSha256": "9877d47eb23b8baabf951b95179f227b71dd76c8a07a03e738e38dd1d8c41261",
   "noSideEffects": true,
