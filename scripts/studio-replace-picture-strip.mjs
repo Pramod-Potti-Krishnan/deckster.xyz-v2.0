@@ -60,7 +60,7 @@ export const REPLACE_PICTURE_EDITS = {
       ""
     ],
     [
-      "              {replacePicture.visible && <ReplacePictureControl reason={replacePicture.reason} slideNumber={replacePicture.slideNumber} slideTitle={replacePicture.slideTitle} onReplace={replacePicture.replace} onReloadDeck={replacePicture.reloadDeck} buttonClassName={cn(toolbarButtonClass, toolbarBtnBase)} labelClassName={cn(toolbarLabelClass, 'whitespace-nowrap')} tooltipContainer={toolbarDropdownPortalContainer} />}{/* REPLACE-PICTURE: Replace picture, beside Format (the flag, the shell, a built deck, not presenting) */}\n",
+      "              {replacePicture.visible && <ReplacePictureControl reason={replacePicture.reason} slideNumber={replacePicture.slideNumber} slideTitle={replacePicture.slideTitle} onReplace={replacePicture.replace} onReloadDeck={replacePicture.reloadDeck} buttonClassName={cn(toolbarButtonClass, toolbarBtnBase)} labelClassName={cn(toolbarLabelClass, 'whitespace-nowrap')} tooltipContainer={toolbarDropdownPortalContainer} />}{/* REPLACE-PICTURE: Replace picture, at the end of the authoring strip, after Show and before Present (the flag, the shell, a built deck, not presenting): no earlier sibling's place among the strip's children moves, so the ids React generates for them are the base's */}\n",
       ""
     ]
   ],
@@ -104,6 +104,26 @@ export const REPLACE_PICTURE_PIN_EDITS = {
       "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Replace picture:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (REPLACE-PICTURE): on a branch stacked after this change (the Replace picture action, M10), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files\n",
       ""
     ]
+  ],
+  "scripts/test-studio-arrange.mjs": [
+    [
+      "import { stripReplacePicture, REPLACE_PICTURE_FILES } from './studio-replace-picture-strip.mjs' // LATER-CHANGES: registry read (REPLACE-PICTURE): the Replace picture action (stacked after this change) marks lines in the viewer, the slide area and the Builder page; this proof reads them as the change before left them\n",
+      ""
+    ],
+    [
+      "{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && REPLACE_PICTURE_FILES.includes(rel) ? stripReplacePicture(rel, out) : out } } // LATER-CHANGES: registry read (REPLACE-PICTURE): every read of a file the Replace picture action marks goes through that change's own strip (never the whole registry), so this proof sees the file as the change before left it\n",
+      ""
+    ]
+  ],
+  "scripts/test-studio-first-paint-viewer.mjs": [
+    [
+      "import { stripReplacePicture, REPLACE_PICTURE_FILES } from './studio-replace-picture-strip.mjs' // LATER-CHANGES: registry read (REPLACE-PICTURE): the Replace picture action (stacked after this change) marks lines in the viewer, the slide area and the Builder page; this proof reads them as the change before left them\n",
+      ""
+    ],
+    [
+      "{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && REPLACE_PICTURE_FILES.includes(rel) ? stripReplacePicture(rel, out) : out } } // LATER-CHANGES: registry read (REPLACE-PICTURE): every read of a file the Replace picture action marks goes through that change's own strip (never the whole registry), so this proof sees the file as the change before left it\n",
+      ""
+    ]
   ]
 }
 
@@ -116,7 +136,7 @@ export const REPLACE_PICTURE_OWN_EDITS = ['.env.example', 'scripts/studio-later-
 export const REPLACE_PICTURE_SCOPE_FILES = new Set([...REPLACE_PICTURE_FILES, ...REPLACE_PICTURE_NEW_FILES, ...REPLACE_PICTURE_OWN_EDITS])
 
 /** The whole .env.example block: its comments and its line. */
-export const REPLACE_PICTURE_ENV_BLOCK = "# STUDIO REPLACE PICTURE (FRONTEND-1; PK mandate M10, 15 Nov). On for the exact value \"true\"; default off, and then the slide toolbar, the viewer and the Builder page are byte for byte what they were. Build-time value: change it on Vercel and redeploy.\n# On, and only with NEXT_PUBLIC_STUDIO_V4_SHELL also exactly \"true\": the slide toolbar gains a \"Replace picture\" button beside Format. It takes an https picture link (and an optional description) for the slide on screen and sends the Layout viewer's setSlideBackgroundPicture command (SLIDE-4, Layout Draft !294), which puts the picture into the slide's own background slot and HIDES (never deletes) a whole-slide free picture that Studio's older hero refine put over it. The reply takes up to 20 seconds.\n# Turn it on only after Layout's LAYOUT_SLIDE_BACKGROUND_PICTURE_ENABLED is on, with LAYOUT_SLIDES_PUT_STALE_GUARD_ENABLED and LAYOUT_STORAGE_TO_THREAD_ENABLED also true on that Layout (section 0 of docs/api/SLIDE_BACKGROUND_PICTURE.md): with Layout's flag off the viewer answers \"unknown action\" and Studio says in plain words that the server does not have it yet.\n# The button is greyed, with the reason, while a build or a regenerate of the slide runs, another slide change is in flight, the tab is paused, Template Mode is on, the deck is read-only (a view-only frame, the outline preview, a published copy), or the slide is not a title, section or closing slide. Nothing else changes: no new route, and no new request except that one viewer command and two small viewer reads (the slide's kind and its id).\nNEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE=\"false\"\n"
+export const REPLACE_PICTURE_ENV_BLOCK = "# STUDIO REPLACE PICTURE (FRONTEND-1; PK mandate M10, 15 Nov). On for the exact value \"true\"; default off, and then the slide toolbar, the viewer and the Builder page are byte for byte what they were. Build-time value: change it on Vercel and redeploy.\n# On, and only with NEXT_PUBLIC_STUDIO_V4_SHELL also exactly \"true\": the slide toolbar gains a \"Replace picture\" button at its end (after Show). It takes an https picture link (and an optional description) for the slide on screen and sends the Layout viewer's setSlideBackgroundPicture command (SLIDE-4, Layout Draft !294), which puts the picture into the slide's own background slot and HIDES (never deletes) a whole-slide free picture that Studio's older hero refine put over it. The reply takes up to 20 seconds.\n# Turn it on only after Layout's LAYOUT_SLIDE_BACKGROUND_PICTURE_ENABLED is on, with LAYOUT_SLIDES_PUT_STALE_GUARD_ENABLED and LAYOUT_STORAGE_TO_THREAD_ENABLED also true on that Layout (section 0 of docs/api/SLIDE_BACKGROUND_PICTURE.md): with Layout's flag off the viewer answers \"unknown action\" and Studio says in plain words that the server does not have it yet.\n# The button is greyed, with the reason, while a build or a regenerate of the slide runs, another slide change is in flight, the tab is paused, Template Mode is on, the deck is read-only (a view-only frame, the outline preview, a published copy), or the slide is not a title, section or closing slide. Nothing else changes: no new route, and no new request except that one viewer command and two small viewer reads (the slide's kind and its id).\nNEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE=\"false\"\n"
 
 /** The file with this change's edits put back (the previous text). Used by the strip and the proof. */
 export function putBackReplacePicture(rel, text) {

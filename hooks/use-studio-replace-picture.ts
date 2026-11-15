@@ -100,9 +100,8 @@ export function useStudioReplacePicture(input: UseStudioReplacePictureInput): St
     return () => { cancelled = true }
   }, [live, busy, key, slideIndex])
 
-  // A deck Layout refused as read-only (a view-only page, a published copy) stays off: `refused` is that deck's id, so another deck is not affected.
-
   const slideKind = kindRead && kindRead.key === key ? kindRead.kind : 'loading'
+  // A deck Layout refused as read-only (a view-only page, a published copy) stays off: `refused` is that deck's id, so another deck is not affected.
   const readOnly = urlIsViewOnly(input.frameUrl) || (refused !== null && refused === input.presentationId) ? 'view-only' as const
     : input.activeVersion === 'strawman' ? 'preview' as const : null
   const reason = replacePictureDisabledReason({

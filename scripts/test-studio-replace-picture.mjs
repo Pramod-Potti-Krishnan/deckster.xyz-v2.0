@@ -12,7 +12,8 @@
 //     (composeGetState {} then setSlideBackgroundPicture {slide_index, slide_id, url, alt} with timeoutMs 20000), the busy scaffolding (begin / release once), what each reply becomes (a reply message watched for its code: the bridge
 //     rejects with text only), the slide changing under the dialog, a refused deck staying off, an untrusted reply ignored, the listener removed;
 //  C. the control: the trigger's markup (enabled, disabled with its reason as a tab stop), and its source: it shows only the outcome's own words, the dialog cannot be closed while it runs;
-//  D. the viewer's marked lines: the hook call, the one JSX line, the prop; and the bridge (sendCommand) is untouched, byte for byte;
+//  D. the viewer's marked lines: the hook call, the one JSX line (at the END of the authoring strip, after Show and before Present, so no older sibling's place moves), the prop; the bridge (sendCommand) is untouched, byte for byte; and with the flag off the REAL viewer's
+//     server markup is the base viewer's, byte for byte, in four environments and four decks (React's generated ids included: they move when a child is added in the middle of a list);
 //  E. the sources: markers, the strip gives each touched file its base back byte for byte, the registry (three lines, at the true ends), .env.example, secrets, the css, scope (from the COMMITTED diff only), the commits;
 //  F. the lib reads the flag from one literal env name and nothing else reads it.
 //  G. mutants: each is one edit of the real sources, fed to the same checks, and must be caught.
@@ -81,16 +82,17 @@ const localFile = (spec, from) => {
 const textsKeys = new WeakMap(), modules = new Map()
 const textsKey = texts => { if (!textsKeys.has(texts)) textsKeys.set(texts, crypto.createHash('sha1').update(JSON.stringify(texts)).digest('hex')); return textsKeys.get(texts) }
 /** Load one real source in a new context. `texts` replaces the text of any file (a mutant); `env` is process.env; `globals` are extra globals (a fake window); every other import is the REAL source or package. A .css import is an empty module. */
-function load(rel, { env = {}, texts = {}, globals = null, id = '' } = {}) {
+function load(rel, { env = {}, texts = {}, globals = null, id = '', stubs = {} } = {}) {
   const key = `${rel}\0${JSON.stringify(env)}\0${textsKey(texts)}\0${id}`
   if (modules.has(key)) return modules.get(key)
   const module = { exports: {} }
   modules.set(key, module.exports)
   const req = spec => {
+    if (spec in stubs) return stubs[spec]
     if (spec === 'react/jsx-runtime') return jsxRuntime
     if (spec.endsWith('.css')) return {}
     const local = localFile(spec, rel)
-    return local ? load(local, { env, texts, globals, id }) : nodeRequire(spec)
+    return local ? load(local, { env, texts, globals, id, stubs }) : nodeRequire(spec)
   }
   vm.runInNewContext(compile(rel, texts[rel] ?? read(rel)), { module, exports: module.exports, require: req, process: { env: { ...env } }, URL, Promise, setTimeout, clearTimeout, console, window: globals?.window, fetch: () => assert.fail(`${rel} fetched`) }, { filename: rel })
   return module.exports
@@ -435,7 +437,7 @@ function viewerChecks(texts = {}) {
   assert.match(call, /onReloadDeck: onReplacePictureReloadDeck \}\)/); assert.ok(!/localStorage|fetch\(|window\.|document\./.test(call), 'the call reaches for nothing global')
   const jsx = lineWith(viewer0, '<ReplacePictureControl ')
   assert.match(jsx, /\{replacePicture\.visible && <ReplacePictureControl /, 'the control is drawn only when the hook says visible (flag, shell, a built deck, not presenting)'); assert.match(jsx, /reason=\{replacePicture\.reason\}/); assert.match(jsx, /onReplace=\{replacePicture\.replace\}/); assert.match(jsx, /onReloadDeck=\{replacePicture\.reloadDeck\}/)
-  assert.match(jsx, /buttonClassName=\{cn\(toolbarButtonClass, toolbarBtnBase\)\}/, 'it wears the toolbar\'s own classes'); assert.ok(viewer0.indexOf(jsx) > viewer0.indexOf('<span className={toolbarLabelClass}>Format</span>') && viewer0.indexOf(jsx) < viewer0.indexOf('{/* Template — "Save as Template"'), 'it sits beside Format, before Template')
+  assert.match(jsx, /buttonClassName=\{cn\(toolbarButtonClass, toolbarBtnBase\)\}/, 'it wears the toolbar\'s own classes'); assert.ok(viewer0.slice(0, viewer0.indexOf(jsx)).trimEnd().endsWith('</DropdownMenu>') && viewer0.slice(viewer0.indexOf(jsx) + jsx.length).trimStart().startsWith('{presentInStrip && (') && viewer0.indexOf(jsx) < viewer0.indexOf('const deliveryControls = ('), 'it is at the END of the authoring strip, after the Show menu and before Present: no earlier sibling\'s place moves, so the ids React generates for them are the base\'s')
   assert.match(lineWith(viewer0, 'onReplacePictureReloadDeck?: () => void'), /\/\/ REPLACE-PICTURE/); assert.match(lineWith(area, 'onReplacePictureReloadDeck={onReplacePictureReloadDeck}'), /\/\/ REPLACE-PICTURE/)
   const pageProp = lineWith(page, 'onReplacePictureReloadDeck={')
   assert.match(pageProp, /onReplacePictureReloadDeck=\{STUDIO_REPLACE_SLIDE_PICTURE_ENABLED && studioShell \? reloadDeckFromOtherTab : undefined\}/, 'the page passes its own Reload deck only with the flag on'); assert.ok(page.includes('const reloadDeckFromOtherTab = useCallback('), 'which exists')
@@ -443,6 +445,29 @@ function viewerChecks(texts = {}) {
   const bridge = text => functionText(text, 'function sendCommand(', 'function postCommand(')
   assert.equal(bridge(viewer0), bridge(baseText(VIEWER)), 'sendCommand is the base\'s, byte for byte'); assert.ok(bridge(viewer0).includes("reject(new Error(event.data.error || 'Command failed'))"))
   assert.equal(functionText(viewer0, 'function createViewerRequestId', 'function sendCommand('), functionText(baseText(VIEWER), 'function createViewerRequestId', 'function sendCommand('), 'and so is its request id')
+}
+
+const SSR_STUBS = {
+  'next/navigation': { useRouter: () => ({ push() {}, replace() {}, refresh() {} }), useSearchParams: () => new URLSearchParams(), usePathname: () => '/builder' },
+  'next-auth/react': { useSession: () => ({ data: null, status: 'unauthenticated', update: async () => null }), signIn: async () => {}, signOut: async () => {}, SessionProvider: ({ children }) => children },
+}
+const SSR_URL = 'https://layout.uat.test/p/pres-1'
+const SSR_ENVS = [['studio', { NEXT_PUBLIC_STUDIO_V4_SHELL: 'true', NEXT_PUBLIC_LAYOUT_SERVICE_URL: 'https://layout.uat.test' }], ['studio + rail flags', { NEXT_PUBLIC_STUDIO_V4_SHELL: 'true', NEXT_PUBLIC_LAYOUT_SERVICE_URL: 'https://layout.uat.test', NEXT_PUBLIC_STUDIO_RAIL_SLIDE_IDENTITY_ENABLED: 'true' }], ['studio + toolbar cleanup', { NEXT_PUBLIC_STUDIO_V4_SHELL: 'true', NEXT_PUBLIC_STUDIO_TOOLBAR_CLEANUP: 'true', NEXT_PUBLIC_LAYOUT_SERVICE_URL: 'https://layout.uat.test' }], ['classic', { NEXT_PUBLIC_LAYOUT_SERVICE_URL: 'https://layout.uat.test' }]]
+const SSR_DECKS = [['7 slides', { presentationUrl: SSR_URL, presentationId: 'pres-1', slideCount: 7 }], ['3 slides, thumbnails', { presentationUrl: SSR_URL, presentationId: 'pres-1', slideCount: 3, thumbnailUrlsBySlide: { 1: 'https://proj.test/a.png' } }],
+  ['compose job', { presentationUrl: SSR_URL, presentationId: 'pres-1', slideCount: 2, composeJobs: [{ jobId: 'j1', targetIndex: 1, targetLayoutIndex: 1, status: 'building', lastProgressText: 'Writing' }] }], ['no slide count', { presentationUrl: SSR_URL, presentationId: 'pres-1' }]]
+const quiet = fn => { const e = console.error, w = console.warn; console.error = console.warn = () => {}; try { return fn() } finally { console.error = e; console.warn = w } }
+/** The REAL viewer, server-rendered, with the viewer's own text replaced by `viewerText` (the base's, or a mutant). Every other module is the working tree's. */
+function viewerMarkup(env, props, viewerText, tag) {
+  const Viewer = load(VIEWER, { env, texts: { [VIEWER]: viewerText }, stubs: SSR_STUBS, id: `ssr-${tag}` }).PresentationViewer
+  return quiet(() => renderToStaticMarkup(h(Viewer, props)))
+}
+function markupChecks(texts = {}) {
+  const now = texts[VIEWER] ?? read(VIEWER), base = baseText(VIEWER)
+  for (const [envName, env] of SSR_ENVS) for (const [deck, props] of SSR_DECKS) {
+    const want = viewerMarkup(env, props, base, `base-${envName}`), got = viewerMarkup(env, props, now, `work-${envName}-${now === read(VIEWER) ? 'a' : 'b'}`)
+    assert.ok(want.length > 1000, `${envName}, ${deck}: a real render`)
+    assert.equal(got, want, `${envName}, ${deck}: flag off, the viewer's server markup is the base viewer's, byte for byte`)
+  }
 }
 
 // ============================================================================================================================================
@@ -546,6 +571,7 @@ await check('A. the lib: the flag, the command and its budget, Layout\'s URL rul
 await check('B. the hook (REAL, in the offline React host): flag off, the kind read, every disabled state, the command on the wire, every reply, the slide changing, a refused deck', () => hookChecks())
 await check('C. the control: the trigger\'s markup and the dialog\'s source', () => controlChecks())
 await check('D. the viewer\'s marked lines; the bridge is the base\'s, byte for byte', () => viewerChecks())
+await check('D2. flag off: the REAL viewer\'s server markup is the base viewer\'s, byte for byte (4 environments x 4 decks)', () => markupChecks())
 await check('E1. the sources: markers, the strip, the libs, .env.example, secrets, the css', () => sourceChecks(TEXTS))
 await check('E2. the registry (three lines, at the true ends)', () => registryChecks(TEXTS[REGISTRY]))
 await check('E3. scope, from the COMMITTED diff only; the commits', () => {
@@ -637,6 +663,7 @@ const MUTANTS = [
   ['viewer: the control is drawn whatever the hook says', M(VIEWER, '{replacePicture.visible && <ReplacePictureControl ', '{true && <ReplacePictureControl '), viewerChecks],
   ['viewer: the bridge is edited', M(VIEWER, "            reject(new Error(event.data.error || 'Command failed'))\n", "            reject(new Error(event.data.error || 'Command failed')) // edited\n"), viewerChecks],
   ['viewer: the reply trust check is dropped', M(VIEWER, 'isTrustedReply: (event, frame) => VIEWER_ORIGIN !== null && !LAYOUT_URL_CONFIG_ERROR && isTrustedLayoutViewerMessage(event, frame, VIEWER_ORIGIN),', 'isTrustedReply: () => true,'), viewerChecks],
+  ['viewer: the control is a child in the middle of the strip (older siblings\' generated ids move)', { [VIEWER]: (() => { const line = TEXT[VIEWER].split('\n').find(l => l.includes('<ReplacePictureControl ')); const moved = TEXT[VIEWER].replace(line + '\n', ''); return swap(moved, '              {/* Template — "Save as Template"', line + '\n              {/* Template — "Save as Template"') })() }, markupChecks],
   ['page: the reload is passed without the flag', M(PAGE, 'onReplacePictureReloadDeck={STUDIO_REPLACE_SLIDE_PICTURE_ENABLED && studioShell ? reloadDeckFromOtherTab : undefined}', 'onReplacePictureReloadDeck={reloadDeckFromOtherTab}'), viewerChecks],
 ]
 for (const [label, texts, fn] of MUTANTS) await mutant(label, () => fn(texts))
