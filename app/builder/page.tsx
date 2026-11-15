@@ -6921,8 +6921,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             actionLabel: action.label,
             ...buildSendOptions,
             ...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE
-            ...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS: a card's button
             ...(gdriveLinkedIdsRef.current ? { linkedItemIds: gdriveLinkedIdsRef.current } : {}), // GDRIVE-COMPOSER: linked_item_ids on the build message (#608 hook; dropped there with the session-links flag off)
+            ...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS: a card's button
           }, undefined, isCurrentSubmission)
         } catch {
           // Reconnect can reject as well as refuse; preserve the native retry UI.

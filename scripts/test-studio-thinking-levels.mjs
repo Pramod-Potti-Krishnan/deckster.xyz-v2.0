@@ -302,7 +302,8 @@ function wireChecks(texts = {}) {
   assert.equal(modeSpreads.length, 4, 'four build sends carry the build mode')
   for (const [l, i] of modeSpreads) {
     const indent = l.slice(0, l.length - l.trimStart().length)
-    assert.match(lines[i + 1], /^\s+\.\.\.\(thinkingLevelRef\.current \? \{ thinkingLevel: thinkingLevelRef\.current \} : \{\}\), \/\/ THINKING-LEVELS: [a-z' ()]+$/, `line ${i + 1}: the level rides next to the build mode`); assert.equal(lines[i + 1].slice(0, indent.length), indent, `line ${i + 1}: as deep as the build mode's line`)
+    let j = i + 1; while (lines[j] && /^\s+\.\.\.\(.*\/\/ [A-Z][A-Z0-9-]+:/.test(lines[j]) && !lines[j].includes('thinkingLevel')) j++ // order, not adjacency: another change's marked spread line may sit between (e.g. GDRIVE-COMPOSER)
+    assert.match(lines[j], /^\s+\.\.\.\(thinkingLevelRef\.current \? \{ thinkingLevel: thinkingLevelRef\.current \} : \{\}\), \/\/ THINKING-LEVELS: [a-z' ()]+$/, `line ${j + 1}: the level rides next to the build mode`); assert.equal(lines[j].slice(0, indent.length), indent, `line ${j + 1}: as deep as the build mode's line`)
   }
   assert.equal(lines.filter(l => l.includes('thinkingLevel: thinkingLevelRef.current')).length, 4, 'and nowhere else'); assert.equal(new Set(lines.filter(l => l.includes('thinkingLevel: thinkingLevelRef.current')).map(l => l.trim())).size, 4, 'each of the four lines is its own text (so a registry strip can take one line alone)')
   for (const levels of [true, false]) for (const [busy, plan] of [[true, 'pro'], [false, 'free'], [false, null]]) {
