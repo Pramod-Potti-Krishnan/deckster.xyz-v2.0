@@ -9,6 +9,7 @@
 // composeGetState read) makes Layout refuse the write when the slide at that index is not it (SLIDE_CHANGED); url is https, at most 2048 characters, printable ASCII, none of " ' ` \ < > ( ) [ ] { }, a host, no user info,
 // a valid port; alt is at most 500 characters. The viewer may first wait for a pending autosave (up to 10 s), then writes and re-renders that one slide, so the reply takes up to about 20 s.
 // Every failure carries a stable `code` (listed below); the viewer's own view-only guard answers error "view-only" with no code, which is VIEW_ONLY_PAGE; with Layout's flag off the viewer answers "Unknown action".
+// The viewer bridge (sendCommand) rejects with a plain Error and drops the reply's fields, and it is left exactly as it is: the hook watches the viewer's reply message for this one command and reads the code from it.
 //
 // WORDS. Nothing a person reads is a raw message: every code is mapped to plain words (REPLACE_PICTURE_WORDS). REPAINT_FAILED means the picture IS stored and only the redraw failed: the words say so and offer Reload deck.
 // A timeout is the one answer that cannot say whether the picture was stored, and its words say that.
@@ -71,7 +72,7 @@ export const REPLACE_PICTURE_WORDS: Record<ReplacePictureCode, string> = {
   WRITE_FAILED: 'The picture could not be saved. Nothing changed. Try again in a moment.',
   REPAINT_FAILED: 'The new picture is saved, but the slide could not redraw it. Reload the deck to see it.',
   SLIDE_CHANGED: 'This slide changed while you were working (it moved or was rebuilt). Select it again and try again.',
-  NO_BACKGROUND_PICTURE: 'This slide comes from a saved template, which has no background picture to replace.',
+  NO_BACKGROUND_PICTURE: 'This slide comes from a saved template, which has no background picture to replace. Nothing changed.',
   PICTURE_DECLINED: 'This slide was designed without a picture, so a new one would not show. Choose another design for it to use a picture.',
   SLIDE_INDEX_OUT_OF_RANGE: 'That slide is not in the saved deck yet. Wait for the deck to finish saving, then try again.',
   TIMED_OUT: 'The slide view did not answer in 20 seconds. The picture may or may not have been saved. Reload the deck to check, then try again if it is not there.',
@@ -184,35 +185,21 @@ export function failureOutcome(code: ReplacePictureCode, stored = code === 'REPA
   return { ok: false, code, words: REPLACE_PICTURE_WORDS[code], stored, reload: RELOAD_CODES.has(code), retry: !NO_RETRY_CODES.has(code) }
 }
 
-/** Carried on the Error the viewer bridge rejects with: only primitives, so no raw text leaks into the screen by accident. */
-export interface PictureReplyDetail { code: string | null; stage: string | null; status: number | null; saved: boolean }
-
 function record(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
 }
 
-/** What the viewer bridge rejects with for a failed setSlideBackgroundPicture reply: an Error (its message is for the console only) that carries the reply's code, stage, status and saved flag. */
-export function replacePictureReplyError(reply: unknown): Error {
-  const value = record(reply) ?? {}
-  const error = new Error(typeof value.error === 'string' && value.error ? value.error : 'Command failed')
-  const detail: PictureReplyDetail = {
-    code: typeof value.code === 'string' && value.code ? value.code : null,
-    stage: typeof value.stage === 'string' ? value.stage : null,
-    status: typeof value.status === 'number' ? value.status : null,
-    saved: value.saved === true,
-  }
-  ;(error as Error & { pictureReply?: PictureReplyDetail }).pictureReply = detail
-  return error
-}
-
-/** The code a failure maps to: the reply's own code first; then the answers that carry none (the view-only guard, an unknown action, a timeout, no frame). */
-export function readReplacePictureFailure(failure: unknown): { code: ReplacePictureCode; stored: boolean } {
-  const reply = record(failure)
-  const detail = (failure as { pictureReply?: PictureReplyDetail } | null)?.pictureReply ?? null
-  const code = detail?.code ?? (reply && typeof reply.code === 'string' ? reply.code : null)
-  const saved = detail?.saved === true || (reply !== null && reply.saved === true)
+/**
+ * The code a failure maps to. The viewer bridge rejects with a plain Error (its message is for the console only, and it carries no code), so the hook also watches the viewer's own reply message and hands it
+ * here as `reply`: its code first (and its `saved` flag), then what carries no code (the view-only guard's "view-only", an "Unknown action", a timeout, no frame).
+ */
+export function readReplacePictureFailure(failure: unknown, reply: unknown = null): { code: ReplacePictureCode; stored: boolean } {
+  const own = record(failure)
+  const seen = record(reply) ?? (own !== null && typeof own.message !== 'string' ? own : null)
+  const code = seen && typeof seen.code === 'string' ? seen.code : null
+  const saved = seen !== null && seen.saved === true
   if (isLayoutPictureCode(code)) return { code, stored: code === 'REPAINT_FAILED' || saved }
-  const message = failure instanceof Error ? failure.message : typeof reply?.error === 'string' ? reply.error : typeof failure === 'string' ? failure : ''
+  const message = typeof seen?.error === 'string' ? seen.error : typeof own?.message === 'string' ? own.message : typeof failure === 'string' ? failure : ''
   if (/^view-only$/i.test(message.trim())) return { code: 'VIEW_ONLY_PAGE', stored: false }
   if (/^unknown action/i.test(message.trim())) return { code: 'LAYOUT_SWITCH_OFF', stored: false }
   if (/command timeout/i.test(message)) return { code: 'TIMED_OUT', stored: false }
@@ -227,13 +214,15 @@ export function outcomeFromReply(reply: unknown): ReplacePictureOutcome {
     const hidden = Array.isArray(value.hidden_image_ids) ? value.hidden_image_ids.length : 0
     return { ok: true, hiddenCount: hidden, words: REPLACE_PICTURE_DONE_WORDS, note: hiddenPictureNote(hidden) }
   }
-  const { code, stored } = readReplacePictureFailure(value)
+  const { code, stored } = readReplacePictureFailure(null, value)
   return failureOutcome(code, stored)
 }
 
 export interface ReplacePictureDeps {
   /** The viewer bridge: sends one command and resolves with its reply or rejects with the failure. */
   send(action: string, params: Record<string, unknown>, options: { timeoutMs: number }): Promise<unknown>
+  /** The viewer's own reply message for this command, as the hook saw it arrive (the bridge's rejection carries only text): its code is what the words come from. null when none came. */
+  observed?(): unknown
 }
 
 /** Checks the inputs, sends the command once, and turns whatever came back into an outcome in plain words. Never throws. */
@@ -243,7 +232,7 @@ export async function runReplacePicture(deps: ReplacePictureDeps, input: { slide
   try {
     return outcomeFromReply(await deps.send(REPLACE_PICTURE_COMMAND, { ...built.params }, { timeoutMs: REPLACE_PICTURE_TIMEOUT_MS }))
   } catch (failure) {
-    const { code, stored } = readReplacePictureFailure(failure)
+    const { code, stored } = readReplacePictureFailure(failure, deps.observed?.() ?? null)
     return failureOutcome(code, stored)
   }
 }

@@ -1,7 +1,7 @@
 // FRONTEND-1 (PK mandate M10 of 15 Nov 2026, Replace picture: swap a title, section or closing slide's picture as the slide's own background layer). Flag NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE (exact "true", default off, build-time).
 // It acts only with NEXT_PUBLIC_STUDIO_V4_SHELL also on, and its command needs Layout's LAYOUT_SLIDE_BACKGROUND_PICTURE_ENABLED (SLIDE-4, Layout Draft !294). Off, the viewer, the slide area and the Builder page are byte for byte what they were.
-// Every line this change adds to an EXISTING file carries the marker REPLACE-PICTURE (matched as a whole token). One base line is rewritten (the viewer bridge's rejection of a failed command), so the strip is a list of [has, was] pairs, not a marker
-// filter: putting each pair back gives the file at BASE_COMMIT byte for byte. The new files have no base text.
+// Every line this change adds to an EXISTING file carries the marker REPLACE-PICTURE (matched as a whole token) and is a pure insertion (no base line is rewritten; the viewer bridge, sendCommand, is untouched), so the strip is a list of
+// [has, was] pairs whose `was` is empty: putting each back gives the file at BASE_COMMIT byte for byte. The new files have no base text.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
 export const BASE_COMMIT = '3098f860cd97226d6405631bad870a9be5b52523' // origin/studio-v4-dev-preparation-code (#634 merged), the trunk this change sits on
@@ -36,7 +36,7 @@ export const REPLACE_PICTURE_LIB_FLAGS = [["lib/studio-replace-picture.ts", "NEX
 export const REPLACE_PICTURE_EDITS = {
   "components/presentation-viewer.tsx": [
     [
-      "import { STUDIO_REPLACE_SLIDE_PICTURE_ENABLED, REPLACE_PICTURE_COMMAND, replacePictureReplyError } from '@/lib/studio-replace-picture' // REPLACE-PICTURE (NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE, default off): the Replace picture action sends Layout's setSlideBackgroundPicture\n",
+      "import { STUDIO_REPLACE_SLIDE_PICTURE_ENABLED } from '@/lib/studio-replace-picture' // REPLACE-PICTURE (NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE, default off): the Replace picture action sends Layout's setSlideBackgroundPicture\n",
       ""
     ],
     [
@@ -52,15 +52,11 @@ export const REPLACE_PICTURE_EDITS = {
       ""
     ],
     [
-      "            reject(STUDIO_REPLACE_SLIDE_PICTURE_ENABLED && action === REPLACE_PICTURE_COMMAND ? replacePictureReplyError(event.data) : new Error(event.data.error || 'Command failed')) // REPLACE-PICTURE: a failed setSlideBackgroundPicture rejects with an Error that carries the reply's stable code (lib/studio-replace-picture.ts maps it to plain words); every other command rejects as before\n",
-      "            reject(new Error(event.data.error || 'Command failed'))\n"
-    ],
-    [
       "  onReplacePictureReloadDeck, // REPLACE-PICTURE\n",
       ""
     ],
     [
-      "  const replacePicture = useStudioReplacePicture({ enabled: STUDIO_REPLACE_SLIDE_PICTURE_ENABLED && studioShell, deckOpen: Boolean(approvedPresentationUrl && presentationId), viewerReady: viewerIsReady, presenting: isFullscreen, presentationId, frameUrl: approvedPresentationUrl, activeVersion, currentSlide, railSlideId: slideThumbnails[currentSlide - 1]?.slideId ?? null, railSlideTitle: slideThumbnails[currentSlide - 1]?.title ?? null, tabPausedHint: studioTabPausedHint, templateMode: templateModeOn, building: Boolean(isGenerating || studioPartialArtifact), studioBusy: Boolean(studioFormatBusy), composeJobs, mutationPending: isSlideMutationPending, send: sendCommand, getIframe: () => iframeRef.current, begin: beginStudioNativeSlideMutation, afterReplace: () => { reportDeckChange('element'); if (presentationId) onThumbnailInvalidatedRef.current?.(presentationId); slideRailRefreshRef.current() }, onReloadDeck: onReplacePictureReloadDeck }) // REPLACE-PICTURE (NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE): the Replace picture action for the slide on screen; off, it reads and sends nothing\n",
+      "  const replacePicture = useStudioReplacePicture({ enabled: STUDIO_REPLACE_SLIDE_PICTURE_ENABLED && studioShell, deckOpen: Boolean(approvedPresentationUrl && presentationId), viewerReady: viewerIsReady, presenting: isFullscreen, presentationId, frameUrl: approvedPresentationUrl, activeVersion, currentSlide, railSlideId: slideThumbnails[currentSlide - 1]?.slideId ?? null, railSlideTitle: slideThumbnails[currentSlide - 1]?.title ?? null, tabPausedHint: studioTabPausedHint, templateMode: templateModeOn, building: Boolean(isGenerating || studioPartialArtifact), studioBusy: Boolean(studioFormatBusy), composeJobs, mutationPending: isSlideMutationPending, send: sendCommand, getIframe: () => iframeRef.current, begin: beginStudioNativeSlideMutation, isTrustedReply: (event, frame) => VIEWER_ORIGIN !== null && !LAYOUT_URL_CONFIG_ERROR && isTrustedLayoutViewerMessage(event, frame, VIEWER_ORIGIN), afterReplace: () => { reportDeckChange('element'); if (presentationId) onThumbnailInvalidatedRef.current?.(presentationId); slideRailRefreshRef.current() }, onReloadDeck: onReplacePictureReloadDeck }) // REPLACE-PICTURE (NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE): the Replace picture action for the slide on screen; off, it reads and sends nothing\n",
       ""
     ],
     [
@@ -96,7 +92,20 @@ export const REPLACE_PICTURE_EDITS = {
 
 /** The older proofs this change teaches: [text the proof has now, text the proof had before] per edit, so putting them back gives the previous file byte for byte. */
 export const REPLACE_PICTURE_PIN_MARK = "LATER-CHANGES: registry read (REPLACE-PICTURE)"
-export const REPLACE_PICTURE_PIN_EDITS = {}
+export const REPLACE_PICTURE_PIN_EDITS = {
+  "scripts/test-studio-chat-element-edit.mjs": [
+    [
+      "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Replace picture:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (REPLACE-PICTURE): on a branch stacked after this change (the Replace picture action, M10), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files\n",
+      ""
+    ]
+  ],
+  "scripts/test-studio-deck-sync-truth.mjs": [
+    [
+      "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Replace picture:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (REPLACE-PICTURE): on a branch stacked after this change (the Replace picture action, M10), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files\n",
+      ""
+    ]
+  ]
+}
 
 /** The older proofs this change teaches. */
 export const REPLACE_PICTURE_PIN_FILES = Object.keys(REPLACE_PICTURE_PIN_EDITS)

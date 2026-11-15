@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  REPLACE_PICTURE_COMMAND,
   REPLACE_PICTURE_KIND_COMMAND,
   REPLACE_PICTURE_ORDER_COMMAND,
   canvasTypeFromCatalogReply,
@@ -50,6 +51,8 @@ export interface UseStudioReplacePictureInput {
   mutationPending: boolean
   send: ViewerSend
   getIframe: () => HTMLIFrameElement | null
+  /** The viewer's own origin and window check for a message (the one the bridge applies to every reply). */
+  isTrustedReply: (event: MessageEvent, iframe: HTMLIFrameElement | null) => boolean
   begin: (operation: string) => ReplacePictureMutation | null
   /** After a stored picture: the rail's previews and the other tabs are told. */
   afterReplace: () => void
@@ -97,8 +100,7 @@ export function useStudioReplacePicture(input: UseStudioReplacePictureInput): St
     return () => { cancelled = true }
   }, [live, busy, key, slideIndex])
 
-  // A deck Layout refused as read-only stays off until another deck is opened.
-  useEffect(() => { setRefused(null) }, [input.presentationId])
+  // A deck Layout refused as read-only (a view-only page, a published copy) stays off: `refused` is that deck's id, so another deck is not affected.
 
   const slideKind = kindRead && kindRead.key === key ? kindRead.kind : 'loading'
   const readOnly = urlIsViewOnly(input.frameUrl) || (refused !== null && refused === input.presentationId) ? 'view-only' as const
@@ -130,7 +132,20 @@ export function useStudioReplacePicture(input: UseStudioReplacePictureInput): St
         slideId = identity.slideId
       } catch { /* the id is optional: without it Layout still writes to the slide at the index */ }
       if (!mutation.isCurrent()) return failureOutcome('SLIDE_CHANGED')
-      const outcome = await runReplacePicture({ send: (action, params, options) => now.send(mutation.iframe, action, params, options) }, { slideIndex: index, slideId, url: form.url, alt: form.alt })
+      // The bridge rejects with text only, so the viewer's own reply message is watched for the command's code.
+      let reply: unknown = null
+      const frame = mutation.iframe
+      const watch = (event: MessageEvent) => {
+        const data = event.data as { action?: unknown } | null
+        if (data && typeof data === 'object' && data.action === REPLACE_PICTURE_COMMAND && now.isTrustedReply(event, frame)) reply = data
+      }
+      window.addEventListener('message', watch)
+      let outcome: ReplacePictureOutcome
+      try {
+        outcome = await runReplacePicture({ send: (action, params, options) => now.send(frame, action, params, options), observed: () => reply }, { slideIndex: index, slideId, url: form.url, alt: form.alt })
+      } finally {
+        window.removeEventListener('message', watch)
+      }
       if (outcome.ok || outcome.stored) { if (mutation.isCurrent()) latest.current.afterReplace() }
       else if (isReadOnlyPictureCode(outcome.code)) setRefused(latest.current.presentationId)
       return outcome
