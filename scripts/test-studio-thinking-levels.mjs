@@ -83,7 +83,7 @@ const textsKeys = new WeakMap(), modules = new Map()
 const textsKey = texts => { if (!textsKeys.has(texts)) textsKeys.set(texts, crypto.createHash('sha1').update(JSON.stringify(texts)).digest('hex')); return textsKeys.get(texts) }
 /** Load one real source in a new context. `texts` replaces the text of any file (a mutant); `react` replaces React; every other import is the REAL source or package, loaded with the same `env`. A .css import is an empty module. */
 function load(rel, { env = {}, texts = {}, react = React } = {}) {
-  const key = `${rel}\0${JSON.stringify(env)}\0${textsKey(texts)}\0${react === React ? 'react' : 'stub'}`
+  const key = `${rel}\0${JSON.stringify(env)}\0${textsKey(texts)}\0${react === React ? 'react' : react.__id || 'stub'}`
   if (modules.has(key)) return modules.get(key)
   const module = { exports: {} }
   modules.set(key, module.exports)
@@ -362,7 +362,7 @@ async function pickerChecks(texts = {}) {
   const noPreview = load(PICKER, { env: ENV_ON, texts, react: stubReact }); const o = noPreview.LevelPicker({ value: 'auto', plan: 'premium', onChange: l => calls.push(l) }).props; calls.length = 0; o.onCommit(2); assert.deepEqual(calls, [], 'without the preview there is no third stop')
   assert.equal(run('auto', 'pro').view.stops.length, 4); assert.equal(o.view.stops.length, 2, 'two stops without the preview')
   // a refused position leaves no draft under the thumb: the draft is cleared at once and once more after the slider's own late report (the real page showed the thumb stuck on Balanced on a Free plan)
-  const log = [], rec = { ...stubReact, useState: init => [typeof init === 'function' ? init() : init, v => log.push(v)] }
+  const log = [], rec = { ...stubReact, __id: 'recording', useState: init => [typeof init === 'function' ? init() : init, v => log.push(v)] }
   const R = load(PICKER, { env: ENV_DIRECT, texts, react: rec }).LevelPicker({ value: 'fast', plan: 'free', onChange: () => assert.fail('a refused position chose') }).props
   R.onCommit(1); assert.deepEqual(log, [null], 'cleared at once'); await new Promise(resolve => setTimeout(resolve, 30)); assert.deepEqual(log, [null, null], 'and cleared again after the slider\'s late report')
 }
