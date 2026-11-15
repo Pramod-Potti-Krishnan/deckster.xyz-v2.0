@@ -326,7 +326,7 @@ function wireChecks(texts = {}) {
 // ============================================================================================================================================
 // C. the picker
 // ============================================================================================================================================
-function pickerChecks(texts = {}) {
+async function pickerChecks(texts = {}) {
   const P = load(PICKER, { env: ENV_DIRECT, texts }), lib = load(LIB, { env: ENV_DIRECT, texts })
   const attr = (markup, name) => [...markup.matchAll(new RegExp(`${name}="([^"]*)"`, 'g'))].map(m => m[1])
   const panel = (level, plan, direct, over = {}) => renderToStaticMarkup(h(P.LevelPanel, { Title: 'h2', view: lib.thinkingView(level, plan, { levels: true, direct }), blocked: false, onDraft() {}, onCommit() {}, onReset() {}, ...over }))
@@ -361,6 +361,10 @@ function pickerChecks(texts = {}) {
   const outOfRange = run('auto', 'pro'); outOfRange.onCommit(9); assert.deepEqual(calls, [], 'a stop that is not there chooses nothing')
   const noPreview = load(PICKER, { env: ENV_ON, texts, react: stubReact }); const o = noPreview.LevelPicker({ value: 'auto', plan: 'premium', onChange: l => calls.push(l) }).props; calls.length = 0; o.onCommit(2); assert.deepEqual(calls, [], 'without the preview there is no third stop')
   assert.equal(run('auto', 'pro').view.stops.length, 4); assert.equal(o.view.stops.length, 2, 'two stops without the preview')
+  // a refused position leaves no draft under the thumb: the draft is cleared at once and once more after the slider's own late report (the real page showed the thumb stuck on Balanced on a Free plan)
+  const log = [], rec = { ...stubReact, useState: init => [typeof init === 'function' ? init() : init, v => log.push(v)] }
+  const R = load(PICKER, { env: ENV_DIRECT, texts, react: rec }).LevelPicker({ value: 'fast', plan: 'free', onChange: () => assert.fail('a refused position chose') }).props
+  R.onCommit(1); assert.deepEqual(log, [null], 'cleared at once'); await new Promise(resolve => setTimeout(resolve, 30)); assert.deepEqual(log, [null, null], 'and cleared again after the slider\'s late report')
 }
 
 /** The Standard / Author / Agent chips (#607 / #621): their component and the page's mount are the base's (nothing of #621 is edited), so they are hidden by one rule of this change's stylesheet: only where a level gauge is in the clean composer, only the chips' own wrapper. */
@@ -563,6 +567,7 @@ const MUTANTS = [
   ['page: the picker is not disabled under a run', M(PAGE, 'disabled: agentRunBusy(agentRun), onChange: pickThinkingLevel', 'disabled: false, onChange: pickThinkingLevel'), wireChecks],
   ['page: one send forgets the level', M(PAGE, "            ...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS: a card's button\n", ''), wireChecks],
   ['picker: a position the plan cannot use is chosen', M(PICKER, 'const pick = levelPick(level, plan)\n    if (pick) onChange(pick.level)', 'onChange(level)'), pickerChecks],
+  ['picker: the draft is not cleared after the slider\'s late report', M(PICKER, '    setTimeout(() => setDraft(null), 0) // the slider reports', '    // the slider reports'), pickerChecks],
   ['picker: the level already shown is chosen again', M(PICKER, 'if (level === value) return\n', ''), pickerChecks],
   ['picker: the disabled mark is gone', M(PICKER, 'data-level-disabled={stop.disabled ? "true" : "false"}', 'data-level-disabled="false"'), pickerChecks],
   ['picker: Auto shows a thumb', M(PICKER, 'const onScale = kind === "selected"', 'const onScale = true'), pickerChecks],

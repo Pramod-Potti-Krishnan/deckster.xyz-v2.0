@@ -47,6 +47,7 @@ export function LevelPicker({ value, plan, disabled, className, onChange }: Leve
   const view = thinkingView(value, plan)
   function choose(level: ThinkingLevel) {
     setDraft(null)
+    setTimeout(() => setDraft(null), 0) // the slider reports its last move once more after a commit (Radix orders its two callbacks that way): without this a position the plan cannot use would stay under the thumb
     if (level === value) return
     const pick = levelPick(level, plan)
     if (pick) onChange(pick.level)
