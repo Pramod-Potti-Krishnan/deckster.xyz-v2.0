@@ -696,6 +696,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const [inputMessage, setInputMessage] = useState("")
   const [buildMode, setBuildMode] = useState<BuildMode>('standard') // AGENT-MODE-WIRE: the build mode the picker holds; nothing is sent until a build request carries it (buildModeWire below)
   const [buildModeFrom, setBuildModeFrom] = useState<BuildMode | undefined>(undefined) // AGENT-MODE-WIRE: set once the person picked Author or Agent, so that going back to Standard is sent as an explicit reset
+  const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevel>('auto') // THINKING-LEVELS: the level the picker was moved to (Auto until then, and after a reload or another session); it drives buildMode above and is never saved
+  const thinkingLevelRef = useRef<ThinkingLevel | undefined>(undefined) // THINKING-LEVELS: the thinking_level the next build request carries (undefined omits the key); written each render
   const [agentRun, dispatchAgentRun] = React.useReducer(agentWireReducer, undefined, initialAgentRunState) // AGENT-MODE-WIRE: the run card's state (#607's reducer: Director's agent frames and the person's answers); idle with the flags off, and then never touched
   const agentBuildModeRef = useRef<BuildMode | undefined>(undefined) // AGENT-MODE-WIRE: the build_mode the next build request carries (undefined omits the key); written each render from the picker, the flags and the plan
   const agentVoiceModeRef = useRef<BuildMode | undefined>(undefined) // AGENT-MODE-WIRE: the build_mode a build send that came from the voice call carries (PK ruling: voice never starts Agent); written each render, never "agent"
@@ -857,6 +859,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const buildModeWire = STUDIO_AGENT_MODE_ENABLED ? buildModeOnWire(buildMode, { plan: agentPlan, previous: buildModeFrom }) : undefined // AGENT-MODE-WIRE: the picker's build_mode on the wire (undefined: Standard, and no other was ever picked; the two refs below turn it into the key a typed send and a voice send carry); with the flags off it is undefined and every frame is today's
   agentBuildModeRef.current = STUDIO_AGENT_MODE_ENABLED ? typedBuildMode(buildModeWire, agentPlan) : undefined // AGENT-MODE-WIRE: read at send time by the four build sends below (typed message, outline accept), so a pick is on the very next request and a closure never holds an old mode; PK ruling (12 Nov): Standard on a plan that can have an Agent opt-in (Pro, Max) is sent as an explicit "standard" (Director's opt-in is sticky and the picker starts on Standard after a reload), the other plans leave the key out
   agentVoiceModeRef.current = STUDIO_AGENT_MODE_ENABLED ? voiceBuildMode(buildModeWire, agentPlan) : undefined // AGENT-MODE-WIRE: the same, for a send that came from the voice call: "standard" for a plan that can have an Agent opt-in (Director's is sticky; this drops it), else no key; never "agent"
+  const shownThinkingLevel = effectiveLevel(thinkingLevel, buildMode) // THINKING-LEVELS: the level the picker shows: the one picked, unless the build mode moved from under it (an Agent run finished, another session started), then Auto
+  thinkingLevelRef.current = STUDIO_THINKING_LEVELS_ENABLED ? shownThinkingLevel : undefined // THINKING-LEVELS: read at send time by the four build sends below, next to the build mode; the hook then says what the request RUNS as (a voice turn never starts Agent)
+  const pickThinkingLevel = (level: ThinkingLevel) => { const pick = levelPick(level, agentPlan); if (!pick) return; if (pick.mode !== 'standard') setBuildModeFrom(pick.mode); setBuildMode(pick.mode); setThinkingLevel(pick.level) } // THINKING-LEVELS: a level the plan can use drives the build mode (Fast and Auto Standard; Balanced, Best and Max Agent), exactly as a click on the build-mode chips did; nothing is sent until a build request carries it
   const buildSendOptions = useMemo(
     () => ({
       ...templateSendOptions,
@@ -1977,6 +1982,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   useEffect(() => { // AGENT-MODE-WIRE: a run, its cards and a picked mode belong to the session they were made in; another session starts clean (the first save of a new chat is not a move)
     if (!STUDIO_AGENT_MODE_ENABLED) return // AGENT-MODE-WIRE
     if (agentSessionChanged(agentSessionRef.current, currentSessionId)) { dispatchAgentRun(AGENT_WIRE_RESET); setBuildMode('standard'); setBuildModeFrom(undefined) } // AGENT-MODE-WIRE
+    if (STUDIO_THINKING_LEVELS_ENABLED && agentSessionChanged(agentSessionRef.current, currentSessionId)) setThinkingLevel('auto') // THINKING-LEVELS: a picked level belongs to the session it was picked in
     agentSessionRef.current = currentSessionId ?? agentSessionRef.current // AGENT-MODE-WIRE
   }, [currentSessionId]) // AGENT-MODE-WIRE
   useEffect(() => { // AGENT-MODE-WIRE: PK ruling (12 Nov), reset to Standard: when an Agent run finishes (done or failed; a refusal is a failed run; a stopped run is not over, it can be resumed) the picker goes back to Standard, once, on that move only (never on mount); a pick made afterwards stays
@@ -6289,6 +6295,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           actionLabel: action.label,
           ...buildSendOptions,
           ...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE
+          ...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS
           manualDeck: turnContext?.manualDeck,
         })
         if (!success || !isCurrentSubmission()) return
@@ -6369,6 +6376,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               storeName: sessionStoreName,
               ...buildSendOptions,
               ...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE
+              ...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS
               manualDeck: turnContext?.manualDeck,
             })
             if (!success || !isCurrentSubmission()) return
@@ -6473,6 +6481,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         storeName: sessionStoreName,
         ...buildSendOptions,
         ...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE
+        ...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS
         manualDeck: turnContext?.manualDeck,
       })
 
@@ -6912,6 +6921,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             actionLabel: action.label,
             ...buildSendOptions,
             ...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE
+            ...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS
             ...(gdriveLinkedIdsRef.current ? { linkedItemIds: gdriveLinkedIdsRef.current } : {}), // GDRIVE-COMPOSER: linked_item_ids on the build message (#608 hook; dropped there with the session-links flag off)
           }, undefined, isCurrentSubmission)
         } catch {
@@ -7994,6 +8004,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   <ChatInput
                     {...(voiceCall.composerProps ? { voiceCall: voiceCall.composerProps } : {})} // VOICE-CALL: the composer's call button (null with the flag off)
                     {...(chatCleanShell ? { studioChatClean: { composer: chatCleanComposer, onStop: chatCleanStop, onSendDirections: chatCleanSendDirections, sessionId: currentSessionId } } : {}) /* CHAT-CLEAN: Send <-> Stop, new directions while held, the "+" menu, the research chips and the model picker */}
+                    {...(STUDIO_THINKING_LEVELS_ENABLED ? { studioThinkingLevels: { value: shownThinkingLevel, plan: agentPlan, disabled: agentRunBusy(agentRun), onChange: pickThinkingLevel } } : {}) /* THINKING-LEVELS (NEXT_PUBLIC_STUDIO_THINKING_LEVELS): the composer's gauge becomes the level picker (Auto / Fast / Balanced / Best / Max); off, nothing is added */}
                     {...(gdriveOffer ? { gdrive: gdriveComposer } : {}) /* GDRIVE-COMPOSER: the attach menu's Drive item and the Drive chips; off, nothing is added */}
                     composerTextareaRef={studioShell ? textareaRef : undefined}
                     studioSavedThemeRequest={savedThemeWorkflowId ? { id: savedThemeWorkflowId, key: workflowKey } : undefined}
@@ -8629,4 +8640,5 @@ import { BuilderQuotaRefusal } from '@/components/billing/builder-quota-refusal'
 import { AgentRunCards } from '@/components/builder/agent-mode/agent-run-cards' // AGENT-MODE-WIRE
 import { BuildModePicker } from '@/components/builder/agent-mode/build-mode-picker' // AGENT-MODE-WIRE
 import { STUDIO_AGENT_MODE_ENABLED, agentPlanOf, buildModeOnWire, initialAgentRunState, type BuildMode } from '@/lib/studio-agent-mode' // AGENT-MODE-WIRE
+import { STUDIO_THINKING_LEVELS_ENABLED, effectiveLevel, levelPick, type ThinkingLevel } from '@/lib/studio-thinking-levels' // THINKING-LEVELS
 import { AGENT_WIRE_CONTROL_MARK, AGENT_WIRE_COPY, AGENT_WIRE_RESET, agentCardsKey, agentFinishedRun, agentPickerAfterRun, agentRunBusy, agentSessionChanged, agentWireReducer, answerAgentCard, typedBuildMode, voiceBuildMode, voiceOriginatedSend } from '@/lib/studio-agent-mode-wire' // AGENT-MODE-WIRE

@@ -56,6 +56,7 @@ import { keepPopupOpenForDropdownList, nextComposerPopup, type ComposerPopupId }
 import type { ComposerLibraryRequest } from '@/lib/studio-composer-popups'
 import { STUDIO_CHAT_CLEAN_ENABLED, CHAT_CLEAN_TEXTAREA_MIN_HEIGHT, type ChatCleanComposerProps } from '@/lib/studio-chat-clean' // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN, default off)
 import { StudioChatCleanSendSide } from '@/components/builder/chat/studio-chat-clean' // CHAT-CLEAN
+import type { LevelPickerProps } from '@/components/builder/thinking-levels/level-picker' // THINKING-LEVELS
 import { useStudioChatCommands } from '@/components/builder/chat/studio-chat-commands' // CHAT-COMMANDS (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, default off)
 import type { ChatCommandsPageProps } from '@/lib/studio-chat-commands' // CHAT-COMMANDS
 import { VoiceCallButtons } from './voice-call/voice-call-buttons' // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL, default off)
@@ -149,6 +150,7 @@ export interface ChatInputProps {
    *  (lib/studio-pass2b-chat) and passed only with the flag on; only the placeholder changes. */
   studioEditPrompt?: boolean
   studioChatClean?: ChatCleanComposerProps // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN): the composer's mode and the page's Stop / send-directions handlers; passed only with the flag on
+  studioThinkingLevels?: LevelPickerProps // THINKING-LEVELS (NEXT_PUBLIC_STUDIO_THINKING_LEVELS): the level picker's value, plan and handler; passed only with the flag on, and drawn only in the clean composer
   studioChatCommands?: ChatCommandsPageProps // CHAT-COMMANDS (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS): the deck's slides, the current slide, the selected element and the export runner for the "/" and "@" menus; passed only with the flag on
   voiceCall?: VoiceCallComposerProps // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL): the two call buttons' handler and state, and `active` (a call is on: the composer is not drawn); passed only with the flag on (the page's call hook)
   /** GDRIVE-COMPOSER: "Add from Google Drive" in the attach menu, the Drive chips above the composer. The page passes it only with both Drive flags on and an entitled user; absent, the composer is exactly the base's. */
@@ -208,6 +210,7 @@ export function ChatInput({
   pausedInOtherTab = false,
   studioEditPrompt = false,
   studioChatClean, // CHAT-CLEAN
+  studioThinkingLevels, // THINKING-LEVELS
   studioChatCommands, // CHAT-COMMANDS
   voiceCall, // VOICE-CALL
   gdrive, // GDRIVE-COMPOSER
@@ -1527,7 +1530,7 @@ export function ChatInput({
               </DropdownMenu>
             </div>
 
-            {chatClean ? <StudioChatCleanSendSide composer={chatClean.composer} onStop={chatClean.onStop} picker={{ sessionId: chatClean.sessionId, disabled: !user || isLoadingSession }} research={chatCleanResearch} /> : null}{/* CHAT-CLEAN: the model picker (the gauge button) and Stop beside Send; the stylesheet moves the research options button above next to them and hides Send while Stop shows */}
+            {chatClean ? <StudioChatCleanSendSide composer={chatClean.composer} onStop={chatClean.onStop} picker={{ sessionId: chatClean.sessionId, disabled: !user || isLoadingSession }} research={chatCleanResearch} {...(studioThinkingLevels ? { levels: studioThinkingLevels } : {})} /> : null}{/* CHAT-CLEAN: the model picker (the gauge button) and Stop beside Send; the stylesheet moves the research options button above next to them and hides Send while Stop shows */}{/* THINKING-LEVELS: the level picker's props ride along only when the page passed them (flag on) */}
             {voiceCall ? <VoiceCallButtons {...voiceCall} studio={studio} place="toolbar" /> : null}{/* VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL): the Audio and Video call buttons right beside Send (NEXT_PUBLIC_STUDIO_VOICE_CALL_BUTTONS "a"; else null here); the only things that ask for the microphone */}
             {/* Right: Send button - rounded square with up arrow */}
             {isTemplateReuseRunning ? (

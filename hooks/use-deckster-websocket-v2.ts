@@ -56,6 +56,7 @@ import {
 } from '@/lib/director-reconnect-policy';
 import { STUDIO_ONE_LIVE_TAB_ENABLED, isDirectorSupersededClose } from '@/lib/studio-one-live-tab';
 import { STUDIO_AGENT_MODE_ENABLED, agentAnswerFrame, agentAnswerSendable, isAgentFrameType } from '@/lib/studio-agent-mode'; // AGENT-MODE-WIRE (NEXT_PUBLIC_AGENT_MODE and NEXT_PUBLIC_STUDIO_V4_SHELL, both exact "true"; default off)
+import { STUDIO_THINKING_LEVELS_ENABLED, thinkingLevelOnWire, type ThinkingLevel } from '@/lib/studio-thinking-levels'; // THINKING-LEVELS (NEXT_PUBLIC_STUDIO_THINKING_LEVELS; default off)
 import { linkedItemIdsField } from '@/lib/connectors-gdrive-session-links';
 import {
   buildControlEndpointFromWsUrl,
@@ -629,6 +630,7 @@ export interface UserMessage {
     // to suppress navigation/reconnect retries of the pending build request.
     handoff_idempotency_key?: string;
     build_mode?: 'standard' | 'author' | 'agent'; // AGENT-MODE-WIRE: Director's opt-in key (MR-604); omitted unless the picker chose and the plan allows it
+    thinking_level?: ThinkingLevel; // THINKING-LEVELS: the level this request asks for (auto, fast, balanced, best, max), additive: Director's logs show the route (DIRECTOR-2 reads it; today Director ignores it); omitted unless the flag is on
   };
 }
 
@@ -641,6 +643,7 @@ export interface SendUserMessageOptions {
   webSearch?: boolean;
   extendedGeneration?: boolean;
   buildMode?: 'standard' | 'author' | 'agent'; // AGENT-MODE-WIRE
+  thinkingLevel?: ThinkingLevel; // THINKING-LEVELS
   fileUpload?: boolean;
   storeName?: string | null;
   useKnowledgeGraph?: boolean;
@@ -3518,6 +3521,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           ...(options?.manualDeck && { manual_deck: options.manualDeck }),
           ...(options?.deckIdentity && { deck_identity: options.deckIdentity }),
           ...(options?.buildMode && { build_mode: options.buildMode }), // AGENT-MODE-WIRE
+          ...(STUDIO_THINKING_LEVELS_ENABLED && options?.thinkingLevel && { thinking_level: options.thinkingLevel }), // THINKING-LEVELS
           ...(options?.handoffIdempotencyKey && {
             handoff_idempotency_key: options.handoffIdempotencyKey,
           }),
@@ -3546,6 +3550,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       if (CHAT_PARITY_CAPS.length > 0) addChatParityCaps(message.data as unknown as Record<string, unknown>); // CHAT-PARITY: themes1 / identity1 / templates1, after #522's element_edit1 / notes1, the bulk-edit caps and #532's mentions2 / commands1: the last caps line in client_caps, each with its own flag. Off: nothing.
       if (typeof STUDIO_VOICE_CALL_UI_ENABLED !== 'undefined' && STUDIO_VOICE_CALL_UI_ENABLED) addVoiceCallFields(message.data as unknown as Record<string, unknown>, text); // VOICE-CALL: only the one armed voice turn (its exact words) gets data.mode "voice" and the cap voice1, after every other cap. Off, or any other message: nothing. (The typeof lets the older proofs that run buildUserMessage in a bare sandbox read this line without naming the flag there.)
       if (STUDIO_AGENT_MODE_ENABLED && (message.data as unknown as Record<string, unknown>).mode === 'voice' && message.data.build_mode === 'agent') message.data.build_mode = 'standard'; // AGENT-MODE-WIRE: PK ruling, a voice turn never starts an Agent run: one marked mode "voice" never carries build_mode "agent" (the page already gave it "standard"; this is the last line, for a send that got past it), so Director's opt-in is dropped, never kept or set. Flags off: nothing.
+      if (STUDIO_THINKING_LEVELS_ENABLED && message.data.thinking_level) message.data.thinking_level = thinkingLevelOnWire(message.data.thinking_level, message.data.build_mode) ?? message.data.thinking_level; // THINKING-LEVELS: the level a request RUNS as, read from the build_mode it finally carries (after the voice rule above): a level that needs the Agent build but goes out without it says "fast"
       return message;
     };
 

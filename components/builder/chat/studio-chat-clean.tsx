@@ -15,6 +15,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertCircle, Brush, Check, Clock, Compass, Globe, ListOrdered, Pause, Play, Search, Square } from 'lucide-react'
 import { ModelPicker } from '@/components/model-choice/model-picker'
+import { LevelPicker, type LevelPickerProps } from '@/components/builder/thinking-levels/level-picker' // THINKING-LEVELS (NEXT_PUBLIC_STUDIO_THINKING_LEVELS, default off)
 import {
   CHAT_CLEAN_CHOICES,
   CHAT_CLEAN_WORDS,
@@ -250,10 +251,11 @@ export interface StudioChatCleanSendSideProps {
   onStop: () => void
   research: ChatCleanResearchProps
   picker: { sessionId: string | null; disabled: boolean }
+  levels?: LevelPickerProps // THINKING-LEVELS: the level picker's props, passed only with the flag on; it takes the model gauge's place
 }
 
 /** The model picker (FRONTEND-2's slider variant, as it ships: a gauge button opening the slider) and Stop while a build runs. With CHAT_CLEAN_CHOICES.research = 'chips' (the v3 study), "Web search" and "Deep research" toggle chips stand before them. */
-export function StudioChatCleanSendSide({ composer, onStop, research, picker }: StudioChatCleanSendSideProps) {
+export function StudioChatCleanSendSide({ composer, onStop, research, picker, levels }: StudioChatCleanSendSideProps) { // THINKING-LEVELS: levels
   const chips = CHAT_CLEAN_CHOICES.research === 'chips'
   return (
     <>
@@ -269,7 +271,7 @@ export function StudioChatCleanSendSide({ composer, onStop, research, picker }: 
           <Search size={11} aria-hidden="true" />{CHAT_CLEAN_WORDS.deepResearchItem}
         </button>
       )}
-      <ModelPicker variant="slider" sessionId={picker.sessionId} disabled={picker.disabled} className="studio-chat-clean-model" />
+      {levels ? <LevelPicker {...levels} className="studio-chat-clean-model" /> : <ModelPicker variant="slider" sessionId={picker.sessionId} disabled={picker.disabled} className="studio-chat-clean-model" />}{/* THINKING-LEVELS: with the flag on the gauge IS the level picker (Auto / Fast / Balanced / Best / Max); off, the model picker as before */}
       {composer.showStop && (
         <button type="button" onClick={onStop} disabled={!composer.stopEnabled} aria-label={CHAT_CLEAN_WORDS.stopLabel} title={CHAT_CLEAN_WORDS.stopLabel} data-studio-chat-clean-stop="true">
           <Square size={12} fill="currentColor" aria-hidden="true" />
