@@ -6295,7 +6295,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           actionLabel: action.label,
           ...buildSendOptions,
           ...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE
-          ...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS
+          ...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS: an action's send (the outline accept)
           manualDeck: turnContext?.manualDeck,
         })
         if (!success || !isCurrentSubmission()) return
@@ -6376,7 +6376,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               storeName: sessionStoreName,
               ...buildSendOptions,
               ...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE
-              ...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS
+              ...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS: the first message of a new chat
               manualDeck: turnContext?.manualDeck,
             })
             if (!success || !isCurrentSubmission()) return
@@ -6481,7 +6481,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         storeName: sessionStoreName,
         ...buildSendOptions,
         ...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE
-        ...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS
+        ...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS: a typed message
         manualDeck: turnContext?.manualDeck,
       })
 
@@ -6921,7 +6921,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             actionLabel: action.label,
             ...buildSendOptions,
             ...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}), // AGENT-MODE-WIRE
-            ...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS
+            ...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS: a card's button
             ...(gdriveLinkedIdsRef.current ? { linkedItemIds: gdriveLinkedIdsRef.current } : {}), // GDRIVE-COMPOSER: linked_item_ids on the build message (#608 hook; dropped there with the session-links flag off)
           }, undefined, isCurrentSubmission)
         } catch {

@@ -7,9 +7,7 @@ import * as SliderPrimitive from "@radix-ui/react-slider"
 import { Gauge, RotateCcw } from "lucide-react"
 import { type AgentPlan } from "@/lib/studio-agent-mode"
 import { LEVEL_COPY, levelPick, stopLine, thinkingView, type ThinkingLevel, type ThinkingView } from "@/lib/studio-thinking-levels"
-import "@/components/model-choice/model-picker.css"
-import "@/components/model-choice/model-slider.css"
-import "@/components/model-choice/model-picker-simple.css"
+// The slider, popover and sheet classes below (mpick-*) are the model picker's: their stylesheets are in the bundle through the composer's own ModelPicker import, so they are not imported again here.
 import "./level-picker.css"
 
 /** The width (px) at or below which the picker is a bottom sheet: the phone shell's own query, the model picker's too. */

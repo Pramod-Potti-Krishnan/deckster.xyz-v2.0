@@ -7,11 +7,11 @@
 // What it proves (A to G), then mutants (H):
 //  A. the lib: the flag (each of the four, odd values), the direct preview needs the picker, the map (Auto and Fast are Standard; Balanced, Best and Max are the Agent build), the plan rule for every plan (Free, Starter, Pro, Max = premium, not loaded), the stops (Best and Max only with the
 //     preview, each marked coming soon), every pick (plan x level x preview, and junk), what the picker shows, the words (plain; no model, provider, router or price);
-//  B. THE WIRE, from the page's real marked lines through #621's real functions to the hook's real lines: for every plan and every position, the build_mode and the thinking_level the message carries. Auto and Fast send what Standard sent before (explicit "standard" on Pro and Max, which
-//     clears Director's sticky Agent opt-in; no key on Free, Starter, an unloaded plan); Balanced, and Best and Max (which run as Balanced for now), send "agent" on Pro and Max only; Balanced then Fast resets; a voice turn never starts Agent (build_mode "standard", thinking_level "fast");
-//     the level resets to Auto once a run is over and in another session; every flag off: no thinking_level, no change at all;
+//  B. THE WIRE, from the page's real marked lines through #621's real functions to the hook's real lines: for every plan and every position, the build_mode and the thinking_level the message carries. thinking_level is what the person PICKED (pinned with DIRECTOR-2 and KNOWLEDGE-3, 15 Nov),
+//     build_mode the route that runs: Auto and Fast send what Standard sent before (explicit "standard" on Pro and Max, which clears Director's sticky Agent opt-in; no key on Free, Starter, an unloaded plan); Balanced, and Best and Max (which run as Balanced for now), send "agent" on Pro and Max only;
+//     Balanced then Fast resets; a voice turn never starts Agent (build_mode "standard", thinking_level still what was picked); the level resets to Auto once a run is over and in another session; every flag off: no thinking_level, no change at all;
 //  C. the picker: the markup for each plan and flag (names in order, disabled positions, Auto has no thumb, coming-soon marks, the reset icon), the gauge, and its choices (a disabled position and the level already shown call nothing, the others call onChange with the level);
-//  D. ONE CONTROL: the composer's send side draws the level picker in the model gauge's place with the flag on and the model picker as before without it; the build-mode chips are not drawn with it on; flag off, the send side's markup is the base's, byte for byte;
+//  D. ONE CONTROL: the composer's send side draws the level picker in the model gauge's place with the flag on and the model picker as before without it; the build-mode chips (#621, their component untouched) are hidden by one rule of the picker's stylesheet while the level picker is in the composer; flag off, the send side's markup is the base's, byte for byte;
 //  E. the sources: every marked line, the strip gives each touched file its base back byte for byte (and leaves the research switch's lines alone), the registry, .env.example, the scope (read from the COMMITTED diff only), the commits;
 //  F. what Director reads (read-only citations: branch agent1/agent-theme-rules of director-v4.0, 2246b8af): no build_mode key changes nothing (src/utils/agent_mode.py:144 latch_build_mode returns on a message without a string build_mode; the opt-in is sticky), and no message key is validated
 //     (the user message is a dict read with .get), so the additive thinking_level is ignored today and read by DIRECTOR-2 tomorrow;
@@ -195,7 +195,6 @@ function libChecks(texts = {}) {
   assert.equal(lib({}).levelPick('fast', 'pro'), null, 'with the build-time flags off nothing is picked')
   // -- what the page keeps and the picker shows
   for (const [level, mode, expected] of [['balanced', 'agent', 'balanced'], ['balanced', 'standard', 'auto'], ['fast', 'standard', 'fast'], ['fast', 'agent', 'auto'], ['auto', 'standard', 'auto'], ['auto', 'agent', 'auto'], ['best', 'agent', 'best'], ['max', 'agent', 'max'], ['max', 'standard', 'auto'], ['best', 'author', 'auto']]) assert.equal(L.effectiveLevel(level, mode), expected, `effective(${level}, ${mode})`)
-  for (const [level, sent, expected] of [[undefined, 'agent', undefined], [undefined, undefined, undefined], ['balanced', 'agent', 'balanced'], ['balanced', 'standard', 'fast'], ['balanced', undefined, 'fast'], ['best', 'agent', 'best'], ['best', 'standard', 'fast'], ['max', 'agent', 'max'], ['max', undefined, 'fast'], ['fast', 'agent', 'fast'], ['fast', 'standard', 'fast'], ['fast', undefined, 'fast'], ['auto', 'standard', 'auto'], ['auto', undefined, 'auto'], ['auto', 'agent', 'auto']]) assert.equal(L.thinkingLevelOnWire(level, sent), expected, `on the wire(${level}, ${sent})`)
   const auto = L.thinkingView('auto', 'pro', { levels: true, direct: true })
   assert.deepEqual([auto.index, auto.thumb, auto.title, auto.line, auto.resetEnabled], [-1, 'none', 'Auto', 'Deckster picks how to build this deck.', false], 'Auto: no thumb, nothing to reset')
   for (const level of ['fast', 'balanced', 'best', 'max']) {
@@ -221,7 +220,7 @@ const pageLines = text => ({
   shown: lineWith(text, 'const shownThinkingLevel = effectiveLevel(thinkingLevel, buildMode)'),
   ref: lineWith(text, 'thinkingLevelRef.current = STUDIO_THINKING_LEVELS_ENABLED ?'),
   session: lineWith(text, "if (STUDIO_THINKING_LEVELS_ENABLED && agentSessionChanged(agentSessionRef.current, currentSessionId)) setThinkingLevel('auto')"),
-  send: lineWith(text.split('\n').filter(l => /^\s{10}\.\.\.\(thinkingLevelRef/.test(l)).join('\n'), '...(thinkingLevelRef.current ?'),
+  send: lineWith(text, '...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS: a typed message'),
   prop: lineWith(text, '{...(STUDIO_THINKING_LEVELS_ENABLED ? { studioThinkingLevels:'),
   wire: lineWith(text, 'const buildModeWire = STUDIO_AGENT_MODE_ENABLED ?'),
   typed: lineWith(text, 'agentBuildModeRef.current = STUDIO_AGENT_MODE_ENABLED ?'),
@@ -229,7 +228,6 @@ const pageLines = text => ({
 })
 const hookLines = text => ({
   spread: lineWith(text, '...(STUDIO_THINKING_LEVELS_ENABLED && options?.thinkingLevel'),
-  adjust: lineWith(text, 'if (STUDIO_THINKING_LEVELS_ENABLED && message.data.thinking_level)'),
   voiceRule: lineWith(text, "(message.data as unknown as Record<string, unknown>).mode === 'voice' && message.data.build_mode === 'agent'"),
   agentKey: lineWith(text, '...(options?.buildMode && { build_mode: options.buildMode }), // AGENT-MODE-WIRE'),
 })
@@ -249,8 +247,8 @@ function session({ env = ENV_ON, plan = 'pro', picks = [], voice = false, texts 
   // a send site: the options the page builds (build mode as #621 reads its ref, the level as this change reads its own), then the hook's own lines on the message
   const modeRef = voice ? refs.agentVoiceModeRef : refs.agentBuildModeRef
   const options = runFragment(`return ({ ...(agentModeRef.current ? { buildMode: agentModeRef.current } : {}),\n${L.send}\n})`, ['agentModeRef', 'thinkingLevelRef'])(modeRef, refs.thinkingLevelRef)
-  const data = runFragment(`const data: Record<string, any> = { text: 'hello', ${K.agentKey}\n${K.spread}\n${voice ? "mode: 'voice'," : ''} }\nconst message = { data }\n${K.voiceRule}\n${K.adjust}\nreturn message.data`,
-    ['options', 'STUDIO_AGENT_MODE_ENABLED', 'STUDIO_THINKING_LEVELS_ENABLED', 'thinkingLevelOnWire'])(options, agent.STUDIO_AGENT_MODE_ENABLED, lib.STUDIO_THINKING_LEVELS_ENABLED, lib.thinkingLevelOnWire)
+  const data = runFragment(`const data: Record<string, any> = { text: 'hello', ${K.agentKey}\n${K.spread}\n${voice ? "mode: 'voice'," : ''} }\nconst message = { data }\n${K.voiceRule}\nreturn message.data`,
+    ['options', 'STUDIO_AGENT_MODE_ENABLED', 'STUDIO_THINKING_LEVELS_ENABLED'])(options, agent.STUDIO_AGENT_MODE_ENABLED, lib.STUDIO_THINKING_LEVELS_ENABLED)
   return { build_mode: data.build_mode, thinking_level: data.thinking_level, keys: Object.keys(data), shown: rendered.shownThinkingLevel, state: JSON.parse(JSON.stringify(state)), options: JSON.parse(JSON.stringify(options)) }
 }
 function wireChecks(texts = {}) {
@@ -275,11 +273,11 @@ function wireChecks(texts = {}) {
   for (const back of ['fast', 'auto']) { const r = S({ env: ENV_ON, plan: 'pro', picks: ['balanced', back] }); assert.deepEqual([r.build_mode, r.thinking_level], ['standard', back], `Balanced then ${back}: Standard, said out loud`) }
   assert.deepEqual(['build_mode', 'thinking_level'].map(k => S({ env: ENV_DIRECT, plan: 'pro', picks: ['balanced', 'max'] })[k]), ['agent', 'max'], 'Balanced then Max: the Agent build, now as Max')
   assert.deepEqual(['build_mode', 'thinking_level'].map(k => S({ env: ENV_ON, plan: 'free', picks: ['fast', 'balanced'] })[k]), [undefined, 'fast'], 'Fast, then a Balanced the plan cannot use: still Fast')
-  // -- a voice turn never starts the Agent build: build_mode "standard" (Pro and Max; no key otherwise) and the level it RUNS as
+  // -- a voice turn never starts the Agent build: build_mode "standard" (Pro and Max; no key otherwise) says the route that runs; thinking_level still says what the person picked (the pinned meaning)
   for (const plan of PLANS) for (const level of ['balanced', 'best', 'max']) {
     const r = S({ env: ENV_DIRECT, plan, picks: [level], voice: true })
     if (!ELIGIBLE(plan)) { assert.deepEqual([r.build_mode, r.thinking_level], [undefined, 'auto'], `${plan}: ${level} was refused; a voice turn is Auto's`); continue }
-    assert.deepEqual([r.build_mode, r.thinking_level, r.shown], ['standard', 'fast', level], `${plan}: a voice turn at ${level} is the linear build ("fast"), and the picker still shows ${level}`)
+    assert.deepEqual([r.build_mode, r.thinking_level, r.shown], ['standard', level, level], `${plan}: a voice turn at ${level} runs as the linear build (build_mode "standard"), thinking_level still says ${level}, and the picker still shows ${level}`)
   }
   assert.deepEqual(['build_mode', 'thinking_level'].map(k => S({ env: ENV_ON, plan: 'pro', picks: ['fast'], voice: true })[k]), ['standard', 'fast'], 'a voice turn at Fast')
   assert.deepEqual(['build_mode', 'thinking_level'].map(k => S({ env: ENV_ON, plan: 'pro', picks: [], voice: true })[k]), ['standard', 'auto'], 'a voice turn at Auto')
@@ -291,10 +289,10 @@ function wireChecks(texts = {}) {
     const agentOn = env.NEXT_PUBLIC_AGENT_MODE === 'true' && env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
     assert.equal(r.build_mode, agentOn && ELIGIBLE(plan) ? 'standard' : undefined, `${name}, ${plan}: the build mode is #621's (Standard said out loud on Pro and Max with the Agent flags on, no key otherwise)`)
   }
-  // -- the hook's last line, alone: whatever the page asked, the level on the wire is what the request RUNS as, and a level without the flag is dropped
+  // -- the hook's spread, alone: a level the page passes goes out as it is (what was picked), only with the flag; none passed, none sent
   const hook = texts[HOOK] ?? read(HOOK), K = hookLines(hook), lib = load(LIB, { env: ENV_ON, texts }), off = load(LIB, { env: BASE_ON, texts })
-  const finish = (mod, options, build) => runFragment(`const data: Record<string, any> = { text: 'x', ${build ? `build_mode: '${build}',` : ''} ${K.spread}\n}\nconst message = { data }\n${K.adjust}\nreturn message.data`, ['options', 'STUDIO_THINKING_LEVELS_ENABLED', 'thinkingLevelOnWire'])(options, mod.STUDIO_THINKING_LEVELS_ENABLED, mod.thinkingLevelOnWire)
-  deepEqual(finish(lib, { thinkingLevel: 'balanced' }, 'standard'), { text: 'x', build_mode: 'standard', thinking_level: 'fast' }, 'a level that needs Agent but goes out as Standard says "fast"')
+  const finish = (mod, options, build) => runFragment(`const data: Record<string, any> = { text: 'x', ${build ? `build_mode: '${build}',` : ''} ${K.spread}\n}\nreturn data`, ['options', 'STUDIO_THINKING_LEVELS_ENABLED'])(options, mod.STUDIO_THINKING_LEVELS_ENABLED)
+  deepEqual(finish(lib, { thinkingLevel: 'balanced' }, 'standard'), { text: 'x', build_mode: 'standard', thinking_level: 'balanced' }, 'the level is what was picked, whatever route runs')
   deepEqual(finish(lib, { thinkingLevel: 'max' }, 'agent'), { text: 'x', build_mode: 'agent', thinking_level: 'max' }, 'Max with the Agent build says "max"')
   deepEqual(finish(lib, {}, 'agent'), { text: 'x', build_mode: 'agent' }, 'no level asked, none sent')
   deepEqual(finish(off, { thinkingLevel: 'balanced' }, 'agent'), { text: 'x', build_mode: 'agent' }, 'flag off: a level passed anyway is not sent')
@@ -304,9 +302,9 @@ function wireChecks(texts = {}) {
   assert.equal(modeSpreads.length, 4, 'four build sends carry the build mode')
   for (const [l, i] of modeSpreads) {
     const indent = l.slice(0, l.length - l.trimStart().length)
-    assert.equal(lines[i + 1], `${indent}...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS`, `line ${i + 1}: the level rides next to the build mode`)
+    assert.match(lines[i + 1], /^\s+\.\.\.\(thinkingLevelRef\.current \? \{ thinkingLevel: thinkingLevelRef\.current \} : \{\}\), \/\/ THINKING-LEVELS: [a-z' ()]+$/, `line ${i + 1}: the level rides next to the build mode`); assert.equal(lines[i + 1].slice(0, indent.length), indent, `line ${i + 1}: as deep as the build mode's line`)
   }
-  assert.equal(lines.filter(l => l.includes('thinkingLevel: thinkingLevelRef.current')).length, 4, 'and nowhere else')
+  assert.equal(lines.filter(l => l.includes('thinkingLevel: thinkingLevelRef.current')).length, 4, 'and nowhere else'); assert.equal(new Set(lines.filter(l => l.includes('thinkingLevel: thinkingLevelRef.current')).map(l => l.trim())).size, 4, 'each of the four lines is its own text (so a registry strip can take one line alone)')
   for (const levels of [true, false]) for (const [busy, plan] of [[true, 'pro'], [false, 'free'], [false, null]]) {
     const out = runFragment(`return ({ ${pageLines(page).prop.trim().replace(/^\{/, '').replace(/\}$/, '').replace(/\/\*.*\*\//, '')}\n})`, ['STUDIO_THINKING_LEVELS_ENABLED', 'shownThinkingLevel', 'agentPlan', 'agentRunBusy', 'agentRun', 'pickThinkingLevel'])(levels, 'fast', plan, () => busy, {}, () => {})
     if (!levels) deepEqual(out, {}, 'off: the composer gets no level props')
@@ -365,26 +363,33 @@ function pickerChecks(texts = {}) {
   assert.equal(run('auto', 'pro').view.stops.length, 4); assert.equal(o.view.stops.length, 2, 'two stops without the preview')
 }
 
-/** The Standard / Author / Agent chips (#607 / #621): drawn exactly as before without the level picker, and not at all with it. The page still mounts them behind its own, untouched, condition: the component draws nothing. */
+/** The Standard / Author / Agent chips (#607 / #621): their component and the page's mount are the base's (nothing of #621 is edited), so they are hidden by one rule of this change's stylesheet: only where a level gauge is in the clean composer, only the chips' own wrapper. */
+const CHIPS_RULE = '[data-studio-chat-clean]:has([data-level-picker="gauge"]) div:has(> [data-studio-build-mode-picker]) { display: none; }'
 function chipsChecks(texts = {}) {
-  const render = env => { const C = load(CHIPS, { env, texts }); return renderToStaticMarkup(h(C.BuildModePicker, { value: 'standard', plan: 'pro' })) }
-  for (const [name, env] of Object.entries(ENV_OFF)) {
-    const agentOn = env.NEXT_PUBLIC_AGENT_MODE === 'true' && env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
-    assert.equal(render(env).includes('data-studio-build-mode-picker'), agentOn, `${name}: the chips are drawn exactly when the Agent shell is on (the base's rule)`)
-  }
-  assert.ok(render({ ...BASE_ON }).includes('data-studio-build-mode-picker'), 'the Agent shell on, no level picker: the chips, as before')
-  assert.equal(render(ENV_ON), '', 'with the level picker on the chips are not drawn: the composer\'s gauge is the one control')
-  assert.equal(render(ENV_DIRECT), '', 'nor with the direct preview')
-  const base = (env, over = {}) => { const C = load(CHIPS, { env, texts: { [CHIPS]: baseText(CHIPS) } }); return renderToStaticMarkup(h(C.BuildModePicker, { value: 'agent', plan: 'free', ...over })) }
-  const now = (env, over = {}) => { const C = load(CHIPS, { env, texts }); return renderToStaticMarkup(h(C.BuildModePicker, { value: 'agent', plan: 'free', ...over })) }
-  for (const env of [{}, BASE_ON, ...Object.values(ENV_OFF)]) for (const plan of PLANS) assert.equal(now(env, { plan }), base(env, { plan }), `flag off: the chips are the base's, byte for byte (${JSON.stringify(Object.keys(env))}, ${plan})`)
+  const css = texts[CSS] ?? read(CSS)
+  assert.equal(css.split('\n').filter(l => l === CHIPS_RULE).length, 1, 'the one rule that hides the chips is in the stylesheet')
+  assert.equal(CHIPS_RULE.includes('display: none'), true)
+  // what the rule relies on, from the real sources: the chips' root and wrapper, the gauge's own attribute, the chat column's attribute
+  const chips = texts[CHIPS] ?? read(CHIPS), page = texts[PAGE] ?? read(PAGE)
+  assert.equal(chips, baseText(CHIPS), 'the chips\' component is the base\'s, byte for byte (nothing of #621 is edited)')
+  assert.ok(chips.includes('<div data-studio-build-mode-picker role="group"'), 'the chips\' root carries data-studio-build-mode-picker')
+  assert.ok(page.includes('<div className="mx-auto w-full max-w-[668px] px-3 pb-1"><BuildModePicker'), 'the page mounts the chips in a plain div wrapper, the picker its only child')
+  const P = load(PICKER, { env: ENV_ON, texts }); const closed = renderToStaticMarkup(h(P.LevelPickerView, { view: load(LIB, { env: ENV_ON, texts }).thinkingView('auto', 'pro', { levels: true, direct: false }), level: 'auto', open: false, onOpenChange() {}, onDraft() {}, onCommit() {}, onReset() {} }))
+  assert.ok(closed.includes('data-level-picker="gauge"'), 'the level gauge carries the attribute the rule looks for')
+  assert.equal(load('lib/studio-chat-clean.ts', { env: {} }).chatCleanRootAttributes()['data-studio-chat-clean'], 'v3', 'the chat column carries data-studio-chat-clean (the rule\'s root)')
+  assert.ok(page.includes('{...(chatCleanShell ? chatCleanRootAttributes() : {})'), 'and the page puts it there only with the clean composer')
+  assert.ok(page.indexOf('chatCleanRootAttributes() : {})') < page.indexOf('<BuildModePicker value={buildMode}'), 'the column\'s attributes come before the chips (the chips are inside that column)')
+  // with the picker off nothing can match: no gauge, no rule match; and the model gauge is not the level gauge
+  assert.ok(!sendSide(BASE_ON, {}, texts[CLEAN] ?? read(CLEAN), texts).includes('data-level-picker'), 'no level gauge without the flag, so the rule matches nothing')
 }
 
 // ============================================================================================================================================
 // D. one control: the send side
 // ============================================================================================================================================
 const sendSideProps = (over = {}) => ({ composer: { showStop: false, stopEnabled: false }, onStop() {}, research: { deep: false, onDeep() {}, web: false, onWeb() {}, locked: false }, picker: { sessionId: null, disabled: false }, ...over })
-function sendSide(env, props = {}, text = read(CLEAN), texts = {}) { const C = load(CLEAN, { env, texts: { ...texts, [CLEAN]: text } }); return renderToStaticMarkup(h(C.StudioChatCleanSendSide, sendSideProps(props))) }
+/** Radix numbers its ids from one counter per React, so two renders in one process differ in aria-controls only: the ids are normalised. */
+const noIds = markup => markup.replace(/radix-_R_[A-Za-z0-9]+_/g, 'radix-ID')
+function sendSide(env, props = {}, text = read(CLEAN), texts = {}) { const C = load(CLEAN, { env, texts: { ...texts, [CLEAN]: text } }); return noIds(renderToStaticMarkup(h(C.StudioChatCleanSendSide, sendSideProps(props)))) }
 function sendSideChecks(texts = {}) {
   const levels = { value: 'auto', plan: 'pro', disabled: false, onChange() {} }
   const on = sendSide(ENV_ON, { levels }, texts[CLEAN] ?? read(CLEAN), texts)
@@ -416,7 +421,7 @@ function lineDiff(was, now) {
 }
 const laterStrips = (rel, text) => { const strips = registry.LATER_STRIPS, at = strips.indexOf(STRIP_FN); return (at === -1 ? [] : strips.slice(at + 1)).reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text) }
 const laterEnv = text => { const blocks = registry.LATER_ENV_BLOCKS, at = blocks.indexOf(ENV_BLOCK); return (at === -1 ? [] : blocks.slice(at + 1)).reduce((out, later) => out.replace(`\n${later}`, ''), text) }
-const TEXTS = Object.fromEntries([...APP_FILES, ...NEW_FILES, '.env.example', REGISTRY].map(rel => [rel, read(rel)]))
+const TEXTS = Object.fromEntries([...APP_FILES, ...NEW_FILES, ...stripModule.THINKING_LEVELS_PIN_FILES, '.env.example', REGISTRY].map(rel => [rel, read(rel)]))
 
 function sourceChecks(texts, mod = stripModule) {
   const strip = mod.stripThinkingLevels, edits = mod.THINKING_LEVELS_EDITS, files = mod.THINKING_LEVELS_FILES, block = mod.THINKING_LEVELS_ENV_BLOCK
@@ -438,6 +443,18 @@ function sourceChecks(texts, mod = stripModule) {
     for (const line of diff.removed) assert.ok(allowed.has(line), `${rel}: a base line is lost that this change does not rewrite: ${line.trim().slice(0, 100)}`)
     assert.equal(diff.removed.length, allowed.size, `${rel}: the base lines this change rewrites (all of them, no other)`)
   }
+  // the older proofs this change teaches: each gains its marked lines (a read hook with its import; the first-parent splice for this change's commit subject) and loses none, and is the base's without them
+  const PIN_GAINS = { 'scripts/test-studio-agent-mode-wire.mjs': 2, 'scripts/test-studio-chat-element-edit.mjs': 1, 'scripts/test-studio-deck-sync-truth.mjs': 1 }
+  assert.deepEqual([...mod.THINKING_LEVELS_PIN_FILES].sort(), Object.keys(PIN_GAINS).sort(), 'the older proofs this change teaches')
+  for (const [rel, gained] of Object.entries(PIN_GAINS)) {
+    const now = researchStrip.stripResearchSwitch(rel, laterStrips(rel, texts[rel])), diff = lineDiff(baseText(rel), now)
+    assert.equal(strip(rel, now), baseText(rel), `${rel}: without this change's lines the proof is the base's, byte for byte`)
+    assert.equal(strip(rel, strip(rel, now)), baseText(rel), `${rel}: putting back twice changes nothing more`)
+    assert.deepEqual([diff.removed.length, diff.added.length], [0, gained], `${rel}: the proof gains ${gained} marked lines and loses none`)
+    for (const line of diff.added) assert.ok(line.includes(mod.THINKING_LEVELS_PIN_MARK), `${rel}: a line added to the proof carries the pin mark: ${line.trim().slice(0, 100)}`)
+    for (const line of diff.added.filter(added => added.includes('fs.readFileSync = '))) assert.ok(line.includes('stripThinkingLevels(rel, out)') && !line.includes('stripLaterChanges') && !line.includes('registry.'), `${rel}: the read hook uses this change's own strip, never the registry`)
+    for (const line of diff.added.filter(added => added.includes('shas.splice'))) assert.ok(line.includes('^Thinking levels:') && !line.includes('Research switch'), `${rel}: the splice names this change's own subject, and only that`)
+  }
   // the new libs: one literal env read per flag, and nothing else reads the flags
   for (const [rel, flag] of mod.THINKING_LEVELS_LIB_FLAGS) {
     assert.equal((texts[rel].match(new RegExp(`process\\.env\\.${flag}\\b`, 'g')) || []).length, 1, `${rel} reads the literal env name ${flag} once`)
@@ -455,7 +472,7 @@ function sourceChecks(texts, mod = stripModule) {
   for (const rel of [...files, ...mod.THINKING_LEVELS_NEW_FILES, '.env.example']) assert.doesNotMatch(texts[rel] ?? read(rel), SECRET, `${rel}: no secret`)
   // the css: only classes the level picker draws, nothing global
   const css = texts[CSS] ?? read(CSS)
-  for (const rule of css.replace(/\/\*[\s\S]*?\*\//g, '').split('}').map(r => r.split('{')[0].trim()).filter(Boolean)) assert.match(rule, /^\.mpick-simple-pop /, `a rule that only reaches the picker's popover: ${rule}`)
+  for (const rule of css.replace(/\/\*[\s\S]*?\*\//g, '').split('}').map(r => r.split('{')[0].trim()).filter(Boolean)) assert.ok(/^\.mpick-simple-pop /.test(rule) || rule === CHIPS_RULE.split(' {')[0], `a rule that only reaches the picker's popover (or the chips' wrapper, only beside the level gauge): ${rule}`)
 }
 function registryChecks(text, texts = TEXTS) {
   const { THINKING_LEVELS_SCOPE_FILES: scope } = stripModule
@@ -501,7 +518,7 @@ function directorChecks(texts = {}) {
 await check('A. the lib: the flags, the map, the plan rule, the stops, every pick, the views, the words', () => libChecks())
 await check('B. the wire: every plan x every position through the page\'s real lines, #621\'s real functions and the hook\'s real lines', () => wireChecks())
 await check('C. the picker: the markup for each plan and flag, the gauge, its choices', () => pickerChecks())
-await check('D0. the build-mode chips are not drawn with the level picker, and are the base\'s without it', () => chipsChecks())
+await check('D0. the build-mode chips (their component untouched) are hidden by one rule beside the level gauge only', () => chipsChecks())
 await check('D. one control: the send side draws the level picker in the gauge\'s place; flag off it is the base\'s, byte for byte', () => sendSideChecks())
 await check('E1. the sources: markers, the strip, the lib, .env.example, secrets, the css', () => sourceChecks(TEXTS))
 await check('E2. the registry (three lines, after the last one, at the true ends)', () => registryChecks(TEXTS[REGISTRY]))
@@ -519,7 +536,7 @@ await check('G. each flag is read from one literal env name', () => {
 })
 
 // ---- H. mutants: one edit of the real sources each, fed to the same checks ------------------------------------------------------------------------------------------------------------
-const TEXT = { [LIB]: read(LIB), [HOOK]: read(HOOK), [PAGE]: read(PAGE), [PICKER]: read(PICKER), [CLEAN]: read(CLEAN), [CHIPS]: read(CHIPS) }
+const TEXT = { [LIB]: read(LIB), [HOOK]: read(HOOK), [PAGE]: read(PAGE), [PICKER]: read(PICKER), [CLEAN]: read(CLEAN), [CHIPS]: read(CHIPS), [CSS]: read(CSS) }
 const M = (rel, from, to) => ({ ...{}, [rel]: swap(TEXT[rel], from, to) })
 const MUTANTS = [
   ['lib: Balanced is Standard', M(LIB, "(level === 'balanced' || level === 'best' || level === 'max' ? 'agent' : 'standard')", "(level === 'best' || level === 'max' ? 'agent' : 'standard')"), libChecks],
@@ -529,22 +546,22 @@ const MUTANTS = [
   ['lib: a pick ignores the flag', M(LIB, 'if (!flags.levels || !isLevel(level)) return null', 'if (!isLevel(level)) return null'), libChecks],
   ['lib: a level off the scale is accepted', M(LIB, "if (level !== 'auto' && !thinkingStops(plan, flags).some(stop => stop.id === level)) return null\n", ''), libChecks],
   ['lib: a stale level still shows', M(LIB, "(levelBuildMode(level) === mode ? level : 'auto')", 'level'), libChecks],
-  ['lib: a voice turn keeps its Agent level', M(LIB, "levelNeedsAgent(level) && sentMode !== 'agent' ? 'fast' : level", 'level'), libChecks],
   ['lib: the flag does not need the Agent shell', M(LIB, "levels === 'true' && agent === 'true' && shell === 'true' && chatClean === 'true'", "levels === 'true' && shell === 'true' && chatClean === 'true'"), libChecks],
   ['lib: the flag does not need the clean composer', M(LIB, "&& shell === 'true' && chatClean === 'true'", "&& shell === 'true'"), libChecks],
   ['lib: the flag accepts "True"', M(LIB, "levels === 'true' &&", "levels?.toLowerCase() === 'true' &&"), libChecks],
   ['lib: the preview counts without the picker', M(LIB, 'levelsOn && preview === \'true\'', "preview === 'true'"), libChecks],
   ['lib: Auto says a model', M(LIB, "auto: 'Deckster picks how to build this deck.'", "auto: 'Deckster picks the best model for this deck.'"), libChecks],
   ['hook: thinking_level goes out without the flag', M(HOOK, '...(STUDIO_THINKING_LEVELS_ENABLED && options?.thinkingLevel &&', '...(options?.thinkingLevel &&'), wireChecks],
-  ['hook: the last line is gone (a voice turn says "balanced")', M(HOOK, 'if (STUDIO_THINKING_LEVELS_ENABLED && message.data.thinking_level) message.data.thinking_level = thinkingLevelOnWire(message.data.thinking_level, message.data.build_mode) ?? message.data.thinking_level;', ';'), wireChecks],
-  ['chips: still drawn beside the level picker', M(CHIPS, '  if (STUDIO_THINKING_LEVELS_ENABLED) return null // THINKING-LEVELS', '  if (false) return null // THINKING-LEVELS'), chipsChecks],
-  ['chips: gone even without the level picker', M(CHIPS, '  if (STUDIO_THINKING_LEVELS_ENABLED) return null // THINKING-LEVELS', '  if (true) return null // THINKING-LEVELS'), chipsChecks],
+  ['hook: thinking_level is lost (the spread is gone)', M(HOOK, '...(STUDIO_THINKING_LEVELS_ENABLED && options?.thinkingLevel && { thinking_level: options.thinkingLevel }),', ''), wireChecks],
+  ['chips: the hiding rule is gone', M(CSS, CHIPS_RULE + '\n', ''), chipsChecks],
+  ['chips: hidden even without the level gauge', M(CSS, '[data-studio-chat-clean]:has([data-level-picker="gauge"]) div:has(', '[data-studio-chat-clean] div:has('), chipsChecks],
+  ['chips: the component is edited', M(CHIPS, '  const noteId = React.useId()', '  const noteId = React.useId() // edited'), chipsChecks],
   ['page: a pick does not drive the build mode', M(PAGE, 'setBuildMode(pick.mode); setThinkingLevel(pick.level) }', 'setThinkingLevel(pick.level) }'), wireChecks],
   ['page: a pick skips the plan rule', M(PAGE, 'const pick = levelPick(level, agentPlan); if (!pick) return;', "const pick = { level, mode: level === 'fast' || level === 'auto' ? 'standard' : 'agent' };"), wireChecks],
   ['page: the level is always sent, flag or not', M(PAGE, 'thinkingLevelRef.current = STUDIO_THINKING_LEVELS_ENABLED ? shownThinkingLevel : undefined', 'thinkingLevelRef.current = shownThinkingLevel'), wireChecks],
   ['page: the session reset is gone', M(PAGE, "setThinkingLevel('auto') // THINKING-LEVELS: a picked level belongs to the session it was picked in", '0 // THINKING-LEVELS'), wireChecks],
   ['page: the picker is not disabled under a run', M(PAGE, 'disabled: agentRunBusy(agentRun), onChange: pickThinkingLevel', 'disabled: false, onChange: pickThinkingLevel'), wireChecks],
-  ['page: one send forgets the level', M(PAGE, "            ...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS\n            ...(gdriveLinkedIdsRef.current", "            ...(gdriveLinkedIdsRef.current"), wireChecks],
+  ['page: one send forgets the level', M(PAGE, "            ...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS: a card's button\n", ''), wireChecks],
   ['picker: a position the plan cannot use is chosen', M(PICKER, 'const pick = levelPick(level, plan)\n    if (pick) onChange(pick.level)', 'onChange(level)'), pickerChecks],
   ['picker: the level already shown is chosen again', M(PICKER, 'if (level === value) return\n', ''), pickerChecks],
   ['picker: the disabled mark is gone', M(PICKER, 'data-level-disabled={stop.disabled ? "true" : "false"}', 'data-level-disabled="false"'), pickerChecks],

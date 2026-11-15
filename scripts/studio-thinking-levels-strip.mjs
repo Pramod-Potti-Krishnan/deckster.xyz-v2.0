@@ -17,8 +17,7 @@ export const THINKING_LEVELS_FILES = [
   "app/builder/page.tsx",
   "hooks/use-deckster-websocket-v2.ts",
   "components/builder/chat-input.tsx",
-  "components/builder/chat/studio-chat-clean.tsx",
-  "components/builder/agent-mode/build-mode-picker.tsx"
+  "components/builder/chat/studio-chat-clean.tsx"
 ]
 
 /** New files (no base text to put back). */
@@ -42,19 +41,18 @@ export const THINKING_LEVELS_EDITS = {
     ["  thinkingLevelRef.current = STUDIO_THINKING_LEVELS_ENABLED ? shownThinkingLevel : undefined // THINKING-LEVELS: read at send time by the four build sends below, next to the build mode; the hook then says what the request RUNS as (a voice turn never starts Agent)\n", ""],
     ["  const pickThinkingLevel = (level: ThinkingLevel) => { const pick = levelPick(level, agentPlan); if (!pick) return; if (pick.mode !== 'standard') setBuildModeFrom(pick.mode); setBuildMode(pick.mode); setThinkingLevel(pick.level) } // THINKING-LEVELS: a level the plan can use drives the build mode (Fast and Auto Standard; Balanced, Best and Max Agent), exactly as a click on the build-mode chips did; nothing is sent until a build request carries it\n", ""],
     ["    if (STUDIO_THINKING_LEVELS_ENABLED && agentSessionChanged(agentSessionRef.current, currentSessionId)) setThinkingLevel('auto') // THINKING-LEVELS: a picked level belongs to the session it was picked in\n", ""],
-    ["          ...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS\n", ""],
-    ["              ...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS\n", ""],
-    ["        ...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS\n", ""],
-    ["            ...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS\n", ""],
+    ["          ...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS: an action's send (the outline accept)\n", ""],
+    ["              ...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS: the first message of a new chat\n", ""],
+    ["        ...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS: a typed message\n", ""],
+    ["            ...(thinkingLevelRef.current ? { thinkingLevel: thinkingLevelRef.current } : {}), // THINKING-LEVELS: a card's button\n", ""],
     ["                    {...(STUDIO_THINKING_LEVELS_ENABLED ? { studioThinkingLevels: { value: shownThinkingLevel, plan: agentPlan, disabled: agentRunBusy(agentRun), onChange: pickThinkingLevel } } : {}) /* THINKING-LEVELS (NEXT_PUBLIC_STUDIO_THINKING_LEVELS): the composer's gauge becomes the level picker (Auto / Fast / Balanced / Best / Max); off, nothing is added */}\n", ""],
     ["import { STUDIO_THINKING_LEVELS_ENABLED, effectiveLevel, levelPick, type ThinkingLevel } from '@/lib/studio-thinking-levels' // THINKING-LEVELS\n", ""],
   ],
   "hooks/use-deckster-websocket-v2.ts": [
-    ["import { STUDIO_THINKING_LEVELS_ENABLED, thinkingLevelOnWire, type ThinkingLevel } from '@/lib/studio-thinking-levels'; // THINKING-LEVELS (NEXT_PUBLIC_STUDIO_THINKING_LEVELS; default off)\n", ""],
-    ["    thinking_level?: ThinkingLevel; // THINKING-LEVELS: the level this request asks for (auto, fast, balanced, best, max), additive: Director's logs show the route (DIRECTOR-2 reads it; today Director ignores it); omitted unless the flag is on\n", ""],
+    ["import { STUDIO_THINKING_LEVELS_ENABLED, type ThinkingLevel } from '@/lib/studio-thinking-levels'; // THINKING-LEVELS (NEXT_PUBLIC_STUDIO_THINKING_LEVELS; default off)\n", ""],
+    ["    thinking_level?: ThinkingLevel; // THINKING-LEVELS: the level the person picked (auto, fast, balanced, best, max; Best and Max run as Balanced for now, and build_mode carries the route that runs), additive: Director's logs show it (DIRECTOR-2 reads it; today Director ignores it); omitted unless the flag is on\n", ""],
     ["  thinkingLevel?: ThinkingLevel; // THINKING-LEVELS\n", ""],
     ["          ...(STUDIO_THINKING_LEVELS_ENABLED && options?.thinkingLevel && { thinking_level: options.thinkingLevel }), // THINKING-LEVELS\n", ""],
-    ["      if (STUDIO_THINKING_LEVELS_ENABLED && message.data.thinking_level) message.data.thinking_level = thinkingLevelOnWire(message.data.thinking_level, message.data.build_mode) ?? message.data.thinking_level; // THINKING-LEVELS: the level a request RUNS as, read from the build_mode it finally carries (after the voice rule above): a level that needs the Agent build but goes out without it says \"fast\"\n", ""],
   ],
   "components/builder/chat-input.tsx": [
     ["import type { LevelPickerProps } from '@/components/builder/thinking-levels/level-picker' // THINKING-LEVELS\n", ""],
@@ -68,16 +66,33 @@ export const THINKING_LEVELS_EDITS = {
     ["export function StudioChatCleanSendSide({ composer, onStop, research, picker, levels }: StudioChatCleanSendSideProps) { // THINKING-LEVELS: levels\n", "export function StudioChatCleanSendSide({ composer, onStop, research, picker }: StudioChatCleanSendSideProps) {\n"],
     ["      {levels ? <LevelPicker {...levels} className=\"studio-chat-clean-model\" /> : <ModelPicker variant=\"slider\" sessionId={picker.sessionId} disabled={picker.disabled} className=\"studio-chat-clean-model\" />}{/* THINKING-LEVELS: with the flag on the gauge IS the level picker (Auto / Fast / Balanced / Best / Max); off, the model picker as before */}\n", "      <ModelPicker variant=\"slider\" sessionId={picker.sessionId} disabled={picker.disabled} className=\"studio-chat-clean-model\" />\n"],
   ],
-  "components/builder/agent-mode/build-mode-picker.tsx": [
-    ["import { STUDIO_THINKING_LEVELS_ENABLED } from \"@/lib/studio-thinking-levels\" // THINKING-LEVELS\n", ""],
-    ["  if (STUDIO_THINKING_LEVELS_ENABLED) return null // THINKING-LEVELS (NEXT_PUBLIC_STUDIO_THINKING_LEVELS): the composer's gauge is the one control, and it drives this same build mode; these chips are not drawn\n", ""],
-  ],
 }
 
 /** The older proofs this change teaches: [text the proof has now, text the proof had before] per edit, so putting them back gives the previous file byte for byte. */
 export const THINKING_LEVELS_PIN_MARK = "LATER-CHANGES: registry read (THINKING-LEVELS)"
 export const THINKING_LEVELS_PIN_EDITS = {
-  // none: the older proofs read the files through the registry (scripts/studio-later-changes.mjs), which strips this change first
+  "scripts/test-studio-agent-mode-wire.mjs": [
+    [
+      "import { stripThinkingLevels, THINKING_LEVELS_FILES } from './studio-thinking-levels-strip.mjs' // LATER-CHANGES: registry read (THINKING-LEVELS): the thinking-level picker (stacked after this change) marks lines in the Builder page, the hook, the composer and its send side; this proof reads them as the change before left them\n",
+      ""
+    ],
+    [
+      "{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && THINKING_LEVELS_FILES.includes(rel) ? stripThinkingLevels(rel, out) : out } } // LATER-CHANGES: registry read (THINKING-LEVELS): every read of a file the thinking-level picker marks goes through that change's own strip (never the registry), so this proof sees the file as the change before left it\n",
+      ""
+    ]
+  ],
+  "scripts/test-studio-chat-element-edit.mjs": [
+    [
+      "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Thinking levels:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (THINKING-LEVELS): on a branch stacked after this change (the thinking-level picker), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files\n",
+      ""
+    ]
+  ],
+  "scripts/test-studio-deck-sync-truth.mjs": [
+    [
+      "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Thinking levels:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (THINKING-LEVELS): on a branch stacked after this change (the thinking-level picker), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files\n",
+      ""
+    ]
+  ]
 }
 
 /** The older proofs this change teaches. */
@@ -89,7 +104,7 @@ export const THINKING_LEVELS_OWN_EDITS = ['.env.example', 'scripts/studio-later-
 export const THINKING_LEVELS_SCOPE_FILES = new Set([...THINKING_LEVELS_FILES, ...THINKING_LEVELS_NEW_FILES, ...THINKING_LEVELS_OWN_EDITS])
 
 /** The whole .env.example block: its comments and its lines. */
-export const THINKING_LEVELS_ENV_BLOCK = "# STUDIO THINKING LEVELS (FRONTEND-1; PK mandate M1, 15 Nov). On for the exact value \"true\"; default off, and then the composer and the build-mode chips are byte for byte as they were. Build-time value: change it on Vercel and redeploy.\n# On, and only with NEXT_PUBLIC_STUDIO_V4_SHELL, NEXT_PUBLIC_AGENT_MODE and NEXT_PUBLIC_STUDIO_CHAT_CLEAN also exactly \"true\": the composer's gauge is the level picker (Auto, Fast, Balanced; Best and Max with the preview flag below), and the Standard / Author / Agent chips above the composer are not drawn. Fast and Auto are the linear build (build_mode \"standard\"), Balanced is the Agent build (build_mode \"agent\", Pro and Max plans only, shown disabled with the plan reason below that). The build request also carries data.thinking_level (\"auto\", \"fast\", \"balanced\", \"best\", \"max\") so that Director's logs can show the route (DIRECTOR-2 reads it; Director ignores it today). A level is per send, never saved, and starts on Auto.\nNEXT_PUBLIC_STUDIO_THINKING_LEVELS=\"false\"\n# Best (Sonnet direct) and Max (Opus direct) have no backend yet (gap G8). Exact \"true\" (and the flag above) shows them on the scale, marked \"Coming soon: runs as Balanced for now\": picking one sends build_mode \"agent\" and thinking_level \"best\" / \"max\". Off (default): they are not on the scale.\nNEXT_PUBLIC_STUDIO_THINKING_LEVELS_DIRECT_PREVIEW=\"false\"\n"
+export const THINKING_LEVELS_ENV_BLOCK = "# STUDIO THINKING LEVELS (FRONTEND-1; PK mandate M1, 15 Nov). On for the exact value \"true\"; default off, and then the composer and the build-mode chips are byte for byte as they were. Build-time value: change it on Vercel and redeploy.\n# On, and only with NEXT_PUBLIC_STUDIO_V4_SHELL, NEXT_PUBLIC_AGENT_MODE and NEXT_PUBLIC_STUDIO_CHAT_CLEAN also exactly \"true\": the composer's gauge is the level picker (Auto, Fast, Balanced; Best and Max with the preview flag below), and the Standard / Author / Agent chips above the composer are not drawn. Fast and Auto are the linear build (build_mode \"standard\"), Balanced is the Agent build (build_mode \"agent\", Pro and Max plans only, shown disabled with the plan reason below that). The build request also carries data.thinking_level (\"auto\", \"fast\", \"balanced\", \"best\", \"max\"): what the person picked, even when Best and Max run as Balanced for now; build_mode still carries the route that runs. Director's logs can show both (DIRECTOR-2 reads it; Director ignores it today). A level is per send, never saved, and starts on Auto.\nNEXT_PUBLIC_STUDIO_THINKING_LEVELS=\"false\"\n# Best (Sonnet direct) and Max (Opus direct) have no backend yet (gap G8). Exact \"true\" (and the flag above) shows them on the scale, marked \"Coming soon: runs as Balanced for now\": picking one sends build_mode \"agent\" and thinking_level \"best\" / \"max\". Off (default): they are not on the scale.\nNEXT_PUBLIC_STUDIO_THINKING_LEVELS_DIRECT_PREVIEW=\"false\"\n"
 
 /** The file with this change's edits put back (the previous text). Used by the strip and the proof. */
 export function putBackThinkingLevels(rel, text) {

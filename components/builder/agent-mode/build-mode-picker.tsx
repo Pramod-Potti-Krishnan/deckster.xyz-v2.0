@@ -2,7 +2,6 @@
 
 import React from "react"
 import { AGENT_COPY, STUDIO_AGENT_MODE_ENABLED, STUDIO_AUTHOR_MODE_PICKER_ENABLED, buildModeOptions, type AgentPlan, type BuildMode } from "@/lib/studio-agent-mode"
-import { STUDIO_THINKING_LEVELS_ENABLED } from "@/lib/studio-thinking-levels" // THINKING-LEVELS
 
 /**
  * AGENT-MODE-SHELL: the build-mode picker, Standard / Author / Agent. Author appears only with NEXT_PUBLIC_AUTHOR_MODE_PICKER, Agent only with NEXT_PUBLIC_AGENT_MODE (each exact "true", default off, Studio
@@ -12,7 +11,6 @@ import { STUDIO_THINKING_LEVELS_ENABLED } from "@/lib/studio-thinking-levels" //
 export function BuildModePicker({ value, onChange, plan, disabled = false }: { value: BuildMode; onChange?: (mode: BuildMode) => void; plan?: AgentPlan | null; disabled?: boolean }) {
   const noteId = React.useId()
   if (!STUDIO_AGENT_MODE_ENABLED && !STUDIO_AUTHOR_MODE_PICKER_ENABLED) return null
-  if (STUDIO_THINKING_LEVELS_ENABLED) return null // THINKING-LEVELS (NEXT_PUBLIC_STUDIO_THINKING_LEVELS): the composer's gauge is the one control, and it drives this same build mode; these chips are not drawn
   const options = buildModeOptions(plan)
   const agent = options.find(o => o.mode === "agent")
   return (

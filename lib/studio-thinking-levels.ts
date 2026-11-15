@@ -7,8 +7,9 @@
 // ONE CONTROL: with the flag on, the composer's gauge IS the level picker (the slider PK knows, drawn from the same classes) and the build-mode chips above the composer are not drawn. A level DRIVES the page's existing build mode (Fast and Auto are
 // "standard", Balanced / Best / Max are "agent"), so #621's whole wire stays in force unchanged: Agent only for Pro and Max, only on a signed socket (Director decides), Standard said out loud on Pro and Max (Director's Agent opt-in is sticky), a voice turn
 // never starts Agent, the picker cannot change under a run, and it goes back to Auto once a run is over. A level is a per-send choice, never a saved preference: it is NOT written to the model router and it starts on Auto after a reload.
-// MODEL CHOICE: untouched. The router's presets and the live catalogue (lib/studio-model-choice.ts, the Intelligence page) still say which model each step of the Fast build uses; the Advanced / specific-model rows of the old gauge are the Intelligence page's now.
-// WIRE: the build_mode key as #621 sends it, plus ONE additive key on the same user message, "thinking_level" ("auto" | "fast" | "balanced" | "best" | "max"), so that Director's logs can show the route (DIRECTOR-2 reads it; today Director ignores it).
+// MODEL CHOICE: untouched. The router's presets and the live catalogue (the model-choice lib, the Intelligence page) still say which model each step of the Fast build uses; the Advanced / specific-model rows of the old gauge are the Intelligence page's now.
+// WIRE (pinned with DIRECTOR-2 and KNOWLEDGE-3, 15 Nov): the build_mode key as #621 sends it, plus ONE additive key on the same user message, "thinking_level" ("auto" | "fast" | "balanced" | "best" | "max"): what the person PICKED, even when Best and Max run as Balanced for now
+// and even on a turn that cannot start the Agent build (a voice turn); build_mode still carries the route that runs. Director's logs show both (DIRECTOR-2 reads it; today Director ignores it).
 // Pure: nothing here sends, stores or fetches anything.
 import { AGENT_COPY, agentEligible, type AgentPlan, type BuildMode } from '@/lib/studio-agent-mode'
 
@@ -73,10 +74,6 @@ export function levelPick(level: unknown, plan: AgentPlan | null | undefined, fl
 }
 /** The level the picker shows, given the one the page kept and the build mode it holds now: a kept level whose mode is not the page's any more (a run finished, another session) reads as Auto. */
 export const effectiveLevel = (level: ThinkingLevel, mode: BuildMode): ThinkingLevel => (levelBuildMode(level) === mode ? level : 'auto')
-/** The "thinking_level" a build request carries, given the level the picker shows and the build_mode the request carries: what the request RUNS as. A level that needs the Agent build but goes out without it (a voice turn never starts Agent; a plan that cannot) says "fast". */
-export const thinkingLevelOnWire = (level: ThinkingLevel | undefined, sentMode: BuildMode | undefined): ThinkingLevel | undefined =>
-  level === undefined ? undefined : levelNeedsAgent(level) && sentMode !== 'agent' ? 'fast' : level
-
 // ---- what the picker shows ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 /** The line under a position's name: the plan's reason where it cannot be used, "coming soon" for the direct levels, else the level's own line. */
 export const stopLine = (level: ThinkingLevel, plan: AgentPlan | null | undefined): string => levelRefusal(level, plan) ?? LEVEL_COPY.line[level]

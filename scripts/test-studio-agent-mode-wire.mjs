@@ -52,11 +52,13 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import ts from 'typescript'
 import * as stripModule from './studio-agent-mode-wire-strip.mjs'
 import * as registry from './studio-later-changes.mjs'
+import { stripThinkingLevels, THINKING_LEVELS_FILES } from './studio-thinking-levels-strip.mjs' // LATER-CHANGES: registry read (THINKING-LEVELS): the thinking-level picker (stacked after this change) marks lines in the Builder page, the hook, the composer and its send side; this proof reads them as the change before left them
 
 const { STACK_BASE, BASE_COMMIT, AGENT_MODE_WIRE_SCOPE_FILES: SCOPE, AGENT_MODE_WIRE_NEW_FILES: NEW_FILES, AGENT_MODE_WIRE_APP_FILES: APP_FILES, AGENT_MODE_WIRE_PIN_FILES: PIN_FILES, AGENT_MODE_WIRE_SHELL_EDITED_FILES: SHELL_EDITED, AGENT_MODE_WIRE_ALL_EDITS: ALL_EDITS, AGENT_MODE_WIRE_MARKER_RE: MARKER_RE, AGENT_MODE_WIRE_SUBJECT: SUBJECT, AGENT_MODE_WIRE_PIN_MARK: PIN_MARK, stripAgentModeWire } = stripModule
 
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const nodeRequire = createRequire(path.join(root, 'package.json'))
+{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && THINKING_LEVELS_FILES.includes(rel) ? stripThinkingLevels(rel, out) : out } } // LATER-CHANGES: registry read (THINKING-LEVELS): every read of a file the thinking-level picker marks goes through that change's own strip (never the registry), so this proof sees the file as the change before left it
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000 })
 const baseText = rel => git('show', `${STACK_BASE}:${rel}`)
