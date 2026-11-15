@@ -170,6 +170,9 @@ import {
 } from '@/lib/studio-slide-count-sync'
 import { STUDIO_DECK_SYNC_TRUTH_ENABLED, syncTruthSettledTotals } from '@/lib/studio-deck-sync-truth' // DECK-SYNC-TRUTH (NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH, default off): after a poll the totals are the viewer's own count, not a floor restored too high
 import { STUDIO_PRESENT_EXIT_FIX_ENABLED, presentExitDesynced, leaveBrowserFullscreen } from '@/lib/studio-present-exit' // AUDIT-PRESENT-EXIT
+import { STUDIO_REPLACE_SLIDE_PICTURE_ENABLED, REPLACE_PICTURE_COMMAND, replacePictureReplyError } from '@/lib/studio-replace-picture' // REPLACE-PICTURE (NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE, default off): the Replace picture action sends Layout's setSlideBackgroundPicture
+import { useStudioReplacePicture } from '@/hooks/use-studio-replace-picture' // REPLACE-PICTURE
+import { ReplacePictureControl } from '@/components/builder/replace-picture/replace-picture-control' // REPLACE-PICTURE
 
 const DEFAULT_BUILD_THEME_SELECTION: BuildThemeSelection = { mode: 'auto' }
 
@@ -378,6 +381,7 @@ interface PresentationViewerProps {
   // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: set (a hint sentence) only while this tab is paused because the session is live in another tab.
   // Add Slide, Add Element, Theme and Template are then disabled with this hint; viewing and moving between slides stay available.
   studioTabPausedHint?: string
+  onReplacePictureReloadDeck?: () => void // REPLACE-PICTURE (NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE): the page's Reload deck, offered after a picture that was stored but not drawn; passed only with the flag on
   // J2 v2 (flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED): the page's chat/session settings for the Add Slide pop-up.
   addSlideV2Settings?: AddSlideV2Settings<BuildThemeSelection>
   // PASS2 #3 (flag NEXT_PUBLIC_STUDIO_PANEL_FOCUS): the page hides the slide rail while Add Slide / Add Element is open;
@@ -569,7 +573,7 @@ function sendCommand(
           reportLayoutCommandAck(action) // NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE: other tabs hear about deck-changing acks (no-op with the flag off)
         } else {
           settle(() => {
-            reject(new Error(event.data.error || 'Command failed'))
+            reject(STUDIO_REPLACE_SLIDE_PICTURE_ENABLED && action === REPLACE_PICTURE_COMMAND ? replacePictureReplyError(event.data) : new Error(event.data.error || 'Command failed')) // REPLACE-PICTURE: a failed setSlideBackgroundPicture rejects with an Error that carries the reply's stable code (lib/studio-replace-picture.ts maps it to plain words); every other command rejects as before
           })
         }
       }
@@ -722,6 +726,7 @@ export function PresentationViewer({
   onGenerateSlide,
   onUserDeckEdit,
   studioTabPausedHint,
+  onReplacePictureReloadDeck, // REPLACE-PICTURE
   addSlideV2Settings,
   studioRailCollapsed = false,
   onStudioRailReveal,
@@ -2636,6 +2641,7 @@ export function PresentationViewer({
       })
     } finally { mutation.release() }
   }, [toast, captureThumbnailInvalidation, studioShell, beginStudioNativeSlideMutation])
+  const replacePicture = useStudioReplacePicture({ enabled: STUDIO_REPLACE_SLIDE_PICTURE_ENABLED && studioShell, deckOpen: Boolean(approvedPresentationUrl && presentationId), viewerReady: viewerIsReady, presenting: isFullscreen, presentationId, frameUrl: approvedPresentationUrl, activeVersion, currentSlide, railSlideId: slideThumbnails[currentSlide - 1]?.slideId ?? null, railSlideTitle: slideThumbnails[currentSlide - 1]?.title ?? null, tabPausedHint: studioTabPausedHint, templateMode: templateModeOn, building: Boolean(isGenerating || studioPartialArtifact), studioBusy: Boolean(studioFormatBusy), composeJobs, mutationPending: isSlideMutationPending, send: sendCommand, getIframe: () => iframeRef.current, begin: beginStudioNativeSlideMutation, afterReplace: () => { reportDeckChange('element'); if (presentationId) onThumbnailInvalidatedRef.current?.(presentationId); slideRailRefreshRef.current() }, onReloadDeck: onReplacePictureReloadDeck }) // REPLACE-PICTURE (NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE): the Replace picture action for the slide on screen; off, it reads and sends nothing
 
   // Reorder slides handler
   const handleReorderSlides = useCallback(async (fromIndex: number, toIndex: number) => {
@@ -4358,6 +4364,7 @@ export function PresentationViewer({
                 onClick={() => { if (studioFormatSelection?.isCurrent()) onStudioFormatRequested(studioFormatSelection) }}>
                 <Palette className="h-5 w-5" /><span className={toolbarLabelClass}>Format</span>
               </button>}
+              {replacePicture.visible && <ReplacePictureControl reason={replacePicture.reason} slideNumber={replacePicture.slideNumber} slideTitle={replacePicture.slideTitle} onReplace={replacePicture.replace} onReloadDeck={replacePicture.reloadDeck} buttonClassName={cn(toolbarButtonClass, toolbarBtnBase)} labelClassName={cn(toolbarLabelClass, 'whitespace-nowrap')} tooltipContainer={toolbarDropdownPortalContainer} />}{/* REPLACE-PICTURE: Replace picture, beside Format (the flag, the shell, a built deck, not presenting) */}
 
               {/* Template — "Save as Template" (Template Builder). Enabled once a
                   deck exists and we know the WS session to snapshot. */}

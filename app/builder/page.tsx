@@ -8241,6 +8241,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               : currentSlideIndex}
             onUserDeckEdit={STUDIO_SESSION_HYGIENE_ENABLED ? saveSessionOnFirstAction : undefined}
             studioTabPausedHint={oneLiveTabSuperseded ? SUPERSEDED_NOTICE_TEXT : undefined}
+            onReplacePictureReloadDeck={STUDIO_REPLACE_SLIDE_PICTURE_ENABLED && studioShell ? reloadDeckFromOtherTab : undefined} // REPLACE-PICTURE (NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE): the viewer's Replace picture offers this Reload deck after a picture that was stored but not drawn; off, nothing is passed
             onSlideChange={(slideNum) => {
               const nextVisualIndex = Math.max(0, slideNum - 1)
               flowControl.noteSlideChange(nextVisualIndex) // FLOW-CONTROL: the viewer's report of where it is (ours, the viewer reloading, or the user's)
@@ -8630,3 +8631,4 @@ import { AgentRunCards } from '@/components/builder/agent-mode/agent-run-cards' 
 import { BuildModePicker } from '@/components/builder/agent-mode/build-mode-picker' // AGENT-MODE-WIRE
 import { STUDIO_AGENT_MODE_ENABLED, agentPlanOf, buildModeOnWire, initialAgentRunState, type BuildMode } from '@/lib/studio-agent-mode' // AGENT-MODE-WIRE
 import { AGENT_WIRE_CONTROL_MARK, AGENT_WIRE_COPY, AGENT_WIRE_RESET, agentCardsKey, agentFinishedRun, agentPickerAfterRun, agentRunBusy, agentSessionChanged, agentWireReducer, answerAgentCard, typedBuildMode, voiceBuildMode, voiceOriginatedSend } from '@/lib/studio-agent-mode-wire' // AGENT-MODE-WIRE
+import { STUDIO_REPLACE_SLIDE_PICTURE_ENABLED } from '@/lib/studio-replace-picture' // REPLACE-PICTURE
