@@ -7,9 +7,10 @@
 // What it proves (A to E), then mutants (F):
 //  A. the lib: the flag (each of the three, odd values), when the switch reads on (web search or deep research), what a click asks for (the other state; nothing while the deck's research settings are frozen), the words;
 //  B. the chip: drawn only with the flag, beside the model / level button, never beside the v3 study's own chips; pressed while research is on; disabled and said so while locked; a click calls the composer's web-search handler with the other state, once, and nothing else;
-//  C. WHAT GOES OUT: nothing new. The page's real handlers (the same ones the research options menu uses: Deep research implies web search, turning web search off turns Deep research off) and the hook's real research lines give, for each of the chip's states and
-//     for the menu's Deep research on top of it, exactly the two booleans Director already reads and latches (data.web_search, data.deep_research; src/handlers/websocket.py:3212 and :3220 of branch agent1/agent-theme-rules, 2246b8af; the freeze after the
-//     strawman is src/utils/research_settings.py). Default (never touched): both false, as today. The switch is independent of the level picker: the same two booleans at every level, and no level-dependent research key anywhere in the marked lines;
+//  C. WHAT GOES OUT (pinned with DIRECTOR-2 and KNOWLEDGE-3, 15 Nov). The page's real handlers (the same ones the research options menu uses: Deep research implies web search, turning web search off turns Deep research off) and the hook's real research lines give, for each of the
+//     chip's states and for the menu's Deep research on top of it, the two booleans Director already reads and latches, unchanged (data.web_search, data.deep_research; src/handlers/websocket.py:3212 and :3220 of branch agent1/agent-theme-rules, 2246b8af; the freeze after the
+//     strawman is src/utils/research_settings.py), and with the flag on ONE additive key, data.research "on" | "off", that always agrees with them; the other two research booleans (file_upload, use_knowledge_graph) are not touched. Default (never touched): both false, research "off",
+//     as today plus the one key; flag off: no key at all. The switch is independent of the level picker: the same at every level, and no level-dependent research key anywhere in the marked lines;
 //  D. the send side with the flag off is the base's, byte for byte (every combination of the composer's props, with and without the model picker and the level picker's flag), and the sources: the marked lines, the strip (which leaves the level picker's lines alone),
 //     the registry, .env.example, the scope (read from the COMMITTED diff only), the commits;
 //  E. each flag is read from one literal env name; nothing else reads it.
@@ -136,6 +137,7 @@ function libChecks(texts = {}) {
     assert.equal(L.researchSwitchOn(state), web || deep, `on while web search or deep research is on (${JSON.stringify(state)})`)
     assert.equal(L.researchSwitchNext(state), locked ? null : !(web || deep), `a click asks for the other state, nothing while frozen (${JSON.stringify(state)})`)
   }
+  for (const web of [true, false]) for (const deep of [true, false]) assert.equal(L.researchOnWire(web, deep), web || deep ? 'on' : 'off', `the research key for web ${web}, deep ${deep}`)
   const words = []; (function collect(value) { if (typeof value === 'string') words.push(value); else if (value && typeof value === 'object') Object.values(value).forEach(collect) })(L.RESEARCH_COPY)
   assert.equal(L.RESEARCH_COPY.label, 'Research'); for (const word of words) assert.doesNotMatch(word, LEAK, `plain words: ${word}`)
   assert.equal(L.RESEARCH_COPY.lockedNote, load('lib/studio-chat-clean.ts', { env: {} }).CHAT_CLEAN_WORDS.lockedNote, 'the locked note is the composer\'s own words')
@@ -145,7 +147,9 @@ function libChecks(texts = {}) {
 // B. the chip
 // ============================================================================================================================================
 const sendSideProps = (over = {}) => ({ composer: { showStop: false, stopEnabled: false }, onStop() {}, research: { deep: false, onDeep() {}, web: false, onWeb() {}, locked: false }, picker: { sessionId: null, disabled: false }, ...over })
-function sendSide(env, props = {}, text = read(CLEAN), texts = {}) { const C = load(CLEAN, { env, texts: { ...texts, [CLEAN]: text } }); return renderToStaticMarkup(h(C.StudioChatCleanSendSide, sendSideProps(props))) }
+/** Radix numbers its ids from one counter per React, so two renders in one process differ in aria-controls only: the ids are normalised. */
+const noIds = markup => markup.replace(/radix-_R_[A-Za-z0-9]+_/g, 'radix-ID')
+function sendSide(env, props = {}, text = read(CLEAN), texts = {}) { const C = load(CLEAN, { env, texts: { ...texts, [CLEAN]: text } }); return noIds(renderToStaticMarkup(h(C.StudioChatCleanSendSide, sendSideProps(props)))) }
 const chipOf = (env, research, texts = {}) => {
   const C = load(CLEAN, { env, texts })
   const found = elements(C.StudioChatCleanSendSide(sendSideProps({ research })), el => el.props?.['data-studio-chat-clean-toggle'] === 'research')
@@ -189,28 +193,35 @@ function wireChecks(texts = {}) {
   const send = lineWith(hook, 'const deepResearch = options?.deepResearch ?? false;') + '\n' + lineWith(hook, 'const webSearch = (options?.webSearch ?? false) || deepResearch;')
   const field = [lineWith(hook, 'deep_research: deepResearch,'), lineWith(hook, 'web_search: webSearch,')].join('\n')
   // the composer's state through the page's handlers, a send through the hook's lines
-  const model = () => {
-    const state = { deep: false, web: false }
+  const spreadLine = lineWith(hook, '...(STUDIO_RESEARCH_SWITCH_ENABLED && { research: researchOnWire(webSearch, deepResearch) })')
+  const model = (env = ENV_ON) => {
+    const state = { deep: false, web: false }, flags = load(LIB, { env, texts })
     const handlers = runFragment(`const useCallback = fn => fn\n${block}\nreturn { handleResearchEnabledChange, handleWebSearchEnabledChange }`, ['setResearchEnabled', 'setWebSearchEnabled'])(v => { state.deep = v }, v => { state.web = v })
-    const message = () => runFragment(`${send}\nreturn { ${field} }`, ['options'])({ deepResearch: state.deep, webSearch: state.web })
+    const message = () => runFragment(`${send}\nreturn { ${field}\n${spreadLine}\n}`, ['options', 'STUDIO_RESEARCH_SWITCH_ENABLED', 'researchOnWire'])({ deepResearch: state.deep, webSearch: state.web }, flags.STUDIO_RESEARCH_SWITCH_ENABLED, flags.researchOnWire)
     return { state, handlers, message }
   }
   const C = load(LIB, { env: ENV_ON, texts }), click = m => { const next = C.researchSwitchNext({ ...m.state, locked: false }); m.handlers.handleWebSearchEnabledChange(next) } // the chip's click: onWeb is the page's web-search handler
-  const untouched = model(); deepEqual(untouched.message(), { deep_research: false, web_search: false }, 'never touched: both false, as today')
-  const a = model(); click(a); deepEqual(a.message(), { deep_research: false, web_search: true }, 'chip on: web search (standard research), no deep research')
-  click(a); deepEqual(a.message(), { deep_research: false, web_search: false }, 'chip off again: both false')
-  const b = model(); click(b); b.handlers.handleResearchEnabledChange(true); deepEqual(b.message(), { deep_research: true, web_search: true }, 'the menu\'s Deep research on top of the chip: both')
-  assert.equal(C.researchSwitchOn({ ...b.state, locked: false }), true, 'the chip reads on'); click(b); deepEqual(b.message(), { deep_research: false, web_search: false }, 'the chip off turns both off, the menu agrees')
-  const c = model(); c.handlers.handleResearchEnabledChange(true); assert.equal(C.researchSwitchOn({ ...c.state, locked: false }), true, 'Deep research from the menu alone reads as on (it implies web search)'); click(c); deepEqual(c.message(), { deep_research: false, web_search: false }, 'and the chip turns it off')
+  const untouched = model(); deepEqual(untouched.message(), { deep_research: false, web_search: false, research: 'off' }, 'never touched: both false, research "off"')
+  const a = model(); click(a); deepEqual(a.message(), { deep_research: false, web_search: true, research: 'on' }, 'chip on: web search (standard research), no deep research, research "on"')
+  click(a); deepEqual(a.message(), { deep_research: false, web_search: false, research: 'off' }, 'chip off again: both false, research "off"')
+  const b = model(); click(b); b.handlers.handleResearchEnabledChange(true); deepEqual(b.message(), { deep_research: true, web_search: true, research: 'on' }, 'the menu\'s Deep research on top of the chip: both, research "on"')
+  assert.equal(C.researchSwitchOn({ ...b.state, locked: false }), true, 'the chip reads on'); click(b); deepEqual(b.message(), { deep_research: false, web_search: false, research: 'off' }, 'the chip off turns both off, the menu agrees')
+  const c = model(); c.handlers.handleResearchEnabledChange(true); assert.equal(C.researchSwitchOn({ ...c.state, locked: false }), true, 'Deep research from the menu alone reads as on (it implies web search)'); click(c); deepEqual(c.message(), { deep_research: false, web_search: false, research: 'off' }, 'and the chip turns it off')
+  const flagOff = model({ ...SHELL }); click(flagOff); deepEqual(flagOff.message(), { deep_research: false, web_search: true }, 'flag off: the two booleans as before and no research key')
+  for (const [name, env] of Object.entries(ENV_OFF)) { const m = model(env); m.handlers.handleWebSearchEnabledChange(true); assert.equal('research' in m.message(), false, `${name}: no research key`) }
+  for (const web of [true, false]) for (const deep of [true, false]) { const m = model(); m.state.web = web; m.state.deep = deep; const out = m.message(); assert.equal(out.research, out.web_search || out.deep_research ? 'on' : 'off', `the research key agrees with the booleans (${web}, ${deep})`) }
+  // the hook's other research booleans are not touched: file_upload and use_knowledge_graph are the base's lines
+  for (const needle of ['file_upload: options?.fileUpload ?? !!effectiveStoreName,', 'use_knowledge_graph: options?.useKnowledgeGraph ?? false,']) assert.equal(lineWith(hook, needle), lineWith(baseText(HOOK), needle), `${needle} is the base's line`)
   // frozen once the deck's research ran: the chip changes nothing (the page's lock, hasStrawman, disables it; Director refuses the change anyway)
   assert.equal(C.researchSwitchNext({ web: true, deep: false, locked: true }), null)
   assert.ok(page.includes('const researchSettingsLocked = hasStrawman'), 'the lock is the page\'s own (hasStrawman)')
   // the same two booleans at every level: the level picker adds no research key, and nothing in the marked lines of either change is level dependent
-  const levelsEdits = Object.values(levelsStrip.THINKING_LEVELS_EDITS).flat().map(([has]) => has).join('\n')
-  assert.equal(/\b(web_search|deep_research|webSearch|deepResearch|research)\b/.test(levelsEdits), false, 'the level picker\'s lines touch no research key')
+  const RESEARCH_WORD = /\b(web_search|deep_research|webSearch|deepResearch|research)\b/g, wordsOf = text => (text.match(RESEARCH_WORD) || []).length
+  for (const [rel, pairs] of Object.entries(levelsStrip.THINKING_LEVELS_EDITS)) for (const [has, was] of pairs) assert.equal(wordsOf(has), wordsOf(was), `the level picker's lines add no research key (${rel}: ${has.trim().slice(0, 70)})`) // a rewritten line keeps the research props it had (research={chatCleanResearch}); an inserted one has none
   const mine = Object.values(EDITS).flat().map(([has]) => has).join('\n')
   assert.equal(/thinking|level|build_mode|buildMode/i.test(mine.replace(/RESEARCH-SWITCH[^\n]*/g, '')), false, 'the switch\'s lines read no level and no build mode')
-  assert.equal(/user_message|sendMessage|web_search|deep_research/.test(mine.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')), false, 'and send nothing of their own (comments aside)')
+  assert.deepEqual(EDITS[HOOK].map(([has]) => has.trim().split(' ')[0]), ['import', 'research?:', '...(STUDIO_RESEARCH_SWITCH_ENABLED'], 'the hook gains three lines: the import, the type, the spread')
+  assert.equal(/user_message|sendMessage|web_search|deep_research|use_knowledge_graph|file_upload/.test(mine.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')), false, 'and name no other research key (comments aside): the one key they add is "research"')
   // Director's side, read-only: the two keys are read and latched session-sticky; nothing here claims more
   assert.match(texts[LIB] ?? read(LIB), /websocket\.py, "Extract and latch researcher/, 'the lib cites where Director reads them')
 }
@@ -234,7 +245,7 @@ function lineDiff(was, now) {
 }
 const laterStrips = (rel, text) => { const strips = registry.LATER_STRIPS, at = strips.indexOf(STRIP_FN); return (at === -1 ? [] : strips.slice(at + 1)).reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text) }
 const laterEnv = text => { const blocks = registry.LATER_ENV_BLOCKS, at = blocks.indexOf(ENV_BLOCK); return (at === -1 ? [] : blocks.slice(at + 1)).reduce((out, later) => out.replace(`\n${later}`, ''), text) }
-const TEXTS = Object.fromEntries([...APP_FILES, ...NEW_FILES, '.env.example', REGISTRY].map(rel => [rel, read(rel)]))
+const TEXTS = Object.fromEntries([...APP_FILES, ...NEW_FILES, ...stripModule.RESEARCH_SWITCH_PIN_FILES, '.env.example', REGISTRY].map(rel => [rel, read(rel)]))
 
 function sourceChecks(texts, mod = stripModule) {
   const strip = mod.stripResearchSwitch, edits = mod.RESEARCH_SWITCH_EDITS, files = mod.RESEARCH_SWITCH_FILES, block = mod.RESEARCH_SWITCH_ENV_BLOCK
@@ -252,6 +263,18 @@ function sourceChecks(texts, mod = stripModule) {
     const allowed = new Set((edits[rel] || []).flatMap(([, was]) => was.split('\n')).filter(line => line !== ''))
     for (const line of diff.added) assert.match(line, MARKER_RE, `${rel}: a line added to the file carries the marker: ${line.trim().slice(0, 100)}`)
     assert.deepEqual(diff.removed, [], `${rel}: a pure insertion: no base line is lost`); assert.equal(allowed.size, 0, `${rel}: no pair rewrites a base line`)
+  }
+  // the older proofs this change teaches: each gains its marked lines and loses none, and is the base's without them (past the level picker's, which is another change's)
+  const PIN_GAINS = { 'scripts/test-studio-agent-mode-wire.mjs': 2, 'scripts/test-studio-chat-element-edit.mjs': 1, 'scripts/test-studio-deck-sync-truth.mjs': 1 }
+  assert.deepEqual([...mod.RESEARCH_SWITCH_PIN_FILES].sort(), Object.keys(PIN_GAINS).sort(), 'the older proofs this change teaches')
+  for (const [rel, gained] of Object.entries(PIN_GAINS)) {
+    const now = laterStrips(rel, texts[rel]), mine = levelsStrip.stripThinkingLevels(rel, now), diff = lineDiff(baseText(rel), mine)
+    assert.equal(levelsStrip.stripThinkingLevels(rel, strip(rel, now)), baseText(rel), `${rel}: without this change's lines (and the level picker's) the proof is the base's, byte for byte`)
+    assert.equal(strip(rel, strip(rel, now)), strip(rel, now), `${rel}: putting back twice changes nothing more`)
+    assert.deepEqual([diff.removed.length, diff.added.length], [0, gained], `${rel}: the proof gains ${gained} marked lines and loses none`)
+    for (const line of diff.added) assert.ok(line.includes(mod.RESEARCH_SWITCH_PIN_MARK), `${rel}: a line added to the proof carries the pin mark: ${line.trim().slice(0, 100)}`)
+    for (const line of diff.added.filter(added => added.includes('fs.readFileSync = '))) assert.ok(line.includes('stripResearchSwitch(rel, out)') && !line.includes('stripLaterChanges') && !line.includes('registry.'), `${rel}: the read hook uses this change's own strip, never the registry`)
+    for (const line of diff.added.filter(added => added.includes('shas.splice'))) assert.ok(line.includes('^Research switch:') && !line.includes('Thinking levels'), `${rel}: the splice names this change's own subject, and only that`)
   }
   for (const [rel, flag] of mod.RESEARCH_SWITCH_LIB_FLAGS) {
     assert.equal((texts[rel].match(new RegExp(`process\\.env\\.${flag}\\b`, 'g')) || []).length, 1, `${rel} reads the literal env name ${flag} once`)
@@ -323,6 +346,10 @@ const MUTANTS = [
   ['chip: a click turns deep research on, not web search', M(CLEAN, 'if (next !== null) research.onWeb(next)', 'if (next !== null) research.onDeep(next)'), chipChecks],
   ['chip: a click ignores the lock', M(CLEAN, 'if (next !== null) research.onWeb(next)', 'research.onWeb(!research.web)'), chipChecks],
   ['chip: a click also touches deep research', M(CLEAN, 'if (next !== null) research.onWeb(next)', 'if (next !== null) { research.onWeb(next); research.onDeep(next) }'), chipChecks],
+  ['hook: research is sent without the flag', M(HOOK, '...(STUDIO_RESEARCH_SWITCH_ENABLED && { research: researchOnWire(webSearch, deepResearch) })', '...({ research: researchOnWire(webSearch, deepResearch) })'), wireChecks],
+  ['hook: research disagrees with the booleans (deep only)', M(HOOK, 'research: researchOnWire(webSearch, deepResearch)', 'research: researchOnWire(deepResearch, deepResearch)'), wireChecks],
+  ['hook: research is always on', M(HOOK, 'research: researchOnWire(webSearch, deepResearch)', "research: 'on'"), wireChecks],
+  ['lib: research "on" only for deep research', M(LIB, '(web || deep ? \'on\' : \'off\')', '(deep ? \'on\' : \'off\')'), libChecks],
   ['page: the handler stops linking the two switches', M(PAGE, '    if (!enabled) setResearchEnabled(false)\n', ''), wireChecks],
 ]
 for (const [label, texts, fn] of MUTANTS) await mutant(label, () => fn(texts))
