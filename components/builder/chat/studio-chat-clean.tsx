@@ -36,6 +36,7 @@ import {
   type ChatCleanThreadProps,
 } from '@/lib/studio-chat-clean'
 import { STUDIO_STRAWMAN_CHAT_ENABLED } from '@/lib/studio-strawman-chat' // STRAWMAN-CHAT
+import { RESEARCH_COPY, STUDIO_RESEARCH_SWITCH_ENABLED, researchSwitchNext, researchSwitchOn } from '@/lib/studio-research-switch' // RESEARCH-SWITCH (NEXT_PUBLIC_STUDIO_RESEARCH_SWITCH, default off)
 
 // ---------------------------------------------------------------------------------------------------------------------
 // The notes, kept by the page (one hook call, inert with the flag off)
@@ -271,6 +272,7 @@ export function StudioChatCleanSendSide({ composer, onStop, research, picker, le
           <Search size={11} aria-hidden="true" />{CHAT_CLEAN_WORDS.deepResearchItem}
         </button>
       )}
+      {STUDIO_RESEARCH_SWITCH_ENABLED && !chips ? <button type="button" aria-pressed={researchSwitchOn(research)} disabled={research.locked} onClick={() => { const next = researchSwitchNext(research); if (next !== null) research.onWeb(next) }} data-studio-chat-clean-toggle="research" title={research.locked ? RESEARCH_COPY.lockedNote : RESEARCH_COPY.note}><Search size={11} aria-hidden="true" />{RESEARCH_COPY.label}</button> : null}{/* RESEARCH-SWITCH (NEXT_PUBLIC_STUDIO_RESEARCH_SWITCH, M4): Research on / off beside the model / level button; it is the composer's web-search state (deep research implies it), nothing new on the wire; off, null */}
       {levels ? <LevelPicker {...levels} className="studio-chat-clean-model" /> : <ModelPicker variant="slider" sessionId={picker.sessionId} disabled={picker.disabled} className="studio-chat-clean-model" />}{/* THINKING-LEVELS: with the flag on the gauge IS the level picker (Auto / Fast / Balanced / Best / Max); off, the model picker as before */}
       {composer.showStop && (
         <button type="button" onClick={onStop} disabled={!composer.stopEnabled} aria-label={CHAT_CLEAN_WORDS.stopLabel} title={CHAT_CLEAN_WORDS.stopLabel} data-studio-chat-clean-stop="true">
