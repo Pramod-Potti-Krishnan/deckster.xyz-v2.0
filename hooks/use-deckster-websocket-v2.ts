@@ -56,6 +56,8 @@ import {
 } from '@/lib/director-reconnect-policy';
 import { STUDIO_ONE_LIVE_TAB_ENABLED, isDirectorSupersededClose } from '@/lib/studio-one-live-tab';
 import { STUDIO_AGENT_MODE_ENABLED, agentAnswerFrame, agentAnswerSendable, isAgentFrameType } from '@/lib/studio-agent-mode'; // AGENT-MODE-WIRE (NEXT_PUBLIC_AGENT_MODE and NEXT_PUBLIC_STUDIO_V4_SHELL, both exact "true"; default off)
+import { STUDIO_THINKING_LEVELS_ENABLED, type ThinkingLevel } from '@/lib/studio-thinking-levels'; // THINKING-LEVELS (NEXT_PUBLIC_STUDIO_THINKING_LEVELS; default off)
+import { STUDIO_RESEARCH_SWITCH_ENABLED, researchOnWire } from '@/lib/studio-research-switch'; // RESEARCH-SWITCH (NEXT_PUBLIC_STUDIO_RESEARCH_SWITCH; default off)
 import { linkedItemIdsField } from '@/lib/connectors-gdrive-session-links';
 import {
   buildControlEndpointFromWsUrl,
@@ -629,6 +631,8 @@ export interface UserMessage {
     // to suppress navigation/reconnect retries of the pending build request.
     handoff_idempotency_key?: string;
     build_mode?: 'standard' | 'author' | 'agent'; // AGENT-MODE-WIRE: Director's opt-in key (MR-604); omitted unless the picker chose and the plan allows it
+    thinking_level?: ThinkingLevel; // THINKING-LEVELS: the level the person picked (auto, fast, balanced, best, max; Best and Max run as Balanced for now, and build_mode carries the route that runs), additive: Director's logs show it (DIRECTOR-2 reads it; today Director ignores it); omitted unless the flag is on
+    research?: 'on' | 'off'; // RESEARCH-SWITCH: the Research switch's state, additive (DIRECTOR-2 / KNOWLEDGE-3 read it; today Director ignores it): "on" when web search or deep research is on, else "off", always agreeing with web_search / deep_research below; sent only when the flag is on, absent = today's
   };
 }
 
@@ -641,6 +645,7 @@ export interface SendUserMessageOptions {
   webSearch?: boolean;
   extendedGeneration?: boolean;
   buildMode?: 'standard' | 'author' | 'agent'; // AGENT-MODE-WIRE
+  thinkingLevel?: ThinkingLevel; // THINKING-LEVELS
   fileUpload?: boolean;
   storeName?: string | null;
   useKnowledgeGraph?: boolean;
@@ -3503,6 +3508,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           ...(effectiveStoreName && { file_count: fileCount || 0 }),
           deep_research: deepResearch,
           web_search: webSearch,
+          ...(STUDIO_RESEARCH_SWITCH_ENABLED && { research: researchOnWire(webSearch, deepResearch) }), // RESEARCH-SWITCH
           extended_generation: options?.extendedGeneration ?? true,
           file_upload: options?.fileUpload ?? !!effectiveStoreName,
           use_knowledge_graph: options?.useKnowledgeGraph ?? false,
@@ -3518,6 +3524,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           ...(options?.manualDeck && { manual_deck: options.manualDeck }),
           ...(options?.deckIdentity && { deck_identity: options.deckIdentity }),
           ...(options?.buildMode && { build_mode: options.buildMode }), // AGENT-MODE-WIRE
+          ...(STUDIO_THINKING_LEVELS_ENABLED && options?.thinkingLevel && { thinking_level: options.thinkingLevel }), // THINKING-LEVELS
           ...(options?.handoffIdempotencyKey && {
             handoff_idempotency_key: options.handoffIdempotencyKey,
           }),
