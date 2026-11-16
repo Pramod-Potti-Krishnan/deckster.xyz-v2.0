@@ -4610,7 +4610,7 @@ export function PresentationViewer({
                 </DropdownMenuPortal>
               </DropdownMenu>
 
-              {replacePicture.visible && <ReplacePictureControl reason={replacePicture.reason} slideNumber={replacePicture.slideNumber} slideTitle={replacePicture.slideTitle} pictureTarget={replacePicture.target} onReplace={replacePicture.replace} onReloadDeck={replacePicture.reloadDeck} buttonClassName={cn(toolbarButtonClass, toolbarBtnBase)} labelClassName={cn(toolbarLabelClass, 'whitespace-nowrap')} tooltipContainer={toolbarDropdownPortalContainer} />}{/* REPLACE-PICTURE: Replace picture, at the end of the authoring strip, after Show and before Present (the flag, the shell, a built deck, not presenting): no earlier sibling's place among the strip's children moves, so the ids React generates for them are the base's */}
+              {replacePicture.visible && <ReplacePictureControl reason={replacePicture.reason} slideNumber={replacePicture.slideNumber} slideTitle={replacePicture.slideTitle} pictureTarget={replacePicture.target} slideId={replacePicture.slideId} onReplace={replacePicture.replace} onReloadDeck={replacePicture.reloadDeck} buttonClassName={cn(toolbarButtonClass, toolbarBtnBase)} labelClassName={cn(toolbarLabelClass, 'whitespace-nowrap')} tooltipContainer={toolbarDropdownPortalContainer} />}{/* REPLACE-PICTURE: Replace picture, at the end of the authoring strip, after Show and before Present (the flag, the shell, a built deck, not presenting): no earlier sibling's place among the strip's children moves, so the ids React generates for them are the base's */}
               {presentInStrip && (
                 <>
                   <div className="mx-1 h-6 w-px bg-slate-200 dark:bg-slate-700" aria-hidden="true" />

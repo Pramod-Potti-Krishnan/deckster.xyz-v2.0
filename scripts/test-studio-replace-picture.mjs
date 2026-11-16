@@ -19,6 +19,9 @@
 //  H. THE LAYOUT !296 FOLLOW-UP (same flag; docs/api/SLIDE_BACKGROUND_PICTURE.md at Layout Draft !296, head 26283304): eligibility up front (getTemplateSlotCatalog's backgroundPicture: eligible, each reason, a slide that is not listed,
 //     NO key, a malformed one, a failed read -> the button on / greyed with plain words; Layout decides instead of the hero guess), progress (the viewer's interim events matched on commandRequestId by the REAL hook; an untrusted, foreign,
 //     out-of-order or reply-shaped event ignored; the REAL sendCommand, extracted from the viewer and run, never settles on one), the dialog's stage words, the allow-list left alone;
+//  I. REVIEW-1's P2 and P3s on #636 (2159e182): the slide on screen is found in the viewer's order by its visual position (placeholders counted), and ITS layout_index and slide_id are sent, with its layout_index picking the eligibility entry; a placeholder on
+//     screen greys the button; the dialog is bound to the slide's id when it opens and Replace refuses (SLIDE_CHANGED, nothing sent) when the viewer moved or the id there changed; the reason is checked again when Replace is pressed; Enter in the failed
+//     dialog does not send after an answer that offers no Try again; after a bridge timeout the watched reply of that run is ignored; the proof's own exit is non-zero when nothing ran.
 //  G. mutants: each is one edit of the real sources, fed to the same checks, and must be caught.
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
@@ -26,7 +29,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import vm from 'node:vm'
 import { createRequire } from 'node:module'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import React from 'react'
 import * as jsxRuntime from 'react/jsx-runtime'
@@ -111,12 +114,24 @@ const tick = () => new Promise(resolve => setImmediate(resolve))
 /** The contract's codes (docs/api/SLIDE_BACKGROUND_PICTURE.md of Layout !294, b6c34209): the viewer command's own and the route's, passed through. */
 const CONTRACT_CODES = ['INVALID_SLIDE_INDEX', 'INVALID_URL', 'INVALID_ALT', 'INVALID_SLIDE_ID', 'VIEW_ONLY_PAGE', 'PRESENTATION_NOT_FOUND', 'SLIDE_NOT_FOUND', 'VIEWER_UNAVAILABLE', 'SAVE_PENDING', 'NETWORK_ERROR',
   'READ_ONLY_SNAPSHOT', 'NOT_AUTHORIZED', 'ROUTE_UNAVAILABLE', 'WRITE_FAILED', 'REPAINT_FAILED', 'INVALID_BODY', 'SLIDE_CHANGED', 'NO_BACKGROUND_PICTURE', 'PICTURE_DECLINED', 'SLIDE_INDEX_OUT_OF_RANGE']
-const STUDIO_CODES = ['TIMED_OUT', 'LAYOUT_SWITCH_OFF', 'BUSY', 'UNKNOWN']
+const STUDIO_CODES = ['TIMED_OUT', 'LAYOUT_SWITCH_OFF', 'BUSY', 'NOT_AVAILABLE', 'UNKNOWN']
 /** Words that mean a raw backend message reached a person: names of services, stages, statuses, HTTP, routes, codes. */
 const JARGON = /\b(Layout|Director|Elementor|stage|status|HTTP|route|endpoint|payload|JSON|stack|exception|undefined|null|code)\b|\b[45]\d\d\b(?! characters)|[A-Z]{3,}_[A-Z_]{3,}/
-const NO_RETRY = ['REPAINT_FAILED', 'READ_ONLY_SNAPSHOT', 'VIEW_ONLY_PAGE', 'NOT_AUTHORIZED', 'NO_BACKGROUND_PICTURE', 'PICTURE_DECLINED', 'LAYOUT_SWITCH_OFF', 'ROUTE_UNAVAILABLE']
+const NO_RETRY = ['REPAINT_FAILED', 'READ_ONLY_SNAPSHOT', 'VIEW_ONLY_PAGE', 'NOT_AUTHORIZED', 'NO_BACKGROUND_PICTURE', 'PICTURE_DECLINED', 'LAYOUT_SWITCH_OFF', 'ROUTE_UNAVAILABLE', 'NOT_AVAILABLE']
 const RELOAD = ['REPAINT_FAILED', 'TIMED_OUT', 'VIEWER_UNAVAILABLE', 'PRESENTATION_NOT_FOUND', 'SLIDE_NOT_FOUND', 'SLIDE_INDEX_OUT_OF_RANGE', 'SLIDE_CHANGED', 'INVALID_BODY']
 const reply = (code, extra = {}) => ({ success: false, action: 'setSlideBackgroundPicture', stage: 'route', code, error: `raw text for ${code}`, ...extra })
+/** composeGetState as Layout's viewer builds it (viewer/presentation-viewer.html handleComposeGetState at Layout !296, 26283304): `sections` is the visual order ('P' = an Add Slide placeholder, anything else a real slide's id); `slides` holds the REAL slides only, each with its visual_index and its
+ *  layout_index; the placeholders are listed apart; current_visual_index is the viewer's own. This is the shape REVIEW-1's probe built. */
+function orderReceipt(sections, currentVisualIndex, over = {}) {
+  const slides = [], placeholders = []
+  let real = 0
+  sections.forEach((section, visualIndex) => {
+    if (section === 'P') { placeholders.push({ job_id: 'job-1', visual_index: visualIndex }); return }
+    slides.push({ slide_id: section, visual_index: visualIndex, layout_index: real }); real += 1
+  })
+  return { success: true, action: 'composeGetState', current_visual_index: currentVisualIndex, current_placeholder_job_id: sections[currentVisualIndex] === 'P' ? 'job-1' : null,
+    real_slide_count: slides.length, visual_section_count: sections.length, total_visual_sections: sections.length, placeholders, slides, ...over }
+}
 const OK_URL = 'https://pictures.example.test/harbour-dawn.jpg'
 
 function libChecks(texts = {}) {
@@ -159,7 +174,7 @@ function libChecks(texts = {}) {
   deepEqual(L.buildReplacePictureParams({ slideIndex: 0, url: OK_URL, alt: 'x'.repeat(501) }), { ok: false, code: 'INVALID_ALT' })
   // every code of the contract has words, and so does each of Studio's own: plain ones
   deepEqual([...L.LAYOUT_PICTURE_CODES].sort(), [...CONTRACT_CODES].sort(), 'the lib lists exactly the contract\'s 20 codes')
-  deepEqual([...L.STUDIO_PICTURE_CODES].sort(), [...STUDIO_CODES].sort(), 'and Studio\'s own four')
+  deepEqual([...L.STUDIO_PICTURE_CODES].sort(), [...STUDIO_CODES].sort(), 'and Studio\'s own five')
   deepEqual(Object.keys(L.REPLACE_PICTURE_WORDS).sort(), [...CONTRACT_CODES, ...STUDIO_CODES].sort(), 'one sentence per code, no more, no fewer')
   const seen = new Map()
   for (const [code, words] of Object.entries(L.REPLACE_PICTURE_WORDS)) {
@@ -219,6 +234,13 @@ function libChecks(texts = {}) {
       deepEqual(await run(async () => assert.fail('sent'), input), L.failureOutcome(code), `a bad input is ${code} and nothing is sent`)
     }
     assert.equal(calls.length, 0, 'no send for a bad input')
+    // (the runner, continued)
+    // a bridge timeout: the reply the watch holds is an earlier run's, never this run's
+    { const timedOut = async () => { throw new Error('Command timeout') }
+      deepEqual(await run(timedOut, undefined, () => reply('REPAINT_FAILED', { saved: true })), L.failureOutcome('TIMED_OUT'), 'timed out: a late reply of an earlier run is ignored (not REPAINT_FAILED, not stored)'); deepEqual(await run(timedOut, undefined, () => reply('WRITE_FAILED')), L.failureOutcome('TIMED_OUT'))
+      deepEqual(await run(async () => { throw 'Command timeout' }, undefined, () => reply('WRITE_FAILED')), L.failureOutcome('TIMED_OUT'), 'a timeout that arrives as a string')
+      deepEqual(await run(async () => { throw new Error('Command failed') }, undefined, () => reply('WRITE_FAILED')), L.failureOutcome('WRITE_FAILED'), 'any other failure still reads the watched reply')
+      assert.equal(L.isTimeoutFailure(new Error('Command timeout')), true); assert.equal(L.isTimeoutFailure('command TIMEOUT'), true); for (const odd of [new Error('Command failed'), null, undefined, 5, {}, reply('WRITE_FAILED')]) assert.equal(L.isTimeoutFailure(odd), false, `not a timeout: ${String(odd)}`) }
     availabilityChecks(L)
     eligibilityChecks(L)
     progressChecks(L)
@@ -234,7 +256,7 @@ function availabilityChecks(L) {
   const alone = [
     [{ building: true }, R.building], [{ regeneratingThisSlide: true }, R.regenerating], [{ studioBusy: true }, R.busy], [{ mutationPending: true }, R.mutating], [{ templateMode: true }, R.template],
     [{ readOnly: 'view-only' }, R.viewOnly], [{ readOnly: 'preview' }, R.preview], [{ tabPausedHint: 'This tab is paused.' }, 'This tab is paused.'], [{ viewerReady: false }, R.loading], [{ deckOpen: false }, R.loading],
-    [{ eligibility: { state: 'loading' } }, R.checking], [{ eligibility: { state: 'absent' } }, R.notOnYet],
+    [{ placeholderOnScreen: true }, R.placeholder], [{ eligibility: { state: 'loading' } }, R.checking], [{ eligibility: { state: 'absent' } }, R.notOnYet],
     [{ eligibility: { state: 'known', eligible: false, reason: 'NO_BACKGROUND_PICTURE', target: 'slide_background' } }, L.upfrontWords('NO_BACKGROUND_PICTURE')],
     [{ eligibility: { state: 'known', eligible: false, reason: 'PICTURE_DECLINED', target: 'hero_slot' } }, L.upfrontWords('PICTURE_DECLINED')],
     [{ eligibility: { state: 'known', eligible: false, reason: 'VIEW_ONLY_PAGE', target: 'hero_slot' } }, L.upfrontWords('VIEW_ONLY_PAGE')],
@@ -245,17 +267,51 @@ function availabilityChecks(L) {
   assert.match(R.building, /build is running/); assert.match(R.regenerating, /regenerated/); assert.equal(R.notOnYet, 'Replacing a picture is not turned on for this server yet.', 'SLIDE-4\'s sentence for a Layout with no backgroundPicture key, word for word'); assert.equal(R.notOnYet, L.upfrontWords('LAYOUT_SWITCH_OFF'), 'and it is the code table\'s sentence, as said before any click')
   assert.ok(!('notHero' in R), 'the title / section / closing guess is gone: Layout decides')
   // the order: read-only first (the outline preview right after it), then the paused tab, Template Mode, a build, a regenerate, any other busy state, a slide change, loading, what Layout says about the slide
-  assert.equal(L.replacePictureDisabledReason({ ...clear, readOnly: 'view-only', tabPausedHint: 'paused' }), R.viewOnly); assert.equal(L.replacePictureDisabledReason({ ...clear, readOnly: 'preview', tabPausedHint: 'paused' }), R.preview, 'the outline preview comes before the paused tab'); assert.equal(L.replacePictureDisabledReason({ ...clear, eligibility: { state: 'absent' }, viewerReady: false }), R.loading, 'loading comes before what Layout says about the slide')
-  const order = [{ readOnly: 'view-only' }, { tabPausedHint: 'paused' }, { templateMode: true }, { building: true }, { regeneratingThisSlide: true }, { studioBusy: true }, { mutationPending: true }, { viewerReady: false }, { eligibility: { state: 'absent' } }]
+  assert.equal(L.replacePictureDisabledReason({ ...clear, readOnly: 'view-only', tabPausedHint: 'paused' }), R.viewOnly); assert.equal(L.replacePictureDisabledReason({ ...clear, readOnly: 'preview', tabPausedHint: 'paused' }), R.preview, 'the outline preview comes before the paused tab'); assert.equal(L.replacePictureDisabledReason({ ...clear, eligibility: { state: 'absent' }, viewerReady: false }), R.loading, 'loading comes before what Layout says about the slide'); assert.equal(L.replacePictureDisabledReason({ ...clear, placeholderOnScreen: true, eligibility: { state: 'absent' } }), R.placeholder, 'a placeholder on screen comes before what Layout says about the slides'); assert.equal(L.replacePictureDisabledReason({ ...clear, placeholderOnScreen: false }), null, 'no placeholder: on')
+  assert.match(R.placeholder, /not been built/, 'a placeholder, building or failed: plain words that fit both')
+  const order = [{ readOnly: 'view-only' }, { tabPausedHint: 'paused' }, { templateMode: true }, { building: true }, { regeneratingThisSlide: true }, { studioBusy: true }, { mutationPending: true }, { viewerReady: false }, { placeholderOnScreen: true }, { eligibility: { state: 'absent' } }]
   for (let i = 0; i < order.length; i++) {
     const state = Object.assign({}, ...order.slice(i))
     assert.equal(L.replacePictureDisabledReason({ ...clear, ...state }), L.replacePictureDisabledReason({ ...clear, ...order[i] }), `with everything from ${JSON.stringify(order[i])} down, that one wins`)
   }
-  // the viewer's order: the id at the index and whether the viewer is on it
-  const order2 = { success: true, current_visual_index: 2, slides: [{ slide_id: 'slide_a' }, { slide_id: 'slide_b' }, { slide_id: 'slide_c' }] }
-  deepEqual(L.slideIdentityFromOrder(order2, 2), { slideId: 'slide_c', onSlide: true }); deepEqual(L.slideIdentityFromOrder(order2, 0), { slideId: 'slide_a', onSlide: false }); deepEqual(L.slideIdentityFromOrder(order2, 9), { slideId: null, onSlide: false })
-  for (const odd of [null, { success: false, slides: [] }, { success: true }, 'x']) deepEqual(L.slideIdentityFromOrder(odd, 0), { slideId: null, onSlide: null })
-  deepEqual(L.slideIdentityFromOrder({ success: true, slides: [{ slide_id: '' }], current_visual_index: 'a' }, 0), { slideId: null, onSlide: null })
+  // the slide on screen, from the viewer's own order (REVIEW-1's P2): the entry whose visual_index is the viewer's current one, with its layout_index and id; the visual position counts placeholders, the stored index does not
+  const D = ['slide_a', 'slide_b', 'slide_c', 'slide_d']
+  const slideAt = (visualIndex, layoutIndex, slideId) => ({ state: 'slide', visualIndex, layoutIndex, slideId })
+  deepEqual(L.readCurrentSlide(orderReceipt(D, 2)), slideAt(2, 2, 'slide_c'), 'a, b, c, d; on c: stored index 2')
+  deepEqual(L.readCurrentSlide(orderReceipt(['slide_a', 'slide_b', 'P', 'slide_c', 'slide_d'], 3)), slideAt(3, 2, 'slide_c'), 'a, b, P, c, d; on c: visual 3 but stored index 2 and c\'s own id (REVIEW-1\'s row 2: it was 3 and d)')
+  deepEqual(L.readCurrentSlide(orderReceipt(['slide_a', 'slide_b', 'P', 'slide_c'], 3)), slideAt(3, 2, 'slide_c'), 'a, b, P, c; on c, the LAST slide: stored index 2 (it was 3, and no id)')
+  deepEqual(L.readCurrentSlide(orderReceipt(['slide_a', 'slide_b', 'slide_c', 'P', 'slide_d'], 2)), slideAt(2, 2, 'slide_c'), 'a, b, c, P, d; on c: a placeholder after it changes nothing')
+  deepEqual(L.readCurrentSlide(orderReceipt(['slide_a', 'slide_b', 'slide_c', 'P', 'slide_d'], 4)), slideAt(4, 3, 'slide_d'), 'on d, after the placeholder: visual 4, stored index 3')
+  deepEqual(L.readCurrentSlide(orderReceipt(['P', 'slide_a', 'P', 'P', 'slide_b'], 4)), slideAt(4, 1, 'slide_b'), 'several placeholders')
+  deepEqual(L.readCurrentSlide(orderReceipt(['slide_a', 'slide_b', 'P', 'slide_c', 'slide_d'], 2)), { state: 'placeholder', visualIndex: 2 }, 'on the placeholder itself: no stored slide is on screen')
+  deepEqual(L.readCurrentSlide(orderReceipt(['slide_a', 'slide_b', 'slide_c', 'P'], 3)), { state: 'placeholder', visualIndex: 3 }, 'a failed job\'s card at the end')
+  // the strict reader the other slide changes use (parseStudioNativeSlideOrder): where it accepts, this reader agrees with it; where a placeholder is in the deck it refuses and this one still answers
+  { const strict = load('lib/studio-native-slide-order.ts'), S = strict.parseStudioNativeSlideOrder
+    for (let current = 0; current < D.length; current++) { const got = S(orderReceipt(D, current)); assert.ok(got, 'strict accepts a deck with no placeholder'); deepEqual(L.readCurrentSlide(orderReceipt(D, current)), slideAt(got.currentVisualIndex, got.currentVisualIndex, got.slideIds[got.currentVisualIndex]), `no placeholder, on ${current}: the same slide as the strict reader`) }
+    for (const [sections, current] of [[['slide_a', 'slide_b', 'P', 'slide_c', 'slide_d'], 3], [['slide_a', 'slide_b', 'P', 'slide_c'], 3], [['slide_a', 'slide_b', 'slide_c', 'P', 'slide_d'], 2]]) { assert.equal(S(orderReceipt(sections, current)), null, 'the strict reader refuses a deck that holds a placeholder'); assert.equal(L.readCurrentSlide(orderReceipt(sections, current)).state, 'slide', 'and this reader names the slide on screen') } }
+  // a receipt that is not an identity-bearing composeGetState answer, or does not add up: unknown (nothing is named)
+  const base4 = () => orderReceipt(['slide_a', 'slide_b', 'P', 'slide_c'], 3)
+  const bad = [
+    ['null', null], ['undefined', undefined], ['a string', 'x'], ['an array', []], ['no success', { ...base4(), success: undefined }], ['success "true"', { ...base4(), success: 'true' }], ['failed', { ...base4(), success: false }],
+    ['no action', (() => { const r = base4(); delete r.action; return r })()], ['another action', { ...base4(), action: 'getTemplateSlotCatalog' }],
+    ['no slides', { ...base4(), slides: undefined }], ['slides not an array', { ...base4(), slides: {} }], ['no placeholders list', { ...base4(), placeholders: undefined }], ['placeholders not an array', { ...base4(), placeholders: 'P' }],
+    ['no current index', { ...base4(), current_visual_index: undefined }], ['negative current index', { ...base4(), current_visual_index: -1 }], ['current index past the end', { ...base4(), current_visual_index: 4 }], ['fractional current index', { ...base4(), current_visual_index: 2.5 }], ['string current index', { ...base4(), current_visual_index: '3' }], ['NaN current index', { ...base4(), current_visual_index: NaN }],
+    ['real_slide_count off', { ...base4(), real_slide_count: 4 }], ['visual_section_count off', { ...base4(), visual_section_count: 3 }], ['total_visual_sections off', { ...base4(), total_visual_sections: 5 }],
+    ['a slide that is not an object', { ...base4(), slides: [null, ...base4().slides.slice(1)] }],
+    ['layout_index out of order', (() => { const r = base4(); r.slides[1].layout_index = 2; r.slides[2].layout_index = 1; return r })()], ['layout_index repeated', (() => { const r = base4(); r.slides[2].layout_index = 1; return r })()], ['layout_index missing', (() => { const r = base4(); delete r.slides[2].layout_index; return r })()],
+    ['visual_index missing', (() => { const r = base4(); delete r.slides[2].visual_index; return r })()], ['visual_index fractional', (() => { const r = base4(); r.slides[2].visual_index = 3.5; return r })()], ['visual_index past the end', (() => { const r = base4(); r.slides[2].visual_index = 9; return r })()], ['visual_index negative', (() => { const r = base4(); r.slides[0].visual_index = -1; return r })()],
+    ['two slides at one visual position', (() => { const r = base4(); r.slides[1].visual_index = 0; return r })()], ['a placeholder where a slide is', (() => { const r = base4(); r.placeholders[0].visual_index = 3; return r })()], ['a placeholder that is not an object', { ...base4(), placeholders: [5] }], ['a placeholder with no position', { ...base4(), placeholders: [{ job_id: 'j' }] }], ['a placeholder past the end', { ...base4(), placeholders: [{ job_id: 'j', visual_index: 7 }] }],
+    ['a slide without an id', (() => { const r = base4(); r.slides[1].slide_id = null; return r })()], ['an empty id', (() => { const r = base4(); r.slides[1].slide_id = ''; return r })()], ['an id with spaces round it', (() => { const r = base4(); r.slides[1].slide_id = ' slide_b '; return r })()], ['an id that is a number', (() => { const r = base4(); r.slides[0].slide_id = 5; return r })()], ['the same id twice', (() => { const r = base4(); r.slides[1].slide_id = 'slide_a'; return r })()],
+  ]
+  for (const [what, receipt] of bad) deepEqual(L.readCurrentSlide(receipt), { state: 'unknown' }, `${what}: unknown`)
+  // the answer never carries anything but the three fields
+  deepEqual(Object.keys(L.readCurrentSlide(orderReceipt(D, 1))).sort(), ['layoutIndex', 'slideId', 'state', 'visualIndex']); deepEqual(Object.keys(L.readCurrentSlide(orderReceipt(['slide_a', 'P'], 1))).sort(), ['state', 'visualIndex'], 'and a placeholder carries only its place')
+  // when Replace is pressed and the action is off: the reason's own words, nothing else, no Try again
+  { const out = L.unavailableOutcome(R.building); deepEqual(out, { ok: false, code: 'NOT_AVAILABLE', words: R.building, stored: false, reload: false, retry: false }, 'the reason\'s words, no Try again, nothing stored'); deepEqual(L.unavailableOutcome(''), L.failureOutcome('NOT_AVAILABLE'), 'no words given: the default ones'); deepEqual(L.unavailableOutcome(null), L.failureOutcome('NOT_AVAILABLE')) }
+  // Enter / the Replace button: only from the form, or from a failed dialog whose answer offers Try again (REPAINT_FAILED is a second write of a picture that is stored already)
+  assert.equal(L.submitAllowed('form', null), true); assert.equal(L.submitAllowed('running', null), false, 'not while it runs'); assert.equal(L.submitAllowed('done', L.outcomeFromReply({ success: true })), false, 'not after it is done')
+  for (const code of [...CONTRACT_CODES, ...STUDIO_CODES]) assert.equal(L.submitAllowed('failed', L.failureOutcome(code)), !NO_RETRY.includes(code), `a failed dialog after ${code}: Enter ${NO_RETRY.includes(code) ? 'does nothing' : 'sends again'}`)
+  assert.equal(L.submitAllowed('failed', null), false, 'a failed dialog with no answer'); assert.equal(L.submitAllowed('failed', L.unavailableOutcome(R.building)), false)
   // a refine job on this slide: by id when both sides have one, else by position; only a building refine job
   const job = (over = {}) => ({ kind: 'refine', status: 'building', targetSlideId: null, targetIndex: 3, targetLayoutIndex: 3, ...over })
   assert.equal(L.refineBuildingOnSlide([job()], { slideId: null, slideIndex: 3 }), true, 'by position'); assert.equal(L.refineBuildingOnSlide([job()], { slideId: 'x', slideIndex: 3 }), true, 'one side has no id: by position')
@@ -347,19 +403,23 @@ function progressChecks(L) {
 // ============================================================================================================================================
 const FRAME = { frame: 'iframe' }
 let mountSeq = 0
-/** A viewer double: answers the three reads (the slot catalog with Layout !296's backgroundPicture: every slide eligible, a hero's picture going to its slot, any other slide's to its background, unless `entries` says otherwise; `noReport` leaves the key out, `report` puts any value there) and the command the way the contract says; a failed command posts its reply message to the window's listeners (as the viewer does) and rejects with text only (as the bridge does). */
+/** A viewer double: answers the reads (the slot catalog with Layout !296's backgroundPicture: every REAL slide eligible, a hero's picture going to its slot, any other slide's to its background, unless `entries` says otherwise; `noReport` leaves the key out, `report` puts any value there;
+ *  the viewer's order, composeGetState, built the way Layout builds it: `count` real slides, `placeholders` = the visual positions that hold an Add Slide placeholder, `current` = the viewer's visual position; `ids` renames a real slide; heroes / entries are by STORED index) and the command the way the contract says;
+ *  a failed command posts its reply message to the window's listeners (as the viewer does) and rejects with text only (as the bridge does). */
 function viewer(over = {}) {
   const calls = [], listeners = new Set(), added = [], removed = []
   const win = { addEventListener: (type, fn) => { if (type === 'message') { listeners.add(fn); added.push(fn) } }, removeEventListener: (type, fn) => { if (type === 'message') { listeners.delete(fn); removed.push(fn) } }, post: (data, source = 'viewer') => { for (const fn of [...listeners]) fn({ data, source, origin: 'https://layout.test' }) } }
-  const state = { current: 0, count: 8, heroes: [0, 3, 7], entries: {}, ...over }
+  const state = { current: 0, count: 8, heroes: [0, 3, 7], entries: {}, placeholders: [], ids: {}, ...over, currentExplicit: 'current' in over }
+  const idOf = layout => state.ids[layout] ?? `slide_${String(layout + 1).padStart(8, '0')}`
+  const sections = () => { const out = []; let real = 0; for (let visual = 0; visual < state.count + state.placeholders.length; visual++) out.push(state.placeholders.includes(visual) ? 'P' : idOf(real++)); return out }
   const send = async (iframe, action, params, options) => {
     calls.push({ action, params: JSON.parse(JSON.stringify(params ?? null)), options: options ? { ...options } : undefined, iframe })
     if (action === 'getTemplateSlotCatalog') {
       if (state.catalogFails) throw new Error('Command timeout')
-      const slides = Array.from({ length: state.count }, (_, i) => ({ slide_index: i, slide_id: `slide_${String(i + 1).padStart(8, '0')}`, eligible: true, reason: null, target: state.heroes.includes(i) ? 'hero_slot' : 'slide_background', ...(state.entries[i] ?? {}) }))
+      const slides = Array.from({ length: state.count }, (_, i) => ({ slide_index: i, slide_id: idOf(i), eligible: true, reason: null, target: state.heroes.includes(i) ? 'hero_slot' : 'slide_background', ...(state.entries[i] ?? {}) }))
       return { success: true, canvas_type: 'H1s', hero_style: null, slots: [], ...(state.noReport ? {} : { backgroundPicture: 'report' in state ? state.report : { enabled: true, slides } }) }
     }
-    if (action === 'composeGetState') { if (state.orderFails) throw new Error('Command timeout'); return { success: true, current_visual_index: state.current, slides: Array.from({ length: state.count }, (_, i) => ({ slide_id: `slide_${String(i + 1).padStart(8, '0')}` })) } }
+    if (action === 'composeGetState') { if (state.orderFails) throw new Error('Command timeout'); return state.orderReply ? state.orderReply() : orderReceipt(sections(), state.current) }
     if (action === 'setSlideBackgroundPicture') {
       if (state.command) return state.command({ params, win })
       return { success: true, action, slide_index: params.slide_index, hidden_image_ids: state.hidden ?? [] }
@@ -383,12 +443,16 @@ async function mount(env, v, over = {}, texts = {}) {
   const out = { view: null }
   const Probe = ({ props }) => { out.view = H.useStudioReplacePicture(props); return null }
   const rootHost = new Root()
-  const set = patch => { Object.assign(over, patch); rootHost.setElement(h(Probe, { props: input() })) }
+  // a viewer double whose position was not given follows the slide number the hook is shown (the viewer is on the slide the page says; placeholders aside)
+  const set = patch => { Object.assign(over, patch); if (!v.state.currentExplicit && Number.isInteger(over.currentSlide)) v.state.current = over.currentSlide - 1; rootHost.setElement(h(Probe, { props: input() })) }
   const settle = async () => { for (let i = 0; i < 5; i++) { rootHost.flush(); await tick() } rootHost.flush() }
   set({}); await settle()
   return { out, probe, set, settle, root: rootHost, view: () => out.view }
 }
 const catalogReads = v => v.calls.filter(c => c.action === 'getTemplateSlotCatalog')
+const orderReads = v => v.calls.filter(c => c.action === 'composeGetState')
+/** What the viewer double says each stored slide is called (slide_00000001 is the first real slide). */
+const sid = layout => `slide_${String(layout + 1).padStart(8, '0')}`
 
 async function hookChecks(texts = {}) {
   const L = load(LIB, { env: ON, texts })
@@ -404,10 +468,11 @@ async function hookChecks(texts = {}) {
   let v = viewer(), m = await mountT(ON, v)
   assert.equal(m.view().visible, true); assert.equal(m.view().reason, null, 'an eligible title slide: on'); assert.equal(m.view().target, 'hero_slot', 'and Layout says where the picture goes')
   assert.equal(catalogReads(v).length, 1, 'the slide\'s eligibility is read once'); deepEqual(catalogReads(v)[0].params, { slideIndex: 0 }); assert.equal(catalogReads(v)[0].options.timeoutMs, 8000); assert.equal(catalogReads(v)[0].iframe, FRAME)
+  assert.equal(orderReads(v).length, 1, 'and so is the viewer\'s order (which slide is on screen), by the same frame'); deepEqual(orderReads(v)[0].params, {}); assert.equal(orderReads(v)[0].options.timeoutMs, 5000); assert.equal(orderReads(v)[0].iframe, FRAME); assert.equal(m.view().slideId, sid(0), 'the hook reports Layout\'s id for the slide on screen (the dialog binds to it)')
   assert.equal(v.commands().length, 0, 'nothing is sent until the person confirms'); assert.equal(m.view().slideNumber, 1); assert.equal(m.view().slideTitle, 'Why we are rethinking the roadmap')
   m.set({ railSlideTitle: 'Slide 1' }); await m.settle(); assert.equal(m.view().slideTitle, null, 'a fallback title "Slide N" is not shown as a name'); m.set({ railSlideTitle: null }); await m.settle(); assert.equal(m.view().slideTitle, null)
-  m.set({ currentSlide: 2 }); await m.settle(); assert.equal(catalogReads(v).length, 2, 'a new slide, a new read'); deepEqual(catalogReads(v)[1].params, { slideIndex: 1 })
-  m.set({ studioBusy: false }); await m.settle(); assert.equal(catalogReads(v).length, 2, 'no read when nothing changed')
+  v.state.current = 1; m.set({ currentSlide: 2 }); await m.settle(); assert.equal(catalogReads(v).length, 2, 'a new slide, a new read'); deepEqual(catalogReads(v)[1].params, { slideIndex: 1 }); assert.equal(orderReads(v).length, 2, 'of both'); assert.equal(m.view().slideId, sid(1))
+  m.set({ studioBusy: false }); await m.settle(); assert.equal(catalogReads(v).length, 2, 'no read when nothing changed'); assert.equal(orderReads(v).length, 2)
   // Layout decides (the hero guess is gone): a content slide it calls eligible is on, with the picture going to the slide's background
   v = viewer(); m = await mountT(ON, v, { currentSlide: 2 }); assert.equal(m.view().reason, null, 'a content slide Layout calls eligible: on'); assert.equal(m.view().target, 'slide_background')
   v = viewer({ heroes: [] }); m = await mountT(ON, v); assert.equal(m.view().reason, null, 'a slide with a hero-looking layout that Layout files as a plain background is still on'); assert.equal(m.view().target, 'slide_background')
@@ -459,15 +524,16 @@ async function hookChecks(texts = {}) {
 
   // the command on the wire: composeGetState then setSlideBackgroundPicture, inside the mutation scaffolding
   v = viewer({ hidden: ['image_free_0'] }); m = await mountT(ON, v)
-  let outcome = await m.view().replace({ slideNumber: 1 }, { url: `  ${OK_URL}  `, alt: ' Harbour at dawn ' })
-  deepEqual(v.calls.filter(c => c.action !== 'getTemplateSlotCatalog').map(c => [c.action, c.params, c.options]), [
+  const opened = v.calls.length
+  let outcome = await m.view().replace({ slideNumber: 1, slideId: m.view().slideId }, { url: `  ${OK_URL}  `, alt: ' Harbour at dawn ' })
+  deepEqual(v.calls.slice(opened).map(c => [c.action, c.params, c.options]), [
     ['composeGetState', {}, { timeoutMs: 5000 }],
     ['setSlideBackgroundPicture', { slide_index: 0, slide_id: 'slide_00000001', url: OK_URL, alt: 'Harbour at dawn' }, { timeoutMs: 20000 }],
-  ], 'the identity read, then the command: the contract\'s keys, the viewer\'s own slide id (never the rail\'s), the trimmed link and description, the 20 s budget')
+  ], 'the order read again when Replace is pressed, then the command: the contract\'s keys, the viewer\'s own slide id (never the rail\'s), the trimmed link and description, the 20 s budget')
   assert.ok(v.calls.every(c => c.iframe === FRAME), 'every command goes to the frame the mutation captured')
   deepEqual(outcome, { ok: true, hiddenCount: 1, words: 'Picture replaced.', note: 'A picture that covered the whole slide was hidden, not deleted. Restoring an earlier version of the deck brings it back.' })
   deepEqual(m.probe.begins, ['picture replacement']); assert.equal(m.probe.released, 1, 'the busy state is released once'); assert.equal(m.probe.after, 1, 'the rail and the other tabs are told once'); assert.equal(v.listeners.size, 0, 'the reply listener is removed'); assert.equal(v.added.length, 1); assert.equal(v.removed[0], v.added[0], 'the same listener')
-  m.set({ currentSlide: 4 }); v.state.current = 3; await m.settle(); outcome = await m.view().replace({ slideNumber: 4 }, { url: OK_URL, alt: '' })
+  m.set({ currentSlide: 4 }); v.state.current = 3; await m.settle(); outcome = await m.view().replace({ slideNumber: 4, slideId: m.view().slideId }, { url: OK_URL, alt: '' })
   deepEqual(v.commands().at(-1).params, { slide_index: 3, slide_id: 'slide_00000004', url: OK_URL }, 'slide 4: slide_index 3 and its id; no alt key when none was typed')
   // what each reply becomes: the reply message carries the code; the rejection carries text only
   for (const code of CONTRACT_CODES) {
@@ -491,9 +557,13 @@ async function hookChecks(texts = {}) {
   // the slide changed under the dialog: the viewer is on another slide
   v = viewer({ current: 4 }); m = await mountT(ON, v); deepEqual(await m.view().replace({ slideNumber: 1 }, { url: OK_URL, alt: '' }), L.failureOutcome('SLIDE_CHANGED')); assert.equal(v.commands().length, 0, 'nothing is sent to the wrong slide'); assert.equal(m.probe.released, 1)
   v = viewer(); m = await mountT(ON, v); m.probe.begin = 'stale'; deepEqual(await m.view().replace({ slideNumber: 1 }, { url: OK_URL, alt: '' }), L.failureOutcome('SLIDE_CHANGED'), 'the frame went away between the read and the send'); assert.equal(v.commands().length, 0); assert.equal(m.probe.released, 1)
-  v = viewer({ orderFails: true }); m = await mountT(ON, v); await m.view().replace({ slideNumber: 1 }, { url: OK_URL, alt: '' }); deepEqual(v.commands()[0].params, { slide_index: 0, url: OK_URL }, 'the identity read failed: the command goes without a slide_id (Layout writes to the slide at the index)')
+  v = viewer({ orderFails: true }); m = await mountT(ON, v); assert.equal(m.view().reason, null, 'the order could not be read when the button was drawn: nothing is known, it stays on'); assert.equal(m.view().slideId, null)
+  deepEqual(await m.view().replace({ slideNumber: 1 }, { url: OK_URL, alt: '' }), L.failureOutcome('VIEWER_UNAVAILABLE'), 'and when Replace cannot read the order either, nothing is sent: the stored index is not guessed from the visual position'); assert.equal(v.commands().length, 0); assert.equal(m.probe.released, 1)
+  for (const [what, orderReply] of [['not an identity-bearing receipt', () => ({ success: true, current_visual_index: 0, slides: [{ slide_id: sid(0) }] })], ['counts that do not add up', () => orderReceipt([sid(0), sid(1)], 0, { real_slide_count: 5 })], ['no slide id', () => orderReceipt([null, sid(1)], 0)]]) {
+    v = viewer({ orderReply }); m = await mountT(ON, v); deepEqual(await m.view().replace({ slideNumber: 1 }, { url: OK_URL, alt: '' }), L.failureOutcome('VIEWER_UNAVAILABLE'), `${what}: nothing is sent`); assert.equal(v.commands().length, 0, what)
+  }
   // the viewer is busy with another slide change: nothing is sent
-  v = viewer(); m = await mountT(ON, v); m.probe.begin = 'none'; deepEqual(await m.view().replace({ slideNumber: 1 }, { url: OK_URL, alt: '' }), L.failureOutcome('BUSY')); assert.equal(v.calls.filter(c => c.action !== 'getTemplateSlotCatalog').length, 0); assert.equal(m.probe.released, 0, 'nothing was taken, nothing is released')
+  v = viewer(); m = await mountT(ON, v); m.probe.begin = 'none'; const readsBefore = v.calls.length; deepEqual(await m.view().replace({ slideNumber: 1 }, { url: OK_URL, alt: '' }), L.failureOutcome('BUSY')); assert.equal(v.calls.length, readsBefore, 'nothing is read or sent'); assert.equal(m.probe.released, 0, 'nothing was taken, nothing is released')
   // a deck Layout refused as read-only stays off until another deck is opened
   for (const code of ['VIEW_ONLY_PAGE', 'READ_ONLY_SNAPSHOT']) {
     v = viewer({ command: failing(reply(code)) }); m = await mountT(ON, v); await m.view().replace({ slideNumber: 1 }, { url: OK_URL, alt: '' }); await m.settle()
@@ -539,6 +609,106 @@ async function hookChecks(texts = {}) {
 }
 
 // ============================================================================================================================================
+// I. the slide on screen, by the viewer's own order (REVIEW-1's P2 and P3s on #636), REAL hook in the offline React host
+// ============================================================================================================================================
+/** Decks the way REVIEW-1's probe built them (probes/studio636_placeholder_probe_review1.mjs): a, b, c, d are the viewer double's stored slides 0..3 (sid(0)..sid(3)); `placeholders` are the visual positions of Add Slide placeholders; `current` is the viewer's visual position. */
+async function slideIdentityChecks(texts = {}) {
+  const L = load(LIB, { env: ON, texts }), R = L.REPLACE_PICTURE_REASONS
+  const mountT = (env, v, over = {}) => mount(env, v, over, texts)
+  const NEW = 'https://pictures.example.test/new.png'
+  const sent = v => v.commands().map(c => c.params)
+  // each deck: [name, viewer options, the slide number the viewer shows (1-based, placeholders counted), the stored index and id the command must carry]
+  const decks = [
+    ['a, b, c, d; on c (no placeholder)', { count: 4, placeholders: [], current: 2 }, 3, 2],
+    ['a, b, P, c, d; on c (a placeholder BEFORE the slide on screen: it used to be slide_index 3 and d\'s id)', { count: 4, placeholders: [2], current: 3 }, 4, 2],
+    ['a, b, P, c; on c, the last slide (it used to be slide_index 3, no slide there)', { count: 3, placeholders: [2], current: 3 }, 4, 2],
+    ['a, b, c, P, d; on c (a placeholder after it)', { count: 4, placeholders: [3], current: 2 }, 3, 2],
+    ['a, b, c, P, d; on d (after the placeholder)', { count: 4, placeholders: [3], current: 4 }, 5, 3],
+    ['P, a, P, P, b; on b (three placeholders before it)', { count: 2, placeholders: [0, 2, 3], current: 4 }, 5, 1],
+  ]
+  for (const [name, options, slideNumber, stored] of decks) {
+    const v = viewer(options), m = await mountT(ON, v, { currentSlide: slideNumber })
+    assert.equal(m.view().reason, null, `${name}: on`); assert.equal(m.view().slideId, sid(stored), `${name}: the id reported is the stored slide's, ${sid(stored)}`); assert.equal(m.view().slideNumber, slideNumber, `${name}: the dialog says the viewer's own number`)
+    deepEqual(catalogReads(v)[0].params, { slideIndex: slideNumber - 1 }, `${name}: the slot catalog read keeps the visual position (that read is by the viewer's sections)`)
+    const out = await m.view().replace({ slideNumber, slideId: m.view().slideId }, { url: NEW, alt: '' })
+    assert.equal(out.ok, true, `${name}: replaced`); deepEqual(sent(v), [{ slide_index: stored, slide_id: sid(stored), url: NEW }], `${name}: the command carries the STORED index ${stored} and that slide's id, never the visual position ${slideNumber - 1}`)
+    assert.equal(m.probe.released, 1)
+  }
+  // the eligibility entry is the slide on screen's: by its stored index (REVIEW-1: with d declined and c fine, the button on c was greyed with d's reason)
+  let v = viewer({ count: 4, placeholders: [2], current: 3, entries: { 3: { eligible: false, reason: 'PICTURE_DECLINED', target: 'hero_slot' } } }), m = await mountT(ON, v, { currentSlide: 4 })
+  assert.equal(m.view().reason, null, 'on c with d declined: on'); assert.equal(m.view().target, 'slide_background', 'c\'s own target (a stored hero by default is 0, 3 and 7: c is stored 2, a content slide), not the visual position\'s')
+  v = viewer({ count: 4, placeholders: [2], current: 3, entries: { 2: { eligible: false, reason: 'NO_BACKGROUND_PICTURE', target: 'slide_background' } } }); m = await mountT(ON, v, { currentSlide: 4 })
+  assert.equal(m.view().reason, L.upfrontWords('NO_BACKGROUND_PICTURE'), 'c refused (stored 2): greyed with c\'s own reason'); assert.equal(sent(v).length, 0)
+  v = viewer({ count: 4, placeholders: [2], current: 3, heroes: [2] }); m = await mountT(ON, v, { currentSlide: 4 }); assert.equal(m.view().target, 'hero_slot', 'a hero by its stored index: hero_slot')
+  // progress events carry the stored index too
+  v = viewer({ count: 4, placeholders: [2], current: 3, command: ({ win }) => { for (const stage of ['saving', 'writing', 'repainting']) win.post(progressEvent(stage, { slide_index: 2 })); win.post(progressEvent('writing', { slide_index: 3, commandRequestId: 'req-A' })); return { success: true, action: 'setSlideBackgroundPicture', hidden_image_ids: [] } } }); m = await mountT(ON, v, { currentSlide: 4 })
+  { const heard = []; const out = await m.view().replace({ slideNumber: 4, slideId: m.view().slideId }, { url: NEW, alt: '' }, { onProgress: stage => heard.push(stage) }); assert.equal(out.ok, true); deepEqual(heard, ['saving', 'writing', 'repainting'], 'the stages of slide_index 2 (stored) are heard; one for the visual position 3 is not') }
+  // a placeholder on screen (building, or a failed job\'s card): greyed with plain words, no id, no target, and nothing goes out
+  for (const [name, options, slideNumber] of [['a, b, P, c; on P', { count: 3, placeholders: [2], current: 2 }, 3], ['a, b, c, P; on P (a failed job\'s card at the end)', { count: 3, placeholders: [3], current: 3 }, 4], ['P, a; on P', { count: 1, placeholders: [0], current: 0 }, 1]]) {
+    v = viewer(options); m = await mountT(ON, v, { currentSlide: slideNumber })
+    assert.equal(m.view().reason, R.placeholder, `${name}: greyed with the placeholder words`); assert.equal(m.view().visible, true); assert.equal(m.view().slideId, null, 'no stored slide is on screen'); assert.equal(m.view().target, null)
+    const before = v.calls.length, out = await m.view().replace({ slideNumber }, { url: NEW, alt: '' })
+    deepEqual(out, L.unavailableOutcome(R.placeholder), `${name}: pressed anyway (a stale button): the same words, nothing sent`); assert.equal(v.calls.length, before, 'nothing read or sent'); deepEqual(m.probe.begins, [], 'the busy state is not taken')
+  }
+  // moving off the placeholder switches it on, and back on switches it off
+  v = viewer({ count: 3, placeholders: [2], current: 2 }); m = await mountT(ON, v, { currentSlide: 3 }); assert.equal(m.view().reason, R.placeholder)
+  v.state.current = 3; m.set({ currentSlide: 4 }); await m.settle(); assert.equal(m.view().reason, null, 'on c: on'); assert.equal(m.view().slideId, sid(2)); v.state.current = 2; m.set({ currentSlide: 3 }); await m.settle(); assert.equal(m.view().reason, R.placeholder, 'and back on the placeholder: greyed')
+  // a read of another slide than the one Studio shows (the viewer moved on while the reads were in flight) says nothing about this one: no id bound, no eligibility taken from it
+  v = viewer({ count: 4, current: 3, entries: { 3: { eligible: false, reason: 'PICTURE_DECLINED', target: 'hero_slot' } } }); m = await mountT(ON, v, { currentSlide: 1 })
+  assert.equal(m.view().slideId, null, 'the viewer is on visual 3, Studio shows slide 1: nothing is bound'); assert.equal(m.view().reason, null, 'and the slide the viewer is on (declined) does not grey this one'); assert.equal(m.view().target, null)
+  // an order that cannot be read does not grey the button (nothing is known), but a catalog with no report still greys it
+  v = viewer({ count: 4, current: 2, orderFails: true, noReport: true }); m = await mountT(ON, v, { currentSlide: 3 }); assert.equal(m.view().reason, R.notOnYet, 'no order, and no report: greyed (Layout\'s flag is off)')
+  // a job that starts or ends changes the deck inside the viewer: the order is read again, once per change of the jobs
+  v = viewer({ count: 3, placeholders: [2], current: 2 }); const job = status => ({ kind: 'compose', status, targetIndex: 2, targetLayoutIndex: 2 })
+  m = await mountT(ON, v, { currentSlide: 3, composeJobs: [job('building')] }); assert.equal(m.view().reason, R.placeholder, 'an Add Slide job is building its placeholder on screen'); assert.equal(orderReads(v).length, 1); assert.equal(catalogReads(v).length, 1)
+  m.set({ composeJobs: [job('building')] }); await m.settle(); assert.equal(orderReads(v).length, 1, 'the same jobs (a new array, the same kind and status): no new read')
+  v.state.placeholders = []; v.state.count = 4; m.set({ composeJobs: [job('done')] }); await m.settle(); assert.equal(orderReads(v).length, 2, 'the job finished: read again'); assert.equal(catalogReads(v).length, 2); assert.equal(m.view().reason, null, 'the placeholder is a slide now: on'); assert.equal(m.view().slideId, sid(2))
+  v.state.placeholders = [2]; v.state.count = 3; m.set({ composeJobs: [job('error')] }); await m.settle(); assert.equal(orderReads(v).length, 3, 'a job that failed leaves its card: read again'); assert.equal(m.view().reason, R.placeholder)
+  // the dialog is bound to the slide it was opened for: with the slide gone from under it, Replace sends nothing and says so
+  const rebuilt = async (name, change, { bound = true } = {}) => {
+    const w = viewer({ count: 4, placeholders: [], current: 2 }), n = await mountT(ON, w, { currentSlide: 3 }), id = n.view().slideId
+    assert.equal(id, sid(2), `${name}: bound to c`); change(w); const before = w.commands().length
+    const out = await n.view().replace({ slideNumber: 3, ...(bound ? { slideId: id } : {}) }, { url: NEW, alt: '' })
+    return { w, n, out, sentAfter: w.commands().slice(before) }
+  }
+  { const r = await rebuilt('c rebuilt (its id changed)', w => { w.state.ids = { 2: 'slide_rebuilt_c' } }); deepEqual(r.out, L.failureOutcome('SLIDE_CHANGED'), 'the id under the same visual position changed: SLIDE_CHANGED'); assert.equal(r.sentAfter.length, 0, 'and nothing is sent'); assert.equal(r.n.probe.released, 1, 'the busy state is released'); assert.equal(r.n.probe.after, 0) }
+  { const r = await rebuilt('another slide moved in', w => { w.state.ids = { 2: sid(3), 3: sid(2) } }); deepEqual(r.out, L.failureOutcome('SLIDE_CHANGED')); assert.equal(r.sentAfter.length, 0) }
+  { const r = await rebuilt('a placeholder appeared where c was', w => { w.state.placeholders = [2]; w.state.count = 4 }); deepEqual(r.out, L.failureOutcome('SLIDE_CHANGED'), 'a placeholder stands at that position now'); assert.equal(r.sentAfter.length, 0) }
+  { const r = await rebuilt('a placeholder appeared where c was, and the dialog knew no id', w => { w.state.placeholders = [2]; w.state.count = 4 }, { bound: false }); deepEqual(r.out, L.failureOutcome('SLIDE_CHANGED'), 'a placeholder is not a slide whatever the dialog was bound to'); assert.equal(r.sentAfter.length, 0) }
+  { const r = await rebuilt('the viewer moved to another slide, and the dialog knew no id', w => { w.state.current = 0 }, { bound: false }); deepEqual(r.out, L.failureOutcome('SLIDE_CHANGED'), 'another slide is on screen'); assert.equal(r.sentAfter.length, 0) }
+  { const r = await rebuilt('a placeholder appeared before c and the viewer followed c', w => { w.state.placeholders = [1]; w.state.count = 4; w.state.current = 3 }); deepEqual(r.out, L.failureOutcome('SLIDE_CHANGED'), 'the viewer is on visual 3 now, the dialog was opened on 2'); assert.equal(r.sentAfter.length, 0) }
+  { const r = await rebuilt('the viewer moved to another slide', w => { w.state.current = 0 }); deepEqual(r.out, L.failureOutcome('SLIDE_CHANGED')); assert.equal(r.sentAfter.length, 0) }
+  { const r = await rebuilt('the same deck, nothing changed', () => {}); assert.equal(r.out.ok, true, 'control: nothing moved, it is written'); deepEqual(r.sentAfter.map(c => c.params), [{ slide_index: 2, slide_id: sid(2), url: NEW }]) }
+  { const r = await rebuilt('c rebuilt, but the dialog knew no id when it opened', w => { w.state.ids = { 2: 'slide_rebuilt_c' } }, { bound: false }); assert.equal(r.out.ok, true, 'no id was bound: the slide at that position now is used, with the id just read'); deepEqual(r.sentAfter.map(c => c.params), [{ slide_index: 2, slide_id: 'slide_rebuilt_c', url: NEW }]) }
+  // the reason is checked again when Replace is pressed (a state that arose while the dialog was open): the reason's own words, nothing taken, nothing sent
+  const arose = [
+    [{ building: true }, R.building], [{ studioBusy: true }, R.busy], [{ templateMode: true }, R.template], [{ tabPausedHint: 'This tab is paused (test).' }, 'This tab is paused (test).'], [{ activeVersion: 'strawman' }, R.preview], [{ frameUrl: 'https://layout.test/p/deck-1?viewOnly=true' }, R.viewOnly],
+    [{ composeJobs: [{ kind: 'refine', status: 'building', targetSlideId: 'outline-1', targetIndex: 0, targetLayoutIndex: 0 }] }, R.regenerating], [{ mutationPending: true }, R.mutating],
+  ]
+  for (const [patch, words] of arose) {
+    v = viewer(); m = await mountT(ON, v); assert.equal(m.view().reason, null, 'on when the dialog opens'); const id = m.view().slideId
+    m.set(patch); await m.settle(); const before = v.calls.length
+    const out = await m.view().replace({ slideNumber: 1, slideId: id }, { url: NEW, alt: '' })
+    deepEqual(out, L.unavailableOutcome(words), `${JSON.stringify(patch).slice(0, 50)}: arose while the dialog was open: refused with the reason\'s words`); assert.equal(out.code, 'NOT_AVAILABLE'); assert.equal(v.commands().length, 0); assert.equal(v.calls.length, before, 'no read either'); deepEqual(m.probe.begins, [], 'the busy state is not taken'); assert.equal(m.probe.released, 0)
+  }
+  // Layout's own answer may change while the dialog is open (a re-read lands): the greyed reason is the one Replace honours
+  v = viewer(); m = await mountT(ON, v); { const id = m.view().slideId; v.state.entries = { 0: { eligible: false, reason: 'PICTURE_DECLINED', target: 'hero_slot' } }; m.set({ composeJobs: [{ kind: 'compose', status: 'building' }] }); await m.settle()
+    assert.equal(m.view().reason, L.upfrontWords('PICTURE_DECLINED')); const before = v.commands().length; deepEqual(await m.view().replace({ slideNumber: 1, slideId: id }, { url: NEW, alt: '' }), L.unavailableOutcome(L.upfrontWords('PICTURE_DECLINED')), 'a refusal that lands after the dialog opened stops the send'); assert.equal(v.commands().length, before) }
+  // the viewer is on another slide than the dialog was opened for: SLIDE_CHANGED before anything is taken
+  v = viewer(); m = await mountT(ON, v); m.set({ currentSlide: 2 }); v.state.current = 1; await m.settle(); { const before = v.calls.length; deepEqual(await m.view().replace({ slideNumber: 1 }, { url: NEW, alt: '' }), L.failureOutcome('SLIDE_CHANGED')); assert.equal(v.calls.length, before); deepEqual(m.probe.begins, []) }
+  // a run that is allowed to start still releases and listens as before
+  v = viewer(); m = await mountT(ON, v); await m.view().replace({ slideNumber: 1, slideId: m.view().slideId }, { url: NEW, alt: '' }); assert.equal(m.probe.released, 1); assert.equal(v.listeners.size, 0)
+  // a late reply of an earlier run is not this run's: run 1 times out, run 2 times out, and run 1's reply arrives in between
+  v = viewer({ command: failing(null, 'Command timeout') }); m = await mountT(ON, v)
+  deepEqual(await m.view().replace({ slideNumber: 1 }, { url: NEW, alt: '' }), L.failureOutcome('TIMED_OUT'), 'run 1: no reply in 20 s'); assert.equal(m.probe.after, 0)
+  v.state.command = ({ win }) => { win.post(reply('REPAINT_FAILED', { saved: true })); throw new Error('Command timeout') }
+  { const out = await m.view().replace({ slideNumber: 1 }, { url: NEW, alt: '' }); deepEqual(out, L.failureOutcome('TIMED_OUT'), 'run 2: run 1\'s late reply (REPAINT_FAILED, saved) arrived during it, and it timed out too: the words are the timeout\'s, not "stored"'); assert.equal(out.stored, false); assert.equal(m.probe.after, 0, 'the rail is not told of a picture nobody confirmed') }
+  v.state.command = ({ win }) => { win.post(reply('WRITE_FAILED')); throw new Error('Command failed') }
+  assert.equal((await m.view().replace({ slideNumber: 1 }, { url: NEW, alt: '' })).code, 'WRITE_FAILED', 'a failure that is not a timeout still reads the watched reply')
+  m.root.unmount()
+}
+
+// ============================================================================================================================================
 // C. the control
 // ============================================================================================================================================
 const noIds = markup => markup.replace(/radix-_R_[A-Za-z0-9]+_/g, 'radix-ID').replace(/_R_[A-Za-z0-9]+_/g, 'ID')
@@ -567,7 +737,12 @@ function controlChecks(texts = {}) {
   assert.ok(/\{stage \? REPLACE_PICTURE_STAGE_WORDS\[stage\] : "Replacing the picture\."\}/.test(src), 'the running dialog shows the stage\'s words, or the plain ones before any')
   assert.deepEqual([...src.matchAll(/\{[^{}]*\bstage\b[^{}]*\}/g)].map(m => m[0]).sort(), ['{ onProgress?: (stage: ReplacePictureStage) => void }', '{stage ?? "starting"}', '{stage ? REPLACE_PICTURE_STAGE_WORDS[stage] : "Replacing the picture."}'].sort(), 'the stage appears only as the prop\'s type, as those words and as a data attribute, never as text')
   assert.ok(/onProgress: next => \{ if \(mounted\.current\) setStage\(next\) \}/.test(src), 'the dialog listens for progress, and only while it is mounted'); assert.ok(src.includes('setStage(null)'), 'each run starts with no stage')
-  assert.ok(src.includes('REPLACE_PICTURE_TARGET_WORDS[target.pictureTarget ?? "unknown"]') && /setTarget\(\{ slideNumber, slideTitle, pictureTarget \}\)/.test(src), 'the dialog\'s description follows the target Layout reported for the slide it was opened on')
+  assert.ok(src.includes('REPLACE_PICTURE_TARGET_WORDS[target.pictureTarget ?? "unknown"]') && /setTarget\(\{ slideNumber, slideTitle, pictureTarget, slideId \}\)/.test(src), 'the dialog\'s description follows the target Layout reported for the slide it was opened on')
+  // REVIEW-1's P2 and P3: the dialog is bound to the slide (its number and Layout\'s id) when it opens, Replace names that slide, and Enter in the failed dialog goes through the same rule as the button
+  assert.ok(/useState\(\{ slideNumber, slideTitle, pictureTarget, slideId \}\)/.test(src) && /slideId = null, onReplace,/.test(src), 'the dialog\'s slide includes Layout\'s id, which is none when the hook did not report one')
+  assert.ok(src.includes('await onReplace({ slideNumber: target.slideNumber, slideId: target.slideId }, {'), 'Replace names the slide the dialog was opened for, by number and by id, never the one on screen now')
+  assert.ok(src.includes('if (!submitAllowed(phase, outcome)) return') && !/if \(phase === "running"\) return/.test(src), 'submit (the button and Enter) asks the lib\'s rule: not while it runs, not after an answer that offers no Try again')
+  assert.deepEqual([...src.matchAll(/\bsubmitAllowed\b/g)].length, 2, 'imported once, used once')
 }
 
 // ============================================================================================================================================
@@ -587,7 +762,7 @@ function viewerChecks(texts = {}) {
   assert.match(call, /afterReplace: \(\) => \{ reportDeckChange\('element'\); if \(presentationId\) onThumbnailInvalidatedRef\.current\?\.\(presentationId\); slideRailRefreshRef\.current\(\) \}/, 'after a stored picture: the other tabs, the rail\'s previews and its re-read')
   assert.match(call, /onReloadDeck: onReplacePictureReloadDeck \}\)/); assert.ok(!/localStorage|fetch\(|window\.|document\./.test(call), 'the call reaches for nothing global')
   const jsx = lineWith(viewer0, '<ReplacePictureControl ')
-  assert.match(jsx, /\{replacePicture\.visible && <ReplacePictureControl /, 'the control is drawn only when the hook says visible (flag, shell, a built deck, not presenting)'); assert.match(jsx, /pictureTarget=\{replacePicture\.target\}/, 'the control is told where Layout says the picture goes (the dialog\'s words differ for a slide background)'); assert.match(jsx, /reason=\{replacePicture\.reason\}/); assert.match(jsx, /onReplace=\{replacePicture\.replace\}/); assert.match(jsx, /onReloadDeck=\{replacePicture\.reloadDeck\}/)
+  assert.match(jsx, /\{replacePicture\.visible && <ReplacePictureControl /, 'the control is drawn only when the hook says visible (flag, shell, a built deck, not presenting)'); assert.match(jsx, /slideId=\{replacePicture\.slideId\}/, 'the control is told Layout\'s id for the slide on screen: the dialog binds to it when it opens'); assert.match(jsx, /pictureTarget=\{replacePicture\.target\}/, 'the control is told where Layout says the picture goes (the dialog\'s words differ for a slide background)'); assert.match(jsx, /reason=\{replacePicture\.reason\}/); assert.match(jsx, /onReplace=\{replacePicture\.replace\}/); assert.match(jsx, /onReloadDeck=\{replacePicture\.reloadDeck\}/)
   assert.match(jsx, /buttonClassName=\{cn\(toolbarButtonClass, toolbarBtnBase\)\}/, 'it wears the toolbar\'s own classes'); assert.ok(viewer0.slice(0, viewer0.indexOf(jsx)).trimEnd().endsWith('</DropdownMenu>') && viewer0.slice(viewer0.indexOf(jsx) + jsx.length).trimStart().startsWith('{presentInStrip && (') && viewer0.indexOf(jsx) < viewer0.indexOf('const deliveryControls = ('), 'it is at the END of the authoring strip, after the Show menu and before Present: no earlier sibling\'s place moves, so the ids React generates for them are the base\'s')
   assert.match(lineWith(viewer0, 'onReplacePictureReloadDeck?: () => void'), /\/\/ REPLACE-PICTURE/); assert.match(lineWith(area, 'onReplacePictureReloadDeck={onReplacePictureReloadDeck}'), /\/\/ REPLACE-PICTURE/)
   const pageProp = lineWith(page, 'onReplacePictureReloadDeck={')
@@ -752,10 +927,31 @@ function scopeCheck(commits, extra = []) { assert.deepEqual([...touchedFiles(com
 function messageProblems(subject, body) { const problems = []; if (!subject.startsWith(SUBJECT)) problems.push(`the subject starts "${SUBJECT}"`); if (!/^Co-Authored-By: Claude Opus 5\.5 <noreply@anthropic\.com>\s*$/m.test(body)) problems.push('the co-author line'); return problems }
 
 // ============================================================================================================================================
+// J. the proof's own verdict (REVIEW-1's P3 9): it used to print "0 checks passed" and exit 0 when CHECK_ONLY matched nothing
+// ============================================================================================================================================
+// VERDICT-BEGIN
+/** The proof's exit: non-zero when a check failed, a mutant was missed, or NO check ran at all (a CHECK_ONLY that matches nothing). */
+function proofVerdict({ passed, failed, missed }) {
+  if (passed === 0 && failed === 0) return { code: 1, message: 'NO CHECK RAN: 0 checks passed (does CHECK_ONLY match the label of a check?)' }
+  if (failed > 0 || missed > 0) return { code: 1, message: `${failed} check(s) failed, ${missed} mutant(s) missed` }
+  return { code: 0, message: '' }
+}
+// VERDICT-END
+const SELF = 'scripts/test-studio-replace-picture.mjs'
+function verdictChecks(text = read(SELF)) {
+  const source = functionText(text, 'function proofVerdict(', '// VERDICT-END')
+  const verdict = vm.runInNewContext(`(${source.trim()})`)
+  deepEqual(verdict({ passed: 0, failed: 0, missed: 0 }), { code: 1, message: 'NO CHECK RAN: 0 checks passed (does CHECK_ONLY match the label of a check?)' }, 'nothing ran: non-zero, and it says so')
+  assert.equal(verdict({ passed: 0, failed: 2, missed: 0 }).code, 1, 'nothing passed, some failed'); assert.doesNotMatch(verdict({ passed: 0, failed: 2, missed: 0 }).message, /NO CHECK RAN/, 'and it says they failed, not that none ran'); assert.equal(verdict({ passed: 3, failed: 0, missed: 0 }).code, 0, 'checks ran and passed: zero'); assert.equal(verdict({ passed: 3, failed: 1, missed: 0 }).code, 1, 'a check failed'); assert.equal(verdict({ passed: 3, failed: 0, missed: 1 }).code, 1, 'a mutant was missed')
+  assert.equal(verdict({ passed: 1, failed: 0, missed: 0 }).message, '', 'a pass says nothing')
+}
+
+// ============================================================================================================================================
 // run
 // ============================================================================================================================================
 await check('A. the lib: the flag, the command and its budget, Layout\'s URL rule, the params, every code\'s words, the failure reader, the runner, the reasons, eligibility, progress', () => libChecks())
 await check('B. the hook (REAL, in the offline React host): flag off, the eligibility read, every disabled state, the command on the wire, every reply, the slide changing, a refused deck, Layout\'s eligibility, progress', () => hookChecks())
+await check('I. the slide on screen by the viewer\'s own order (REVIEW-1\'s P2): placeholders counted in the visual position and not in the stored index, the dialog bound to the slide\'s id, the reason checked again at Replace, a late reply of an earlier run', () => slideIdentityChecks())
 await check('C. the control: the trigger\'s markup and the dialog\'s source', () => controlChecks())
 await check('D. the viewer\'s marked lines; the bridge is the base\'s, byte for byte', () => viewerChecks())
 await check('D3. the REAL sendCommand (cut out of the viewer, run against a fake frame): a progress event never settles it, the reply does', () => bridgeChecks())
@@ -768,6 +964,12 @@ await check('E3. scope, from the COMMITTED diff only; the commits', () => {
   for (const commit of commits) assert.deepEqual(messageProblems(git('log', '-1', '--format=%s', commit), git('log', '-1', '--format=%B', commit)), [], `commit ${commit.slice(0, 8)}`)
 })
 await check('F. the flag is read from one literal env name', () => { assert.equal((TEXTS[LIB].match(new RegExp(`process\\.env\\.${FLAG}\\b`, 'g')) || []).length, 1) })
+await check('J. the proof\'s own verdict: non-zero when no check ran (this very proof is run with a CHECK_ONLY that matches nothing, and with one that matches a cheap check)', () => {
+  verdictChecks()
+  const child = only => spawnSync(process.execPath, [path.join(root, SELF)], { cwd: root, env: { ...process.env, CHECK_ONLY: only }, encoding: 'utf8', timeout: 120_000 })
+  const none = child('no check has a label like this one'); assert.equal(none.status, 1, `CHECK_ONLY matching nothing exits non-zero (got ${none.status})`); assert.match(none.stdout, /0 checks passed/); assert.match(none.stderr, /NO CHECK RAN/, 'and says why')
+  const one = child('F. the flag is read'); assert.equal(one.status, 0, `CHECK_ONLY matching one check exits 0 (got ${one.status}: ${one.stderr.slice(0, 200)})`); assert.match(one.stdout, /1 checks passed, 0 failed/)
+})
 
 // ---- G. mutants: one edit of the real sources each, fed to the same checks ------------------------------------------------------------------------------------------------------------
 const TEXT = { [LIB]: read(LIB), [HOOK]: read(HOOK), [CONTROL]: read(CONTROL), [VIEWER]: read(VIEWER), [AREA]: read(AREA), [PAGE]: read(PAGE), [ROUTER]: read(ROUTER) }
@@ -838,28 +1040,64 @@ const MUTANTS = [
   ['lib: the progress tracker takes an empty id', M(LIB, "if (typeof id !== 'string' || id === '') return null", "if (typeof id !== 'string') return null"), libChecks],
   ['lib: a refine job matches any slide', M(LIB, 'return job.targetLayoutIndex === slide.slideIndex || job.targetIndex === slide.slideIndex', 'return true'), libChecks],
   ['lib: the reasons are in another order', M(LIB, "  if (a.building) return REPLACE_PICTURE_REASONS.building\n  if (a.regeneratingThisSlide) return REPLACE_PICTURE_REASONS.regenerating\n", "  if (a.regeneratingThisSlide) return REPLACE_PICTURE_REASONS.regenerating\n  if (a.building) return REPLACE_PICTURE_REASONS.building\n"), libChecks],
+  // the slide on screen, the placeholder reason, the P3s (lib)
+  ['lib: the slide on screen is the one at the viewer\'s visual position in the list of real slides', M(LIB, "if (slide.visual_index === current) found = { state: 'slide'", "if (layoutIndex === current) found = { state: 'slide'"), libChecks],
+  ['lib: the slide on screen is named by its visual position', M(LIB, "visualIndex: current as number, layoutIndex, slideId: slide.slide_id }", "visualIndex: current as number, layoutIndex: current as number, slideId: slide.slide_id }"), libChecks],
+  ['lib: a placeholder on screen is not known', M(LIB, "return onPlaceholder ? { state: 'placeholder', visualIndex: current as number } : ORDER_UNKNOWN", 'return ORDER_UNKNOWN'), libChecks],
+  ['lib: a placeholder anywhere refuses the deck (the strict reader\'s rule)', M(LIB, 'const slides = value.slides, placeholders = value.placeholders\n', 'const slides = value.slides, placeholders = value.placeholders\n  if (placeholders.length > 0) return ORDER_UNKNOWN\n'), libChecks],
+  ['lib: the order\'s action is not checked', M(LIB, "value.action !== 'composeGetState' || ", ''), libChecks],
+  ['lib: the order\'s counts are not checked', M(LIB, '  if (value.real_slide_count !== slides.length || value.visual_section_count !== total || value.total_visual_sections !== total) return ORDER_UNKNOWN\n', ''), libChecks],
+  ['lib: the order accepts layout indexes out of order', M(LIB, 'if (!slide || slide.layout_index !== layoutIndex || ', 'if (!slide || '), libChecks],
+  ['lib: the order accepts two slides at one visual position', M(LIB, '      || visuals.has(slide.visual_index as number) || !validSlideId', '      || !validSlideId'), libChecks],
+  ['lib: the order accepts a slide with no id', M(LIB, ' || !validSlideId(slide.slide_id) || ids.has(slide.slide_id)) return ORDER_UNKNOWN', ' || ids.has(slide.slide_id as string)) return ORDER_UNKNOWN'), libChecks],
+  ['lib: the order accepts the same id twice', M(LIB, ' || !validSlideId(slide.slide_id) || ids.has(slide.slide_id)) return ORDER_UNKNOWN', ' || !validSlideId(slide.slide_id)) return ORDER_UNKNOWN'), libChecks],
+  ['lib: the order accepts a placeholder on a slide\'s place', M(LIB, ' || visuals.has(placeholder.visual_index as number)) return ORDER_UNKNOWN', ') return ORDER_UNKNOWN'), libChecks],
+  ['lib: a placeholder on screen does not grey the button', M(LIB, '  if (a.placeholderOnScreen) return REPLACE_PICTURE_REASONS.placeholder\n', ''), libChecks],
+  ['lib: a bridge timeout still reads the watched reply', M(LIB, 'isTimeoutFailure(failure) ? null : deps.observed?.() ?? null', 'deps.observed?.() ?? null'), libChecks],
+  ['lib: everything is a timeout', M(LIB, 'return /command timeout/i.test(message)\n}', 'return true\n}'), libChecks],
+  ['lib: Enter sends again after a no-retry answer', M(LIB, "return phase === 'failed' && outcome !== null && !outcome.ok && outcome.retry", "return phase === 'failed'"), libChecks],
+  ['lib: Enter sends while it runs', M(LIB, "  if (phase === 'form') return true\n", "  if (phase === 'form' || phase === 'running') return true\n"), libChecks],
+  ['lib: a refusal at Replace offers Try again', M(LIB, "'LAYOUT_SWITCH_OFF', 'ROUTE_UNAVAILABLE', 'NOT_AVAILABLE',\n])", "'LAYOUT_SWITCH_OFF', 'ROUTE_UNAVAILABLE',\n])"), libChecks],
+  ['lib: a refusal at Replace loses the reason\'s words', M(LIB, "words: typeof reason === 'string' && reason !== '' ? reason : REPLACE_PICTURE_WORDS.NOT_AVAILABLE }", 'words: REPLACE_PICTURE_WORDS.NOT_AVAILABLE }'), libChecks],
   // the hook
   ['hook: it reads and sends with the flag off', M(HOOK, '  const live = input.enabled && input.deckOpen && input.viewerReady && !input.presenting', '  const live = input.deckOpen && input.viewerReady && !input.presenting'), hookChecks],
   ['hook: it is drawn with the flag off', M(HOOK, '    visible: input.enabled && input.deckOpen && !input.presenting,', '    visible: input.deckOpen && !input.presenting,'), hookChecks],
   ['hook: it is drawn in Present', M(HOOK, '    visible: input.enabled && input.deckOpen && !input.presenting,', '    visible: input.enabled && input.deckOpen,'), hookChecks],
   ['hook: it reads the report while a build runs', M(HOOK, '    if (!live || busy) return\n', '    if (!live) return\n'), hookChecks],
   ['hook: the report is read for the wrong slide', M(HOOK, "{ slideIndex }, { timeoutMs: 8000 }", "{ slideIndex: 0 }, { timeoutMs: 8000 }"), hookChecks],
-  ['hook: the identity read is skipped', M(HOOK, "      try {\n        const identity = slideIdentityFromOrder(await now.send(mutation.iframe, REPLACE_PICTURE_ORDER_COMMAND, {}, { timeoutMs: 5000 }), index)", "      try {\n        const identity = slideIdentityFromOrder(null, index)"), hookChecks],
-  ['hook: the rail\'s slide id is sent', M(HOOK, '        slideId = identity.slideId\n', '        slideId = latest.current.railSlideId\n'), hookChecks],
-  ['hook: a slide that moved is written anyway', M(HOOK, "        if (identity.onSlide === false) return failureOutcome('SLIDE_CHANGED')\n", ''), hookChecks],
-  ['hook: a stale frame is written anyway', M(HOOK, "      if (!mutation.isCurrent()) return failureOutcome('SLIDE_CHANGED')\n      // The bridge", "      // The bridge"), hookChecks],
+  ['hook: the identity read at Replace is skipped', M(HOOK, "try { order = readCurrentSlide(await now.send(mutation.iframe, REPLACE_PICTURE_ORDER_COMMAND, {}, { timeoutMs: 5000 })) }", "try { order = readCurrentSlide(null) }"), slideIdentityChecks],
+  ['hook: the rail\'s slide id is sent', M(HOOK, 'slideId: order.slideId, url: form.url', 'slideId: latest.current.railSlideId, url: form.url'), slideIdentityChecks],
+  ['hook: no slide id is sent', M(HOOK, 'slideId: order.slideId, url: form.url', 'url: form.url'), slideIdentityChecks],
+  ['hook: the visual position is sent as the stored index (REVIEW-1\'s P2)', M(HOOK, '{ slideIndex: order.layoutIndex, slideId: order.slideId,', '{ slideIndex: visualIndex, slideId: order.slideId,'), slideIdentityChecks],
+  ['hook: the visual position is sent as the stored index (and it stays the rail\'s count)', M(HOOK, '{ slideIndex: order.layoutIndex, slideId: order.slideId,', '{ slideIndex: now.currentSlide - 1, slideId: order.slideId,'), slideIdentityChecks],
+  ['hook: progress is read for the visual position', M(HOOK, 'createProgressTracker(order.layoutIndex)', 'createProgressTracker(visualIndex)'), slideIdentityChecks],
+  ['hook: the eligibility is read by the visual position', M(HOOK, "readSlideEligibility(catalog, slide.state === 'slide' ? slide.layoutIndex : -1)", 'readSlideEligibility(catalog, slideIndex)'), slideIdentityChecks],
+  ['hook: the eligibility is read for stored slide 0 only', M(HOOK, "readSlideEligibility(catalog, slide.state === 'slide' ? slide.layoutIndex : -1)", 'readSlideEligibility(catalog, 0)'), hookChecks],
+  ['hook: a read of another slide is taken for this one', M(HOOK, "const moved = order.state !== 'unknown' && order.visualIndex !== slideIndex", 'const moved = false'), slideIdentityChecks],
+  ['hook: the order is not read up front', M(HOOK, "{ timeoutMs: 5000 })).then(readCurrentSlide).catch(", "{ timeoutMs: 5000 })).then(() => ({ state: 'unknown' } as CurrentSlide)).catch("), slideIdentityChecks],
+  ['hook: a placeholder on screen does not grey the button', M(HOOK, "    placeholderOnScreen: slide.state === 'placeholder',\n", "    placeholderOnScreen: false,\n"), slideIdentityChecks],
+  ['hook: the id the dialog was bound to is not checked', M(HOOK, "      if (typeof target.slideId === 'string' && target.slideId !== order.slideId) return failureOutcome('SLIDE_CHANGED')\n", ''), slideIdentityChecks],
+  ['hook: a placeholder where the slide was is written anyway', M(HOOK, "if (order.visualIndex !== visualIndex || order.state !== 'slide') return failureOutcome('SLIDE_CHANGED')", "if (order.visualIndex !== visualIndex) return failureOutcome('SLIDE_CHANGED')"), slideIdentityChecks],
+  ['hook: a viewer that moved is written anyway', M(HOOK, "if (order.visualIndex !== visualIndex || order.state !== 'slide') return failureOutcome('SLIDE_CHANGED')", "if (order.state !== 'slide') return failureOutcome('SLIDE_CHANGED')"), hookChecks],
+  ['hook: an order that cannot be read is written anyway', M(HOOK, "      if (order.state === 'unknown') return failureOutcome('VIEWER_UNAVAILABLE')\n", ''), hookChecks],
+  ['hook: the reason is not checked again when Replace is pressed', M(HOOK, '    if (reasonNow.current !== null) return unavailableOutcome(reasonNow.current)\n', ''), slideIdentityChecks],
+  ['hook: the reason Replace honours is never the latest', M(HOOK, '  reasonNow.current = shownReason\n', ''), slideIdentityChecks],
+  ['hook: Replace refused for a reason answers busy', M(HOOK, 'return unavailableOutcome(reasonNow.current)', "return failureOutcome('BUSY')"), slideIdentityChecks],
+  ['hook: the slide the dialog was opened for is not compared with the one on screen', M(HOOK, "    if (now.currentSlide !== target.slideNumber) return failureOutcome('SLIDE_CHANGED')\n", ''), slideIdentityChecks],
+  ['hook: a job that starts or ends does not read again', M(HOOK, '[live, busy, key, slideIndex, jobsKey])', '[live, busy, key, slideIndex])'), slideIdentityChecks],
+  ['hook: the dialog is not told the slide\'s id', M(HOOK, "    slideId: slide.state === 'slide' ? slide.slideId : null,\n", '    slideId: null,\n'), slideIdentityChecks],
+  ['hook: a stale frame is written anyway', M(HOOK, "      if (!mutation.isCurrent()) return failureOutcome('SLIDE_CHANGED')\n      // no order, no slide to name", "      // no order, no slide to name"), hookChecks],
   ['hook: the busy state is never taken', M(HOOK, "    const mutation = now.begin('picture replacement')\n    if (!mutation) return failureOutcome('BUSY')", "    const mutation = { iframe: now.getIframe(), isCurrent: () => true, release: () => {} }"), hookChecks],
   ['hook: the busy state is not released', M(HOOK, '    } finally {\n      mutation.release()\n    }', '    } finally {\n    }'), hookChecks],
   ['hook: the reply listener is left on', M(HOOK, "      } finally {\n        window.removeEventListener('message', watch)\n      }", '      } finally {\n      }'), hookChecks],
   ['hook: any message is taken for the reply or for progress', M(HOOK, "if (!data || typeof data !== 'object' || !now.isTrustedReply(event, frame)) return", "if (!data || typeof data !== 'object') return"), hookChecks],
   ['hook: progress is taken for the reply', M(HOOK, "if (data.action === REPLACE_PICTURE_COMMAND) { reply = data; return }", "if (data.action === REPLACE_PICTURE_COMMAND || data.progress === true) { reply = data; return }"), hookChecks],
   ['hook: progress is not passed on', M(HOOK, "        if (stage !== null) options?.onProgress?.(stage)\n", ''), hookChecks],
-  ['hook: progress is read for slide 1 only', M(HOOK, "const progress = createProgressTracker(index)", "const progress = createProgressTracker(0)"), hookChecks],
+  ['hook: progress is read for slide 1 only', M(HOOK, "const progress = createProgressTracker(order.layoutIndex)", "const progress = createProgressTracker(0)"), hookChecks],
   ['hook: every progress event is passed on', M(HOOK, "        const stage = progress.accept(data)\n        if (stage !== null) options?.onProgress?.(stage)", "        const stage = (data as { stage?: ReplacePictureStage }).stage ?? null\n        if (stage !== null) options?.onProgress?.(stage)"), hookChecks],
-  ['hook: the report is read for slide 1 only', M(HOOK, "readSlideEligibility(reply, slideIndex)", "readSlideEligibility(reply, 0)"), hookChecks],
-  ['hook: a failed read greys the slide', M(HOOK, ".catch((): SlideEligibility => ({ state: 'unknown' }))", ".catch((): SlideEligibility => ({ state: 'absent' }))"), hookChecks],
+  ['hook: a failed catalog read greys the slide', M(HOOK, ".catch((): unknown => null)", ".catch((): unknown => ({}))"), hookChecks],
   ['hook: the target is not offered', M(HOOK, "    target: eligibility.state === 'known' ? eligibility.target : null,\n", "    target: null,\n"), hookChecks],
-  ['hook: an answer for another slide is used', M(HOOK, "      .then(value => { if (!cancelled) setEligibilityRead({ key, value }) })", "      .then(value => { setEligibilityRead({ key: `${latest.current.presentationId ?? ''}\\u0000${latest.current.currentSlide}`, value }) })"), hookChecks],
+  ['hook: an answer for another slide is used', M(HOOK, "      if (!cancelled) setSlideRead({ key, slide, eligibility })", "      setSlideRead({ key: `${latest.current.presentationId ?? ''}\\u0000${latest.current.currentSlide}`, slide, eligibility })"), hookChecks],
   ['hook: the reply message is not read', M(HOOK, 'observed: () => reply }', 'observed: () => null }'), hookChecks],
   ['hook: the rail is refreshed after a failure', M(HOOK, '      if (outcome.ok || outcome.stored) { if (mutation.isCurrent()) latest.current.afterReplace() }', '      if (true) { if (mutation.isCurrent()) latest.current.afterReplace() }'), hookChecks],
   ['hook: a stored picture does not refresh the rail', M(HOOK, '      if (outcome.ok || outcome.stored) {', '      if (outcome.ok) {'), hookChecks],
@@ -881,6 +1119,10 @@ const MUTANTS = [
   ['control: the description ignores the target', M(CONTROL, 'REPLACE_PICTURE_TARGET_WORDS[target.pictureTarget ?? "unknown"]', 'REPLACE_PICTURE_TARGET_WORDS.hero_slot'), controlChecks],
   ['control: the trigger is not disabled', M(CONTROL, '          disabled={blocked}\n', ''), controlChecks],
   ['control: the reason is not a tab stop', M(CONTROL, '<StudioDisabledReason reason={reason} label="Replace picture"', '<StudioDisabledReason reason={null} label="Replace picture"'), controlChecks],
+  ['control: the dialog does not bind the slide\'s id when it opens', M(CONTROL, '    setTarget({ slideNumber, slideTitle, pictureTarget, slideId })\n', '    setTarget({ slideNumber, slideTitle, pictureTarget, slideId: null })\n'), controlChecks],
+  ['control: Replace names the slide on screen now', M(CONTROL, 'await onReplace({ slideNumber: target.slideNumber, slideId: target.slideId }, {', 'await onReplace({ slideNumber, slideId }, {'), controlChecks],
+  ['control: Replace names no id', M(CONTROL, 'await onReplace({ slideNumber: target.slideNumber, slideId: target.slideId }, {', 'await onReplace({ slideNumber: target.slideNumber }, {'), controlChecks],
+  ['control: Enter sends in the failed dialog', M(CONTROL, '    if (!submitAllowed(phase, outcome)) return', '    if (phase === "running") return'), controlChecks],
   ['control: it stores the link', M(CONTROL, '    setUrl("")\n    setAlt("")\n', '    localStorage.setItem("u", url)\n    setAlt("")\n'), controlChecks],
   // the viewer's lines
   ['viewer: the flag alone enables it (no shell)', M(VIEWER, 'enabled: STUDIO_REPLACE_SLIDE_PICTURE_ENABLED && studioShell,', 'enabled: STUDIO_REPLACE_SLIDE_PICTURE_ENABLED,'), viewerChecks],
@@ -888,6 +1130,7 @@ const MUTANTS = [
   ['viewer: the page\'s busy rule is dropped', M(VIEWER, 'studioBusy: Boolean(studioFormatBusy),', 'studioBusy: false,'), viewerChecks],
   ['viewer: it sends outside the bridge', M(VIEWER, ' send: sendCommand,', ' send: (frame, action, params) => frame!.contentWindow!.postMessage({ action, params }, "*") as never,'), viewerChecks],
   ['viewer: the control is not told the target', M(VIEWER, ' pictureTarget={replacePicture.target}', ''), viewerChecks],
+  ['viewer: the control is not told the slide\'s id', M(VIEWER, ' slideId={replacePicture.slideId}', ''), viewerChecks],
   ['viewer: sendCommand settles on a progress event', M(VIEWER, "        : event.data?.action === action && (options.requireRequestId", "        : (event.data?.action === action || event.data?.progress === true) && (options.requireRequestId"), bridgeChecks],
   ['viewer: sendCommand settles on a progress event (the byte pin)', M(VIEWER, "        : event.data?.action === action && (options.requireRequestId", "        : (event.data?.action === action || event.data?.progress === true) && (options.requireRequestId"), viewerChecks],
   ['router: the allow-list gains the progress type', { [ROUTER]: swap(TEXT[ROUTER], "export function isLayoutViewerEvent(type: string): boolean {\n  return LAYOUT_VIEWER_EVENTS.has(type)", "export function isLayoutViewerEvent(type: string): boolean {\n  return LAYOUT_VIEWER_EVENTS.has(type) || type === 'setSlideBackgroundPictureProgress'") }, viewerChecks],
@@ -909,9 +1152,18 @@ await mutant('sources: the env block is edited', () => sourceChecks({ ...TEXTS, 
 await mutant('sources: a css rule reaches outside the dialog', () => sourceChecks({ ...TEXTS, [CSS]: `${TEXTS[CSS]}\nbutton { color: red; }\n` }))
 await mutant('sources: the registry line is gone', () => registryChecks(swap(TEXTS[REGISTRY], "  (await import('./studio-replace-picture-strip.mjs')).stripReplacePicture, // LATER-CHANGE: FRONTEND-1, M10 Replace picture (NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE)\n", '')))
 await mutant('scope: a stray file', () => scopeCheck(ownCommits(), ['components/builder/message-list.tsx']))
+// (the needles are joined at run time: written whole they would also match these very lines, and a swap needs exactly one match)
+const verdictLine = (...parts) => parts.join('')
+await mutant('proof: nothing ran is a pass', () => verdictChecks(swap(read(SELF), verdictLine('  if (passed === 0 ', '&& failed === 0) return { code: 1,'), '  if (false) return { code: 1,')))
+await mutant('proof: a failed check is a pass', () => verdictChecks(swap(read(SELF), verdictLine('  if (failed > 0 ', '|| missed > 0) return'), '  if (missed > 0) return')))
+await mutant('proof: a missed mutant is a pass', () => verdictChecks(swap(read(SELF), verdictLine('  if (failed > 0 ', '|| missed > 0) return'), '  if (failed > 0) return')))
+await mutant('proof: a run where every check failed is reported as nothing ran', () => verdictChecks(swap(read(SELF), verdictLine('  if (passed === 0 ', '&& failed === 0) return { code: 1,'), '  if (passed === 0) return { code: 1,')))
 await mutant('commit: no co-author line', () => assert.deepEqual(messageProblems(`${SUBJECT} x`, 'a body\n'), []))
 await mutant('commit: another subject', () => assert.deepEqual(messageProblems('Fix a thing', 'Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n'), []))
 
 console.log(`\n${passed} checks passed, ${failed.length} failed; ${caught} mutants caught, ${missed.length} missed`)
-if (failed.length || missed.length) { if (failed.length) console.error(`FAILED: ${failed.join('; ')}`); if (missed.length) console.error(`MISSED: ${missed.join('; ')}`); process.exit(1) }
-process.exit(0)
+if (failed.length) console.error(`FAILED: ${failed.join('; ')}`)
+if (missed.length) console.error(`MISSED: ${missed.join('; ')}`)
+const verdict = proofVerdict({ passed, failed: failed.length, missed: missed.length })
+if (verdict.message) console.error(verdict.message)
+process.exit(verdict.code)

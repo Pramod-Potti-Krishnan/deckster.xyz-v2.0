@@ -16,8 +16,9 @@
 // A timeout is the one answer that cannot say whether the picture was stored, and its words say that.
 //
 // WHEN IT IS OFF (the button is greyed with the reason): a build or a regenerate runs (Layout has no notion of a build, writes only queue behind each other, so Studio, which knows, disables the action), another
-// slide change or an open element panel is busy, the tab is paused, Template Mode is on, the deck is read-only (a view-only frame, the outline preview, or a deck Layout just refused as read-only), or LAYOUT SAYS THE SLIDE
-// CANNOT TAKE A PICTURE (below). A slide Layout does not list, or a read that failed, stays available: the route still decides at click time (SLIDE_CHANGED and the others stay mapped).
+// slide change or an open element panel is busy, the tab is paused, Template Mode is on, the deck is read-only (a view-only frame, the outline preview, or a deck Layout just refused as read-only), the slide on screen is an Add Slide placeholder (WHICH SLIDE, above),
+// or LAYOUT SAYS THE SLIDE CANNOT TAKE A PICTURE (below). A slide Layout does not list, or a read that failed, stays available: the route still decides at click time (SLIDE_CHANGED and the others stay mapped). The same reasons are checked again when Replace is pressed
+// (a state that arose while the dialog was open: NOT_AVAILABLE, with the reason's own words, nothing sent).
 //
 // LAYOUT !296 FOLLOW-UP (eligibility up front, progress). getTemplateSlotCatalog, the read this hook already makes for each slide, now answers (only on an edit page with Layout's flag on) backgroundPicture { enabled: true,
 // slides: [{ slide_index, slide_id, eligible, reason: null | NO_BACKGROUND_PICTURE | PICTURE_DECLINED | VIEW_ONLY_PAGE, target: hero_slot | slide_background }] }, one entry per slide, by the route's own rules. Per slide: eligible, the
@@ -27,6 +28,12 @@
 // {type: setSlideBackgroundPictureProgress, command, progress: true, stage: saving | writing | repainting, slide_index, commandRequestId} as each stage starts, with NO action and NO requestId key, so the bridge (which settles
 // on the first message whose action matches) never takes one for the reply. The hook watches them (same trusted-origin check as the reply watch) and the dialog shows the stage in words. The id the bridge sends with the
 // command is not visible to the hook, so a run is bound to the commandRequestId of its first "saving" event (the first thing a run that passes Layout's input checks posts) and later events must carry the same id.
+//
+// WHICH SLIDE (REVIEW-1's P2 on #636). The viewer's slide number is its VISUAL position, which counts an Add Slide placeholder (a build in progress, or a failed job's error card that stays in the deck); the stored slide_index Layout's command takes
+// counts real slides only. composeGetState lists the real slides only, each with its visual_index and its layout_index, and the placeholders apart, so the slide on screen is the entry whose visual_index is the viewer's current_visual_index: ITS layout_index
+// is the slide_index sent, ITS slide_id the id sent, and ITS layout_index picks the eligibility entry (readCurrentSlide). A placeholder on screen has no stored slide: the button is greyed. The dialog is bound to the slide's id when it opens, and Replace reads
+// the order again and refuses with SLIDE_CHANGED (nothing sent) when the viewer moved or the id under that visual position is not the bound one. Unlike parseStudioNativeSlideOrder (lib/studio-native-slide-order.ts), which refuses any deck that holds a
+// placeholder and so would grey every slide for as long as a failed job's card stays, this reader takes the same receipt (the same success / action / count / index / id checks) and accepts placeholders.
 //
 // IMPORT-FREE BY DESIGN: scripts/test-studio-replace-picture.mjs transpiles this file into a bare vm context.
 
@@ -59,7 +66,7 @@ export const LAYOUT_PICTURE_CODES = [
 export type LayoutPictureCode = typeof LAYOUT_PICTURE_CODES[number]
 
 /** What Studio itself can say when no Layout code came back. */
-export const STUDIO_PICTURE_CODES = ['TIMED_OUT', 'LAYOUT_SWITCH_OFF', 'BUSY', 'UNKNOWN'] as const
+export const STUDIO_PICTURE_CODES = ['TIMED_OUT', 'LAYOUT_SWITCH_OFF', 'BUSY', 'NOT_AVAILABLE', 'UNKNOWN'] as const
 export type StudioPictureCode = typeof STUDIO_PICTURE_CODES[number]
 export type ReplacePictureCode = LayoutPictureCode | StudioPictureCode
 
@@ -88,6 +95,8 @@ export const REPLACE_PICTURE_WORDS: Record<ReplacePictureCode, string> = {
   TIMED_OUT: 'The slide view did not answer in 20 seconds. The picture may or may not have been saved. Reload the deck to check, then try again if it is not there.',
   LAYOUT_SWITCH_OFF: 'Replacing a picture is not turned on for this server yet. Nothing changed.',
   BUSY: 'Studio is finishing another change. Try again in a moment.',
+  // the default words; when Replace finds the action off, the outcome carries the reason's own words (unavailableOutcome)
+  NOT_AVAILABLE: 'Replace picture is not available for this slide right now. Nothing changed.',
   UNKNOWN: 'The picture could not be replaced. Try again in a moment, and reload the deck if it keeps happening.',
 }
 
@@ -97,7 +106,7 @@ const RELOAD_CODES: ReadonlySet<ReplacePictureCode> = new Set<ReplacePictureCode
 ])
 /** Codes after which writing the same picture again cannot help: it is stored already, or this deck / slide / server will refuse it again. */
 const NO_RETRY_CODES: ReadonlySet<ReplacePictureCode> = new Set<ReplacePictureCode>([
-  'REPAINT_FAILED', 'READ_ONLY_SNAPSHOT', 'VIEW_ONLY_PAGE', 'NOT_AUTHORIZED', 'NO_BACKGROUND_PICTURE', 'PICTURE_DECLINED', 'LAYOUT_SWITCH_OFF', 'ROUTE_UNAVAILABLE',
+  'REPAINT_FAILED', 'READ_ONLY_SNAPSHOT', 'VIEW_ONLY_PAGE', 'NOT_AUTHORIZED', 'NO_BACKGROUND_PICTURE', 'PICTURE_DECLINED', 'LAYOUT_SWITCH_OFF', 'ROUTE_UNAVAILABLE', 'NOT_AVAILABLE',
 ])
 /** Codes that say this deck cannot be edited at all: the button then stays off for this deck. */
 const READ_ONLY_CODES: ReadonlySet<ReplacePictureCode> = new Set<ReplacePictureCode>(['VIEW_ONLY_PAGE', 'READ_ONLY_SNAPSHOT'])
@@ -195,6 +204,11 @@ export function failureOutcome(code: ReplacePictureCode, stored = code === 'REPA
   return { ok: false, code, words: REPLACE_PICTURE_WORDS[code], stored, reload: RELOAD_CODES.has(code), retry: !NO_RETRY_CODES.has(code) }
 }
 
+/** The outcome of a Replace that finds the action off when it is pressed (the reason that greys the button, found true now): that reason's own words, nothing sent, and no Try again (the button says when it is back). */
+export function unavailableOutcome(reason: string): ReplacePictureOutcome {
+  return { ...failureOutcome('NOT_AVAILABLE'), words: typeof reason === 'string' && reason !== '' ? reason : REPLACE_PICTURE_WORDS.NOT_AVAILABLE }
+}
+
 function record(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
 }
@@ -242,9 +256,17 @@ export async function runReplacePicture(deps: ReplacePictureDeps, input: { slide
   try {
     return outcomeFromReply(await deps.send(REPLACE_PICTURE_COMMAND, { ...built.params }, { timeoutMs: REPLACE_PICTURE_TIMEOUT_MS }))
   } catch (failure) {
-    const { code, stored } = readReplacePictureFailure(failure, deps.observed?.() ?? null)
+    // A bridge timeout means no reply for THIS run arrived. A reply the watch holds then is an earlier run's, landing late (the watch hears every trusted reply of the command's action): ignored, so it is never read as this run's.
+    const { code, stored } = readReplacePictureFailure(failure, isTimeoutFailure(failure) ? null : deps.observed?.() ?? null)
     return failureOutcome(code, stored)
   }
+}
+
+/** The bridge's own timeout (sendCommand rejects with Error('Command timeout')). */
+export function isTimeoutFailure(failure: unknown): boolean {
+  const own = record(failure)
+  const message = typeof own?.message === 'string' ? own.message : typeof failure === 'string' ? failure : ''
+  return /command timeout/i.test(message)
 }
 
 // ---------------------------------------------------------------- which slide, and when the action is off
@@ -336,15 +358,53 @@ export function createProgressTracker(slideIndex: number): ReplacePictureProgres
   }
 }
 
-/** The id of the slide at `index` and whether the viewer is on it, read from a composeGetState reply (the strict reading the slide mutations use is not needed: only the ids and the current index are). */
-export function slideIdentityFromOrder(reply: unknown, index: number): { slideId: string | null; onSlide: boolean | null } {
-  const value = record(reply)
-  const slides = value && value.success === true && Array.isArray(value.slides) ? value.slides : null
-  if (!slides) return { slideId: null, onSlide: null }
-  const entry = record(slides[index])
-  const slideId = entry && typeof entry.slide_id === 'string' && entry.slide_id !== '' ? entry.slide_id : null
-  const current = value && Number.isInteger(value.current_visual_index) ? value.current_visual_index as number : null
-  return { slideId, onSlide: current === null ? null : current === index }
+/** What the viewer's own order (composeGetState) says is on screen. */
+export type CurrentSlide =
+  /** A real slide: its place on screen (the viewer's visual position, which counts placeholders), its place among the real slides (the stored index Layout's command takes), and its id. */
+  | { state: 'slide'; visualIndex: number; layoutIndex: number; slideId: string }
+  /** An Add Slide placeholder (a build in progress, or a failed job's error card): there is no stored slide on screen to change. */
+  | { state: 'placeholder'; visualIndex: number }
+  /** A read that failed, or a receipt that is not an identity-bearing composeGetState answer or does not add up: nothing is known about the slide on screen. */
+  | { state: 'unknown' }
+
+const ORDER_UNKNOWN: CurrentSlide = { state: 'unknown' }
+
+function validSlideId(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value === value.trim()
+}
+
+/**
+ * The slide on screen, from a composeGetState reply as Layout's viewer builds it (viewer/presentation-viewer.html handleComposeGetState): `slides` holds the REAL slides only, each with its visual_index (the place on screen, placeholders
+ * counted), its layout_index (the place among the real slides, which is the stored slide_index) and its slide_id; `placeholders` lists the Add Slide placeholders apart; `current_visual_index` is where the viewer is. The slide on screen is the entry
+ * whose visual_index IS current_visual_index; when none is, a placeholder there is `placeholder`. The receipt is read as strictly as parseStudioNativeSlideOrder reads it (success, the composeGetState action, the counts, each real slide's layout_index
+ * in order, a valid and unique slide_id on every real slide, visual positions that do not collide), except that placeholders are accepted; anything that does not add up is `unknown`.
+ */
+export function readCurrentSlide(receipt: unknown): CurrentSlide {
+  const value = record(receipt)
+  if (!value || value.success !== true || value.action !== 'composeGetState' || !Array.isArray(value.slides) || !Array.isArray(value.placeholders)) return ORDER_UNKNOWN
+  const slides = value.slides, placeholders = value.placeholders
+  const total = slides.length + placeholders.length
+  const current = value.current_visual_index
+  if (value.real_slide_count !== slides.length || value.visual_section_count !== total || value.total_visual_sections !== total) return ORDER_UNKNOWN
+  if (!Number.isSafeInteger(current) || (current as number) < 0) return ORDER_UNKNOWN // (a position past the end names no slide and no placeholder: unknown below)
+  const visuals = new Set<number>(), ids = new Set<string>()
+  let found: CurrentSlide = ORDER_UNKNOWN
+  for (let layoutIndex = 0; layoutIndex < slides.length; layoutIndex += 1) {
+    const slide = record(slides[layoutIndex])
+    if (!slide || slide.layout_index !== layoutIndex || !Number.isSafeInteger(slide.visual_index) || (slide.visual_index as number) < 0 || (slide.visual_index as number) >= total
+      || visuals.has(slide.visual_index as number) || !validSlideId(slide.slide_id) || ids.has(slide.slide_id)) return ORDER_UNKNOWN
+    visuals.add(slide.visual_index as number); ids.add(slide.slide_id)
+    if (slide.visual_index === current) found = { state: 'slide', visualIndex: current as number, layoutIndex, slideId: slide.slide_id }
+  }
+  let onPlaceholder = false
+  for (const raw of placeholders) {
+    const placeholder = record(raw)
+    if (!placeholder || !Number.isSafeInteger(placeholder.visual_index) || (placeholder.visual_index as number) < 0 || (placeholder.visual_index as number) >= total || visuals.has(placeholder.visual_index as number)) return ORDER_UNKNOWN
+    visuals.add(placeholder.visual_index as number)
+    if (placeholder.visual_index === current) onPlaceholder = true
+  }
+  if (found.state === 'slide') return found
+  return onPlaceholder ? { state: 'placeholder', visualIndex: current as number } : ORDER_UNKNOWN
 }
 
 export const REPLACE_PICTURE_REASONS = {
@@ -357,6 +417,7 @@ export const REPLACE_PICTURE_REASONS = {
   busy: 'Studio is busy with another change. Replace picture is available when it finishes.',
   mutating: 'Another slide change is in progress. Replace picture is available when it finishes.',
   loading: 'The slide is still loading.',
+  placeholder: 'This slide has not been built yet. Replace picture works on a finished slide.',
   checking: 'Checking this slide.',
   notEligible: 'Replace picture is not available for this slide.',
   // Layout reports nothing about which slides can take a picture (its flag is off, or it is an older Layout): the table's LAYOUT_SWITCH_OFF sentence, as said before any click
@@ -380,6 +441,8 @@ export interface ReplacePictureAvailability {
   studioBusy: boolean
   /** A native slide change (add, duplicate, delete, reorder, layout, or this one) is in flight. */
   mutationPending: boolean
+  /** The slide on screen is an Add Slide placeholder (a build in progress, or a failed job's error card), which is not a stored slide (readCurrentSlide). */
+  placeholderOnScreen?: boolean
   /** What Layout says about the slide on screen (readSlideEligibility): not read yet, no report at all, a report that does not list it, or its answer. */
   eligibility: SlideEligibility
 }
@@ -395,6 +458,7 @@ export function replacePictureDisabledReason(a: ReplacePictureAvailability): str
   if (a.studioBusy) return REPLACE_PICTURE_REASONS.busy
   if (a.mutationPending) return REPLACE_PICTURE_REASONS.mutating
   if (!a.deckOpen || !a.viewerReady) return REPLACE_PICTURE_REASONS.loading
+  if (a.placeholderOnScreen) return REPLACE_PICTURE_REASONS.placeholder
   if (a.eligibility.state === 'absent') return REPLACE_PICTURE_REASONS.notOnYet
   if (a.eligibility.state === 'known' && !a.eligibility.eligible) return a.eligibility.reason === null ? REPLACE_PICTURE_REASONS.notEligible : upfrontWords(a.eligibility.reason)
   if (a.eligibility.state === 'loading') return REPLACE_PICTURE_REASONS.checking
@@ -416,4 +480,13 @@ export function refineBuildingOnSlide(
 /** A viewer URL that opens the deck view-only. */
 export function urlIsViewOnly(url: unknown): boolean {
   return typeof url === 'string' && /[?&]viewOnly=true(?:&|#|$)/i.test(url)
+}
+
+/**
+ * Whether the dialog's form may send (the Replace button, or Enter in a field). Not while a run is in flight, not once it is done, and in the failed phase only after an answer that offers Try again: after a code that says
+ * writing the same picture again cannot help (REPAINT_FAILED, where the picture is stored already: a second write), Enter must not send.
+ */
+export function submitAllowed(phase: 'form' | 'running' | 'done' | 'failed', outcome: ReplacePictureOutcome | null): boolean {
+  if (phase === 'form') return true
+  return phase === 'failed' && outcome !== null && !outcome.ok && outcome.retry
 }

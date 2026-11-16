@@ -14,6 +14,7 @@ import {
   REPLACE_PICTURE_WORDS,
   checkPictureAlt,
   checkPictureUrl,
+  submitAllowed,
   type PictureTarget,
   type ReplacePictureOutcome,
   type ReplacePictureStage,
@@ -27,7 +28,9 @@ export interface ReplacePictureControlProps {
   slideTitle: string | null
   /** Where Layout says the picture goes on this slide (a title / section / closing slide's picture area, or the slide's background); null when it did not say. */
   pictureTarget?: PictureTarget | null
-  onReplace: (target: { slideNumber: number }, form: { url: string; alt: string }, options?: { onProgress?: (stage: ReplacePictureStage) => void }) => Promise<ReplacePictureOutcome>
+  /** Layout's id for the slide on screen, as the viewer's own order read it (null when it did not say): the dialog binds to it when it opens, and Replace refuses when the slide under that position is another one by then. */
+  slideId?: string | null
+  onReplace: (target: { slideNumber: number; slideId?: string | null }, form: { url: string; alt: string }, options?: { onProgress?: (stage: ReplacePictureStage) => void }) => Promise<ReplacePictureOutcome>
   /** Reload deck, offered after the answers that say so (the picture stored but not drawn, no answer in time). */
   onReloadDeck?: () => void
   /** The toolbar's own button classes, so the button looks like its neighbours. */
@@ -41,9 +44,10 @@ type Phase = "form" | "running" | "done" | "failed"
 /**
  * REPLACE-PICTURE (NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE): the "Replace picture" toolbar button and its dialog. The dialog takes an https picture link and an optional description, says what it is doing
  * while the viewer works (up to 20 seconds; the stage it has reached in words, from the viewer's own progress events), and ends in plain words: done (with a note when a picture that covered the slide was hidden), or the reason it did not work (lib/studio-replace-picture.ts
- * maps every Layout code). It never shows a raw message. The slide it was opened for is fixed when it opens, so moving about the deck cannot send the picture to another slide.
+ * maps every Layout code). It never shows a raw message. The slide it was opened for is fixed when it opens (its number, and Layout's id for it), so moving about the deck, or the deck changing under the dialog, cannot send the picture to another slide:
+ * Replace names both and the hook refuses (SLIDE_CHANGED) when the slide at that position is not the one the dialog was opened for.
  */
-export function ReplacePictureControl({ reason, slideNumber, slideTitle, pictureTarget = null, onReplace, onReloadDeck, buttonClassName, labelClassName, tooltipContainer }: ReplacePictureControlProps) {
+export function ReplacePictureControl({ reason, slideNumber, slideTitle, pictureTarget = null, slideId = null, onReplace, onReloadDeck, buttonClassName, labelClassName, tooltipContainer }: ReplacePictureControlProps) {
   const [open, setOpen] = useState(false)
   const [phase, setPhase] = useState<Phase>("form")
   const [url, setUrl] = useState("")
@@ -51,7 +55,7 @@ export function ReplacePictureControl({ reason, slideNumber, slideTitle, picture
   const [problem, setProblem] = useState<string | null>(null)
   const [altProblem, setAltProblem] = useState<string | null>(null)
   const [outcome, setOutcome] = useState<ReplacePictureOutcome | null>(null)
-  const [target, setTarget] = useState({ slideNumber, slideTitle, pictureTarget })
+  const [target, setTarget] = useState({ slideNumber, slideTitle, pictureTarget, slideId })
   const [stage, setStage] = useState<ReplacePictureStage | null>(null)
   const [seconds, setSeconds] = useState(0)
   const mounted = useRef(true)
@@ -70,7 +74,7 @@ export function ReplacePictureControl({ reason, slideNumber, slideTitle, picture
   }, [phase])
 
   const openDialog = () => {
-    setTarget({ slideNumber, slideTitle, pictureTarget })
+    setTarget({ slideNumber, slideTitle, pictureTarget, slideId })
     setUrl("")
     setAlt("")
     setProblem(null)
@@ -81,7 +85,7 @@ export function ReplacePictureControl({ reason, slideNumber, slideTitle, picture
   }
 
   const submit = async () => {
-    if (phase === "running") return
+    if (!submitAllowed(phase, outcome)) return // not while it runs, and not after an answer that says writing the same picture again cannot help (Enter in the failed dialog)
     const checkedUrl = checkPictureUrl(url)
     const checkedAlt = checkPictureAlt(alt)
     setProblem(checkedUrl.ok ? null : PICTURE_URL_PROBLEM_WORDS[checkedUrl.problem])
@@ -89,7 +93,7 @@ export function ReplacePictureControl({ reason, slideNumber, slideTitle, picture
     if (!checkedUrl.ok || !checkedAlt.ok) return
     setStage(null)
     setPhase("running")
-    const result = await onReplace({ slideNumber: target.slideNumber }, { url: checkedUrl.url, alt }, { onProgress: next => { if (mounted.current) setStage(next) } })
+    const result = await onReplace({ slideNumber: target.slideNumber, slideId: target.slideId }, { url: checkedUrl.url, alt }, { onProgress: next => { if (mounted.current) setStage(next) } })
     if (!mounted.current) return
     setOutcome(result)
     setPhase(result.ok ? "done" : "failed")
