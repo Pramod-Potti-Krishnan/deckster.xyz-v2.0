@@ -4,7 +4,7 @@
 // [has, was] pairs whose `was` is empty: putting each back gives the file at BASE_COMMIT byte for byte. The new files have no base text.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '3098f860cd97226d6405631bad870a9be5b52523' // origin/studio-v4-dev-preparation-code (#634 merged), the trunk this change sits on
+export const BASE_COMMIT = 'aa9a368576a1c137da32fb0f7353920a13d4bbd3' // origin/studio-v4-dev-preparation-code (#635 merged), the trunk this change sits on
 export const REPLACE_PICTURE_FLAGS = ["NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE"]
 export const REPLACE_PICTURE_MARKER = 'REPLACE-PICTURE'
 /** The marker as a WHOLE token: REPLACE-PICTURE is this change's; REPLACE-PICTURE-X and X-REPLACE-PICTURE are not. */
