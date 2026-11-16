@@ -224,6 +224,22 @@ export function useModelChoice(sessionId: string | null, options: UseModelChoice
     return outcome
   }, [])
 
+  // CHAT-PARITY-MORE (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS, default off, with NEXT_PUBLIC_STUDIO_CHAT_COMMANDS and NEXT_PUBLIC_STUDIO_CHAT_CLEAN): the model rows of the "/" menu (/model fast, /model reset, /model <work> <model>). The composer reaches this hook's state through ONE small bus
+  // (lib/studio-chat-parity-more.ts): this hook registers a getter of what the gauge reads and the saves it makes (lib/studio-chat-parity-more-model.ts), so every variant of the gauge is on it and a save from chat lands in the state the gauge draws. Flag off: null, and neither effect loads anything. // CHAT-PARITY-MORE
+  const chatParityMoreOn = process.env.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS === "true" && process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === "true" && process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === "true" // CHAT-PARITY-MORE
+  const chatParityMoreLive = useRef<import("@/lib/studio-chat-parity-more-model").ModelHookLive | null>(null) // CHAT-PARITY-MORE
+  const chatParityMoreMods = useRef<{ bus: typeof import("@/lib/studio-chat-parity-more"); model: typeof import("@/lib/studio-chat-parity-more-model") } | null>(null) // CHAT-PARITY-MORE: the bus and the model helper, once the gated effect below has loaded them
+  const chatParityMoreTask = useCallback((task: string, value: string) => chatParityMoreMods.current!.model.saveTaskChoice({ // CHAT-PARITY-MORE: the Intelligence page's per-kind-of-work save, on this hook's own state (the same setters select writes)
+    now: () => latest.current, busy, // CHAT-PARITY-MORE
+    put: (target, choices) => setLoaded(prior => (prior ? (target.kind === "deck" ? { ...prior, deck: choices } : { ...prior, user: choices }) : prior)), // CHAT-PARITY-MORE
+    storageFailed: () => setLoaded(prior => (prior ? { ...prior, storageOk: false } : prior)), // CHAT-PARITY-MORE
+    deckGone: why => setLoaded(prior => (prior ? { ...prior, deckState: why, deck: null } : prior)), // CHAT-PARITY-MORE
+    meta: () => setMeta({ mode: latest.current.runtime.store.mode(), reason: latest.current.runtime.store.reason() }), // CHAT-PARITY-MORE
+    saving: setSaving, feedback: setFeedback, unconfirmed: result => Boolean((result as { unconfirmed?: boolean }).unconfirmed), // CHAT-PARITY-MORE: the adapter sets `unconfirmed` only on its own version-refused path
+  }, task, value), []) // CHAT-PARITY-MORE
+  chatParityMoreLive.current = !chatParityMoreOn ? null : { ready: loaded !== null, scope: scope.kind, catalogue, state, userState, deckOwn, choices: scope.kind === "deck" ? (ownDeck ?? modelChoiceDefaults()) : userChoices, select, selectTask: chatParityMoreTask } // CHAT-PARITY-MORE
+  useEffect(() => { if (!chatParityMoreOn) return; let off: (() => void) | null = null; let live = true; void Promise.all([import("@/lib/studio-chat-parity-more"), import("@/lib/studio-chat-parity-more-model")]).then(([bus, model]) => { if (!live) return; chatParityMoreMods.current = { bus, model }; off = bus.registerMoreModel(() => (chatParityMoreLive.current ? model.modelPartOf(chatParityMoreLive.current) : null)) }); return () => { live = false; off?.() } }, [chatParityMoreOn]) // CHAT-PARITY-MORE
+  useEffect(() => { if (chatParityMoreOn) chatParityMoreMods.current?.bus.publishMoreModel() }, [chatParityMoreOn, loaded, scope.kind, catalogue]) // CHAT-PARITY-MORE: when what the bus shows can have changed (the kept choices, the scope, the catalogue: everything the live object derives from); the bus tells the composer only when the state it shows changed
   return {
     ready: loaded !== null,
     scope: scope.kind,

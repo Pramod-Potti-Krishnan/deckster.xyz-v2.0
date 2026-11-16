@@ -32,6 +32,7 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { BASE_COMMIT, P2_FILES, P2_NEW_FILES, P2_PAIRS, stripP2Publish } from './studio-p2-publish-strip.mjs'
 import { stripP2Polish } from './studio-p2-polish-strip.mjs'
+import { stripAuditConsole } from './studio-audit-console-strip.mjs' // LATER-CHANGES: registry read (AUDIT-CONSOLE)
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const BASE = process.env.P2_PUBLISH_BASE || BASE_COMMIT
@@ -368,10 +369,10 @@ function sameAsBase(rel, text, baseText) {
 
 function stripChecks(sources, base = baseSources) {
   for (const rel of P2_FILES) {
-    const stripped = stripP2Publish(rel, sources[rel])
+    const stripped = stripP2Publish(rel, stripAuditConsole(rel, sources[rel])) // LATER-CHANGES: registry read (AUDIT-CONSOLE): this change's lines (the layout's gated <Analytics />) come out first
     check(assert.ok, sameAsBase(rel, stripped, base[rel]), `${rel}: stripping this change gives back the base's file, byte for byte`)
     // every listed change is found exactly once, in the order it is put back
-    let text = sources[rel]
+    let text = stripAuditConsole(rel, sources[rel]) // LATER-CHANGES: registry read (AUDIT-CONSOLE): this change's lines come out before the listed changes are put back
     for (const [from, to] of P2_PAIRS[rel]) {
       check(assert.equal, text.split(from).length - 1, 1, `${rel}: one place for ${JSON.stringify(from.slice(0, 70))}`)
       check(assert.notEqual, from, to, `${rel}: a listed change changes something`)

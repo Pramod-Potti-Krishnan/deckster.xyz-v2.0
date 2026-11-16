@@ -20,8 +20,10 @@ import path from 'node:path'
 import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
+import { stripReplacePicture, REPLACE_PICTURE_FILES } from './studio-replace-picture-strip.mjs' // LATER-CHANGES: registry read (REPLACE-PICTURE): the Replace picture action (stacked after this change) marks lines in the viewer, the slide area and the Builder page; this proof reads them as the change before left them
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(repoRoot, file) : ''; return typeof out === 'string' && REPLACE_PICTURE_FILES.includes(rel) ? stripReplacePicture(rel, out) : out } } // LATER-CHANGES: registry read (REPLACE-PICTURE): every read of a file the Replace picture action marks goes through that change's own strip (never the whole registry), so this proof sees the file as the change before left it
 const treeRoot = process.env.TEMPLATE_WORKSPACE_ROOT ? path.resolve(process.env.TEMPLATE_WORKSPACE_ROOT) : repoRoot
 const readFrom = (root, file) => fs.existsSync(path.join(root, file)) ? fs.readFileSync(path.join(root, file), 'utf8') : null
 const FILES = {
@@ -115,6 +117,7 @@ function compile(expressionText, { call = false } = {}) {
     const proxy = new Proxy(scope, {
       has: (target, k) => typeof k === 'string' && (k in target || (/^[A-Z]/.test(k) && !(k in globalThis))),
       get: (target, k) => k === Symbol.unscopables ? undefined : k in target ? target[k] : String(k),
+      get: (target, k) => k === Symbol.unscopables ? undefined : k in target ? target[k] : /^[A-Z][A-Z0-9_]*$/.test(String(k)) ? undefined : String(k), // LATER-CHANGES: registry read (RESTACK-UX-PC): a duplicate key, the later one wins; a SCREAMING_CASE flag constant that this harness does not resolve reads as undefined (OFF), never as its own name (a truthy string)
     })
     return script.runInContext(vm.createContext({ __scope: proxy, console }))
   }

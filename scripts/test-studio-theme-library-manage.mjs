@@ -21,11 +21,14 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (BRAND-KIT-CALLER)
 const chatClean = await import('./studio-chat-clean-strip.mjs') // LATER-CHANGES: registry read (CHAT-CLEAN): the strip of the change stacked after this one, so its marked lines (chat clean's) come out first
 import { LIBRARY_MANAGE_ADDITIONS, THEME_HOOK, THEMES_WORKSPACE, TEMPLATES_WORKSPACE, ENV_FILE, LIBRARY_MANAGE_NEW_FILES, stripLibraryManage } from './studio-library-manage-strip.mjs'
 import { BASE_COMMIT, STACKED_P2_FILES, STACKED_PASS3_FILES, baseSource, createRuntime, deferred, flat, isBaseFile, jsxRuntime, loadSource, makeReader, plain, refuse, root, sha, text, tick } from './studio-library-manage-harness.mjs'
+import { stripChatParityMore, CHAT_PARITY_MORE_FILES } from './studio-chat-parity-more-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-MORE): the remaining slash commands (stacked after the workspace's) mark lines in the Knowledge, Themes and Templates files; this proof reads them as the workspace commands left them
 
 const here = fileURLToPath(import.meta.url)
+{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && CHAT_PARITY_MORE_FILES.includes(rel) ? stripChatParityMore(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-MORE): every read of a file the remaining commands touched is the file without their marked lines (that change's own strip, never the registry, before launch wording and the registry strip it)
 const FLAG = 'NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE'
 const LIB = 'lib/studio-library-manage.ts'
 const ROW = 'components/studio-libraries/library-manage.tsx'
@@ -56,7 +59,8 @@ const MUTATIONS = [
   { name: 'a failed rename shows no toast', file: ROW, from: "toast({ variant: 'destructive', title: 'Rename not saved', description: result.message })", to: '' },
   { name: 'window.confirm instead of the dialog', file: ROW, from: "onSelect={() => { setDeleteError(''); setConfirming(true) }}", to: "onSelect={() => { if (window.confirm('Delete?')) void confirmDelete() }}" },
 ]
-const read = makeReader(MUTATIONS, 'THEME_MANAGE_TEST_MUTATION')
+const readMutable = makeReader(MUTATIONS, 'THEME_MANAGE_TEST_MUTATION') // LATER-CHANGES: registry read (BRAND-KIT-CALLER)
+const read = rel => stripLaterChanges(rel, readMutable(rel)) // LATER-CHANGES: registry read (BRAND-KIT-CALLER): a later change's marked lines (the Brand Kit's, in the Themes page and the theme proxies) come out first
 
 if (process.argv.includes('--mutation-check')) {
   let caught = 0
@@ -89,6 +93,7 @@ const lib = loadSource(LIB_SOURCE, {}, { file: LIB })
     })
     walk(dir)
   }
+  { const later = (await import('./studio-later-changes.mjs')).LATER_CHANGE_FILES; reads.splice(0, reads.length, ...reads.filter(rel => !later.has(rel) || rel === THEMES_WORKSPACE)) } // LATER-CHANGES: registry read (CHAT-PARITY-MORE): a file a later change registers (the remaining commands' own acting-on-this-flag glue, components/builder/chat/studio-chat-parity-more.tsx) is that change's, not a reader of this change's flag; the files this proof names stay
   eq(reads.sort(), [THEMES_WORKSPACE].sort(), 'only the Themes workspace reads the flag (not the page, the row, the hook or the lib)')
   is(WORKSPACE_SOURCE.split(`process.env.${FLAG} === 'true'`).length - 1, 1, 'exact "true", read inline once')
   is(WORKSPACE_SOURCE.split(`process.env.${FLAG}`).length - 1, 1, 'and nowhere else in the file')

@@ -262,6 +262,7 @@ export function TemplateIngestDialog({ open, onOpenChange, isCurrent, canStart }
       if (!checkpoint.storagePath) {
         setPhase('uploading')
         setProgress(2)
+        if (process.env.NEXT_PUBLIC_STUDIO_UPLOAD_SESSION_TOKEN_ENABLED === 'true' && !checkpoint.sessionCreated) { const dbSession = await createSession(newSessionId, `Template: ${file.name}`); if (!live()) return; if (!dbSession) throw new Error('Failed to create a new builder session'); checkpoint.sessionCreated = true } // UPLOAD-SESSION-TOKEN (NEXT_PUBLIC_STUDIO_UPLOAD_SESSION_TOKEN_ENABLED, default off): the upload's session token is minted only for a chat session the caller owns, so the DB row comes first here, as in the composer and deck-import uploads (the same call and title as the step below, which then has nothing left to do). Off: the row is created after the upload, as before
         const uploadResult = await uploadFileToResearcher({
           sessionId: newSessionId,
           userId: user?.id ?? user?.email ?? 'anonymous',

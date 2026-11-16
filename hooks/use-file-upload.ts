@@ -6,6 +6,7 @@ import { UploadedFile } from '@/components/file-chip'
 import { validateFile } from '@/lib/file-validation'
 import { getKnowledgeServiceUrl, uploadConfig } from '@/lib/config'
 import { ingestStatusPollUrl, type IngestStatusPollIdentity } from '@/lib/researcher-ingest-status-auth'
+import { researcherUploadFetch, researcherUploadPollFetch } from '@/lib/upload-session-token' // UPLOAD-SESSION-TOKEN (NEXT_PUBLIC_STUDIO_UPLOAD_SESSION_TOKEN_ENABLED, default off): the session token on the four browser -> Researcher upload calls; off, each call is the plain fetch it was
 import {
   getEnrichmentLabel,
   resolveEnrichmentOutcome,
@@ -177,7 +178,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
       if (owner.researcherSessionId) return owner.researcherSessionId
       if (owner.researcherSessionPromise) return owner.researcherSessionPromise
       const pending = (async () => {
-        const response = await fetch(`${getResearcherBaseUrl()}/api/v1/sessions/create`, {
+        const response = await researcherUploadFetch(fetch, { sessionId: owner.sessionId, userId: owner.userId })(`${getResearcherBaseUrl()}/api/v1/sessions/create`, { // UPLOAD-SESSION-TOKEN
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -213,7 +214,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     }
 
     researcherSessionPromiseRef.current = (async () => {
-      const response = await fetch(`${getResearcherBaseUrl()}/api/v1/sessions/create`, {
+      const response = await researcherUploadFetch(fetch, { sessionId: currentSessionId, userId })(`${getResearcherBaseUrl()}/api/v1/sessions/create`, { // UPLOAD-SESSION-TOKEN
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -248,8 +249,9 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     researcherSessionId: string,
     file: File,
     contentType: string,
+    tokenOwner?: string | null, // UPLOAD-SESSION-TOKEN: the owner the upload sent to sessions/create (only its kind reaches the mint route)
   ): Promise<StorageUploadUrlResponse> => {
-    const response = await fetch(`${getResearcherBaseUrl()}/api/v1/files/storage-upload-url`, {
+    const response = await researcherUploadFetch(fetch, { sessionId: researcherSessionId, userId: tokenOwner })(`${getResearcherBaseUrl()}/api/v1/files/storage-upload-url`, { // UPLOAD-SESSION-TOKEN
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -293,8 +295,9 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     storagePath: string,
     file: File,
     contentType: string,
+    tokenOwner?: string | null, // UPLOAD-SESSION-TOKEN
   ): Promise<ProcessUploadedResponse> => {
-    const response = await fetch(`${getResearcherBaseUrl()}/api/v1/files/process-uploaded`, {
+    const response = await researcherUploadFetch(fetch, { sessionId: researcherSessionId, userId: tokenOwner })(`${getResearcherBaseUrl()}/api/v1/files/process-uploaded`, { // UPLOAD-SESSION-TOKEN
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -325,6 +328,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     owner?: UploadOwner,
     // Captured when the upload started (not re-read here), so polling another deck cannot change it.
     statusIdentity?: IngestStatusPollIdentity,
+    tokenSessionId?: string, // UPLOAD-SESSION-TOKEN: the job's own Researcher session (the token on the direct poll is for it)
   ): Promise<IngestStatusResponse> => {
     // Configuration is not a transient request failure. Refuse before sleeping
     // or entering the retry loop, while preserving the existing poll protocol.
@@ -347,7 +351,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
         // Flag NEXT_PUBLIC_RESEARCHER_INGEST_STATUS_AUTH_ENABLED (default off): on, the
         // poll goes through the same-origin route that attaches the owner-bound token;
         // off, this is the direct request it always was.
-        const response = await fetch(
+        const response = await researcherUploadPollFetch(fetch, { sessionId: tokenSessionId, userId: statusIdentity?.userId })( // UPLOAD-SESSION-TOKEN: the direct poll only; the same-origin proxy path is untouched
           ingestStatusPollUrl(researcherBaseUrl, jobId, statusIdentity),
           { signal: AbortSignal.timeout(POLL_REQUEST_TIMEOUT_MS) },
         )
@@ -511,7 +515,8 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
       const researcherSessionId = await ensureResearcherSession(owner)
       updateFile(fileId, { uploadProgress: 10 }, owner)
 
-      const uploadUrl = await requestStorageUploadUrl(researcherSessionId, file, contentType)
+      const uploadTokenOwner = STUDIO_UPLOAD_OWNERSHIP ? owner?.userId : userId // UPLOAD-SESSION-TOKEN: the owner this upload sends to sessions/create, as the poll identity below takes it
+      const uploadUrl = await requestStorageUploadUrl(researcherSessionId, file, contentType, uploadTokenOwner) // UPLOAD-SESSION-TOKEN
       updateFile(fileId, { uploadProgress: 25 }, owner)
 
       await putFileToStorage(uploadUrl.signed_url, file, contentType)
@@ -557,6 +562,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
           uploadUrl.storage_path,
           file,
           contentType,
+          uploadTokenOwner, // UPLOAD-SESSION-TOKEN
         )
       } catch (error) {
         const errorMessage = error instanceof Error
@@ -593,7 +599,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
         void pollIngestStatus(processResult.job_id, fileId, owner, {
           sessionId: currentSessionId,
           userId: STUDIO_UPLOAD_OWNERSHIP ? owner?.userId : userId,
-        })
+        }, researcherSessionId) // UPLOAD-SESSION-TOKEN: the job's own Researcher session, for the token on the direct poll
           .then(ingestResult => {
             const enrichment = resolveEnrichmentOutcome(ingestResult)
             const completedFile: UploadedFile = {

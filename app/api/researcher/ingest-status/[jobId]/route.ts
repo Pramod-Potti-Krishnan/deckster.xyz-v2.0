@@ -47,13 +47,18 @@ function refuse(code: string, status: number) {
  *  1. NextAuth: who the caller is (the account id from the session, never from the query).
  *  2. The chat session belongs to that caller (ChatSession.userId) and is not deleted.
  *  3. The Researcher session id comes from what the upload saved on that chat session
- *     (ChatSession.geminiStoreName), not from the browser and not assumed equal to the chat id.
+ *     (ChatSession.geminiStoreName), not assumed equal to the chat id. That saved name is NOT
+ *     server-chosen: POST /api/sessions/[id]/files stores the browser's value on the caller's
+ *     own chat, so steps 1 and 2 check the chat, not the name that is signed.
  *  4. The token's owner is one of the caller's OWN identities, chosen by `owner`: the
  *     e-mail (what uploads send today) or the account id (once uploads carry it). The
  *     value is read from the NextAuth session; a client cannot name an identity.
  * The Researcher then checks the job's session and that session's durable owner against
  * the token before it returns anything, so a job of another session or user is refused
- * there as well. This route never uses the service key.
+ * there as well. That check, with the token being used once, here, as the header of the
+ * single upstream request below (never returned, logged or sent to the browser), is what
+ * protects a session name the caller chose (REVIEW-1, #633: a session with no stored owner
+ * is refused too). This route never uses the service key.
  *
  * Dark: with NEXT_PUBLIC_RESEARCHER_INGEST_STATUS_AUTH_ENABLED off it answers 404 and
  * does nothing. With it on but no usable RESEARCHER_SESSION_TOKEN_SECRET it answers 503

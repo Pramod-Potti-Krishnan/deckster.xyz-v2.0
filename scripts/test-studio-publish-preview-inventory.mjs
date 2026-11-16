@@ -177,6 +177,7 @@ function buildWorld({ env = { [FLAG]: 'true' }, overrides = {}, routes = answers
   const component = load(COMPONENT, {
     react: runtime.react, 'react/jsx-runtime': { jsx: runtime.jsx, jsxs: runtime.jsx }, 'lucide-react': { ImageIcon: 'ImageIcon' },
     '@/lib/studio-publish-preview': resolver, '@/hooks/use-studio-publish-preview-inventory': hook,
+    '@/hooks/use-studio-publish-preview-frame': { useStudioPublishPreviewFrame: () => null }, '@/components/studio-publish-preview-frame': { PublishPreviewFrame: 'PublishPreviewFrame' }, // LATER-CHANGES: registry read (AUDIT-PREVIEWS): the component now imports the frame hook (flag off: null) and the frame
   }, globals, overrides)
   const element = props => runtime.jsx(component.StudioPublishPreview, props)
   return { runtime, calls, timers, layoutUrlCalls, lib, hook, rail, resolver, component, element, mount: props => ({ tree: runtime.render(element(props)), rerender: next => runtime.render(element(next)), settle: () => runtime.settle(), unmount: () => runtime.unmount() }) }
@@ -484,7 +485,7 @@ function stripChecks() {
     }
   })
   test('the base component is the only part of it that changed: the diff is one import and one call', () => {
-    const head = fs.readFileSync(path.join(root, COMPONENT), 'utf8').split('\n'), base = baseOf(COMPONENT).split('\n')
+    const head = stripLaterChanges(COMPONENT, fs.readFileSync(path.join(root, COMPONENT), 'utf8')).split('\n'), base = baseOf(COMPONENT).split('\n') // LATER-CHANGES: registry read (AUDIT-PREVIEWS): a later change's lines come out first
     assert.equal(head.length - base.length, 3)
     assert.equal(head.filter(line => !base.includes(line)).length, 4) // the import, `resolved`, the comment, the hook call
   })

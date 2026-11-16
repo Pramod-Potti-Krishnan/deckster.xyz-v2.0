@@ -25,8 +25,10 @@ import ts from 'typescript'
 import postcss from 'postcss'
 import { KG_ASK_ENV_FROM, KG_ASK_ENV_TO, KG_ASK_FILES, KG_ASK_PAGE_ADDED, stripKgAsk } from './studio-kg-ask-strip.mjs'
 import { stripApiHardening } from './studio-api-hardening-strip.mjs' // LATER-CHANGE: PROGRAM-1 API hardening (STUDIO_API_HARDENING_V1_ENABLED): its route lines come out before this pin reads them
+import { stripChatParityMore, CHAT_PARITY_MORE_FILES } from './studio-chat-parity-more-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-MORE): the remaining slash commands (stacked after the workspace's) mark lines in the Knowledge, Themes and Templates files; this proof reads them as the workspace commands left them
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
+{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(repoRoot, file) : ''; return typeof out === 'string' && CHAT_PARITY_MORE_FILES.includes(rel) ? stripChatParityMore(rel, out) : out } } // LATER-CHANGES: registry read (CHAT-PARITY-MORE): every read of a file the remaining commands touched is the file without their marked lines (that change's own strip, never the registry, before this proof's own strips read it)
 const BASE_COMMIT = process.env.KG_ASK_BASE || '1079ba4b7cd277ece7cc46ee7624d74419c3a5aa'
 const read = rel => stripApiHardening(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))
 const baseCache = new Map()

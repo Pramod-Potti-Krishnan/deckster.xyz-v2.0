@@ -1,0 +1,375 @@
+{
+  "_about": "The shared contract of the structured Agent frames (AGENT-1 D3, DIRECTOR_AGENT_FRAMES_ENABLED), the one file FRONTEND-2 copies into Studio. tests/test_agent_frames.py pins every builder in src/utils/agent_frames.py to it: the same key set, the same JSON types, and for each example the exact frame the builder makes from the example's own values. Director frames are {type, payload}; Studio's one answer is {type, data}. All amounts are credits (whole numbers, rounded up). A frame never carries a model, a provider, a currency, a token count, user text or any id except run_id (the run's trace id) and, in agent_done, the deck id.",
+  "version": 1,
+  "frames": {
+    "agent_estimate": {
+      "direction": "director_to_studio",
+      "when": "right after admission returned the run's reservation; est_credits is the cap until the Router supplies an estimate; expires_at is only sent when a start gate exists (D3 has none)",
+      "fields": {
+        "run_id": {
+          "type": "string",
+          "required": true
+        },
+        "est_credits": {
+          "type": "integer",
+          "required": true
+        },
+        "cap_credits": {
+          "type": "integer",
+          "required": true
+        },
+        "expires_at": {
+          "type": "string",
+          "required": false
+        }
+      },
+      "example": {
+        "type": "agent_estimate",
+        "payload": {
+          "run_id": "agr_0123456789ab",
+          "est_credits": 470,
+          "cap_credits": 600,
+          "expires_at": "2026-11-09T12:05:00Z"
+        }
+      }
+    },
+    "agent_step": {
+      "direction": "director_to_studio",
+      "when": "a planner step or a repair operation starts (running) or ends (done / failed), and when the run is paused, stopped or resumed (the last step again, with run_status)",
+      "fields": {
+        "run_id": {
+          "type": "string",
+          "required": true
+        },
+        "step": {
+          "type": "integer",
+          "required": true
+        },
+        "label": {
+          "type": "string",
+          "required": true
+        },
+        "step_state": {
+          "type": "string",
+          "required": false
+        },
+        "run_status": {
+          "type": "string",
+          "required": false
+        },
+        "credits_used": {
+          "type": "integer",
+          "required": false
+        },
+        "cap_credits": {
+          "type": "integer",
+          "required": false
+        }
+      },
+      "example": {
+        "type": "agent_step",
+        "payload": {
+          "run_id": "agr_0123456789ab",
+          "step": 4,
+          "label": "Rebuilding slide 4",
+          "step_state": "running",
+          "run_status": "running",
+          "credits_used": 340,
+          "cap_credits": 600
+        }
+      }
+    },
+    "agent_checkpoint": {
+      "direction": "director_to_studio",
+      "when": "card A3: the next operation would take the run past 80% of its cap and needs the person's consent",
+      "fields": {
+        "run_id": {
+          "type": "string",
+          "required": true
+        },
+        "card": {
+          "type": "string",
+          "required": true
+        },
+        "credits_used": {
+          "type": "integer",
+          "required": true
+        },
+        "more_credits": {
+          "type": "integer",
+          "required": true
+        },
+        "cap_credits": {
+          "type": "integer",
+          "required": true
+        },
+        "choices": {
+          "type": "string[]",
+          "required": true
+        }
+      },
+      "example": {
+        "type": "agent_checkpoint",
+        "payload": {
+          "run_id": "agr_0123456789ab",
+          "card": "A3",
+          "credits_used": 340,
+          "more_credits": 260,
+          "cap_credits": 600,
+          "choices": [
+            "continue",
+            "stop"
+          ]
+        }
+      }
+    },
+    "agent_research_offer": {
+      "direction": "director_to_studio",
+      "when": "card A4: the plan asks for deeper research than approved and needs the person's consent",
+      "fields": {
+        "run_id": {
+          "type": "string",
+          "required": true
+        },
+        "card": {
+          "type": "string",
+          "required": true
+        },
+        "slides": {
+          "type": "integer[]",
+          "required": true
+        },
+        "est_credits": {
+          "type": "integer",
+          "required": true
+        },
+        "choices": {
+          "type": "string[]",
+          "required": true
+        }
+      },
+      "example": {
+        "type": "agent_research_offer",
+        "payload": {
+          "run_id": "agr_0123456789ab",
+          "card": "A4",
+          "slides": [
+            3,
+            4,
+            5
+          ],
+          "est_credits": 40,
+          "choices": [
+            "add",
+            "skip"
+          ]
+        }
+      }
+    },
+    "agent_failed": {
+      "direction": "director_to_studio",
+      "when": "the run failed or was refused (card A6). reason is a CODE from reason_codes. fallback_credits is the priced fallback OFFER; D3 never sends it. A refusal before admission carries a fresh run_id of the same shape",
+      "fields": {
+        "run_id": {
+          "type": "string",
+          "required": true
+        },
+        "reason": {
+          "type": "string",
+          "required": true
+        },
+        "step": {
+          "type": "integer",
+          "required": false
+        },
+        "charged_credits": {
+          "type": "integer",
+          "required": true
+        },
+        "credited_back_credits": {
+          "type": "integer",
+          "required": true
+        },
+        "slides_kept": {
+          "type": "integer",
+          "required": false
+        },
+        "fallback_credits": {
+          "type": "integer",
+          "required": false
+        }
+      },
+      "example": {
+        "type": "agent_failed",
+        "payload": {
+          "run_id": "agr_0123456789ab",
+          "reason": "credit_cap",
+          "step": 7,
+          "charged_credits": 120,
+          "credited_back_credits": 0,
+          "slides_kept": 3,
+          "fallback_credits": 80
+        }
+      }
+    },
+    "agent_done": {
+      "direction": "director_to_studio",
+      "when": "after the deck and the completed run record were committed; slides is a COUNT of the slides built (a number, unlike agent_research_offer.slides)",
+      "fields": {
+        "run_id": {
+          "type": "string",
+          "required": true
+        },
+        "presentation_id": {
+          "type": "string",
+          "required": true
+        },
+        "slides": {
+          "type": "integer",
+          "required": true
+        },
+        "charged_credits": {
+          "type": "integer",
+          "required": true
+        }
+      },
+      "example": {
+        "type": "agent_done",
+        "payload": {
+          "run_id": "agr_0123456789ab",
+          "presentation_id": "deck-0123456789",
+          "slides": 12,
+          "charged_credits": 412
+        }
+      }
+    }
+  },
+  "answer": {
+    "direction": "studio_to_director",
+    "type": "agent_answer",
+    "fields": {
+      "run_id": {
+        "type": "string",
+        "required": true
+      },
+      "card": {
+        "type": "string",
+        "required": true
+      },
+      "choice": {
+        "type": "string",
+        "required": true
+      }
+    },
+    "example": {
+      "type": "agent_answer",
+      "data": {
+        "run_id": "agr_0123456789ab",
+        "card": "A3",
+        "choice": "continue"
+      }
+    },
+    "choices": {
+      "A1": [
+        "start",
+        "cancel"
+      ],
+      "A3": [
+        "continue",
+        "stop"
+      ],
+      "A4": [
+        "add",
+        "skip"
+      ],
+      "A6": [
+        "fallback",
+        "stop"
+      ]
+    },
+    "notes": {
+      "A1": "D3 has no start gate: start is acknowledged and nothing else; cancel is a Stop (build control).",
+      "A3": "continue records the spend consent and resumes the run; stop is a Stop.",
+      "A4": "add records the deeper-research consent and resumes the run; skip is a Stop (the run stays stopped and asks again on Resume).",
+      "A6": "D3 offers no fallback, so an A6 answer is never pending and is ignored.",
+      "ignored": "A run_id that is not the current run's, a card that is not open on it, or a choice the card does not take is ignored and never answered."
+    }
+  },
+  "step_states": [
+    "running",
+    "done",
+    "failed"
+  ],
+  "run_statuses": [
+    "running",
+    "paused",
+    "stopped"
+  ],
+  "step_labels": [
+    "Planning the build",
+    "Checking build guidance",
+    "Looking for a matching template",
+    "Reading the outline",
+    "Checking the credit budget",
+    "Choosing how to build",
+    "Researching your topic",
+    "Opening your deck",
+    "Applying the theme",
+    "Building slide {n}",
+    "Checking the slides",
+    "Rebuilding slide {n}",
+    "Researching in more depth"
+  ],
+  "reason_codes": [
+    "agent_error",
+    "ambiguous_pending",
+    "author_unavailable",
+    "budget",
+    "budget_unavailable",
+    "build_control",
+    "build_error",
+    "check_failed",
+    "checkpoint",
+    "checkpoint_conflict",
+    "checkpoint_failed",
+    "completion_unconfirmed",
+    "context_limit",
+    "control_error",
+    "cost_mismatch",
+    "credit_cap",
+    "daily_cap",
+    "deadline",
+    "forbidden",
+    "has_content",
+    "invalid_outline",
+    "invalid_plan",
+    "invalid_receipt",
+    "invalid_reply",
+    "invalid_state",
+    "mixed_mode",
+    "mixed_unavailable",
+    "mode_changed",
+    "model",
+    "operation_failed",
+    "outline_approval",
+    "outline_invalid",
+    "payment_required",
+    "preview_changed",
+    "preview_unverifiable",
+    "repair_adapter_unavailable",
+    "reservation_unavailable",
+    "reuse_failed",
+    "reuse_unavailable",
+    "router_error",
+    "router_unavailable",
+    "run_exists",
+    "stale_state",
+    "step_cap",
+    "stopped",
+    "template_mode",
+    "tier",
+    "timeout",
+    "tool_error",
+    "unsupported_route"
+  ]
+}

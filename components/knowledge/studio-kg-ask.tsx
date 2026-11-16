@@ -1,6 +1,8 @@
 "use client"
 
 import { useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react"
+import { useEffect } from "react" // CHAT-PARITY-MORE
+import { takeBrowserHandoff } from "@/lib/studio-chat-parity-more-handoff" // CHAT-PARITY-MORE
 import Link from "next/link"
 import { AlertCircle, ArrowRight, ExternalLink, FileText, Loader2, Sparkles, X } from "lucide-react"
 import { useStudioKgAsk } from "@/hooks/use-studio-kg-ask"
@@ -68,7 +70,7 @@ function Answer({ result }: { result: StudioKgAskResult }) {
   )
 }
 
-export function StudioKgAsk() {
+export function StudioKgAsk({ handoffAccount = null }: { handoffAccount?: string | null } = {}) { // CHAT-PARITY-MORE
   const { state, ask, reset } = useStudioKgAsk()
   const [text, setText] = useState("")
   const [guard, setGuard] = useState<string | null>(null)
@@ -76,6 +78,7 @@ export function StudioKgAsk() {
   const headingId = useId()
   const inputId = useId()
   const noteId = useId()
+  useEffect(() => { if (process.env.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS !== "true" || process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN !== "true" || process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS !== "true") return; const handed = takeBrowserHandoff("kg-ask", handoffAccount); if (handed?.text) { setText(handed.text); inputRef.current?.focus() } }, []) // CHAT-PARITY-MORE (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS, default off, with NEXT_PUBLIC_STUDIO_CHAT_COMMANDS and NEXT_PUBLIC_STUDIO_CHAT_CLEAN): /ask <question> from the chat opens this page with the question FILLED in the box (a one-time hand-off, not the address). Nothing is sent from here: Ask costs money, so the person presses Ask. Flag off: nothing is read.
 
   const loading = state.phase === "loading"
   const length = studioKgAskLength(text)

@@ -169,6 +169,10 @@ import {
   visualTotalAfterCommit,
 } from '@/lib/studio-slide-count-sync'
 import { STUDIO_DECK_SYNC_TRUTH_ENABLED, syncTruthSettledTotals } from '@/lib/studio-deck-sync-truth' // DECK-SYNC-TRUTH (NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH, default off): after a poll the totals are the viewer's own count, not a floor restored too high
+import { STUDIO_PRESENT_EXIT_FIX_ENABLED, presentExitDesynced, leaveBrowserFullscreen } from '@/lib/studio-present-exit' // AUDIT-PRESENT-EXIT
+import { STUDIO_REPLACE_SLIDE_PICTURE_ENABLED } from '@/lib/studio-replace-picture' // REPLACE-PICTURE (NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE, default off): the Replace picture action sends Layout's setSlideBackgroundPicture
+import { useStudioReplacePicture } from '@/hooks/use-studio-replace-picture' // REPLACE-PICTURE
+import { ReplacePictureControl } from '@/components/builder/replace-picture/replace-picture-control' // REPLACE-PICTURE
 
 const DEFAULT_BUILD_THEME_SELECTION: BuildThemeSelection = { mode: 'auto' }
 
@@ -377,6 +381,7 @@ interface PresentationViewerProps {
   // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: set (a hint sentence) only while this tab is paused because the session is live in another tab.
   // Add Slide, Add Element, Theme and Template are then disabled with this hint; viewing and moving between slides stay available.
   studioTabPausedHint?: string
+  onReplacePictureReloadDeck?: () => void // REPLACE-PICTURE (NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE): the page's Reload deck, offered after a picture that was stored but not drawn; passed only with the flag on
   // J2 v2 (flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED): the page's chat/session settings for the Add Slide pop-up.
   addSlideV2Settings?: AddSlideV2Settings<BuildThemeSelection>
   // PASS2 #3 (flag NEXT_PUBLIC_STUDIO_PANEL_FOCUS): the page hides the slide rail while Add Slide / Add Element is open;
@@ -721,6 +726,7 @@ export function PresentationViewer({
   onGenerateSlide,
   onUserDeckEdit,
   studioTabPausedHint,
+  onReplacePictureReloadDeck, // REPLACE-PICTURE
   addSlideV2Settings,
   studioRailCollapsed = false,
   onStudioRailReveal,
@@ -759,6 +765,7 @@ export function PresentationViewer({
   const slideTotalsRef = useRef({ total: 0, visual: 0 })
   slideTotalsRef.current = { total: totalSlides, visual: visualTotalSlides }
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const isFullscreenRef = useRef(isFullscreen); isFullscreenRef.current = isFullscreen // AUDIT-PRESENT-EXIT: the toggle reads the page's own state through a ref (its callback is not rebuilt for it)
   // A4: while Present is on, a separate `?viewOnly=true` frame covers the editing frame so audiences
   // never see authoring placeholders. Flag NEXT_PUBLIC_PRESENT_VIEW_ONLY_ENABLED, default off = unchanged.
   const presentViewOnlyEnabled = isPresentViewOnlyEnabled()
@@ -910,6 +917,12 @@ export function PresentationViewer({
   const [showVersionHistory, setShowVersionHistory] = useState(false)
   const [showPresentationSettings, setShowPresentationSettings] = useState(false)
   useEffect(() => { if (process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY !== 'true') return; let bus: typeof import('@/lib/studio-chat-parity').chatParityBus | null = null; void import('@/lib/studio-chat-parity').then(mod => { bus = mod.chatParityBus; bus.openMaster = () => setShowPresentationSettings(true) }); return () => { if (bus) bus.openMaster = null } }, []) // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY, read inline): a chat footer / logo request opens the Master panel, the Show menu's own "Master…"; the bus is loaded inside the gated effect so the viewer's proofs see no new import
+  // CHAT-PARITY-VIEWER (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS, default off, with NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell): the composer's "/" commands drive this viewer through ONE small bus (lib/studio-chat-parity-viewer.ts). The refs are plain; nothing below reads or loads anything with the flags off.
+  const chatParityViewerLive = useRef<import('@/lib/studio-chat-parity-viewer').ViewerHandle | null>(null) // CHAT-PARITY-VIEWER: this render's { state, actions }: the state is what the buttons read, each action calls the handler the matching button calls
+  const chatParityViewerMod = useRef<typeof import('@/lib/studio-chat-parity-viewer') | null>(null) // CHAT-PARITY-VIEWER: the bus module, once the gated effect below has loaded it
+  const chatParityLayoutDone = useRef(false) // CHAT-PARITY-VIEWER: raised by handleChangeLayout's own success path, so /layout says it only after the viewer confirmed it
+  const chatParityWorkspaceLive = useRef<import('@/lib/studio-chat-parity-workspace').WorkspacePart | null>(null) // CHAT-PARITY-WORKSPACE: this render's Template Mode part (what the Template menu's toggle reads, and its handler) for the workspace "/" commands
+  const chatParityWorkspaceMod = useRef<typeof import('@/lib/studio-chat-parity-workspace') | null>(null) // CHAT-PARITY-WORKSPACE: the workspace bus module, once the gated effect below has loaded it
   const [showThemePanel, setShowThemePanel] = useState(false)
   const handledWorkflowRef = useRef<string | null>(null)
 
@@ -2607,6 +2620,7 @@ export function PresentationViewer({
       if (result.success) {
         invalidateThumbnails()
         if (!mutation.isCurrent()) { mutation.reportUnconfirmed('layout change'); return }
+        chatParityLayoutDone.current = true // CHAT-PARITY-VIEWER
         toast({
           title: 'Layout Changed',
           description: `Slide ${slideIndex + 1} layout updated`
@@ -2627,6 +2641,7 @@ export function PresentationViewer({
       })
     } finally { mutation.release() }
   }, [toast, captureThumbnailInvalidation, studioShell, beginStudioNativeSlideMutation])
+  const replacePicture = useStudioReplacePicture({ enabled: STUDIO_REPLACE_SLIDE_PICTURE_ENABLED && studioShell, deckOpen: Boolean(approvedPresentationUrl && presentationId), viewerReady: viewerIsReady, presenting: isFullscreen, presentationId, frameUrl: approvedPresentationUrl, activeVersion, currentSlide, railSlideId: slideThumbnails[currentSlide - 1]?.slideId ?? null, railSlideTitle: slideThumbnails[currentSlide - 1]?.title ?? null, tabPausedHint: studioTabPausedHint, templateMode: templateModeOn, building: Boolean(isGenerating || studioPartialArtifact), studioBusy: Boolean(studioFormatBusy), composeJobs, mutationPending: isSlideMutationPending, send: sendCommand, getIframe: () => iframeRef.current, begin: beginStudioNativeSlideMutation, isTrustedReply: (event, frame) => VIEWER_ORIGIN !== null && !LAYOUT_URL_CONFIG_ERROR && isTrustedLayoutViewerMessage(event, frame, VIEWER_ORIGIN), afterReplace: () => { reportDeckChange('element'); if (presentationId) onThumbnailInvalidatedRef.current?.(presentationId); slideRailRefreshRef.current() }, onReloadDeck: onReplacePictureReloadDeck }) // REPLACE-PICTURE (NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE): the Replace picture action for the slide on screen; off, it reads and sends nothing
 
   // Reorder slides handler
   const handleReorderSlides = useCallback(async (fromIndex: number, toIndex: number) => {
@@ -3698,6 +3713,7 @@ export function PresentationViewer({
     if (!isCurrent()) return
 
     try {
+      if (presentExitDesynced(STUDIO_PRESENT_EXIT_FIX_ENABLED, isFullscreenRef.current, Boolean(document.fullscreenElement))) { await leaveBrowserFullscreen(document); if (!isCurrent()) return; setIsFullscreen(false); return } // AUDIT-PRESENT-EXIT: the page says presenting, the browser says not full screen: Exit leaves Present (the toggle below would ask for fullscreen again)
       if (!document.fullscreenElement) {
         if (studioShell && iframeRef.current) {
           const targetIframe = interaction!.iframe
@@ -3755,6 +3771,24 @@ export function PresentationViewer({
       console.error('❌ Fullscreen error:', error)
     }
   }, [studioShell, isEditMode, onEditModeChange, isGridActive, isBordersActive, beginStudioViewerInteraction])
+  // CHAT-PARITY-VIEWER: the state the buttons read, and the handlers they call, for the "/" commands (flag off: null, and no effect below does anything).
+  const chatParityViewerOn = studioShell && process.env.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS === 'true' && process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true' && process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === 'true' // CHAT-PARITY-VIEWER
+  chatParityViewerLive.current = !chatParityViewerOn ? null : { // CHAT-PARITY-VIEWER
+    state: { ready: viewerIsReady, slideCount: totalSlides, slide: currentSlide, editing: isEditMode, grid: isGridActive, borders: isBordersActive, rail: railShown, presenting: isFullscreen, building: Boolean(isGenerating), // CHAT-PARITY-VIEWER
+      slideReason: studioToolbarDisabledReason('add-slide', { tabPausedHint: studioTabPausedHint, viewerIsReady, templateModeOn, slideMutationPending: isSlideMutationPending }), save: isSaving ? 'saving' : saveStatus, // CHAT-PARITY-VIEWER
+      version: { active: activeVersion ?? 'blank', has: ['blank', ...(strawmanPreviewUrl ? ['strawman' as const] : []), ...(finalPresentationUrl ? ['final' as const] : [])] } }, // CHAT-PARITY-VIEWER
+    actions: { goTo: handleGoToSlide, next: handleNextSlide, prev: handlePrevSlide, present: handleFullscreen, toggleGrid: handleToggleGrid, toggleBorders: handleToggleBorders, save: handleSaveChanges, discard: handleCancelEdits, // CHAT-PARITY-VIEWER
+      addBlank: (position: number) => chatParityViewerMod.current?.addBlankSlide(handleAddSlide, position, ADD_SLIDE_V2_ENABLED ? addSlideV2Settings : undefined, currentSlide), // CHAT-PARITY-VIEWER
+      changeLayout: async (index: number, layout: string) => { chatParityLayoutDone.current = false; await handleChangeLayout(index, layout as SlideLayoutType); return chatParityLayoutDone.current }, // CHAT-PARITY-VIEWER
+      setEditing: (editing: boolean) => handleToggleEditModeButton(editing), setVersion: (version: 'blank' | 'strawman' | 'final') => onVersionSwitch?.(version), // CHAT-PARITY-VIEWER
+      setRail: (show: boolean) => { if (show !== railShown) handleToggleOverview() } } } // CHAT-PARITY-VIEWER: the rail button's own handler (it reveals a rail a panel folded away, else flips the user's show / hide choice), only when the rail is not already as asked
+  useEffect(() => { if (!chatParityViewerOn) return; let off: (() => void) | null = null; let live = true; void import('@/lib/studio-chat-parity-viewer').then(mod => { if (!live) return; chatParityViewerMod.current = mod; off = mod.registerViewer(() => chatParityViewerLive.current) }); return () => { live = false; off?.() } }, [chatParityViewerOn]) // CHAT-PARITY-VIEWER
+  useEffect(() => { if (chatParityViewerOn) chatParityViewerMod.current?.publishViewerState() }) // CHAT-PARITY-VIEWER: after every commit; the bus tells the composer only when the state it shows changed
+  chatParityWorkspaceLive.current = !chatParityViewerOn ? null : { // CHAT-PARITY-WORKSPACE (same gate as the viewer commands above): the Template menu's Template Mode item, for /template-mode
+    state: { mode: { builder: Boolean(templateBuilderEnabled), on: templateModeOn, available: templateModeAvailable, blocked: studioToolbarDisabledReason('template', { tabPausedHint: studioTabPausedHint, viewerIsReady, templateModeOn, slideMutationPending: isSlideMutationPending }) } }, // CHAT-PARITY-WORKSPACE: drawn with the templates feature; the Template button's own reason (the viewer loading, a paused tab); available = a template is chosen
+    actions: { setTemplateMode: (on: boolean) => { if (studioShell) viewerInteractionIntentRef.current += 1; onTemplateModeChange?.(on) } } } // CHAT-PARITY-WORKSPACE: the item's own click, asked for the mode wanted (the same intent bump, the same page callback)
+  useEffect(() => { if (!chatParityViewerOn) return; let off: (() => void) | null = null; let live = true; void import('@/lib/studio-chat-parity-workspace').then(mod => { if (!live) return; chatParityWorkspaceMod.current = mod; off = mod.registerWorkspacePart('viewer', () => chatParityWorkspaceLive.current) }); return () => { live = false; off?.() } }, [chatParityViewerOn]) // CHAT-PARITY-WORKSPACE
+  useEffect(() => { if (chatParityViewerOn) chatParityWorkspaceMod.current?.publishWorkspaceState() }) // CHAT-PARITY-WORKSPACE: after every commit; the bus tells the composer only when the merged state it shows changed
 
   // Debug: Log button states
   useEffect(() => {
@@ -4576,6 +4610,7 @@ export function PresentationViewer({
                 </DropdownMenuPortal>
               </DropdownMenu>
 
+              {replacePicture.visible && <ReplacePictureControl reason={replacePicture.reason} slideNumber={replacePicture.slideNumber} slideTitle={replacePicture.slideTitle} pictureTarget={replacePicture.target} slideId={replacePicture.slideId} onReplace={replacePicture.replace} onReloadDeck={replacePicture.reloadDeck} buttonClassName={cn(toolbarButtonClass, toolbarBtnBase)} labelClassName={cn(toolbarLabelClass, 'whitespace-nowrap')} tooltipContainer={toolbarDropdownPortalContainer} />}{/* REPLACE-PICTURE: Replace picture, at the end of the authoring strip, after Show and before Present (the flag, the shell, a built deck, not presenting): no earlier sibling's place among the strip's children moves, so the ids React generates for them are the base's */}
               {presentInStrip && (
                 <>
                   <div className="mx-1 h-6 w-px bg-slate-200 dark:bg-slate-700" aria-hidden="true" />

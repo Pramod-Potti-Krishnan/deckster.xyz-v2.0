@@ -12,6 +12,7 @@ import { templatesNoticeText } from '@/lib/studio-templates-notice'
 // FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE): rename and delete on a saved template's row (a Composer template shows Delete disabled, with the reason; it renames like any other).
 import { ManagedLibraryRow, type ManagedRowChild } from './library-manage'
 import { BUSY_TEXT, COMPOSER_TEMPLATE_DELETE_REASON, TEMPLATE_RENAME_UNAVAILABLE_REASON, isUserOwnedLibraryItem, runLibraryDelete, runLibraryRename, selectionAfterRemoval, templateRenameRefusal } from '@/lib/studio-library-manage'
+import { takeBrowserHandoff } from '@/lib/studio-chat-parity-more-handoff' // CHAT-PARITY-MORE
 
 const TEMPLATES_ENABLED = process.env.NEXT_PUBLIC_TEMPLATE_BUILDER_ENABLED === 'true'
 const COMPOSER_ENABLED = process.env.NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED === 'true'
@@ -104,6 +105,11 @@ export function TemplatesWorkspace() {
   const [renameUnavailable, setRenameUnavailable] = useState(false)
   const optimizeBusy = useRef(false)
   const mounted = useRef(true)
+  // CHAT-PARITY-MORE (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS, default off, with NEXT_PUBLIC_STUDIO_CHAT_COMMANDS and NEXT_PUBLIC_STUDIO_CHAT_CLEAN; acts only with NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE): /delete-template <name> from the chat opens this page showing the saved templates, and asks that template's row to open its OWN delete confirmation (the same one Delete… opens). A one-time hand-off, not the address. Nothing is deleted from here: the click on Delete in that dialog deletes.
+  const [chatMoreDelete, setChatMoreDelete] = useState<string | null>(null) // CHAT-PARITY-MORE: the template whose row is asked to open its confirmation
+  const chatMoreAsked = useRef<{ id: string; name: string } | null>(null) // CHAT-PARITY-MORE: the template the chat named, until the library has loaded
+  useEffect(() => { const handed = TEMPLATE_LIBRARY_MANAGE ? takeBrowserHandoff('delete-template', account?.owner ?? null) : null; if (handed?.id) { chatMoreAsked.current = { id: handed.id, name: handed.text }; setMode('library') } }, []) // CHAT-PARITY-MORE
+  useEffect(() => { const asked = chatMoreAsked.current; if (!asked || !templates || loading || !accountReady) return; chatMoreAsked.current = null; const hit = templates.find(template => template.id === asked.id); if (hit && isUserOwnedLibraryItem(hit) && !('stage_template_summary' in hit)) setChatMoreDelete(hit.id); else setActionNotice(`“${asked.name}” can't be deleted here any more: it isn't in your saved templates.`) }, [templates, loading, accountReady]) // CHAT-PARITY-MORE
   const mountEpoch = useRef({})
   const renderedEpoch = mountEpoch.current
   const [, refreshMountHandlers] = useState(0)
@@ -296,7 +302,7 @@ export function TemplatesWorkspace() {
     return result
   }
   const manageRow = (template: SavedTemplate, row: ManagedRowChild) => TEMPLATE_LIBRARY_MANAGE && isUserOwnedLibraryItem(template)
-    ? <ManagedLibraryRow key={template.id} kind="template" name={template.name} disabled={!accountReady || loading || Boolean(optimizingId)} deleteBlockedReason={'stage_template_summary' in template ? (LAUNCH_WORDING ? "Composer templates can't be deleted here." : COMPOSER_TEMPLATE_DELETE_REASON) : undefined} renameBlockedReason={renameUnavailable ? (LAUNCH_WORDING ? "Renaming templates isn't available." : TEMPLATE_RENAME_UNAVAILABLE_REASON) : undefined} otherNames={(templates ?? []).filter(item => item.id !== template.id).map(item => item.name)} onRename={nextName => manageRename(template, nextName)} onDelete={() => manageDelete(template)}>{row}</ManagedLibraryRow>
+    ? <ManagedLibraryRow key={template.id} kind="template" name={template.name} disabled={!accountReady || loading || Boolean(optimizingId)} deleteBlockedReason={'stage_template_summary' in template ? (LAUNCH_WORDING ? "Composer templates can't be deleted here." : COMPOSER_TEMPLATE_DELETE_REASON) : undefined} renameBlockedReason={renameUnavailable ? (LAUNCH_WORDING ? "Renaming templates isn't available." : TEMPLATE_RENAME_UNAVAILABLE_REASON) : undefined} otherNames={(templates ?? []).filter(item => item.id !== template.id).map(item => item.name)} onRename={nextName => manageRename(template, nextName)} onDelete={() => manageDelete(template)} confirmRequest={chatMoreDelete === template.id} onConfirmRequest={() => setChatMoreDelete(null)}>{row}</ManagedLibraryRow> // CHAT-PARITY-MORE
     : row
 
   return <LibraryWorkspace introScreen={standaloneStudio ? "templates" : undefined} introAutoStart={standaloneStudio} introEnabled={accountReady && !importOpen} title="Templates" description={standaloneStudio ? 'Reusable story structure, slide roles, and content slots.' : 'Start with the shape of a story. Bring fresh content, evidence, and your own theme.'} mode={mode} onModeChange={setMode} actions={INGEST_ENABLED ? <button ref={standaloneStudio ? importTrigger : undefined} type="button" className="sl-button" disabled={!accountReady} onClick={() => { if (canStartAccountAction()) setImportOpen(true) }} title="Import PowerPoint or PDF into a new Studio session"><FileUp size={15} />Import presentation</button> : undefined}>

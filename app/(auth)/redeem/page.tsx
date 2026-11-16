@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Sparkles, Ticket, LogOut, Loader2 } from 'lucide-react'
 import Link from 'next/link'
+import { requestBqClaimRefresh } from '@/lib/ws-bq-refresh'
 import dynamic from 'next/dynamic' // REDEEM-V4
 // REDEEM-V4 (NEXT_PUBLIC_STUDIO_REDEEM_V4, exact "true", default off): the flag is tested here, around the import(), so with it off the build drops the Studio view and its stylesheet and this page is as it was.
 const StudioRedeemV4 = process.env.NEXT_PUBLIC_STUDIO_REDEEM_V4 === 'true' ? dynamic(() => import('@/components/studio-redeem').then((mod) => mod.StudioRedeemView)) : null // REDEEM-V4
@@ -83,6 +84,9 @@ function RedeemContent() {
       } catch {
         /* ignore */
       }
+      // The plan and wallet just changed in the database: any open builder
+      // re-mints its Director token now (inert unless the build-quota claim is on).
+      requestBqClaimRefresh('redeem')
       await update({
         approved: true,
         walletBalanceCents: data.balanceCents,

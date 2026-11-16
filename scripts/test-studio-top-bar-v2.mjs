@@ -22,10 +22,11 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import postcss from 'postcss'
 import { stripP2Publish } from './studio-p2-publish-strip.mjs'
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (RESTACK-UX-PC): the later changes' lines come out of every file this proof reads
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 // PASS2-PAGES publish (NEXT_PUBLIC_STUDIO_P2_PUBLISH, default off): the Publish dialog is pinned as it was; the flag-gated additions come out first.
-const read = file => fs.existsSync(path.join(root, file)) ? stripP2Publish(file, fs.readFileSync(path.join(root, file), 'utf8')) : null
+const read = file => fs.existsSync(path.join(root, file)) ? stripP2Publish(file, stripLaterChanges(file, fs.readFileSync(path.join(root, file), 'utf8'))) : null // LATER-CHANGES: registry read (RESTACK-UX-PC): the later changes' lines are read out first, innermost
 const FILES = {
   header: 'components/builder/builder-header.tsx',
   download: 'components/presentation-download-controls.tsx',

@@ -15,12 +15,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertCircle, Brush, Check, Clock, Compass, Globe, ListOrdered, Pause, Play, Search, Square } from 'lucide-react'
 import { ModelPicker } from '@/components/model-choice/model-picker'
+import { LevelPicker, type LevelPickerProps } from '@/components/builder/thinking-levels/level-picker' // THINKING-LEVELS (NEXT_PUBLIC_STUDIO_THINKING_LEVELS, default off)
 import {
   CHAT_CLEAN_CHOICES,
   CHAT_CLEAN_WORDS,
   chatCleanAckReduce,
   chatCleanAckState,
   chatCleanDirectionsNote,
+  chatCleanCommandNote, // CHAT-PARITY-VIEWER
   chatCleanElapsed,
   chatCleanJobModel,
   chatCleanNotesReduce,
@@ -34,6 +36,7 @@ import {
   type ChatCleanThreadProps,
 } from '@/lib/studio-chat-clean'
 import { STUDIO_STRAWMAN_CHAT_ENABLED } from '@/lib/studio-strawman-chat' // STRAWMAN-CHAT
+import { RESEARCH_COPY, STUDIO_RESEARCH_SWITCH_ENABLED, researchSwitchNext, researchSwitchOn } from '@/lib/studio-research-switch' // RESEARCH-SWITCH (NEXT_PUBLIC_STUDIO_RESEARCH_SWITCH, default off)
 
 // ---------------------------------------------------------------------------------------------------------------------
 // The notes, kept by the page (one hook call, inert with the flag off)
@@ -54,6 +57,8 @@ export interface StudioChatCleanNotesApi {
   notes: readonly ChatCleanNote[]
   /** The user's new directions went to Director as instructions (never a chat message): keep them in the thread. */
   addDirections: (text: string) => void
+  /** Chat parity, viewer commands: one short note of what a "/" command did, kept in the thread like the others. */ // CHAT-PARITY-VIEWER
+  addNote: (text: string) => void // CHAT-PARITY-VIEWER
   /** Director's acknowledgement of the last directions, while it shows (applied / nothing left to build), else null key. */
   ack: { key: ChatCleanAckKey | null; line: string }
 }
@@ -119,8 +124,12 @@ export function useStudioChatCleanNotes(input: UseStudioChatCleanNotesInput): St
     const id = latestRef.current.narration.buildId
     setNotes(current => chatCleanDirectionsNote(current, text, id, Date.now()))
   }, [])
+  const addNote = useCallback((text: string) => { // CHAT-PARITY-VIEWER
+    if (!latestRef.current.enabled) return // CHAT-PARITY-VIEWER
+    setNotes(current => chatCleanCommandNote(current, text, Date.now())) // CHAT-PARITY-VIEWER
+  }, []) // CHAT-PARITY-VIEWER
 
-  return { notes: enabled ? notes : NO_NOTES, addDirections, ack: enabled && ackNow ? ackNow : NO_ACK }
+  return { notes: enabled ? notes : NO_NOTES, addDirections, addNote, ack: enabled && ackNow ? ackNow : NO_ACK } // CHAT-PARITY-VIEWER
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -243,10 +252,11 @@ export interface StudioChatCleanSendSideProps {
   onStop: () => void
   research: ChatCleanResearchProps
   picker: { sessionId: string | null; disabled: boolean }
+  levels?: LevelPickerProps // THINKING-LEVELS: the level picker's props, passed only with the flag on; it takes the model gauge's place
 }
 
 /** The model picker (FRONTEND-2's slider variant, as it ships: a gauge button opening the slider) and Stop while a build runs. With CHAT_CLEAN_CHOICES.research = 'chips' (the v3 study), "Web search" and "Deep research" toggle chips stand before them. */
-export function StudioChatCleanSendSide({ composer, onStop, research, picker }: StudioChatCleanSendSideProps) {
+export function StudioChatCleanSendSide({ composer, onStop, research, picker, levels }: StudioChatCleanSendSideProps) { // THINKING-LEVELS: levels
   const chips = CHAT_CLEAN_CHOICES.research === 'chips'
   return (
     <>
@@ -262,7 +272,8 @@ export function StudioChatCleanSendSide({ composer, onStop, research, picker }: 
           <Search size={11} aria-hidden="true" />{CHAT_CLEAN_WORDS.deepResearchItem}
         </button>
       )}
-      <ModelPicker variant="slider" sessionId={picker.sessionId} disabled={picker.disabled} className="studio-chat-clean-model" />
+      {STUDIO_RESEARCH_SWITCH_ENABLED && !chips ? <button type="button" aria-pressed={researchSwitchOn(research)} disabled={research.locked} onClick={() => { const next = researchSwitchNext(research); if (next !== null) research.onWeb(next) }} data-studio-chat-clean-toggle="research" title={research.locked ? RESEARCH_COPY.lockedNote : RESEARCH_COPY.note}><Search size={11} aria-hidden="true" />{RESEARCH_COPY.label}</button> : null}{/* RESEARCH-SWITCH (NEXT_PUBLIC_STUDIO_RESEARCH_SWITCH, M4): Research on / off beside the model / level button; it is the composer's web-search state (deep research implies it), nothing new on the wire; off, null */}
+      {levels ? <LevelPicker {...levels} className="studio-chat-clean-model" /> : <ModelPicker variant="slider" sessionId={picker.sessionId} disabled={picker.disabled} className="studio-chat-clean-model" />}{/* THINKING-LEVELS: with the flag on the gauge IS the level picker (Auto / Fast / Balanced / Best / Max); off, the model picker as before */}
       {composer.showStop && (
         <button type="button" onClick={onStop} disabled={!composer.stopEnabled} aria-label={CHAT_CLEAN_WORDS.stopLabel} title={CHAT_CLEAN_WORDS.stopLabel} data-studio-chat-clean-stop="true">
           <Square size={12} fill="currentColor" aria-hidden="true" />

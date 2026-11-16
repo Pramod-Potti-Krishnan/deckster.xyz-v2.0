@@ -265,8 +265,11 @@ const UNTOUCHED = [
   'next.config.mjs', 'middleware.ts', 'app/layout.tsx', 'app/not-found.tsx', 'app/legal/terms/page.tsx', 'app/legal/terms/layout.tsx', 'app/legal/privacy/page.tsx', 'app/legal/privacy/layout.tsx', 'app/legal/layout.tsx',
   'app/auth/signin/page.tsx', 'app/auth/signup/page.tsx', 'lib/legal-links.ts', 'app/sitemap.ts', 'vercel.dev.json', 'package.json', 'pnpm-lock.yaml', 'components/layout/Footer.tsx',
 ]
+const readOuter = read // LATER-CHANGES: registry read (WS-BQ-CLAIM): proveUntouched reads through the strips of the changes registered after this one (its own read stays as it is)
+const laterAfterLegal = (rel, text) => { const at = LATER_STRIPS.findIndex(fn => fn?.name === 'stripPass3PolishG'); return (at === -1 ? [] : LATER_STRIPS.slice(at)).reduce((out, strip) => { const next = typeof strip === 'function' ? strip(rel, out) : out; return typeof next === 'string' ? next : out }, text) } // LATER-CHANGES: registry read (WS-BQ-CLAIM): from Pass 3 polish G on, the first change registered after this one, in the registry's order
 function proveUntouched(at = '') {
   const a = message => (at ? `${at}: ${message}` : message)
+  const read = rel => laterAfterLegal(rel, readOuter(rel)) // LATER-CHANGES: registry read (WS-BQ-CLAIM)
   for (const rel of UNTOUCHED) eq(sha(stripApiHardening(rel, read(rel))), sha(baseOf(rel)), a(`${rel} is the base commit's, byte for byte`))
   for (const rel of [TERMS, PRIVACY, HELPER]) {
     let found = true

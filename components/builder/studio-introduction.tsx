@@ -68,6 +68,13 @@ export function StudioIntroductionProvider({ enabled, eligibility, getEligibilit
       modalOpen: risks.modalOpen === false && !document.querySelector(MODAL) ? false : true })
     if (permitted.manual) setReplay(value => value + 1)
   }, [])
+  // CHAT-PARITY-WORKSPACE (NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS, default off, with NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell): the Replay intro button for /intro. The composer reaches it through ONE small bus (lib/studio-chat-parity-workspace.ts): this owner registers a getter of whether the introduction is playing and the button's own handler (requestReplay, which still drops a request the eligibility refuses). Flag off: null, and neither effect does anything.
+  const chatParityWorkspaceOn = enabled && process.env.NEXT_PUBLIC_STUDIO_CHAT_COMMANDS === 'true' && process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true' && process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_COMMANDS === 'true' // CHAT-PARITY-WORKSPACE
+  const chatParityWorkspaceLive = useRef<import('@/lib/studio-chat-parity-workspace').WorkspacePart | null>(null) // CHAT-PARITY-WORKSPACE
+  const chatParityWorkspaceMod = useRef<typeof import('@/lib/studio-chat-parity-workspace') | null>(null) // CHAT-PARITY-WORKSPACE: the bus module, once the gated effect below has loaded it
+  chatParityWorkspaceLive.current = !chatParityWorkspaceOn ? null : { state: { intro: { active } }, actions: { replayIntro: requestReplay } } // CHAT-PARITY-WORKSPACE
+  useEffect(() => { if (!chatParityWorkspaceOn) return; let off: (() => void) | null = null; let live = true; void import('@/lib/studio-chat-parity-workspace').then(mod => { if (!live) return; chatParityWorkspaceMod.current = mod; off = mod.registerWorkspacePart('intro', () => chatParityWorkspaceLive.current) }); return () => { live = false; off?.() } }, [chatParityWorkspaceOn]) // CHAT-PARITY-WORKSPACE
+  useEffect(() => { if (chatParityWorkspaceOn) chatParityWorkspaceMod.current?.publishWorkspaceState() }) // CHAT-PARITY-WORKSPACE: after every commit; the bus tells the composer only when the merged state it shows changed
   return <IntroductionContext.Provider value={enabled ? {
     id, active, enabled: entry.manual, availableIgnoringOwnAboutModal: withoutAbout.manual,
     persistentTriggerRef, requestReplay,

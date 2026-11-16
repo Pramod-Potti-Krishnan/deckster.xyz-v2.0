@@ -1,0 +1,8 @@
+/* NEXT_PUBLIC_STUDIO_THINKING_LEVELS, the level picker (components/builder/thinking-levels/level-picker.tsx; PK mandate M1). It is drawn with the model picker's own classes (its popover, sheet and slider sheets are in the bundle through the composer's
+   ModelPicker import), so this sheet only adds what a level has that a model preset has not: a position the plan cannot use is dimmed (it stays readable, and the line says why), and Best and Max, which run as Balanced for now, carry a small dot.
+   The last rule hides the Standard / Author / Agent chips (#621) while the level picker is in the composer: the gauge is the one control and it drives the same build mode. The chips' own component is not touched; with the flag off nothing here matches. */
+.mpick-simple-pop .mpick-stop[data-level-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
+.mpick-simple-pop .mpick-stop[data-level-soon="true"] .mpick-stop-name::after { content: ""; display: inline-block; width: 4px; height: 4px; margin: 0 0 2px 4px; border-radius: 50%; background: currentColor; opacity: 0.55; vertical-align: middle; }
+.mpick-simple-pop .mpick-simple-line[data-level-line="true"] { white-space: normal; }
+.mpick-simple-pop .mpick-simple-line[data-level-line="true"] .mpick-simple-line-text { overflow: visible; white-space: normal; }
+[data-studio-chat-clean]:has([data-level-picker="gauge"]) div:has(> [data-studio-build-mode-picker]) { display: none; }

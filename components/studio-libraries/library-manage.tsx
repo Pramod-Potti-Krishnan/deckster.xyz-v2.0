@@ -13,7 +13,7 @@ export type ManagedRowChild = ReactNode
 // FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE / NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE, default off). One library row with a ⋮ menu (the Decks list's menu: the same
 // DropdownMenu, "Manage <name>" label, red Delete) and an inline Rename (a theme; a template once Director has the rename route). Delete asks first in Studio's own AlertDialog (never window.confirm). The workspace passes in the row's
 // normal button as `children` and does the state work (lib/studio-library-manage.ts); this component only draws the menu, the edit field and the dialog, and reports a failure as a toast.
-export function ManagedLibraryRow({ kind, name, isStandard = false, disabled = false, deleteBlockedReason, renameBlockedReason, otherNames = [], onRename, onDelete, children }: {
+export function ManagedLibraryRow({ kind, name, isStandard = false, disabled = false, deleteBlockedReason, renameBlockedReason, otherNames = [], onRename, onDelete, children, confirmRequest = false, onConfirmRequest }: { // CHAT-PARITY-MORE
   kind: LibraryKind
   name: string
   isStandard?: boolean
@@ -28,6 +28,9 @@ export function ManagedLibraryRow({ kind, name, isStandard = false, disabled = f
   onRename?: (name: string) => Promise<ManageResult>
   onDelete: () => Promise<ManageResult>
   children: ReactNode
+  /** CHAT-PARITY-MORE: /delete-theme and /delete-template from the chat ask this row to open its own delete confirmation (the same one Delete… opens). It only opens it; the click on Delete deletes. */ // CHAT-PARITY-MORE
+  confirmRequest?: boolean // CHAT-PARITY-MORE
+  onConfirmRequest?: () => void // CHAT-PARITY-MORE
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
@@ -44,6 +47,7 @@ export function ManagedLibraryRow({ kind, name, isStandard = false, disabled = f
   const noteId = useId()
   const renameNoteId = useId()
   useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
+  useEffect(() => { if (confirmRequest && !deleteBlockedReason) { setDeleteError(''); setConfirming(true) } if (confirmRequest) onConfirmRequest?.() }, [confirmRequest]) // eslint-disable-line react-hooks/exhaustive-deps -- CHAT-PARITY-MORE: opens THIS row's own delete confirmation once when asked (a delete is the click on its Delete button), then says it was heard
   useEffect(() => {
     if (editing) { field.current?.focus(); field.current?.select() }
     else if (wasEditing.current) trigger.current?.focus()

@@ -523,7 +523,7 @@ function historyApi(knownIds = []) {
     else if (!m[1]) {
       if (method === 'POST' && faults.posts > 0) { faults.posts--; status = 500; out = { error: 'boom' } }
       else if (method === 'POST') {
-        if (rows.has(body.sessionId)) { status = 409; out = { session: rows.get(body.sessionId) } }
+        if (rows.has(body.sessionId)) { status = 200; out = { session: { id: body.sessionId, geminiStoreName: rows.get(body.sessionId).geminiStoreName ?? null } } } // LATER-CHANGES: registry read (SESSIONS-OWNER): the route answers the caller's own existing row 200 with the allow-listed row (it was a 409 with the whole row)
         else { const row = { id: body.sessionId, status: 'active', title: body.title || 'Untitled Session', messages: [] }; rows.set(row.id, row); status = 201; out = { session: row } }
       } else out = { sessions: [], pagination: { total: 0, limit: 50, offset: 0, hasMore: false } }
     } else if (!rows.has(m[1])) { status = 404; out = { error: 'Session not found' } }
@@ -805,7 +805,7 @@ async function persistenceSuite(overrides = {}) {
     const bug = await runPersisted({ hygiene: true, hookSource, persistSource: stripGate(persistSource ?? SRC.persist), ...PERSIST_SCENARIOS.bareVisit[0] }, PERSIST_SCENARIOS.bareVisit[1])
     check(assert.equal, bug.api.rowCreations().length, 1, 'pre-fix, flag on: a bare visit creates the empty row (the live "Untitled Session")')
     check(assert.equal, patches404(bug), 8, 'pre-fix, flag on: after eight PATCH 404s (two updates x four attempts), as in the live trace')
-    check(assert.equal, bug.api.count('POST', 409), 1, 'pre-fix, flag on: with the second update\'s recovery POST answering 409')
+    check(assert.equal, bug.api.count('POST', 200), 1, 'pre-fix, flag on: with the second update\'s recovery POST answering 200 (the row exists; a 409 before the sessions owner check)') // LATER-CHANGES: registry read (SESSIONS-OWNER)
     check(assert.equal, bug.api.count('PATCH', 200), 2, 'pre-fix, flag on: then both PATCHes land')
     check(assert.equal, bug.api.calls[0].method + ' ' + bug.api.calls[0].status, 'GET 404', 'pre-fix, flag on: after the one lookup that 404ed')
   }

@@ -40,6 +40,8 @@ const mini = await import('./studio-chat-harness/mini-react.mjs')
 const { Root } = mini
 const strip = await import('./studio-voice-call-strip.mjs')
 const core = await import('./studio-voice-core-strip.mjs')
+const laterRegistry = await import('./studio-later-changes.mjs') // LATER-CHANGES: registry read (UX-FINDINGS-E)
+const laterEnvOut = text => laterRegistry.LATER_ENV_BLOCKS.slice(laterRegistry.LATER_ENV_BLOCKS.indexOf(strip.VOICE_CALL_ENV_BLOCK) + 1).reduce((out, block) => out.replace(`\n${block}`, ''), text) // LATER-CHANGES: registry read (UX-FINDINGS-E)
 
 const UI = 'lib/studio-voice-call-ui.ts', ROUTER = 'lib/studio-voice-call-router.ts', CTL = 'lib/studio-voice-call-controller.ts', BROWSER = 'lib/studio-voice-call-browser.ts'
 const HOOK = 'hooks/use-studio-voice-call.ts', STAGE = 'components/builder/voice-call/voice-call-stage.tsx', BUTTONS = 'components/builder/voice-call/voice-call-buttons.tsx', PLAYER = 'components/builder/voice-call/companion-player.tsx'
@@ -1540,7 +1542,7 @@ function sourceSuite(sources, { base = null } = {}) {
   ok(hook.includes("import('@/components/builder/voice-call/voice-call-stage')") && !/^import (?!type )[^\n]*voice-call-stage/m.test(hook) && !hook.includes("from 'next/dynamic'"), 'hook: the stage (and its stylesheet and icons, which the two buttons use too) is its own chunk, loaded with the controller when the flag is on, before the buttons are handed out')
   ok(!/^import (?!type )[^\n]*voice-call-buttons/m.test(hook) && /import \{ VoiceCallButtons \}/.test(input), 'hook: the two buttons are the composer\'s own import (a few lines, no stylesheet)')
   // .env.example
-  ok(env.endsWith(`\n${strip.VOICE_CALL_ENV_BLOCK}`) && strip.VOICE_CALL_ENV_BLOCK.endsWith('\n'), '.env.example: the block is the last thing in the file, after one blank line')
+  ok(laterEnvOut(env).endsWith(`\n${strip.VOICE_CALL_ENV_BLOCK}`) && strip.VOICE_CALL_ENV_BLOCK.endsWith('\n'), '.env.example: the block is the last thing in the file, after one blank line') // LATER-CHANGES: registry read (UX-FINDINGS-E)
   eq(lines(env).filter(line => line === 'NEXT_PUBLIC_STUDIO_VOICE_COMPANION="felix"').length, 1, '.env.example: the companion once, "felix"'); eq(lines(env).filter(line => /^NEXT_PUBLIC_STUDIO_VOICE_CALL=/.test(line)).length, 1, '.env.example: the call flag is on ELEMENT-3\'s one line, not repeated here')
   ok(lines(strip.VOICE_CALL_ENV_BLOCK).filter(line => line && !line.startsWith('#') && line !== 'NEXT_PUBLIC_STUDIO_VOICE_COMPANION="felix"' && line !== 'NEXT_PUBLIC_STUDIO_VOICE_CALL_BUTTONS="c"').length === 0, '.env.example: the block is comments and its two assignments (the companion, and the buttons\' place, default c)')
   ok(lines(env.slice(env.indexOf('# STUDIO VOICE CALL UI'))).every(line => !/exact "true" enables it/.test(line)), '.env.example: the block does not use the phrase older proofs read')
@@ -1631,7 +1633,7 @@ if (baseOk) {
     }
     const envDiff = git('diff', '--unified=0', strip.BASE_COMMIT, 'HEAD', '--', '.env.example').split('\n').filter(line => /^[-+]/.test(line) && !/^(---|\+\+\+)/.test(line))
     ok(envDiff.every(line => line.startsWith('+')), '.env.example: only lines added')
-    ok(envDiff.map(line => line.slice(1)).join('\n').endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly its block (after ELEMENT-3\'s two lines)')
+    ok(laterEnvOut(`${envDiff.map(line => line.slice(1)).join('\n')}\n`).trimEnd().endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly its block (after ELEMENT-3\'s two lines)') // LATER-CHANGES: registry read (UX-FINDINGS-E)
     const subjects = git('log', '--no-merges', '--format=%s', `${strip.BASE_COMMIT}..HEAD`).split('\n').filter(Boolean)
     ok(OWN.length > 0 && subjects.filter(subject => subject.startsWith(strip.VOICE_CALL_SUBJECT)).length === OWN.length, 'scope: the commits are named "Voice call: ..." (this proof reads those)')
   }

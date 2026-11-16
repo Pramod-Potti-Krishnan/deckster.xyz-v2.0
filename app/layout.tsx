@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/next'
+import { Analytics as VercelAnalytics } from '@vercel/analytics/next' // AUDIT-CONSOLE
+import { STUDIO_ANALYTICS_MOUNTS } from '@/lib/studio-analytics-gate' // AUDIT-CONSOLE
 import './globals.css'
 import { SessionProvider } from '@/components/providers/session-provider'
 import { ThemeProvider } from '@/components/theme-provider'
@@ -9,6 +10,7 @@ import { STUDIO_P2_PUBLISH_ENABLED } from '@/lib/studio-p2-publish'
 import { Toaster } from '@/components/ui/toaster'
 
 const inter = Inter({ subsets: ['latin'] })
+const Analytics = STUDIO_ANALYTICS_MOUNTS ? VercelAnalytics : () => null // AUDIT-CONSOLE: the gate (lib/studio-analytics-gate.ts); the flag off is the real component, so the Analytics element below is as before
 const connectedLocal = process.env.STUDIO_V4_CONNECTED_LOCAL === 'true'
 
 export const metadata: Metadata = {

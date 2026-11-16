@@ -10,6 +10,8 @@ import { readFileSync } from 'node:fs'
 import assert from 'node:assert/strict'
 const git = cmd => execSync(`git ${cmd}`, { encoding: 'utf8' })
 const m = await import('./studio-billing-f4-f6-strip.mjs')
+const laterRegistry = await import('./studio-later-changes.mjs') // LATER-CHANGES: registry read (WS-BQ-CLAIM)
+const laterAfterMe = (rel, text) => { const at = laterRegistry.LATER_STRIPS.indexOf(m.stripBillingF4F6); return (at === -1 ? [] : laterRegistry.LATER_STRIPS.slice(at + 1)).reduce((out, strip) => { const next = typeof strip === 'function' ? strip(rel, out) : out; return typeof next === 'string' ? next : out }, text) } // LATER-CHANGES: registry read (WS-BQ-CLAIM): only the strips of the changes registered AFTER this one, in the registry's order, so a file reads as this change left it
 let n = 0
 const ok = (c, msg) => { assert.ok(c, msg); n++ }
 
@@ -17,7 +19,7 @@ const ok = (c, msg) => { assert.ok(c, msg); n++ }
 const bases = { 'app/api/wallet/debit/route.ts': 'origin/frontend1/tier-update-guard' }
 for (const rel of [...m.BILLING_F4F6_FILES, ...Object.keys(m.BILLING_F4F6_EDITS)]) {
   const base = git(`show ${bases[rel] || m.BASE_COMMIT}:"${rel}"`)
-  ok(m.stripBillingF4F6(rel, readFileSync(rel, 'utf8')) === base, `A: ${rel} strips to its base`)
+  ok(m.stripBillingF4F6(rel, laterAfterMe(rel, readFileSync(rel, 'utf8'))) === base, `A: ${rel} strips to its base`) // LATER-CHANGES: registry read (WS-BQ-CLAIM)
 }
 const env = readFileSync('.env.example', 'utf8')
 ok(env === `${git(`show ${m.BASE_COMMIT}:.env.example`)}\n${m.BILLING_F4F6_ENV_BLOCK}` || env.includes(m.BILLING_F4F6_ENV_BLOCK), 'A: env block present')

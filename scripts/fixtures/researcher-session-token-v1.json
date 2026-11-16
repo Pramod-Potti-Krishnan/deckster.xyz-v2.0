@@ -23,5 +23,24 @@
       "exp": 1790003600,
       "token": "v1.cmVzZWFyY2hlci1zZXNzaW9uLTAwMDI.b3fDsWVyQGV4YW1wbGUudGVzdA.1790003600.-b2yI1J0oDLqRa-YSg5T1SdtQy1v7eXAH4rgV0S2jd8"
     }
-  ]
+  ],
+  "k06_mint_and_verify": {
+    "_provenance": "The deterministic vectors of OPS-2's identity/v1 fixture (Studio Draft #316, a66944d1, scripts/fixtures/identity-session-token-v1--mint-and-verify.json), from K-06's own mint and verify (Researcher services/session_auth_report.py:141-190 at 523cf9168a780b8d043006e83c29e06990330160). Added by DSB-5a; the cases above are unchanged. The secret is a made-up 31-byte test value, below the 32-byte floor on purpose: the mint itself takes it, the routes never would.",
+    "secret": "fixture-session-secret-not-real",
+    "sid": "session-fixture-0001",
+    "exp": 1790000000,
+    "verify_now": 1789999100,
+    "token_for_cuid": "v1.c2Vzc2lvbi1maXh0dXJlLTAwMDE.Y3VpZC1maXh0dXJlLTAwMDE.1790000000.fg7lwbbKSSqUEgcTrzjMiePAz-yIpNY5TYbfoW9vK3o",
+    "uid_cuid": "cuid-fixture-0001",
+    "token_for_email_uid": "v1.c2Vzc2lvbi1maXh0dXJlLTAwMDE.dXNlckBleGFtcGxlLmludmFsaWQ.1790000000.mMz2Y2HpkxPdWIKZcR9v7NHOfYW87elY5t6dF3CpEd8",
+    "uid_email": "user@example.invalid",
+    "verify_at_verify_now": "valid",
+    "verify_after_exp_plus_31": "expired",
+    "verify_wrong_secret": "invalid",
+    "mint_refused": [
+      { "name": "uid with a pipe", "sid": "session-fixture-0001", "uid": "a|b" },
+      { "name": "empty uid", "sid": "session-fixture-0001", "uid": "" },
+      { "name": "sid with a pipe", "sid": "a|b", "uid": "cuid-fixture-0001" }
+    ]
+  }
 }

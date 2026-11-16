@@ -531,6 +531,7 @@ const scopeOwnCommits = (head, opts) => {
   const own = ownOf(head, opts)
   assert.ok(own.length >= 1, 'no own commit yet')
   for (const c of own) assert.match(git('log', '-1', '--format=%B', c), /Co-Authored-By: Claude Sonnet 5\.5 <noreply@anthropic\.com>\s*$/, c.slice(0, 8))
+  for (const c of git('rev-list', '--no-merges', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean).filter(c => !/^Chat parity (viewer|workspace|more):/.test(subjectOf(c)))) assert.doesNotMatch(subjectOf(c), OLDER_SUBJECTS, `${c.slice(0, 8)} would be taken for an older change's own commit`); return own // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): the chat parity changes stacked after this one (commits "Chat parity viewer: / workspace: / more: ...") are later changes', not an older change's own commits: they are skipped here, the same check runs over every other commit
   for (const c of git('rev-list', '--no-merges', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)) assert.doesNotMatch(subjectOf(c), OLDER_SUBJECTS, `${c.slice(0, 8)} would be taken for an older change's own commit`)
   return own
 }
