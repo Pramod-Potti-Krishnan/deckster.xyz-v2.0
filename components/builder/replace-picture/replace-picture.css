@@ -1,0 +1,52 @@
+/* REPLACE-PICTURE (NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE): the dialog behind the toolbar's Replace picture button. Every rule is scoped to [data-studio-replace-picture]; nothing here is global. */
+[data-studio-replace-picture="dialog"] {
+  --srp-panel:#fff; --srp-surface:#f5f7f6; --srp-line:#d6e1dc; --srp-text:#243438; --srp-muted:#566965;
+  --srp-teal:#1f6f72; --srp-accent:#6a4fc0; --srp-accent-hover:#593eac; --srp-ok:#1f6f4a; --srp-ok-bg:#e9f5ee;
+  --srp-bad:#8a2b2b; --srp-bad-bg:#fbeeee;
+  display:flex; flex-direction:column; width:min(440px,calc(100vw - 24px)); max-width:none; max-height:calc(100dvh - 32px);
+  overflow-y:auto; padding:18px; gap:14px; background:var(--srp-panel); color:var(--srp-text); border-color:var(--srp-line);
+  border-radius:12px; box-shadow:0 14px 44px rgb(10 26 24 / 20%);
+}
+.dark [data-studio-replace-picture="dialog"] {
+  --srp-panel:#1b2426; --srp-surface:#222d30; --srp-line:#334245; --srp-text:#e2ebe8; --srp-muted:#a0b1ad;
+  --srp-teal:#83c4bd; --srp-accent:#b4a0f2; --srp-accent-hover:#c6b6f6; --srp-ok:#8fd4ae; --srp-ok-bg:#1d3329;
+  --srp-bad:#f0a5a5; --srp-bad-bg:#3a2326;
+}
+[data-studio-replace-picture="header"] { flex-shrink:0; padding-right:26px; text-align:left; gap:6px; }
+[data-studio-replace-picture="header"] h2 { font-size:17px; line-height:24px; color:var(--srp-text); }
+[data-studio-replace-picture="header"] p { color:var(--srp-muted); font-size:12px; line-height:20px; overflow-wrap:anywhere; }
+[data-studio-replace-picture="form"] { display:flex; flex-direction:column; gap:4px; padding:12px; border:1px solid var(--srp-line); border-radius:8px; background:var(--srp-surface); }
+[data-studio-replace-picture="form"] label { color:var(--srp-muted); font-size:11px; line-height:18px; margin-top:6px; }
+[data-studio-replace-picture="form"] label:first-child { margin-top:0; }
+[data-studio-replace-picture="form"] input { width:100%; height:34px; padding:6px 10px; color:var(--srp-text); background:var(--srp-panel); border:1px solid var(--srp-line); border-radius:6px; font-size:12px; line-height:20px; }
+[data-studio-replace-picture="form"] input::placeholder { color:var(--srp-muted); opacity:.8; }
+[data-studio-replace-picture="form"] input[aria-invalid="true"] { border-color:var(--srp-bad); }
+[data-studio-replace-picture="form"] input:disabled { opacity:.6; cursor:not-allowed; }
+[data-studio-replace-picture="help"] { margin:0; color:var(--srp-muted); font-size:11px; line-height:18px; overflow-wrap:anywhere; }
+[data-studio-replace-picture="problem"] { margin:0; color:var(--srp-bad); background:var(--srp-bad-bg); border-radius:5px; padding:6px 8px; font-size:11px; line-height:18px; overflow-wrap:anywhere; }
+[data-studio-replace-picture="status"] { display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:8px; border:1px solid var(--srp-line); background:var(--srp-surface); font-size:12px; line-height:20px; }
+[data-studio-replace-picture="status"] > svg { flex-shrink:0; margin-top:2px; color:var(--srp-accent); }
+[data-studio-replace-picture="status"] > div { min-width:0; flex:1; }
+[data-studio-replace-picture="status"] p { margin:0; overflow-wrap:anywhere; }
+[data-studio-replace-picture="status"][data-state="done"] { background:var(--srp-ok-bg); border-color:var(--srp-ok); }
+[data-studio-replace-picture="status"][data-state="done"] > svg, [data-studio-replace-picture="status"][data-state="done"] [data-studio-replace-picture="words"] { color:var(--srp-ok); }
+[data-studio-replace-picture="status"][data-state="failed"] { background:var(--srp-bad-bg); border-color:var(--srp-bad); }
+[data-studio-replace-picture="status"][data-state="failed"] > svg, [data-studio-replace-picture="status"][data-state="failed"] [data-studio-replace-picture="words"] { color:var(--srp-bad); }
+[data-studio-replace-picture="bar"] { margin-top:8px; height:4px; border-radius:99px; background:var(--srp-line); overflow:hidden; }
+[data-studio-replace-picture="bar"] > span { display:block; height:100%; width:36%; border-radius:99px; background:var(--srp-accent); animation:srp-slide 1.3s ease-in-out infinite; }
+@keyframes srp-slide { 0% { transform:translateX(-110%); } 100% { transform:translateX(300%); } }
+@media (prefers-reduced-motion: reduce) { [data-studio-replace-picture="bar"] > span { animation:none; width:100%; opacity:.5; } }
+[data-studio-replace-picture="footer"] { flex-shrink:0; border-top:1px solid var(--srp-line); padding-top:12px; flex-direction:row; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
+[data-studio-replace-picture="footer"] > * { margin:0; }
+[data-studio-replace-picture="action"] { height:34px; padding:6px 12px; border-radius:6px; font-size:11px; line-height:20px; background:var(--srp-surface); color:var(--srp-text); border:1px solid var(--srp-line); }
+[data-studio-replace-picture="action"]:hover:not(:disabled) { background:var(--srp-panel); color:var(--srp-teal); border-color:var(--srp-teal); }
+[data-studio-replace-picture="action"][data-primary="true"] { background:var(--srp-accent); color:#fff; border-color:transparent; }
+.dark [data-studio-replace-picture="action"][data-primary="true"] { color:#1b2426; }
+[data-studio-replace-picture="action"][data-primary="true"]:hover:not(:disabled) { background:var(--srp-accent-hover); color:#fff; }
+.dark [data-studio-replace-picture="action"][data-primary="true"]:hover:not(:disabled) { color:#1b2426; }
+[data-studio-replace-picture="action"]:disabled { opacity:.55; cursor:not-allowed; }
+[data-studio-replace-picture="dialog"] :is(button,input,a,[tabindex]):focus-visible { outline:2px solid var(--srp-accent); outline-offset:2px; box-shadow:none; }
+[data-studio-replace-picture="dialog"] > button:last-child { right:12px; top:12px; padding:4px; min-height:24px; color:var(--srp-muted); opacity:1; border-radius:5px; }
+[data-studio-replace-picture="dialog"] > button:last-child:hover { background:var(--srp-surface); color:var(--srp-text); }
+@media (max-width: 480px) { [data-studio-replace-picture="footer"] { justify-content:stretch; } [data-studio-replace-picture="footer"] > [data-studio-replace-picture="action"] { flex:1 1 auto; } }
+@media (max-height: 650px) { [data-studio-replace-picture="dialog"] { gap:10px; padding:16px; } }

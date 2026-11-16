@@ -118,6 +118,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-ingest-status-comment-strip.mjs')).INGEST_STATUS_COMMENT_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE-3, the #633 follow-up (REVIEW-1 P3 1-4): the ingest-status route's header comment says its session name is browser-settable, and the mint-site test pins more (comment text and a test; no flag, no .env.example block, no strip)
   ...(await import('./studio-thinking-levels-strip.mjs')).THINKING_LEVELS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, M1 the thinking-level picker, the composer's gauge becomes Auto / Fast / Balanced / Best / Max (NEXT_PUBLIC_STUDIO_THINKING_LEVELS / _DIRECT_PREVIEW)
   ...(await import('./studio-research-switch-strip.mjs')).RESEARCH_SWITCH_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, M4 the Research on / off switch in the composer (NEXT_PUBLIC_STUDIO_RESEARCH_SWITCH)
+  ...(await import('./studio-replace-picture-strip.mjs')).REPLACE_PICTURE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, M10 Replace picture: the Replace picture button and dialog at the end of the slide toolbar (NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE)
   // one line per later change, above this comment
 ])
 
@@ -192,6 +193,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-connectors-session-links-strip.mjs')).CONNECTORS_SESSION_LINKS_ENV_BLOCK, // LATER-CHANGE: KNOWLEDGE, P4-15 slice 3 Drive session links (NEXT_PUBLIC_STUDIO_CONNECTORS_SESSION_LINKS_ENABLED)
   (await import('./studio-thinking-levels-strip.mjs')).THINKING_LEVELS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, M1 the thinking-level picker (NEXT_PUBLIC_STUDIO_THINKING_LEVELS / _DIRECT_PREVIEW)
   (await import('./studio-research-switch-strip.mjs')).RESEARCH_SWITCH_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, M4 the Research on / off switch in the composer (NEXT_PUBLIC_STUDIO_RESEARCH_SWITCH)
+  (await import('./studio-replace-picture-strip.mjs')).REPLACE_PICTURE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, M10 Replace picture (NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE)
   // one line per later change, above this comment
 ]
 
@@ -288,6 +290,7 @@ export const LATER_STRIPS = [
   (await import('./studio-sessions-owner-strip.mjs')).stripSessionsOwner, // LATER-CHANGE: FRONTEND-1, P-73 / P-74 sessions owner check (no flag: security)
   (await import('./studio-thinking-levels-strip.mjs')).stripThinkingLevels, // LATER-CHANGE: FRONTEND-1, M1 the thinking-level picker (NEXT_PUBLIC_STUDIO_THINKING_LEVELS / _DIRECT_PREVIEW)
   (await import('./studio-research-switch-strip.mjs')).stripResearchSwitch, // LATER-CHANGE: FRONTEND-1, M4 the Research on / off switch in the composer (NEXT_PUBLIC_STUDIO_RESEARCH_SWITCH)
+  (await import('./studio-replace-picture-strip.mjs')).stripReplacePicture, // LATER-CHANGE: FRONTEND-1, M10 Replace picture (NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE)
   // one line per later change, above this comment
 ]
 

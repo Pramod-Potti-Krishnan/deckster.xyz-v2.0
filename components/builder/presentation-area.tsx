@@ -160,6 +160,7 @@ export interface PresentationAreaProps {
   onUserDeckEdit?: () => void
   /** NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: passed to the viewer unchanged (see PresentationViewer.studioTabPausedHint). */
   studioTabPausedHint?: string
+  onReplacePictureReloadDeck?: () => void // REPLACE-PICTURE: passed to the viewer unchanged (see PresentationViewer.onReplacePictureReloadDeck)
   addSlideV2Settings?: AddSlideV2Settings<BuildThemeSelection>
   // PASS2 #3 (flag NEXT_PUBLIC_STUDIO_PANEL_FOCUS): passed through to the viewer's slide rail.
   studioRailCollapsed?: boolean
@@ -270,6 +271,7 @@ export function PresentationArea({
   onGenerateSlide,
   onUserDeckEdit,
   studioTabPausedHint,
+  onReplacePictureReloadDeck, // REPLACE-PICTURE
   addSlideV2Settings,
   studioRailCollapsed,
   onStudioRailReveal,
@@ -536,6 +538,7 @@ export function PresentationArea({
             onGenerateSlide={onGenerateSlide}
             onUserDeckEdit={onUserDeckEdit}
             studioTabPausedHint={studioTabPausedHint}
+            onReplacePictureReloadDeck={onReplacePictureReloadDeck} // REPLACE-PICTURE
             addSlideV2Settings={addSlideV2Settings}
             studioRailCollapsed={studioRailCollapsed}
             onStudioRailReveal={onStudioRailReveal}

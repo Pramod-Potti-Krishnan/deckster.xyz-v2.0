@@ -20,8 +20,10 @@ import path from 'node:path'
 import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
+import { stripReplacePicture, REPLACE_PICTURE_FILES } from './studio-replace-picture-strip.mjs' // LATER-CHANGES: registry read (REPLACE-PICTURE): the Replace picture action (stacked after this change) marks lines in the viewer, the slide area and the Builder page; this proof reads them as the change before left them
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(repoRoot, file) : ''; return typeof out === 'string' && REPLACE_PICTURE_FILES.includes(rel) ? stripReplacePicture(rel, out) : out } } // LATER-CHANGES: registry read (REPLACE-PICTURE): every read of a file the Replace picture action marks goes through that change's own strip (never the whole registry), so this proof sees the file as the change before left it
 const treeRoot = process.env.TEMPLATE_WORKSPACE_ROOT ? path.resolve(process.env.TEMPLATE_WORKSPACE_ROOT) : repoRoot
 const readFrom = (root, file) => fs.existsSync(path.join(root, file)) ? fs.readFileSync(path.join(root, file), 'utf8') : null
 const FILES = {
