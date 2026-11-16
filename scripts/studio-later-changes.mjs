@@ -116,6 +116,8 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-sessions-owner-strip.mjs')).SESSIONS_OWNER_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, P-73 / P-74: POST /api/sessions no longer hands another user's chat to a caller and logs no secret (no flag: a data leak is closed for everyone; no .env.example block)
   ...(await import('./studio-researcher-token-mint-sites-strip.mjs')).RESEARCHER_TOKEN_MINT_SITES_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE-3, the F1 follow-up: a source test pins the four Researcher session-token mint sites (test only; no flag, no .env.example block, no strip)
   ...(await import('./studio-ingest-status-comment-strip.mjs')).INGEST_STATUS_COMMENT_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE-3, the #633 follow-up (REVIEW-1 P3 1-4): the ingest-status route's header comment says its session name is browser-settable, and the mint-site test pins more (comment text and a test; no flag, no .env.example block, no strip)
+  ...(await import('./studio-thinking-levels-strip.mjs')).THINKING_LEVELS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, M1 the thinking-level picker, the composer's gauge becomes Auto / Fast / Balanced / Best / Max (NEXT_PUBLIC_STUDIO_THINKING_LEVELS / _DIRECT_PREVIEW)
+  ...(await import('./studio-research-switch-strip.mjs')).RESEARCH_SWITCH_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, M4 the Research on / off switch in the composer (NEXT_PUBLIC_STUDIO_RESEARCH_SWITCH)
   // one line per later change, above this comment
 ])
 
@@ -188,6 +190,8 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-upload-session-token-strip.mjs')).UPLOAD_SESSION_TOKEN_ENV_BLOCK, // LATER-CHANGE: KNOWLEDGE-3, DSB-5a upload session token (NEXT_PUBLIC_STUDIO_UPLOAD_SESSION_TOKEN_ENABLED)
   (await import('./studio-connectors-gdrive-strip.mjs')).CONNECTORS_GDRIVE_ENV_BLOCK, // LATER-CHANGE: KNOWLEDGE, P4-15 slice 1 Google Drive picker connector (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED)
   (await import('./studio-connectors-session-links-strip.mjs')).CONNECTORS_SESSION_LINKS_ENV_BLOCK, // LATER-CHANGE: KNOWLEDGE, P4-15 slice 3 Drive session links (NEXT_PUBLIC_STUDIO_CONNECTORS_SESSION_LINKS_ENABLED)
+  (await import('./studio-thinking-levels-strip.mjs')).THINKING_LEVELS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, M1 the thinking-level picker (NEXT_PUBLIC_STUDIO_THINKING_LEVELS / _DIRECT_PREVIEW)
+  (await import('./studio-research-switch-strip.mjs')).RESEARCH_SWITCH_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, M4 the Research on / off switch in the composer (NEXT_PUBLIC_STUDIO_RESEARCH_SWITCH)
   // one line per later change, above this comment
 ]
 
@@ -282,6 +286,8 @@ export const LATER_STRIPS = [
   (await import('./studio-connectors-gdrive-badge-strip.mjs')).stripConnectorsGdriveBadge, // LATER-CHANGE: KNOWLEDGE, P4-15 piece B Drive badge on citations (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED)
   (await import('./studio-connectors-gdrive-strip.mjs')).stripConnectorsGdrive, // LATER-CHANGE: KNOWLEDGE, P4-15 slice 1 settings sidebar Connectors entry, the in-place edit's strip pair (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED)
   (await import('./studio-sessions-owner-strip.mjs')).stripSessionsOwner, // LATER-CHANGE: FRONTEND-1, P-73 / P-74 sessions owner check (no flag: security)
+  (await import('./studio-thinking-levels-strip.mjs')).stripThinkingLevels, // LATER-CHANGE: FRONTEND-1, M1 the thinking-level picker (NEXT_PUBLIC_STUDIO_THINKING_LEVELS / _DIRECT_PREVIEW)
+  (await import('./studio-research-switch-strip.mjs')).stripResearchSwitch, // LATER-CHANGE: FRONTEND-1, M4 the Research on / off switch in the composer (NEXT_PUBLIC_STUDIO_RESEARCH_SWITCH)
   // one line per later change, above this comment
 ]
 
