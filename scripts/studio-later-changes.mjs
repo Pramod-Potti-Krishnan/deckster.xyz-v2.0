@@ -119,6 +119,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-thinking-levels-strip.mjs')).THINKING_LEVELS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, M1 the thinking-level picker, the composer's gauge becomes Auto / Fast / Balanced / Best / Max (NEXT_PUBLIC_STUDIO_THINKING_LEVELS / _DIRECT_PREVIEW)
   ...(await import('./studio-research-switch-strip.mjs')).RESEARCH_SWITCH_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, M4 the Research on / off switch in the composer (NEXT_PUBLIC_STUDIO_RESEARCH_SWITCH)
   ...(await import('./studio-replace-picture-strip.mjs')).REPLACE_PICTURE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, M10 Replace picture: the Replace picture button and dialog at the end of the slide toolbar (NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE)
+  ...(await import('./studio-uat-marketing-v4-strip.mjs')).UAT_MARKETING_V4_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, uat's own marketing-v4 site (41 files uat had and dev did not at the #637 promotion) so the committed-diff scope proofs pass on uat (no flag; no .env.example block; no strip)
   // one line per later change, above this comment
 ])
 
