@@ -2,19 +2,22 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  REPLACE_PICTURE_CATALOG_COMMAND,
   REPLACE_PICTURE_COMMAND,
-  REPLACE_PICTURE_KIND_COMMAND,
   REPLACE_PICTURE_ORDER_COMMAND,
-  canvasTypeFromCatalogReply,
+  createProgressTracker,
   failureOutcome,
   isReadOnlyPictureCode,
+  readSlideEligibility,
   refineBuildingOnSlide,
   replacePictureDisabledReason,
-  replacePictureSlideKind,
   runReplacePicture,
   slideIdentityFromOrder,
   urlIsViewOnly,
+  type PictureTarget,
   type ReplacePictureOutcome,
+  type ReplacePictureStage,
+  type SlideEligibility,
 } from '@/lib/studio-replace-picture'
 
 /** The viewer bridge the page's viewer already has (components/presentation-viewer.tsx sendCommand): one command to one iframe, resolving with the reply and rejecting with the failure. */
@@ -66,14 +69,17 @@ export interface StudioReplacePictureView {
   reason: string | null
   slideNumber: number
   slideTitle: string | null
-  replace: (target: { slideNumber: number }, form: { url: string; alt: string }) => Promise<ReplacePictureOutcome>
+  /** Where Layout says the picture would go on the slide on screen (null when it did not say). */
+  target: PictureTarget | null
+  /** `onProgress` hears each stage of the run (saving, writing, repainting) as the viewer enters it. */
+  replace: (target: { slideNumber: number }, form: { url: string; alt: string }, options?: { onProgress?: (stage: ReplacePictureStage) => void }) => Promise<ReplacePictureOutcome>
   reloadDeck?: () => void
 }
 
 /**
  * Replace picture (REPLACE-PICTURE, NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE): what the viewer needs to offer the action on the slide on screen.
- * Off (`enabled` false) it reads nothing and sends nothing and says `visible: false`. On, it reads the slide's kind once per slide (the viewer's getTemplateSlotCatalog, the read the Add Element panel
- * already makes), works out whether the action is available (lib/studio-replace-picture.ts, the reasons in plain words), and sends the one command when the person confirms: first a composeGetState read
+ * Off (`enabled` false) it reads nothing and sends nothing and says `visible: false`. On, it reads what Layout says about the slide once per slide (the viewer's getTemplateSlotCatalog, the read the Add Element panel
+ * already makes, which since Layout !296 also reports which slides can take a picture), works out whether the action is available (lib/studio-replace-picture.ts, the reasons in plain words), and sends the one command when the person confirms: first a composeGetState read
  * (the viewer's own order: which slide id sits at the index, and whether the viewer is still on that slide), so Layout refuses the write if the slide at that index is not the one chosen; then
  * setSlideBackgroundPicture with the 20 s budget, inside the viewer's own slide-mutation scaffolding (other slide changes wait, the frame is checked before and after). The slide_id sent is the VIEWER's:
  * the rail's ids come from Director's outline and are not Layout's, so they are used only to match a refine job to its slide, never sent.
@@ -81,26 +87,27 @@ export interface StudioReplacePictureView {
 export function useStudioReplacePicture(input: UseStudioReplacePictureInput): StudioReplacePictureView {
   const slideIndex = input.currentSlide - 1
   const key = `${input.presentationId ?? ''}\u0000${input.currentSlide}`
-  const [kindRead, setKindRead] = useState<{ key: string; kind: 'hero' | 'other' | 'unknown' } | null>(null)
+  const [eligibilityRead, setEligibilityRead] = useState<{ key: string; value: SlideEligibility } | null>(null)
   const [refused, setRefused] = useState<string | null>(null)
   const latest = useRef(input)
   latest.current = input
   const busy = input.building || input.studioBusy || input.mutationPending || input.templateMode
   const live = input.enabled && input.deckOpen && input.viewerReady && !input.presenting
 
-  // The kind of the slide on screen: read once per slide, again when the frame, the build or a slide change settles. A read that fails says "unknown": the action stays on and Layout answers for itself.
+  // What Layout says about the slide on screen: read once per slide, again when the frame, the build, a slide change or this hook's own change settles (a stored picture, a refusal: the report is the deck as it is now).
+  // A read that fails says "unknown": the action stays on and Layout answers for itself at click time.
   useEffect(() => {
     if (!live || busy) return
     let cancelled = false
     void Promise.resolve()
-      .then(() => latest.current.send(latest.current.getIframe(), REPLACE_PICTURE_KIND_COMMAND, { slideIndex }, { timeoutMs: 8000 }))
-      .then(reply => replacePictureSlideKind(canvasTypeFromCatalogReply(reply)))
-      .catch(() => 'unknown' as const)
-      .then(kind => { if (!cancelled) setKindRead({ key, kind }) })
+      .then(() => latest.current.send(latest.current.getIframe(), REPLACE_PICTURE_CATALOG_COMMAND, { slideIndex }, { timeoutMs: 8000 }))
+      .then(reply => readSlideEligibility(reply, slideIndex))
+      .catch((): SlideEligibility => ({ state: 'unknown' }))
+      .then(value => { if (!cancelled) setEligibilityRead({ key, value }) })
     return () => { cancelled = true }
   }, [live, busy, key, slideIndex])
 
-  const slideKind = kindRead && kindRead.key === key ? kindRead.kind : 'loading'
+  const eligibility: SlideEligibility = eligibilityRead && eligibilityRead.key === key ? eligibilityRead.value : { state: 'loading' }
   // A deck Layout refused as read-only (a view-only page, a published copy) stays off: `refused` is that deck's id, so another deck is not affected.
   const readOnly = urlIsViewOnly(input.frameUrl) || (refused !== null && refused === input.presentationId) ? 'view-only' as const
     : input.activeVersion === 'strawman' ? 'preview' as const : null
@@ -114,10 +121,10 @@ export function useStudioReplacePicture(input: UseStudioReplacePictureInput): St
     regeneratingThisSlide: refineBuildingOnSlide(input.composeJobs, { slideId: input.railSlideId, slideIndex }),
     studioBusy: input.studioBusy,
     mutationPending: input.mutationPending,
-    slideKind,
+    eligibility,
   })
 
-  const replace = useCallback(async (target: { slideNumber: number }, form: { url: string; alt: string }): Promise<ReplacePictureOutcome> => {
+  const replace = useCallback(async (target: { slideNumber: number }, form: { url: string; alt: string }, options?: { onProgress?: (stage: ReplacePictureStage) => void }): Promise<ReplacePictureOutcome> => {
     const now = latest.current
     const index = target.slideNumber - 1
     const mutation = now.begin('picture replacement')
@@ -131,12 +138,17 @@ export function useStudioReplacePicture(input: UseStudioReplacePictureInput): St
         slideId = identity.slideId
       } catch { /* the id is optional: without it Layout still writes to the slide at the index */ }
       if (!mutation.isCurrent()) return failureOutcome('SLIDE_CHANGED')
-      // The bridge rejects with text only, so the viewer's own reply message is watched for the command's code.
+      // The bridge rejects with text only, so the viewer's own reply message is watched for the command's code. The same watch hears the run's progress events (no action, no requestId: the bridge never takes
+      // one for the reply) from the same trusted frame, matched on their commandRequestId by the tracker.
       let reply: unknown = null
       const frame = mutation.iframe
+      const progress = createProgressTracker(index)
       const watch = (event: MessageEvent) => {
         const data = event.data as { action?: unknown } | null
-        if (data && typeof data === 'object' && data.action === REPLACE_PICTURE_COMMAND && now.isTrustedReply(event, frame)) reply = data
+        if (!data || typeof data !== 'object' || !now.isTrustedReply(event, frame)) return
+        if (data.action === REPLACE_PICTURE_COMMAND) { reply = data; return }
+        const stage = progress.accept(data)
+        if (stage !== null) options?.onProgress?.(stage)
       }
       window.addEventListener('message', watch)
       let outcome: ReplacePictureOutcome
@@ -158,6 +170,7 @@ export function useStudioReplacePicture(input: UseStudioReplacePictureInput): St
     reason: input.enabled ? reason : null,
     slideNumber: input.currentSlide,
     slideTitle: input.railSlideTitle && !/^Slide \d+$/i.test(input.railSlideTitle.trim()) ? input.railSlideTitle.trim() : null,
+    target: eligibility.state === 'known' ? eligibility.target : null,
     replace,
     reloadDeck: input.onReloadDeck,
   }

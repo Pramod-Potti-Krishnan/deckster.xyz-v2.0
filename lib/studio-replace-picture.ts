@@ -2,12 +2,13 @@
 // NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE (exact "true", default off, build-time); it acts only in the Studio shell (NEXT_PUBLIC_STUDIO_V4_SHELL). Off, components/presentation-viewer.tsx is byte for byte what it was.
 //
 // WHAT IT IS. A "Replace picture" action on the slide on screen. It sends Layout's viewer command setSlideBackgroundPicture (SLIDE-4, Layout Draft !294, flag LAYOUT_SLIDE_BACKGROUND_PICTURE_ENABLED; contract
-// docs/api/SLIDE_BACKGROUND_PICTURE.md on branch slide4/background-picture-slot of the Layout repo). The new picture goes into the slide's own background slot, the slot every title / section / closing hero paints,
+// docs/api/SLIDE_BACKGROUND_PICTURE.md on branch slide4/background-picture-slot of the Layout repo; the follow-up below is Layout Draft !296, head 26283304). The new picture goes into the slide's own background slot, the slot every title / section / closing hero paints,
 // and a whole-slide free picture Studio's older hero refine put over the slot is HIDDEN by Layout (never deleted); the reply lists what it hid.
 //
 // THE COMMAND. sendCommand(iframe, 'setSlideBackgroundPicture', { slide_index, slide_id?, url, alt? }, { timeoutMs: 20000 }): slide_index is the 0-based index of the slide in the stored deck; slide_id (the viewer's
 // composeGetState read) makes Layout refuse the write when the slide at that index is not it (SLIDE_CHANGED); url is https, at most 2048 characters, printable ASCII, none of " ' ` \ < > ( ) [ ] { }, a host, no user info,
-// a valid port; alt is at most 500 characters. The viewer may first wait for a pending autosave (up to 10 s), then writes and re-renders that one slide, so the reply takes up to about 20 s.
+// a valid port; alt is at most 500 characters. The viewer may first wait for a pending autosave (at most 6 s since !296, past it SAVE_PENDING at once and nothing written), then writes and re-renders that one slide,
+// so the reply normally comes within 6 s plus the write and the repaint; the 20 s budget stays as the outer bound (a write held up that long, for example behind a build's writes to the same deck).
 // Every failure carries a stable `code` (listed below); the viewer's own view-only guard answers error "view-only" with no code, which is VIEW_ONLY_PAGE; with Layout's flag off the viewer answers "Unknown action".
 // The viewer bridge (sendCommand) rejects with a plain Error and drops the reply's fields, and it is left exactly as it is: the hook watches the viewer's reply message for this one command and reads the code from it.
 //
@@ -15,18 +16,27 @@
 // A timeout is the one answer that cannot say whether the picture was stored, and its words say that.
 //
 // WHEN IT IS OFF (the button is greyed with the reason): a build or a regenerate runs (Layout has no notion of a build, writes only queue behind each other, so Studio, which knows, disables the action), another
-// slide change or an open element panel is busy, the tab is paused, Template Mode is on, the deck is read-only (a view-only frame, the outline preview, or a deck Layout just refused as read-only), or the slide is not a
-// title / section / closing slide (a hero: Layout canvas_type H1s, H2, H3). A slide whose kind cannot be read stays available and Layout answers NO_BACKGROUND_PICTURE if it has no slot.
+// slide change or an open element panel is busy, the tab is paused, Template Mode is on, the deck is read-only (a view-only frame, the outline preview, or a deck Layout just refused as read-only), or LAYOUT SAYS THE SLIDE
+// CANNOT TAKE A PICTURE (below). A slide Layout does not list, or a read that failed, stays available: the route still decides at click time (SLIDE_CHANGED and the others stay mapped).
+//
+// LAYOUT !296 FOLLOW-UP (eligibility up front, progress). getTemplateSlotCatalog, the read this hook already makes for each slide, now answers (only on an edit page with Layout's flag on) backgroundPicture { enabled: true,
+// slides: [{ slide_index, slide_id, eligible, reason: null | NO_BACKGROUND_PICTURE | PICTURE_DECLINED | VIEW_ONLY_PAGE, target: hero_slot | slide_background }] }, one entry per slide, by the route's own rules. Per slide: eligible, the
+// button is on; not eligible, it is greyed with the reason's plain words (the code table below, minus its closing "Nothing changed.", since nothing was tried). NO backgroundPicture key (Layout's flag off, or an older Layout) greys
+// every slide: "Replacing a picture is not turned on for this server yet." Layout's answer REPLACES the old title / section / closing guess (/^H\d/ on the canvas type): `target: slide_background` says a content slide can take a
+// picture too (it becomes the slide's background), so Layout decides, and the hero guess is gone (with no key the button is greyed whatever the slide is, so it could never be reached). The viewer also posts
+// {type: setSlideBackgroundPictureProgress, command, progress: true, stage: saving | writing | repainting, slide_index, commandRequestId} as each stage starts, with NO action and NO requestId key, so the bridge (which settles
+// on the first message whose action matches) never takes one for the reply. The hook watches them (same trusted-origin check as the reply watch) and the dialog shows the stage in words. The id the bridge sends with the
+// command is not visible to the hook, so a run is bound to the commandRequestId of its first "saving" event (the first thing a run that passes Layout's input checks posts) and later events must carry the same id.
 //
 // IMPORT-FREE BY DESIGN: scripts/test-studio-replace-picture.mjs transpiles this file into a bare vm context.
 
 export const REPLACE_PICTURE_COMMAND = 'setSlideBackgroundPicture'
-/** The reply budget: the command's own pending-save wait (10 s) plus the write and the re-render. */
+/** The reply budget: the command's own pending-save wait (capped at 6 s by Layout !296) plus the write and the re-render; unchanged, it stays the outer bound. */
 export const REPLACE_PICTURE_TIMEOUT_MS = 20_000
 export const REPLACE_PICTURE_URL_MAX = 2048
 export const REPLACE_PICTURE_ALT_MAX = 500
-/** The viewer read that says what kind of slide is on screen (the Add Element panel reads it too). */
-export const REPLACE_PICTURE_KIND_COMMAND = 'getTemplateSlotCatalog'
+/** The viewer read that also says which slides can take a picture (its backgroundPicture, Layout !296; the Add Element panel makes the same read). */
+export const REPLACE_PICTURE_CATALOG_COMMAND = 'getTemplateSlotCatalog'
 /** The viewer read that says which slide ids sit where (the same one the slide mutations read). */
 export const REPLACE_PICTURE_ORDER_COMMAND = 'composeGetState'
 
@@ -239,19 +249,91 @@ export async function runReplacePicture(deps: ReplacePictureDeps, input: { slide
 
 // ---------------------------------------------------------------- which slide, and when the action is off
 
-/** A hero (title, section, closing) is any canvas_type that starts H and a digit: H1, H1s, H2, H3 and their long names. */
-export function replacePictureSlideKind(canvasType: unknown): 'hero' | 'other' | 'unknown' {
-  if (typeof canvasType !== 'string' || canvasType.trim() === '') return 'unknown'
-  return /^H\d/i.test(canvasType.trim()) ? 'hero' : 'other'
+// ---------------------------------------------------------------- up front: which slides can take a picture (Layout !296)
+
+/** The refusals Layout reports up front: the route's own (slide_refusal), and VIEW_ONLY_PAGE for every slide of a view-only page. */
+export const PICTURE_ELIGIBILITY_REASONS = ['NO_BACKGROUND_PICTURE', 'PICTURE_DECLINED', 'VIEW_ONLY_PAGE'] as const
+export type PictureEligibilityReason = typeof PICTURE_ELIGIBILITY_REASONS[number]
+/** Where the picture goes: a title / section / closing slide's own picture slot, or any other slide's background. */
+export type PictureTarget = 'hero_slot' | 'slide_background'
+
+export type SlideEligibility =
+  /** Not read yet for this slide. */
+  | { state: 'loading' }
+  /** Layout's answer has no usable backgroundPicture: its flag is off or it is an older Layout. The button is greyed. */
+  | { state: 'absent' }
+  /** The read failed, or Layout's report does not list this slide: nothing is known, the button stays available and the route decides at click time. */
+  | { state: 'unknown' }
+  | { state: 'known'; eligible: boolean; reason: PictureEligibilityReason | null; target: PictureTarget | null }
+
+/** A refusal's words for a button greyed BEFORE any click: the code table's sentence without its closing "Nothing changed." (nothing has been tried yet). */
+export function upfrontWords(code: ReplacePictureCode): string {
+  return REPLACE_PICTURE_WORDS[code].replace(/\s*Nothing changed\.$/, '')
 }
 
-/** The canvas_type in the viewer's slot-catalog reply, wherever the reply keeps it (the Add Element panel reads the same three places). */
-export function canvasTypeFromCatalogReply(reply: unknown): string | null {
+/** What the dialog says about where the picture goes, by target (the hide sentence belongs to a title / section / closing slide only; a slide whose target is not known gets the plain one). */
+export const REPLACE_PICTURE_TARGET_WORDS: Record<PictureTarget | 'unknown', string> = {
+  hero_slot: 'The new picture goes into the slide\'s own picture area. A picture that covers the whole slide is hidden, never deleted.',
+  slide_background: 'The new picture becomes this slide\'s background. Pictures already on the slide stay as they are.',
+  unknown: 'The new picture goes into the slide\'s own picture area.',
+}
+
+/** The slide-catalog reply's report for the slide at `slideIndex`. Only the top-level `backgroundPicture` key counts (the contract's place for it). */
+export function readSlideEligibility(reply: unknown, slideIndex: number): SlideEligibility {
   const source = record(reply)
-  if (!source) return null
-  const payload = record(source.catalog ?? source.data) ?? source
-  const found = payload.canvas_type ?? payload.canvasType
-  return typeof found === 'string' && found.trim() !== '' ? found.trim() : null
+  if (!source) return { state: 'unknown' }
+  const report = record(source.backgroundPicture)
+  if (!report || report.enabled !== true || !Array.isArray(report.slides)) return { state: 'absent' }
+  const entry = report.slides.map(record).find(item => item !== null && item.slide_index === slideIndex)
+  if (!entry || typeof entry.eligible !== 'boolean') return { state: 'unknown' }
+  const target = entry.target === 'hero_slot' || entry.target === 'slide_background' ? entry.target : null
+  const reason = (PICTURE_ELIGIBILITY_REASONS as readonly unknown[]).includes(entry.reason) ? entry.reason as PictureEligibilityReason : null
+  return { state: 'known', eligible: entry.eligible, reason: entry.eligible ? null : reason, target }
+}
+
+// ---------------------------------------------------------------- progress (Layout !296)
+
+/** The interim event's type, and its stages in the order a run enters them. */
+export const REPLACE_PICTURE_PROGRESS_TYPE = 'setSlideBackgroundPictureProgress'
+export const REPLACE_PICTURE_STAGES = ['saving', 'writing', 'repainting'] as const
+export type ReplacePictureStage = typeof REPLACE_PICTURE_STAGES[number]
+
+/** What the dialog says while each stage runs. The stage name itself is never shown. */
+export const REPLACE_PICTURE_STAGE_WORDS: Record<ReplacePictureStage, string> = {
+  saving: 'Saving your edits\u2026',
+  writing: 'Saving the picture\u2026',
+  repainting: 'Redrawing the slide\u2026',
+}
+
+export interface ReplacePictureProgressTracker {
+  /** The stage a message announces for THIS run, or null when it is not one of this run's progress events. */
+  accept(data: unknown): ReplacePictureStage | null
+}
+
+/**
+ * Reads one run's progress events. An event counts only when it is the contract's: type setSlideBackgroundPictureProgress, command setSlideBackgroundPicture, progress true, a known stage, this slide's index,
+ * and NO action and NO requestId key (those mark a reply, which the bridge settles on, never a progress event). The id the bridge sent is not visible here, so the run is bound to the commandRequestId of its
+ * first "saving" event (the first event of any run that gets past Layout's input checks, posted before the run can do anything else) and every later event must carry that id: an event of an earlier run that
+ * outlived its dialog (a different id), or one that arrives before the run has begun, is ignored. A stage never goes backwards (a repeated or late event is ignored).
+ */
+export function createProgressTracker(slideIndex: number): ReplacePictureProgressTracker {
+  let runId: string | null = null
+  let last = -1
+  return {
+    accept(data: unknown) {
+      const event = record(data)
+      if (!event || event.type !== REPLACE_PICTURE_PROGRESS_TYPE || event.command !== REPLACE_PICTURE_COMMAND || event.progress !== true) return null
+      if ('action' in event || 'requestId' in event) return null
+      const at = (REPLACE_PICTURE_STAGES as readonly unknown[]).indexOf(event.stage)
+      if (at < 0 || event.slide_index !== slideIndex) return null
+      const id = event.commandRequestId
+      if (typeof id !== 'string' || id === '') return null
+      if (runId === null) { if (at !== 0) return null; runId = id } else if (id !== runId) return null
+      if (at <= last) return null
+      last = at
+      return REPLACE_PICTURE_STAGES[at]
+    },
+  }
 }
 
 /** The id of the slide at `index` and whether the viewer is on it, read from a composeGetState reply (the strict reading the slide mutations use is not needed: only the ids and the current index are). */
@@ -276,7 +358,9 @@ export const REPLACE_PICTURE_REASONS = {
   mutating: 'Another slide change is in progress. Replace picture is available when it finishes.',
   loading: 'The slide is still loading.',
   checking: 'Checking this slide.',
-  notHero: 'Replace picture works on title, section and closing slides. Select one of those.',
+  notEligible: 'Replace picture is not available for this slide.',
+  // Layout reports nothing about which slides can take a picture (its flag is off, or it is an older Layout): the table's LAYOUT_SWITCH_OFF sentence, as said before any click
+  notOnYet: upfrontWords('LAYOUT_SWITCH_OFF'),
 } as const
 
 export interface ReplacePictureAvailability {
@@ -296,7 +380,8 @@ export interface ReplacePictureAvailability {
   studioBusy: boolean
   /** A native slide change (add, duplicate, delete, reorder, layout, or this one) is in flight. */
   mutationPending: boolean
-  slideKind: 'loading' | 'hero' | 'other' | 'unknown'
+  /** What Layout says about the slide on screen (readSlideEligibility): not read yet, no report at all, a report that does not list it, or its answer. */
+  eligibility: SlideEligibility
 }
 
 /** Why Replace picture is off right now, in plain words; null when it is available. The order is the order of what the person can do about it first. */
@@ -310,8 +395,9 @@ export function replacePictureDisabledReason(a: ReplacePictureAvailability): str
   if (a.studioBusy) return REPLACE_PICTURE_REASONS.busy
   if (a.mutationPending) return REPLACE_PICTURE_REASONS.mutating
   if (!a.deckOpen || !a.viewerReady) return REPLACE_PICTURE_REASONS.loading
-  if (a.slideKind === 'other') return REPLACE_PICTURE_REASONS.notHero
-  if (a.slideKind === 'loading') return REPLACE_PICTURE_REASONS.checking
+  if (a.eligibility.state === 'absent') return REPLACE_PICTURE_REASONS.notOnYet
+  if (a.eligibility.state === 'known' && !a.eligibility.eligible) return a.eligibility.reason === null ? REPLACE_PICTURE_REASONS.notEligible : upfrontWords(a.eligibility.reason)
+  if (a.eligibility.state === 'loading') return REPLACE_PICTURE_REASONS.checking
   return null
 }
 

@@ -8,11 +8,15 @@ import { StudioDisabledReason } from "@/components/studio-disabled-reason"
 import {
   PICTURE_URL_PROBLEM_WORDS,
   REPLACE_PICTURE_ALT_MAX,
+  REPLACE_PICTURE_STAGE_WORDS,
+  REPLACE_PICTURE_TARGET_WORDS,
   REPLACE_PICTURE_TIMEOUT_MS,
   REPLACE_PICTURE_WORDS,
   checkPictureAlt,
   checkPictureUrl,
+  type PictureTarget,
   type ReplacePictureOutcome,
+  type ReplacePictureStage,
 } from "@/lib/studio-replace-picture"
 import "./replace-picture.css"
 
@@ -21,7 +25,9 @@ export interface ReplacePictureControlProps {
   reason: string | null
   slideNumber: number
   slideTitle: string | null
-  onReplace: (target: { slideNumber: number }, form: { url: string; alt: string }) => Promise<ReplacePictureOutcome>
+  /** Where Layout says the picture goes on this slide (a title / section / closing slide's picture area, or the slide's background); null when it did not say. */
+  pictureTarget?: PictureTarget | null
+  onReplace: (target: { slideNumber: number }, form: { url: string; alt: string }, options?: { onProgress?: (stage: ReplacePictureStage) => void }) => Promise<ReplacePictureOutcome>
   /** Reload deck, offered after the answers that say so (the picture stored but not drawn, no answer in time). */
   onReloadDeck?: () => void
   /** The toolbar's own button classes, so the button looks like its neighbours. */
@@ -34,10 +40,10 @@ type Phase = "form" | "running" | "done" | "failed"
 
 /**
  * REPLACE-PICTURE (NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE): the "Replace picture" toolbar button and its dialog. The dialog takes an https picture link and an optional description, says what it is doing
- * while the viewer works (up to 20 seconds), and ends in plain words: done (with a note when a picture that covered the slide was hidden), or the reason it did not work (lib/studio-replace-picture.ts
+ * while the viewer works (up to 20 seconds; the stage it has reached in words, from the viewer's own progress events), and ends in plain words: done (with a note when a picture that covered the slide was hidden), or the reason it did not work (lib/studio-replace-picture.ts
  * maps every Layout code). It never shows a raw message. The slide it was opened for is fixed when it opens, so moving about the deck cannot send the picture to another slide.
  */
-export function ReplacePictureControl({ reason, slideNumber, slideTitle, onReplace, onReloadDeck, buttonClassName, labelClassName, tooltipContainer }: ReplacePictureControlProps) {
+export function ReplacePictureControl({ reason, slideNumber, slideTitle, pictureTarget = null, onReplace, onReloadDeck, buttonClassName, labelClassName, tooltipContainer }: ReplacePictureControlProps) {
   const [open, setOpen] = useState(false)
   const [phase, setPhase] = useState<Phase>("form")
   const [url, setUrl] = useState("")
@@ -45,7 +51,8 @@ export function ReplacePictureControl({ reason, slideNumber, slideTitle, onRepla
   const [problem, setProblem] = useState<string | null>(null)
   const [altProblem, setAltProblem] = useState<string | null>(null)
   const [outcome, setOutcome] = useState<ReplacePictureOutcome | null>(null)
-  const [target, setTarget] = useState({ slideNumber, slideTitle })
+  const [target, setTarget] = useState({ slideNumber, slideTitle, pictureTarget })
+  const [stage, setStage] = useState<ReplacePictureStage | null>(null)
   const [seconds, setSeconds] = useState(0)
   const mounted = useRef(true)
   const blocked = typeof reason === "string" && reason !== ""
@@ -63,7 +70,7 @@ export function ReplacePictureControl({ reason, slideNumber, slideTitle, onRepla
   }, [phase])
 
   const openDialog = () => {
-    setTarget({ slideNumber, slideTitle })
+    setTarget({ slideNumber, slideTitle, pictureTarget })
     setUrl("")
     setAlt("")
     setProblem(null)
@@ -80,8 +87,9 @@ export function ReplacePictureControl({ reason, slideNumber, slideTitle, onRepla
     setProblem(checkedUrl.ok ? null : PICTURE_URL_PROBLEM_WORDS[checkedUrl.problem])
     setAltProblem(checkedAlt.ok ? null : REPLACE_PICTURE_WORDS.INVALID_ALT)
     if (!checkedUrl.ok || !checkedAlt.ok) return
+    setStage(null)
     setPhase("running")
-    const result = await onReplace({ slideNumber: target.slideNumber }, { url: checkedUrl.url, alt })
+    const result = await onReplace({ slideNumber: target.slideNumber }, { url: checkedUrl.url, alt }, { onProgress: next => { if (mounted.current) setStage(next) } })
     if (!mounted.current) return
     setOutcome(result)
     setPhase(result.ok ? "done" : "failed")
@@ -121,7 +129,7 @@ export function ReplacePictureControl({ reason, slideNumber, slideTitle, onRepla
           <DialogHeader data-studio-replace-picture="header">
             <DialogTitle>Replace picture</DialogTitle>
             <DialogDescription>
-              Slide {target.slideNumber}{title}. The new picture goes into the slide&apos;s own picture area. A picture that covers the whole slide is hidden, never deleted.
+              Slide {target.slideNumber}{title}. {REPLACE_PICTURE_TARGET_WORDS[target.pictureTarget ?? "unknown"]}
             </DialogDescription>
           </DialogHeader>
 
@@ -176,7 +184,7 @@ export function ReplacePictureControl({ reason, slideNumber, slideTitle, onRepla
             <div data-studio-replace-picture="status" data-state="running" role="status" aria-live="polite">
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               <div>
-                <p>Replacing the picture. {seconds} s</p>
+                <p data-studio-replace-picture="stage" data-stage={stage ?? "starting"}>{stage ? REPLACE_PICTURE_STAGE_WORDS[stage] : "Replacing the picture."} {seconds} s</p>
                 <p data-studio-replace-picture="help">This can take up to {REPLACE_PICTURE_TIMEOUT_MS / 1000} seconds. Keep this open until it finishes.</p>
                 <div data-studio-replace-picture="bar" aria-hidden="true"><span /></div>
               </div>
