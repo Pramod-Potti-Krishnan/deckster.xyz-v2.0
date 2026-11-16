@@ -124,6 +124,30 @@ export const REPLACE_PICTURE_PIN_EDITS = {
       "{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && REPLACE_PICTURE_FILES.includes(rel) ? stripReplacePicture(rel, out) : out } } // LATER-CHANGES: registry read (REPLACE-PICTURE): every read of a file the Replace picture action marks goes through that change's own strip (never the whole registry), so this proof sees the file as the change before left it\n",
       ""
     ]
+  ],
+  "scripts/test-studio-phone-hints.mjs": [
+    [
+      "import { stripReplacePicture, REPLACE_PICTURE_FILES } from './studio-replace-picture-strip.mjs' // LATER-CHANGES: registry read (REPLACE-PICTURE): the Replace picture action (stacked after this change) marks lines in the viewer, the slide area and the Builder page; this proof reads them as the change before left them\n",
+      ""
+    ],
+    [
+      "{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && REPLACE_PICTURE_FILES.includes(rel) ? stripReplacePicture(rel, out) : out } } // LATER-CHANGES: registry read (REPLACE-PICTURE): every read of a file the Replace picture action marks goes through that change's own strip (never the whole registry), so this proof sees the file as the change before left it\n",
+      ""
+    ]
+  ],
+  "scripts/test-studio-rail-add-slide.mjs": [
+    [
+      "import { belongsToDeckSyncTruth as belongsToDeckSyncTruthOfBeforeReplacePicture } from './studio-deck-sync-truth-strip.mjs' // LATER-CHANGES: registry read (REPLACE-PICTURE): the Replace picture action marks its own viewer lines; the block below drops them from the viewer diff it counts, next to the other changes' marked lines\n",
+      ""
+    ],
+    [
+      "import { REPLACE_PICTURE_MARKER_RE } from './studio-replace-picture-strip.mjs' // LATER-CHANGES: registry read (REPLACE-PICTURE): the Replace picture action's marker\n",
+      ""
+    ],
+    [
+      "    const belongsToDeckSyncTruthOf = line => belongsToDeckSyncTruthOfBeforeReplacePicture(line) || REPLACE_PICTURE_MARKER_RE.test(line) // LATER-CHANGES: registry read (REPLACE-PICTURE): from here the filter below drops the Replace picture action's marked viewer lines too (a block-scoped name over the import, so no line an older change taught is edited)\n",
+      ""
+    ]
   ]
 }
 
