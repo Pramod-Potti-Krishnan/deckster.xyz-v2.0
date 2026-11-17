@@ -5,11 +5,11 @@
 //                                                                   Layout's slide catalog and composeGetState do; react-dom/server for the control's markup; git is read for the strips, the registry and the scope; no network, no browser, no .next)
 //
 // What it proves (A to H), then mutants (I):
-//  A. the lib: the flag is on for the exact string "true" and for nothing else, one literal env read; the pure helper heroOnlyReasonFor (a table: hero_slot -> available, slide_background -> the exact words, an unknown target or no answer -> available, flag off -> never a
-//     reason); replacePictureDisabledReason honours the helper's words after the reasons the person can act on first and before Layout's own answer, and adds nothing when it is given none;
+//  A. the lib: the flag is on for the exact string "true" and for nothing else, one literal env read; the pure helper heroOnlyReasonFor (a table: hero_slot -> available, an ELIGIBLE slide_background -> the exact words (about the layout, never a slide role), a slide
+//     Layout declines -> none, an unknown target or no answer -> available, flag off -> never a reason); replacePictureDisabledReason returns the helper's words LAST: after the reasons the person can act on first and after Layout's own answer (not on yet, not eligible, checking), and adds nothing when it is given none;
 //  B. the REAL hook: flag off, the transcript (what the hook returns and what it sends, over a matrix of viewers, slides and states) equals dev's hook event for event, hashed; flag on, the same matrix differs from dev's ONLY in the reason of a slide Layout
-//     says is slide_background (the words, exactly), unless an earlier state already greys it; an unknown target stays available; hero_slot is unchanged; nothing is sent; and the rule is checked again at CLICK time (a hero slide whose target turns out to be a
-//     background while the dialog is open is refused with the words, nothing sent; flag off it is sent);
+//     says is eligible and files as slide_background (the words, exactly), unless an earlier state or Layout's own refusal already greys it (REVIEW-1's P3); an unknown target stays available; hero_slot is unchanged; nothing is sent; a title, section or closing slide
+//     in a layout with no picture slot gets the same words, which never name a role (REVIEW-1's P2); and the rule is checked again at CLICK time (a hero slide whose target turns out to be a background while the dialog is open is refused with the words, nothing sent; flag off it is sent);
 //  C. the control: flag off its markup (the dialog opened, under a stand-in for the shadcn Dialog) is dev's, byte for byte; flag on it differs by one data attribute on the dialog and nothing else;
 //  D. the css (a new file, the Replace picture css is dev's): every rule needs the attribute the control sets only with the flag on; the dialog and its overlay get a z-index above the shell's phone overlays and below the toast and the tooltip, and no entrance
 //     animation while open (the root cause: the shadcn Dialog fades in over 200 ms, so for the first frames it is see-through and the slide shows through it);
@@ -113,7 +113,9 @@ const DEV = { [LIB]: baseText(LIB), [HOOK]: baseText(HOOK), [CONTROL]: baseText(
 /** The environments: Replace picture on (as in UAT), and with the hero-only flag too. */
 const ON = { [SHELL_FLAG]: 'true', NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' }
 const HERO_ON = { ...ON, [FLAG]: 'true' }
-const WORDS = 'Pictures can be replaced on title, section and closing slides.'
+const WORDS = "This slide's layout has no picture slot, so its picture cannot be replaced here."
+/** Words that name a slide's ROLE: the sentence is shown on every slide Layout files as slide_background, and a title, section or closing slide in another layout (an ingested template, a direct-route deck) is one of them. */
+const ROLE_WORDS = /\b(title|section|closing|content|hero|cover|opening|front|last|first)\b/i
 
 // ============================================================================================================================================
 // A. the lib
@@ -126,7 +128,8 @@ const ELIGIBILITIES = [
   ...REASONS.flatMap(reason => [{ state: 'known', eligible: false, reason, target: 'hero_slot' }, { state: 'known', eligible: false, reason, target: 'slide_background' }, { state: 'known', eligible: false, reason, target: null }]),
   { state: 'known', eligible: false, reason: null, target: 'hero_slot' }, { state: 'known', eligible: false, reason: null, target: 'slide_background' },
 ]
-const isBackground = e => e.state === 'known' && e.target === 'slide_background'
+/** The hero-only rule applies to a slide Layout says IS eligible and files as slide_background; a slide Layout declines keeps Layout's own reason. */
+const heroOnly = e => e.state === 'known' && e.eligible === true && e.target === 'slide_background'
 function libChecks(texts = {}) {
   // the flag: the exact string "true" and nothing else
   for (const [value, on] of [['true', true], ['TRUE', false], ['True', false], ['1', false], ['yes', false], ['on', false], [' true', false], ['true ', false], ['false', false], ['', false], [undefined, false]]) {
@@ -137,16 +140,16 @@ function libChecks(texts = {}) {
   for (const value of [true, 1, null, {}]) assert.equal(load(HERO, { env: {}, texts }).replacePictureHeroOnlyFlagOn(value), false, `a value that is not a string is off: ${JSON.stringify(value)}`)
   // the words, exactly
   const On = load(HERO, { env: { [FLAG]: 'true' }, texts }), Off = load(HERO, { env: {}, texts })
-  assert.equal(On.HERO_ONLY_WORDS, WORDS, 'the words are PK\'s, exactly')
+  assert.equal(On.HERO_ONLY_WORDS, WORDS, 'the words are the ones settled in review, exactly'); assert.doesNotMatch(On.HERO_ONLY_WORDS, ROLE_WORDS, 'and they never name a slide role (they must be true on a title slide in a layout with no picture slot)')
   // the helper: a table (flag on: the words exactly for a KNOWN slide_background, whatever Layout says about eligibility; flag off: never)
   for (const eligibility of ELIGIBILITIES) {
-    assert.equal(On.heroOnlyReasonFor(eligibility, true), isBackground(eligibility) ? WORDS : null, `flag on, ${JSON.stringify(eligibility)}`)
+    assert.equal(On.heroOnlyReasonFor(eligibility, true), heroOnly(eligibility) ? WORDS : null, `flag on, ${JSON.stringify(eligibility)}`)
     assert.equal(On.heroOnlyReasonFor(eligibility, false), null, `flag off, ${JSON.stringify(eligibility)}: never a reason`)
-    assert.equal(Off.heroOnlyReasonFor(eligibility, true), isBackground(eligibility) ? WORDS : null, 'the helper takes the flag as an argument: the env does not matter to it')
+    assert.equal(Off.heroOnlyReasonFor(eligibility, true), heroOnly(eligibility) ? WORDS : null, 'the helper takes the flag as an argument: the env does not matter to it')
   }
-  for (const odd of [null, undefined, 5, 'known', [], {}, { state: 'known' }, { state: 'known', target: 'Slide_Background' }, { state: 'known', target: 'slide-background' }, { state: 'unknown', target: 'slide_background' }, { state: 'absent', target: 'slide_background' }]) assert.equal(On.heroOnlyReasonFor(odd, true), null, `a malformed or unknown answer is available: ${JSON.stringify(odd)}`)
+  for (const odd of [null, undefined, 5, 'known', [], {}, { state: 'known' }, { state: 'known', target: 'Slide_Background' }, { state: 'known', target: 'slide-background' }, { state: 'known', target: 'slide_background' }, { state: 'known', eligible: 'true', target: 'slide_background' }, { state: 'known', eligible: 1, target: 'slide_background' }, { state: 'unknown', eligible: true, target: 'slide_background' }, { state: 'absent', eligible: true, target: 'slide_background' }, { state: 'loading', eligible: true, target: 'slide_background' }, { state: 'unknown', target: 'slide_background' }, { state: 'absent', target: 'slide_background' }]) assert.equal(On.heroOnlyReasonFor(odd, true), null, `a malformed or unknown answer is available: ${JSON.stringify(odd)}`)
   for (const enabled of [undefined, null, 0, 1, 'true', 'yes', {}]) assert.equal(On.heroOnlyReasonFor({ state: 'known', eligible: true, reason: null, target: 'slide_background' }, enabled), null, `the helper acts only for a real true: ${JSON.stringify(enabled)}`)
-  // replacePictureDisabledReason: the words come after the reasons the person can act on first, before Layout's own answer; none given, nothing added
+  // replacePictureDisabledReason: the words come LAST: after the reasons the person can act on first and after Layout's own answer (not on yet, not eligible, checking); none given, nothing added
   const A = load(LIB, { env: {}, texts })
   const R = A.REPLACE_PICTURE_REASONS
   const open = { deckOpen: true, viewerReady: true, readOnly: null, templateMode: false, building: false, regeneratingThisSlide: false, studioBusy: false, mutationPending: false, eligibility: { state: 'known', eligible: true, reason: null, target: 'slide_background' } }
@@ -154,10 +157,13 @@ function libChecks(texts = {}) {
   assert.equal(A.replacePictureDisabledReason({ ...open }), null, 'the same slide without the rule (dev): available')
   const earlier = [[{ readOnly: 'view-only' }, R.viewOnly], [{ readOnly: 'preview' }, R.preview], [{ tabPausedHint: 'This tab is paused (test).' }, 'This tab is paused (test).'], [{ templateMode: true }, R.template], [{ building: true }, R.building], [{ regeneratingThisSlide: true }, R.regenerating],
     [{ studioBusy: true }, R.busy], [{ mutationPending: true }, R.mutating], [{ deckOpen: false }, R.loading], [{ viewerReady: false }, R.loading], [{ placeholderOnScreen: true }, R.placeholder]]
+  for (const reason of ['NO_BACKGROUND_PICTURE', 'PICTURE_DECLINED', 'VIEW_ONLY_PAGE']) assert.equal(A.replacePictureDisabledReason({ ...open, eligibility: { state: 'known', eligible: false, reason, target: 'slide_background' }, heroOnlyReason: WORDS }), A.upfrontWords(reason), `${reason} on a slide_background: Layout's own reason, not the words`)
+  assert.equal(A.replacePictureDisabledReason({ ...open, eligibility: { state: 'known', eligible: false, reason: null, target: 'slide_background' }, heroOnlyReason: WORDS }), R.notEligible, 'declined with no reason: Layout\'s plain default, not the words')
+  assert.equal(A.replacePictureDisabledReason({ ...open, eligibility: { state: 'absent' }, heroOnlyReason: WORDS }), R.notOnYet, 'no backgroundPicture at all: not on yet, not the words'); assert.equal(A.replacePictureDisabledReason({ ...open, eligibility: { state: 'loading' }, heroOnlyReason: WORDS }), R.checking, 'still reading: checking, not the words')
   for (const [patch, words] of earlier) assert.equal(A.replacePictureDisabledReason({ ...open, ...patch, heroOnlyReason: WORDS }), words, `${JSON.stringify(patch)}: that reason comes first, not the hero-only words`)
   for (const eligibility of ELIGIBILITIES) {
-    assert.equal(A.replacePictureDisabledReason({ ...open, eligibility, heroOnlyReason: WORDS }), WORDS, `the words win over Layout's own answer: ${JSON.stringify(eligibility)}`)
     const plain = A.replacePictureDisabledReason({ ...open, eligibility })
+    assert.equal(A.replacePictureDisabledReason({ ...open, eligibility, heroOnlyReason: WORDS }), plain ?? WORDS, `Layout's own answer comes first, the words only when it has none: ${JSON.stringify(eligibility)}`)
     for (const none of [null, undefined, '', 5, {}, []]) assert.equal(A.replacePictureDisabledReason({ ...open, eligibility, heroOnlyReason: none }), plain, `no usable words (${JSON.stringify(none)}): exactly dev's answer for ${JSON.stringify(eligibility)}`)
   }
   // the lib stays import-free of runtime code (type imports only), and touches no network, storage or timers
@@ -190,7 +196,7 @@ function viewer(over = {}) {
     if (action === 'getTemplateSlotCatalog') {
       if (state.catalogFails) throw new Error('Command timeout')
       const slides = Array.from({ length: state.count }, (_, i) => ({ slide_index: i, slide_id: idOf(i), eligible: true, reason: null, target: state.heroes.includes(i) ? 'hero_slot' : 'slide_background', ...(state.entries[i] ?? {}) }))
-      return { success: true, canvas_type: 'H1s', hero_style: null, slots: [], ...(state.noReport ? {} : { backgroundPicture: 'report' in state ? state.report : { enabled: true, slides } }) }
+      return { success: true, canvas_type: state.canvasType ?? 'H1s', hero_style: null, slots: [], ...(state.noReport ? {} : { backgroundPicture: 'report' in state ? state.report : { enabled: true, slides } }) }
     }
     if (action === 'composeGetState') { if (state.orderFails) throw new Error('Command timeout'); return orderReceipt(sections(), state.current) }
     if (action === 'setSlideBackgroundPicture') return { success: true, action, slide_index: params.slide_index, hidden_image_ids: [] }
@@ -254,17 +260,17 @@ async function hookChecks(texts = {}) {
   for (const flagValue of ['TRUE', '1', 'yes', 'false', '']) { const some = await matrix({ ...ON, [FLAG]: flagValue }, texts, small); for (const key of Object.keys(some)) deepEqual(some[key], dev[key.replace(/^default \|/, 'default (heroes 1, 4, 8) |')], `the flag ${JSON.stringify(flagValue)} is off: dev's transcript (${key})`) }
   const digest = sha(JSON.stringify(dev)); assert.equal(sha(JSON.stringify(off)), digest, 'and the digests agree')
   hookChecks.digest = digest.slice(0, 16)
-  // flag on: dev's transcript, except the reason of a slide Layout says is slide_background, which is the words (an earlier state keeps its own reason; nothing else is read or sent differently)
+  // flag on: dev's transcript, except the reason of a slide Layout says is ELIGIBLE and files as slide_background, which is the words (an earlier state keeps its own reason, and so does Layout's own refusal; nothing else is read or sent differently)
   const on = await matrix(HERO_ON, texts)
-  let words = 0, keptEarlier = 0, unchanged = 0
+  let words = 0, keptEarlier = 0, keptLayout = 0, unchanged = 0
   for (const key of Object.keys(dev)) {
     const base = dev[key], now = on[key], state = key.split(' | ')[2]
-    const expectWords = state === 'none' && base.target === 'slide_background'
+    const expectWords = state === 'none' && base.target === 'slide_background' && base.reason === null
     deepEqual({ ...now, reason: undefined }, { ...base, reason: undefined }, `${key}: only the reason may differ`)
-    if (expectWords) { assert.equal(now.reason, WORDS, `${key}: a known slide_background is greyed with the words`); words++ } else { assert.equal(now.reason, base.reason, `${key}: the reason is dev's`); if (state !== 'none' && base.target === 'slide_background') keptEarlier++; else unchanged++ }
+    if (expectWords) { assert.equal(now.reason, WORDS, `${key}: an eligible slide_background is greyed with the words`); words++ } else { assert.equal(now.reason, base.reason, `${key}: the reason is dev's`); if (state !== 'none' && base.target === 'slide_background') keptEarlier++; else if (base.target === 'slide_background') keptLayout++; else unchanged++ }
   }
-  assert.ok(words >= 10 && keptEarlier >= 20 && unchanged >= 100, `the matrix covers both sides (${words} greyed by the rule, ${keptEarlier} kept by an earlier state, ${unchanged} unchanged)`)
-  hookChecks.counts = { words, keptEarlier, unchanged, scenarios: Object.keys(dev).length }
+  assert.ok(words >= 10 && keptEarlier >= 20 && keptLayout >= 2 && unchanged >= 100, `the matrix covers every side (${words} greyed by the rule, ${keptEarlier} kept by an earlier state, ${keptLayout} kept by Layout's own refusal, ${unchanged} unchanged)`)
+  hookChecks.counts = { words, keptEarlier, keptLayout, unchanged, scenarios: Object.keys(dev).length }
   // named cases, in words
   let v = viewer(), m = await mount(HERO_ON, v, { currentSlide: 1 }, texts)
   assert.equal(m.view().reason, null, 'a title slide (hero_slot): available'); assert.equal(m.view().target, 'hero_slot'); assert.equal(m.view().visible, true)
@@ -273,7 +279,15 @@ async function hookChecks(texts = {}) {
   v = viewer({ report: { enabled: true, slides: [] } }); m = await mount(HERO_ON, v, { currentSlide: 2 }, texts); assert.equal(m.view().reason, null, 'a slide the report does not list (target unknown): available, Layout decides'); m.root.unmount()
   v = viewer({ catalogFails: true }); m = await mount(HERO_ON, v, { currentSlide: 2 }, texts); assert.equal(m.view().reason, null, 'a catalog read that failed (target unknown): available'); m.root.unmount()
   v = viewer({ noReport: true }); m = await mount(HERO_ON, v, { currentSlide: 2 }, texts); assert.equal(m.view().reason, 'Replacing a picture is not turned on for this server yet.', 'no backgroundPicture at all: Layout\'s words, not the hero-only ones'); m.root.unmount()
-  v = viewer({ entries: { 1: { eligible: false, reason: 'NO_BACKGROUND_PICTURE' } } }); m = await mount(HERO_ON, v, { currentSlide: 2 }, texts); assert.equal(m.view().reason, WORDS, 'a content slide Layout also refuses: the hero-only words (the slide kind is the reason)'); m.root.unmount()
+  // P3: when Layout ALSO declines the slide, Layout's own reason is shown; the hero-only words only when Layout says the slide IS eligible but files it as slide_background
+  for (const reason of ['NO_BACKGROUND_PICTURE', 'PICTURE_DECLINED', 'VIEW_ONLY_PAGE']) { v = viewer({ entries: { 1: { eligible: false, reason } } }); m = await mount(HERO_ON, v, { currentSlide: 2 }, texts); assert.equal(m.view().reason, load(LIB, { env: {}, texts }).upfrontWords(reason), `a content slide Layout also declines (${reason}): Layout's own reason, not the words`); m.root.unmount() }
+  v = viewer({ entries: { 1: { eligible: false, reason: null } } }); m = await mount(HERO_ON, v, { currentSlide: 2 }, texts); assert.equal(m.view().reason, 'Replace picture is not available for this slide.', 'declined with no reason: Layout\'s plain default'); m.root.unmount()
+  v = viewer(); m = await mount(HERO_ON, v, { currentSlide: 2 }, texts); assert.equal(m.view().reason, WORDS, 'the same content slide, eligible: the hero-only words'); m.root.unmount()
+  // P2: the words are true on every slide they are shown on: a title, section or closing slide in a layout Layout files as slide_background (an ingested template, a direct-route deck) gets the same words, and they never name a role
+  for (const [title, slide] of [['Title slide', 1], ['Section: results', 2], ['Thank you (closing slide)', 3]]) {
+    v = viewer({ heroes: [], canvasType: 'ingested-template' }); m = await mount(HERO_ON, v, { currentSlide: slide, railSlideTitle: title }, texts)
+    assert.equal(m.view().slideTitle, title, 'the slide is named as a title, section or closing slide'); assert.equal(m.view().target, 'slide_background', 'Layout files it as slide_background (its layout has no picture slot)'); assert.equal(m.view().reason, WORDS, `a title-role slide in such a layout (${title}) gets the layout words`); assert.doesNotMatch(m.view().reason, ROLE_WORDS, 'which never name a slide role'); m.root.unmount()
+  }
   v = viewer({ entries: { 0: { eligible: false, reason: 'PICTURE_DECLINED' } } }); m = await mount(HERO_ON, v, { currentSlide: 1 }, texts); assert.equal(m.view().reason, 'This slide was designed without a picture, so a new one would not show. Choose another design for it to use a picture.', 'a hero slide Layout refuses keeps Layout\'s own words'); m.root.unmount()
   v = viewer(); m = await mount(HERO_ON, v, { currentSlide: 2, building: true }, texts); assert.equal(m.view().reason, 'A build is running. Replace picture is available when it finishes.', 'a build greys it first, with its own words'); m.root.unmount()
   // the rule is checked again at click time: a hero slide the dialog was opened on turns out to take its picture as a background while the dialog is open
@@ -288,6 +302,10 @@ async function hookChecks(texts = {}) {
     } else { assert.equal(out.ok, true, 'flag off: the picture goes out, as before'); assert.equal(v.commands().length, 1) }
     m.root.unmount()
   }
+  // and at click time too: a slide that turns into a background AND is declined by Layout while the dialog is open shows Layout's reason, not the words
+  v = viewer(); m = await mount(HERO_ON, v, { currentSlide: 1 }, texts); { const id = m.view().slideId; v.state.heroes = []; v.state.entries = { 0: { eligible: false, reason: 'NO_BACKGROUND_PICTURE' } }; m.set({ composeJobs: [{ kind: 'compose', status: 'building' }] }); await m.settle()
+    const layoutWords = load(LIB, { env: {}, texts }).upfrontWords('NO_BACKGROUND_PICTURE'); assert.equal(m.view().reason, layoutWords); const before = v.commands().length
+    deepEqual(await m.view().replace({ slideNumber: 1, slideId: id }, { url: NEW, alt: '' }), load(LIB, { env: {}, texts }).unavailableOutcome(layoutWords), 'Replace refuses with Layout\'s reason'); assert.equal(v.commands().length, before) } m.root.unmount()
   // a hero slide goes through unchanged with the flag on, to the command, with the stored index and Layout's id
   v = viewer(); m = await mount(HERO_ON, v, { currentSlide: 4 }, texts)
   { const out = await m.view().replace({ slideNumber: 4, slideId: m.view().slideId }, { url: NEW, alt: '' }); assert.equal(out.ok, true); deepEqual(v.commands().map(c => c.params), [{ slide_index: 3, slide_id: 'slide_00000004', url: NEW }]); assert.equal(m.probe.released, 1); assert.equal(v.listeners.size, 0) } m.root.unmount()
@@ -454,7 +472,9 @@ const subjectOf = commit => git('log', '-1', '--format=%s', commit)
 const ownCommits = (...args) => git('rev-list', '--no-merges', ...args, `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean).filter(commit => subjectOf(commit).startsWith(SUBJECT))
 function touchedFiles(commits) { const net = new Set(git('diff', '--name-only', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean)); return new Set(commits.flatMap(commit => git('show', '--name-only', '--format=', commit).split('\n')).filter(rel => rel && net.has(rel))) }
 function scopeCheck(commits, extra = []) { assert.deepEqual([...touchedFiles(commits), ...extra].filter(rel => !SCOPE.has(rel)).sort(), [], 'no file outside this change\'s scope differs from the base') }
-function messageProblems(subject, body) { const problems = []; if (!subject.startsWith(SUBJECT)) problems.push(`the subject starts "${SUBJECT}"`); if (!/^Co-Authored-By: Claude Opus 5\.5 <noreply@anthropic\.com>\s*$/m.test(body)) problems.push('the co-author line'); if (!/layering|z-index|fade|animat/i.test(body)) problems.push('the root cause of the dialog layering'); return problems }
+function messageProblems(subject, body) { const problems = []; if (!subject.startsWith(SUBJECT)) problems.push(`the subject starts "${SUBJECT}"`); if (!/^Co-Authored-By: Claude Opus 5\.5 <noreply@anthropic\.com>\s*$/m.test(body)) problems.push('the co-author line'); return problems }
+/** The dialog layering's root cause is told in at least one of this change's commits (a later commit may be about something else). */
+const rootCauseProblems = bodies => bodies.some(body => /layering|z-index|fade|animat/i.test(body)) ? [] : ['the root cause of the dialog layering, in at least one commit']
 function commitChecks() {
   const commits = ownCommits('--first-parent')
   if (commits.length === 0) { console.log('NOTE scope: no commit of this change on the first-parent line (merged into dev: its commits are on the second parent); the strip, source and registry checks above cover the files'); return }
@@ -464,6 +484,7 @@ function commitChecks() {
     assert.doesNotMatch(git('show', '--format=%B', commit), SECRET, `commit ${commit.slice(0, 8)}: no secret in the message or the diff`)
     const added = git('show', '--format=', '-U0', commit).split('\n').filter(line => line.startsWith('+') && !line.startsWith('+++')); for (const line of added) assert.doesNotMatch(line, SECRET, `commit ${commit.slice(0, 8)}: no secret in an added line`)
   }
+  assert.deepEqual(rootCauseProblems(commits.map(commit => git('log', '-1', '--format=%B', commit))), [], 'the root cause of the layering is in a commit message')
   // nothing the commits touch is a file of another change's that the registry does not name
   assert.deepEqual([...touchedFiles(commits)].filter(rel => !registry.LATER_CHANGE_FILES.has(rel)), [], 'every file the commits touch is registered')
 }
@@ -505,17 +526,24 @@ const fullMutants = [
   ['lib: the flag is on for any non-empty value', M(HERO, "return value === 'true'", "return typeof value === 'string' && value !== ''"), libChecks],
   ['lib: the flag is case-insensitive', M(HERO, "return value === 'true'", "return value?.toLowerCase() === 'true'"), libChecks],
   ['lib: the flag is read from another env name', M(HERO, 'process.env.NEXT_PUBLIC_STUDIO_REPLACE_PICTURE_HERO_ONLY', 'process.env.NEXT_PUBLIC_STUDIO_REPLACE_PICTURE_HERO'), libChecks],
-  ['lib: the words are changed', M(HERO, "'Pictures can be replaced on title, section and closing slides.'", "'Pictures can be replaced on title and section slides.'"), libChecks],
+  ['lib: the words are cut short', M(HERO, "\"This slide's layout has no picture slot, so its picture cannot be replaced here.\"", "\"This slide's layout has no picture slot.\""), libChecks],
   ['lib: the helper ignores the flag', M(HERO, '  if (enabled !== true) return null\n', ''), libChecks],
   ['lib: the helper also greys hero_slot', M(HERO, "eligibility.target === 'slide_background'", "eligibility.target !== null"), libChecks],
-  ['lib: the helper greys an unknown target', M(HERO, "eligibility && eligibility.state === 'known' && eligibility.target === 'slide_background'", "!eligibility || eligibility.state !== 'known' || eligibility.target === 'slide_background'"), libChecks],
-  ['lib: the helper acts on a slide whose state is not known', M(HERO, "eligibility && eligibility.state === 'known' && eligibility.target === 'slide_background'", "eligibility && eligibility.target === 'slide_background'"), libChecks],
-  ['lib: the helper only greys an eligible slide', M(HERO, "eligibility.state === 'known' && eligibility.target === 'slide_background') return", "eligibility.state === 'known' && eligibility.eligible && eligibility.target === 'slide_background') return"), libChecks],
+  ['lib: the helper greys an unknown target', M(HERO, "eligibility && eligibility.state === 'known' && eligibility.eligible === true && eligibility.target === 'slide_background'", "!eligibility || eligibility.state !== 'known' || eligibility.eligible === true && eligibility.target === 'slide_background'"), libChecks],
+  ['lib: the helper acts on a slide whose state is not known', M(HERO, "eligibility && eligibility.state === 'known' && eligibility.eligible === true && eligibility.target === 'slide_background'", "eligibility && eligibility.eligible === true && eligibility.target === 'slide_background'"), libChecks],
+  ['lib: the helper also greys a slide Layout declines', M(HERO, "eligibility.eligible === true && eligibility.target === 'slide_background') return", "eligibility.target === 'slide_background') return"), libChecks],
+  ['lib: the helper takes a missing eligible for eligible', M(HERO, "eligibility.eligible === true && ", "eligibility.eligible !== false && "), libChecks],
+  ['lib: the helper takes any truthy eligible', M(HERO, "eligibility.eligible === true && ", "eligibility.eligible && "), libChecks],
+  ['both: the helper greys a declined slide and the words come before Layout\'s own not-eligible reason (seen through the hook)', { [HERO]: swap(T[HERO], "eligibility.eligible === true && eligibility.target === 'slide_background') return", "eligibility.target === 'slide_background') return"), [LIB]: swap(swap(T[LIB], L_CHECK, ''), "  if (a.eligibility.state === 'known' && !a.eligibility.eligible) return", L_CHECK + "  if (a.eligibility.state === 'known' && !a.eligibility.eligible) return") }, hookChecks],
+  ['lib: the words name a slide role', M(HERO, '"This slide\'s layout has no picture slot, so its picture cannot be replaced here."', '"Pictures can be replaced on title, section and closing slides."'), libChecks],
+  ['lib: the words say the slide is not a title slide', M(HERO, "This slide's layout has no picture slot, so its picture cannot be replaced here.", "This is not a title slide, so its picture cannot be replaced here."), libChecks],
+  ['lib: the words are reworded', M(HERO, 'so its picture cannot be replaced here.', 'so its picture cannot be changed here.'), libChecks],
   ['lib: the helper reads the flag from the env', M(HERO, '  if (enabled !== true) return null\n', '  if (!STUDIO_REPLACE_PICTURE_HERO_ONLY) return null\n'), libChecks],
   // replacePictureDisabledReason
   ['lib: the words come before the build\'s reason', { [LIB]: swap(swap(T[LIB], L_CHECK, ''), "  if (a.readOnly === 'view-only') return REPLACE_PICTURE_REASONS.viewOnly\n", L_CHECK + "  if (a.readOnly === 'view-only') return REPLACE_PICTURE_REASONS.viewOnly\n") }, libChecks],
-  ['lib: the words come after Layout\'s own answer', { [LIB]: swap(swap(T[LIB], L_CHECK, ''), "  if (a.eligibility.state === 'loading') return REPLACE_PICTURE_REASONS.checking\n", "  if (a.eligibility.state === 'loading') return REPLACE_PICTURE_REASONS.checking\n" + L_CHECK) }, libChecks],
-  ['lib: the words come after the not-on-yet answer', { [LIB]: swap(swap(T[LIB], L_CHECK, ''), "  if (a.eligibility.state === 'absent') return REPLACE_PICTURE_REASONS.notOnYet\n", "  if (a.eligibility.state === 'absent') return REPLACE_PICTURE_REASONS.notOnYet\n" + L_CHECK) }, libChecks],
+  ['lib: the words come before Layout\'s own not-eligible reason', { [LIB]: swap(swap(T[LIB], L_CHECK, ''), "  if (a.eligibility.state === 'known' && !a.eligibility.eligible) return", L_CHECK + "  if (a.eligibility.state === 'known' && !a.eligibility.eligible) return") }, libChecks],
+  ['lib: the words come before the checking answer', { [LIB]: swap(swap(T[LIB], L_CHECK, ''), "  if (a.eligibility.state === 'loading') return REPLACE_PICTURE_REASONS.checking\n", L_CHECK + "  if (a.eligibility.state === 'loading') return REPLACE_PICTURE_REASONS.checking\n") }, libChecks],
+  ['lib: the words come before the not-on-yet answer', { [LIB]: swap(swap(T[LIB], L_CHECK, ''), "  if (a.eligibility.state === 'absent') return REPLACE_PICTURE_REASONS.notOnYet\n", L_CHECK + "  if (a.eligibility.state === 'absent') return REPLACE_PICTURE_REASONS.notOnYet\n") }, libChecks],
   ['lib: the words come before a placeholder\'s reason', { [LIB]: swap(swap(T[LIB], L_CHECK, ''), '  if (a.placeholderOnScreen) return REPLACE_PICTURE_REASONS.placeholder\n', L_CHECK + '  if (a.placeholderOnScreen) return REPLACE_PICTURE_REASONS.placeholder\n') }, libChecks],
   ['lib: an empty string is taken as the words', M(LIB, "typeof a.heroOnlyReason === 'string' && a.heroOnlyReason !== ''", "typeof a.heroOnlyReason === 'string'"), libChecks],
   ['lib: any truthy value is taken as the words', M(LIB, "typeof a.heroOnlyReason === 'string' && a.heroOnlyReason !== ''", 'a.heroOnlyReason'), libChecks],
@@ -583,7 +611,7 @@ await mutant('insertion: a secret in the lib', () => insertionChecks({ ...TEXTS,
 // the commits
 await mutant('commit: no co-author line', () => assert.deepEqual(messageProblems(`${SUBJECT} x`, 'a body about the layering fade\n'), []))
 await mutant('commit: the wrong subject', () => assert.deepEqual(messageProblems('Replace picture: x', 'layering fade\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n'), []))
-await mutant('commit: no root cause in the body', () => assert.deepEqual(messageProblems(`${SUBJECT} x`, 'a body\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n'), []))
+await mutant('commit: no root cause in any body', () => assert.deepEqual(rootCauseProblems(['a body', 'another body']), []))
 await mutant('scope: a stray file', () => { scopeCheck(ownCommits('--first-parent'), ['components/builder/message-list.tsx']) })
 // a mutant that must be caught by the one-literal-read check
 await mutant('reads: another file reads the flag', () => oneReadChecks({ [PAGE]: TEXTS[PAGE] + "\nconst x = process.env.NEXT_PUBLIC_STUDIO_REPLACE_PICTURE_HERO_ONLY\n" }))
@@ -591,7 +619,7 @@ await mutant('reads: the lib reads it twice', () => oneReadChecks({ [HERO]: T[HE
 
 const verdict = failed.length > 0 || missed.length > 0 ? 1 : passed === 0 ? 1 : 0
 console.log(`${passed} checks passed, ${failed.length} failed; ${caught} mutants caught, ${missed.length} missed`)
-if (hookChecks.digest && hookChecks.counts) console.log(`flag-off transcript digest (dev's hook = this hook, ${hookChecks.counts.scenarios} scenarios): sha256 ${hookChecks.digest}...; flag-on: ${hookChecks.counts.words} greyed by the rule, ${hookChecks.counts.keptEarlier} kept by an earlier state, ${hookChecks.counts.unchanged} unchanged`)
+if (hookChecks.digest && hookChecks.counts) console.log(`flag-off transcript digest (dev's hook = this hook, ${hookChecks.counts.scenarios} scenarios): sha256 ${hookChecks.digest}...; flag-on: ${hookChecks.counts.words} greyed by the rule, ${hookChecks.counts.keptEarlier} kept by an earlier state, ${hookChecks.counts.keptLayout} kept by Layout's own refusal, ${hookChecks.counts.unchanged} unchanged`)
 if (passed === 0 && failed.length === 0) console.error('NO CHECK RAN: 0 checks passed (does CHECK_ONLY match the label of a check?)')
 if (failed.length) console.error(`FAILED: ${failed.join(' | ')}`)
 if (missed.length) console.error(`MISSED: ${missed.join(' | ')}`)

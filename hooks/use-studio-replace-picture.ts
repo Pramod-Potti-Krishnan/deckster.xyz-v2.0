@@ -141,7 +141,7 @@ export function useStudioReplacePicture(input: UseStudioReplacePictureInput): St
     studioBusy: input.studioBusy,
     mutationPending: input.mutationPending,
     placeholderOnScreen: slide.state === 'placeholder',
-    heroOnlyReason: heroOnlyReasonFor(eligibility, STUDIO_REPLACE_PICTURE_HERO_ONLY), // REPLACE-PICTURE-HERO-ONLY (NEXT_PUBLIC_STUDIO_REPLACE_PICTURE_HERO_ONLY, default off): a slide Layout says takes its picture as a background (a content slide) offers none; flag off, null
+    heroOnlyReason: heroOnlyReasonFor(eligibility, STUDIO_REPLACE_PICTURE_HERO_ONLY), // REPLACE-PICTURE-HERO-ONLY (NEXT_PUBLIC_STUDIO_REPLACE_PICTURE_HERO_ONLY, default off): a slide Layout says is eligible but whose layout has no picture slot (target slide_background) offers none; Layout's own refusal keeps its words; flag off, null
     eligibility,
   })
   const shownReason = input.enabled ? reason : null

@@ -1,13 +1,13 @@
 // FRONTEND-1 (PK's UAT test of Replace picture, 17 Nov 2026: the button was offered on content slides, where a photo behind dense text hurts reading, and on open the dialog showed behind the slide first). Flag NEXT_PUBLIC_STUDIO_REPLACE_PICTURE_HERO_ONLY (exact "true", default off, build-time).
 // It acts only where Replace picture itself acts (NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE with the Studio shell). Off, the Replace picture lib, hook and control are what they were: every line this change adds to an EXISTING file is marked, and the new files are inert.
-// With it on: (1) a slide whose Layout target is KNOWN to be slide_background offers no Replace picture (the button is greyed with "Pictures can be replaced on title, section and closing slides.", the hook's own re-check at Replace included); an unknown target and hero_slot stay as they were.
+// With it on: (1) a slide that Layout says is eligible but whose target is KNOWN to be slide_background (a layout with no picture slot) offers no Replace picture (the button is greyed with "This slide's layout has no picture slot, so its picture cannot be replaced here.", the hook's own re-check at Replace included); Layout's own refusal of a slide keeps Layout's reason; an unknown target and hero_slot stay as they were.
 // (2) the dialog and its overlay are drawn at full strength in front of the viewer from the first frame (replace-picture-hero-only.css, reached only through a data attribute the control sets with the flag on).
 // Every line this change adds to an EXISTING file carries the marker REPLACE-PICTURE-HERO-ONLY (matched as a whole token) and is a PURE INSERTION (no base line is rewritten), so the strip is a list of [has, was] pairs whose `was` is empty: putting each back gives the file at BASE_COMMIT byte for byte.
 // The new files have no base text. The viewer, the slide area and the Builder page are not touched.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 // Older proofs are TAUGHT inserted marked lines only (HERO_ONLY_PIN_EDITS, pure insertions): the two that read the first-parent line each drop this change's subject from it, as for every later change; putting those lines back gives each proof's previous text byte for byte.
 
-export const BASE_COMMIT = 'cec6081d33b74887d5655b6454d95cee77044f9b' // origin/studio-v4-dev-preparation-code (#639 merged), the trunk this change sits on
+export const BASE_COMMIT = '4cb2cd79f4559abc6928f0912c9405f8d58ddadc' // origin/studio-v4-dev-preparation-code (#641 merged), the trunk this change sits on
 export const HERO_ONLY_FLAGS = ["NEXT_PUBLIC_STUDIO_REPLACE_PICTURE_HERO_ONLY"]
 export const HERO_ONLY_MARKER = 'REPLACE-PICTURE-HERO-ONLY'
 /** The marker as a WHOLE token: REPLACE-PICTURE-HERO-ONLY is this change's; REPLACE-PICTURE (the Replace picture change's own marker) and X-REPLACE-PICTURE-HERO-ONLY are not. */
@@ -41,7 +41,7 @@ export const HERO_ONLY_EDITS = {
       ""
     ],
     [
-      "  if (typeof a.heroOnlyReason === 'string' && a.heroOnlyReason !== '') return a.heroOnlyReason // REPLACE-PICTURE-HERO-ONLY: a slide that is not a title, section or closing slide (Layout's target is slide_background) offers no picture; after the reasons above, before Layout's own answer below\n",
+      "  if (typeof a.heroOnlyReason === 'string' && a.heroOnlyReason !== '') return a.heroOnlyReason // REPLACE-PICTURE-HERO-ONLY: last: a slide Layout says is eligible but whose layout has no picture slot (target slide_background) offers no picture; every reason above, Layout's own not-eligible one included, comes first\n",
       ""
     ]
   ],
@@ -51,7 +51,7 @@ export const HERO_ONLY_EDITS = {
       ""
     ],
     [
-      "    heroOnlyReason: heroOnlyReasonFor(eligibility, STUDIO_REPLACE_PICTURE_HERO_ONLY), // REPLACE-PICTURE-HERO-ONLY (NEXT_PUBLIC_STUDIO_REPLACE_PICTURE_HERO_ONLY, default off): a slide Layout says takes its picture as a background (a content slide) offers none; flag off, null\n",
+      "    heroOnlyReason: heroOnlyReasonFor(eligibility, STUDIO_REPLACE_PICTURE_HERO_ONLY), // REPLACE-PICTURE-HERO-ONLY (NEXT_PUBLIC_STUDIO_REPLACE_PICTURE_HERO_ONLY, default off): a slide Layout says is eligible but whose layout has no picture slot (target slide_background) offers none; Layout's own refusal keeps its words; flag off, null\n",
       ""
     ]
   ],
@@ -107,7 +107,7 @@ export const HERO_ONLY_OWN_EDITS = ['.env.example', 'scripts/studio-later-change
 export const REPLACE_PICTURE_HERO_ONLY_SCOPE_FILES = new Set([...HERO_ONLY_FILES, ...HERO_ONLY_NEW_FILES, ...HERO_ONLY_OWN_EDITS])
 
 /** The whole .env.example block: its comments and its line. */
-export const REPLACE_PICTURE_HERO_ONLY_ENV_BLOCK = "# STUDIO REPLACE PICTURE HERO ONLY (FRONTEND-1; PK's UAT test of Replace picture, 17 Nov). On for the exact value \"true\"; default off, and then the Replace picture button and its dialog are exactly as they were. Build-time value: change it on Vercel and redeploy.\n# On, and only where the Replace picture action itself is on: the button is offered on title, section and closing slides only. When Layout's slide catalog says the slide on screen takes its picture as its background (a content slide, where a photo behind dense text hurts reading), the button is greyed with \"Pictures can be replaced on title, section and closing slides.\" A slide whose kind is not known (the catalog has not been read, or does not list the slide) stays as it is today: the button is on and Layout decides when Replace is pressed. The rule is checked again when Replace is pressed.\n# Also on: the Replace picture dialog and its dark overlay are drawn at full strength, in front of the viewer, from the first frame (without it the dialog fades in over 200 ms, and the slide shows through it while it does).\nNEXT_PUBLIC_STUDIO_REPLACE_PICTURE_HERO_ONLY=\"false\"\n"
+export const REPLACE_PICTURE_HERO_ONLY_ENV_BLOCK = "# STUDIO REPLACE PICTURE HERO ONLY (FRONTEND-1; PK's UAT test of Replace picture, 17 Nov). On for the exact value \"true\"; default off, and then the Replace picture button and its dialog are exactly as they were. Build-time value: change it on Vercel and redeploy.\n# On, and only where the Replace picture action itself is on: the button is offered only on a slide whose layout has a picture slot (Layout's hero_slot target: the title, section and closing layouts). When Layout's slide catalog says the slide on screen is eligible but takes its picture as its background (every other layout, where a photo behind dense text hurts reading), the button is greyed with \"This slide's layout has no picture slot, so its picture cannot be replaced here.\" The words speak of the layout, never of a slide role, so they are true for a title slide in another layout too. If Layout itself declines the slide (for example a slide from a saved template), Layout's own reason is shown instead. A slide whose kind is not known (the catalog has not been read, or does not list the slide) stays as it is today: the button is on and Layout decides when Replace is pressed. The rule is checked again when Replace is pressed.\n# Also on: the Replace picture dialog and its dark overlay are drawn at full strength, in front of the viewer, from the first frame (without it the dialog fades in over 200 ms, and the slide shows through it while it does).\nNEXT_PUBLIC_STUDIO_REPLACE_PICTURE_HERO_ONLY=\"false\"\n"
 
 /** The file with this change's edits put back (the previous text). Used by the strip and the proof. */
 export function putBackReplacePictureHeroOnly(rel, text) {

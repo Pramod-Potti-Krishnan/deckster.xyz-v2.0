@@ -460,10 +460,10 @@ export function replacePictureDisabledReason(a: ReplacePictureAvailability): str
   if (a.mutationPending) return REPLACE_PICTURE_REASONS.mutating
   if (!a.deckOpen || !a.viewerReady) return REPLACE_PICTURE_REASONS.loading
   if (a.placeholderOnScreen) return REPLACE_PICTURE_REASONS.placeholder
-  if (typeof a.heroOnlyReason === 'string' && a.heroOnlyReason !== '') return a.heroOnlyReason // REPLACE-PICTURE-HERO-ONLY: a slide that is not a title, section or closing slide (Layout's target is slide_background) offers no picture; after the reasons above, before Layout's own answer below
   if (a.eligibility.state === 'absent') return REPLACE_PICTURE_REASONS.notOnYet
   if (a.eligibility.state === 'known' && !a.eligibility.eligible) return a.eligibility.reason === null ? REPLACE_PICTURE_REASONS.notEligible : upfrontWords(a.eligibility.reason)
   if (a.eligibility.state === 'loading') return REPLACE_PICTURE_REASONS.checking
+  if (typeof a.heroOnlyReason === 'string' && a.heroOnlyReason !== '') return a.heroOnlyReason // REPLACE-PICTURE-HERO-ONLY: last: a slide Layout says is eligible but whose layout has no picture slot (target slide_background) offers no picture; every reason above, Layout's own not-eligible one included, comes first
   return null
 }
 
