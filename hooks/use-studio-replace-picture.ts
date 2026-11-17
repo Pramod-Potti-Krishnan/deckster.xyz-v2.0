@@ -21,6 +21,7 @@ import {
   type ReplacePictureStage,
   type SlideEligibility,
 } from '@/lib/studio-replace-picture'
+import { STUDIO_REPLACE_PICTURE_HERO_ONLY, heroOnlyReasonFor } from '@/lib/studio-replace-picture-hero-only' // REPLACE-PICTURE-HERO-ONLY
 
 /** The viewer bridge the page's viewer already has (components/presentation-viewer.tsx sendCommand): one command to one iframe, resolving with the reply and rejecting with the failure. */
 type ViewerSend = (iframe: HTMLIFrameElement | null, action: string, params?: Record<string, any>, options?: { timeoutMs?: number }) => Promise<any>
@@ -140,6 +141,7 @@ export function useStudioReplacePicture(input: UseStudioReplacePictureInput): St
     studioBusy: input.studioBusy,
     mutationPending: input.mutationPending,
     placeholderOnScreen: slide.state === 'placeholder',
+    heroOnlyReason: heroOnlyReasonFor(eligibility, STUDIO_REPLACE_PICTURE_HERO_ONLY), // REPLACE-PICTURE-HERO-ONLY (NEXT_PUBLIC_STUDIO_REPLACE_PICTURE_HERO_ONLY, default off): a slide Layout says takes its picture as a background (a content slide) offers none; flag off, null
     eligibility,
   })
   const shownReason = input.enabled ? reason : null
