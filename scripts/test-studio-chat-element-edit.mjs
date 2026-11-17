@@ -38,6 +38,7 @@ import {
 import { LATER_STRIPS } from './studio-later-changes.mjs'
 import { stripPass3PolishB } from './studio-pass3-polish-b-strip.mjs' // COMPOSER-2's first-paint pin reads the viewer through it, and it now takes this change's lines out too: it is not a peer to strip before this change's own checks
 import { stripDeckSaveRefused } from './studio-deck-save-refused-strip.mjs' // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): the change stacked after this one marks lines in the viewer's save-status handler; the handler is evaluated without them
+import { researchDefaultDiffLine } from './studio-research-default-strip.mjs' // LATER-CHANGES: registry read (RESEARCH-DEFAULT): the Research default (stacked after this change) rewrites two base lines of the Builder page and adds a marked import; this proof drops them from the diff it counts
 // The other registered changes' marked lines (dev's: flow control, arrange, ... and the ones already in the base) come out of both sides before this change's identity checks; this change's own strip is the one left out.
 const stripPeers = (rel, text) => LATER_STRIPS.filter(strip => strip !== stripChatElementEdit && strip !== stripPass3PolishB).reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text)
 
@@ -1313,6 +1314,7 @@ await check('page: the stripped page is the base byte for byte; every added line
   const rel = 'app/builder/page.tsx'
   assert.equal(stripPeers(rel, stripChatElementEdit(rel, read(rel))), stripPeers(rel, baseFile(rel)))
   const diff = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n')
+  diff.splice(0, diff.length, ...diff.filter(line => !researchDefaultDiffLine(line))) // LATER-CHANGES: registry read (RESEARCH-DEFAULT): the Research default's lines of the page's diff (the added ones, and the two base lines they replace) are its own, not this change's
   for (const line of diff.filter(l => l.startsWith('+') && !l.startsWith('+++') && stripPeers(rel, `${l.slice(1)}\n`) !== '')) assert.match(line, CHAT_ELEMENT_EDIT_MARKER_RE) // a line another registered change marks is its own
   assert.equal(diff.filter(l => l.startsWith('-') && !l.startsWith('---')).length, 0)
   const connects = (text) => (text.match(/\bconnect\(\)/g) || []).length
@@ -1402,6 +1404,7 @@ await check('scope: this change\'s own commits (the first-parent line without me
   shas.splice(0, shas.length, ...shas.filter(sha => !/^Thinking levels:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (THINKING-LEVELS): on a branch stacked after this change (the thinking-level picker), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files
   shas.splice(0, shas.length, ...shas.filter(sha => !/^Research switch:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (RESEARCH-SWITCH): on a branch stacked after this change (the Research switch), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files
   shas.splice(0, shas.length, ...shas.filter(sha => !/^Replace picture:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (REPLACE-PICTURE): on a branch stacked after this change (the Replace picture action, M10), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files
+  shas.splice(0, shas.length, ...shas.filter(sha => !/^Research default:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (RESEARCH-DEFAULT): on a branch stacked after this change (the Research default), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files
   // Merged into dev, this change's commits come in by the merge's second parent and the first-parent line has none of them: nothing of this change's own is left to read (the files are dev's then).
   if (shas.length === 0) { console.log('NOTE scope: no commit of this change on the first-parent line (merged into dev: its commits are on the second parent); the pins and identity checks above cover the files'); return }
   assert.ok(shas.length >= 5, `${shas.length} own commits`)

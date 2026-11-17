@@ -881,7 +881,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   )
   const [showChatHistory, setShowChatHistory] = useState(false)
   const [researchEnabled, setResearchEnabled] = useState(false)
-  const [webSearchEnabled, setWebSearchEnabled] = useState(false)
+  const [webSearchEnabled, setWebSearchEnabled] = useState(STUDIO_RESEARCH_DEFAULT_ON) // RESEARCH-DEFAULT (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON, default off): a new chat starts with web search on; deep research stays off
   const handleResearchEnabledChange = useCallback((enabled: boolean) => {
     setResearchEnabled(enabled)
     if (enabled) setWebSearchEnabled(true)
@@ -7018,7 +7018,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setBuildThemeSelection({ mode: 'auto' })
     setActiveBuildThemeProfile(null)
     setResearchEnabled(false)
-    setWebSearchEnabled(false)
+    setWebSearchEnabled(STUDIO_RESEARCH_DEFAULT_ON) // RESEARCH-DEFAULT (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON, default off): the new-chat reset gives the same start; deep research stays off
     setExtendedGenerationEnabled(true)
     setKnowledgeGraphEnabled(false)
     setIsGeneratingFinal(false)
@@ -8644,3 +8644,4 @@ import { STUDIO_AGENT_MODE_ENABLED, agentPlanOf, buildModeOnWire, initialAgentRu
 import { STUDIO_THINKING_LEVELS_ENABLED, effectiveLevel, levelPick, type ThinkingLevel } from '@/lib/studio-thinking-levels' // THINKING-LEVELS
 import { AGENT_WIRE_CONTROL_MARK, AGENT_WIRE_COPY, AGENT_WIRE_RESET, agentCardsKey, agentFinishedRun, agentPickerAfterRun, agentRunBusy, agentSessionChanged, agentWireReducer, answerAgentCard, typedBuildMode, voiceBuildMode, voiceOriginatedSend } from '@/lib/studio-agent-mode-wire' // AGENT-MODE-WIRE
 import { STUDIO_REPLACE_SLIDE_PICTURE_ENABLED } from '@/lib/studio-replace-picture' // REPLACE-PICTURE
+import { STUDIO_RESEARCH_DEFAULT_ON } from '@/lib/studio-research-default' // RESEARCH-DEFAULT
