@@ -1,8 +1,10 @@
 // KNOWLEDGE-3 for FRONTEND-1 (the Research default). Flag NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON (exact "true", default off, build-time).
-// On, a new chat in the Builder starts with web search on: the Builder page's first `webSearchEnabled` state and its new-chat reset read the flag. Deep research (`researchEnabled`) stays false in both places, and the restore of a reopened chat is untouched.
-// Off, the page is byte for byte what it was. Nothing in the hook or the composer changes: web_search already goes out on every build message.
-// Every line this change adds to an EXISTING file carries the marker RESEARCH-DEFAULT (matched as a whole token). Two of them REPLACE a base line (the two `false` initial values, so each pair's `was` is that base line) and one is a pure insertion
-// (the import, whose `was` is empty), so the strip is a list of [has, was] pairs: putting each back gives the file at BASE_COMMIT byte for byte. The new files have no base text.
+// On a new chat, or a chat that has no outline yet, web search starts on. A chat that already has an outline opens with web search off, as before. Deep research is unchanged.
+// How: the Builder page's first `webSearchEnabled` state and its new-chat reset read the flag (web search starts on), and ONE line in the session-restore wrapper (restoreBuilderSessionMessages, the call the session load makes once per opened chat) sets it off
+// when the loaded row already holds the chat's strawman or final deck (REVIEW-1's P2 on Draft #639: a page load started every chat with web search on, outlined ones included). The new-deck handoff and deep research (`researchEnabled`) are untouched.
+// Off, the page is byte for byte what it was (the new line is gated by the flag, so it never runs). Nothing in the hook or the composer changes: web_search already goes out on every build message.
+// Every line this change adds to an EXISTING file carries the marker RESEARCH-DEFAULT (matched as a whole token). Two of them REPLACE a base line (the two `false` initial values, so each pair's `was` is that base line) and two are pure insertions
+// (the restore line and the import, whose `was` is empty), so the strip is a list of [has, was] pairs: putting each back gives the file at BASE_COMMIT byte for byte. The new files have no base text.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 // Six older proofs are TAUGHT it as well (RESEARCH_DEFAULT_PIN_EDITS, pure insertions): they hold the Builder page to an older base as pure insertions (a base line may never be replaced), which two rewritten base lines break, so they read the page
 // through this strip (or drop this change's lines from the diff they count, or its subject from the first-parent line they read); putting those lines back gives each proof's previous text byte for byte.
@@ -36,6 +38,10 @@ export const RESEARCH_DEFAULT_EDITS = {
     [
       "  const [webSearchEnabled, setWebSearchEnabled] = useState(STUDIO_RESEARCH_DEFAULT_ON) // RESEARCH-DEFAULT (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON, default off): a new chat starts with web search on; deep research stays off\n",
       "  const [webSearchEnabled, setWebSearchEnabled] = useState(false)\n"
+    ],
+    [
+      "    if (STUDIO_RESEARCH_DEFAULT_ON && (restoredSessionState?.strawmanPreviewUrl || restoredSessionState?.strawmanPresentationId || restoredSessionState?.finalPresentationUrl || restoredSessionState?.finalPresentationId)) setWebSearchEnabled(false) // RESEARCH-DEFAULT (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON, default off): a chat opened with its outline already built (the loaded row holds its strawman or final deck) opens with web search off, as before; this runs once per opened chat, here at the load, never when an outline appears in this page view; deep research stays as it is\n",
+      ""
     ],
     [
       "    setWebSearchEnabled(STUDIO_RESEARCH_DEFAULT_ON) // RESEARCH-DEFAULT (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON, default off): the new-chat reset gives the same start; deep research stays off\n",
@@ -122,7 +128,7 @@ export const RESEARCH_DEFAULT_OWN_EDITS = ['.env.example', 'scripts/studio-later
 export const RESEARCH_DEFAULT_SCOPE_FILES = new Set([...RESEARCH_DEFAULT_FILES, ...RESEARCH_DEFAULT_NEW_FILES, ...RESEARCH_DEFAULT_OWN_EDITS])
 
 /** The whole .env.example block: its comments and its line. */
-export const RESEARCH_DEFAULT_ENV_BLOCK = "# STUDIO RESEARCH DEFAULT (KNOWLEDGE-3 for FRONTEND-1). On for the exact value \"true\"; default off, and then the Builder page is byte for byte as it was. Build-time value: change it on Vercel and redeploy.\n# On: a new chat in the Builder starts with Research (web search) switched on, in the composer's first state and in the new-chat reset. Deep research stays off, and a reopened chat keeps the value it was saved with. The build message already carries data.web_search on every send, so nothing else changes.\nNEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON=\"false\"\n"
+export const RESEARCH_DEFAULT_ENV_BLOCK = "# STUDIO RESEARCH DEFAULT (KNOWLEDGE-3 for FRONTEND-1). On for the exact value \"true\"; default off, and then the Builder page is byte for byte as it was. Build-time value: change it on Vercel and redeploy.\n# On a new chat, or a chat that has no outline yet, web search starts on. A chat that already has an outline opens with web search off, as before. Deep research is unchanged. (The composer's first state and the new-chat reset start web search on; opening a chat whose loaded row already holds its strawman or final deck sets it off, once, where the session is restored.) The build message already carries data.web_search on every send, so nothing else changes.\nNEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON=\"false\"\n"
 
 /** The file with this change's edits put back (the previous text). Used by the strip and the proof. */
 export function putBackResearchDefault(rel, text) {

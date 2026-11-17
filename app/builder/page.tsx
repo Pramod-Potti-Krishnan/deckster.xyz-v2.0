@@ -4851,6 +4851,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         && current.userId === authScopeUserId && currentSessionIdRef.current === owner.sessionId
     }
     if (studioShell && !isCurrentRestore()) return
+    if (STUDIO_RESEARCH_DEFAULT_ON && (restoredSessionState?.strawmanPreviewUrl || restoredSessionState?.strawmanPresentationId || restoredSessionState?.finalPresentationUrl || restoredSessionState?.finalPresentationId)) setWebSearchEnabled(false) // RESEARCH-DEFAULT (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON, default off): a chat opened with its outline already built (the loaded row holds its strawman or final deck) opens with web search off, as before; this runs once per opened chat, here at the load, never when an outline appears in this page view; deep research stays as it is
     retireStudioVoiceOwner()
     if (STUDIO_VOICE_INTERACTIVE_ENABLED) {
       restoreMessages(historicalMessages, restoredSessionState,

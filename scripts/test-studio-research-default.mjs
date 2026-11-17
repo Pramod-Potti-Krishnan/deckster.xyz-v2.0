@@ -1,16 +1,22 @@
-// KNOWLEDGE-3 for FRONTEND-1: proof of the Research default. Flag NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON, the exact string "true", default off. On, a new chat in the Builder starts with web search on (the page's first `webSearchEnabled` state and its
-// new-chat reset); deep research stays off in both places and a reopened chat keeps the value it was saved with. Off, the page is byte for byte what it was.
+// KNOWLEDGE-3 for FRONTEND-1: proof of the Research default. Flag NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON, the exact string "true", default off.
+// On a new chat, or a chat that has no outline yet, web search starts on. A chat that already has an outline opens with web search off, as before. Deep research is unchanged.
+// (The page's first `webSearchEnabled` state and its new-chat reset start it on; ONE line in the session-restore wrapper, restoreBuilderSessionMessages, sets it off for a chat opened with its strawman or final deck already in the loaded row.)
+// Off, the page is byte for byte what it was.
 //
-//   node scripts/test-studio-research-default.mjs        (plain node, offline: the REAL sources transpiled and run in a vm; the page's two state lines are cut out of the real file and RUN, with the flag off and on; git is read for the strip, the
-//                                                        registry and the scope; no network, no browser, no .next)
+//   node scripts/test-studio-research-default.mjs        (plain node, offline: the REAL sources transpiled and run in a vm; the page's two state lines AND the whole session-restore wrapper are cut out of the real file and RUN, with the flag off and on; git is read for the
+//                                                        strip, the registry and the scope; no network, no browser, no .next)
 //
 // What it proves (A to H), then mutants (I):
 //  A. the lib: the flag is on for the exact string "true" and for nothing else (unset, "false", "True", "TRUE", "1", " true", "true ", "yes", ""), one literal env read, and the file imports nothing;
 //  B. the page, flag off AND on: the first state and the new-chat reset (the two real lines, run) give web search = the flag and deep research false; flag off they are the base's, value for value; the base's own lines give false, false;
-//  C. only those two lines and the import changed (the strip gives dev's page byte for byte; two base lines rewritten, one inserted, every added line carries the marker RESEARCH-DEFAULT);
+//  B2. the OPEN of a chat (the real session-restore wrapper, run, flag off AND on): flag on, a chat opened with its outline (a strawman or a final deck in the loaded row, by url or by id) reads web search off; a new chat reads on; a chat opened with NO outline reads on
+//      (blank deck, empty row, nothing loaded); a person's switch in a no-outline chat is not overridden by anything later (the outline appearing in this page view runs nothing); a superseded restore sets nothing; deep research and the restore call itself are
+//      the base's; flag off the wrapper's calls are the base's, call for call, and web search is never set;
+//  B3. who sets web search: the page's only writers are the base's (the two switch handlers, the new-deck handoff) plus this change's two (the restore line inside the wrapper, the new-chat reset); none reads hasStrawman, the lock or a session id;
+//  C. only those lines and the import changed (the strip gives dev's page byte for byte; two base lines rewritten, two lines inserted, every added line carries the marker RESEARCH-DEFAULT);
 //  C2. the older proofs this change teaches (six, pure insertions): each is dev's file without those lines, gains only marked lines and loses none, reads the page through this change's own strip (never the registry), drops its subject from the first-parent line, or its lines from the diff it counts;
-//  D. deep research and the restore are untouched: the deep research state, its reset, the two handlers and the restore (a reopened chat keeps its value) are the base's lines, and so are the hook's and the composer's files (web_search already goes out on every build message);
-//  E. .env.example: the block is the last thing in the file, once, "false", and the file is dev's plus that block;
+//  D. deep research and the new-deck handoff are untouched: the deep research state, its reset, the two handlers and the handoff's setters (:6851, the new-deck handoff, not a restore) are the base's lines, and so are the hook's and the composer's files (web_search already goes out on every build message);
+//  E. .env.example: the block is the last thing in the file, once, "false", the file is dev's plus that block, and the block (and the lib's comment) say what the flag does;
 //  F. the registry: exactly three lines, each marked LATER-CHANGE, in the three lists (the files after the uat marketing-v4 line, the other two at the true end), the strip independent of the neighbouring changes' strips;
 //  G. own-commit scope, by the subject prefix "Research default:" on the first-parent line (and, once the gate has merged it, over the whole range), the commit message, and a secret scan;
 //  H. the flag is read from one literal env name and nothing but the lib reads it.
@@ -56,7 +62,11 @@ async function mutant(label, run) {
 const swap = (text, from, to) => { if (text.split(from).length !== 2) throw new SwapError(`exactly one ${JSON.stringify(from.slice(0, 80))} (found ${text.split(from).length - 1})`); return text.replace(from, () => to) }
 
 const LIB = 'lib/studio-research-default.ts', PAGE = 'app/builder/page.tsx', HOOK = 'hooks/use-deckster-websocket-v2.ts', CLEAN = 'components/builder/chat/studio-chat-clean.tsx', REGISTRY = 'scripts/studio-later-changes.mjs', ENV = '.env.example'
+/** What the flag does, in the words FRONTEND-1 gave: in the lib's comment and in the .env.example block. */
+const SENTENCE = 'On a new chat, or a chat that has no outline yet, web search starts on. A chat that already has an outline opens with web search off, as before. Deep research is unchanged.'
 const LIB_LINE = "export const STUDIO_RESEARCH_DEFAULT_ON = process.env.NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON === 'true'"
+/** The one line this change inserts into the session-restore wrapper (it calls setWebSearchEnabled(false), nothing else in the page's marked lines does). */
+const RESTORE_LINE_RE = /^    if \(STUDIO_RESEARCH_DEFAULT_ON && .*\) setWebSearchEnabled\(false\) \/\/ RESEARCH-DEFAULT/
 const compile = (file, text) => ts.transpileModule(text, { fileName: file, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText
 function load(rel, { env = {}, texts = {} } = {}) {
   const module = { exports: {} }
@@ -107,6 +117,8 @@ function libChecks(texts = {}) {
   assert.equal(lineIs(text, LIB_LINE), LIB_LINE, 'the one line is FRONTEND-1\'s, to the letter')
   assert.deepEqual([...text.matchAll(/^\s*(import|require)\b.*$/gm)].map(m => m[0]), [], 'the lib imports nothing')
   assert.deepEqual(text.split('\n').filter(line => line.trim() !== '' && !line.startsWith('//')), [LIB_LINE], 'nothing in the lib but comments and that line')
+  assert.ok(text.includes(SENTENCE), 'the lib\'s comment says what the flag does: web search starts on in a new chat or one with no outline, an outlined chat opens off, deep research is unchanged')
+  assert.doesNotMatch(text, /a reopened chat keeps the value it was saved with/, 'and no longer says a reopened chat keeps its saved value (nothing restores it)')
 }
 
 // ============================================================================================================================================
@@ -146,7 +158,173 @@ function pageRunChecks(texts = {}) {
 }
 
 // ============================================================================================================================================
-// C. only the two lines and the import changed
+// B2. the OPEN of a chat: the real session-restore wrapper (restoreBuilderSessionMessages), run
+// ============================================================================================================================================
+// The session load calls this wrapper once per opened chat, with the loaded row's deck state (use-builder-session: restoreMessages(botMsgs, sessionState)). It is where the page already sets per-chat state, so the one line this change adds sits in it.
+// A chat built in this page view never goes through it (a new chat has no row to load), and the outline appearing during the view (hasStrawman, a presentation_url) runs none of the page's research lines (B3), so those cannot flip the switch.
+const WRAP_START = '  const restoreBuilderSessionMessages = useCallback(('
+const WRAP_END = '  }, [studioShell, studioHandoffRestoreOwner, authScopeUserId, restoreMessages,'
+const WRAP_NAMES = ['studioShell', 'studioHandoffRestoreOwner', 'questionSubmissionScopeRef', 'authScopeUserId', 'currentSessionIdRef', 'retireStudioVoiceOwner', 'STUDIO_VOICE_INTERACTIVE_ENABLED', 'restoreMessages', 'session', 'getExpectedStudioHandoffRequest', 'readCurrentStudioHandoff', 'expectedStudioHandoffRequestRef', 'trackHandoffRequest', 'setWebSearchEnabled', 'STUDIO_RESEARCH_DEFAULT_ON']
+const HANDLER_START = '  const handleWebSearchEnabledChange = useCallback((enabled: boolean) => {'
+const wrapperCache = new Map(), handlerCache = new Map() // keyed by the page's text: a string's hash is computed once, so a look-up costs nothing
+/** The wrapper's real text (the page's lines between its opening and its dependency list), where it sits, and a factory that builds it over stand-ins. */
+function wrapperOf(page) {
+  if (!wrapperCache.has(page)) {
+    const lines = page.split('\n'), start = lines.indexOf(WRAP_START)
+    assert.ok(start >= 0 && lines.indexOf(WRAP_START, start + 1) === -1, 'the session-restore wrapper is where the base has it, once')
+    const end = lines.findIndex((line, i) => i > start && line.startsWith(WRAP_END))
+    assert.ok(end > start, 'the wrapper ends with its dependency list')
+    wrapperCache.set(page, { start, end, make: runFragment(['const restore = ((', ...lines.slice(start + 1, end), '})', 'return restore'].join('\n'), WRAP_NAMES) })
+  }
+  return wrapperCache.get(page)
+}
+/** The real handler of the composer's web search switch (the person's own change), over stand-in setters. */
+function handlerOf(page) {
+  if (!handlerCache.has(page)) {
+    const lines = page.split('\n'), start = lines.indexOf(HANDLER_START)
+    assert.ok(start >= 0 && lines.indexOf(HANDLER_START, start + 1) === -1, 'the web search switch handler is where the base has it, once')
+    const end = lines.findIndex((line, i) => i > start && line === '  }, [])')
+    handlerCache.set(page, runFragment(['const handle = ((enabled: boolean) => {', ...lines.slice(start + 1, end), '})', 'return handle'].join('\n'), ['setWebSearchEnabled', 'setResearchEnabled']))
+  }
+  return handlerCache.get(page)
+}
+const LAYOUT_URL = 'https://layout.example/p/abc'
+/** Rows as the session load hands them over. Outlined: the row already holds the chat's strawman or final deck (url or id). */
+const OUTLINED = {
+  'a strawman url': { strawmanPreviewUrl: LAYOUT_URL },
+  'a strawman id': { strawmanPresentationId: 'p1' },
+  'a final deck url': { finalPresentationUrl: LAYOUT_URL },
+  'a final deck id': { finalPresentationId: 'p2' },
+  'a strawman only (stage 4)': { strawmanPreviewUrl: LAYOUT_URL, strawmanPresentationId: 'p1', presentationUrl: LAYOUT_URL, presentationId: 'p1', slideCount: 8, currentStage: 4, activeVersion: 'strawman' },
+  'a final deck (stage 6)': { strawmanPreviewUrl: LAYOUT_URL, strawmanPresentationId: 'p1', finalPresentationUrl: LAYOUT_URL, finalPresentationId: 'p2', presentationUrl: LAYOUT_URL, presentationId: 'p2', slideCount: 8, currentStage: 6, activeVersion: 'final', deckOwnerSessionId: 's1' },
+}
+/** No outline yet: nothing loaded, an empty row, every deck field empty, a blank deck only. */
+const NO_OUTLINE = {
+  'nothing loaded (no state at all)': undefined,
+  'an empty row': {},
+  'every deck field null': { presentationUrl: null, presentationId: null, blankPresentationUrl: null, blankPresentationId: null, isBlankPresentation: false, strawmanPreviewUrl: null, strawmanPresentationId: null, finalPresentationUrl: null, finalPresentationId: null, slideCount: 0, slideStructure: null, currentStage: null, activeVersion: null },
+  'every deck field an empty string': { strawmanPreviewUrl: '', strawmanPresentationId: '', finalPresentationUrl: '', finalPresentationId: '' },
+  'a blank deck only': { presentationUrl: LAYOUT_URL, presentationId: 'b1', blankPresentationUrl: LAYOUT_URL, blankPresentationId: 'b1', isBlankPresentation: true, activeVersion: 'blank', slideCount: 1, deckOwnerSessionId: 's1' },
+}
+const copy = value => JSON.parse(JSON.stringify(value === undefined ? null : value))
+/** One open of a chat: the real wrapper over stand-ins. Returns every call it made, in order, and the switch's value after it (`web` in, `web` out). `stale`: the restore's owner was superseded (the shell's guard). */
+function openChat(page, { flag, shell = false, stale = false, state, web }) {
+  const calls = [], rec = name => (...args) => { calls.push([name, ...args.map(copy)]) }
+  const owner = { generation: 1, sessionId: 's1', userId: 'u1' }, scope = { current: { active: true, generation: stale ? 2 : 1, sessionId: 's1', userId: 'u1' } }
+  let value = web
+  const restore = wrapperOf(page).make(shell, owner, scope, 'u1', { current: 's1' }, rec('retireVoice'), false, rec('restoreMessages'), { userMessageIdsRef: { current: new Set() } }, () => null, () => null, { current: null }, rec('trackHandoff'), next => { calls.push(['web', next]); value = next }, flag)
+  restore([{ type: 'x' }], state)
+  return { calls, web: value }
+}
+/** The page as a small machine over the real lines: the first state, the new-chat reset, the wrapper (an open), the switch's handler. One run of events. */
+function machine(page, flag) {
+  const initial = firstState(page, flag).webSearchEnabled, reset = resetCalls(page, flag).find(call => call[0] === 'web')[1], handle = handlerOf(page)
+  return events => {
+    let web = initial
+    for (const [kind, arg] of events) {
+      if (kind === 'open') web = openChat(page, { flag, state: arg, web }).web
+      else if (kind === 'switch') { handle(next => { web = next }, () => {})(arg) } // the person's own change, through the real handler
+      else if (kind === 'newChat') web = reset
+      else if (kind === 'outline') { /* an outline appears in this page view (hasStrawman latches, a presentation_url arrives): the page runs none of its research lines on it (B3) */ }
+      else throw new Error(`unknown event ${kind}`)
+    }
+    return web
+  }
+}
+/** The same events, as the spec says (independent of the page's text). */
+function specWeb(events, flag, startFlag = flag) {
+  let web = startFlag
+  for (const [kind, arg] of events) {
+    if (kind === 'open') { if (flag && arg === 'outlined') web = false } // flag on: an opened chat with its outline reads off; a no-outline chat keeps what it has
+    else if (kind === 'switch') web = arg
+    else if (kind === 'newChat') web = flag
+  }
+  return web
+}
+const EVENT_KINDS = [['open', 'outlined'], ['open', 'none'], ['switch', true], ['switch', false], ['outline'], ['newChat']]
+const sequences = max => { const out = [[]]; let layer = [[]]; for (let n = 0; n < max; n++) { layer = layer.flatMap(prefix => EVENT_KINDS.map(event => [...prefix, event])); out.push(...layer) } return out }
+const STATE_OF = { outlined: OUTLINED['a final deck (stage 6)'], none: NO_OUTLINE['an empty row'] }
+function openChecks(texts = {}) {
+  const page = texts[PAGE] ?? read(PAGE), base = baseText(PAGE), onFlag = load(LIB, { env: ENV_ON, texts }).STUDIO_RESEARCH_DEFAULT_ON
+  assert.equal(onFlag, true, 'the flag is on for "true"')
+  // flag on, every outlined row, in and out of the shell: the chat opens with web search off, set once, and the restore call itself is the base's
+  for (const shell of [false, true]) {
+    for (const [name, state] of Object.entries(OUTLINED)) {
+      const out = openChat(page, { flag: onFlag, shell, state, web: true }), was = openChat(base, { flag: onFlag, shell, state, web: true })
+      assert.equal(out.web, false, `on: a chat opened with ${name} reads web search off (shell ${shell})`)
+      assert.deepEqual(out.calls.filter(call => call[0] === 'web'), [['web', false]], `on: ${name}: web search is set once, to off`)
+      assert.deepEqual(out.calls.filter(call => call[0] !== 'web'), was.calls, `on: ${name}: every other call the wrapper makes is the base's (the restore itself is untouched)`)
+      assert.equal(openChat(page, { flag: onFlag, shell, state, web: false }).web, false, `on: ${name}: and it stays off when it was already off`)
+    }
+    for (const [name, state] of Object.entries(NO_OUTLINE)) {
+      for (const before of [true, false]) {
+        const out = openChat(page, { flag: onFlag, shell, state, web: before }), was = openChat(base, { flag: onFlag, shell, state, web: before })
+        assert.equal(out.web, before, `on: a chat opened with ${name} keeps the switch as it is (${before}; shell ${shell})`)
+        assert.deepEqual(out.calls, was.calls, `on: ${name}: the wrapper makes the base's calls and sets nothing`)
+      }
+    }
+  }
+  // a superseded restore (the shell's owner guard) returns before anything: nothing is set, nothing is restored
+  for (const [name, state] of Object.entries(OUTLINED)) assert.deepEqual(openChat(page, { flag: onFlag, shell: true, stale: true, state, web: true }).calls, [], `on: a superseded restore sets nothing and restores nothing (${name})`)
+  // flag off: the wrapper makes the base's calls, call for call, and never sets web search
+  for (const [label, env] of Object.entries(ENV_OFF)) {
+    const flag = load(LIB, { env, texts }).STUDIO_RESEARCH_DEFAULT_ON
+    for (const shell of [false, true]) for (const state of [...Object.values(OUTLINED), ...Object.values(NO_OUTLINE)]) {
+      const out = openChat(page, { flag, shell, state, web: false }), was = openChat(base, { flag, shell, state, web: false })
+      assert.deepEqual(out.calls, was.calls, `${label}: the wrapper's calls are the base's`)
+      assert.equal(out.calls.some(call => call[0] === 'web'), false, `${label}: web search is never set`)
+      assert.equal(out.web, false, `${label}: and it reads what the base reads (off)`)
+    }
+  }
+  // the whole page view as a run of events: flag on, the spec's answer for every run of up to four events; flag off, the base's
+  const on = machine(page, true), off = machine(page, false), baseOn = machine(base, true)
+  for (const events of sequences(4)) {
+    const label = events.map(([kind, arg]) => arg === undefined ? kind : `${kind}:${arg}`).join(' > ') || '(nothing)'
+    const mapped = events.map(([kind, arg]) => [kind, kind === 'open' ? STATE_OF[arg] : arg])
+    assert.equal(on(mapped), specWeb(events, true), `on: ${label}`)
+    assert.equal(off(mapped), baseOn(mapped), `off: ${label}: the same as the base's lines`)
+    assert.equal(off(mapped), specWeb(events, false), `off: ${label}: the spec's answer`)
+  }
+  // the named cases of the order
+  const web = events => on(events.map(([kind, arg]) => [kind, kind === 'open' ? STATE_OF[arg] : arg]))
+  assert.equal(web([]), true, 'on: a fresh page with no chat opened reads on')
+  assert.equal(web([['outline']]), true, 'on: a new chat that gets its first outline in this page view (it built with research on) is NOT flipped off')
+  assert.equal(web([['newChat'], ['outline']]), true, 'on: the same after + New chat')
+  assert.equal(web([['open', 'none'], ['outline']]), true, 'on: a chat opened with no outline that then builds one keeps web search on')
+  assert.equal(web([['open', 'none'], ['switch', false], ['outline']]), false, 'on: a person\'s switch in a no-outline chat is not overridden when its outline appears')
+  assert.equal(web([['open', 'none'], ['switch', false], ['outline'], ['outline']]), false, 'on: nor by anything after it')
+  assert.equal(web([['switch', false], ['outline']]), false, 'on: nor in a new chat')
+  assert.equal(web([['open', 'outlined']]), false, 'on: a chat opened with its outline reads off')
+  assert.equal(web([['open', 'outlined'], ['newChat']]), true, 'on: and + New chat starts on again')
+}
+
+// ============================================================================================================================================
+// B3. who sets web search
+// ============================================================================================================================================
+// "A person's own switch in a no-outline chat is never overridden later in the same chat, and a new chat that gets its first outline in this page view is not flipped": nothing keyed on the outline (hasStrawman, the lock, a session id) may write the switch.
+// The writers of web search in the page are the base's (the two switch handlers, the new-deck handoff) and this change's two: the restore line (inside the session-restore wrapper) and the new-chat reset (inside the new-chat handler).
+const RESET_START = '  const handleNewChatWrapped = useCallback(() => {', RESET_END = '  handleNewChatWrappedRef.current = handleNewChatWrapped'
+const FORBIDDEN_ON_MARKED = /hasStrawman|researchSettingsLocked|useEffect|useLayoutEffect|currentSessionId|wsSessionId|socketSessionId|presentation_url|slide_update|sync_response/
+function writersChecks(texts = {}) {
+  const page = texts[PAGE] ?? read(PAGE), base = baseText(PAGE), lines = page.split('\n')
+  const writers = text => text.split('\n').map((line, index) => ({ line, index })).filter(({ line }) => /\bsetWebSearchEnabled\(/.test(line))
+  const mine = writers(page).filter(({ line }) => MARKER_RE.test(line)), others = writers(page).filter(({ line }) => !MARKER_RE.test(line))
+  const replaced = new Set(EDITS[PAGE].map(([, was]) => was.replace(/\n$/, '')).filter(Boolean))
+  assert.deepEqual(others.map(({ line }) => line), writers(base).map(({ line }) => line).filter(line => !replaced.has(line)), 'every other line that sets web search is the base\'s: the two switch handlers and the new-deck handoff')
+  assert.equal(mine.length, 2, 'this change sets web search in two places only: the restore line and the new-chat reset')
+  const wrapper = wrapperOf(page), resetStart = lines.indexOf(RESET_START), resetEnd = lines.indexOf(RESET_END)
+  assert.ok(resetStart > 0 && resetEnd > resetStart, 'the new-chat handler is where the base has it')
+  assert.ok(mine[0].index > wrapper.start && mine[0].index < wrapper.end && RESTORE_LINE_RE.test(mine[0].line), 'the first is the restore line, inside the session-restore wrapper (the call the session load makes once per opened chat)')
+  assert.ok(mine[1].index > resetStart && mine[1].index < resetEnd && mine[1].line.startsWith('    setWebSearchEnabled(STUDIO_RESEARCH_DEFAULT_ON)'), 'the second is the new-chat reset, inside the new-chat handler')
+  assert.ok(mine[0].index > lines.indexOf('    if (studioShell && !isCurrentRestore()) return', wrapper.start) && lines.indexOf('    if (studioShell && !isCurrentRestore()) return', wrapper.start) > wrapper.start, 'the restore line is after the owner guard: a superseded restore sets nothing')
+  const marked = lines.filter(line => MARKER_RE.test(line))
+  assert.equal(marked.length, 4, 'four lines of the page carry the marker: the import, the first state, the restore line and the reset')
+  for (const line of marked) assert.doesNotMatch(line, FORBIDDEN_ON_MARKED, `a marked line does not read the outline, the lock, a session id or a socket message, and is no effect: ${line.trim().slice(0, 90)}`)
+  assert.equal(lines.filter(line => /\bSTUDIO_RESEARCH_DEFAULT_ON\b/.test(line)).length, 4, 'the constant is named on four lines only (the import and the three that use it): no effect, no other handler reads it')
+}
+
+// ============================================================================================================================================
+// C. only the marked lines changed
 // ============================================================================================================================================
 function pageDiffChecks(texts = {}) {
   const page = texts[PAGE] ?? read(PAGE), base = baseText(PAGE)
@@ -158,12 +336,14 @@ function pageDiffChecks(texts = {}) {
   const was = EDITS[PAGE].map(([, w]) => w).filter(w => w !== '').map(w => w.replace(/\n$/, ''))
   assert.deepEqual(diff.removed.sort(), was.sort(), 'two base lines are rewritten, no other base line is lost')
   assert.equal(was.length, 2, 'two modified lines')
-  assert.equal(diff.added.length, 3, 'three lines added in all: the two modified lines and one import')
+  assert.equal(diff.added.length, 4, 'four lines added in all: the two modified lines, the one restore line and one import')
   for (const line of diff.added) assert.match(line, MARKER_RE, `a line added to the page carries the marker: ${line.trim().slice(0, 100)}`)
   assert.equal(diff.added.filter(line => /^import /.test(line)).length, 1, 'one of them is the import')
-  assert.deepEqual(diff.added.filter(line => !/^import /.test(line)).map(line => line.replace(/ \/\/ RESEARCH-DEFAULT.*$/, '')).sort(), ['  const [webSearchEnabled, setWebSearchEnabled] = useState(STUDIO_RESEARCH_DEFAULT_ON)', '    setWebSearchEnabled(STUDIO_RESEARCH_DEFAULT_ON)'].sort(), 'the two modified lines are exactly the two initial values, and use only the flag')
+  assert.deepEqual(diff.added.filter(line => !/^import /.test(line) && !RESTORE_LINE_RE.test(line)).map(line => line.replace(/ \/\/ RESEARCH-DEFAULT.*$/, '')).sort(), ['  const [webSearchEnabled, setWebSearchEnabled] = useState(STUDIO_RESEARCH_DEFAULT_ON)', '    setWebSearchEnabled(STUDIO_RESEARCH_DEFAULT_ON)'].sort(), 'the two modified lines are exactly the two initial values, and use only the flag')
+  assert.equal(diff.added.filter(line => RESTORE_LINE_RE.test(line)).length, 1, 'one line is the restore line (a pure insertion: it replaces no base line)')
   assert.equal(lineWith(mine, "from '@/lib/studio-research-default'"), "import { STUDIO_RESEARCH_DEFAULT_ON } from '@/lib/studio-research-default' // RESEARCH-DEFAULT", 'the import is the lib\'s one constant')
-  assert.equal(diff.added.reduce((n, line) => n + (line.match(/\bSTUDIO_RESEARCH_DEFAULT_ON\b/g) || []).length, 0), 3, 'and uses the constant three times: the import and the two lines (the comments name the env flag, not the constant)')
+  assert.equal(diff.added.reduce((n, line) => n + (line.match(/\bSTUDIO_RESEARCH_DEFAULT_ON\b/g) || []).length, 0), 4, 'and uses the constant four times: the import, the two modified lines and the restore line (the comments name the env flag, not the constant)')
+  assert.equal(EDITS[PAGE].filter(([, w]) => w === '').length, 2, 'two pure insertions in the strip: the restore line and the import')
   for (const rel of APP_FILES) assert.equal(STRIP_FN(rel, 'x\nRESEARCH-DEFAULT\n'), 'x\nRESEARCH-DEFAULT\n', 'a text with no edit in it comes back as it is')
   for (const rel of ['hooks/use-deckster-websocket-v2.ts', 'components/builder/chat/studio-chat-clean.tsx', ENV, REGISTRY]) assert.equal(STRIP_FN(rel, 'x\nRESEARCH-DEFAULT\n'), 'x\nRESEARCH-DEFAULT\n', `${rel}: a file this change does not own comes back as it is`)
   assert.equal(STRIP_FN(PAGE, 5), 5, 'a text that is not a string comes back as it is')
@@ -204,7 +384,7 @@ function pinChecks(texts = {}, mod = stripModule) {
 }
 
 // ============================================================================================================================================
-// D. deep research and the restore are untouched; the hook and the composer are untouched
+// D. deep research and the new-deck handoff are untouched; the hook and the composer are untouched
 // ============================================================================================================================================
 function untouchedChecks(texts = {}) {
   const page = texts[PAGE] ?? read(PAGE), base = baseText(PAGE)
@@ -216,15 +396,15 @@ function untouchedChecks(texts = {}) {
   const lines = page.split('\n'), from = lines.findIndex(l => l.startsWith('  const handleResearchEnabledChange = useCallback(')), baseLines = base.split('\n'), baseFrom = baseLines.findIndex(l => l.startsWith('  const handleResearchEnabledChange = useCallback('))
   assert.ok(from > 0 && baseFrom > 0, 'the two handlers are where the base has them')
   assert.equal(lines.slice(from, from + 8).join('\n'), baseLines.slice(baseFrom, baseFrom + 8).join('\n'), 'the two handlers (Deep research implies web search; web search off turns Deep research off) are the base\'s lines')
-  // the restore: a reopened chat keeps its value
-  assert.equal(lineIs(page, '    setResearchEnabled(pending.deep_research)'), '    setResearchEnabled(pending.deep_research)', 'the restore sets deep research from the saved chat')
-  assert.equal(lineIs(page, '    setWebSearchEnabled(pending.web_search || pending.deep_research)'), '    setWebSearchEnabled(pending.web_search || pending.deep_research)', 'the restore sets web search from the saved chat, the flag is not in it')
+  // the new-deck handoff (the lines after `setSessionStoreName(pending.store_name)`, :6851): it sets the switches from the handed-off request, whatever the flag. It is NOT a restore of an opened chat: nothing restores a chat's web search (the page's restore line is B2's)
+  assert.equal(lineIs(page, '    setResearchEnabled(pending.deep_research)'), '    setResearchEnabled(pending.deep_research)', 'the new-deck handoff sets deep research from the handed-off request')
+  assert.equal(lineIs(page, '    setWebSearchEnabled(pending.web_search || pending.deep_research)'), '    setWebSearchEnabled(pending.web_search || pending.deep_research)', 'the new-deck handoff sets web search from the handed-off request, the flag is not in it')
   assert.equal(lineIs(page, '    setExtendedGenerationEnabled(pending.extended_generation)'), '    setExtendedGenerationEnabled(pending.extended_generation)', 'and the line after it is the base\'s')
   // the restore, run: the saved values come back whatever the flag
   for (const flag of [false, true]) for (const web of [true, false]) for (const deep of [true, false]) {
     const calls = [], rec = name => value => { calls.push([name, value]) }
     runFragment('setResearchEnabled(pending.deep_research)\nsetWebSearchEnabled(pending.web_search || pending.deep_research)', ['setResearchEnabled', 'setWebSearchEnabled', 'pending', 'STUDIO_RESEARCH_DEFAULT_ON'])(rec('deep'), rec('web'), { web_search: web, deep_research: deep }, flag)
-    assert.deepEqual(calls, [['deep', deep], ['web', web || deep]], `the restore (flag ${flag}, saved web ${web}, deep ${deep}) keeps the saved values`)
+    assert.deepEqual(calls, [['deep', deep], ['web', web || deep]], `the new-deck handoff (flag ${flag}, request web ${web}, deep ${deep}) sets the requested values`)
   }
   // every other line that reads web search is the base's: the build message still carries web_search on every send
   const reads = text => text.split('\n').filter(l => /\bwebSearchEnabled\b/.test(l) && !l.startsWith('  const [webSearchEnabled, setWebSearchEnabled] = useState(')).join('\n')
@@ -243,6 +423,8 @@ function envChecks(texts = {}, block = ENV_BLOCK) {
   const env = laterEnv(texts[ENV] ?? read(ENV))
   assert.ok(env.endsWith(`\n${block}`), '.env.example ends with the block (one block, at the end)')
   assert.equal(env.slice(0, env.length - block.length - 1), baseText(ENV), '.env.example is dev\'s file plus that one blank-line-separated block')
+  assert.ok(block.includes(SENTENCE) && env.includes(SENTENCE), 'the block says what the flag does: web search starts on in a new chat or one with no outline, an outlined chat opens off, deep research is unchanged')
+  assert.doesNotMatch(env, /a reopened chat keeps the value it was saved with/, 'and no longer says a reopened chat keeps its saved value')
   assert.equal((env.match(new RegExp(`^${FLAG}=`, 'gm')) || []).length, 1, `.env.example assigns ${FLAG} once`)
   assert.match(block, new RegExp(`^${FLAG}="false"$`, 'm'), `the block documents ${FLAG} as "false"`)
   assert.ok(block.endsWith('\n') && block.split('\n').filter(line => line && !line.startsWith('#')).length === 1 && block.split('\n').filter(line => line.startsWith('#')).length >= 1, 'the block is a comment and one assignment')
@@ -321,9 +503,11 @@ function oneReadChecks(texts = {}) {
 const TEXTS = Object.fromEntries([...APP_FILES, ...NEW_FILES.filter(f => f !== 'scripts/test-studio-research-default.mjs'), ...PIN_FILES, ENV, REGISTRY, HOOK, CLEAN].map(rel => [rel, read(rel)]))
 await check('A. the lib: on for the exact string "true" and nothing else; one literal read; imports nothing', () => libChecks())
 await check('B. the page\'s two lines, run: flag off they are the base\'s; flag on web search starts on, deep research off', () => pageRunChecks())
-await check('C. only the two lines and the import changed: the strip gives dev\'s page byte for byte', () => pageDiffChecks(TEXTS))
+await check('B2. the open of a chat (the real session-restore wrapper, run): flag on an outlined chat reads off, a new chat and a no-outline chat read on, a person\'s switch is not overridden, a superseded restore sets nothing; flag off the base\'s calls', () => openChecks(TEXTS))
+await check('B3. who sets web search: the base\'s writers plus the restore line and the reset; nothing keyed on the outline, the lock or a session', () => writersChecks(TEXTS))
+await check('C. only the marked lines changed (two base lines rewritten, the restore line and the import inserted): the strip gives dev\'s page byte for byte', () => pageDiffChecks(TEXTS))
 await check('C2. the six older proofs this change teaches: pure insertions, dev\'s file without them; read hook, subject splice and diff helper', () => pinChecks(TEXTS))
-await check('D. deep research, the restore, the hook and the composer are untouched', () => untouchedChecks(TEXTS))
+await check('D. deep research, the new-deck handoff, the hook and the composer are untouched', () => untouchedChecks(TEXTS))
 await check('E. .env.example: one block at the end, "false", dev\'s file plus the block', () => envChecks(TEXTS))
 await check('F. the registry: three lines, each marked LATER-CHANGE, at the right places; the strips commute', () => registryChecks())
 await check('G1. own-commit scope, by the subject prefix on the first-parent line; the commit message', () => {
@@ -337,7 +521,13 @@ await check('H. the flag is read from one literal env name, and only the lib rea
 // ---- I. mutants ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 const FIRST_LINE_NOW = lineWith(TEXTS[PAGE], 'const [webSearchEnabled, setWebSearchEnabled] = useState(STUDIO_RESEARCH_DEFAULT_ON)')
 const RESET_LINE_NOW = lineWith(TEXTS[PAGE], '    setWebSearchEnabled(STUDIO_RESEARCH_DEFAULT_ON)')
+const RESTORE_NOW = lineWith(TEXTS[PAGE], '    if (STUDIO_RESEARCH_DEFAULT_ON && (restoredSessionState?.strawmanPreviewUrl')
+const OWNER_GUARD = '    if (studioShell && !isCurrentRestore()) return\n'
 const P = (from, to) => ({ [PAGE]: swap(TEXTS[PAGE], from, to) })
+const R = to => P(RESTORE_NOW, to) // a page whose restore line is replaced by `to`
+const RESTORE_COND = RESTORE_NOW.slice(RESTORE_NOW.indexOf('if (') + 4, RESTORE_NOW.indexOf(') setWebSearchEnabled(false)')) // the condition between `if (` and `) setWebSearchEnabled(false)`
+const RESTORE_TAIL = RESTORE_NOW.slice(RESTORE_NOW.indexOf(') setWebSearchEnabled(false)'))
+const restoreWith = cond => `    if (${cond}${RESTORE_TAIL}`
 const L = (from, to) => ({ [LIB]: swap(read(LIB), from, to) })
 const MUTANTS = [
   ['lib: "True" turns it on', L("process.env.NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON === 'true'", "process.env.NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON?.toLowerCase() === 'true'"), libChecks],
@@ -354,9 +544,9 @@ const MUTANTS = [
   ['page: deep research starts with the flag', P(FIRST_RESEARCH, '  const [researchEnabled, setResearchEnabled] = useState(STUDIO_RESEARCH_DEFAULT_ON)'), pageRunChecks],
   ['page: the reset gives deep research the flag', P('    setResearchEnabled(false)\n', '    setResearchEnabled(STUDIO_RESEARCH_DEFAULT_ON)\n'), pageRunChecks],
   ['page: deep research starts with the flag (untouched check)', P(FIRST_RESEARCH, '  const [researchEnabled, setResearchEnabled] = useState(STUDIO_RESEARCH_DEFAULT_ON)'), untouchedChecks],
-  ['page: the restore also takes the flag', P('    setWebSearchEnabled(pending.web_search || pending.deep_research)', '    setWebSearchEnabled(pending.web_search || pending.deep_research || STUDIO_RESEARCH_DEFAULT_ON)'), untouchedChecks],
-  ['page: the restore is replaced by the flag', P('    setWebSearchEnabled(pending.web_search || pending.deep_research)', '    setWebSearchEnabled(STUDIO_RESEARCH_DEFAULT_ON)'), untouchedChecks],
-  ['page: the deep research restore is dropped', P('    setResearchEnabled(pending.deep_research)\n', ''), untouchedChecks],
+  ['page: the new-deck handoff also takes the flag', P('    setWebSearchEnabled(pending.web_search || pending.deep_research)', '    setWebSearchEnabled(pending.web_search || pending.deep_research || STUDIO_RESEARCH_DEFAULT_ON)'), untouchedChecks],
+  ['page: the new-deck handoff is replaced by the flag', P('    setWebSearchEnabled(pending.web_search || pending.deep_research)', '    setWebSearchEnabled(STUDIO_RESEARCH_DEFAULT_ON)'), untouchedChecks],
+  ['page: the deep research setter of the new-deck handoff is dropped', P('    setResearchEnabled(pending.deep_research)\n', ''), untouchedChecks],
   ['page: a handler stops linking the two switches', P('    if (!enabled) setResearchEnabled(false)\n', ''), untouchedChecks],
   ['page: a send reads web search differently', P('        web_search: webSearchEnabled,\n', '        web_search: webSearchEnabled || STUDIO_RESEARCH_DEFAULT_ON,\n'), untouchedChecks],
   ['page: a base line is lost', P('    setKnowledgeGraphEnabled(false)\n    setIsGeneratingFinal(false)\n', '    setIsGeneratingFinal(false)\n'), pageDiffChecks],
@@ -364,6 +554,34 @@ const MUTANTS = [
   ['page: a marked line loses its marker', P(`${RESET_LINE_NOW}`, RESET_LINE_NOW.replace('// RESEARCH-DEFAULT', '// RESEARCH')), pageDiffChecks],
   ['page: a third line is marked and added', P('  const [extendedGenerationEnabled, setExtendedGenerationEnabled] = useState(true)\n', '  const [extendedGenerationEnabled, setExtendedGenerationEnabled] = useState(true)\n  const researchDefaultNote = 1 // RESEARCH-DEFAULT\n'), pageDiffChecks],
   ['page: the import is gone', P("import { STUDIO_RESEARCH_DEFAULT_ON } from '@/lib/studio-research-default' // RESEARCH-DEFAULT\n", ''), pageDiffChecks],
+  // the open of a chat (REVIEW-1's P2 and FRONTEND-1's cure 1): the restore line and who may set the switch
+  ['open: the restore line runs with the flag off', R(restoreWith(RESTORE_COND.replace('STUDIO_RESEARCH_DEFAULT_ON && ', ''))), openChecks],
+  ['open: the restore line sets web search on', R(RESTORE_NOW.replace(') setWebSearchEnabled(false)', ') setWebSearchEnabled(true)')), openChecks],
+  ['open: every opened chat is set off (no outline test)', R(`    if (STUDIO_RESEARCH_DEFAULT_ON${RESTORE_TAIL}`), openChecks],
+  ['open: a strawman url alone does not count', R(restoreWith(RESTORE_COND.replace('restoredSessionState?.strawmanPreviewUrl || ', ''))), openChecks],
+  ['open: a strawman id alone does not count', R(restoreWith(RESTORE_COND.replace('restoredSessionState?.strawmanPresentationId || ', ''))), openChecks],
+  ['open: a final deck url alone does not count', R(restoreWith(RESTORE_COND.replace('restoredSessionState?.finalPresentationUrl || ', ''))), openChecks],
+  ['open: a final deck id alone does not count', R(restoreWith(RESTORE_COND.replace(' || restoredSessionState?.finalPresentationId', ''))), openChecks],
+  ['open: a blank deck counts as an outline', R(restoreWith(RESTORE_COND.replace(' || restoredSessionState?.finalPresentationId)', ' || restoredSessionState?.finalPresentationId || restoredSessionState?.blankPresentationUrl)'))), openChecks],
+  ['open: any deck url counts as an outline', R(restoreWith(RESTORE_COND.replace(' || restoredSessionState?.finalPresentationId)', ' || restoredSessionState?.finalPresentationId || restoredSessionState?.presentationUrl)'))), openChecks],
+  ['open: the line sits before the owner guard (a superseded restore sets it)', P(`${OWNER_GUARD}${RESTORE_NOW}\n`, `${RESTORE_NOW}\n${OWNER_GUARD}`), openChecks],
+  ['open: the line sits before the owner guard (writers check)', P(`${OWNER_GUARD}${RESTORE_NOW}\n`, `${RESTORE_NOW}\n${OWNER_GUARD}`), writersChecks],
+  ['open: the line also sets deep research', R(RESTORE_NOW.replace(') setWebSearchEnabled(false)', ') { setWebSearchEnabled(false); setResearchEnabled(false) }')), untouchedChecks],
+  ['open: the line is gone', P(`${RESTORE_NOW}\n`, ''), openChecks],
+  ['open: the line has no marker', R(RESTORE_NOW.replace(' // RESEARCH-DEFAULT', ' // research default')), pageDiffChecks],
+  ['open: the line has no marker (writers check)', R(RESTORE_NOW.replace(' // RESEARCH-DEFAULT', ' // research default')), writersChecks],
+  ['open: the line differs from the strip\'s pair (the strip cannot put it back)', R(RESTORE_NOW.replace('setWebSearchEnabled(false)', 'setWebSearchEnabled( false)')), pageDiffChecks],
+  ['open: the line reads the outline latch (hasStrawman)', R(restoreWith(RESTORE_COND.replace('STUDIO_RESEARCH_DEFAULT_ON && ', 'STUDIO_RESEARCH_DEFAULT_ON && hasStrawman && '))), writersChecks],
+  ['open: an effect keyed on the outline sets it off', P('  const [extendedGenerationEnabled, setExtendedGenerationEnabled] = useState(true)\n', '  useEffect(() => { if (STUDIO_RESEARCH_DEFAULT_ON && hasStrawman) setWebSearchEnabled(false) }, [hasStrawman]) // RESEARCH-DEFAULT\n  const [extendedGenerationEnabled, setExtendedGenerationEnabled] = useState(true)\n'), writersChecks],
+  ['open: an effect keyed on the outline sets it off (diff check)', P('  const [extendedGenerationEnabled, setExtendedGenerationEnabled] = useState(true)\n', '  useEffect(() => { if (STUDIO_RESEARCH_DEFAULT_ON && hasStrawman) setWebSearchEnabled(false) }, [hasStrawman]) // RESEARCH-DEFAULT\n  const [extendedGenerationEnabled, setExtendedGenerationEnabled] = useState(true)\n'), pageDiffChecks],
+  ['open: an effect without the marker sets it off when the lock latches', P('  const [extendedGenerationEnabled, setExtendedGenerationEnabled] = useState(true)\n', '  useEffect(() => { if (hasStrawman) setWebSearchEnabled(false) }, [hasStrawman])\n  const [extendedGenerationEnabled, setExtendedGenerationEnabled] = useState(true)\n'), writersChecks],
+  ['open: choosing a chat in the history also sets it off', P('    setKnowledgeGraphEnabled(false)\n    session.handleSessionSelect(sessionId)', '    setKnowledgeGraphEnabled(false)\n    setWebSearchEnabled(false)\n    session.handleSessionSelect(sessionId)'), writersChecks],
+  ['open: a marked second restore line (every opened chat sets the default)', P(`${RESTORE_NOW}\n`, `${RESTORE_NOW}\n    setWebSearchEnabled(STUDIO_RESEARCH_DEFAULT_ON) // RESEARCH-DEFAULT\n`), writersChecks],
+  ['open: the wrapper loses its owner guard', P(OWNER_GUARD, ''), openChecks],
+  ['lib: the comment goes back to the old words (a reopened chat keeps its saved value)', { [LIB]: swap(read(LIB), SENTENCE, 'On, a new chat in the Builder starts with web search on. Deep research stays off, and a reopened chat keeps the value it was saved with.') }, libChecks],
+  ['lib: the comment drops the outlined chat', { [LIB]: swap(read(LIB), ' A chat that already has an outline opens with web search off, as before.', '') }, libChecks],
+  ['env: the block says the old words', { [ENV]: swap(TEXTS[ENV], SENTENCE, 'On: a new chat in the Builder starts with Research (web search) switched on. Deep research stays off, and a reopened chat keeps the value it was saved with.') }, envChecks],
+  ['env: the block drops the outlined chat', { [ENV]: swap(TEXTS[ENV], ' A chat that already has an outline opens with web search off, as before.', '') }, envChecks],
   ['hook: a line is added', { [HOOK]: TEXTS[HOOK].replace('web_search: webSearch,', 'web_search: webSearch || false,') }, untouchedChecks],
   ['composer: a line is added', { [CLEAN]: `${TEXTS[CLEAN]}// x\n` }, untouchedChecks],
   ['env: the default is edited to "true"', { [ENV]: swap(TEXTS[ENV], `${FLAG}="false"`, `${FLAG}="true"`) }, envChecks],
