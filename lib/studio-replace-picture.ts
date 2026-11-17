@@ -445,6 +445,7 @@ export interface ReplacePictureAvailability {
   placeholderOnScreen?: boolean
   /** What Layout says about the slide on screen (readSlideEligibility): not read yet, no report at all, a report that does not list it, or its answer. */
   eligibility: SlideEligibility
+  heroOnlyReason?: string | null // REPLACE-PICTURE-HERO-ONLY: the hero-only rule's words when it applies to the slide on screen (hooks/use-studio-replace-picture.ts, lib/studio-replace-picture-hero-only.ts); absent or null: the rule adds no reason
 }
 
 /** Why Replace picture is off right now, in plain words; null when it is available. The order is the order of what the person can do about it first. */
@@ -462,6 +463,7 @@ export function replacePictureDisabledReason(a: ReplacePictureAvailability): str
   if (a.eligibility.state === 'absent') return REPLACE_PICTURE_REASONS.notOnYet
   if (a.eligibility.state === 'known' && !a.eligibility.eligible) return a.eligibility.reason === null ? REPLACE_PICTURE_REASONS.notEligible : upfrontWords(a.eligibility.reason)
   if (a.eligibility.state === 'loading') return REPLACE_PICTURE_REASONS.checking
+  if (typeof a.heroOnlyReason === 'string' && a.heroOnlyReason !== '') return a.heroOnlyReason // REPLACE-PICTURE-HERO-ONLY: last: a slide Layout says is eligible but whose layout has no picture slot (target slide_background) offers no picture; every reason above, Layout's own not-eligible one included, comes first
   return null
 }
 

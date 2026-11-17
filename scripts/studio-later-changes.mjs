@@ -122,6 +122,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-uat-marketing-v4-strip.mjs')).UAT_MARKETING_V4_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, uat's own marketing-v4 site (41 files uat had and dev did not at the #637 promotion) so the committed-diff scope proofs pass on uat (no flag; no .env.example block; no strip)
   ...(await import('./studio-research-default-strip.mjs')).RESEARCH_DEFAULT_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE-3, the Research default: a new chat starts with web search on (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON)
   ...(await import('./studio-gdrive-card-reasons-strip.mjs')).CARD_REASONS_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE-3, the Google Drive card says why: how the Google sign-in ended (one fixed sentence) and the reason a failed list call gives (NEXT_PUBLIC_STUDIO_CONNECTORS_CARD_REASONS)
+  ...(await import('./studio-replace-picture-hero-only-strip.mjs')).REPLACE_PICTURE_HERO_ONLY_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, Replace picture hero slides only and the dialog in front of the viewer (NEXT_PUBLIC_STUDIO_REPLACE_PICTURE_HERO_ONLY)
   // one line per later change, above this comment
 ])
 
@@ -199,6 +200,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-replace-picture-strip.mjs')).REPLACE_PICTURE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, M10 Replace picture (NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE)
   (await import('./studio-research-default-strip.mjs')).RESEARCH_DEFAULT_ENV_BLOCK, // LATER-CHANGE: KNOWLEDGE-3, the Research default: a new chat starts with web search on (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON)
   (await import('./studio-gdrive-card-reasons-strip.mjs')).CARD_REASONS_ENV_BLOCK, // LATER-CHANGE: KNOWLEDGE-3, the Google Drive card says why: how the Google sign-in ended (one fixed sentence) and the reason a failed list call gives (NEXT_PUBLIC_STUDIO_CONNECTORS_CARD_REASONS)
+  (await import('./studio-replace-picture-hero-only-strip.mjs')).REPLACE_PICTURE_HERO_ONLY_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, Replace picture hero slides only and the dialog in front of the viewer (NEXT_PUBLIC_STUDIO_REPLACE_PICTURE_HERO_ONLY)
   // one line per later change, above this comment
 ]
 
@@ -298,6 +300,7 @@ export const LATER_STRIPS = [
   (await import('./studio-replace-picture-strip.mjs')).stripReplacePicture, // LATER-CHANGE: FRONTEND-1, M10 Replace picture (NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE)
   (await import('./studio-research-default-strip.mjs')).stripResearchDefault, // LATER-CHANGE: KNOWLEDGE-3, the Research default: a new chat starts with web search on (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON)
   (await import('./studio-gdrive-card-reasons-strip.mjs')).stripCardReasons, // LATER-CHANGE: KNOWLEDGE-3, the Google Drive card says why: how the Google sign-in ended (one fixed sentence) and the reason a failed list call gives (NEXT_PUBLIC_STUDIO_CONNECTORS_CARD_REASONS)
+  (await import('./studio-replace-picture-hero-only-strip.mjs')).stripReplacePictureHeroOnly, // LATER-CHANGE: FRONTEND-1, Replace picture hero slides only and the dialog in front of the viewer (NEXT_PUBLIC_STUDIO_REPLACE_PICTURE_HERO_ONLY)
   // one line per later change, above this comment
 ]
 
