@@ -881,7 +881,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   )
   const [showChatHistory, setShowChatHistory] = useState(false)
   const [researchEnabled, setResearchEnabled] = useState(false)
-  const [webSearchEnabled, setWebSearchEnabled] = useState(STUDIO_RESEARCH_DEFAULT_ON) // RESEARCH-DEFAULT (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON, default off): a new chat starts with web search on; deep research stays off
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false)
   const handleResearchEnabledChange = useCallback((enabled: boolean) => {
     setResearchEnabled(enabled)
     if (enabled) setWebSearchEnabled(true)
@@ -4851,7 +4851,6 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         && current.userId === authScopeUserId && currentSessionIdRef.current === owner.sessionId
     }
     if (studioShell && !isCurrentRestore()) return
-    if (STUDIO_RESEARCH_DEFAULT_ON && (restoredSessionState?.strawmanPreviewUrl || restoredSessionState?.strawmanPresentationId || restoredSessionState?.finalPresentationUrl || restoredSessionState?.finalPresentationId)) setWebSearchEnabled(false) // RESEARCH-DEFAULT (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON, default off): a chat opened with its outline already built (the loaded row holds its strawman or final deck) opens with web search off, as before; this runs once per opened chat, here at the load, never when an outline appears in this page view; deep research stays as it is
     retireStudioVoiceOwner()
     if (STUDIO_VOICE_INTERACTIVE_ENABLED) {
       restoreMessages(historicalMessages, restoredSessionState,
@@ -4896,6 +4895,18 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setCurrentSessionId,
     setSessionStoreName,
   })
+  const researchChatRef = useRef<{ id: string | null; applied: boolean; touched: boolean; web: boolean }>({ id: null, applied: false, touched: false, web: false }) // RESEARCH-DEFAULT (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON / _FREE, default off): the chat the default was last decided for, whether it has been (once per chat), whether the person changed the switch in it first, and the switch's value as last seen
+  useEffect(() => { // RESEARCH-DEFAULT (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON / _FREE, default off): once per chat, when the plan is known and the chat has loaded, web search starts at the plan's default (paid on; free only with the FREE flag); a chat that already has its outline (the loaded row's, or Director's latch) gets off, as before; a switch the person changed in this chat first stands; an outline appearing later in the same chat changes nothing (it is decided once)
+    if (!STUDIO_RESEARCH_DEFAULT_ON) return // RESEARCH-DEFAULT: flag off, nothing here runs
+    const chat = researchChatRef.current // RESEARCH-DEFAULT
+    if (chat.id !== currentSessionId) { if (chat.id !== null) { chat.applied = false; chat.touched = false } chat.id = currentSessionId } // RESEARCH-DEFAULT: another chat starts over (the new-chat reset lands here, with its new id); a change made before the page's first chat had an id stays with it
+    else if (webSearchEnabled !== chat.web && !chat.applied) chat.touched = true // RESEARCH-DEFAULT: the switch changed in this chat before its default was decided: the person's own change, whenever the plan arrives, is not overridden
+    chat.web = webSearchEnabled // RESEARCH-DEFAULT
+    if (!currentSessionId || agentPlan === null || session.isLoadingSession || chat.applied) return // RESEARCH-DEFAULT: wait for the plan and for the chat's load (the restore and the end of loading commit together); decided once per chat
+    chat.applied = true // RESEARCH-DEFAULT
+    if (chat.touched) return // RESEARCH-DEFAULT
+    setWebSearchEnabled(!(hasStrawman || strawmanPreviewUrl || strawmanPresentationId || finalPresentationUrl || finalPresentationId) && researchDefaultFor(agentPlan, { on: STUDIO_RESEARCH_DEFAULT_ON, free: STUDIO_RESEARCH_DEFAULT_FREE })) // RESEARCH-DEFAULT: an outlined chat gets off, any other chat the plan's default; deep research is not touched
+  }, [currentSessionId, agentPlan, hasStrawman, session.isLoadingSession, webSearchEnabled]) // RESEARCH-DEFAULT
 
   // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the first-action row save (see saveSessionOnFirstAction above). Wraps the session hook's
   // handleRequestSession (the uploads' draft-session creator) and the persistence hook's held blank-deck metadata.
@@ -7019,7 +7030,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setBuildThemeSelection({ mode: 'auto' })
     setActiveBuildThemeProfile(null)
     setResearchEnabled(false)
-    setWebSearchEnabled(STUDIO_RESEARCH_DEFAULT_ON) // RESEARCH-DEFAULT (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON, default off): the new-chat reset gives the same start; deep research stays off
+    setWebSearchEnabled(false)
     setExtendedGenerationEnabled(true)
     setKnowledgeGraphEnabled(false)
     setIsGeneratingFinal(false)
@@ -8645,4 +8656,4 @@ import { STUDIO_AGENT_MODE_ENABLED, agentPlanOf, buildModeOnWire, initialAgentRu
 import { STUDIO_THINKING_LEVELS_ENABLED, effectiveLevel, levelPick, type ThinkingLevel } from '@/lib/studio-thinking-levels' // THINKING-LEVELS
 import { AGENT_WIRE_CONTROL_MARK, AGENT_WIRE_COPY, AGENT_WIRE_RESET, agentCardsKey, agentFinishedRun, agentPickerAfterRun, agentRunBusy, agentSessionChanged, agentWireReducer, answerAgentCard, typedBuildMode, voiceBuildMode, voiceOriginatedSend } from '@/lib/studio-agent-mode-wire' // AGENT-MODE-WIRE
 import { STUDIO_REPLACE_SLIDE_PICTURE_ENABLED } from '@/lib/studio-replace-picture' // REPLACE-PICTURE
-import { STUDIO_RESEARCH_DEFAULT_ON } from '@/lib/studio-research-default' // RESEARCH-DEFAULT
+import { STUDIO_RESEARCH_DEFAULT_FREE, STUDIO_RESEARCH_DEFAULT_ON, researchDefaultFor } from '@/lib/studio-research-default' // RESEARCH-DEFAULT

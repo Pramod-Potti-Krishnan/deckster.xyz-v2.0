@@ -1,16 +1,14 @@
-// KNOWLEDGE-3 for FRONTEND-1 (the Research default). Flag NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON (exact "true", default off, build-time).
-// On a new chat, or a chat that has no outline yet, web search starts on. A chat that already has an outline opens with web search off, as before. Deep research is unchanged.
-// How: the Builder page's first `webSearchEnabled` state and its new-chat reset read the flag (web search starts on), and ONE line in the session-restore wrapper (restoreBuilderSessionMessages, the call the session load makes once per opened chat) sets it off
-// when the loaded row already holds the chat's strawman or final deck (REVIEW-1's P2 on Draft #639: a page load started every chat with web search on, outlined ones included). The new-deck handoff and deep research (`researchEnabled`) are untouched.
-// Off, the page is byte for byte what it was (the new line is gated by the flag, so it never runs). Nothing in the hook or the composer changes: web_search already goes out on every build message.
-// Every line this change adds to an EXISTING file carries the marker RESEARCH-DEFAULT (matched as a whole token). Two of them REPLACE a base line (the two `false` initial values, so each pair's `was` is that base line) and two are pure insertions
-// (the restore line and the import, whose `was` is empty), so the strip is a list of [has, was] pairs: putting each back gives the file at BASE_COMMIT byte for byte. The new files have no base text.
-// How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
-// Six older proofs are TAUGHT it as well (RESEARCH_DEFAULT_PIN_EDITS, pure insertions): they hold the Builder page to an older base as pure insertions (a base line may never be replaced), which two rewritten base lines break, so they read the page
-// through this strip (or drop this change's lines from the diff they count, or its subject from the first-parent line they read); putting those lines back gives each proof's previous text byte for byte.
+// KNOWLEDGE-3 for FRONTEND-1 (the Research default). Flags NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON and NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_FREE (each the exact "true", each default off, build-time).
+// On a new chat, or a chat with no outline yet, web search starts on for paid plans (starter, pro, premium); free plans only when NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_FREE is also on. A chat that already has an outline opens with web search off, as before. Deep research is unchanged.
+// How: ONE marked effect in the Builder page, once per chat, when the plan is known (agentPlanOf(user.tier), the page's agentPlan) and the chat has loaded, sets web search to researchDefaultFor(plan, flags) (lib/studio-research-default.ts) unless the chat already has its outline
+// (the loaded row's strawman or final deck, or Director's hasStrawman latch) or the person changed the switch in that chat first (the effect sees the switch's value change in that chat before it has decided). The first state of web search, the new-chat reset, the two switch handlers and the session restore are the BASE's lines.
+// Off, the page behaves as it did (the effect returns first). Nothing in the hook or the composer changes: web_search already goes out on every build message.
+// Every line this change adds to an EXISTING file carries the marker RESEARCH-DEFAULT (matched as a whole token) and is a PURE INSERTION (no base line is rewritten or touched: the page gains thirteen lines in two places), so the strip is a list of [has, was] pairs whose `was` is empty: putting each back gives the file at BASE_COMMIT byte for byte. The new files have no base text.
+// How the older pins reach it: this change REGISTERS its files, its .env.example blocks and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
+// Two older proofs are TAUGHT one line each (RESEARCH_DEFAULT_PIN_EDITS, pure insertions): they read the first-parent line of BASE..HEAD, which carries this change's own commits, so each drops this change's subject from it (as for every later change); putting those lines back gives each proof's previous text byte for byte.
 
 export const BASE_COMMIT = '0dcc90d0eecd2bba078fb3e334216afe722b5f78' // origin/studio-v4-dev-preparation-code (#638 merged), the trunk this change sits on
-export const RESEARCH_DEFAULT_FLAGS = ["NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON"]
+export const RESEARCH_DEFAULT_FLAGS = ["NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON", "NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_FREE"]
 export const RESEARCH_DEFAULT_MARKER = 'RESEARCH-DEFAULT'
 /** The marker as a WHOLE token: RESEARCH-DEFAULT is this change's; RESEARCH-DEFAULT-X and X-RESEARCH-DEFAULT are not. */
 export const RESEARCH_DEFAULT_MARKER_RE = /(?<![\w-])RESEARCH-DEFAULT(?![\w-])/
@@ -30,25 +28,61 @@ export const RESEARCH_DEFAULT_NEW_FILES = [
 ]
 
 /** The new libs that read a flag: [file, flag], one literal env read each. */
-export const RESEARCH_DEFAULT_LIB_FLAGS = [["lib/studio-research-default.ts", "NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON"]]
+export const RESEARCH_DEFAULT_LIB_FLAGS = [["lib/studio-research-default.ts", "NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON"], ["lib/studio-research-default.ts", "NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_FREE"]]
 
-/** [text the file has now, text the file had at BASE_COMMIT] per edit (one per marked line, in the order they sit in the file); putting them back gives the base file byte for byte. */
+/** [text the file has now, text the file had at BASE_COMMIT] per edit (one per marked insertion, in the order they sit in the file); putting them back gives the base file byte for byte. */
 export const RESEARCH_DEFAULT_EDITS = {
   "app/builder/page.tsx": [
     [
-      "  const [webSearchEnabled, setWebSearchEnabled] = useState(STUDIO_RESEARCH_DEFAULT_ON) // RESEARCH-DEFAULT (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON, default off): a new chat starts with web search on; deep research stays off\n",
-      "  const [webSearchEnabled, setWebSearchEnabled] = useState(false)\n"
-    ],
-    [
-      "    if (STUDIO_RESEARCH_DEFAULT_ON && (restoredSessionState?.strawmanPreviewUrl || restoredSessionState?.strawmanPresentationId || restoredSessionState?.finalPresentationUrl || restoredSessionState?.finalPresentationId)) setWebSearchEnabled(false) // RESEARCH-DEFAULT (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON, default off): a chat opened with its outline already built (the loaded row holds its strawman or final deck) opens with web search off, as before; this runs once per opened chat, here at the load, never when an outline appears in this page view; deep research stays as it is\n",
+      "  const researchChatRef = useRef<{ id: string | null; applied: boolean; touched: boolean; web: boolean }>({ id: null, applied: false, touched: false, web: false }) // RESEARCH-DEFAULT (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON / _FREE, default off): the chat the default was last decided for, whether it has been (once per chat), whether the person changed the switch in it first, and the switch's value as last seen\n",
       ""
     ],
     [
-      "    setWebSearchEnabled(STUDIO_RESEARCH_DEFAULT_ON) // RESEARCH-DEFAULT (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON, default off): the new-chat reset gives the same start; deep research stays off\n",
-      "    setWebSearchEnabled(false)\n"
+      "  useEffect(() => { // RESEARCH-DEFAULT (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON / _FREE, default off): once per chat, when the plan is known and the chat has loaded, web search starts at the plan's default (paid on; free only with the FREE flag); a chat that already has its outline (the loaded row's, or Director's latch) gets off, as before; a switch the person changed in this chat first stands; an outline appearing later in the same chat changes nothing (it is decided once)\n",
+      ""
     ],
     [
-      "import { STUDIO_RESEARCH_DEFAULT_ON } from '@/lib/studio-research-default' // RESEARCH-DEFAULT\n",
+      "    if (!STUDIO_RESEARCH_DEFAULT_ON) return // RESEARCH-DEFAULT: flag off, nothing here runs\n",
+      ""
+    ],
+    [
+      "    const chat = researchChatRef.current // RESEARCH-DEFAULT\n",
+      ""
+    ],
+    [
+      "    if (chat.id !== currentSessionId) { if (chat.id !== null) { chat.applied = false; chat.touched = false } chat.id = currentSessionId } // RESEARCH-DEFAULT: another chat starts over (the new-chat reset lands here, with its new id); a change made before the page's first chat had an id stays with it\n",
+      ""
+    ],
+    [
+      "    else if (webSearchEnabled !== chat.web && !chat.applied) chat.touched = true // RESEARCH-DEFAULT: the switch changed in this chat before its default was decided: the person's own change, whenever the plan arrives, is not overridden\n",
+      ""
+    ],
+    [
+      "    chat.web = webSearchEnabled // RESEARCH-DEFAULT\n",
+      ""
+    ],
+    [
+      "    if (!currentSessionId || agentPlan === null || session.isLoadingSession || chat.applied) return // RESEARCH-DEFAULT: wait for the plan and for the chat's load (the restore and the end of loading commit together); decided once per chat\n",
+      ""
+    ],
+    [
+      "    chat.applied = true // RESEARCH-DEFAULT\n",
+      ""
+    ],
+    [
+      "    if (chat.touched) return // RESEARCH-DEFAULT\n",
+      ""
+    ],
+    [
+      "    setWebSearchEnabled(!(hasStrawman || strawmanPreviewUrl || strawmanPresentationId || finalPresentationUrl || finalPresentationId) && researchDefaultFor(agentPlan, { on: STUDIO_RESEARCH_DEFAULT_ON, free: STUDIO_RESEARCH_DEFAULT_FREE })) // RESEARCH-DEFAULT: an outlined chat gets off, any other chat the plan's default; deep research is not touched\n",
+      ""
+    ],
+    [
+      "  }, [currentSessionId, agentPlan, hasStrawman, session.isLoadingSession, webSearchEnabled]) // RESEARCH-DEFAULT\n",
+      ""
+    ],
+    [
+      "import { STUDIO_RESEARCH_DEFAULT_FREE, STUDIO_RESEARCH_DEFAULT_ON, researchDefaultFor } from '@/lib/studio-research-default' // RESEARCH-DEFAULT\n",
       ""
     ]
   ]
@@ -57,45 +91,7 @@ export const RESEARCH_DEFAULT_EDITS = {
 /** The older proofs this change teaches: [text the proof has now, text the proof had before] per edit, so putting them back gives the previous file byte for byte. */
 export const RESEARCH_DEFAULT_PIN_MARK = "LATER-CHANGES: registry read (RESEARCH-DEFAULT)"
 export const RESEARCH_DEFAULT_PIN_EDITS = {
-  "scripts/test-studio-job-ledger.mjs": [
-    [
-      "import { stripResearchDefault, RESEARCH_DEFAULT_FILES } from './studio-research-default-strip.mjs' // LATER-CHANGES: registry read (RESEARCH-DEFAULT): the Research default (stacked after this change) rewrites two lines and adds an import in the Builder page; this proof reads the page as the change before left it\n",
-      ""
-    ],
-    [
-      "{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && RESEARCH_DEFAULT_FILES.includes(rel) ? stripResearchDefault(rel, out) : out } } // LATER-CHANGES: registry read (RESEARCH-DEFAULT): every read of the Builder page goes through that change's own strip (never the whole registry), so this proof sees the page as the change before left it\n",
-      ""
-    ]
-  ],
-  "scripts/test-studio-new-deck-handoff-send.mjs": [
-    [
-      "import { stripResearchDefault, RESEARCH_DEFAULT_FILES } from './studio-research-default-strip.mjs' // LATER-CHANGES: registry read (RESEARCH-DEFAULT): the Research default (stacked after this change) rewrites two lines and adds an import in the Builder page; this proof reads the page as the change before left it\n",
-      ""
-    ],
-    [
-      "{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && RESEARCH_DEFAULT_FILES.includes(rel) ? stripResearchDefault(rel, out) : out } } // LATER-CHANGES: registry read (RESEARCH-DEFAULT): every read of the Builder page goes through that change's own strip (never the whole registry), so this proof sees the page as the change before left it\n",
-      ""
-    ]
-  ],
-  "scripts/test-studio-chat-element-refine.mjs": [
-    [
-      "import { stripResearchDefault, RESEARCH_DEFAULT_FILES } from './studio-research-default-strip.mjs' // stacked after #475: LATER-CHANGES: registry read (RESEARCH-DEFAULT): the Research default (stacked after this change) rewrites two lines and adds an import in the Builder page; this proof reads the page as the change before left it\n",
-      ""
-    ],
-    [
-      "{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && RESEARCH_DEFAULT_FILES.includes(rel) ? stripResearchDefault(rel, out) : out } } // stacked after #475: LATER-CHANGES: registry read (RESEARCH-DEFAULT): every read of the Builder page goes through that change's own strip (never the whole registry), so this proof sees the page as the change before left it\n",
-      ""
-    ]
-  ],
   "scripts/test-studio-chat-element-edit.mjs": [
-    [
-      "import { researchDefaultDiffLine } from './studio-research-default-strip.mjs' // LATER-CHANGES: registry read (RESEARCH-DEFAULT): the Research default (stacked after this change) rewrites two base lines of the Builder page and adds a marked import; this proof drops them from the diff it counts\n",
-      ""
-    ],
-    [
-      "  diff.splice(0, diff.length, ...diff.filter(line => !researchDefaultDiffLine(line))) // LATER-CHANGES: registry read (RESEARCH-DEFAULT): the Research default's lines of the page's diff (the added ones, and the two base lines they replace) are its own, not this change's\n",
-      ""
-    ],
     [
       "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Research default:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (RESEARCH-DEFAULT): on a branch stacked after this change (the Research default), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files\n",
       ""
@@ -104,16 +100,6 @@ export const RESEARCH_DEFAULT_PIN_EDITS = {
   "scripts/test-studio-deck-sync-truth.mjs": [
     [
       "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Research default:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (RESEARCH-DEFAULT): on a branch stacked after this change (the Research default), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files\n",
-      ""
-    ]
-  ],
-  "scripts/test-studio-billing-f5-usage.mjs": [
-    [
-      "import { researchDefaultDiffLine } from './studio-research-default-strip.mjs' // LATER-CHANGES: registry read (RESEARCH-DEFAULT): the Research default (stacked after this change) rewrites two base lines of the Builder page and adds a marked import; this proof drops them from the diff it counts\n",
-      ""
-    ],
-    [
-      "  added.splice(0, added.length, ...added.filter(l => !researchDefaultDiffLine(l))) // LATER-CHANGES: registry read (RESEARCH-DEFAULT): the Research default's lines of the diff (the added ones, and the two base lines they replace) are its own, not a stray\n",
       ""
     ]
   ]
@@ -127,8 +113,8 @@ export const RESEARCH_DEFAULT_OWN_EDITS = ['.env.example', 'scripts/studio-later
 /** Every file this change's commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
 export const RESEARCH_DEFAULT_SCOPE_FILES = new Set([...RESEARCH_DEFAULT_FILES, ...RESEARCH_DEFAULT_NEW_FILES, ...RESEARCH_DEFAULT_OWN_EDITS])
 
-/** The whole .env.example block: its comments and its line. */
-export const RESEARCH_DEFAULT_ENV_BLOCK = "# STUDIO RESEARCH DEFAULT (KNOWLEDGE-3 for FRONTEND-1). On for the exact value \"true\"; default off, and then the Builder page is byte for byte as it was. Build-time value: change it on Vercel and redeploy.\n# On a new chat, or a chat that has no outline yet, web search starts on. A chat that already has an outline opens with web search off, as before. Deep research is unchanged. (The composer's first state and the new-chat reset start web search on; opening a chat whose loaded row already holds its strawman or final deck sets it off, once, where the session is restored.) The build message already carries data.web_search on every send, so nothing else changes.\nNEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON=\"false\"\n"
+/** The whole .env.example block: the comments and the line of each of the two flags (one blank line between them). */
+export const RESEARCH_DEFAULT_ENV_BLOCK = "# STUDIO RESEARCH DEFAULT (KNOWLEDGE-3 for FRONTEND-1). On for the exact value \"true\"; default off, and then the Builder page behaves as it did. Build-time value: change it on Vercel and redeploy. The plan is read from the signed-in session (agentPlanOf(user.tier)); a paid plan is starter, pro or premium.\n# On a new chat, or a chat with no outline yet, web search starts on for paid plans (starter, pro, premium); free plans only when NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_FREE is also on. A chat that already has an outline opens with web search off, as before. Deep research is unchanged. (Once per chat, when the plan is known and the chat has loaded, web search is set to the plan's default, unless the chat already has its outline or the person changed the switch in that chat first; an outline appearing later in the same chat changes nothing.) The build message already carries data.web_search on every send, so nothing else changes.\nNEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON=\"false\"\n\n# STUDIO RESEARCH DEFAULT FREE (KNOWLEDGE-3 for FRONTEND-1). On for the exact value \"true\"; default off. It does nothing while NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON is off; with both on, the free plan gets the default too. Build-time value, as above.\n# On a new chat, or a chat with no outline yet, web search starts on for paid plans (starter, pro, premium); free plans only when NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_FREE is also on. A chat that already has an outline opens with web search off, as before. Deep research is unchanged.\nNEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_FREE=\"false\"\n"
 
 /** The file with this change's edits put back (the previous text). Used by the strip and the proof. */
 export function putBackResearchDefault(rel, text) {
@@ -140,13 +126,4 @@ export function stripResearchDefault(rel, text) {
   if (typeof text !== 'string') return text
   if (!(rel in RESEARCH_DEFAULT_EDITS) && !(rel in RESEARCH_DEFAULT_PIN_EDITS)) return text
   return putBackResearchDefault(rel, text)
-}
-
-const RESEARCH_DEFAULT_WAS_LINES = new Set(Object.values(RESEARCH_DEFAULT_EDITS).flat().map(([, was]) => was.replace(/\n$/, '')).filter(line => line !== ''))
-/** Whether a line of `git diff -U0` (with its "+" or "-") is this change's: an added line that carries the marker, or a removed line that is one of the base lines this change rewrites. For the older proofs that count a diff against an older base. */
-export function researchDefaultDiffLine(line) {
-  if (typeof line !== 'string') return false
-  if (line.startsWith('+') && !line.startsWith('+++')) return RESEARCH_DEFAULT_MARKER_RE.test(line)
-  if (line.startsWith('-') && !line.startsWith('---')) return RESEARCH_DEFAULT_WAS_LINES.has(line.slice(1))
-  return false
 }

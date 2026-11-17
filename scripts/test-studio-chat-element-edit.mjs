@@ -38,7 +38,6 @@ import {
 import { LATER_STRIPS } from './studio-later-changes.mjs'
 import { stripPass3PolishB } from './studio-pass3-polish-b-strip.mjs' // COMPOSER-2's first-paint pin reads the viewer through it, and it now takes this change's lines out too: it is not a peer to strip before this change's own checks
 import { stripDeckSaveRefused } from './studio-deck-save-refused-strip.mjs' // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): the change stacked after this one marks lines in the viewer's save-status handler; the handler is evaluated without them
-import { researchDefaultDiffLine } from './studio-research-default-strip.mjs' // LATER-CHANGES: registry read (RESEARCH-DEFAULT): the Research default (stacked after this change) rewrites two base lines of the Builder page and adds a marked import; this proof drops them from the diff it counts
 // The other registered changes' marked lines (dev's: flow control, arrange, ... and the ones already in the base) come out of both sides before this change's identity checks; this change's own strip is the one left out.
 const stripPeers = (rel, text) => LATER_STRIPS.filter(strip => strip !== stripChatElementEdit && strip !== stripPass3PolishB).reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text)
 
@@ -1314,7 +1313,6 @@ await check('page: the stripped page is the base byte for byte; every added line
   const rel = 'app/builder/page.tsx'
   assert.equal(stripPeers(rel, stripChatElementEdit(rel, read(rel))), stripPeers(rel, baseFile(rel)))
   const diff = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n')
-  diff.splice(0, diff.length, ...diff.filter(line => !researchDefaultDiffLine(line))) // LATER-CHANGES: registry read (RESEARCH-DEFAULT): the Research default's lines of the page's diff (the added ones, and the two base lines they replace) are its own, not this change's
   for (const line of diff.filter(l => l.startsWith('+') && !l.startsWith('+++') && stripPeers(rel, `${l.slice(1)}\n`) !== '')) assert.match(line, CHAT_ELEMENT_EDIT_MARKER_RE) // a line another registered change marks is its own
   assert.equal(diff.filter(l => l.startsWith('-') && !l.startsWith('---')).length, 0)
   const connects = (text) => (text.match(/\bconnect\(\)/g) || []).length

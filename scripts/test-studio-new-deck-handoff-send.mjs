@@ -53,10 +53,8 @@ import { stripBulkEditUndo } from './studio-bulk-edit-undo-strip.mjs' // stacked
 import { STACKED_PASS3_FILES } from './studio-library-manage-harness.mjs'
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 import { stripComposeEntitlement } from './studio-compose-entitlement-strip.mjs' // stacked after #475: Add Slide compose signs its user puts its .env.example block between this one and # PASS2 ADMIN
-import { stripResearchDefault, RESEARCH_DEFAULT_FILES } from './studio-research-default-strip.mjs' // LATER-CHANGES: registry read (RESEARCH-DEFAULT): the Research default (stacked after this change) rewrites two lines and adds an import in the Builder page; this proof reads the page as the change before left it
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && RESEARCH_DEFAULT_FILES.includes(rel) ? stripResearchDefault(rel, out) : out } } // LATER-CHANGES: registry read (RESEARCH-DEFAULT): every read of the Builder page goes through that change's own strip (never the whole registry), so this proof sees the page as the change before left it
 const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(root, rel), 'utf8'))
 const readWithoutComposeEntitlement = rel => stripComposeEntitlement(rel, read(rel)) // stacked after #475: Add Slide compose signs its user (STUDIO_COMPOSE_ENTITLEMENT_ENABLED) adds lines to .env.example and the compose route only; this reads a file without them
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')

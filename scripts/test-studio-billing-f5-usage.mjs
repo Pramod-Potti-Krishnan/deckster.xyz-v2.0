@@ -6,7 +6,6 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import * as strip from './studio-billing-f5-usage-strip.mjs'
 import * as registry from './studio-later-changes.mjs'
-import { researchDefaultDiffLine } from './studio-research-default-strip.mjs' // LATER-CHANGES: registry read (RESEARCH-DEFAULT): the Research default (stacked after this change) rewrites two base lines of the Builder page and adds a marked import; this proof drops them from the diff it counts
 
 const git = (...a) => execFileSync('git', a, { encoding: 'utf8', maxBuffer: 64 << 20 })
 const BASE = strip.BASE_COMMIT, HEAD = 'HEAD'
@@ -60,7 +59,6 @@ for (const rel of strip.BILLING_F5_USAGE_FILES) {
   const head = registry.stripLaterChanges(rel, git('show', `${HEAD}:${rel}`)), base = registry.stripLaterChanges(rel, git('show', `${BASE2}:${rel}`))
   ok(strip.stripBillingF5Usage(rel, git('show', `${HEAD}:${rel}`)) === git('show', `${BASE2}:${rel}`) || head === base, `F: ${rel} minus marked lines is the base (flag-off identity)`)
   const added = git('diff', '-U0', `${BASE2}..${HEAD}`, '--', rel).split('\n').filter(l => /^[+-]/.test(l) && !/^(\+\+\+|---) /.test(l))
-  added.splice(0, added.length, ...added.filter(l => !researchDefaultDiffLine(l))) // LATER-CHANGES: registry read (RESEARCH-DEFAULT): the Research default's lines of the diff (the added ones, and the two base lines they replace) are its own, not a stray
   const laterOnly = (() => { const t = git('show', `${HEAD}:${rel}`), after = registry.LATER_STRIPS.slice(registry.LATER_STRIPS.indexOf(strip.stripBillingF5Usage) + 1).reduce((x, f) => f(rel, x), t).split('\n'); return new Set(t.split('\n').filter(l => !after.includes(l))) })() // LATER-CHANGES: registry read (CHAIN-TEST-FIX): lines a change registered after this one added are its, not a stray
   ok(added.filter(l => !(l.startsWith('+') && laterOnly.has(l.slice(1)))).every(l => l.startsWith('+') && strip.BILLING_F5_USAGE_MARKER_RE.test(l)), `F: ${rel} changes are marked insertions only`) // LATER-CHANGES: registry read (CHAIN-TEST-FIX)
 }
