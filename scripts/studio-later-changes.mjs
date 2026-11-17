@@ -120,6 +120,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-research-switch-strip.mjs')).RESEARCH_SWITCH_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, M4 the Research on / off switch in the composer (NEXT_PUBLIC_STUDIO_RESEARCH_SWITCH)
   ...(await import('./studio-replace-picture-strip.mjs')).REPLACE_PICTURE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, M10 Replace picture: the Replace picture button and dialog at the end of the slide toolbar (NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE)
   ...(await import('./studio-uat-marketing-v4-strip.mjs')).UAT_MARKETING_V4_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, uat's own marketing-v4 site (41 files uat had and dev did not at the #637 promotion) so the committed-diff scope proofs pass on uat (no flag; no .env.example block; no strip)
+  ...(await import('./studio-research-default-strip.mjs')).RESEARCH_DEFAULT_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE-3, the Research default: a new chat starts with web search on (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON)
   // one line per later change, above this comment
 ])
 
@@ -195,6 +196,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-thinking-levels-strip.mjs')).THINKING_LEVELS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, M1 the thinking-level picker (NEXT_PUBLIC_STUDIO_THINKING_LEVELS / _DIRECT_PREVIEW)
   (await import('./studio-research-switch-strip.mjs')).RESEARCH_SWITCH_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, M4 the Research on / off switch in the composer (NEXT_PUBLIC_STUDIO_RESEARCH_SWITCH)
   (await import('./studio-replace-picture-strip.mjs')).REPLACE_PICTURE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, M10 Replace picture (NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE)
+  (await import('./studio-research-default-strip.mjs')).RESEARCH_DEFAULT_ENV_BLOCK, // LATER-CHANGE: KNOWLEDGE-3, the Research default: a new chat starts with web search on (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON)
   // one line per later change, above this comment
 ]
 
@@ -292,6 +294,7 @@ export const LATER_STRIPS = [
   (await import('./studio-thinking-levels-strip.mjs')).stripThinkingLevels, // LATER-CHANGE: FRONTEND-1, M1 the thinking-level picker (NEXT_PUBLIC_STUDIO_THINKING_LEVELS / _DIRECT_PREVIEW)
   (await import('./studio-research-switch-strip.mjs')).stripResearchSwitch, // LATER-CHANGE: FRONTEND-1, M4 the Research on / off switch in the composer (NEXT_PUBLIC_STUDIO_RESEARCH_SWITCH)
   (await import('./studio-replace-picture-strip.mjs')).stripReplacePicture, // LATER-CHANGE: FRONTEND-1, M10 Replace picture (NEXT_PUBLIC_STUDIO_REPLACE_SLIDE_PICTURE)
+  (await import('./studio-research-default-strip.mjs')).stripResearchDefault, // LATER-CHANGE: KNOWLEDGE-3, the Research default: a new chat starts with web search on (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_ON)
   // one line per later change, above this comment
 ]
 
