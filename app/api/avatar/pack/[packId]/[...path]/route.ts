@@ -36,8 +36,8 @@ const signer = {
 /** Only the dev stand-in asks this (NODE_ENV development): is that committed file of public/ served by this very server? Asked of the server itself, so no file path is ever built from a request. */
 async function servedHere(request: Request, relativePath: string): Promise<boolean> {
   try {
-    const response = await fetch(new URL(relativePath.replace(/^public\//, '/'), request.url), { cache: 'no-store' })
-    await response.body?.cancel()
+    // HEAD, so there is no body to read or cancel (cancelling the body of a request to this same server never settled under `next dev`), and a short deadline so a slow answer is just "no".
+    const response = await fetch(new URL(relativePath.replace(/^public\//, '/'), request.url), { method: 'HEAD', cache: 'no-store', signal: AbortSignal.timeout(3000) })
     return response.ok
   } catch {
     return false

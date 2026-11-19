@@ -511,7 +511,7 @@ async function sectionC(src, accessUrl, linkUrl) {
     reset()
     // The dev stand-in asks the dev server whether a committed file is served (HEAD of public/): a fake answers from the real public/ folder, and records what was asked. Anywhere else the network is not allowed.
     globalThis.fetch = async (url, init) => {
-      g.__avFetch.push({ url: String(url), cache: init?.cache })
+      g.__avFetch.push({ url: String(url), cache: init?.cache, method: init?.method, deadline: init?.signal instanceof AbortSignal })
       if (!g.__avServe) throw new Error('network is not allowed in this proof')
       const file = path.join(root, 'public', new URL(String(url)).pathname)
       return fs.existsSync(file) && fs.statSync(file).isFile() ? new Response('x', { status: 200 }) : new Response('no', { status: 404 })
@@ -608,7 +608,7 @@ async function sectionC(src, accessUrl, linkUrl) {
     setEnv({ NODE_ENV: 'development', AVATAR_PACK_DEV_STANDIN: 'true' }); reset(); g.__avSession = { user: { id: USER_A } }; g.__avServe = true
     const stand = await go(PACK_A, MANIFEST)
     eq([stand.status, stand.headers.get('location'), g.__avSbSign.length, g.__avSbCreate.length], [302, '/companions/maya/motion/manifest.json', 0, 0], 'C dev stand-in: in development, Maya\'s committed pack under the pack id, nothing signed')
-    eq(g.__avFetch, [{ url: 'http://studio.test/companions/maya/motion/manifest.json', cache: 'no-store' }], 'C dev stand-in: it asked this same server, and only for that one committed file')
+    eq(g.__avFetch, [{ url: 'http://studio.test/companions/maya/motion/manifest.json', cache: 'no-store', method: 'HEAD', deadline: true }], 'C dev stand-in: it asked this same server, and only for that one committed file')
     eq(await sig(await go(PACK_A, 'motion/not-a-real-file.webp')), NOT_FOUND, 'C dev stand-in: a file that is not in the committed pack -> the one 404')
     eq(await sig(await go(PACK_A, 'motion')), NOT_FOUND, 'C dev stand-in: a folder is not a file (and has no extension) -> the one 404')
     g.__avSession = { user: { id: USER_B } }
@@ -770,7 +770,9 @@ const MUTANTS = [
   ['pack', "{ storage: signer, fileExists: relativePath => servedHere(request, relativePath) }", "{ storage: signer }"],
   ['pack', "    return response.ok\n", "    return true\n"],
   ['pack', "new URL(relativePath.replace(/^public\\//, '/'), request.url)", "new URL('/companions/maya/motion/manifest.json', request.url)"],
-  ['pack', "{ cache: 'no-store' }", "{}"],
+  ['pack', "{ method: 'HEAD', cache: 'no-store', signal: AbortSignal.timeout(3000) }", "{ cache: 'no-store', signal: AbortSignal.timeout(3000) }"],
+  ['pack', "{ method: 'HEAD', cache: 'no-store', signal: AbortSignal.timeout(3000) }", "{ method: 'HEAD', cache: 'no-store' }"],
+  ['pack', "{ method: 'HEAD', cache: 'no-store', signal: AbortSignal.timeout(3000) }", "{ method: 'HEAD', signal: AbortSignal.timeout(3000) }"],
   ['pack', "client: createClient(url, serviceKey, { auth: { persistSession: false } }) }", "client: createClient(url, serviceKey) }"],
   ['pack', "if (!cached || cached.url !== url || cached.serviceKey !== serviceKey)", "if (!cached || cached.serviceKey !== serviceKey)"],
   ['pack', "if (!cached || cached.url !== url || cached.serviceKey !== serviceKey)", "if (true)"],
