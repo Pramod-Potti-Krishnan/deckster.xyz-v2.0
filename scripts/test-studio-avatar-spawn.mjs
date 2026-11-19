@@ -39,8 +39,10 @@ import {
   AVATAR_SPAWN_PIN_FILES, AVATAR_SPAWN_PIN_MARK, AVATAR_SPAWN_SCOPE_FILES, AVATAR_SPAWN_SUBJECT, BASE_COMMIT, stripAvatarSpawn,
 } from './studio-avatar-spawn-strip.mjs'
 import * as registry from './studio-later-changes.mjs'
+import { stripMyCompanions, MY_COMPANIONS_FILES } from './studio-my-companions-strip.mjs' // LATER-CHANGES: registry read (MY-COMPANIONS): the My companions change (stacked after this change) marks lines in the companions page; this proof reads that page as this change left it
 
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
+{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && MY_COMPANIONS_FILES.includes(rel) ? stripMyCompanions(rel, out) : out } } // LATER-CHANGES: registry read (MY-COMPANIONS): every read of a file the My companions change marks (the companions page) is dev's text for this proof
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000 })
 const baseText = rel => git('show', `${BASE_COMMIT}:${rel}`)

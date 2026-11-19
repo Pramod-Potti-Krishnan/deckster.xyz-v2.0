@@ -5,8 +5,12 @@ import { notFound } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 import { STUDIO_AVATAR_SPAWN_ENABLED } from "@/lib/studio-avatar-spawn"
 import { StudioAvatarSpawnApp } from "@/components/studio-avatar-spawn/studio-avatar-spawn-app"
+import { STUDIO_MY_COMPANIONS_ENABLED } from "@/lib/studio-my-companions" // MY-COMPANIONS
+import { MyCompanionsPage } from "@/components/studio-avatar-spawn/my-companions-page" // MY-COMPANIONS
 
 export default function StudioCompanionsPage() {
+  // MY-COMPANIONS (NEXT_PUBLIC_STUDIO_MY_COMPANIONS): the owner's own companions, list only. It wins over the upload mock even when that flag is on too: until Step B's real client there is nothing real to upload to.
+  if (STUDIO_MY_COMPANIONS_ENABLED) return <MyCompanionsPage /> // MY-COMPANIONS
   if (!STUDIO_AVATAR_SPAWN_ENABLED) notFound()
   return <CompanionsBody />
 }
