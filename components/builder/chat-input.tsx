@@ -819,12 +819,17 @@ export function ChatInput({
     try { await onRequestSession() } catch { return } // GDRIVE-COMPOSER
     fileInputRef.current?.click() // GDRIVE-COMPOSER
   } // GDRIVE-COMPOSER
+  const uploadFormats: typeof import('@/lib/studio-upload-formats') | undefined = // STUDIO-UPLOAD-FORMATS
+    studio && process.env.NEXT_PUBLIC_STUDIO_UPLOAD_FORMATS_NARROW === 'true' // STUDIO-UPLOAD-FORMATS
+      ? require('@/lib/studio-upload-formats') // STUDIO-UPLOAD-FORMATS
+      : undefined // STUDIO-UPLOAD-FORMATS
   const hiddenFileInput = (
     <input
       ref={fileInputRef}
       type="file"
       multiple
       accept=".pdf,.docx,.doc,.txt,.md,.xlsx,.xls,.csv,.pptx,.ppt,.json,.xml,.yaml,.yml,.png,.jpg,.jpeg,.gif,.webp,.py,.js,.ts,.java,.go,.rs"
+      {...uploadFormats?.STUDIO_UPLOAD_FORMAT_PROPS} // STUDIO-UPLOAD-FORMATS
       onChange={(e) => {
         const files = Array.from(e.target.files || [])
         console.log(`[ChatInput] File input onChange fired, ${files.length} file(s)`, files.map(f => f.name))
