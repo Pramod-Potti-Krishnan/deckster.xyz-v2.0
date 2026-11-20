@@ -31,12 +31,14 @@ import ts from 'typescript'
 import * as stripModule from './studio-research-default-strip.mjs'
 import * as replacePictureStrip from './studio-replace-picture-strip.mjs'
 import * as registry from './studio-later-changes.mjs'
+import { stripResearchByLevel, RESEARCH_BY_LEVEL_FILES } from './studio-research-by-level-strip.mjs' // LATER-CHANGES: registry read (RESEARCH-BY-LEVEL): the research-by-level change (stacked after this change) marks lines in the Builder page, a second writer and reader of web search; this proof reads the page as this change left it
 
 const { BASE_COMMIT, RESEARCH_DEFAULT_PIN_FILES: PIN_FILES, RESEARCH_DEFAULT_PIN_MARK: PIN_MARK, RESEARCH_DEFAULT_PIN_EDITS: PIN_EDITS, RESEARCH_DEFAULT_SCOPE_FILES: SCOPE, RESEARCH_DEFAULT_NEW_FILES: NEW_FILES, RESEARCH_DEFAULT_FILES: APP_FILES, RESEARCH_DEFAULT_MARKER_RE: MARKER_RE, RESEARCH_DEFAULT_ENV_BLOCK: ENV_BLOCK, RESEARCH_DEFAULT_SUBJECT: SUBJECT, RESEARCH_DEFAULT_EDITS: EDITS, RESEARCH_DEFAULT_FLAGS: FLAGS } = stripModule
 const STRIP_FN = stripModule.stripResearchDefault
 const [FLAG_ON, FLAG_FREE] = FLAGS
 
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
+{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && RESEARCH_BY_LEVEL_FILES.includes(rel) ? stripResearchByLevel(rel, out) : out } } // LATER-CHANGES: registry read (RESEARCH-BY-LEVEL): every read of a file the research-by-level change marks goes through that change's own strip (never the registry), so this proof sees the file as this change left it
 const nodeRequire = createRequire(path.join(root, 'package.json'))
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000 })

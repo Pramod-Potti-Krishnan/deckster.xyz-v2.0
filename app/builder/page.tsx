@@ -890,6 +890,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setWebSearchEnabled(enabled)
     if (!enabled) setResearchEnabled(false)
   }, [])
+  const researchLevelRef = useRef<ResearchByLevelState>(RESEARCH_BY_LEVEL_FRESH) // RESEARCH-BY-LEVEL (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_BY_LEVEL, default off): what the rule knows of this chat: which chat, whether the person changed the web switch in it, whether the rule itself turned web search on (lib/studio-research-by-level.ts)
+  const researchByPerson = useCallback((enabled: boolean) => { researchLevelRef.current = researchByLevel(researchLevelRef.current, { kind: 'touch' }).state; handleResearchEnabledChange(enabled) }, [handleResearchEnabledChange]) // RESEARCH-BY-LEVEL: the composer's Deep research switch, as the base handles it; the person's own change in this chat is noted first (turning Deep research on turns web search on)
+  const webSearchByPerson = useCallback((enabled: boolean) => { researchLevelRef.current = researchByLevel(researchLevelRef.current, { kind: 'touch' }).state; handleWebSearchEnabledChange(enabled) }, [handleWebSearchEnabledChange]) // RESEARCH-BY-LEVEL: the composer's web search switch (and /web), as the base handles it; the person's own change in this chat is noted first and always wins
   const [extendedGenerationEnabled, setExtendedGenerationEnabled] = useState(true)
   const {
     isSubscribed: kgSubscribed,
@@ -4907,6 +4910,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     if (chat.touched) return // RESEARCH-DEFAULT
     setWebSearchEnabled(!(hasStrawman || strawmanPreviewUrl || strawmanPresentationId || finalPresentationUrl || finalPresentationId) && researchDefaultFor(agentPlan, { on: STUDIO_RESEARCH_DEFAULT_ON, free: STUDIO_RESEARCH_DEFAULT_FREE })) // RESEARCH-DEFAULT: an outlined chat gets off, any other chat the plan's default; deep research is not touched
   }, [currentSessionId, agentPlan, hasStrawman, session.isLoadingSession, webSearchEnabled]) // RESEARCH-DEFAULT
+  useEffect(() => { // RESEARCH-BY-LEVEL (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_BY_LEVEL, default off): in a chat with no outline yet, the shown level Best or Max turns web search on; any other level (Auto after a run or a chat change included) turns it off again if this rule turned it on; the person's own change of the switch in the chat always wins; an outline ends the rule; a new chat starts over; deep research and the knowledge graph are not touched (lib/studio-research-by-level.ts)
+    if (!STUDIO_RESEARCH_DEFAULT_BY_LEVEL || session.isLoadingSession) return // RESEARCH-BY-LEVEL: flag off, nothing here runs; a chat still loading is not decided (the end of loading runs this again)
+    const decided = researchByLevel(researchLevelRef.current, { kind: 'level', chat: currentSessionId, level: shownThinkingLevel, noOutline: !(hasStrawman || strawmanPreviewUrl || strawmanPresentationId || finalPresentationUrl || finalPresentationId), web: webSearchEnabled }) // RESEARCH-BY-LEVEL
+    researchLevelRef.current = decided.state // RESEARCH-BY-LEVEL
+    if (decided.web !== undefined) setWebSearchEnabled(decided.web) // RESEARCH-BY-LEVEL
+  }, [currentSessionId, shownThinkingLevel, hasStrawman, strawmanPreviewUrl, strawmanPresentationId, finalPresentationUrl, finalPresentationId, session.isLoadingSession]) // RESEARCH-BY-LEVEL
 
   // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the first-action row save (see saveSessionOnFirstAction above). Wraps the session hook's
   // handleRequestSession (the uploads' draft-session creator) and the persistence hook's held blank-deck metadata.
@@ -8048,6 +8057,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                     onResearchEnabledChange={handleResearchEnabledChange}
                     webSearchEnabled={webSearchEnabled}
                     onWebSearchEnabledChange={handleWebSearchEnabledChange}
+                    {...(STUDIO_RESEARCH_DEFAULT_BY_LEVEL ? { onResearchEnabledChange: researchByPerson, onWebSearchEnabledChange: webSearchByPerson } : ({} as { onResearchEnabledChange?: typeof researchByPerson; onWebSearchEnabledChange?: typeof webSearchByPerson }))} // RESEARCH-BY-LEVEL (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_BY_LEVEL): the two research switches (the composer's, and /research and /web through the same props) note the person's own change before the base's handlers run; off, the base's props stand
                     knowledgeGraphEnabled={knowledgeGraphEnabled}
                     onKnowledgeGraphEnabledChange={setKnowledgeGraphEnabled}
                     showKnowledgeGraphToggle={showKnowledgeGraphToggle}
@@ -8657,3 +8667,4 @@ import { STUDIO_THINKING_LEVELS_ENABLED, effectiveLevel, levelPick, type Thinkin
 import { AGENT_WIRE_CONTROL_MARK, AGENT_WIRE_COPY, AGENT_WIRE_RESET, agentCardsKey, agentFinishedRun, agentPickerAfterRun, agentRunBusy, agentSessionChanged, agentWireReducer, answerAgentCard, typedBuildMode, voiceBuildMode, voiceOriginatedSend } from '@/lib/studio-agent-mode-wire' // AGENT-MODE-WIRE
 import { STUDIO_REPLACE_SLIDE_PICTURE_ENABLED } from '@/lib/studio-replace-picture' // REPLACE-PICTURE
 import { STUDIO_RESEARCH_DEFAULT_FREE, STUDIO_RESEARCH_DEFAULT_ON, researchDefaultFor } from '@/lib/studio-research-default' // RESEARCH-DEFAULT
+import { RESEARCH_BY_LEVEL_FRESH, STUDIO_RESEARCH_DEFAULT_BY_LEVEL, researchByLevel, type ResearchByLevelState } from '@/lib/studio-research-by-level' // RESEARCH-BY-LEVEL
