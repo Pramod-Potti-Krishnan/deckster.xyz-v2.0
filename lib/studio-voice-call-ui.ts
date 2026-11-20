@@ -28,11 +28,20 @@ export const COMPANION_STORAGE_KEY = 'deckster.studio.voiceCompanion'
 export function companionChoices(fallback: string): string[] {
   return [...new Set([fallback, ...COMPANION_CHOICES])]
 }
+/** MY-COMPANIONS (NEXT_PUBLIC_STUDIO_MY_COMPANIONS): a user pack id, u- and 26 characters from [a-z0-9] (lib/studio-my-companions.ts USER_PACK_ID_PATTERN, written out here because this file stays import-free). */
+const USER_PACK_ID = /^u-[a-z0-9]{26}$/ // MY-COMPANIONS
+/** MY-COMPANIONS: where a pack's files are: a user pack's through the same-origin pack route (the signed-in owner only), every other pack at /companions/<name>, exactly as before. */
+const packRoot = (pack: string): string => (USER_PACK_ID.test(pack) ? `/api/avatar/pack/${pack}` : `/companions/${pack}`) // MY-COMPANIONS
+/** MY-COMPANIONS: the characters on offer when the owner has companions of their own: the cast (companionChoices), then the owner's user packs (anything that is not a user pack id is left out), none twice. */
+export function companionChoicesWithMine(fallback: string, mine: readonly string[]): string[] { // MY-COMPANIONS
+  return [...new Set([...companionChoices(fallback), ...mine.filter(id => typeof id === 'string' && USER_PACK_ID.test(id))])] // MY-COMPANIONS
+} // MY-COMPANIONS
 /** What a device remembers (localStorage, read inside try/catch: a private window, blocked site data or no storage at all is simply the default). Only a character that is on offer is believed. */
 export interface CompanionStorage { getItem(key: string): string | null; setItem(key: string, value: string): void }
-export function readCompanionChoice(storage: CompanionStorage | null | undefined, fallback: string): string {
+export function readCompanionChoice(storage: CompanionStorage | null | undefined, fallback: string, mine: readonly string[] = []): string { // MY-COMPANIONS: mine, the owner's own user packs on offer besides the cast (default none: as before)
   try {
     const stored = storage?.getItem(COMPANION_STORAGE_KEY)
+    if (typeof stored === 'string' && mine.length > 0 && companionChoicesWithMine(fallback, mine).includes(stored)) return stored // MY-COMPANIONS
     return typeof stored === 'string' && companionChoices(fallback).includes(stored) ? stored : fallback
   } catch { return fallback }
 }
@@ -512,12 +521,12 @@ export interface PackCatalog<T> { manifest: T; layered: Record<string, unknown> 
  * A Face catalog that is missing or refused leaves the whole character, cropped. null when the whole character cannot be read or is refused: the caller draws the pack's portrait instead. Never throws. Pure: `fetchJson` and `parse` are the caller's.
  */
 export async function loadCompanionPack<T>(pack: string, framing: CompanionFraming, fetchJson: (url: string) => Promise<unknown>, parse: (raw: unknown) => T): Promise<PackCatalog<T> | null> {
-  const root = `/companions/${pack}/motion/`
+  const root = `${packRoot(pack)}/motion/` // MY-COMPANIONS: a user pack's through the pack route
   const read = (url: string) => loadCatalog(url, fetchJson, raw => { const view = compatCatalog(raw); return { manifest: parse(view.catalog), layered: view.layered, pointer: faceCatalogPointer(view.catalog) } })
   try {
     const main = await read(`${root}manifest.json`)
     if (framing === 'disc') {
-      const url = main.layered ? `/companions/${pack}/face/manifest.json` : main.pointer ? `${root}${main.pointer}` : null
+      const url = main.layered && USER_PACK_ID.test(pack) ? `${packRoot(pack)}/face/manifest.json` : main.layered ? `/companions/${pack}/face/manifest.json` : main.pointer ? `${root}${main.pointer}` : null // MY-COMPANIONS: a user pack's native Face catalog through the pack route; the cast's text is kept as it was (the voice call proof pins it)
       if (url) {
         try {
           const face = await read(url)
@@ -531,7 +540,7 @@ export async function loadCompanionPack<T>(pack: string, framing: CompanionFrami
   }
 }
 /** The pack's portrait, the still the call shows when its catalog cannot be used (Garud's bird layout, 512 px, a head on a transparent ground). */
-export const portraitUrl = (pack: string): string => `/companions/${pack}/portrait-512.webp`
+export const portraitUrl = (pack: string): string => (USER_PACK_ID.test(pack) ? `${packRoot(pack)}/portrait-512.webp` : `/companions/${pack}/portrait-512.webp`) // MY-COMPANIONS: a user pack's through the pack route; the cast's text is kept as it was (the voice call proof pins it)
 
 /** The frame of one step `elapsed` seconds in: once runs to its last frame, hold runs to the clip's hold frame (or its last) and stays, loop repeats the clip's loop range (or all of it). */
 export function stepFrameIndex(clip: ClipLike, mode: 'once' | 'loop' | 'hold', elapsedSec: number): number {
@@ -890,7 +899,7 @@ export function sceneFileFrom(manifestScene: unknown): string {
   const path = manifestScene.trim()
   return /^[a-zA-Z0-9_][a-zA-Z0-9_./-]*\.(webp|png|jpg|jpeg)$/.test(path) && !path.split('/').includes('..') && !path.includes('//') ? path : DEFAULT_SCENE_FILE
 }
-export const sceneUrl = (pack: string, file: string): string => `/companions/${pack}/${file}`
+export const sceneUrl = (pack: string, file: string): string => `${packRoot(pack)}/${file}` // MY-COMPANIONS: a user pack's through the pack route
 
 /** Words for a speech (not microphone) problem. The microphone's own come from the core's describeMicError. */
 export type SpeechProblem = 'not_connected' | 'limit' | 'failed' | 'too_short' | 'no_words' | 'not_sent' | 'no_answer'
