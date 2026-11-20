@@ -263,7 +263,7 @@ function diffChecks(texts = {}, strip = STRIP_FN, edits = EDITS) {
   for (const rel of ['app/builder/page.tsx', 'hooks/use-file-upload.ts', 'lib/file-validation.ts', 'components/file-upload-button.tsx']) assert.equal(laterOnly(rel, texts[rel] ?? read(rel)), baseText(rel), `${rel} is dev's file, byte for byte`)
 }
 const PIN_GAINS = { // [lines gained, lines lost (the three that rewrite one line)]
-  'scripts/test-studio-chat-element-edit.mjs': [1, 0], 'scripts/test-studio-deck-sync-truth.mjs': [1, 0], 'scripts/test-studio-connectors-gdrive-composer.mjs': [1, 0], 'scripts/test-studio-my-companions-wiring.mjs': [3, 1], 'scripts/test-studio-research-by-level.mjs': [4, 2],
+  'scripts/test-studio-chat-element-edit.mjs': [1, 0], 'scripts/test-studio-deck-sync-truth.mjs': [1, 0], 'scripts/test-studio-connectors-gdrive-composer.mjs': [1, 0], 'scripts/test-studio-my-companions-wiring.mjs': [3, 1], 'scripts/test-studio-research-by-level.mjs': [8, 2],
 }
 function pinChecks(texts = {}, mod = stripModule) {
   const strip = mod.stripUploadFormats, pinFiles = mod.UPLOAD_FORMATS_PIN_FILES
