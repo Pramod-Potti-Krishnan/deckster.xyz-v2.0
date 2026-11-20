@@ -7,7 +7,7 @@
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 // Older proofs are TAUGHT inserted marked lines only (LEVELS_DIRECT_LIVE_PIN_EDITS, pure insertions): the two that read the first-parent line each drop this change's subject from it, as for every later change; putting those lines back gives each proof's previous text byte for byte.
 
-export const BASE_COMMIT = '659f66d7a431711f27c8ad54acb1505c0f3b3265' // origin/studio-v4-dev-preparation-code (#640 merged), the trunk this change sits on
+export const BASE_COMMIT = '8db4ce8eca70dabaf6d1934618c34b77f3fd4a2c' // origin/studio-v4-dev-preparation-code (#642 merged), the trunk this change sits on
 export const LEVELS_DIRECT_LIVE_FLAGS = ["NEXT_PUBLIC_STUDIO_THINKING_LEVELS_DIRECT_LIVE", "NEXT_PUBLIC_STUDIO_THINKING_LEVELS_MAX_LIVE"]
 export const LEVELS_DIRECT_LIVE_MARKER = 'LEVELS-DIRECT-LIVE'
 /** The marker as a WHOLE token: LEVELS-DIRECT-LIVE is this change's; THINKING-LEVELS (the level picker's own marker) and X-LEVELS-DIRECT-LIVE are not. */
