@@ -43,7 +43,7 @@ export const UPLOAD_FORMATS_EDITS = {
       ""
     ],
     [
-      "      {...(studio && STUDIO_UPLOAD_ACCEPT ? { accept: STUDIO_UPLOAD_ACCEPT } : {})} // STUDIO-UPLOAD-FORMATS (NEXT_PUBLIC_STUDIO_UPLOAD_FORMATS_NARROW, default off): the picker offers only what the Researcher reads today (lib/studio-upload-formats.ts); off, the accept above stands\n",
+      "      {...(studio && STUDIO_UPLOAD_ACCEPT ? { accept: STUDIO_UPLOAD_ACCEPT } : ({} as { accept?: string }))} // STUDIO-UPLOAD-FORMATS (NEXT_PUBLIC_STUDIO_UPLOAD_FORMATS_NARROW, default off): the picker offers only what the Researcher reads today (lib/studio-upload-formats.ts); off, the accept above stands\n",
       ""
     ],
     [
