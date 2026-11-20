@@ -11,7 +11,7 @@
 //  B. the page, as a page view made of events (pick a level, the person's own switch, Deep research, an outline appearing, a new chat, opening a chat, a run ending, another writer): every run of up to four events (five over a smaller vocabulary) equals the spec written in words; named cases for each rule; flag off, the page's traces
 //     are dev's, event for event (sha256 of both runs equal);
 //  B2. the page's text: the effect's keys, its first line, the outline test (the plan-based default's own), the one marked writer of web search, the wrappers, the prop spread after the base's two props, nothing for deep research or the knowledge graph;
-//  C. only insertions: no base line of the page is rewritten (the strip gives dev's page byte for byte; eleven marked lines in four places); the three older proofs taught (one line each for two, two lines for the third) are their previous text byte for byte;
+//  C. only insertions: no base line of the page is rewritten (the strip gives dev's page byte for byte; eleven marked lines in four places); the four older proofs taught (one line each for two, two lines for the other two) are their previous text byte for byte;
 //  D. .env.example: one block at the very end, "false", plain words, naming only its own flag;
 //  E. the registry: exactly three lines, each marked LATER-CHANGE, at the true end of each list, the strip independent of its neighbours' strips;
 //  F. own-commit scope, by the subject prefix "Research by level:" on the first-parent line (and, once the gate has merged it, over the whole range), the commit message, and a secret scan;
@@ -420,10 +420,10 @@ function pageDiffChecks(texts = {}, strip = STRIP_FN, edits = EDITS) {
   // the files this change must not touch are the base's, byte for byte
   for (const rel of ['hooks/use-deckster-websocket-v2.ts', 'hooks/use-builder-session.ts', 'components/builder/chat-input.tsx', 'lib/studio-research-default.ts', 'lib/studio-thinking-levels.ts']) assert.equal(texts[rel] ?? read(rel), baseText(rel), `${rel} is the base's file, byte for byte`)
 }
-const PIN_GAINS = { 'scripts/test-studio-research-default.mjs': 2, 'scripts/test-studio-chat-element-edit.mjs': 1, 'scripts/test-studio-deck-sync-truth.mjs': 1 }
+const PIN_GAINS = { 'scripts/test-studio-research-default.mjs': 2, 'scripts/test-studio-replace-picture-hero-only.mjs': 2, 'scripts/test-studio-chat-element-edit.mjs': 1, 'scripts/test-studio-deck-sync-truth.mjs': 1 }
 function pinChecks(texts = {}, mod = stripModule) {
   const strip = mod.stripResearchByLevel, pinFiles = mod.RESEARCH_BY_LEVEL_PIN_FILES
-  assert.deepEqual([...pinFiles].sort(), Object.keys(PIN_GAINS).sort(), 'the older proofs this change teaches: the plan-based default\'s, and the two that read the first-parent line')
+  assert.deepEqual([...pinFiles].sort(), Object.keys(PIN_GAINS).sort(), 'the older proofs this change teaches: the two that pin the raw page (the plan-based default\'s, the hero-only Replace picture\'s) and the two that read the first-parent line')
   for (const [rel, gained] of Object.entries(PIN_GAINS)) {
     const now = laterOnly(rel, texts[rel] ?? read(rel)), diff = lineDiff(baseText(rel), now)
     assert.equal(strip(rel, now), baseText(rel), `${rel}: without this change's lines the proof is dev's, byte for byte`)
@@ -432,9 +432,11 @@ function pinChecks(texts = {}, mod = stripModule) {
     for (const line of diff.added) assert.ok(line.includes(mod.RESEARCH_BY_LEVEL_PIN_MARK), `${rel}: a line added to the proof carries the pin mark: ${line.trim().slice(0, 100)}`)
   }
   for (const rel of ['scripts/test-studio-chat-element-edit.mjs', 'scripts/test-studio-deck-sync-truth.mjs']) for (const line of lineDiff(baseText(rel), texts[rel] ?? read(rel)).added) assert.ok(line.includes('shas.splice') && line.includes('^Research by level:') && !line.includes('Research default') && !line.includes('Research switch'), `${rel}: the line is a splice that names this change's own subject, and only that`)
-  const fp = lineDiff(baseText('scripts/test-studio-research-default.mjs'), texts['scripts/test-studio-research-default.mjs'] ?? read('scripts/test-studio-research-default.mjs')).added
-  assert.equal(fp.filter(l => l.startsWith("import { stripResearchByLevel, RESEARCH_BY_LEVEL_FILES } from './studio-research-by-level-strip.mjs'")).length, 1, 'the plan-based default\'s proof imports this change\'s own strip (not the registry)')
-  assert.equal(fp.filter(l => l.startsWith('{ const realRead = fs.readFileSync;') && l.includes('RESEARCH_BY_LEVEL_FILES.includes(rel) ? stripResearchByLevel(rel, out) : out')).length, 1, 'and reads the files this change marks through it')
+  for (const rel of ['scripts/test-studio-research-default.mjs', 'scripts/test-studio-replace-picture-hero-only.mjs']) {
+    const fp = lineDiff(baseText(rel), texts[rel] ?? read(rel)).added
+    assert.equal(fp.filter(l => l.startsWith("import { stripResearchByLevel, RESEARCH_BY_LEVEL_FILES } from './studio-research-by-level-strip.mjs'")).length, 1, `${rel}: imports this change's own strip (not the registry)`)
+    assert.equal(fp.filter(l => l.startsWith('{ const realRead = fs.readFileSync;') && l.includes('RESEARCH_BY_LEVEL_FILES.includes(rel) ? stripResearchByLevel(rel, out) : out') && !l.includes('registry.')).length, 1, `${rel}: reads the files this change marks through it`)
+  }
   assert.equal(Object.values(mod.RESEARCH_BY_LEVEL_PIN_EDITS).flat().every(([, was]) => was === ''), true, 'every pin edit is a pure insertion')
 }
 
@@ -525,7 +527,7 @@ await check('A. the lib: the flag, one literal read, nothing imported, the pure 
 await check('B. the page as a page view: every run of up to four events equals the spec in words; named cases for rules 1 to 4; flag off is dev\'s page, sha256 of every trace', () => pageBehaviourChecks())
 await check('B2. the page\'s text: the effect\'s keys and first line, the outline test, the one marked writer, the wrappers, the prop spread after the base\'s props, nothing for deep research', () => pageTextChecks())
 await check('C. only insertions: the strip gives dev\'s page byte for byte; eleven marked lines in four places', () => pageDiffChecks())
-await check('C2. the three older proofs taught: dev\'s text byte for byte without this change\'s marked lines', () => pinChecks())
+await check('C2. the four older proofs taught: dev\'s text byte for byte without this change\'s marked lines', () => pinChecks())
 await check('D. .env.example: one block at the very end, "false", plain words, names only its own flag', () => envChecks())
 await check('E. the registry: three lines, marked, at the true end of each list; the strip commutes with its neighbours', () => registryChecks())
 await check('F. scope: this change\'s own commits touch only its files; the message; no secret', () => {
@@ -612,6 +614,8 @@ await mutant('message: the subject does not start with the prefix', () => assert
 await mutant('message: the co-author line is missing', () => assert.deepEqual(messageProblems('Research by level: x', 'body\n'), []))
 await mutant('secret: a credential-shaped literal in the lib', () => assert.doesNotMatch(`${read(LIB)}\n// ${'sk-'}${'a'.repeat(24)}\n`, SECRET))
 await mutant('older proofs: the plan-based default\'s proof loses its registry read', () => pinChecks({ 'scripts/test-studio-research-default.mjs': read('scripts/test-studio-research-default.mjs').split('\n').filter(l => !l.startsWith('{ const realRead = fs.readFileSync;') || !l.includes('RESEARCH_BY_LEVEL_FILES')).join('\n') }))
+await mutant('older proofs: the hero-only Replace picture\'s proof loses its registry read', () => pinChecks({ 'scripts/test-studio-replace-picture-hero-only.mjs': read('scripts/test-studio-replace-picture-hero-only.mjs').split('\n').filter(l => !l.startsWith('{ const realRead = fs.readFileSync;') || !l.includes('RESEARCH_BY_LEVEL_FILES')).join('\n') }))
+await mutant('older proofs: the hero-only Replace picture\'s proof reads through the registry instead of this change\'s strip', () => pinChecks({ 'scripts/test-studio-replace-picture-hero-only.mjs': read('scripts/test-studio-replace-picture-hero-only.mjs').replace('RESEARCH_BY_LEVEL_FILES.includes(rel) ? stripResearchByLevel(rel, out) : out', 'RESEARCH_BY_LEVEL_FILES.includes(rel) ? registry.stripLaterChanges(rel, out) : out') }))
 await mutant('older proofs: a splice line names another subject', () => pinChecks({ 'scripts/test-studio-chat-element-edit.mjs': read('scripts/test-studio-chat-element-edit.mjs').replace('^Research by level:/', '^Research by lev:/') }))
 await mutant('older proofs: a proof gains an unmarked line', () => pinChecks({ 'scripts/test-studio-deck-sync-truth.mjs': `${read('scripts/test-studio-deck-sync-truth.mjs')}\n// stray\n` }))
 
