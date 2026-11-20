@@ -30,6 +30,7 @@ import * as stripModule from './studio-research-by-level-strip.mjs'
 import * as defaultStrip from './studio-research-default-strip.mjs'
 import * as heroOnlyStrip from './studio-replace-picture-hero-only-strip.mjs'
 import * as registry from './studio-later-changes.mjs'
+import { stripUploadFormats, UPLOAD_FORMATS_READ_FILES, UPLOAD_FORMATS_SCOPE_FILES } from './studio-upload-formats-strip.mjs' // LATER-CHANGES: registry read (STUDIO-UPLOAD-FORMATS): the Studio upload formats change (stacked after this change) marks lines in the composer and adds a block, three registry lines and a splice line to files this proof holds to this change's own bytes; this proof reads them as this change left them
 
 const { BASE_COMMIT, RESEARCH_BY_LEVEL_PIN_FILES: PIN_FILES, RESEARCH_BY_LEVEL_PIN_MARK: PIN_MARK, RESEARCH_BY_LEVEL_PIN_EDITS: PIN_EDITS, RESEARCH_BY_LEVEL_SCOPE_FILES: SCOPE, RESEARCH_BY_LEVEL_NEW_FILES: NEW_FILES, RESEARCH_BY_LEVEL_FILES: APP_FILES, RESEARCH_BY_LEVEL_MARKER_RE: MARKER_RE, RESEARCH_BY_LEVEL_ENV_BLOCK: ENV_BLOCK, RESEARCH_BY_LEVEL_SUBJECT: SUBJECT, RESEARCH_BY_LEVEL_EDITS: EDITS, RESEARCH_BY_LEVEL_FLAGS: FLAGS } = stripModule
 const STRIP_FN = stripModule.stripResearchByLevel
@@ -38,6 +39,7 @@ const [FLAG] = FLAGS
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const nodeRequire = createRequire(path.join(root, 'package.json'))
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && UPLOAD_FORMATS_READ_FILES.includes(rel) ? stripUploadFormats(rel, out) : out } } // LATER-CHANGES: registry read (STUDIO-UPLOAD-FORMATS): every read of a file the Studio upload formats change edits goes through that change's own strip (never the registry), so this proof sees the file as this change left it
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000 })
 const baseCache = new Map()
 const baseText = rel => { if (!baseCache.has(rel)) baseCache.set(rel, git('show', `${BASE_COMMIT}:${rel}`)); return baseCache.get(rel) }
@@ -573,7 +575,7 @@ function registryChecks(text = read(REGISTRY)) {
   assert.deepEqual(diff.removed, [], 'and loses none'); assert.deepEqual([...diff.added].sort(), [...registered].sort(), 'the three are the only lines it adds')
   assert.ok(registry.LATER_STRIPS.includes(STRIP_FN), 'the strip is registered'); assert.ok(registry.LATER_ENV_BLOCKS.includes(ENV_BLOCK), 'the block is registered')
   assert.ok([...SCOPE].every(rel => registry.LATER_CHANGE_FILES.has(rel)), 'every scope file is registered')
-  assert.equal(registry.LATER_STRIPS.at(-1), STRIP_FN, 'the strip runs last (the order the changes were stacked)')
+  assert.ok(registry.LATER_STRIPS.includes(STRIP_FN) && registry.LATER_STRIPS.slice(registry.LATER_STRIPS.indexOf(STRIP_FN) + 1).every(strip => strip === stripUploadFormats), 'the strip runs last, but for the Studio upload formats change\'s (the order the changes were stacked)') // LATER-CHANGES: registry read (STUDIO-UPLOAD-FORMATS): that change's strip is registered after this one
   assert.equal(registry.stripLaterChanges(PAGE, read(PAGE)), registry.stripLaterChanges(PAGE, baseText(PAGE)), `${PAGE}: read through the registry it is the base's (older proofs read it like that)`)
   assert.equal(registry.stripLaterChanges(ENV, read(ENV)), registry.stripLaterChanges(ENV, baseText(ENV)), `${ENV}: read through the registry it is the base's`)
   // the strips of the neighbouring changes leave each other's lines alone, whichever order they run in
@@ -631,7 +633,7 @@ await check('F. scope: this change\'s own commits touch only its files; the mess
   assert.ok(first.length >= 1 || allCommits().length >= 1, 'this change has commits on the branch')
   scopeCheck(first); scopeCheck(allCommits())
   for (const sha of allCommits()) assert.deepEqual(messageProblems(subjectOf(sha), git('show', '--no-patch', '--format=%B', sha)), [], `commit ${sha.slice(0, 8)}: the message`)
-  assert.deepEqual(git('diff', '--name-only', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean).filter(rel => !SCOPE.has(rel)).sort(), [], 'over the whole committed range no file is outside the scope either')
+  assert.deepEqual(git('diff', '--name-only', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean).filter(rel => !SCOPE.has(rel) && !UPLOAD_FORMATS_SCOPE_FILES.has(rel)).sort(), [], 'over the whole committed range no file is outside the scope either') // LATER-CHANGES: registry read (STUDIO-UPLOAD-FORMATS): the files of the Studio upload formats change, stacked after this one, are its own
   secretChecks()
 })
 await check('G. one literal env read; only the lib and the Builder page name the flag; the plan-based default\'s lib is independent', () => oneReadChecks())
