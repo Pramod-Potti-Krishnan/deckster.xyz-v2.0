@@ -124,6 +124,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-gdrive-card-reasons-strip.mjs')).CARD_REASONS_SCOPE_FILES, // LATER-CHANGE: KNOWLEDGE-3, the Google Drive card says why: how the Google sign-in ended (one fixed sentence) and the reason a failed list call gives (NEXT_PUBLIC_STUDIO_CONNECTORS_CARD_REASONS)
   ...(await import('./studio-replace-picture-hero-only-strip.mjs')).REPLACE_PICTURE_HERO_ONLY_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, Replace picture hero slides only and the dialog in front of the viewer (NEXT_PUBLIC_STUDIO_REPLACE_PICTURE_HERO_ONLY)
   ...(await import('./studio-my-companions-strip.mjs')).MY_COMPANIONS_SCOPE_FILES, // LATER-CHANGE: AVATAR-W5, My companions: the owner's own companion (a private pack) in the voice call and on /studio/companions, two server routes (NEXT_PUBLIC_STUDIO_MY_COMPANIONS)
+  ...(await import('./studio-levels-direct-live-strip.mjs')).LEVELS_DIRECT_LIVE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, wave 1 step 4.1c Best and Max live in the level picker: their words stop saying "coming soon", Max on the Max plan only (NEXT_PUBLIC_STUDIO_THINKING_LEVELS_DIRECT_LIVE / _MAX_LIVE)
   // one line per later change, above this comment
 ])
 
@@ -203,6 +204,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-gdrive-card-reasons-strip.mjs')).CARD_REASONS_ENV_BLOCK, // LATER-CHANGE: KNOWLEDGE-3, the Google Drive card says why: how the Google sign-in ended (one fixed sentence) and the reason a failed list call gives (NEXT_PUBLIC_STUDIO_CONNECTORS_CARD_REASONS)
   (await import('./studio-replace-picture-hero-only-strip.mjs')).REPLACE_PICTURE_HERO_ONLY_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, Replace picture hero slides only and the dialog in front of the viewer (NEXT_PUBLIC_STUDIO_REPLACE_PICTURE_HERO_ONLY)
   (await import('./studio-my-companions-strip.mjs')).MY_COMPANIONS_ENV_BLOCK, // LATER-CHANGE: AVATAR-W5, My companions (NEXT_PUBLIC_STUDIO_MY_COMPANIONS)
+  (await import('./studio-levels-direct-live-strip.mjs')).LEVELS_DIRECT_LIVE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, wave 1 step 4.1c Best and Max live in the level picker: their words stop saying "coming soon", Max on the Max plan only (NEXT_PUBLIC_STUDIO_THINKING_LEVELS_DIRECT_LIVE / _MAX_LIVE)
   // one line per later change, above this comment
 ]
 
@@ -304,6 +306,7 @@ export const LATER_STRIPS = [
   (await import('./studio-gdrive-card-reasons-strip.mjs')).stripCardReasons, // LATER-CHANGE: KNOWLEDGE-3, the Google Drive card says why: how the Google sign-in ended (one fixed sentence) and the reason a failed list call gives (NEXT_PUBLIC_STUDIO_CONNECTORS_CARD_REASONS)
   (await import('./studio-replace-picture-hero-only-strip.mjs')).stripReplacePictureHeroOnly, // LATER-CHANGE: FRONTEND-1, Replace picture hero slides only and the dialog in front of the viewer (NEXT_PUBLIC_STUDIO_REPLACE_PICTURE_HERO_ONLY)
   (await import('./studio-my-companions-strip.mjs')).stripMyCompanions, // LATER-CHANGE: AVATAR-W5, My companions (NEXT_PUBLIC_STUDIO_MY_COMPANIONS)
+  (await import('./studio-levels-direct-live-strip.mjs')).stripLevelsDirectLive, // LATER-CHANGE: FRONTEND-1, wave 1 step 4.1c Best and Max live in the level picker: their words stop saying "coming soon", Max on the Max plan only (NEXT_PUBLIC_STUDIO_THINKING_LEVELS_DIRECT_LIVE / _MAX_LIVE)
   // one line per later change, above this comment
 ]
 
