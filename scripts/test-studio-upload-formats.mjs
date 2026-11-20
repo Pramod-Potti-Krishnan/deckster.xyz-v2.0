@@ -14,7 +14,8 @@
 //  C. only insertions: the strip gives dev's composer byte for byte (three marked lines, none rewritten); the older proofs taught gain only marked lines;
 //  D. .env.example: one block at the very end, both flags "false", plain words, naming only its own two flags (and no Researcher variable by its full name);
 //  E. the registry: exactly three lines, each marked LATER-CHANGE, at the true end of each list;
-//  F. scope: the committed first-parent line of BASE..HEAD without merges (both subject forms), the files, the kept Codex commit and its author, the messages, a secret scan;
+//  F. scope, read in three states (the pure head; a gate-style merge of it onto dev with the kit's own subject; a PR-style merge with GitHub's subject; the two merges are built here with git commit-tree, no checkout, no index): own commits are the NON-MERGE commits
+//     with one of the two subject forms, a merge is never one (only this change's own dev merge keeps its house-form check, by sha), merged into dev the line has none of them and the proof says so and reads them over the whole range; the files, the kept Codex commit and its author, the messages, a secret scan;
 //  G. one literal read per flag, only in the lib;
 //  H. mutants: each is one edit of the real sources, fed to the same checks, and must be caught.
 import assert from 'node:assert/strict'
@@ -355,39 +356,61 @@ function registryChecks(text = read(REGISTRY)) {
 // F. scope, commits, secrets (the committed range BASE..HEAD; never the working tree, which a gate run and the suites write into)
 // ============================================================================================================================================
 const subjectOf = sha => git('log', '-1', '--format=%s', sha)
-const firstParent = () => git('rev-list', '--first-parent', '--no-merges', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean)
-const firstParentMerges = () => git('rev-list', '--first-parent', '--merges', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean)
-function touchedFiles(commits) { const net = new Set(git('diff', '--name-only', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean)); return new Set(commits.flatMap(commit => git('show', '--name-only', '--format=', commit).split('\n')).filter(rel => rel && net.has(rel))) }
-function scopeCheck(commits, extra = []) { assert.deepEqual([...touchedFiles(commits), ...extra].filter(rel => !SCOPE.has(rel)).sort(), [], 'no file outside this change\'s scope differs from the base') }
-/** The subjects on the first-parent line without merges: both forms of this change's subject, nothing else. */
-const subjectProblems = subjects => subjects.filter(subject => !SUBJECT_RE.test(subject)).map(subject => `a commit of another change (or a foreign subject) on this change's line: ${subject.trim()}`)
+const OWN_MERGE = '885a6b8d098b31e6b78a41efb82af3a4df340fd4' // this change's own merge of dev 374d697a, in the house form
+const isAncestor = (sha, head) => { try { git('merge-base', '--is-ancestor', sha, head); return true } catch { return false } }
+/** [sha, subject] of the commits BASE..head, one git call. */
+const logOf = (head, ...args) => git('log', '--format=%H%x09%s', ...args, `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean).map(line => { const [sha, ...subject] = line.split('\t'); return [sha, subject.join('\t')] })
+/** This change's own commits: NON-MERGE commits whose subject has one of its two forms. A merge commit is never an own commit, whatever its subject: dev's merges, the gate kit's local merge (its own subject), GitHub's "Merge pull request #643 ..." and this change's own dev merge are all skipped here. */
+const ownOf = (head, ...args) => logOf(head, '--no-merges', ...args).filter(([, subject]) => SUBJECT_RE.test(subject)).map(([sha]) => sha)
+const touchedFiles = (commits, head) => { const net = new Set(git('diff', '--name-only', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)); return new Set(commits.flatMap(commit => git('show', '--name-only', '--format=', commit).split('\n')).filter(rel => rel && net.has(rel))) }
+function scopeCheck(commits, head, extra = []) { assert.deepEqual([...touchedFiles(commits, head), ...extra].filter(rel => !SCOPE.has(rel)).sort(), [], 'no file outside this change\'s scope differs from the base') }
 function messageProblems(subject, body, { kept = false } = {}) {
   const problems = []
   if (!kept && !subject.startsWith(SUBJECT)) problems.push(`the subject starts "${SUBJECT}"`)
   if (!kept && !/^Co-Authored-By: Claude Opus 5\.5 <noreply@anthropic\.com>\s*$/m.test(body)) problems.push('the co-author line')
   return problems
 }
-function secretChecks(texts = {}, commits = git('rev-list', '--no-merges', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean)) {
+function secretChecks(texts = {}, commits = ownOf('HEAD')) {
   for (const rel of [...APP_FILES, ...NEW_FILES]) assert.doesNotMatch(texts[rel] ?? read(rel), SECRET, `${rel}: no secret`)
   for (const rel of [ENV, REGISTRY, ...PIN_FILES]) assert.doesNotMatch(lineDiff(baseText(rel), texts[rel] ?? read(rel)).added.join('\n'), SECRET, `${rel}: no secret in the lines this change adds`)
   for (const sha of commits) assert.doesNotMatch(git('show', '--format=%B', sha), SECRET, `commit ${sha.slice(0, 8)}: no secret in the diff or the message`)
 }
-function scopeChecks() {
-  let ancestor = true
-  try { git('merge-base', '--is-ancestor', BASE_COMMIT, 'HEAD') } catch { ancestor = false }
-  assert.ok(ancestor, 'the strip\'s BASE_COMMIT (dev 374d697a) is an ancestor of this branch: the branch carries dev as a merge, never a rebase')
-  const first = firstParent()
-  assert.deepEqual(subjectProblems(first.map(subjectOf)), [], 'every commit of this change on the first-parent line (merges left out) has one of its two subject forms')
-  scopeCheck(first)
-  for (const sha of first) assert.deepEqual(messageProblems(subjectOf(sha), git('show', '--no-patch', '--format=%B', sha), { kept: sha === KEPT_COMMIT }), [], `commit ${sha.slice(0, 8)}: the message`)
-  for (const sha of firstParentMerges()) assert.deepEqual(messageProblems(subjectOf(sha), git('show', '--no-patch', '--format=%B', sha)), [], `merge ${sha.slice(0, 8)}: the message (the house form of a dev merge)`)
-  assert.deepEqual(git('diff', '--name-only', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean).filter(rel => !SCOPE.has(rel)).sort(), [], 'over the whole committed range no file is outside the scope either')
+/**
+ * The scope of the commits that make up head. Robust after merge (the #567 lesson): merge commits are never own commits and their messages are not read, whoever made them
+ * (only THIS change's own dev merge, by sha, keeps its house-form check); once the branch is merged into dev (the gate kit's local merge, or GitHub's PR merge) this change's commits are on the merge's
+ * second parent, the first-parent line from BASE has none of them, and the proof says so with a NOTE and goes on to read the commits by subject over the whole range (the second parent included).
+ * `hooks.onMerge(sha)` runs on every merge on the first-parent line: only a mutant uses it (the old check of every merge's message).
+ */
+function scopeChecks(head = 'HEAD', hooks = {}) {
+  assert.ok(isAncestor(BASE_COMMIT, head), 'the strip\'s BASE_COMMIT (dev 374d697a) is an ancestor of this branch: the branch carries dev as a merge, never a rebase')
+  const first = ownOf(head, '--first-parent'), all = ownOf(head)
+  for (const sha of git('rev-list', '--first-parent', '--merges', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)) hooks.onMerge?.(sha)
+  if (first.length === 0) console.log('NOTE scope: no commit of this change on the first-parent line (merged into dev: its commits are on the merge\'s second parent); the commits are read by subject over the whole range, and the strip, source and registry checks cover the files')
+  else {
+    scopeCheck(first, head)
+    // when every commit on the first-parent line is this change's (the branch itself), the whole net diff against the base is in scope; a line that carries others' commits is read by the commit list
+    const line = logOf(head, '--first-parent')
+    if (line.every(([, subject]) => SUBJECT_RE.test(subject))) assert.deepEqual(git('diff', '--name-only', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean).filter(rel => !SCOPE.has(rel)).sort(), [], 'over the whole committed range no file is outside the scope either')
+  }
+  scopeCheck(all, head)
+  for (const sha of all) assert.deepEqual(messageProblems(subjectOf(sha), git('show', '--no-patch', '--format=%B', sha), { kept: sha === KEPT_COMMIT }), [], `commit ${sha.slice(0, 8)}: the message`)
+  assert.deepEqual([...touchedFiles(all, head)].filter(rel => !registry.LATER_CHANGE_FILES.has(rel)), [], 'every file the commits touch is registered')
+  if (isAncestor(OWN_MERGE, head)) assert.deepEqual(messageProblems(subjectOf(OWN_MERGE), git('show', '--no-patch', '--format=%B', OWN_MERGE)), [], 'this change\'s own merge of dev: the house form (a merge by anyone else is not read)')
   // the Codex commit is kept, with its author (a branch that was rebased or squashed would lose it)
-  let kept = true
-  try { git('merge-base', '--is-ancestor', KEPT_COMMIT, 'HEAD') } catch { kept = false }
-  if (kept) { assert.equal(git('log', '-1', '--format=%an', KEPT_COMMIT).trim(), 'Pramod-Potti-Krishnan', 'the Codex commit keeps its author'); assert.equal(subjectOf(KEPT_COMMIT).trim(), FIRST_SUBJECT, 'and its subject'); assert.ok(!subjectOf(KEPT_COMMIT).startsWith(SUBJECT), 'which has no prefix (it is not rewritten or amended)') }
-  else assert.ok(first.length === 0 || process.env.UPLOAD_FORMATS_ALLOW_NO_KEPT, 'the Codex commit is on the branch (merged into dev, the line is empty)')
-  secretChecks()
+  if (isAncestor(KEPT_COMMIT, head)) { assert.equal(git('log', '-1', '--format=%an', KEPT_COMMIT).trim(), 'Pramod-Potti-Krishnan', 'the Codex commit keeps its author'); assert.equal(subjectOf(KEPT_COMMIT).trim(), FIRST_SUBJECT, 'and its subject'); assert.ok(!subjectOf(KEPT_COMMIT).startsWith(SUBJECT), 'which has no prefix (it is not rewritten or amended)') }
+  else if (all.length > 0) assert.fail('this change has commits but the Codex commit is not among them')
+  else console.log('NOTE scope: none of this change\'s commits is in the range (a squash merge): the strip, source and registry checks cover the files')
+  secretChecks({}, all)
+}
+/**
+ * The three states a head is read in, built without touching the working tree or the index (git commit-tree, fixed names and dates: the same two objects every run): the pure head, the gate kit's local
+ * merge of the head onto dev (a subject of the kit's own) and GitHub's PR merge ("Merge pull request #643 ..."). Dev is BASE here (the tree is the head's: the head already carries dev).
+ */
+function mergeStates(head = 'HEAD') {
+  const env = { ...process.env, GIT_AUTHOR_NAME: 'proof', GIT_AUTHOR_EMAIL: 'proof@example.invalid', GIT_COMMITTER_NAME: 'proof', GIT_COMMITTER_EMAIL: 'proof@example.invalid', GIT_AUTHOR_DATE: '2026-11-20T00:00:00Z', GIT_COMMITTER_DATE: '2026-11-20T00:00:00Z' }
+  const tree = git('rev-parse', `${head}^{tree}`).trim(), tip = git('rev-parse', head).trim()
+  const merge = message => execFileSync('git', ['commit-tree', tree, '-p', BASE_COMMIT, '-p', tip, '-m', message], { cwd: root, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000 }).trim()
+  return { 'the pure head': head, 'a gate-style merge (the kit\'s own subject)': merge(`gate: kit merge of ${tip.slice(0, 8)} onto dev`), 'a PR-style merge (GitHub\'s subject)': merge('Merge pull request #643 from Pramod-Potti-Krishnan/frontend1/upload-formats\n\n0.9-S Narrow Studio upload picker formats') }
 }
 
 // ============================================================================================================================================
@@ -414,7 +437,11 @@ await check('C. only insertions: the strip gives dev\'s composer byte for byte; 
 await check('C2. the older proofs taught: dev\'s text byte for byte without this change\'s marked lines; both subject forms', () => pinChecks())
 await check('D. .env.example: one block at the very end, both "false", plain words, names only its own two flags', () => envChecks())
 await check('E. the registry: three lines, marked, at the true end of each list; the strips commute', () => registryChecks())
-await check('F. scope: the first-parent line without merges, both subject forms, the files, the kept Codex commit and its author, the messages, no secret', () => scopeChecks())
+await check('F. scope, in three states (the pure head, a gate-style merge, a PR-style merge): own commits by subject, merges never own; the files, the kept Codex commit and its author, the messages, no secret', () => {
+  const states = mergeStates(), labels = Object.keys(states)
+  for (const label of labels.slice(1)) { assert.equal(git('rev-list', '--parents', '-n1', states[label]).trim().split(' ').length, 3, `${label}: built as a merge (two parents, dev first)`); assert.ok(!SUBJECT_RE.test(subjectOf(states[label])), `${label}: its subject is not this change's`); assert.deepEqual(ownOf(states[label], '--first-parent'), [], `${label}: this change has no commit on its first-parent line`); assert.deepEqual(ownOf(states[label]).sort(), ownOf('HEAD').sort(), `${label}: the same own commits over the whole range (the second parent)`) }
+  for (const label of labels) { try { scopeChecks(states[label]) } catch (error) { error.message = `${label}: ${error.message}`; throw error } }
+})
 await check('G. one literal env read per flag, only in the lib; nothing else knows the lib', () => oneReadChecks())
 if (sink.pickers) {
   const flagOff = [...new Set(sink.pickers.map(([a, b]) => `${a.slice(0, 12)}/${b.slice(0, 12)}`))], dropsOff = [...new Set(sink.traces.map(([a, b]) => `${a.slice(0, 12)}/${b.slice(0, 12)}`))]
@@ -502,9 +529,14 @@ await mutant('registry: a line loses its marker', () => registryChecks(read(REGI
 await mutant('registry: a line is the Codex form (FRONTEND-1-B1)', () => registryChecks(read(REGISTRY).replace('// LATER-CHANGE: FRONTEND-1, Upload formats:', '// LATER-CHANGE: FRONTEND-1-B1, Upload formats:')))
 await mutant('registry: a line has lost its flag', () => registryChecks(read(REGISTRY).replace(`(${NARROW})`, '(x)')))
 await mutant('registry: a line is added that is not this change\'s', () => registryChecks(read(REGISTRY).replace('  // one line per later change, above this comment\n])', '  // LATER-CHANGE: someone, something\n  // one line per later change, above this comment\n])')))
-await mutant('scope: a stray file in the commit', () => scopeCheck(firstParent(), ['README.md']))
-await mutant('scope: a stray subject on the line', () => assert.deepEqual(subjectProblems(['Upload formats: a\n', 'Research by level: b\n']), []))
-await mutant('scope: the Codex subject with a suffix', () => assert.deepEqual(subjectProblems(['Narrow Studio upload formats behind flags and more\n']), []))
+await mutant('scope: a stray file in the commit', () => scopeCheck(ownOf('HEAD', '--first-parent'), 'HEAD', ['README.md']))
+const bodyOf = sha => git('show', '--no-patch', '--format=%B', sha)
+const everyMerge = sha => assert.deepEqual(messageProblems(subjectOf(sha), bodyOf(sha)), [], `merge ${sha.slice(0, 8)}: the message (the old check: the house form demanded of every merge)`)
+await mutant('scope: the old check (every merge on the line must be in the house form) is caught by the gate-style merge', () => scopeChecks(Object.values(mergeStates())[1], { onMerge: everyMerge }))
+await mutant('scope: the old check (every merge on the line must be in the house form) is caught by the PR-style merge', () => scopeChecks(Object.values(mergeStates())[2], { onMerge: everyMerge }))
+await mutant('scope: a merge subject is read as an own subject (the kit\'s merge counts as this change\'s commit and is held to the co-author line)', () => { const gate = Object.values(mergeStates())[1]; assert.deepEqual(messageProblems(subjectOf(gate), bodyOf(gate)), []) })
+await mutant('scope: the Codex subject with a suffix is not this change\'s', () => assert.ok(SUBJECT_RE.test('Narrow Studio upload formats behind flags and more')))
+await mutant('scope: a subject of another change is this change\'s', () => assert.ok(SUBJECT_RE.test('Research by level: x')))
 await mutant('message: the subject does not start with the prefix', () => assert.deepEqual(messageProblems('Fix things', 'Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n'), []))
 await mutant('message: the co-author line is missing', () => assert.deepEqual(messageProblems('Upload formats: x', 'body\n'), []))
 await mutant('secret: a credential-shaped literal in the lib', () => assert.doesNotMatch(`${read(LIB)}\n// ${'sk-'}${'a'.repeat(24)}\n`, SECRET))
