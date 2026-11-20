@@ -14,7 +14,7 @@
 //  C. only insertions: no base line of the page is rewritten (the strip gives dev's page byte for byte; eleven marked lines in four places); the four older proofs taught (one line each for two, two lines for the other two) are their previous text byte for byte;
 //  D. .env.example: one block at the very end, "false", plain words, naming only its own flag;
 //  E. the registry: exactly three lines, each marked LATER-CHANGE, at the true end of each list, the strip independent of its neighbours' strips;
-//  F. own-commit scope, by the subject prefix "Research by level:" on the first-parent line (and, once the gate has merged it, over the whole range), the commit message, and a secret scan;
+//  F. the base is the head this change is stacked on (an ancestor of the branch), own-commit scope, by the subject prefix "Research by level:" on the first-parent line (and, once the gate has merged it, over the whole range), the commit message, and a secret scan;
 //  G. the flag is read from one literal env name and nothing but the lib reads it; the lib's names are used on marked lines only;
 //  I. mutants: each is one edit of the real sources, fed to the same checks, and must be caught.
 import assert from 'node:assert/strict'
@@ -447,7 +447,7 @@ function envChecks(texts = {}, block = ENV_BLOCK) {
   const env = texts[ENV] ?? read(ENV)
   assert.ok(env.endsWith(`\n${block}`), '.env.example ends with the block (at the very end)')
   assert.equal(env.slice(0, env.length - block.length - 1), baseText(ENV), '.env.example is dev\'s file plus that one blank-line-separated block')
-  assert.equal(baseText(ENV).trimEnd().split('\n').at(-1), 'NEXT_PUBLIC_STUDIO_REPLACE_PICTURE_HERO_ONLY="false"', 'the block follows the last block of dev\'s file')
+  assert.equal(baseText(ENV).trimEnd().split('\n').at(-1), 'NEXT_PUBLIC_STUDIO_THINKING_LEVELS_MAX_LIVE="false"', 'the block follows the last block of the line this change is stacked on (PR 644\'s)')
   assert.equal((env.match(new RegExp(`^${FLAG}=`, 'gm')) || []).length, 1, `.env.example assigns ${FLAG} once`)
   assert.equal(block.split('\n').at(-2), `${FLAG}="false"`, 'the block ends with its assignment, "false"')
   assert.ok(block.split('\n').filter(line => line && !line.startsWith('#')).length === 1 && block.split('\n').filter(line => line.startsWith('#')).length >= 2, 'comments and one assignment')
@@ -472,7 +472,7 @@ function registryChecks(text = read(REGISTRY)) {
     assert.equal(at, rows.length - 1, `${list}: the line is at the true end, just above the marker comment`)
     assert.ok(rows[at].includes(`).${name},`), `${list}: the line reads ${name}`)
     assert.equal((text.slice(start, end).match(/studio-research-by-level-strip\.mjs/g) || []).length, 1, `${list}: one line names this change's strip`)
-    assert.ok(rows[at - 1].includes('studio-replace-picture-hero-only-strip.mjs'), `${list}: right after the last change before it (the hero-only Replace picture)`)
+    assert.ok(rows[at - 1].includes('studio-levels-direct-live-strip.mjs') && rows[at - 2].includes('studio-my-companions-strip.mjs') && rows[at - 3].includes('studio-replace-picture-hero-only-strip.mjs'), `${list}: after PR 644's line, after #642's (My companions), after the hero-only Replace picture's: this change last`)
   }
   const registered = text.split('\n').filter(line => line.includes('studio-research-by-level-strip.mjs'))
   assert.equal(registered.length, 3, 'the registry gains exactly its three lines'); assert.ok(registered.every(line => line.includes(REG_MARK) && /(?<![\w-])LATER-CHANGE(?![\w-])/.test(line) && line.includes(`(${FLAG})`)), 'each carries the registry marker and the flag')
@@ -531,6 +531,9 @@ await check('C2. the four older proofs taught: dev\'s text byte for byte without
 await check('D. .env.example: one block at the very end, "false", plain words, names only its own flag', () => envChecks())
 await check('E. the registry: three lines, marked, at the true end of each list; the strip commutes with its neighbours', () => registryChecks())
 await check('F. scope: this change\'s own commits touch only its files; the message; no secret', () => {
+  let ancestor = true
+  try { git('merge-base', '--is-ancestor', BASE_COMMIT, 'HEAD') } catch { ancestor = false }
+  assert.ok(ancestor, 'the strip\'s BASE_COMMIT (the head this change is stacked on, PR 644\'s) is an ancestor of this branch: the Studio Drafts are one line')
   const first = firstParentCommits()
   assert.ok(first.length >= 1 || allCommits().length >= 1, 'this change has commits on the branch')
   scopeCheck(first); scopeCheck(allCommits())
