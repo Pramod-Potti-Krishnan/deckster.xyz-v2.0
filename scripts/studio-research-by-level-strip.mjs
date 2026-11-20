@@ -3,7 +3,7 @@
 // The decision is a pure function (lib/studio-research-by-level.ts, researchByLevel); the Builder page keeps one state per chat in a ref, runs ONE marked effect on the shown level / chat / outline, and notes the person's own change of the two research switches by two marked wrappers handed to the composer through one marked prop spread. Off, nothing runs.
 // Every line this change adds to an EXISTING file carries the marker RESEARCH-BY-LEVEL (matched as a whole token) and is a PURE INSERTION (no base line is rewritten: the page gains 11 lines in four places), so the strip is a list of [has, was] pairs whose `was` is empty: putting each back gives the file at BASE_COMMIT byte for byte. The new files have no base text.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
-// Four older proofs are TAUGHT inserted marked lines only (RESEARCH_BY_LEVEL_PIN_EDITS, pure insertions): the two that read the first-parent line of BASE..HEAD each drop this change's subject from it (as for every later change), and the two that pin the raw Builder page (the plan-based research default's proof pins every line that reads or sets web search, and this change reads and sets it in marked lines; the hero-only Replace picture's proof holds the page to dev's, byte for byte) read it through this change's own strip, as the hero-only change taught the Replace picture proof; putting those lines back gives each proof's previous text byte for byte.
+// Five older proofs are TAUGHT inserted marked lines only (RESEARCH_BY_LEVEL_PIN_EDITS, pure insertions): the two that read the first-parent line of BASE..HEAD each drop this change's subject from it (as for every later change), and the three that pin the raw Builder page (the plan-based research default's proof pins every line that reads or sets web search, and this change reads and sets it in marked lines; the hero-only Replace picture's and the My companions wiring proofs hold the page to dev's, byte for byte) read it through this change's own strip, as the hero-only change taught the Replace picture proof; putting those lines back gives each proof's previous text byte for byte.
 
 export const BASE_COMMIT = "fa3a65176fd141247e8c7b472dedfb9eee90f312" // origin/frontend1/levels-direct-live (PR 644: dev 8db4ce8e with #642 merged, then the Levels direct live commits), the head this change is stacked on: the Studio Drafts are one line, dev 8db4ce8e, PR 644, this change. The page, the older proofs this change teaches, .env.example and the registry are read at it; it moves to the trunk when PR 644 merges (as for every stacked change)
 export const RESEARCH_BY_LEVEL_FLAGS = ["NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_BY_LEVEL"]
@@ -94,6 +94,16 @@ export const RESEARCH_BY_LEVEL_PIN_EDITS = {
   "scripts/test-studio-replace-picture-hero-only.mjs": [
     [
       "import { stripResearchByLevel, RESEARCH_BY_LEVEL_FILES } from './studio-research-by-level-strip.mjs' // LATER-CHANGES: registry read (RESEARCH-BY-LEVEL): the research-by-level change (stacked after this change) marks lines in the Builder page; this proof checks that the page is dev's, so it reads the page as this change left it\n",
+      ""
+    ],
+    [
+      "{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && RESEARCH_BY_LEVEL_FILES.includes(rel) ? stripResearchByLevel(rel, out) : out } } // LATER-CHANGES: registry read (RESEARCH-BY-LEVEL): every read of a file the research-by-level change marks goes through that change's own strip (never the registry), so this proof sees the file as this change left it\n",
+      ""
+    ]
+  ],
+  "scripts/test-studio-my-companions-wiring.mjs": [
+    [
+      "import { stripResearchByLevel, RESEARCH_BY_LEVEL_FILES } from './studio-research-by-level-strip.mjs' // LATER-CHANGES: registry read (RESEARCH-BY-LEVEL): the research-by-level change (stacked after this change and after the live Best and Max change) marks lines in the Builder page; this proof checks that the page is dev's, so it reads the page as this change left it\n",
       ""
     ],
     [
