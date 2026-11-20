@@ -585,6 +585,7 @@ const inputStubs = {
   '@/lib/studio-chat-parity': { CHAT_PARITY_THEME_LIBRARY_EVENT: 'x', STUDIO_CHAT_PARITY_THEMES_ENABLED: false },
   './gdrive-composer': gdriveComponents,
   './voice-call/voice-call-buttons': { VoiceCallButtons: nothing }, '@/lib/studio-voice-call-ui': { callEndFocusGoesToComposer: () => false }, // the base's VOICE-CALL imports (no voiceCall prop here: null / inert)
+  '@/lib/studio-upload-formats': { STUDIO_UPLOAD_ACCEPT: undefined, acceptsUploadFile: () => true }, // LATER-CHANGES: registry read (STUDIO-UPLOAD-FORMATS): the composer's static import of the upload formats lib (the narrow flag is off here: no narrowed accept string, so the picker and the drop are the base's)
 }
 function loadChatInput(source) {
   const mod = { exports: {} }

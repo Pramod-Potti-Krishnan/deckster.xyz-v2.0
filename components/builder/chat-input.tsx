@@ -64,6 +64,7 @@ import type { VoiceCallComposerProps } from '@/lib/studio-voice-call-ui' // VOIC
 import { callEndFocusGoesToComposer } from '@/lib/studio-voice-call-ui' // VOICE-CALL
 import { GdriveAttachMenu, GdriveChipsBar } from './gdrive-composer' // GDRIVE-COMPOSER (NEXT_PUBLIC_STUDIO_CONNECTORS_GDRIVE_ENABLED + _SESSION_LINKS_ENABLED, default off)
 import type { GdriveComposerApi } from '@/hooks/use-gdrive-composer' // GDRIVE-COMPOSER
+import { STUDIO_UPLOAD_ACCEPT, acceptsUploadFile } from '@/lib/studio-upload-formats' // STUDIO-UPLOAD-FORMATS
 
 const TEXTAREA_MIN_HEIGHT = 96
 const TEXTAREA_MAX_HEIGHT = 220
@@ -825,6 +826,7 @@ export function ChatInput({
       type="file"
       multiple
       accept=".pdf,.docx,.doc,.txt,.md,.xlsx,.xls,.csv,.pptx,.ppt,.json,.xml,.yaml,.yml,.png,.jpg,.jpeg,.gif,.webp,.py,.js,.ts,.java,.go,.rs"
+      {...(studio && STUDIO_UPLOAD_ACCEPT ? { accept: STUDIO_UPLOAD_ACCEPT } : ({} as { accept?: string }))} // STUDIO-UPLOAD-FORMATS (NEXT_PUBLIC_STUDIO_UPLOAD_FORMATS_NARROW, default off): the picker offers only what the Researcher reads today (lib/studio-upload-formats.ts); off, the accept above stands
       onChange={(e) => {
         const files = Array.from(e.target.files || [])
         console.log(`[ChatInput] File input onChange fired, ${files.length} file(s)`, files.map(f => f.name))
@@ -868,6 +870,7 @@ export function ChatInput({
         setIsDraggingFiles(false)
         if (features.enableFileUploads) {
           const files = Array.from(e.dataTransfer.files)
+          if (studio && STUDIO_UPLOAD_ACCEPT) files.splice(0, files.length, ...files.filter(file => acceptsUploadFile(file.name))) // STUDIO-UPLOAD-FORMATS: with the narrow flag on, a dropped file that is not on the picker's list is left out (nothing is said; when none is left, nothing happens); off, every dropped file goes on as before
           if (files.length > 0) {
             onRequestSession().then(() => {
               onFilesSelected(files)
