@@ -890,9 +890,6 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setWebSearchEnabled(enabled)
     if (!enabled) setResearchEnabled(false)
   }, [])
-  const researchLevelRef = useRef<ResearchByLevelState>(RESEARCH_BY_LEVEL_FRESH) // RESEARCH-BY-LEVEL (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_BY_LEVEL, default off): what the rule knows of this chat: which chat, whether the person changed the web switch in it, whether the rule itself turned web search on (lib/studio-research-by-level.ts)
-  const researchByPerson = useCallback((enabled: boolean) => { researchLevelRef.current = researchByLevel(researchLevelRef.current, { kind: 'touch' }).state; handleResearchEnabledChange(enabled) }, [handleResearchEnabledChange]) // RESEARCH-BY-LEVEL: the composer's Deep research switch, as the base handles it; the person's own change in this chat is noted first (turning Deep research on turns web search on)
-  const webSearchByPerson = useCallback((enabled: boolean) => { researchLevelRef.current = researchByLevel(researchLevelRef.current, { kind: 'touch' }).state; handleWebSearchEnabledChange(enabled) }, [handleWebSearchEnabledChange]) // RESEARCH-BY-LEVEL: the composer's web search switch (and /web), as the base handles it; the person's own change in this chat is noted first and always wins
   const [extendedGenerationEnabled, setExtendedGenerationEnabled] = useState(true)
   const {
     isSubscribed: kgSubscribed,
@@ -1886,6 +1883,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       if (urlSessionId && urlSessionId !== 'new') return urlSessionId
     return null
   })
+  const researchLevelRef = useRef<ResearchByLevelState>(RESEARCH_BY_LEVEL_FRESH) // RESEARCH-BY-LEVEL (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_BY_LEVEL, default off): what the rule knows of this chat: which chat, whether the person changed the web switch in it (or for the chat being opened, while it loads), whether the rule itself turned web search on (lib/studio-research-by-level.ts)
+  const researchByPerson = useCallback((enabled: boolean) => { researchLevelRef.current = researchByLevel(researchLevelRef.current, { kind: 'touch', chat: currentSessionId }).state; handleResearchEnabledChange(enabled) }, [handleResearchEnabledChange, currentSessionId]) // RESEARCH-BY-LEVEL: the composer's Deep research switch, as the base handles it; the person's own change is noted first, for the chat the page shows now (a chat that is still loading included; turning Deep research on turns web search on)
+  const webSearchByPerson = useCallback((enabled: boolean) => { researchLevelRef.current = researchByLevel(researchLevelRef.current, { kind: 'touch', chat: currentSessionId }).state; handleWebSearchEnabledChange(enabled) }, [handleWebSearchEnabledChange, currentSessionId]) // RESEARCH-BY-LEVEL: the composer's web search switch (and /web), as the base handles it; the person's own change is noted first, for the chat the page shows now (a chat that is still loading included), and always wins
   const gdriveLinkedIdsRef = useRef<string[] | undefined>(undefined) // GDRIVE-COMPOSER: the Drive items linked to this chat (undefined until the user links one, [] once cleared); read at send time by the four build sends below, so it is never stale
   const gdriveComposer = useGdriveComposer({ sessionId: currentSessionId, onLinkedIdsChange: ids => { gdriveLinkedIdsRef.current = ids }, enabled: gdriveOffer }) // GDRIVE-COMPOSER: a no-op unless both Drive flags are on AND the user is entitled (gdriveOffer, FRONTEND-2 N1)
 
@@ -6873,6 +6873,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setExtendedGenerationEnabled(pending.extended_generation)
     setKnowledgeGraphEnabled(pending.use_knowledge_graph)
     clearAllFiles()
+    if (STUDIO_RESEARCH_DEFAULT_BY_LEVEL) researchLevelRef.current = researchByLevel(researchLevelRef.current, { kind: 'touch', chat: pending.new_session_id }).state // RESEARCH-BY-LEVEL (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_BY_LEVEL, default off): the switches this hand-off set are what the person chose on the dashboard composer and sent with the message, so they count as the person's own change for the chat it opens, whatever their value: in a chat started from the dashboard the rule does nothing
 
     const persistedMessage = {
       id: messageId,

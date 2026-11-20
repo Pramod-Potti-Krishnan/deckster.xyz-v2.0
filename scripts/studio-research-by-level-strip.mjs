@@ -1,7 +1,7 @@
 // FRONTEND-1 (wave 1 step 0.5c "research by level"; the rules were settled by DIRECTOR-2, AGENT-1G and FRONTEND-1). Flag NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_BY_LEVEL (the exact "true", default off, build-time).
 // In a chat with no outline yet, moving the thinking-level picker to Best or Max turns web search on; moving it to anything else (Fast, Balanced, Auto, the automatic return to Auto after a run or a chat change included) turns it off again if THIS rule turned it on; the person's own change of the web switch (or of Deep research) in a chat always wins; an outline ends the rule; a new chat starts over. Deep research and the knowledge graph are not touched.
-// The decision is a pure function (lib/studio-research-by-level.ts, researchByLevel); the Builder page keeps one state per chat in a ref, runs ONE marked effect on the shown level / chat / outline, and notes the person's own change of the two research switches by two marked wrappers handed to the composer through one marked prop spread. Off, nothing runs.
-// Every line this change adds to an EXISTING file carries the marker RESEARCH-BY-LEVEL (matched as a whole token) and is a PURE INSERTION (no base line is rewritten: the page gains 11 lines in four places), so the strip is a list of [has, was] pairs whose `was` is empty: putting each back gives the file at BASE_COMMIT byte for byte. The new files have no base text.
+// The decision is a pure function (lib/studio-research-by-level.ts, researchByLevel); the Builder page keeps one state per chat in a ref, runs ONE marked effect on the shown level / chat / outline, and notes the person's own change of the two research switches, keyed to the chat the page shows (a chat that is still loading included), by two marked wrappers handed to the composer through one marked prop spread, and the dashboard hand-off's switches (the person's own choice, for the chat it opens) by one marked line next to the hand-off's setters. Off, nothing runs.
+// Every line this change adds to an EXISTING file carries the marker RESEARCH-BY-LEVEL (matched as a whole token) and is a PURE INSERTION (no base line is rewritten: the page gains 12 lines in five places), so the strip is a list of [has, was] pairs whose `was` is empty: putting each back gives the file at BASE_COMMIT byte for byte. The new files have no base text.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 // Five older proofs are TAUGHT inserted marked lines only (RESEARCH_BY_LEVEL_PIN_EDITS, pure insertions): the two that read the first-parent line of BASE..HEAD each drop this change's subject from it (as for every later change), and the three that pin the raw Builder page (the plan-based research default's proof pins every line that reads or sets web search, and this change reads and sets it in marked lines; the hero-only Replace picture's and the My companions wiring proofs hold the page to dev's, byte for byte) read it through this change's own strip, as the hero-only change taught the Replace picture proof; putting those lines back gives each proof's previous text byte for byte.
 
@@ -32,15 +32,15 @@ export const RESEARCH_BY_LEVEL_LIB_FLAGS = [["lib/studio-research-by-level.ts", 
 export const RESEARCH_BY_LEVEL_EDITS = {
   "app/builder/page.tsx": [
     [
-      "  const researchLevelRef = useRef<ResearchByLevelState>(RESEARCH_BY_LEVEL_FRESH) // RESEARCH-BY-LEVEL (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_BY_LEVEL, default off): what the rule knows of this chat: which chat, whether the person changed the web switch in it, whether the rule itself turned web search on (lib/studio-research-by-level.ts)\n",
+      "  const researchLevelRef = useRef<ResearchByLevelState>(RESEARCH_BY_LEVEL_FRESH) // RESEARCH-BY-LEVEL (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_BY_LEVEL, default off): what the rule knows of this chat: which chat, whether the person changed the web switch in it (or for the chat being opened, while it loads), whether the rule itself turned web search on (lib/studio-research-by-level.ts)\n",
       ""
     ],
     [
-      "  const researchByPerson = useCallback((enabled: boolean) => { researchLevelRef.current = researchByLevel(researchLevelRef.current, { kind: 'touch' }).state; handleResearchEnabledChange(enabled) }, [handleResearchEnabledChange]) // RESEARCH-BY-LEVEL: the composer's Deep research switch, as the base handles it; the person's own change in this chat is noted first (turning Deep research on turns web search on)\n",
+      "  const researchByPerson = useCallback((enabled: boolean) => { researchLevelRef.current = researchByLevel(researchLevelRef.current, { kind: 'touch', chat: currentSessionId }).state; handleResearchEnabledChange(enabled) }, [handleResearchEnabledChange, currentSessionId]) // RESEARCH-BY-LEVEL: the composer's Deep research switch, as the base handles it; the person's own change is noted first, for the chat the page shows now (a chat that is still loading included; turning Deep research on turns web search on)\n",
       ""
     ],
     [
-      "  const webSearchByPerson = useCallback((enabled: boolean) => { researchLevelRef.current = researchByLevel(researchLevelRef.current, { kind: 'touch' }).state; handleWebSearchEnabledChange(enabled) }, [handleWebSearchEnabledChange]) // RESEARCH-BY-LEVEL: the composer's web search switch (and /web), as the base handles it; the person's own change in this chat is noted first and always wins\n",
+      "  const webSearchByPerson = useCallback((enabled: boolean) => { researchLevelRef.current = researchByLevel(researchLevelRef.current, { kind: 'touch', chat: currentSessionId }).state; handleWebSearchEnabledChange(enabled) }, [handleWebSearchEnabledChange, currentSessionId]) // RESEARCH-BY-LEVEL: the composer's web search switch (and /web), as the base handles it; the person's own change is noted first, for the chat the page shows now (a chat that is still loading included), and always wins\n",
       ""
     ],
     [
@@ -65,6 +65,10 @@ export const RESEARCH_BY_LEVEL_EDITS = {
     ],
     [
       "  }, [currentSessionId, shownThinkingLevel, hasStrawman, strawmanPreviewUrl, strawmanPresentationId, finalPresentationUrl, finalPresentationId, session.isLoadingSession]) // RESEARCH-BY-LEVEL\n",
+      ""
+    ],
+    [
+      "    if (STUDIO_RESEARCH_DEFAULT_BY_LEVEL) researchLevelRef.current = researchByLevel(researchLevelRef.current, { kind: 'touch', chat: pending.new_session_id }).state // RESEARCH-BY-LEVEL (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_BY_LEVEL, default off): the switches this hand-off set are what the person chose on the dashboard composer and sent with the message, so they count as the person's own change for the chat it opens, whatever their value: in a chat started from the dashboard the rule does nothing\n",
       ""
     ],
     [
