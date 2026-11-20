@@ -5,6 +5,8 @@ import type { VoiceCallController, VoiceCallSnapshot } from '@/lib/studio-voice-
 import type { VoiceCallStageProps } from '@/components/builder/voice-call/voice-call-stage'
 import type { VoiceAction } from '@/lib/studio-voice-call-ui'
 import { STUDIO_VOICE_CALL_BUTTONS, STUDIO_VOICE_CALL_UI_ENABLED, STUDIO_VOICE_COMPANION, companionChoices, isTalkKey, nextCompanion, readCompanionChoice, spaceBelongsToTarget, voiceCallBus, disarmVoiceTurn, writeCompanionChoice, type VoiceCallComposerProps } from '@/lib/studio-voice-call-ui'
+import { COMPANION_STORAGE_KEY, companionChoicesWithMine } from '@/lib/studio-voice-call-ui' // MY-COMPANIONS
+import { STUDIO_MY_COMPANIONS_ENABLED, myCompanionNames, reachableCompanions, rememberMyCompanion, type MyCompanion } from '@/lib/studio-my-companions' // MY-COMPANIONS
 
 export interface UseStudioVoiceCallOptions {
   /** The Studio shell (the call needs the flag too, read here). Off: nothing is loaded, listened to, timed or asked for. */
@@ -29,6 +31,7 @@ export interface StudioVoiceCall {
 const NONE: StudioVoiceCall = { dock: null, composerProps: null }
 const noopSubscribe = () => () => {}
 const CHOICES = companionChoices(STUDIO_VOICE_COMPANION)
+const NO_COMPANIONS: readonly MyCompanion[] = [] // MY-COMPANIONS: none of the owner's own (the flag off, none listed, or none whose pack answers): the call offers CHOICES, as before
 /** This device's storage, or nothing where it is blocked (the accessor itself can throw). */
 function deviceStorage(): Storage | null {
   try { return typeof window !== 'undefined' ? window.localStorage : null } catch { return null }
@@ -47,6 +50,9 @@ export function useStudioVoiceCall(options: UseStudioVoiceCallOptions): StudioVo
   const [controller, setController] = useState<VoiceCallController | null>(null)
   const [Stage, setStage] = useState<ComponentType<VoiceCallStageProps> | null>(null)
   const [companion, setCompanion] = useState<string>(() => (STUDIO_VOICE_CALL_UI_ENABLED ? readCompanionChoice(deviceStorage(), STUDIO_VOICE_COMPANION) : STUDIO_VOICE_COMPANION)) // this device's character (Felix unless it chose Bob)
+  const [mine, setMine] = useState<readonly MyCompanion[]>(NO_COMPANIONS) // MY-COMPANIONS: the owner's own companions whose pack answers (NEXT_PUBLIC_STUDIO_MY_COMPANIONS)
+  const choices = mine.length ? companionChoicesWithMine(STUDIO_VOICE_COMPANION, mine.map(entry => entry.id)) : CHOICES // MY-COMPANIONS: the cast, then the owner's own; none: CHOICES itself
+  const names = mine.length ? myCompanionNames(mine) : undefined // MY-COMPANIONS: what the owner's own go by (none: the stage's own words)
 
   useEffect(() => {
     if (!enabled) return
@@ -72,6 +78,19 @@ export function useStudioVoiceCall(options: UseStudioVoiceCallOptions): StudioVo
       setStage(null)
     }
   }, [enabled])
+  // MY-COMPANIONS (NEXT_PUBLIC_STUDIO_MY_COMPANIONS, default off: none of this runs): once, after mount, the owner's own companions are asked for and only those whose pack answers are kept (one that does not never reaches
+  // MY-COMPANIONS the switch: the call stays on the cast, and the player still falls back to the pack's portrait, then Felix); the device's remembered character is read again with them on offer (one that is gone: the default).
+  useEffect(() => { // MY-COMPANIONS
+    if (!enabled || !STUDIO_MY_COMPANIONS_ENABLED) return // MY-COMPANIONS
+    let cancelled = false // MY-COMPANIONS
+    const get = typeof window !== 'undefined' && typeof window.fetch === 'function' ? window.fetch.bind(window) : null // MY-COMPANIONS: the page's own fetch, handed to the lib (the requests are the lib's)
+    void reachableCompanions(get).then(found => { // MY-COMPANIONS
+      if (cancelled) return // MY-COMPANIONS
+      setMine(found.length ? found : NO_COMPANIONS) // MY-COMPANIONS
+      setCompanion(readCompanionChoice(deviceStorage(), STUDIO_VOICE_COMPANION, found.map(entry => entry.id))) // MY-COMPANIONS
+    }) // MY-COMPANIONS
+    return () => { cancelled = true } // MY-COMPANIONS
+  }, [enabled]) // MY-COMPANIONS
 
   const snapshot: VoiceCallSnapshot | null = useSyncExternalStore(
     controller ? controller.subscribe : noopSubscribe,
@@ -116,8 +135,8 @@ export function useStudioVoiceCall(options: UseStudioVoiceCallOptions): StudioVo
   return {
     dock: showDock
       ? createElement(Stage, {
-        snapshot, pack: companion, choices: CHOICES, getLevel: controller.getLevel,
-        onChooseCompanion: () => { const next = nextCompanion(companion, CHOICES); writeCompanionChoice(deviceStorage(), next, STUDIO_VOICE_COMPANION); setCompanion(next) },
+        snapshot, pack: companion, choices, names, getLevel: controller.getLevel, // MY-COMPANIONS: the cast and the owner's own (the flag off: CHOICES and no names, as before)
+        onChooseCompanion: () => { const next = nextCompanion(companion, choices); writeCompanionChoice(deviceStorage(), next, STUDIO_VOICE_COMPANION); rememberMyCompanion(deviceStorage(), COMPANION_STORAGE_KEY, next, mine); setCompanion(next) }, // MY-COMPANIONS: round the cast and the owner's own; the cast's write refuses a user pack, which is remembered by its own
         onTalkPress: () => controller.talkPress(), onTalkRelease: () => controller.talkRelease(), onStop: () => controller.stop(), onMute: muted => controller.setMuted(muted), onEnd: () => controller.endCall(),
         onRetry: () => { void controller.startCall(controller.getSnapshot().mode) }, onDismissNotice: () => controller.dismissNotice(),
       })

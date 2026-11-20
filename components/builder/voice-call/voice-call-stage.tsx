@@ -11,6 +11,8 @@ import {
   VOICE_PHONE_MEDIA, companionName, nextCompanion, ringLevel, sceneFileFrom, sceneUrl, talkLabel, videoCharacterPx,
   type VideoFraming,
 } from '@/lib/studio-voice-call-ui'
+import { myCompanionName, packRootUrl } from '@/lib/studio-my-companions' // MY-COMPANIONS
+const castCompanionName = companionName // MY-COMPANIONS: the cast's own words for a character (the stage's companionName below adds the display names of the owner's own companions)
 
 export interface VoiceCallStageProps {
   snapshot: VoiceCallSnapshot
@@ -18,6 +20,8 @@ export interface VoiceCallStageProps {
   pack: string
   /** The characters on offer (a switch is shown when there is more than one, with a dot for each when there are three or more); one tap on it goes to the next, round the list. */
   choices: readonly string[]
+  /** MY-COMPANIONS: what the owner's own companions (user packs, u-...) go by, by pack id; absent (the flag off), every character goes by its pack's name, as before. */
+  names?: Readonly<Record<string, string>> // MY-COMPANIONS
   onChooseCompanion: () => void
   getLevel: () => number
   /** The talk button goes down / comes up (hold to talk, or tap to latch and tap again to send). */
@@ -56,7 +60,7 @@ function loadSceneArt(pack: string): Promise<string | null> {
     found = (async () => {
       let file = DEFAULT_SCENE_FILE
       try {
-        const response = await fetch(`/companions/${pack}/motion/manifest.json`, { credentials: 'same-origin' })
+        const response = await fetch(`${packRootUrl(pack)}/motion/manifest.json`, { credentials: 'same-origin' }) // MY-COMPANIONS: a user pack's through the pack route; the cast's at /companions/<name>, as before
         if (response.ok) file = sceneFileFrom(((await response.json()) as { scene?: unknown } | null)?.scene)
       } catch { /* the default file is tried */ }
       const url = sceneUrl(pack, file)
@@ -106,7 +110,7 @@ function useLevelVariable(ref: React.RefObject<HTMLElement | null>, getLevel: ()
  * Either way the overlays are the same: the state chip, Stop / Mute / End, the talk button, and the live transcript in the bottom fifth (scrollable, can be hidden, shown by default). Presentation only: it holds no call state.
  * Without a call (the microphone was refused, or a start failed) it is just the plain-words notice, docked above the composer.
  */
-export function VoiceCallStage({ snapshot, pack, choices, onChooseCompanion, getLevel, onTalkPress, onTalkRelease, onStop, onMute, onEnd, onRetry, onDismissNotice }: VoiceCallStageProps) {
+export function VoiceCallStage({ snapshot, pack, choices, names, onChooseCompanion, getLevel, onTalkPress, onTalkRelease, onStop, onMute, onEnd, onRetry, onDismissNotice }: VoiceCallStageProps) { // MY-COMPANIONS: names
   const { controls, notice, mode, muted } = snapshot
   const live = snapshot.active || snapshot.starting
   const phone = usePhone()
@@ -147,6 +151,7 @@ export function VoiceCallStage({ snapshot, pack, choices, onChooseCompanion, get
   // No call: only the words about what went wrong (the microphone was refused ...), above the composer, which is back.
   if (!live) return noticeBlock ? <section className="studio-voice-bar" data-studio-voice-call="notice" aria-label="Voice call">{noticeBlock}</section> : null
 
+  const companionName = (choice: string): string => myCompanionName(names, choice) ?? castCompanionName(choice) // MY-COMPANIONS: one of the owner's own goes by its display name (here and in the switch below); every other character by the cast's words, as before
   const name = companionName(pack)
   const status = snapshot.starting ? 'Waiting for your microphone…' : muted ? MUTED_HINT : snapshot.progress ?? (snapshot.latched ? TALK_LATCHED_HINT : snapshot.holding || snapshot.transcript.length ? null : TALK_HINT)
   const subtitle = collapsed && !snapshot.starting ? snapshot.caption : null
