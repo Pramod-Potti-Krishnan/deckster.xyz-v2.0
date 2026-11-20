@@ -5,7 +5,7 @@
 // Most of the lib's lines are PURE INSERTIONS; a few base lines are REWRITTEN (the ThinkingFlags shape and FLAGS_NOW, levelRefusal's and stopLine's signatures, the one-line bodies of thinkingStops and thinkingView, and the refusal call in levelPick: each gains the flags it must pass on), so the strip is a list of [has, was] pairs (a pure insertion has an empty `was`):
 // putting each pair back gives the file at BASE_COMMIT byte for byte. The base constants (LEVEL_COPY.line best and max, LEVEL_COPY.comingSoon) are untouched: the live words are a new constant, LEVEL_COPY_LIVE. The new files have no base text.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
-// Older proofs are TAUGHT inserted marked lines only (LEVELS_DIRECT_LIVE_PIN_EDITS, pure insertions): the two that read the first-parent line each drop this change's subject from it, as for every later change; putting those lines back gives each proof's previous text byte for byte.
+// Older proofs are TAUGHT inserted marked lines only (LEVELS_DIRECT_LIVE_PIN_EDITS, pure insertions): the two that read the first-parent line each drop this change's subject from it, as for every later change, and the My companions wiring proof (#642), which holds lib/studio-thinking-levels.ts to dev's bytes, reads it through this strip (an import and a read hook, as the hero-only Replace picture change taught the Replace picture proof); putting those lines back gives each proof's previous text byte for byte.
 
 export const BASE_COMMIT = '8db4ce8eca70dabaf6d1934618c34b77f3fd4a2c' // origin/studio-v4-dev-preparation-code (#642 merged), the trunk this change sits on
 export const LEVELS_DIRECT_LIVE_FLAGS = ["NEXT_PUBLIC_STUDIO_THINKING_LEVELS_DIRECT_LIVE", "NEXT_PUBLIC_STUDIO_THINKING_LEVELS_MAX_LIVE"]
@@ -119,6 +119,16 @@ export const LEVELS_DIRECT_LIVE_PIN_EDITS = {
   "scripts/test-studio-deck-sync-truth.mjs": [
     [
       "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Levels direct live:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (LEVELS-DIRECT-LIVE): on a branch stacked after this change (Best and Max live in the level picker, step 4.1c), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files\n",
+      ""
+    ]
+  ],
+  "scripts/test-studio-my-companions-wiring.mjs": [
+    [
+      "import { stripLevelsDirectLive, LEVELS_DIRECT_LIVE_FILES } from './studio-levels-direct-live-strip.mjs' // LATER-CHANGES: registry read (LEVELS-DIRECT-LIVE): the level picker's live Best and Max (stacked after this change) marks lines in lib/studio-thinking-levels.ts, which this proof holds to dev's bytes; this proof reads it as dev has it\n",
+      ""
+    ],
+    [
+      "{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && LEVELS_DIRECT_LIVE_FILES.includes(rel) ? stripLevelsDirectLive(rel, out) : out } } // LATER-CHANGES: registry read (LEVELS-DIRECT-LIVE): every read of a file the live Best and Max change marks goes through that change's own strip (never the registry), so this proof sees it as dev has it\n",
       ""
     ]
   ]

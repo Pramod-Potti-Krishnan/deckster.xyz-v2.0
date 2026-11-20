@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url'
 import * as stripModule from './studio-my-companions-strip.mjs'
 import * as heroOnlyStrip from './studio-replace-picture-hero-only-strip.mjs'
 import * as registry from './studio-later-changes.mjs'
+import { stripLevelsDirectLive, LEVELS_DIRECT_LIVE_FILES } from './studio-levels-direct-live-strip.mjs' // LATER-CHANGES: registry read (LEVELS-DIRECT-LIVE): the level picker's live Best and Max (stacked after this change) marks lines in lib/studio-thinking-levels.ts, which this proof holds to dev's bytes; this proof reads it as dev has it
 
 const { BASE_COMMIT, MY_COMPANIONS_FLAGS: FLAGS, MY_COMPANIONS_MARKER_RE: MARKER_RE, MY_COMPANIONS_SUBJECT: SUBJECT, MY_COMPANIONS_FILES: APP_FILES, MY_COMPANIONS_NEW_FILES: NEW_FILES, MY_COMPANIONS_EDITS: EDITS,
   MY_COMPANIONS_PIN_EDITS: PIN_EDITS, MY_COMPANIONS_PIN_FILES: PIN_FILES, MY_COMPANIONS_PIN_MARK: PIN_MARK, MY_COMPANIONS_SCOPE_FILES: SCOPE, MY_COMPANIONS_ENV_BLOCK: ENV_BLOCK } = stripModule
@@ -24,6 +25,7 @@ const FLAG = FLAGS[0]
 
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && LEVELS_DIRECT_LIVE_FILES.includes(rel) ? stripLevelsDirectLive(rel, out) : out } } // LATER-CHANGES: registry read (LEVELS-DIRECT-LIVE): every read of a file the live Best and Max change marks goes through that change's own strip (never the registry), so this proof sees it as dev has it
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000 })
 const baseCache = new Map()
 const baseText = rel => { if (!baseCache.has(rel)) baseCache.set(rel, git('show', `${BASE_COMMIT}:${rel}`)); return baseCache.get(rel) }

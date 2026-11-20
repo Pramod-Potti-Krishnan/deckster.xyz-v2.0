@@ -452,9 +452,10 @@ function insertionChecks(texts = TEXTS, strip = STRIP_FN, edits = EDITS) {
     assert.deepEqual([diff.removed.length, diff.added.length], [0, gained], `${rel}: the proof gains ${gained} marked line(s) and loses none`)
     for (const line of diff.added) assert.ok(line.includes(PIN_MARK), `${rel}: a line added to the proof carries the pin mark: ${line.trim().slice(0, 100)}`)
     for (const [has, was] of PIN_EDITS[rel]) assert.ok(was === '' && has.includes(PIN_MARK) && has.endsWith('\n') && !has.slice(0, -1).includes('\n'), `${rel}: a pin pair is one marked line and nothing put back`)
+    for (const line of diff.added.filter(added => added.includes('fs.readFileSync = '))) assert.ok(line.includes('stripLevelsDirectLive(rel, out)') && !line.includes('stripLaterChanges') && !line.includes('registry.'), `${rel}: a read hook uses this change's own strip, never the registry`)
     for (const line of diff.added.filter(added => added.includes('shas.splice'))) assert.ok(line.includes('^Levels direct live:') && !line.includes('^Replace picture hero only:') && !line.includes('^Thinking levels:'), `${rel}: the splice names this change's own subject, and only that`)
   }
-  assert.deepEqual([...PIN_FILES].sort(), ['scripts/test-studio-chat-element-edit.mjs', 'scripts/test-studio-deck-sync-truth.mjs'], 'the older proofs this change teaches: only the two that read the first-parent line')
+  assert.deepEqual([...PIN_FILES].sort(), ['scripts/test-studio-chat-element-edit.mjs', 'scripts/test-studio-deck-sync-truth.mjs', 'scripts/test-studio-my-companions-wiring.mjs'], 'the older proofs this change teaches: the two that read the first-parent line, and the My companions wiring proof (it holds the levels lib to dev\'s bytes)')
   // the secrets of the added lines
   for (const rel of [...APP_FILES, ...NEW_FILES, ENV, REGISTRY]) assert.doesNotMatch(texts[rel] ?? read(rel), SECRET, `${rel}: no secret`)
 }
@@ -677,6 +678,11 @@ await mutant('insertion: an inserted line puts back text', () => insertionChecks
 await mutant('insertion: a pair is two lines', () => insertionChecks(TEXTS, STRIP_FN, { ...EDITS, [LIB]: [[EDITS[LIB][0][0] + EDITS[LIB][1][0], ''], ...EDITS[LIB].slice(2)] }))
 await mutant('insertion: a splice line names the other subject', () => insertionChecks(TX('scripts/test-studio-chat-element-edit.mjs', '!/^Levels direct live:/', '!/^Replace picture hero only:/')))
 await mutant('insertion: a splice line is gone from a taught proof', () => insertionChecks({ ...TEXTS, 'scripts/test-studio-deck-sync-truth.mjs': TEXTS['scripts/test-studio-deck-sync-truth.mjs'].split('\n').filter(line => !line.includes('^Levels direct live:')).join('\n') }))
+const WIRING = 'scripts/test-studio-my-companions-wiring.mjs'
+await mutant('insertion: the My companions proof\'s read hook uses the registry', () => insertionChecks(TX(WIRING, 'stripLevelsDirectLive(rel, out) : out', 'registry.stripLaterChanges(rel, out) : out')))
+await mutant('insertion: the My companions proof\'s read hook is gone', () => insertionChecks({ ...TEXTS, [WIRING]: TEXTS[WIRING].split('\n').filter(line => !line.includes('fs.readFileSync = ')).join('\n') }))
+await mutant('insertion: the My companions proof\'s import is gone', () => insertionChecks({ ...TEXTS, [WIRING]: TEXTS[WIRING].split('\n').filter(line => !line.includes("from './studio-levels-direct-live-strip.mjs'")).join('\n') }))
+await mutant('insertion: the My companions proof loses a base line', () => insertionChecks(TX(WIRING, "const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')\n", '')))
 await mutant('insertion: a taught proof loses a base line', () => insertionChecks(TX('scripts/test-studio-chat-element-edit.mjs', "!/^Card reasons:/", "!/^Card reasons/")))
 // .env.example
 const ownEnvBlock = swap(ENV_BLOCK, 'Build-time value, as above.', 'Build-time value, as above. NEXT_PUBLIC_STUDIO_THINKING_LEVELS_DIRECT_PREVIEW is the flag it stands on.')
