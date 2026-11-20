@@ -6,8 +6,8 @@
 // What it proves (A to J), then mutants (K):
 //  A. the flags: each is on for the exact string "true" and for nothing else; DIRECT_LIVE needs the direct preview (which needs the picker and its three other flags); MAX_LIVE needs DIRECT_LIVE; read from the env as literals, one read each (the lib's whole list of env reads is pinned);
 //  B. the words and the rules, over EVERY combination (preview off/on x DIRECT_LIVE off/on x MAX_LIVE off/on x plan free/starter/pro/premium/not loaded x level): thinkingStops, stopLine, levelRefusal, levelPick and thinkingView against an independent table that holds the exact words: Best live says
-//     "A deeper build, planned and written in one pass. Pro and Max plans." and is not marked coming soon; Max live says "Our most thorough build. Max plan only.", is not marked coming soon, and is pickable on the Max plan (premium) only: a Pro user sees it disabled with "Max is on the Max plan.";
-//     Free, Starter and a plan not loaded keep the Agent shell's words; Max NOT live keeps today's words and rule exactly, even with DIRECT_LIVE on; Auto, Fast and Balanced never change; the words are plain (no model, provider, router or price);
+//     "A deeper build in one pass. Pro and Max plans." and is not marked coming soon; Max live says "Our most thorough build. Max plan only.", is not marked coming soon, and is pickable on the Max plan (premium) only: a Pro user sees it disabled with "Max is on the Max plan.";
+//     Free, Starter and a plan not loaded keep the Agent shell's words; Max NOT live keeps today's words and rule exactly, even with DIRECT_LIVE on; Auto, Fast and Balanced never change; the words are plain (no model, provider, router or price); every line the picker can show, the live ones included, is at most 60 characters (the popover's room, as M1 keeps it);
 //  C. THE DEFAULT PATH (what the picker, the page and the hook call, with no flags handed in): the module's flags from the build-time env, over a few hundred env combinations (the odd values of each flag included), equal the table;
 //  D. FLAG OFF IS DEV'S, byte for byte: dev's lib (git, the base commit) and this lib are run on every flag-off state (live flags missing, false, or on without what they stand on: DIRECT_LIVE without the preview, MAX_LIVE without DIRECT_LIVE) over every plan, level and odd input; the transcripts are hashed and equal;
 //     and with the flags on, Auto, Fast and Balanced and the wire (levelBuildMode, the picks' modes) are still dev's, Best and Max differ only in the lines, the coming-soon marks and Max's plan rule;
@@ -122,7 +122,7 @@ const JUNK = ['turbo', '', null, undefined, 7, 'Fast', 'BEST']
 const LEAK = /sonnet|opus|claude|anthropic|openrouter|openai|gpt|gemini|vertex|router|model|provider|token|dollar|\$|price/i
 /** The words, written out here (not read from the lib): what each state must say. */
 const WORDS = {
-  soon: 'Coming soon: runs as Balanced for now.', best: 'A deeper build, planned and written in one pass. Pro and Max plans.', max: 'Our most thorough build. Max plan only.', maxPlan: 'Max is on the Max plan.',
+  soon: 'Coming soon: runs as Balanced for now.', best: 'A deeper build in one pass. Pro and Max plans.', max: 'Our most thorough build. Max plan only.', maxPlan: 'Max is on the Max plan.',
   agentPlan: 'Agent build is on Pro and Max plans.', unknownPlan: 'Your plan is not loaded yet.', auto: 'Deckster picks how to build this deck.', fast: 'The quickest build, step by step.', balanced: 'The agent build. Pro and Max plans.',
 }
 const LABEL = { auto: 'Auto', fast: 'Fast', balanced: 'Balanced', best: 'Best', max: 'Max' }
@@ -216,8 +216,8 @@ function matrixChecks(texts = {}) {
   }
   // the named cases, in words (so a reader sees the rule and the table is not the only witness)
   const F = (preview, directLive, maxLive) => ({ levels: true, direct: preview, bestLive: directLive, maxLive })
-  assert.equal(L.stopLine('best', 'pro', F(true, true, false)), 'A deeper build, planned and written in one pass. Pro and Max plans.', 'Best live on Pro')
-  assert.equal(L.stopLine('best', 'premium', F(true, true, false)), 'A deeper build, planned and written in one pass. Pro and Max plans.', 'Best live on Max')
+  assert.equal(L.stopLine('best', 'pro', F(true, true, false)), 'A deeper build in one pass. Pro and Max plans.', 'Best live on Pro')
+  assert.equal(L.stopLine('best', 'premium', F(true, true, false)), 'A deeper build in one pass. Pro and Max plans.', 'Best live on Max')
   assert.equal(L.stopLine('best', 'free', F(true, true, false)), 'Agent build is on Pro and Max plans.', 'Best live on Free: the Agent shell\'s reason')
   assert.equal(L.stopLine('best', null, F(true, true, false)), 'Your plan is not loaded yet.', 'Best live, plan not loaded')
   assert.equal(L.stopLine('max', 'pro', F(true, true, false)), 'Coming soon: runs as Balanced for now.', 'Max not live (DIRECT_LIVE on): today\'s words, on Pro')
@@ -237,7 +237,16 @@ function matrixChecks(texts = {}) {
   const COPY = L.LEVEL_COPY_LIVE
   deepEqual(COPY, { best: WORDS.best, max: WORDS.max, maxPlan: WORDS.maxPlan }, 'the live words, exactly')
   for (const word of Object.values(COPY)) { assert.doesNotMatch(word, LEAK, `plain words: ${word}`); assert.doesNotMatch(word, /coming soon|runs as/i, `no "coming soon": ${word}`) }
+  lengthChecks(texts)
   return cells
+}
+/** The popover's room: M1 keeps every picker line at 60 characters or fewer (its LEVEL_COPY check), so every live line is too: each string of LEVEL_COPY_LIVE, and each line the picker can show once a level is live. */
+const MAX_LINE = 60
+function lengthChecks(texts = {}) {
+  const L = load(LIB, { env: {}, texts })
+  for (const [key, word] of Object.entries(L.LEVEL_COPY_LIVE)) assert.ok(word.length <= MAX_LINE, `LEVEL_COPY_LIVE.${key} is ${word.length} characters, over ${MAX_LINE}: ${word}`)
+  for (const [key, word] of Object.entries(WORDS)) assert.ok(word.length <= MAX_LINE, `the table's own words (${key}) are at most ${MAX_LINE} characters (${word.length})`)
+  for (const s of STATES) for (const plan of PLANS) for (const level of LEVELS) { const line = L.stopLine(level, plan, flagsOf(s)); assert.ok(line.length <= MAX_LINE, `${nameOf(s)}, ${plan}: the line of ${level} is ${line.length} characters, over ${MAX_LINE}: ${line}`) }
 }
 
 // ============================================================================================================================================
@@ -383,13 +392,13 @@ function pickerChecks(texts = {}) {
   const maxNone = run(ENV_MAX, 'auto', null); maxNone.onCommit(3); assert.deepEqual(calls, [], 'both live, plan not loaded: Max cannot be chosen')
   // the shown level: a Max pick stays shown on the Max plan
   assert.equal(run(ENV_MAX, 'max', 'premium').view.valueText, 'Max. Our most thorough build. Max plan only.', 'the screen reader reads Max and its live line on the Max plan')
-  assert.equal(run(ENV_MAX, 'best', 'pro').view.valueText, 'Best. A deeper build, planned and written in one pass. Pro and Max plans.', 'the screen reader reads Best and its live line')
+  assert.equal(run(ENV_MAX, 'best', 'pro').view.valueText, 'Best. A deeper build in one pass. Pro and Max plans.', 'the screen reader reads Best and its live line')
   // while the thumb is dragged the title and the line follow it (the picker's own call, with no flags handed in): drag to Max
   const drag = index => ({ ...stubReact, __id: `drag${index}`, useState: init => [init === null ? index : typeof init === 'function' ? init() : init, () => {}] })
   const dragged = (env, plan, index) => { const el = load(PICKER, { env, texts, react: drag(index) }).LevelPicker({ value: 'auto', plan, onChange() {} }); return el.props.view }
   assert.deepEqual([dragged(ENV_MAX, 'pro', 3).title, dragged(ENV_MAX, 'pro', 3).line], ['Max', 'Max is on the Max plan.'], 'dragging to Max on Pro says it is on the Max plan')
   assert.deepEqual([dragged(ENV_MAX, 'premium', 3).title, dragged(ENV_MAX, 'premium', 3).line], ['Max', 'Our most thorough build. Max plan only.'], 'dragging to Max on the Max plan says its live line')
-  assert.deepEqual([dragged(ENV_MAX, 'pro', 2).title, dragged(ENV_MAX, 'pro', 2).line], ['Best', 'A deeper build, planned and written in one pass. Pro and Max plans.'], 'dragging to Best says its live line')
+  assert.deepEqual([dragged(ENV_MAX, 'pro', 2).title, dragged(ENV_MAX, 'pro', 2).line], ['Best', 'A deeper build in one pass. Pro and Max plans.'], 'dragging to Best says its live line')
   assert.deepEqual([dragged(ENV_PREVIEW, 'pro', 3).title, dragged(ENV_PREVIEW, 'pro', 3).line], ['Max', 'Coming soon: runs as Balanced for now.'], 'no live flag: dragging to Max says what it said before')
   assert.equal(dragged(ENV_BEST, 'premium', 3).line, 'Coming soon: runs as Balanced for now.', 'DIRECT_LIVE only: Max still says coming soon')
   return { off, offDigest: hashOff.digest('hex') }
@@ -599,12 +608,16 @@ const libMutants = [
   ['lib: Best is live whenever the preview is', M(LIB, 'flags.direct && flags.bestLive === true', 'flags.direct')],
   // the words
   ['lib: Best and Max swap their words', M(LIB, "level === 'best' && bestIsLive(flags) ? LEVEL_COPY_LIVE.best : level === 'max' && maxIsLive(flags) ? LEVEL_COPY_LIVE.max", "level === 'best' && bestIsLive(flags) ? LEVEL_COPY_LIVE.max : level === 'max' && maxIsLive(flags) ? LEVEL_COPY_LIVE.best")],
-  ['lib: Best\'s words are cut short', M(LIB, "best: 'A deeper build, planned and written in one pass. Pro and Max plans.'", "best: 'A deeper build.'")],
+  ['lib: Best\'s words are cut short', M(LIB, "best: 'A deeper build in one pass. Pro and Max plans.'", "best: 'A deeper build.'")],
   ['lib: Max\'s words are reworded', M(LIB, "max: 'Our most thorough build. Max plan only.'", "max: 'Our most thorough build. Max plans only.'")],
   ['lib: the Pro refusal is reworded', M(LIB, "maxPlan: 'Max is on the Max plan.'", "maxPlan: 'Max needs the Max plan.'")],
-  ['lib: Best\'s words name a model', M(LIB, "best: 'A deeper build, planned and written in one pass. Pro and Max plans.'", "best: 'A deeper build with a stronger model, planned and written in one pass. Pro and Max plans.'")],
+  ['lib: Best\'s words are the old, longer line (68 characters)', M(LIB, "best: 'A deeper build in one pass. Pro and Max plans.'", "best: 'A deeper build, planned and written in one pass. Pro and Max plans.'")],
+  ['lib: Best\'s words are 61 characters', M(LIB, "best: 'A deeper build in one pass. Pro and Max plans.'", `best: '${'A deeper build in one pass. Pro and Max plans.'.padEnd(61, '.')}'`)],
+  ['lib: Max\'s words are 61 characters', M(LIB, "max: 'Our most thorough build. Max plan only.'", `max: '${'Our most thorough build. Max plan only.'.padEnd(61, '.')}'`)],
+  ['lib: the Pro refusal is 61 characters', M(LIB, "maxPlan: 'Max is on the Max plan.'", `maxPlan: '${'Max is on the Max plan.'.padEnd(61, '.')}'`)],
+  ['lib: Best\'s words name a model', M(LIB, "best: 'A deeper build in one pass. Pro and Max plans.'", "best: 'A deeper build with a stronger model, planned and written in one pass. Pro and Max plans.'")],
   ['lib: Max\'s words name a price', M(LIB, "max: 'Our most thorough build. Max plan only.'", "max: 'Our most thorough build. Max plan only, $40.'")],
-  ['lib: Best\'s words still say coming soon', M(LIB, "best: 'A deeper build, planned and written in one pass. Pro and Max plans.'", "best: 'Coming soon: a deeper build. Pro and Max plans.'")],
+  ['lib: Best\'s words still say coming soon', M(LIB, "best: 'A deeper build in one pass. Pro and Max plans.'", "best: 'Coming soon: a deeper build. Pro and Max plans.'")],
   ['lib: the base words are edited (best)', M(LIB, "    best: 'Coming soon: runs as Balanced for now.',", "    best: 'Coming soon.',")],
   ['lib: the base words are edited (max)', M(LIB, "    max: 'Coming soon: runs as Balanced for now.',", "    max: 'Coming soon: runs as Balanced.',")],
   ['lib: the base coming-soon note is edited', M(LIB, "  comingSoon: 'Coming soon: runs as Balanced for now.',", "  comingSoon: 'Soon.',")],
@@ -644,6 +657,11 @@ const libMutants = [
 ]
 const SOURCE_MUTANTS = new Set(['lib: a new import', 'lib: a second read of DIRECT_LIVE', 'lib: a dynamic env read', 'lib: an unmarked line is added', 'lib: a base line is lost (a comment)', 'lib: a base line is lost (code)', 'lib: a base line is rewritten without a pair', 'lib: a secret'])
 for (const [label, texts] of libMutants) await mutant(label, () => (SOURCE_MUTANTS.has(label) ? sources(texts) : behaviour(texts)))
+// the length check ALONE catches a line over the popover's 60 characters (the exact-words checks are not run on these)
+await mutant('length: Best\'s words at 61 characters (the length check alone)', () => lengthChecks(M(LIB, "best: 'A deeper build in one pass. Pro and Max plans.'", `best: '${'A deeper build in one pass. Pro and Max plans.'.padEnd(61, '.')}'`)))
+await mutant('length: Max\'s words at 61 characters (the length check alone)', () => lengthChecks(M(LIB, "max: 'Our most thorough build. Max plan only.'", `max: '${'Our most thorough build. Max plan only.'.padEnd(61, '.')}'`)))
+await mutant('length: the Pro refusal at 61 characters (the length check alone)', () => lengthChecks(M(LIB, "maxPlan: 'Max is on the Max plan.'", `maxPlan: '${'Max is on the Max plan.'.padEnd(61, '.')}'`)))
+await mutant('length: Best\'s old 68-character line (the length check alone)', () => lengthChecks(M(LIB, "best: 'A deeper build in one pass. Pro and Max plans.'", "best: 'A deeper build, planned and written in one pass. Pro and Max plans.'")))
 // the other files: touching them is caught
 await mutant('picker: the component is edited', () => untouchedChecks({ ...TEXTS, [PICKER]: TEXTS[PICKER] + '// LEVELS-DIRECT-LIVE\n' }))
 await mutant('page: the Builder page is edited', () => untouchedChecks({ ...TEXTS, [PAGE]: TEXTS[PAGE] + '// LEVELS-DIRECT-LIVE\n' }))

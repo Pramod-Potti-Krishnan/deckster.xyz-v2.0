@@ -52,7 +52,7 @@ export const LEVEL_COPY = {
   busyNote: 'The level cannot change while the agent build is running.',
 } as const
 /** LEVELS-DIRECT-LIVE: when Director's direct route for a level is switched on (Best: NEXT_PUBLIC_STUDIO_THINKING_LEVELS_DIRECT_LIVE; Max: NEXT_PUBLIC_STUDIO_THINKING_LEVELS_MAX_LIVE as well) the level stops saying "coming soon" and says these words instead. LEVEL_COPY above is every other state's words, untouched. Plain words, never a model, provider, router or price. */
-export const LEVEL_COPY_LIVE = { best: 'A deeper build, planned and written in one pass. Pro and Max plans.', max: 'Our most thorough build. Max plan only.', maxPlan: 'Max is on the Max plan.' } as const // LEVELS-DIRECT-LIVE
+export const LEVEL_COPY_LIVE = { best: 'A deeper build in one pass. Pro and Max plans.', max: 'Our most thorough build. Max plan only.', maxPlan: 'Max is on the Max plan.' } as const // LEVELS-DIRECT-LIVE
 export const bestIsLive = (flags: ThinkingFlags): boolean => flags.direct && flags.bestLive === true // LEVELS-DIRECT-LIVE: the direct preview is on and so is Best's live flag
 export const maxIsLive = (flags: ThinkingFlags): boolean => bestIsLive(flags) && flags.maxLive === true // LEVELS-DIRECT-LIVE: Best is live and so is Max's own flag
 export const liveLine = (level: ThinkingLevel, flags: ThinkingFlags): string | null => (level === 'best' && bestIsLive(flags) ? LEVEL_COPY_LIVE.best : level === 'max' && maxIsLive(flags) ? LEVEL_COPY_LIVE.max : null) // LEVELS-DIRECT-LIVE: the words of a level that is live under these flags, else null (then LEVEL_COPY.line is the level's line, as before)
