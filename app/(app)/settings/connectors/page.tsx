@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast"
 import { DriveRemoveButton } from "@/components/settings/gdrive-remove-item"
 import { removeDriveItem } from "@/lib/connectors-gdrive-remove"
 import { driveFileHref } from "@/lib/connectors-gdrive-citations"
+import { STUDIO_CONNECTORS_CARD_REASONS, gdriveFailureDetail, gdriveResultLine, takeGdriveResultWord } from "@/lib/studio-connectors-card-reasons" // CARD-REASONS
 
 export const dynamic = "force-dynamic"
 
@@ -28,16 +29,28 @@ function GoogleDriveCard() {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const { toast } = useToast()
+  const [resultLine, setResultLine] = useState<string | null>(null) // CARD-REASONS (NEXT_PUBLIC_STUDIO_CONNECTORS_CARD_REASONS, default off): the one line for how the Google sign-in ended (from the callback's ?gdrive= word, read once on mount)
+  const [listDetail, setListDetail] = useState<string | null>(null) // CARD-REASONS: the small print of a failed list call (code: <error_code> or service error <status>)
 
   const load = useCallback(async () => {
     try {
       const res = await fetch("/api/connectors/gdrive/items", { cache: "no-store" })
       const data = await res.json().catch(() => ({}))
+      if (STUDIO_CONNECTORS_CARD_REASONS && !res.ok) setListDetail(gdriveFailureDetail(res.status, data)) // CARD-REASONS: a failed list call keeps its words (the line below) and gains small print: the relayed CONNECTOR_ code, else the HTTP status (it goes when the message does: the effect below)
       if (!res.ok) { setMessage(data.error || "Could not load Google Drive."); return }
       setState(data)
     } catch { setMessage("Could not load Google Drive. Please try again.") }
   }, [])
   useEffect(() => { void load() }, [load])
+  useEffect(() => { // CARD-REASONS (NEXT_PUBLIC_STUDIO_CONNECTORS_CARD_REASONS, default off): once, on mount, the callback's ?gdrive= word becomes one fixed sentence on the card (any other value: nothing) and is taken off the address bar, so a reload or a shared address does not say it again
+    if (!STUDIO_CONNECTORS_CARD_REASONS) return // CARD-REASONS: flag off, nothing here runs
+    const taken = takeGdriveResultWord(window.location.search) // CARD-REASONS: the Settings landing carries no one-time marker (the callback adds one only when it returns to a chat), so none is asked for here; the composer's marker rule is not touched
+    const line = gdriveResultLine(taken.word) // CARD-REASONS
+    if (line) setResultLine(line) // CARD-REASONS: only a line is ever set here, so a second run of this effect (Strict Mode's re-mount in development), which finds the word already gone, leaves it
+    if (taken.found) { try { window.history.replaceState(null, "", `${window.location.pathname}${taken.search}${window.location.hash}`) } catch { /* the word stays in the address bar; this page view still says it once */ } } // CARD-REASONS: the word comes off the address bar (the composer does the same for its own return)
+  }, []) // CARD-REASONS
+  useEffect(() => { if (STUDIO_CONNECTORS_CARD_REASONS && busy) setResultLine(null) }, [busy]) // CARD-REASONS: the person acted (Add files, Disconnect, Remove): the line was read, and it does not come back (it is set on mount only)
+  useEffect(() => { if (STUDIO_CONNECTORS_CARD_REASONS && message === null) setListDetail(null) }, [message]) // CARD-REASONS: the small print belongs to its own message and goes when the message does
 
   const run = async (fn: () => Promise<void>) => { setBusy(true); setMessage(null); try { await fn() } catch (e) { setMessage(e instanceof Error ? e.message : "Something went wrong.") } finally { setBusy(false) } }
   const addFiles = () => run(async () => {
@@ -67,7 +80,9 @@ function GoogleDriveCard() {
         <CardDescription>Pick individual files to use as research sources. Deckster can read only the files you pick.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {STUDIO_CONNECTORS_CARD_REASONS && resultLine && <Alert data-connectors-gdrive-result="true"><AlertDescription>{resultLine}</AlertDescription></Alert>}{/* CARD-REASONS: how the Google sign-in ended, one fixed sentence */}
         {message && <Alert><AlertDescription>{message}</AlertDescription></Alert>}
+        {STUDIO_CONNECTORS_CARD_REASONS && message && listDetail && <p className="text-xs text-slate-500 dark:text-slate-400" style={{ marginTop: "0.25rem" }} data-connectors-gdrive-detail="true">{listDetail}</p>}{/* CARD-REASONS: small print for a failed list call, under its message */}
         <div className="flex flex-wrap gap-2">
           {state?.connected ? (
             <>

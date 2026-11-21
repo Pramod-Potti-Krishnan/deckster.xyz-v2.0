@@ -38,12 +38,14 @@ import ts from 'typescript'
 import { Root } from './studio-chat-harness/mini-react.mjs'
 import * as stripModule from './studio-replace-picture-strip.mjs'
 import * as registry from './studio-later-changes.mjs'
+import { stripReplacePictureHeroOnly, HERO_ONLY_FILES } from './studio-replace-picture-hero-only-strip.mjs' // LATER-CHANGES: registry read (REPLACE-PICTURE-HERO-ONLY): the hero-only change (stacked after this change) marks lines in this change's lib, hook and control; this proof reads them as this change left them
 
 const { BASE_COMMIT, REPLACE_PICTURE_SCOPE_FILES: SCOPE, REPLACE_PICTURE_NEW_FILES: NEW_FILES, REPLACE_PICTURE_FILES: APP_FILES, REPLACE_PICTURE_MARKER_RE: MARKER_RE, REPLACE_PICTURE_ENV_BLOCK: ENV_BLOCK, REPLACE_PICTURE_SUBJECT: SUBJECT, REPLACE_PICTURE_EDITS: EDITS, REPLACE_PICTURE_FLAGS: FLAGS } = stripModule
 const STRIP_FN = stripModule.stripReplacePicture
 const FLAG = FLAGS[0]
 
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
+{ const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && HERO_ONLY_FILES.includes(rel) ? stripReplacePictureHeroOnly(rel, out) : out } } // LATER-CHANGES: registry read (REPLACE-PICTURE-HERO-ONLY): every read of a file the hero-only change marks goes through that change's own strip (never the registry), so this proof sees the file as this change left it
 const nodeRequire = createRequire(path.join(root, 'package.json'))
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000 })

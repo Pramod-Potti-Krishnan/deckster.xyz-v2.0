@@ -19,7 +19,9 @@ import {
   type ReplacePictureOutcome,
   type ReplacePictureStage,
 } from "@/lib/studio-replace-picture"
+import { STUDIO_REPLACE_PICTURE_HERO_ONLY } from "@/lib/studio-replace-picture-hero-only" // REPLACE-PICTURE-HERO-ONLY
 import "./replace-picture.css"
+import "./replace-picture-hero-only.css" // REPLACE-PICTURE-HERO-ONLY
 
 export interface ReplacePictureControlProps {
   /** Why the action is off right now, in plain words; null when it can be used. */
@@ -125,6 +127,7 @@ export function ReplacePictureControl({ reason, slideNumber, slideTitle, picture
         <DialogContent
           data-studio-replace-picture="dialog"
           data-phase={phase}
+          {...(STUDIO_REPLACE_PICTURE_HERO_ONLY ? { "data-studio-replace-picture-layer": "front" } : {})} // REPLACE-PICTURE-HERO-ONLY (NEXT_PUBLIC_STUDIO_REPLACE_PICTURE_HERO_ONLY, default off): the dialog and its overlay are in front of the viewer from the first frame (replace-picture-hero-only.css); flag off, no attribute
           onEscapeKeyDown={event => { if (running) event.preventDefault() }}
           onPointerDownOutside={event => { if (running) event.preventDefault() }}
           onInteractOutside={event => { if (running) event.preventDefault() }}

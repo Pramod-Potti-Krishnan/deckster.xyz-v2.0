@@ -1,0 +1,10 @@
+/* REPLACE-PICTURE-HERO-ONLY (NEXT_PUBLIC_STUDIO_REPLACE_PICTURE_HERO_ONLY): the Replace picture dialog and its overlay are in front of the viewer from the first frame. Every rule needs [data-studio-replace-picture-layer="front"], an attribute
+   the control sets on the dialog only while the flag is on, so with the flag off nothing here matches anything. The overlay is the dialog's previous sibling (the shadcn Dialog renders the overlay and the content one after the other in the same portal)
+   and has no hook of its own, hence :has(+ ...).
+   Why: the shadcn Dialog draws both at z-50 and ENTERS them with a 200 ms fade (fade-in-0 + zoom-in-95 + slide-in), so for the first frames the dialog is see-through and the bright slide iframe shows through it and over the dim overlay: the dialog
+   reads as if it were behind the viewer until the fade ends. Here both are opaque from the first frame (the entrance animation is off while open; the close fade is kept) and sit at 90 / 91, above the phone overlays (51) and below the toast and the
+   tooltip (100), as the shell's own layers inside its isolated workspace cannot reach past the root's 50 anyway. */
+div:has(+ [data-studio-replace-picture-layer="front"]) { z-index: 90; }
+[data-studio-replace-picture="dialog"][data-studio-replace-picture-layer="front"] { z-index: 91; }
+div[data-state="open"]:has(+ [data-studio-replace-picture-layer="front"]),
+[data-studio-replace-picture="dialog"][data-studio-replace-picture-layer="front"][data-state="open"] { animation: none; }

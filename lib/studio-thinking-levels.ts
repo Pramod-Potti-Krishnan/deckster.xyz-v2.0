@@ -28,9 +28,13 @@ export const studioThinkingLevelsOn = (levels: string | undefined, agent: string
 export const studioThinkingDirectPreviewOn = (preview: string | undefined, levelsOn: boolean): boolean => levelsOn && preview === 'true'
 export const STUDIO_THINKING_LEVELS_ENABLED = studioThinkingLevelsOn(process.env.NEXT_PUBLIC_STUDIO_THINKING_LEVELS, process.env.NEXT_PUBLIC_AGENT_MODE, process.env.NEXT_PUBLIC_STUDIO_V4_SHELL, process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN)
 export const STUDIO_THINKING_LEVELS_DIRECT_PREVIEW = studioThinkingDirectPreviewOn(process.env.NEXT_PUBLIC_STUDIO_THINKING_LEVELS_DIRECT_PREVIEW, STUDIO_THINKING_LEVELS_ENABLED)
+export const studioThinkingDirectLiveOn = (live: string | undefined, directPreviewOn: boolean): boolean => directPreviewOn && live === 'true' // LEVELS-DIRECT-LIVE: Best is live (Director's direct route is on): exact "true", and only where the direct preview counts
+export const studioThinkingMaxLiveOn = (live: string | undefined, directLiveOn: boolean): boolean => directLiveOn && live === 'true' // LEVELS-DIRECT-LIVE: Max is live: exact "true", and only where Best is live
+export const STUDIO_THINKING_LEVELS_DIRECT_LIVE = studioThinkingDirectLiveOn(process.env.NEXT_PUBLIC_STUDIO_THINKING_LEVELS_DIRECT_LIVE, STUDIO_THINKING_LEVELS_DIRECT_PREVIEW) // LEVELS-DIRECT-LIVE
+export const STUDIO_THINKING_LEVELS_MAX_LIVE = studioThinkingMaxLiveOn(process.env.NEXT_PUBLIC_STUDIO_THINKING_LEVELS_MAX_LIVE, STUDIO_THINKING_LEVELS_DIRECT_LIVE) // LEVELS-DIRECT-LIVE
 
-export interface ThinkingFlags { levels: boolean; direct: boolean }
-const FLAGS_NOW: ThinkingFlags = { levels: STUDIO_THINKING_LEVELS_ENABLED, direct: STUDIO_THINKING_LEVELS_DIRECT_PREVIEW }
+export interface ThinkingFlags { levels: boolean; direct: boolean; bestLive?: boolean; maxLive?: boolean } // LEVELS-DIRECT-LIVE: bestLive and maxLive are optional and read false when missing
+const FLAGS_NOW: ThinkingFlags = { levels: STUDIO_THINKING_LEVELS_ENABLED, direct: STUDIO_THINKING_LEVELS_DIRECT_PREVIEW, bestLive: STUDIO_THINKING_LEVELS_DIRECT_LIVE, maxLive: STUDIO_THINKING_LEVELS_MAX_LIVE } // LEVELS-DIRECT-LIVE
 
 // ---- the words (one place, so a proof can read every string the picker can say; plain words, never a model, provider, router or price) ------------------------------------------------------------------------------
 export const LEVEL_COPY = {
@@ -47,6 +51,11 @@ export const LEVEL_COPY = {
   resetLabel: 'Auto: Deckster chooses',
   busyNote: 'The level cannot change while the agent build is running.',
 } as const
+/** LEVELS-DIRECT-LIVE: when Director's direct route for a level is switched on (Best: NEXT_PUBLIC_STUDIO_THINKING_LEVELS_DIRECT_LIVE; Max: NEXT_PUBLIC_STUDIO_THINKING_LEVELS_MAX_LIVE as well) the level stops saying "coming soon" and says these words instead. LEVEL_COPY above is every other state's words, untouched. Plain words, never a model, provider, router or price. */
+export const LEVEL_COPY_LIVE = { best: 'A deeper build in one pass. Pro and Max plans.', max: 'Our most thorough build. Max plan only.', maxPlan: 'Max is on the Max plan.' } as const // LEVELS-DIRECT-LIVE
+export const bestIsLive = (flags: ThinkingFlags): boolean => flags.direct && flags.bestLive === true // LEVELS-DIRECT-LIVE: the direct preview is on and so is Best's live flag
+export const maxIsLive = (flags: ThinkingFlags): boolean => bestIsLive(flags) && flags.maxLive === true // LEVELS-DIRECT-LIVE: Best is live and so is Max's own flag
+export const liveLine = (level: ThinkingLevel, flags: ThinkingFlags): string | null => (level === 'best' && bestIsLive(flags) ? LEVEL_COPY_LIVE.best : level === 'max' && maxIsLive(flags) ? LEVEL_COPY_LIVE.max : null) // LEVELS-DIRECT-LIVE: the words of a level that is live under these flags, else null (then LEVEL_COPY.line is the level's line, as before)
 
 // ---- what each position does to the build -------------------------------------------------------------------------------------------------------------------------------------------------------------------
 /** The build mode a level drives: Balanced, and Best and Max (which run as Balanced until their own route exists) are the Agent build; Auto and Fast are the linear one. */
@@ -57,26 +66,27 @@ const isLevel = (value: unknown): value is ThinkingLevel => typeof value === 'st
 
 export interface ThinkingStopView { id: ThinkingStop; label: string; disabled: boolean; comingSoon: boolean }
 /** Why a level cannot be picked on this plan, in the Agent shell's own words (Free, Starter, and a plan that is not loaded yet); null when it can. */
-export function levelRefusal(level: ThinkingLevel, plan: AgentPlan | null | undefined): string | null {
+export function levelRefusal(level: ThinkingLevel, plan: AgentPlan | null | undefined, flags: ThinkingFlags = FLAGS_NOW): string | null { // LEVELS-DIRECT-LIVE: flags
+  if (level === 'max' && plan === 'pro' && maxIsLive(flags)) return LEVEL_COPY_LIVE.maxPlan // LEVELS-DIRECT-LIVE: with Max live it is on the Max plan only (Director's route for it needs that plan): a Pro user sees it disabled with these words; Free, Starter and a plan not loaded keep the Agent shell's reasons below
   if (!levelNeedsAgent(level) || agentEligible(plan)) return null
   return plan ? AGENT_COPY.reasonPlan : AGENT_COPY.reasonUnknownPlan
 }
 /** The stops on the scale: Fast, Balanced, and Best and Max only with the direct preview. A stop the plan cannot use is shown and disabled; Best and Max are marked as coming soon. */
 export function thinkingStops(plan: AgentPlan | null | undefined, flags: ThinkingFlags = FLAGS_NOW): ThinkingStopView[] {
-  return THINKING_STOPS.filter(stop => flags.direct || !THINKING_DIRECT_STOPS.includes(stop)).map(stop => ({ id: stop, label: LEVEL_COPY.label[stop], disabled: levelRefusal(stop, plan) !== null, comingSoon: THINKING_DIRECT_STOPS.includes(stop) }))
+  return THINKING_STOPS.filter(stop => flags.direct || !THINKING_DIRECT_STOPS.includes(stop)).map(stop => ({ id: stop, label: LEVEL_COPY.label[stop], disabled: levelRefusal(stop, plan, flags) !== null, comingSoon: THINKING_DIRECT_STOPS.includes(stop) && liveLine(stop, flags) === null })) // LEVELS-DIRECT-LIVE: a level whose direct route is live is not marked coming soon
 }
 /** What a pick does, or null when it is refused (the flag is off, a level that is not on the scale, a plan that cannot use it): the level the page keeps, and the build mode it drives. */
 export function levelPick(level: unknown, plan: AgentPlan | null | undefined, flags: ThinkingFlags = FLAGS_NOW): { level: ThinkingLevel; mode: BuildMode } | null {
   if (!flags.levels || !isLevel(level)) return null
   if (level !== 'auto' && !thinkingStops(plan, flags).some(stop => stop.id === level)) return null
-  if (levelRefusal(level, plan) !== null) return null
+  if (levelRefusal(level, plan, flags) !== null) return null // LEVELS-DIRECT-LIVE: the refusal the scale shows
   return { level, mode: levelBuildMode(level) }
 }
 /** The level the picker shows, given the one the page kept and the build mode it holds now: a kept level whose mode is not the page's any more (a run finished, another session) reads as Auto. */
 export const effectiveLevel = (level: ThinkingLevel, mode: BuildMode): ThinkingLevel => (levelBuildMode(level) === mode ? level : 'auto')
 // ---- what the picker shows ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 /** The line under a position's name: the plan's reason where it cannot be used, "coming soon" for the direct levels, else the level's own line. */
-export const stopLine = (level: ThinkingLevel, plan: AgentPlan | null | undefined): string => levelRefusal(level, plan) ?? LEVEL_COPY.line[level]
+export const stopLine = (level: ThinkingLevel, plan: AgentPlan | null | undefined, flags: ThinkingFlags = FLAGS_NOW): string => levelRefusal(level, plan, flags) ?? liveLine(level, flags) ?? LEVEL_COPY.line[level] // LEVELS-DIRECT-LIVE: a live level's own words come before the "coming soon" line
 export interface ThinkingView {
   stops: ThinkingStopView[]
   /** The thumb's stop, or -1 on Auto (no thumb: the picker rests there). */
@@ -94,7 +104,7 @@ export function thinkingView(level: ThinkingLevel, plan: AgentPlan | null | unde
   const index = stops.findIndex(stop => stop.id === level)
   const shown: ThinkingLevel = index >= 0 ? level : 'auto'
   return {
-    stops, index, thumb: index >= 0 ? 'selected' : 'none', title: LEVEL_COPY.label[shown], line: stopLine(shown, plan),
-    valueText: `${LEVEL_COPY.label[shown]}. ${stopLine(shown, plan)}`, resetLabel: LEVEL_COPY.resetLabel, resetEnabled: shown !== 'auto',
+    stops, index, thumb: index >= 0 ? 'selected' : 'none', title: LEVEL_COPY.label[shown], line: stopLine(shown, plan, flags), // LEVELS-DIRECT-LIVE
+    valueText: `${LEVEL_COPY.label[shown]}. ${stopLine(shown, plan, flags)}`, resetLabel: LEVEL_COPY.resetLabel, resetEnabled: shown !== 'auto', // LEVELS-DIRECT-LIVE
   }
 }
