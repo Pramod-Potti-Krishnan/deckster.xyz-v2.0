@@ -110,6 +110,10 @@ export const UPLOAD_FORMATS_PIN_EDITS = {
   ],
   "scripts/test-studio-research-by-level.mjs": [
     [
+      "import { UAT_MARKETING_V4_SCOPE_FILES } from './studio-uat-marketing-v4-strip.mjs' // RESEARCH-BY-LEVEL (S67): uat's own marketing-v4 site, the set the uat marketing registry names; read by check F's whole-range scope only; LATER-CHANGES: registry read (STUDIO-UPLOAD-FORMATS): taught to that change's pin with the other lines of this proof\n",
+      ""
+    ],
+    [
       "import { stripUploadFormats, UPLOAD_FORMATS_READ_FILES, UPLOAD_FORMATS_SCOPE_FILES } from './studio-upload-formats-strip.mjs' // LATER-CHANGES: registry read (STUDIO-UPLOAD-FORMATS): the Studio upload formats change (stacked after this change) marks lines in the composer and adds a block, three registry lines and a splice line to files this proof holds to this change's own bytes; this proof reads them as this change left them\n",
       ""
     ],
@@ -118,12 +122,24 @@ export const UPLOAD_FORMATS_PIN_EDITS = {
       ""
     ],
     [
+      "const wholeRangeOutside = (names, marketing = UAT_MARKETING_V4_SCOPE_FILES) => names.filter(Boolean).filter(rel => !SCOPE.has(rel) && !UPLOAD_FORMATS_SCOPE_FILES.has(rel) && !marketing.has(rel)).sort() // RESEARCH-BY-LEVEL (S67): the committed files of BASE..HEAD that no scope names; a promotion merge of dev into uat carries uat's own marketing-v4 commits, left out by exact path (the uat marketing registry's set), never by prefix and never every later change's files; LATER-CHANGES: registry read (STUDIO-UPLOAD-FORMATS): taught to that change's pin with the other lines of this proof\n",
+      ""
+    ],
+    [
       "  assert.ok(registry.LATER_STRIPS.includes(STRIP_FN) && registry.LATER_STRIPS.slice(registry.LATER_STRIPS.indexOf(STRIP_FN) + 1).every(strip => strip === stripUploadFormats), 'the strip runs last, but for the Studio upload formats change\\'s (the order the changes were stacked)') // LATER-CHANGES: registry read (STUDIO-UPLOAD-FORMATS): that change's strip is registered after this one\n",
       "  assert.equal(registry.LATER_STRIPS.at(-1), STRIP_FN, 'the strip runs last (the order the changes were stacked)')\n"
     ],
     [
-      "  assert.deepEqual(git('diff', '--name-only', `${BASE_COMMIT}..HEAD`).split('\\n').filter(Boolean).filter(rel => !SCOPE.has(rel) && !UPLOAD_FORMATS_SCOPE_FILES.has(rel)).sort(), [], 'over the whole committed range no file is outside the scope either') // LATER-CHANGES: registry read (STUDIO-UPLOAD-FORMATS): the files of the Studio upload formats change, stacked after this one, are its own\n",
+      "  assert.deepEqual(wholeRangeOutside(git('diff', '--name-only', `${BASE_COMMIT}..HEAD`).split('\\n')), [], 'over the whole committed range no file is outside the scope either') // LATER-CHANGES: registry read (STUDIO-UPLOAD-FORMATS): the files of the Studio upload formats change, stacked after this one, are its own; RESEARCH-BY-LEVEL (S67): so are, on a promotion merge of dev into uat, uat's own marketing-v4 files (see wholeRangeOutside)\n",
       "  assert.deepEqual(git('diff', '--name-only', `${BASE_COMMIT}..HEAD`).split('\\n').filter(Boolean).filter(rel => !SCOPE.has(rel)).sort(), [], 'over the whole committed range no file is outside the scope either')\n"
+    ],
+    [
+      "  assert.deepEqual(wholeRangeOutside([...UAT_MARKETING_V4_SCOPE_FILES, ...SCOPE, ...UPLOAD_FORMATS_SCOPE_FILES, 'lib/stray-file.ts', 'components/marketing/v4/not-uats-own.tsx']), ['components/marketing/v4/not-uats-own.tsx', 'lib/stray-file.ts'], 'a promotion merge: uat\\'s own marketing-v4 files, this change\\'s and the upload formats change\\'s are left out; a stray product file and a marketing path uat does not own are still named') // RESEARCH-BY-LEVEL (S67): the table row for the line above; LATER-CHANGES: registry read (STUDIO-UPLOAD-FORMATS): taught to that change's pin with the other lines of this proof\n",
+      ""
+    ],
+    [
+      "await mutant('scope: the whole-range check no longer leaves out uat\\'s own marketing files (a promotion merge)', () => assert.deepEqual(wholeRangeOutside([...UAT_MARKETING_V4_SCOPE_FILES], new Set()), [])) // RESEARCH-BY-LEVEL (S67): the filter dropped; LATER-CHANGES: registry read (STUDIO-UPLOAD-FORMATS): taught to that change's pin with the other lines of this proof\n",
+      ""
     ]
   ]
 }
