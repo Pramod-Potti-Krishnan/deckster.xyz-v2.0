@@ -24,6 +24,7 @@ import vm from 'node:vm'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
+import { stripStudioLocalFonts } from './studio-local-fonts-strip.mjs'
 import { stripApiHardening } from './studio-api-hardening-strip.mjs' // LATER-CHANGE: PROGRAM-1 API hardening (STUDIO_API_HARDENING_V1_ENABLED): its lines come out before this pin reads them
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -162,7 +163,8 @@ function proveContent(helperSource = SOURCES['lib/studio-uat-marketing.ts'], con
 // ---------------------------------------------------------------- 3. the copies are UAT's, with only the documented edits
 function proveCopies(sources = SOURCES, label = 'copies') {
   for (const [file, expected] of port.textOutputs()) {
-    eq(file in sources ? sources[file] : readFile(file), expected, `${label}: ${file} is what the port script makes`)
+    const source = file in sources ? sources[file] : readFile(file)
+    eq(stripStudioLocalFonts(file, source), expected, `${label}: ${file} is what the port script makes`)
   }
   eq(sources['lib/marketing/v3-uat-content.ts'], port.uatBlob('lib/marketing/v3-content.ts'), `${label}: the copy of UAT's content is byte-identical`)
   eq(sources['lib/marketing/v3-metadata.ts'], port.uatBlob('lib/marketing/v3-metadata.ts'), `${label}: v3-metadata is UAT's`)
@@ -219,7 +221,7 @@ const FROZEN = [
   'components/layout/Header.tsx', 'components/marketing/SnapDeck/SnapDeck.tsx', 'components/marketing/SnapDeck/SlideNavArrows.tsx', 'middleware.ts',
 ]
 function proveIdentity(sources = SOURCES, label = 'identity') {
-  for (const file of Object.keys(port.ROUTE_EDITS)) eq(port.routeUndo(file, sources[file]), port.baseBlob(file), `${label}: ${file}: undoing the dispatch gives the base commit's file back byte for byte`)
+  for (const file of Object.keys(port.ROUTE_EDITS)) eq(port.routeUndo(file, stripStudioLocalFonts(file, sources[file])), port.baseBlob(file), `${label}: ${file}: undoing the dispatch gives the base commit's file back byte for byte`)
   for (const file of FROZEN) eq(readFile(file), port.baseBlob(file), `${label}: ${file} is the base commit's, byte for byte`)
   // the edits are additions around the base's own lines: every base line is still there, in order
   for (const file of Object.keys(port.ROUTE_EDITS)) {
@@ -280,9 +282,10 @@ async function proveDispatch(sources = SOURCES, label = 'dispatch') {
   eq(readFlag('true'), true, `${label}: the flag object is on for "true"`)
   for (const value of OFF_SPELLINGS) eq(readFlag(value), false, `${label}: the flag object is off for ${JSON.stringify(value)}`)
   // the layout
-  const fonts = { Bricolage_Grotesque: () => ({ variable: 'v1' }), Instrument_Sans: () => ({ variable: 'v2' }), Instrument_Serif: () => ({ variable: 'v3' }), Inter: () => ({ variable: 'v4' }), JetBrains_Mono: () => ({ variable: 'v5' }) }
+  const variables = { '--font-display': 'v1', '--font-body': 'v2', '--font-human': 'v3', '--font-inter': 'v4', '--font-mono': 'v5' }
+  const fonts = { __esModule: true, default: ({ variable }) => ({ variable: variables[variable] }) }
   const layoutFile = 'app/(marketing-v3)/layout.tsx'
-  const layout = value => load(sources[layoutFile], layoutFile, { env: value === undefined ? {} : { [FLAG]: value }, stubs: { 'next/font/google': fonts, '@/components/marketing/v3-uat/shell': { __esModule: true, UatMarketingShell: 'UatMarketingShell' } } }).default({ children: 'kids' })
+  const layout = value => load(sources[layoutFile], layoutFile, { env: value === undefined ? {} : { [FLAG]: value }, stubs: { 'next/font/local': fonts, '@/components/marketing/v3-uat/shell': { __esModule: true, UatMarketingShell: 'UatMarketingShell' } } }).default({ children: 'kids' })
   const shell = await layout('true')
   eq(shell?.type, 'UatMarketingShell', `${label}: layout: flag true, the UAT shell`)
   eq(shell?.props?.fonts, 'v1 v2 v3 v5 v4', `${label}: layout: the shell gets the layout's own font classes`)
