@@ -834,6 +834,16 @@ const STUDIO_NEW_SESSION_THEME_POLICY_ENABLED = COMPOSER_LIBRARY_ENABLED
 // short enough that a genuinely dead connection is reported promptly.
 const SEND_RECONNECT_TIMEOUT_MS = 12000;
 
+const STUDIO_RESEARCHER_OWNER_PROOF = process.env.NEXT_PUBLIC_STUDIO_RESEARCHER_OWNER_PROOF === 'true'; // D16-OWNER-PROOF
+const RESEARCHER_PROOF_TIMEOUT_MS = 3000; // D16-OWNER-PROOF
+function researcherProofField(response: { researcher_session_token?: unknown }) { // D16-OWNER-PROOF
+  const proof = response.researcher_session_token; // D16-OWNER-PROOF
+  return typeof proof === 'string' && proof ? { researcher_session_token: proof } : {}; // D16-OWNER-PROOF
+} // D16-OWNER-PROOF
+function researcherRefreshPayload(response: { auth_token: string; researcher_session_token?: unknown }) { // D16-OWNER-PROOF
+  const { researcher_session_token } = researcherProofField(response); // D16-OWNER-PROOF
+  return researcher_session_token ? { payload: { token: response.auth_token, researcher_session_token } } : {}; // D16-OWNER-PROOF
+} // D16-OWNER-PROOF
 export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = {}) {
   const { user } = useAuth();
 
@@ -1386,6 +1396,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         socket!.send(JSON.stringify({
           type: 'auth_refresh',
           payload: { token: body.auth_token },
+          ...(STUDIO_RESEARCHER_OWNER_PROOF && researcherRefreshPayload(body)), // D16-OWNER-PROOF
         }));
         // Browser send is not the server's auth_refreshed acknowledgement.
         debugLog('🔐 Director WS auth refresh sent; awaiting acknowledgement');
@@ -1395,6 +1406,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       } catch (refreshError) {
         if (!isCurrentRefresh()) return;
         // Retry once quickly; if the socket dies the reconnect path re-mints.
+        if (STUDIO_RESEARCHER_OWNER_PROOF) console.warn('[WS AUTH] Owner proof refresh failed, retrying shortly'); else // D16-OWNER-PROOF
         console.warn('[WS AUTH] Token refresh failed, retrying shortly:', refreshError);
         authRefreshTimerRef.current = setTimeout(
           () => { if (isCurrentRefresh()) scheduleAuthRefresh(expiresInSeconds); }, 30_000,
@@ -1419,6 +1431,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         socket!.send(JSON.stringify({ // WS-BQ-CLAIM
           type: 'auth_refresh', // WS-BQ-CLAIM
           payload: { token: body.auth_token }, // WS-BQ-CLAIM
+          ...(STUDIO_RESEARCHER_OWNER_PROOF && researcherRefreshPayload(body)), // D16-OWNER-PROOF
         })); // WS-BQ-CLAIM
         // WS-BQ-CLAIM: browser send is not the server's auth_refreshed acknowledgement.
         debugLog('🔐 Director WS auth refresh sent; awaiting acknowledgement'); // WS-BQ-CLAIM
@@ -1428,6 +1441,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       } catch (refreshError) { // WS-BQ-CLAIM
         if (!isCurrentRefresh()) return; // WS-BQ-CLAIM
         // WS-BQ-CLAIM: retry once quickly; if the socket dies the reconnect path re-mints.
+        if (STUDIO_RESEARCHER_OWNER_PROOF) console.warn('[WS AUTH] Owner proof refresh failed, retrying shortly'); else // D16-OWNER-PROOF
         console.warn('[WS AUTH] Token refresh failed, retrying shortly:', refreshError); // WS-BQ-CLAIM
         authRefreshTimerRef.current = setTimeout( // WS-BQ-CLAIM
           () => { if (isCurrentRefresh()) scheduleAuthRefresh(expiresInSeconds); }, 30_000, // WS-BQ-CLAIM
@@ -1776,6 +1790,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       void (async () => {
         let protocols: string[] | undefined;
         let expiresInSeconds: number | null = null;
+        let openOwnerProofFrame: { token: string; researcher_session_token: string } | undefined; // D16-OWNER-PROOF
 
         // Mint a short-lived, session-bound identity token and offer it as a
         // WebSocket subprotocol.
@@ -1806,12 +1821,19 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               // Never logged: the auth-bearing protocol carries the secret.
               protocols = ['deckster.v1', `deckster-auth.${tokenBody.auth_token}`];
               bqClaimActiveRef.current = tokenBody.bq_claim === true; // WS-BQ-CLAIM
+              if (STUDIO_RESEARCHER_OWNER_PROOF) { // D16-OWNER-PROOF
+                const { researcher_session_token } = researcherProofField(tokenBody); // D16-OWNER-PROOF
+                if (researcher_session_token) { // D16-OWNER-PROOF
+                  openOwnerProofFrame = { token: tokenBody.auth_token, researcher_session_token }; // D16-OWNER-PROOF
+                } // D16-OWNER-PROOF
+              } // D16-OWNER-PROOF
               expiresInSeconds =
                 typeof tokenBody.expires_in === 'number' ? tokenBody.expires_in : null;
               return { ok: true };
             }
             return { ok: false, reason: 'ws-token returned no token' };
           } catch (tokenError) {
+            if (STUDIO_RESEARCHER_OWNER_PROOF) return { ok: false, reason: 'ws-token unreachable' }; // D16-OWNER-PROOF
             return { ok: false, reason: `ws-token unreachable: ${String(tokenError)}` };
           }
         })();
@@ -1865,6 +1887,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         let socketSyncResponseSeen = false;
 
         ws.onopen = () => {
+          const openProof = openOwnerProofFrame; // D16-OWNER-PROOF
+          openOwnerProofFrame = undefined; // D16-OWNER-PROOF
           if (!isCurrentSocket()) {
             debugLog('⏭️ Ignoring open from stale WebSocket');
             try {
@@ -1875,6 +1899,13 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             return;
           }
 
+          if (openProof) { // D16-OWNER-PROOF
+            try { // D16-OWNER-PROOF
+              ws.send(JSON.stringify({ type: 'auth_refresh', payload: openProof })); // D16-OWNER-PROOF
+            } catch { // D16-OWNER-PROOF
+              // The transport owns reconnect; the next turn mints its own proof. // D16-OWNER-PROOF
+            } // D16-OWNER-PROOF
+          } // D16-OWNER-PROOF
           if (expiresInSeconds) scheduleAuthRefresh(expiresInSeconds);
           debugLog('✅ Connected to Director v3.4');
           socketSessionRef.current = socketSessionId;
@@ -3104,6 +3135,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         };
 
         ws.onclose = (event) => {
+          openOwnerProofFrame = undefined; // D16-OWNER-PROOF
           if (!isCurrentSocket()) {
             debugLog('⏭️ Ignoring close from stale WebSocket', {
               code: event.code,
@@ -3639,8 +3671,38 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       (isCurrentRequest?.() ?? true)
     );
     if (!origin.active || !origin.userId || !isCurrentTurn()) return false;
+    const sendTurnWithOwnerProof = async (socket: WebSocket) => { // D16-OWNER-PROOF
+      const isCurrentSocket = () => isCurrentTurn() && wsRef.current === socket && // D16-OWNER-PROOF
+        socket.readyState === WebSocket.OPEN && socketSessionRef.current === origin.sessionId; // D16-OWNER-PROOF
+      const abort = new AbortController(); // D16-OWNER-PROOF
+      const timeout = setTimeout(() => abort.abort(), RESEARCHER_PROOF_TIMEOUT_MS); // D16-OWNER-PROOF
+      try { // D16-OWNER-PROOF
+        const response = await fetch( // D16-OWNER-PROOF
+          `/api/director/ws-token?session_id=${encodeURIComponent(origin.sessionId)}`, // D16-OWNER-PROOF
+          { cache: 'no-store', signal: abort.signal }, // D16-OWNER-PROOF
+        ); // D16-OWNER-PROOF
+        if (response.ok && isCurrentSocket()) { // D16-OWNER-PROOF
+          const body = await response.json(); // D16-OWNER-PROOF
+          if (isCurrentSocket() && typeof body?.auth_token === 'string' && body.auth_token) { // D16-OWNER-PROOF
+            const { researcher_session_token } = researcherProofField(body); // D16-OWNER-PROOF
+            if (researcher_session_token) { // D16-OWNER-PROOF
+              socket.send(JSON.stringify({ // D16-OWNER-PROOF
+                type: 'auth_refresh', // D16-OWNER-PROOF
+                payload: { token: body.auth_token, researcher_session_token }, // D16-OWNER-PROOF
+              })); // D16-OWNER-PROOF
+            } // D16-OWNER-PROOF
+          } // D16-OWNER-PROOF
+        } // D16-OWNER-PROOF
+      } catch { // D16-OWNER-PROOF
+        // A failed proof may cost this turn its graph, never the turn itself. // D16-OWNER-PROOF
+      } finally { // D16-OWNER-PROOF
+        clearTimeout(timeout); // D16-OWNER-PROOF
+      } // D16-OWNER-PROOF
+      return isCurrentSocket() && sendMessage(text, storeName, fileCount, options); // D16-OWNER-PROOF
+    }; // D16-OWNER-PROOF
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       if (socketSessionRef.current !== origin.sessionId) return false;
+      if (STUDIO_RESEARCHER_OWNER_PROOF) return sendTurnWithOwnerProof(wsRef.current); // D16-OWNER-PROOF
       return sendMessage(text, storeName, fileCount, options);
     }
 
@@ -3662,6 +3724,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         await new Promise(resolve => setTimeout(resolve, 250));
         if (!isCurrentTurn() || wsRef.current !== readySocket ||
           readySocket.readyState !== WebSocket.OPEN || socketSessionRef.current !== origin.sessionId) return false;
+        if (STUDIO_RESEARCHER_OWNER_PROOF) return sendTurnWithOwnerProof(readySocket); // D16-OWNER-PROOF
         return sendMessage(text, storeName, fileCount, options);
       }
     }

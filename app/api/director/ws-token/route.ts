@@ -9,6 +9,7 @@ import { isWsBqClaimEnabled } from '@/lib/quota/build-quota'
 import { mintBuildQuotaClaim } from '@/lib/quota/build-quota-claim'
 import { getUserSubscription } from '@/lib/stripe/stripe-utils'
 import { requireApprovedUser } from '@/lib/api-hardening'
+import { mintResearcherSessionToken, researcherSessionTokenSecret } from '@/lib/researcher-session-token' // D16-OWNER-PROOF
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -104,6 +105,23 @@ export async function GET(request: NextRequest) {
   })
   const signature = createHmac('sha256', secret).update(payload).digest('base64url')
 
+  let researcherToken: string | undefined // D16-OWNER-PROOF
+  if (process.env.STUDIO_RESEARCHER_OWNER_PROOF_ENABLED === 'true') { // D16-OWNER-PROOF
+    try { // D16-OWNER-PROOF
+      const researcherSecret = researcherSessionTokenSecret() // D16-OWNER-PROOF
+      if (researcherSecret) { // D16-OWNER-PROOF
+        researcherToken = mintResearcherSessionToken({ // D16-OWNER-PROOF
+          secret: researcherSecret, // D16-OWNER-PROOF
+          sessionId, // D16-OWNER-PROOF
+          userId: session.user.id, // D16-OWNER-PROOF
+          ttlSeconds: TOKEN_TTL_SECONDS, // D16-OWNER-PROOF
+          nowSeconds: now, // D16-OWNER-PROOF
+        })?.token // D16-OWNER-PROOF
+      } // D16-OWNER-PROOF
+    } catch { // D16-OWNER-PROOF
+      // Researcher proof is optional. Director authentication still succeeds. // D16-OWNER-PROOF
+    } // D16-OWNER-PROOF
+  } // D16-OWNER-PROOF
   return NextResponse.json({
     auth_enabled: true,
     auth_token: `${payload}.${signature}`,
@@ -111,5 +129,6 @@ export async function GET(request: NextRequest) {
     // Tells the browser a claim rides in this token, so it re-mints on
     // redeem / top-up / checkout. Absent with the flag off.
     ...(bq ? { bq_claim: true } : {}),
+    ...(researcherToken ? { researcher_session_token: researcherToken } : {}), // D16-OWNER-PROOF
   })
 }
