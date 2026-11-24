@@ -128,6 +128,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-research-by-level-strip.mjs')).RESEARCH_BY_LEVEL_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, Research by level: moving the thinking-level picker to Best or Max turns web search on in a chat with no outline, and back off if this rule turned it on (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_BY_LEVEL)
   ...(await import('./studio-upload-formats-strip.mjs')).UPLOAD_FORMATS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, Upload formats: the composer's file picker and drop take only the formats the Researcher reads today, its data and source files too with a second flag once the Researcher's switch for them is on (NEXT_PUBLIC_STUDIO_UPLOAD_FORMATS_NARROW)
   ...(await import('./test-studio-researcher-owner-proof.mjs')).SCOPE_FILES, // LATER-CHANGE: Platform, D16 Studio WS owner proof (STUDIO_RESEARCHER_OWNER_PROOF_ENABLED / NEXT_PUBLIC_STUDIO_RESEARCHER_OWNER_PROOF)
+  ...(await import('./test-studio-compose-researcher-owner-proof.mjs')).COMPOSE_RESEARCHER_OWNER_PROOF_FILES, // LATER-CHANGE: Platform, D16 Studio REST compose owner proof (STUDIO_RESEARCHER_OWNER_PROOF_ENABLED)
   // one line per later change, above this comment
 ])
 
@@ -316,6 +317,7 @@ export const LATER_STRIPS = [
   (await import('./studio-research-by-level-strip.mjs')).stripResearchByLevel, // LATER-CHANGE: FRONTEND-1, Research by level: moving the thinking-level picker to Best or Max turns web search on in a chat with no outline, and back off if this rule turned it on (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_BY_LEVEL)
   (await import('./studio-upload-formats-strip.mjs')).stripUploadFormats, // LATER-CHANGE: FRONTEND-1, Upload formats: the composer's file picker and drop take only the formats the Researcher reads today, its data and source files too with a second flag once the Researcher's switch for them is on (NEXT_PUBLIC_STUDIO_UPLOAD_FORMATS_NARROW)
   (await import('./test-studio-researcher-owner-proof.mjs')).stripResearcherOwnerProof, // LATER-CHANGE: Platform, D16 Studio WS owner proof (STUDIO_RESEARCHER_OWNER_PROOF_ENABLED / NEXT_PUBLIC_STUDIO_RESEARCHER_OWNER_PROOF)
+  (await import('./test-studio-compose-researcher-owner-proof.mjs')).stripComposeResearcherOwnerProof, // LATER-CHANGE: Platform, D16 Studio REST compose owner proof (STUDIO_RESEARCHER_OWNER_PROOF_ENABLED)
   // one line per later change, above this comment
 ]
 

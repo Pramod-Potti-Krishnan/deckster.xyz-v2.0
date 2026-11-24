@@ -5,6 +5,8 @@ import { authOptions } from '@/lib/auth-options'
 import { kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
 import { composeEntitlementHeaders } from '@/lib/studio-compose-entitlement'
 import { COMPOSE_BODY_KEYS, isApiHardeningEnabled, pickAllowedKeys, requireApprovedUser, requireSessionOwner } from '@/lib/api-hardening'
+import { prisma } from '@/lib/prisma' // D16-COMPOSE-OWNER-PROOF
+import { isTokenClaim, mintResearcherSessionToken, RESEARCHER_SESSION_TOKEN_HEADER, researcherSessionTokenSecret } from '@/lib/researcher-session-token' // D16-COMPOSE-OWNER-PROOF
 
 export const maxDuration = 300
 
@@ -21,6 +23,27 @@ function directorBaseUrl(): string {
   ], { stripTrailingSlash: true })
 }
 
+async function composeResearcherProof(sessionId: unknown, accountId: unknown): Promise<Record<string, string>> { // D16-COMPOSE-OWNER-PROOF
+  if (!isTokenClaim(sessionId) || sessionId.trim() !== sessionId || // D16-COMPOSE-OWNER-PROOF
+      !isTokenClaim(accountId) || accountId.trim() !== accountId) return {} // D16-COMPOSE-OWNER-PROOF
+  const secret = researcherSessionTokenSecret() // D16-COMPOSE-OWNER-PROOF
+  if (!secret) return {} // D16-COMPOSE-OWNER-PROOF
+  // D16-COMPOSE-OWNER-PROOF
+  try { // D16-COMPOSE-OWNER-PROOF
+    const session = await prisma.chatSession.findUnique({ // D16-COMPOSE-OWNER-PROOF
+      where: { id: sessionId }, // D16-COMPOSE-OWNER-PROOF
+      select: { userId: true, status: true }, // D16-COMPOSE-OWNER-PROOF
+    }) // D16-COMPOSE-OWNER-PROOF
+    if (!session || session.userId !== accountId || session.status === 'deleted') return {} // D16-COMPOSE-OWNER-PROOF
+    // D16-COMPOSE-OWNER-PROOF
+    const proof = mintResearcherSessionToken({ secret, sessionId, userId: accountId, ttlSeconds: 15 * 60 }) // D16-COMPOSE-OWNER-PROOF
+    return proof ? { [RESEARCHER_SESSION_TOKEN_HEADER]: proof.token } : {} // D16-COMPOSE-OWNER-PROOF
+  } catch { // D16-COMPOSE-OWNER-PROOF
+    // An unavailable owner proof leaves this compose on its normal path. // D16-COMPOSE-OWNER-PROOF
+    return {} // D16-COMPOSE-OWNER-PROOF
+  } // D16-COMPOSE-OWNER-PROOF
+} // D16-COMPOSE-OWNER-PROOF
+  // D16-COMPOSE-OWNER-PROOF
 export async function POST(req: NextRequest) {
   // STUDIO_API_HARDENING_V1_ENABLED (server, default off): approved users only, read from the DB. Off, this returns null and nothing changes.
   const notApproved = await requireApprovedUser()
@@ -84,6 +107,10 @@ export async function POST(req: NextRequest) {
 
   // STUDIO_COMPOSE_ENTITLEMENT_ENABLED (stacked on #475): the signed X-Deckster-Entitlement Director !535 needs to bind this compose to its user. {} unless the flag is on, the id is canonical and valid.
   const entitlement = composeEntitlementHeaders(payload.user_id, canonicalUserId)
+  if (process.env.STUDIO_RESEARCHER_OWNER_PROOF_ENABLED === 'true' && sessionUser?.id === effectiveUserId) { // D16-COMPOSE-OWNER-PROOF
+    const proof = await composeResearcherProof(body.session_id, effectiveUserId) // D16-COMPOSE-OWNER-PROOF
+    directorHeaders = { ...directorHeaders, ...proof } // D16-COMPOSE-OWNER-PROOF
+  } // D16-COMPOSE-OWNER-PROOF
 
   try {
     const response = await fetch(`${directorBaseUrl()}/api/v1/slides/compose-one`, {
@@ -91,6 +118,7 @@ export async function POST(req: NextRequest) {
       headers: { ...directorHeaders, ...entitlement },
       body: JSON.stringify(payload),
       cache: 'no-store',
+      ...(directorHeaders[RESEARCHER_SESSION_TOKEN_HEADER] ? { redirect: 'error' } : {}), // D16-COMPOSE-OWNER-PROOF
     })
 
     const text = await response.text()
