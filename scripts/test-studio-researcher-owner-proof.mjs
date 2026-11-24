@@ -97,7 +97,7 @@ async function main() {
   assert.equal(foreign.status, 403, 'turned-on mint still enforces ownership with API hardening off')
   assert.equal(foreign.wire, '{"error":"Forbidden"}')
 
-  async function socketHarness(flag, initialSid = sid) {
+  async function socketHarness(flag, { failInitial = false } = {}) {
     const env = createEnvironment({
       processEnv: { ...BASE_ENV, [CLIENT]: flag, NEXT_PUBLIC_DIRECTOR_WS_URL: SYNTHETIC_WS_URL },
     })
@@ -129,6 +129,10 @@ async function main() {
           await wait
         }
       }
+      if (failInitial && mintNumber === 1) {
+        if (failInitial === 'malformed') return { ok: true, json: async () => { throw new SyntaxError(proof) } }
+        throw new Error('synthetic ws-token transport failure')
+      }
       if (failNext) {
         failNext = false
         throw new Error(proof)
@@ -156,7 +160,7 @@ async function main() {
     const { useDecksterWebSocketV2 } = loader.load(HOOK)
     const tree = new Root()
     function Probe({ sessionId }) {
-      latest = useDecksterWebSocketV2({ existingSessionId: sessionId, autoConnect: true })
+      latest = useDecksterWebSocketV2({ existingSessionId: sessionId, autoConnect: true, reconnectOnError: Boolean(failInitial) })
       return null
     }
     const settle = async () => {
@@ -167,8 +171,20 @@ async function main() {
     }
     env.settle = settle
     const mount = sessionId => tree.setElement(React.createElement(Probe, { sessionId }))
-    mount(initialSid)
+    mount(sid)
     await settle()
+    let initialFailure
+    if (failInitial) {
+      assert.equal(count, 1)
+      assert.equal(env.sockets.length, 0, 'a failed Director mint cannot open an unauthenticated socket')
+      initialFailure = {
+        connection: latest.connectionState,
+        reconnect: latest.reconnectStatus,
+        message: latest.error?.message,
+      }
+      await env.clock.advance(5_000, settle)
+      assert.equal(count, 2, 'the original scheduled reconnect retries once')
+    }
     if (!env.sockets.length) {
       latest.connect()
       await settle()
@@ -177,7 +193,7 @@ async function main() {
     env.sockets[0].serverOpen()
     await settle()
     return {
-      env, settle, mount, privateWrites,
+      env, settle, mount, privateWrites, initialFailure,
       mintCount: () => count,
       failMint: () => { failNext = true },
       omitProof: () => { omitProofNext = true },
@@ -234,6 +250,15 @@ async function main() {
   assert.deepEqual(cleanFrames(disabled), [message])
   assert.equal(disabled.mintCount(), 1, 'flag-off turn adds no fetch')
   assert.equal(JSON.stringify(disabled.env.outbound).includes(proof), false)
+
+  const failedOff = await socketHarness('false', { failInitial: true })
+  const failedOn = await socketHarness('true', { failInitial: true })
+  assert.equal(failedOn.initialFailure.reconnect, 'scheduled')
+  assert.deepEqual(failedOn.initialFailure, failedOff.initialFailure, 'Director mint failure uses the same retry and UI state with either flag')
+  assert.deepEqual(cleanFrames(failedOn), [refresh(2)], 'the retry opens an authenticated socket and sends the new proof first')
+  const malformedOn = await socketHarness('true', { failInitial: 'malformed' })
+  assert.deepEqual(malformedOn.initialFailure, failedOff.initialFailure)
+  assert.equal(JSON.stringify(malformedOn.env.consoleEvents).includes(proof), false, 'a malformed response can include proof in its parser error')
 
   const slow = await socketHarness('true')
   const endSlowMint = slow.pauseMint()
