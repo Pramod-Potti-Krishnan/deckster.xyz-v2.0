@@ -32,6 +32,7 @@ import * as heroOnlyStrip from './studio-replace-picture-hero-only-strip.mjs'
 import * as registry from './studio-later-changes.mjs'
 import { UAT_MARKETING_V4_SCOPE_FILES } from './studio-uat-marketing-v4-strip.mjs' // RESEARCH-BY-LEVEL (S67): uat's own marketing-v4 site, the set the uat marketing registry names; read by check F's whole-range scope only; LATER-CHANGES: registry read (STUDIO-UPLOAD-FORMATS): taught to that change's pin with the other lines of this proof
 import { stripUploadFormats, UPLOAD_FORMATS_READ_FILES, UPLOAD_FORMATS_SCOPE_FILES } from './studio-upload-formats-strip.mjs' // LATER-CHANGES: registry read (STUDIO-UPLOAD-FORMATS): the Studio upload formats change (stacked after this change) marks lines in the composer and adds a block, three registry lines and a splice line to files this proof holds to this change's own bytes; this proof reads them as this change left them
+import { ENV_BLOCK as D16_ENV_BLOCK, SCOPE_FILES as D16_SCOPE_FILES, stripResearcherOwnerProof } from './studio-researcher-owner-proof-strip.mjs' // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
 
 const { BASE_COMMIT, RESEARCH_BY_LEVEL_PIN_FILES: PIN_FILES, RESEARCH_BY_LEVEL_PIN_MARK: PIN_MARK, RESEARCH_BY_LEVEL_PIN_EDITS: PIN_EDITS, RESEARCH_BY_LEVEL_SCOPE_FILES: SCOPE, RESEARCH_BY_LEVEL_NEW_FILES: NEW_FILES, RESEARCH_BY_LEVEL_FILES: APP_FILES, RESEARCH_BY_LEVEL_MARKER_RE: MARKER_RE, RESEARCH_BY_LEVEL_ENV_BLOCK: ENV_BLOCK, RESEARCH_BY_LEVEL_SUBJECT: SUBJECT, RESEARCH_BY_LEVEL_EDITS: EDITS, RESEARCH_BY_LEVEL_FLAGS: FLAGS } = stripModule
 const STRIP_FN = stripModule.stripResearchByLevel
@@ -39,7 +40,27 @@ const [FLAG] = FLAGS
 
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const nodeRequire = createRequire(path.join(root, 'package.json'))
-const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const D16_PIN_FILES = new Set(['scripts/test-studio-chat-element-edit.mjs', 'scripts/test-studio-deck-sync-truth.mjs']) // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+const D16_PIN_LINE = "  shas.splice(0, shas.length, ...shas.filter(sha => !/^(?:Researcher owner proof:|(?:Add Studio Researcher owner proof to Director websocket refresh|Prove Director reconnect parity when owner proof is enabled|Pin Studio websocket proof to Researcher token source)$)/.test(git('log', '-1', '--format=%s', sha).trimEnd()))) // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF): the approved D16 WS proof commits belong to the later change, not this guard's own first-parent scope.\n" // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+const D16_REGISTRY_LINES = new Set([ // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+  "  ...(await import('./studio-researcher-owner-proof-strip.mjs')).SCOPE_FILES, // LATER-CHANGE: Platform, D16 Studio WS owner proof (STUDIO_RESEARCHER_OWNER_PROOF_ENABLED / NEXT_PUBLIC_STUDIO_RESEARCHER_OWNER_PROOF)", // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+  "  (await import('./studio-researcher-owner-proof-strip.mjs')).ENV_BLOCK, // LATER-CHANGE: Platform, D16 Studio WS owner proof (STUDIO_RESEARCHER_OWNER_PROOF_ENABLED / NEXT_PUBLIC_STUDIO_RESEARCHER_OWNER_PROOF)", // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+  "  (await import('./studio-researcher-owner-proof-strip.mjs')).stripResearcherOwnerProof, // LATER-CHANGE: Platform, D16 Studio WS owner proof (STUDIO_RESEARCHER_OWNER_PROOF_ENABLED / NEXT_PUBLIC_STUDIO_RESEARCHER_OWNER_PROOF)", // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+]) // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+const D16_SUCCESSOR_FILES = new Set([ // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+  ...D16_SCOPE_FILES, ...D16_PIN_FILES, 'scripts/test-director-question-submit.mjs', // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+  'scripts/test-studio-researcher-token-mint-sites.mjs', 'scripts/test-studio-sessions-owner.mjs', // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+]) // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+function withoutD16(rel, text) { // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+  if (rel === '.env.example') return text.replace(`\n${D16_ENV_BLOCK}`, '') // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+  if (rel === 'scripts/studio-later-changes.mjs') { // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+    const pending = new Set(D16_REGISTRY_LINES) // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+    return text.split('\n').filter(line => !pending.delete(line)).join('\n') // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+  } // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+  if (D16_PIN_FILES.has(rel)) return text.replace(D16_PIN_LINE, '') // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+  return stripResearcherOwnerProof(rel, text) // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+} // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+const read = rel => withoutD16(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
 { const realRead = fs.readFileSync; fs.readFileSync = function (file, ...rest) { const out = realRead.call(this, file, ...rest); const rel = typeof file === 'string' ? path.relative(root, file) : ''; return typeof out === 'string' && UPLOAD_FORMATS_READ_FILES.includes(rel) ? stripUploadFormats(rel, out) : out } } // LATER-CHANGES: registry read (STUDIO-UPLOAD-FORMATS): every read of a file the Studio upload formats change edits goes through that change's own strip (never the registry), so this proof sees the file as this change left it
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000 })
 const baseCache = new Map()
@@ -576,7 +597,7 @@ function registryChecks(text = read(REGISTRY)) {
   assert.deepEqual(diff.removed, [], 'and loses none'); assert.deepEqual([...diff.added].sort(), [...registered].sort(), 'the three are the only lines it adds')
   assert.ok(registry.LATER_STRIPS.includes(STRIP_FN), 'the strip is registered'); assert.ok(registry.LATER_ENV_BLOCKS.includes(ENV_BLOCK), 'the block is registered')
   assert.ok([...SCOPE].every(rel => registry.LATER_CHANGE_FILES.has(rel)), 'every scope file is registered')
-  assert.ok(registry.LATER_STRIPS.includes(STRIP_FN) && registry.LATER_STRIPS.slice(registry.LATER_STRIPS.indexOf(STRIP_FN) + 1).every(strip => strip === stripUploadFormats), 'the strip runs last, but for the Studio upload formats change\'s (the order the changes were stacked)') // LATER-CHANGES: registry read (STUDIO-UPLOAD-FORMATS): that change's strip is registered after this one
+  assert.deepEqual(registry.LATER_STRIPS.slice(registry.LATER_STRIPS.indexOf(STRIP_FN) + 1), [stripUploadFormats, stripResearcherOwnerProof], 'only the upload formats and D16 strips follow this strip, in order') // LATER-CHANGES: registry read (STUDIO-UPLOAD-FORMATS): that change's strip is registered after this one // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
   assert.equal(registry.stripLaterChanges(PAGE, read(PAGE)), registry.stripLaterChanges(PAGE, baseText(PAGE)), `${PAGE}: read through the registry it is the base's (older proofs read it like that)`)
   assert.equal(registry.stripLaterChanges(ENV, read(ENV)), registry.stripLaterChanges(ENV, baseText(ENV)), `${ENV}: read through the registry it is the base's`)
   // the strips of the neighbouring changes leave each other's lines alone, whichever order they run in
@@ -597,7 +618,7 @@ const firstParentCommits = () => own('--first-parent'), allCommits = () => own()
 /** The committed files only (BASE..HEAD): never the working tree, which a gate run and the suites write into. */
 function touchedFiles(commits) { const net = new Set(git('diff', '--name-only', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean)); return new Set(commits.flatMap(commit => git('show', '--name-only', '--format=', commit).split('\n')).filter(rel => rel && net.has(rel))) }
 function scopeCheck(commits, extra = []) { assert.deepEqual([...touchedFiles(commits), ...extra].filter(rel => !SCOPE.has(rel)).sort(), [], 'no file outside this change\'s scope differs from the base') }
-const wholeRangeOutside = (names, marketing = UAT_MARKETING_V4_SCOPE_FILES) => names.filter(Boolean).filter(rel => !SCOPE.has(rel) && !UPLOAD_FORMATS_SCOPE_FILES.has(rel) && !marketing.has(rel)).sort() // RESEARCH-BY-LEVEL (S67): the committed files of BASE..HEAD that no scope names; a promotion merge of dev into uat carries uat's own marketing-v4 commits, left out by exact path (the uat marketing registry's set), never by prefix and never every later change's files; LATER-CHANGES: registry read (STUDIO-UPLOAD-FORMATS): taught to that change's pin with the other lines of this proof
+const wholeRangeOutside = (names, marketing = UAT_MARKETING_V4_SCOPE_FILES) => names.filter(Boolean).filter(rel => !SCOPE.has(rel) && !UPLOAD_FORMATS_SCOPE_FILES.has(rel) && !D16_SUCCESSOR_FILES.has(rel) && !marketing.has(rel)).sort() // RESEARCH-BY-LEVEL (S67): the committed files of BASE..HEAD that no scope names; a promotion merge of dev into uat carries uat's own marketing-v4 commits, left out by exact path (the uat marketing registry's set), never by prefix and never every later change's files; LATER-CHANGES: registry read (STUDIO-UPLOAD-FORMATS): taught to that change's pin with the other lines of this proof // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
 function messageProblems(subject, body) { const problems = []; if (!subject.startsWith(SUBJECT)) problems.push(`the subject starts "${SUBJECT}"`); if (!/^Co-Authored-By: Claude Opus 5\.5 <noreply@anthropic\.com>\s*$/m.test(body)) problems.push('the co-author line'); return problems }
 function secretChecks(texts = {}) {
   for (const rel of [...APP_FILES, ...NEW_FILES, ENV, REGISTRY]) assert.doesNotMatch(texts[rel] ?? read(rel), SECRET, `${rel}: no secret`)
@@ -636,7 +657,7 @@ await check('F. scope: this change\'s own commits touch only its files; the mess
   scopeCheck(first); scopeCheck(allCommits())
   for (const sha of allCommits()) assert.deepEqual(messageProblems(subjectOf(sha), git('show', '--no-patch', '--format=%B', sha)), [], `commit ${sha.slice(0, 8)}: the message`)
   assert.deepEqual(wholeRangeOutside(git('diff', '--name-only', `${BASE_COMMIT}..HEAD`).split('\n')), [], 'over the whole committed range no file is outside the scope either') // LATER-CHANGES: registry read (STUDIO-UPLOAD-FORMATS): the files of the Studio upload formats change, stacked after this one, are its own; RESEARCH-BY-LEVEL (S67): so are, on a promotion merge of dev into uat, uat's own marketing-v4 files (see wholeRangeOutside)
-  assert.deepEqual(wholeRangeOutside([...UAT_MARKETING_V4_SCOPE_FILES, ...SCOPE, ...UPLOAD_FORMATS_SCOPE_FILES, 'lib/stray-file.ts', 'components/marketing/v4/not-uats-own.tsx']), ['components/marketing/v4/not-uats-own.tsx', 'lib/stray-file.ts'], 'a promotion merge: uat\'s own marketing-v4 files, this change\'s and the upload formats change\'s are left out; a stray product file and a marketing path uat does not own are still named') // RESEARCH-BY-LEVEL (S67): the table row for the line above; LATER-CHANGES: registry read (STUDIO-UPLOAD-FORMATS): taught to that change's pin with the other lines of this proof
+  assert.deepEqual(wholeRangeOutside([...UAT_MARKETING_V4_SCOPE_FILES, ...SCOPE, ...UPLOAD_FORMATS_SCOPE_FILES, ...D16_SUCCESSOR_FILES, 'lib/stray-file.ts', 'components/marketing/v4/not-uats-own.tsx']), ['components/marketing/v4/not-uats-own.tsx', 'lib/stray-file.ts'], 'a promotion merge: uat\'s own marketing-v4 files, this change\'s and the two named successors are left out; a stray product file and a marketing path uat does not own are still named') // RESEARCH-BY-LEVEL (S67): the table row for the line above; LATER-CHANGES: registry read (STUDIO-UPLOAD-FORMATS): taught to that change's pin with the other lines of this proof // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
   secretChecks()
 })
 await check('G. one literal env read; only the lib and the Builder page name the flag; the plan-based default\'s lib is independent', () => oneReadChecks())
