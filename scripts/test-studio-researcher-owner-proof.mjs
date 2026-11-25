@@ -6,6 +6,98 @@ const HOOK = 'hooks/use-deckster-websocket-v2.ts'
 const SERVER = 'STUDIO_RESEARCHER_OWNER_PROOF_ENABLED'
 const CLIENT = 'NEXT_PUBLIC_STUDIO_RESEARCHER_OWNER_PROOF'
 
+// Verify the recorded shape and reply with:
+// node scripts/test-studio-researcher-owner-proof.mjs --director-repo /path/to/director
+const DIRECTOR_SHA = '95a1da96bccb4a2d40ba89d1cfacba5362d9194c'
+const DIRECTOR_REFRESH = {
+  request: {
+    type: 'auth_refresh',
+    fields: ['type', 'payload'],
+    payloadFields: ['token', 'researcher_session_token'],
+  },
+  reply: {
+    type: 'auth_refreshed',
+    payload: { expires_at: 1234 },
+    timestamp: '2026-01-01T00:00:00',
+  },
+}
+
+const READ_DIRECTOR_REFRESH = `
+import ast
+import asyncio
+import contextlib
+from datetime import datetime
+import json
+import logging
+import sys
+from types import ModuleType, SimpleNamespace
+
+source = ast.parse(sys.stdin.read())
+handler, = (node for node in ast.walk(source)
+            if isinstance(node, ast.AsyncFunctionDef) and node.name == "_handle_auth_refresh")
+dispatch, = (node.test for node in ast.walk(source) if isinstance(node, ast.If)
+             and isinstance(node.test, ast.Compare)
+             and ast.unparse(node.test.left) == "data.get('type')"
+             and any(isinstance(call, ast.Attribute) and call.attr == handler.name
+                     for statement in node.body for call in ast.walk(statement)))
+socket_value, proof_value = object(), object()
+seen, replies = {}, []
+
+class Fields(dict):
+    def __init__(self, **values):
+        super().__init__(**values)
+        self.read = []
+
+    def __getitem__(self, key):
+        if key not in self.read:
+            self.read.append(key)
+        return super().__getitem__(key)
+
+    def get(self, key, default=None):
+        return self[key] if key in self else default
+
+def module(name):
+    sys.modules[name] = ModuleType(name)
+    return sys.modules[name]
+
+def verify(value, _secret, session_id):
+    assert value is socket_value and session_id == "fixture-session"
+    seen["director"] = True
+    return {"sub": "fixture-owner", "exp": 1234}
+
+def remember(_socket, *, session_id, user_id, value):
+    assert session_id == "fixture-session" and user_id == "fixture-owner" and value is proof_value
+    seen["researcher"] = True
+
+async def send_json(reply):
+    replies.append(reply)
+
+module("src")
+module("src.utils")
+auth = module("src.utils.ws_auth")
+auth.WsAuthError = type("WsAuthError", (Exception,), {})
+auth.verify_ws_auth_token = verify
+module("src.services").build_quota = SimpleNamespace(
+    watermark_enabled=lambda _: False, capture_claim=lambda *args, **kwargs: None)
+module("src.services.researcher_owner_proof").remember_verified_refresh = remember
+namespace = {
+    "WebSocket": object, "Dict": dict, "Any": object, "contextlib": contextlib,
+    "get_settings": lambda: SimpleNamespace(
+        DIRECTOR_WS_AUTH_SECRET=object(), DIRECTOR_RESEARCHER_OWNER_PROOF_ENABLED=True),
+    "datetime": SimpleNamespace(utcnow=lambda: datetime(2026, 1, 1)),
+    "logger": logging.getLogger("director-fixture"),
+}
+exec(compile(ast.Module(body=[handler], type_ignores=[]), "<pinned Director>", "exec"), namespace)
+payload = Fields(token=socket_value, researcher_session_token=proof_value)
+data = Fields(type=dispatch.comparators[0].value, payload=payload)
+assert eval(compile(ast.Expression(dispatch), "<pinned dispatch>", "eval"), {"data": data})
+asyncio.run(namespace[handler.name](SimpleNamespace(_verified_research_socket=lambda *args: True),
+    SimpleNamespace(state=SimpleNamespace(), send_json=send_json), "fixture-session", "fixture-owner", data))
+assert seen == {"director": True, "researcher": True} and len(replies) == 1
+print(json.dumps({"request": {"type": data["type"], "fields": data.read,
+                              "payloadFields": payload.read}, "reply": replies[0]}))
+`
+
 async function main() {
   const { default: assert } = await import('node:assert/strict')
   const { isDeepStrictEqual } = await import('node:util')
@@ -13,6 +105,16 @@ async function main() {
     assert.equal(isDeepStrictEqual(actual, expected), true, description)
   const { createHmac } = await import('node:crypto')
   const { execFileSync } = await import('node:child_process')
+  const directorArg = process.argv.indexOf('--director-repo')
+  if (directorArg !== -1) {
+    const cwd = process.argv[directorArg + 1]
+    assert.ok(cwd && !cwd.startsWith('--'), '--director-repo requires the path to the Director clone')
+    const source = execFileSync('git', ['show', `${DIRECTOR_SHA}:src/handlers/websocket.py`], { cwd })
+    const fixture = execFileSync('python3', ['-B', '-c', READ_DIRECTOR_REFRESH], {
+      input: source, encoding: 'utf8', env: { PATH: process.env.PATH },
+    })
+    assertSame(JSON.parse(fixture), DIRECTOR_REFRESH, 'the pinned Director handler reproduces the fixture exactly')
+  }
   const { readFileSync } = await import('node:fs')
   const { fileURLToPath } = await import('node:url')
   const { default: React } = await import('react')
@@ -240,6 +342,8 @@ async function main() {
         return release
       },
       send: text => latest.sendMessageWhenConnected(text),
+      transportNotice: () => latest.transportNotice,
+      messageCount: () => latest.messages.length,
       frames: () => env.outbound.filter(({ data }) => data !== 'ping').map(({ data }) => JSON.parse(data)),
     }
   }
@@ -255,12 +359,28 @@ async function main() {
   const refresh = n => ({ type: 'auth_refresh', token: `synthetic-director-fixture-${n}`, proofPresent: true, sameMint: true })
   const message = { type: 'user_message' }
   assertSame(cleanFrames(ws).slice(0, 1), [refresh(1)], 'exactly one proof frame is sent first on open')
-  // Director brief ROW16-CONDITIONS-D12B-D16.md, lines 45–48.
-  // This pins Studio's mock frame only, pending Director code sha.
-  assert.equal(JSON.stringify(ws.frames()[0]) === JSON.stringify({
-    type: 'auth_refresh',
-    payload: { token: refresh(1).token, researcher_session_token: `${proof}.1` },
-  }), true, 'the first frame uses the socket credential and the exact nested proof field')
+  const [first] = ws.frames()
+  assertSame({
+    type: first.type,
+    fields: Object.keys(first),
+    payloadFields: Object.keys(first.payload),
+  }, DIRECTOR_REFRESH.request, 'the first Studio frame has exactly the fields consumed by Director')
+  assert.equal(first.payload.token === refresh(1).token &&
+    first.payload.researcher_session_token === `${proof}.1`, true,
+  'the first Studio frame carries both credentials from the same mint')
+  const outboundCount = ws.frames().length
+  const messageCount = ws.messageCount()
+  ws.env.sockets[0].serverMessage(JSON.stringify(DIRECTOR_REFRESH.reply))
+  await ws.settle()
+  assertSame(JSON.parse(JSON.stringify(ws.transportNotice() ?? null)), {
+    type: 'auth_refreshed',
+    sessionId: sid,
+    message: 'Secure connection refreshed.',
+    requiresResend: false,
+    expiresAt: DIRECTOR_REFRESH.reply.payload.expires_at,
+  }, 'the Director acknowledgement updates Studio transport state')
+  assert.equal(ws.frames().length, outboundCount, 'the acknowledgement sends no further frames')
+  assert.equal(ws.messageCount(), messageCount, 'the acknowledgement adds no chat messages')
   assert.equal(ws.env.sockets[0].protocols.some(protocol => protocol.includes(proof)), false, 'proof is not in the handshake')
   assert.equal(ws.mintCount(), 1)
   assertSame(ws.env.sockets[0].protocols[1], 'deckster-auth.synthetic-director-fixture-1', 'the handshake carries the matching Director credential')
@@ -330,7 +450,7 @@ async function main() {
     }))
   }
   console.log('D16 proof passed: owned mint, exact legacy bytes, open and per-turn ordering, timer and forced refresh, stale session and private sinks.')
-  console.log('Researcher f899342 parity passed; Studio omits proof for a <32-byte stripped secret. Researcher rejects oversized tokens Studio can mint. Mock Director frame pending Director code sha.')
+  console.log(`Researcher f899342 parity passed; Studio omits proof for a <32-byte stripped secret. Researcher rejects oversized tokens Studio can mint. Director refresh fixture pinned at ${DIRECTOR_SHA}.`)
 }
 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) await main()
