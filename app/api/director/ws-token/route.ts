@@ -51,11 +51,13 @@ export async function GET(request: NextRequest) {
   // live connection registry is keyed by session id, so signing an arbitrary
   // other user's id would otherwise let an attacker disconnect that user's
   // socket even though Director derives the data identity from `sub`.
+  let canMintResearcherProof = false // D16-OWNER-PROOF
   try {
     const existingSession = await prisma.chatSession.findUnique({
       where: { id: sessionId },
       select: { userId: true, status: true },
     })
+    canMintResearcherProof = Boolean(existingSession && existingSession.userId === session.user.id && existingSession.status !== 'deleted') // D16-OWNER-PROOF
     if (existingSession && existingSession.userId !== session.user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -106,7 +108,7 @@ export async function GET(request: NextRequest) {
   const signature = createHmac('sha256', secret).update(payload).digest('base64url')
 
   let researcherToken: string | undefined // D16-OWNER-PROOF
-  if (process.env.STUDIO_RESEARCHER_OWNER_PROOF_ENABLED === 'true') { // D16-OWNER-PROOF
+  if (process.env.STUDIO_RESEARCHER_OWNER_PROOF_ENABLED === 'true' && canMintResearcherProof) { // D16-OWNER-PROOF
     try { // D16-OWNER-PROOF
       const researcherSecret = researcherSessionTokenSecret() // D16-OWNER-PROOF
       if (researcherSecret) { // D16-OWNER-PROOF

@@ -29,7 +29,7 @@ async function main() {
   const proofMaterial = fixtureMaterial('proof')
   const transportMaterial = fixtureMaterial('transport')
 
-  async function mint({ flag, secret = proofMaterial, userId = account, owner = userId } = {}) {
+  function routeMint({ flag, secret = proofMaterial, userId = account, owner = userId, getRow = () => ({ userId: owner, status: 'active' }) } = {}) {
     const loader = createModuleLoader({
       root,
       globals: {
@@ -43,7 +43,7 @@ async function main() {
       },
       fileStubs: {
         'lib/auth-options': { authOptions: {} },
-        'lib/prisma': { prisma: { chatSession: { findUnique: async () => ({ userId: owner }) }, user: { findUnique: async () => null } } },
+        'lib/prisma': { prisma: { chatSession: { findUnique: async () => getRow() }, user: { findUnique: async () => null } } },
         'lib/quota/build-quota': { isWsBqClaimEnabled: () => false },
         'lib/quota/build-quota-claim': {},
         'lib/kg-entitlement': { isKgEntitled: () => false },
@@ -51,8 +51,10 @@ async function main() {
         'lib/api-hardening': { requireApprovedUser: async () => null },
       },
     })
-    return loader.load(ROUTE).GET({ nextUrl: { searchParams: new URLSearchParams({ session_id: sid }) } })
+    const route = loader.load(ROUTE)
+    return () => route.GET({ nextUrl: { searchParams: new URLSearchParams({ session_id: sid }) } })
   }
+  const mint = options => routeMint(options)()
 
   const off = await mint()
   const on = await mint({ flag: 'true' })
@@ -115,6 +117,19 @@ async function main() {
   const foreign = await mint({ flag: 'true', owner: 'foreign-account' })
   assert.equal(foreign.status, 403, 'turned-on mint still enforces ownership with API hardening off')
   assert.equal(foreign.wire, '{"error":"Forbidden"}')
+  const deleted = await mint({ flag: 'true', getRow: () => ({ userId: account, status: 'deleted' }) })
+  assert.equal(deleted.status, 410)
+  assert.equal(deleted.wire, '{"error":"Session is deleted"}')
+
+  let chatRow = null
+  const remint = routeMint({ flag: 'true', getRow: () => chatRow })
+  const beforeRow = await remint()
+  assert.equal(beforeRow.status, 200)
+  assert.equal(beforeRow.wire, off.wire, 'a missing Studio row delivers only the exact Director response')
+  chatRow = { userId: account, status: 'active' }
+  const afterRow = await remint()
+  assert.equal(afterRow.status, 200)
+  assert.equal(afterRow.wire === on.wire, true, 'the next request mints proof after the owned row appears')
 
   async function socketHarness(flag, { failInitial = false } = {}) {
     const env = createEnvironment({
