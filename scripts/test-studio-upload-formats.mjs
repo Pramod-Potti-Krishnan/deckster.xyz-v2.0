@@ -29,7 +29,8 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { renderToStaticMarkup } from 'react-dom/server'
 import * as stripModule from './studio-upload-formats-strip.mjs'
-import * as registry from './studio-later-changes.mjs'
+import * as registeredChanges from './studio-later-changes.mjs' // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+import { ENV_BLOCK as D16_ENV_BLOCK, stripResearcherOwnerProof } from './studio-researcher-owner-proof-strip.mjs' // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
 
 const { BASE_COMMIT, UPLOAD_FORMATS_FLAGS: FLAGS, UPLOAD_FORMATS_MARKER_RE: MARKER_RE, UPLOAD_FORMATS_SUBJECT: SUBJECT, UPLOAD_FORMATS_SUBJECT_RE: SUBJECT_RE, UPLOAD_FORMATS_FIRST_SUBJECT: FIRST_SUBJECT, UPLOAD_FORMATS_FILES: APP_FILES,
   UPLOAD_FORMATS_NEW_FILES: NEW_FILES, UPLOAD_FORMATS_EDITS: EDITS, UPLOAD_FORMATS_PIN_EDITS: PIN_EDITS, UPLOAD_FORMATS_PIN_FILES: PIN_FILES, UPLOAD_FORMATS_PIN_MARK: PIN_MARK, UPLOAD_FORMATS_SCOPE_FILES: SCOPE, UPLOAD_FORMATS_ENV_BLOCK: ENV_BLOCK, UPLOAD_FORMATS_READ_FILES: READ_FILES } = stripModule
@@ -40,7 +41,29 @@ const KEPT_COMMIT = '73ce44ab69e1b705aae16585a7d36e424ebd7140' // the Codex comm
 
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const nodeRequire = createRequire(path.join(root, 'package.json'))
-const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const withoutD16Tail = (values, d16) => values.at(-1) === d16 ? values.slice(0, -1) : values // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+const registry = { // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+  ...registeredChanges, // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+  LATER_STRIPS: withoutD16Tail(registeredChanges.LATER_STRIPS, stripResearcherOwnerProof), // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+  LATER_ENV_BLOCKS: withoutD16Tail(registeredChanges.LATER_ENV_BLOCKS, D16_ENV_BLOCK), // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+} // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+const D16_REGISTRY_END = '  // one line per later change, above this comment' // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+const D16_REGISTRY_LINES = [ // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+  "  ...(await import('./studio-researcher-owner-proof-strip.mjs')).SCOPE_FILES,", // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+  "  (await import('./studio-researcher-owner-proof-strip.mjs')).ENV_BLOCK,", // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+  "  (await import('./studio-researcher-owner-proof-strip.mjs')).stripResearcherOwnerProof,", // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+].map(line => line + ' // LATER-CHANGE: Platform, D16 Studio WS owner proof (STUDIO_RESEARCHER_OWNER_PROOF_ENABLED / NEXT_PUBLIC_STUDIO_RESEARCHER_OWNER_PROOF)') // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+function withoutD16(rel, text) { // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+  if (rel === ENV) { // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+    const suffix = `\n${D16_ENV_BLOCK}` // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+    return text.endsWith(suffix) ? text.slice(0, -suffix.length) : text // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+  } // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+  if (rel === REGISTRY) { // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+    return D16_REGISTRY_LINES.reduce((out, line) => out.replace(`\n${line}\n${D16_REGISTRY_END}`, `\n${D16_REGISTRY_END}`), text) // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+  } // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+  return stripResearcherOwnerProof(rel, text) // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+} // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
+const read = rel => withoutD16(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // LATER-CHANGES: registry read (RESEARCHER-OWNER-PROOF)
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000 })
 const baseCache = new Map()
 const baseText = rel => { if (!baseCache.has(rel)) baseCache.set(rel, git('show', `${BASE_COMMIT}:${rel}`)); return baseCache.get(rel) }
