@@ -33,6 +33,7 @@ import React from 'react'
 import * as jsxRuntime from 'react/jsx-runtime'
 import ts from 'typescript'
 import * as stripModule from './studio-brand-kit-strip.mjs'
+import { stripPl19PreviewMark } from './studio-pl19-preview-mark-strip.mjs' // LATER-CHANGES: registry read (PL-19 preview build mark): next.config.mjs may carry that change's three exact insertions; this proof holds the rest to the base
 import * as registry from './studio-later-changes.mjs'
 import { Root, hostNodes, textOf } from './studio-chat-harness/mini-react.mjs'
 
@@ -989,7 +990,9 @@ function scopeChecks() {
   scopeCheck(own)
   for (const c of own) deepEqual(messageProblems(subjectOf(c), git('log', '-1', '--format=%B', c)), [], `commit ${c.slice(0, 8)}`)
   const net = git('diff', '--name-only', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean); deepEqual(net.filter(rel => !SCOPE.has(rel) && !registry.LATER_CHANGE_FILES.has(rel)), [], 'the whole committed diff from the base is this change\'s scope (or a later change\'s registered files)')
-  for (const rel of ['package.json', 'pnpm-lock.yaml', 'next.config.mjs', 'prisma/schema.prisma', 'lib/director-rest-entitlement.ts', 'lib/api-hardening.ts', 'lib/service-url.ts', 'lib/config.ts', 'lib/theme-fonts.ts', 'app/api/upload/route.ts', 'app/api/profile/avatar/route.ts', 'lib/supabase-storage.ts', 'scripts/test-studio-voice-call.mjs']) assert.ok(!net.includes(rel), `${rel} is the base's: untouched (no bucket, no upload route, no migration, no dependency)`)
+  for (const rel of ['package.json', 'pnpm-lock.yaml', 'prisma/schema.prisma', 'lib/director-rest-entitlement.ts', 'lib/api-hardening.ts', 'lib/service-url.ts', 'lib/config.ts', 'lib/theme-fonts.ts', 'app/api/upload/route.ts', 'app/api/profile/avatar/route.ts', 'lib/supabase-storage.ts', 'scripts/test-studio-voice-call.mjs']) assert.ok(!net.includes(rel), `${rel} is the base's: untouched (no bucket, no upload route, no migration, no dependency)`)
+  // PL-19 (preview build mark) edits next.config.mjs (a later change, registered): it must still be the base's plus EXACTLY that change's three insertions, nothing else
+  assert.equal(stripPl19PreviewMark('next.config.mjs', git('show', 'HEAD:next.config.mjs')), baseText('next.config.mjs'), "next.config.mjs is the base's plus at most PL-19's three exact insertions (no bucket, no upload route, no migration, no dependency)")
   assert.ok(!net.some(rel => /^app\/api\/brand\/logo|supabase|migrations?\//i.test(rel)), 'no logo route, no storage, no migration')
   const diff = git('diff', '--unified=0', `${BASE_COMMIT}..HEAD`); assert.doesNotMatch(diff, SECRET_SHAPE, 'no secret-shaped literal anywhere in the committed diff'); assert.ok(!/(THEME_BUILDER_BRAND_EXTRACT_KEY|DIRECTOR_WS_AUTH_SECRET)[ \t]*=[ \t]*["']?[A-Za-z0-9+\/_-]{16,}/.test(diff), 'no key or secret value in the diff')
   // the working tree is not read: an untracked stray file changes nothing
