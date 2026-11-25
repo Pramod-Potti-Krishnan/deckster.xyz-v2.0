@@ -1,26 +1,10 @@
 import { pathToFileURL } from 'node:url'
+import { stripResearcherOwnerProof } from './studio-researcher-owner-proof-strip.mjs'
 
 const ROUTE = 'app/api/director/ws-token/route.ts'
 const HOOK = 'hooks/use-deckster-websocket-v2.ts'
 const SERVER = 'STUDIO_RESEARCHER_OWNER_PROOF_ENABLED'
 const CLIENT = 'NEXT_PUBLIC_STUDIO_RESEARCHER_OWNER_PROOF'
-
-export const SCOPE_FILES = new Set([
-  ROUTE, HOOK, '.env.example', 'scripts/studio-later-changes.mjs', 'scripts/test-studio-researcher-owner-proof.mjs',
-  'scripts/fixtures/researcher-session-auth-f899342.py', 'scripts/fixtures/researcher-session-auth-parity.mjs',
-])
-export const ENV_BLOCK = [
-  '# D16 STUDIO RESEARCHER OWNER PROOF. Both flags default off and accept only the exact value "true".',
-  '# The server flag mints proof for the authenticated account and session. The public build-time flag carries it on auth_refresh.',
-  `${SERVER}="false"`,
-  `${CLIENT}="false"`,
-].join('\n')
-
-export function stripResearcherOwnerProof(rel, text) {
-  if (typeof text !== 'string' || (rel !== ROUTE && rel !== HOOK)) return text
-  return text
-    .replace(/^.* \/\/ D16-OWNER-PROOF\n/gm, '')
-}
 
 async function main() {
   const { default: assert } = await import('node:assert/strict')
@@ -176,7 +160,7 @@ async function main() {
       omitProofNext = false
       return { ok: true, json: async () => ({
         auth_enabled: true,
-        auth_token: `synthetic-director-${mintNumber}`,
+        auth_token: `synthetic-director-fixture-${mintNumber}`,
         expires_in: 900,
         bq_claim: true,
         ...(includeProof ? { researcher_session_token: `${proof}.${mintNumber}` } : {}),
@@ -250,18 +234,18 @@ async function main() {
       sameMint: payload.researcher_session_token?.endsWith(`.${payload.token.split('-').at(-1)}`) ?? false,
     }),
   }))
-  const refresh = n => ({ type: 'auth_refresh', token: `synthetic-director-${n}`, proofPresent: true, sameMint: true })
+  const refresh = n => ({ type: 'auth_refresh', token: `synthetic-director-fixture-${n}`, proofPresent: true, sameMint: true })
   const message = { type: 'user_message' }
   assert.deepEqual(cleanFrames(ws).slice(0, 1), [refresh(1)], 'exactly one proof frame is sent first on open')
   // Director brief ROW16-CONDITIONS-D12B-D16.md, lines 45–48.
   // This pins Studio's mock frame only, pending Director code sha.
   assert.equal(JSON.stringify(ws.frames()[0]) === JSON.stringify({
     type: 'auth_refresh',
-    payload: { token: 'synthetic-director-1', researcher_session_token: `${proof}.1` },
+    payload: { token: refresh(1).token, researcher_session_token: `${proof}.1` },
   }), true, 'the first frame uses the socket credential and the exact nested proof field')
   assert.equal(ws.env.sockets[0].protocols.some(protocol => protocol.includes(proof)), false, 'proof is not in the handshake')
   assert.equal(ws.mintCount(), 1)
-  assert.equal(ws.env.sockets[0].protocols[1], 'deckster-auth.synthetic-director-1')
+  assert.equal(ws.env.sockets[0].protocols[1], 'deckster-auth.synthetic-director-fixture-1')
   for (const text of ['first synthetic turn', 'second synthetic turn']) assert.equal(await ws.send(text), true)
   assert.deepEqual(cleanFrames(ws), [refresh(1), refresh(2), message, refresh(3), message],
     'each turn fetches a fresh proof and sends it directly before its user_message')
