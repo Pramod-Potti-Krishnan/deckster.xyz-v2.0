@@ -8,6 +8,9 @@ const CLIENT = 'NEXT_PUBLIC_STUDIO_RESEARCHER_OWNER_PROOF'
 
 async function main() {
   const { default: assert } = await import('node:assert/strict')
+  const { isDeepStrictEqual } = await import('node:util')
+  const assertSame = (actual, expected, description = 'synthetic wire values should match') =>
+    assert.equal(isDeepStrictEqual(actual, expected), true, description)
   const { createHmac } = await import('node:crypto')
   const { execFileSync } = await import('node:child_process')
   const { readFileSync } = await import('node:fs')
@@ -62,16 +65,16 @@ async function main() {
   const proof = onBody.researcher_session_token
   assert.ok(typeof proof === 'string', 'server flag must produce Researcher proof')
   const { researcher_session_token, ...legacy } = onBody
-  assert.equal(JSON.stringify(legacy), off.wire, 'off response body matches the legacy bytes')
+  assertSame(JSON.stringify(legacy), off.wire, 'off response body matches the legacy bytes')
   const now = START_MS / 1000
   const legacyPayload = Buffer.from(JSON.stringify({ sub: account, sid, iat: now, exp: now + 900, kg_entitled: false })).toString('base64url')
   const legacyMac = createHmac('sha256', transportMaterial).update(legacyPayload).digest('base64url')
   assert.equal(off.wire === JSON.stringify({ auth_enabled: true, auth_token: `${legacyPayload}.${legacyMac}`, expires_in: 900 }), true, 'legacy response order, full signed bytes and TTL')
   const directorClaim = JSON.parse(Buffer.from(legacyPayload, 'base64url'))
   const [version, signedSid, signedAccount, expires] = proof.split('.')
-  assert.equal(version, 'v1')
-  assert.equal(Buffer.from(signedSid, 'base64url').toString(), directorClaim.sid)
-  assert.equal(Buffer.from(signedAccount, 'base64url').toString(), directorClaim.sub)
+  assertSame(version, 'v1', 'Researcher proof version is v1')
+  assertSame(Buffer.from(signedSid, 'base64url').toString(), directorClaim.sid, 'the proof binds the Director session')
+  assertSame(Buffer.from(signedAccount, 'base64url').toString(), directorClaim.sub, 'the proof binds the Director account')
   assert.equal(Number(expires), now + 900)
   const input = { secret: proofMaterial, sid, uid: account, now, expires: now + 900 }
   const contract = researcherTokenFixture({ ...input, studioToken: proof })
@@ -116,16 +119,16 @@ async function main() {
   }
   const foreign = await mint({ flag: 'true', owner: 'foreign-account' })
   assert.equal(foreign.status, 403, 'turned-on mint still enforces ownership with API hardening off')
-  assert.equal(foreign.wire, '{"error":"Forbidden"}')
+  assertSame(foreign.wire, '{"error":"Forbidden"}', 'a foreign row returns only the generic refusal')
   const deleted = await mint({ flag: 'true', getRow: () => ({ userId: account, status: 'deleted' }) })
   assert.equal(deleted.status, 410)
-  assert.equal(deleted.wire, '{"error":"Session is deleted"}')
+  assertSame(deleted.wire, '{"error":"Session is deleted"}', 'a deleted row returns only the deleted-session refusal')
 
   let chatRow = null
   const remint = routeMint({ flag: 'true', getRow: () => chatRow })
   const beforeRow = await remint()
   assert.equal(beforeRow.status, 200)
-  assert.equal(beforeRow.wire, off.wire, 'a missing Studio row delivers only the exact Director response')
+  assertSame(beforeRow.wire, off.wire, 'a missing Studio row delivers only the exact Director response')
   chatRow = { userId: account, status: 'active' }
   const afterRow = await remint()
   assert.equal(afterRow.status, 200)
@@ -251,7 +254,7 @@ async function main() {
   }))
   const refresh = n => ({ type: 'auth_refresh', token: `synthetic-director-fixture-${n}`, proofPresent: true, sameMint: true })
   const message = { type: 'user_message' }
-  assert.deepEqual(cleanFrames(ws).slice(0, 1), [refresh(1)], 'exactly one proof frame is sent first on open')
+  assertSame(cleanFrames(ws).slice(0, 1), [refresh(1)], 'exactly one proof frame is sent first on open')
   // Director brief ROW16-CONDITIONS-D12B-D16.md, lines 45–48.
   // This pins Studio's mock frame only, pending Director code sha.
   assert.equal(JSON.stringify(ws.frames()[0]) === JSON.stringify({
@@ -260,45 +263,45 @@ async function main() {
   }), true, 'the first frame uses the socket credential and the exact nested proof field')
   assert.equal(ws.env.sockets[0].protocols.some(protocol => protocol.includes(proof)), false, 'proof is not in the handshake')
   assert.equal(ws.mintCount(), 1)
-  assert.equal(ws.env.sockets[0].protocols[1], 'deckster-auth.synthetic-director-fixture-1')
+  assertSame(ws.env.sockets[0].protocols[1], 'deckster-auth.synthetic-director-fixture-1', 'the handshake carries the matching Director credential')
   for (const text of ['first synthetic turn', 'second synthetic turn']) assert.equal(await ws.send(text), true)
-  assert.deepEqual(cleanFrames(ws), [refresh(1), refresh(2), message, refresh(3), message],
+  assertSame(cleanFrames(ws), [refresh(1), refresh(2), message, refresh(3), message],
     'each turn fetches a fresh proof and sends it directly before its user_message')
   ws.failMint()
   assert.equal(await ws.send('turn still delivered'), true)
-  assert.deepEqual(cleanFrames(ws).slice(-2), [message, message])
+  assertSame(cleanFrames(ws).slice(-2), [message, message])
   ws.omitProof()
   assert.equal(await ws.send('legacy token only'), true)
-  assert.deepEqual(cleanFrames(ws).slice(-2), [message, message], 'a Director-only mint leaves the turn on its legacy path')
+  assertSame(cleanFrames(ws).slice(-2), [message, message], 'a Director-only mint leaves the turn on its legacy path')
   await ws.env.clock.advance(540_000, ws.settle)
   await ws.settle()
-  assert.deepEqual(cleanFrames(ws).at(-1), refresh(6), 'timer forwards both fields')
+  assertSame(cleanFrames(ws).at(-1), refresh(6), 'timer forwards both fields')
   ws.env.window.dispatchEvent({ type: 'deckster:ws-bq-refresh' })
   await ws.settle()
-  assert.deepEqual(cleanFrames(ws).at(-1), refresh(7), 'forced refresh forwards both fields')
+  assertSame(cleanFrames(ws).at(-1), refresh(7), 'forced refresh forwards both fields')
   const release = ws.pauseMint()
   const turn = ws.send('must not follow navigation')
   ws.mount(`${sid}-next`)
   await ws.settle()
   release()
   assert.equal(await turn, false)
-  assert.deepEqual(cleanFrames(ws).at(-1), refresh(7), 'retired session cannot receive the pending proof or user turn')
+  assertSame(cleanFrames(ws).at(-1), refresh(7), 'retired session cannot receive the pending proof or user turn')
   const privateSinks = JSON.stringify([ws.env.consoleEvents, ws.privateWrites, ws.env.sessionStorage.dump(), ws.env.localStorage.dump()])
   assert.equal(privateSinks.includes(proof), false)
   assert.equal(JSON.stringify(ws.env.sockets.map(({ url, protocols }) => [url, protocols])).includes(proof), false)
   const disabled = await socketHarness('false')
   assert.equal(await disabled.send('flag-off synthetic turn'), true)
-  assert.deepEqual(cleanFrames(disabled), [message])
+  assertSame(cleanFrames(disabled), [message])
   assert.equal(disabled.mintCount(), 1, 'flag-off turn adds no fetch')
   assert.equal(JSON.stringify(disabled.env.outbound).includes(proof), false)
 
   const failedOff = await socketHarness('false', { failInitial: true })
   const failedOn = await socketHarness('true', { failInitial: true })
   assert.equal(failedOn.initialFailure.reconnect, 'scheduled')
-  assert.deepEqual(failedOn.initialFailure, failedOff.initialFailure, 'Director mint failure uses the same retry and UI state with either flag')
-  assert.deepEqual(cleanFrames(failedOn), [refresh(2)], 'the retry opens an authenticated socket and sends the new proof first')
+  assertSame(failedOn.initialFailure, failedOff.initialFailure, 'Director mint failure uses the same retry and UI state with either flag')
+  assertSame(cleanFrames(failedOn), [refresh(2)], 'the retry opens an authenticated socket and sends the new proof first')
   const malformedOn = await socketHarness('true', { failInitial: 'malformed' })
-  assert.deepEqual(malformedOn.initialFailure, failedOff.initialFailure)
+  assertSame(malformedOn.initialFailure, failedOff.initialFailure, 'malformed mint uses the same retry and UI state')
   assert.equal(JSON.stringify(malformedOn.env.consoleEvents).includes(proof), false, 'a malformed response can include proof in its parser error')
 
   const slow = await socketHarness('true')
@@ -307,13 +310,13 @@ async function main() {
   await slow.env.clock.advance(3_000, slow.settle)
   assert.equal(await slowTurn, true)
   endSlowMint()
-  assert.deepEqual(cleanFrames(slow), [refresh(1), message], 'a stalled mint times out; a still-current turn still sends')
+  assertSame(cleanFrames(slow), [refresh(1), message], 'a stalled mint times out; a still-current turn still sends')
   const endClosedMint = slow.pauseMint()
   const closedTurn = slow.send('must not outlive socket')
   slow.env.sockets[0].serverClose(1006)
   endClosedMint()
   assert.equal(await closedTurn, false)
-  assert.deepEqual(cleanFrames(slow), [refresh(1), message], 'a closed socket cannot inherit a pending frame or turn')
+  assertSame(cleanFrames(slow), [refresh(1), message], 'a closed socket cannot inherit a pending frame or turn')
 
   for (const file of [ROUTE, HOOK]) {
     const source = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8')
