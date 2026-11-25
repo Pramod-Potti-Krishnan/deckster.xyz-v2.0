@@ -25,6 +25,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { stripApiHardening } from './studio-api-hardening-strip.mjs' // LATER-CHANGE: PROGRAM-1 API hardening (STUDIO_API_HARDENING_V1_ENABLED): its lines come out before this pin reads them
+import { stripPl19PreviewMark } from './studio-pl19-preview-mark-strip.mjs' // LATER-CHANGE: PL-19 preview build mark: its three exact next.config.mjs insertions come out before this pin reads the file (base plus exactly those lines)
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const require = createRequire(import.meta.url)
@@ -48,7 +49,7 @@ const sha = value => crypto.createHash('sha1').update(value).digest('hex')
 function collect(fn) { const was = failures; failures = []; try { fn() } catch (error) { failures.push(`threw: ${error.message}`) } const found = failures; failures = was; return found }
 
 const rel = p => p.split('/').join(path.sep)
-const readFile = file => stripApiHardening(rel(file), stripVoiceCore(file, fs.readFileSync(path.join(repoRoot, rel(file)), 'utf8'))) // LATER-CHANGE: PROGRAM-1 API hardening reads through its strip
+const readFile = file => stripPl19PreviewMark(rel(file), stripApiHardening(rel(file), stripVoiceCore(file, fs.readFileSync(path.join(repoRoot, rel(file)), 'utf8')))) // LATER-CHANGE: PROGRAM-1 API hardening reads through its strip; PL-19 reads through its own (next.config.mjs only)
 const SOURCE_FILES = [
   'lib/studio-uat-marketing.ts', 'lib/marketing/v3-uat-view.ts', 'lib/marketing/v3-uat-content.ts', 'lib/marketing/v3-metadata.ts', 'hooks/use-v3-deck-uat.ts', 'styles/marketing-v3-uat.css',
   'components/marketing/v3-uat/flag.ts', 'components/marketing/v3-uat/shell.tsx', 'components/marketing/v3-uat/pages/metadata.ts',

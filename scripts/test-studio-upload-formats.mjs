@@ -29,6 +29,7 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { renderToStaticMarkup } from 'react-dom/server'
 import * as stripModule from './studio-upload-formats-strip.mjs'
+import { stripPl19PreviewMark } from './studio-pl19-preview-mark-strip.mjs' // LATER-CHANGES: registry read (PL-19 preview build mark): a later change (stacked after this one) registers its lines after this change's; this proof names them as the only lines that may follow
 import * as registry from './studio-later-changes.mjs'
 
 const { BASE_COMMIT, UPLOAD_FORMATS_FLAGS: FLAGS, UPLOAD_FORMATS_MARKER_RE: MARKER_RE, UPLOAD_FORMATS_SUBJECT: SUBJECT, UPLOAD_FORMATS_SUBJECT_RE: SUBJECT_RE, UPLOAD_FORMATS_FIRST_SUBJECT: FIRST_SUBJECT, UPLOAD_FORMATS_FILES: APP_FILES,
@@ -76,7 +77,7 @@ function lineDiff(was, now) {
 }
 const SECRET = /(sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{12,}|eyJ[A-Za-z0-9_-]{20,}\.|-----BEGIN [A-Z ]*PRIVATE KEY|ghp_[A-Za-z0-9]{20,}|xox[bp]-|[A-Za-z]+:\/\/[^\s/:@]+:[^\s/:@]+@)/ // the URL-with-password shape too: the pre-push scan flags it
 /** What the strips of the changes registered AFTER this one do to a text (they are other changes' lines and stay when only this strip runs). */
-const laterOnly = (rel, text) => { const strips = registry.LATER_STRIPS, at = strips.indexOf(STRIP_FN); return (at === -1 ? [] : strips.slice(at + 1)).reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text) }
+const laterOnly = (rel, text) => { const strips = registry.LATER_STRIPS, at = strips.indexOf(STRIP_FN); return (at === -1 ? [] : strips.slice(at + 1)).reduce((out, strip) => { const next = strip === stripPl19PreviewMark ? strip(rel, out, false) : strip(rel, out); return typeof next === 'string' ? next : out }, text) }   // PL-19's strip, run after this one in the registry, puts its taught proofs back to dev's text but leaves this change's marked lines (rerunEarlier = false)
 
 // ============================================================================================================================================
 // the real lib, run with a given environment
@@ -323,13 +324,13 @@ function envChecks(texts = {}, block = ENV_BLOCK) {
 // E. the registry
 // ============================================================================================================================================
 const REG_MARK = '// LATER-CHANGE: FRONTEND-1, Upload formats:'
-function registryChecks(text = read(REGISTRY)) {
+function registryChecks(text = stripPl19PreviewMark(REGISTRY, read(REGISTRY))) {   // PL-19's two registry lines (stacked after this change) are read out first
   const lists = { LATER_CHANGE_FILES: 'UPLOAD_FORMATS_SCOPE_FILES', LATER_ENV_BLOCKS: 'UPLOAD_FORMATS_ENV_BLOCK', LATER_STRIPS: 'stripUploadFormats' }
   for (const [list, name] of Object.entries(lists)) {
     const start = text.indexOf(`export const ${list} = `), end = text.indexOf('// one line per later change, above this comment', start)
     assert.ok(start >= 0 && end > start, `${list} is in the registry, with its marker comment after the lines`)
     const rows = text.slice(start, end).split('\n').filter(line => line.trim() !== ''), at = rows.findIndex(line => line.includes('studio-upload-formats-strip.mjs'))
-    assert.ok(at > 0, `${list}: this change's line is in the list`); assert.equal(at, rows.length - 1, `${list}: the line is at the true end, just above the marker comment`)
+    assert.ok(at > 0, `${list}: this change's line is in the list`); assert.ok(rows.slice(at + 1).every(row => row.includes('studio-pl19-preview-mark-strip.mjs')), `${list}: the line is at the true end, just above the marker comment (but for PL-19's, stacked after this change)`)
     assert.ok(rows[at].includes(`).${name},`), `${list}: the line reads ${name}`); assert.equal((text.slice(start, end).match(/studio-upload-formats-strip\.mjs/g) || []).length, 1, `${list}: one line names this change's strip`)
     assert.ok(rows[at - 1].includes('studio-research-by-level-strip.mjs') && rows[at - 2].includes('studio-levels-direct-live-strip.mjs') && rows[at - 3].includes('studio-my-companions-strip.mjs'), `${list}: after research by level's line (the last one dev has), after levels direct live's, after My companions': this change last`)
   }
@@ -340,7 +341,7 @@ function registryChecks(text = read(REGISTRY)) {
   assert.deepEqual(diff.removed, [], 'and loses none'); assert.deepEqual([...diff.added].sort(), [...registered].sort(), 'the three are the only lines it adds')
   assert.ok(registry.LATER_STRIPS.includes(STRIP_FN), 'the strip is registered'); assert.ok(registry.LATER_ENV_BLOCKS.includes(ENV_BLOCK), 'the block is registered')
   assert.ok([...SCOPE].every(rel => registry.LATER_CHANGE_FILES.has(rel)), 'every scope file is registered')
-  assert.equal(registry.LATER_STRIPS.at(-1), STRIP_FN, 'the strip runs last (the order the changes were stacked)'); assert.equal(registry.LATER_ENV_BLOCKS.at(-1), ENV_BLOCK, 'the block is the last')
+  assert.ok(registry.LATER_STRIPS.includes(STRIP_FN) && registry.LATER_STRIPS.slice(registry.LATER_STRIPS.indexOf(STRIP_FN) + 1).every(strip => strip === stripPl19PreviewMark), 'the strip runs last, but for PL-19\'s (the order the changes were stacked)'); assert.equal(registry.LATER_ENV_BLOCKS.at(-1), ENV_BLOCK, 'the block is the last')
   assert.equal(registry.stripLaterChanges(CHAT, read(CHAT)), registry.stripLaterChanges(CHAT, baseText(CHAT)), `${CHAT}: read through the registry it is dev's (older proofs read it like that)`)
   assert.equal(registry.stripLaterChanges(ENV, read(ENV)), registry.stripLaterChanges(ENV, baseText(ENV)), `${ENV}: read through the registry it is dev's`)
   for (const rel of PIN_FILES) assert.equal(registry.stripLaterChanges(rel, read(rel)), registry.stripLaterChanges(rel, baseText(rel)), `${rel}: read through the registry it is dev's`)
