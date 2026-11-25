@@ -22,6 +22,7 @@ async function main() {
   const { fileURLToPath } = await import('node:url')
   const { installHostNetworkGuard } = await import('./studio-chat-harness/fake-env.mjs')
   const { createModuleLoader } = await import('./studio-chat-harness/module-loader.mjs')
+  const { researcherTokenFixture, tokenDigest } = await import('./fixtures/researcher-session-auth-parity.mjs')
   installHostNetworkGuard(net, dns)
 
   const root = fileURLToPath(new URL('..', import.meta.url))
@@ -29,7 +30,7 @@ async function main() {
   const email = 'compose@example.invalid'
   const sid = 'synthetic-compose-session'
   const now = 1_790_000_000
-  const material = crypto.randomBytes(32).toString('hex')
+  const material = Array(8).fill('compose-proof').join(':')
   const body = { session_id: sid, user_id: 'caller-supplied', prompt: 'compose a synthetic slide' }
   const kgBody = { ...body, research: { use_knowledge_graph: true } }
 
@@ -122,13 +123,19 @@ async function main() {
   assert.deepEqual(accepted.lookups, [sid])
   assert.equal(accepted.count, 1)
   assert.equal(accepted.redirect, 'error', 'a proof-bearing request must stay with its configured Director origin')
-  const [version, signedSid, signedOwner, expires, mac] = accepted.header.split('.')
+  const [version, signedSid, signedOwner, expires] = accepted.header.split('.')
   assert.equal(version, 'v1')
   assert.equal(Buffer.from(signedSid, 'base64url').toString(), sid)
   assert.equal(Buffer.from(signedOwner, 'base64url').toString(), account)
   assert.equal(Number(expires), now + 900)
-  const expectedMac = crypto.createHmac('sha256', material).update(`${sid}|${account}|${expires}`).digest('base64url')
-  assert.equal(mac === expectedMac, true, 'signed session, account and expiry verify')
+  const contract = researcherTokenFixture({
+    secret: material, sid, uid: account, expires: now + 900, now, studioToken: accepted.header,
+  })
+  assert.equal(tokenDigest(accepted.header) === contract.referenceSha256, true, 'token bytes match the Researcher f899342 minter')
+  assert.equal(contract.state, 'valid', 'Researcher f899342 verifies Studio-minted bytes')
+  assert.equal(contract.claimsMatch, true)
+  // The capture below pins Studio's compose-one header. Delivery through
+  // Director to the Researcher remains pending Director code sha.
   assert.equal(accepted.result.body.includes(accepted.header), false)
 
   const baseWire = JSON.stringify({
@@ -167,6 +174,7 @@ async function main() {
     { input: kgBody, gateId: 'other-account' },
     { lookupFails: true },
     { signingMaterial: '' },
+    { signingMaterial: `  ${'x'.repeat(31)}  ` },
   ]) {
     const on = await run(scenario)
     const off = await run({ ...scenario, flag: 'false' })
@@ -184,7 +192,8 @@ async function main() {
   const source = readFileSync(new URL(`../${ROUTE}`, import.meta.url), 'utf8')
   const base = execFileSync('git', ['show', `bf3a07be60806b69680b667bef66927c197a37ca:${ROUTE}`], { cwd: root, encoding: 'utf8' })
   assert.equal(stripComposeResearcherOwnerProof(ROUTE, source) === base, true, 'the registry strip restores the base route byte for byte')
-  console.log('Compose Researcher owner proof passed: signed identity, live ownership, KG forwarding, safe fallback, and exact flag-off bytes.')
+  console.log('Compose Researcher owner proof passed: Researcher f899342 parity, live ownership, safe fallback, and exact flag-off bytes.')
+  console.log('Studio compose-one header captured; Researcher forwarding pending Director code sha.')
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main()
