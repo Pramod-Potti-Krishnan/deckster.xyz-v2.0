@@ -7,6 +7,7 @@ const CLIENT = 'NEXT_PUBLIC_STUDIO_RESEARCHER_OWNER_PROOF'
 
 export const SCOPE_FILES = new Set([
   ROUTE, HOOK, '.env.example', 'scripts/studio-later-changes.mjs', 'scripts/test-studio-researcher-owner-proof.mjs',
+  'scripts/fixtures/researcher-session-auth-f899342.py', 'scripts/fixtures/researcher-session-auth-parity.mjs',
 ])
 export const ENV_BLOCK = [
   '# D16 STUDIO RESEARCHER OWNER PROOF. Both flags default off and accept only the exact value "true".',
@@ -32,6 +33,7 @@ async function main() {
   const { createEnvironment, installHostNetworkGuard, SYNTHETIC_WS_URL, START_MS } = await import('./studio-chat-harness/fake-env.mjs')
   const { createModuleLoader } = await import('./studio-chat-harness/module-loader.mjs')
   const { BASE_ENV } = await import('./studio-chat-harness/profiles.mjs')
+  const { researcherTokenFixture, tokenDigest } = await import('./fixtures/researcher-session-auth-parity.mjs')
   const { default: net } = await import('node:net')
   const { default: dns } = await import('node:dns')
   installHostNetworkGuard(net, dns)
@@ -80,13 +82,46 @@ async function main() {
   const legacyMac = createHmac('sha256', transportMaterial).update(legacyPayload).digest('base64url')
   assert.equal(off.wire === JSON.stringify({ auth_enabled: true, auth_token: `${legacyPayload}.${legacyMac}`, expires_in: 900 }), true, 'legacy response order, full signed bytes and TTL')
   const directorClaim = JSON.parse(Buffer.from(legacyPayload, 'base64url'))
-  const [version, signedSid, signedAccount, expires, signature] = proof.split('.')
+  const [version, signedSid, signedAccount, expires] = proof.split('.')
   assert.equal(version, 'v1')
   assert.equal(Buffer.from(signedSid, 'base64url').toString(), directorClaim.sid)
   assert.equal(Buffer.from(signedAccount, 'base64url').toString(), directorClaim.sub)
   assert.equal(Number(expires), now + 900)
-  assert.equal(signature === createHmac('sha256', proofMaterial).update(`${sid}|${account}|${expires}`).digest('base64url'), true, 'Researcher signature')
-  for (const scenario of [{ flag: 'TRUE' }, { flag: 'true', secret: '' }, { flag: 'true', userId: 'unsignable|id' }]) {
+  const input = { secret: proofMaterial, sid, uid: account, now, expires: now + 900 }
+  const contract = researcherTokenFixture({ ...input, studioToken: proof })
+  assert.equal(tokenDigest(proof) === contract.referenceSha256, true, 'token bytes match the Researcher f899342 minter')
+  assert.equal(contract.state, 'valid', 'Researcher f899342 verifies Studio-minted bytes')
+  assert.equal(contract.claimsMatch, true)
+
+  const studioMint = createModuleLoader({ root, globals: { Buffer }, stubs: { crypto: { createHmac } } })
+    .load('lib/researcher-session-token.ts').mintResearcherSessionToken
+  const studioInput = { secret: proofMaterial, sessionId: sid, userId: account, nowSeconds: now, ttlSeconds: 900 }
+  for (const uid of ['unsignable|id', 'unsignable\u0001id']) {
+    assert.equal(studioMint({ ...studioInput, userId: uid }) === null, true)
+    const invalid = researcherTokenFixture({ ...input, uid })
+    assert.equal(invalid.referenceSha256, null)
+    assert.equal(invalid.state, 'invalid')
+  }
+  const maxTtl = 24 * 60 * 60
+  assert.equal(studioMint({ ...studioInput, ttlSeconds: maxTtl + 1 }) === null, true, 'Studio mint caps TTL at 24h')
+  assert.equal(researcherTokenFixture({ ...input, expires: now + maxTtl + 1 }).state, 'valid', 'Researcher verifier includes 30 seconds of skew')
+  assert.equal(researcherTokenFixture({ ...input, expires: now + maxTtl + 31 }).state, 'invalid', 'Researcher rejects TTL beyond 24h plus skew')
+
+  // Both IDs meet the character cap, but their UTF-8 encoding crosses the Researcher wire cap.
+  const longId = String.fromCodePoint(0x10400).repeat(255)
+  const oversized = studioMint({ ...studioInput, sessionId: longId, userId: longId })
+  assert.equal(oversized?.token.length > 2048, true, 'Studio can currently mint a wire token the Researcher cannot use')
+  const oversizedContract = researcherTokenFixture({ ...input, sid: longId, uid: longId, studioToken: oversized.token })
+  assert.equal(tokenDigest(oversized.token) === oversizedContract.referenceSha256, true)
+  assert.equal(oversizedContract.state, 'invalid', 'Researcher rejects >2048 characters before claim validation')
+
+  for (const scenario of [
+    { flag: 'TRUE' },
+    { flag: 'true', secret: '' },
+    { flag: 'true', secret: `  ${'x'.repeat(31)}  ` },
+    { flag: 'true', userId: 'unsignable|id' },
+    { flag: 'true', userId: 'unsignable\u0001id' },
+  ]) {
     const { wire, status } = await mint(scenario)
     const body = JSON.parse(wire)
     assert.equal(status, 200)
@@ -218,6 +253,13 @@ async function main() {
   const refresh = n => ({ type: 'auth_refresh', token: `synthetic-director-${n}`, proofPresent: true, sameMint: true })
   const message = { type: 'user_message' }
   assert.deepEqual(cleanFrames(ws).slice(0, 1), [refresh(1)], 'exactly one proof frame is sent first on open')
+  // Director brief ROW16-CONDITIONS-D12B-D16.md, lines 45–48.
+  // This pins Studio's mock frame only, pending Director code sha.
+  assert.equal(JSON.stringify(ws.frames()[0]) === JSON.stringify({
+    type: 'auth_refresh',
+    payload: { token: 'synthetic-director-1', researcher_session_token: `${proof}.1` },
+  }), true, 'the first frame uses the socket credential and the exact nested proof field')
+  assert.equal(ws.env.sockets[0].protocols.some(protocol => protocol.includes(proof)), false, 'proof is not in the handshake')
   assert.equal(ws.mintCount(), 1)
   assert.equal(ws.env.sockets[0].protocols[1], 'deckster-auth.synthetic-director-1')
   for (const text of ['first synthetic turn', 'second synthetic turn']) assert.equal(await ws.send(text), true)
@@ -286,6 +328,7 @@ async function main() {
     }))
   }
   console.log('D16 proof passed: owned mint, exact legacy bytes, open and per-turn ordering, timer and forced refresh, stale session and private sinks.')
+  console.log('Researcher f899342 parity passed; Studio omits proof for a <32-byte stripped secret. Researcher rejects oversized tokens Studio can mint. Mock Director frame pending Director code sha.')
 }
 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) await main()
