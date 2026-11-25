@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 
 function resolveBuildFingerprint() {
   const configured =
@@ -20,11 +21,27 @@ function resolveBuildFingerprint() {
 
 const buildFingerprint = resolveBuildFingerprint()
 
+// PL-19: a Vercel PREVIEW build shows one fixed mark on every page ("Preview build: not the UAT product"), so a PR preview is never taken for the UAT product.
+// Decided HERE, at build time, from Vercel's own system variable VERCEL_ENV ("production" | "preview" | "development"), which Vercel sets on the builds it runs
+// (a Git-integration PR preview is "preview"; the UAT and production deploys run `vercel build --prod`, so they are "production"): no project setting, no
+// variable on any Vercel target, nothing copied to the preview target. Anything other than exactly "preview" (including unset) adds NOTHING to this config,
+// so a production-target build compiles exactly what it did before. On preview the root layout's toaster import is swapped for a wrapper that adds the mark.
+const isVercelPreviewBuild = process.env.VERCEL_ENV === 'preview'
+const previewToasterFile = fileURLToPath(new URL('./components/preview-build/preview-toaster.tsx', import.meta.url))
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   env: {
     NEXT_PUBLIC_DECKSTER_BUILD_SHA: buildFingerprint,
   },
+  ...(isVercelPreviewBuild
+    ? {
+        webpack(config, { webpack }) {
+          config.plugins.push(new webpack.NormalModuleReplacementPlugin(/^@\/components\/ui\/toaster$/, previewToasterFile))
+          return config
+        },
+      }
+    : {}),
   images: {
     unoptimized: true,
     domains: ['deckster.xyz'],
