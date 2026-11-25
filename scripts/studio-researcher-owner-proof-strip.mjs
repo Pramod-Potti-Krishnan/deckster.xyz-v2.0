@@ -12,7 +12,7 @@ export const ENV_BLOCK = [
   '# The server flag mints proof for the authenticated account and session. The public build-time flag carries it on auth_refresh.',
   `${SERVER}="false"`,
   `${CLIENT}="false"`,
-].join('\n')
+].join('\n') + '\n'
 
 export function stripResearcherOwnerProof(rel, text) {
   if (typeof text !== 'string' || (rel !== ROUTE && rel !== HOOK)) return text
