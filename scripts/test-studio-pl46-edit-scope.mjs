@@ -22,7 +22,7 @@ const check = (name, fn) => { checks++; const r = fn(); return r && typeof r.the
 
 // ---------------------------------------------------------------------------------------------------------- the world: stubs, loader, fake clock and hook runner
 const env = {}
-const state = { userId: 'user-1', fetches: [], reply: { status: 200, body: '{}' }, replies: [], toasts: [], posted: [], frameSrc: null }
+const state = { userId: 'user-1', fetches: [], reply: { status: 200, body: '{}' }, replies: [], toasts: [], warns: [], posted: [], frameSrc: null }
 class FakeRes { constructor({ status, body }) { this.status = status; this.ok = status >= 200 && status < 300; this._body = body; this.headers = { get: n => (n.toLowerCase() === 'content-type' ? 'application/json' : null) } } async text() { return this._body } async json() { return JSON.parse(this._body) } }
 const fakeFetch = async (url, init) => { state.fetches.push({ url: String(url), init }); const r = state.replies.length ? state.replies.shift() : state.reply; if (r instanceof Error) throw r; return new FakeRes(r) }
 let curRunner = null
@@ -67,7 +67,7 @@ function createRunner(callFn) {
   return { render, get: () => { if (dirty) render(); return value }, unmount: () => { for (const s of slots) if (s && typeof s.cleanup === 'function') s.cleanup() } }
 }
 const clone = x => JSON.parse(JSON.stringify(x))
-const resetState = () => { state.fetches = []; state.reply = { status: 200, body: '{}' }; state.replies = []; state.toasts = []; state.posted = []; state.frameSrc = null; state.userId = 'user-1' }
+const resetState = () => { state.fetches = []; state.reply = { status: 200, body: '{}' }; state.replies = []; state.toasts = []; state.warns = []; state.posted = []; state.frameSrc = null; state.userId = 'user-1' }
 const ticketReply = (ticket, expires_in = 600) => ({ status: 200, body: JSON.stringify({ ticket, expires_in, url: `/p/deck-1?t=${ticket}` }) })
 const BASE = 'https://layout.test/p/deck-1'
 
@@ -75,12 +75,13 @@ const BASE = 'https://layout.test/p/deck-1'
 async function withFakes(overrides, fn) {
   resetState(); env.LAYOUT_SERVICE_TOKEN = 'lst-made-up'
   const mods = { route: load(ROUTE, overrides), lib: load(LIB, overrides), hook: load(HOOK, overrides) }
-  const clock = fakeClock(), saved = { fetch: globalThis.fetch, setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout, document: globalThis.document }
+  const clock = fakeClock(), saved = { fetch: globalThis.fetch, setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout, document: globalThis.document }, savedWarn = console.warn
+  console.warn = (...a) => { state.warns.push(a.join(' ')) }
   globalThis.fetch = fakeFetch; globalThis.setTimeout = clock.setTimeout; globalThis.clearTimeout = clock.clearTimeout
   globalThis.document = { querySelectorAll: sel => (sel === 'iframe' ? [{ getAttribute: n => (n === 'src' ? state.frameSrc : null), contentWindow: { postMessage: (m, o) => state.posted.push([clone(m), o]) } }] : []) }
   const rejections = [], onRejection = e => rejections.push(e); process.on('unhandledRejection', onRejection)   // a throw inside the hook's async run() is a failure of the suite, not a crash of the test
   try { const out = await fn({ ...mods, clock }); await settle(); if (rejections.length) throw rejections[0]; return out }
-  finally { process.off('unhandledRejection', onRejection); Object.assign(globalThis, saved); if (saved.document === undefined) delete globalThis.document }
+  finally { process.off('unhandledRejection', onRejection); console.warn = savedWarn; Object.assign(globalThis, saved); if (saved.document === undefined) delete globalThis.document }
 }
 const post = (route, query, id = 'deck-1') => route.POST({ url: `https://studio.test/api/presentations/${id}/viewer-ticket${query}` }, { params: Promise.resolve({ id }) })
 const scopeOf = url => new URL(url, 'https://studio.test').searchParams.getAll('scope')
@@ -159,14 +160,16 @@ const SUITE = {
     env.NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED = 'true'; state.reply = { status: 403, body: '{}' }
     const runner = createRunner(() => ({ ...m.hook.useLayoutViewerTicket(BASE, 'deck-1', 'edit') })); runner.render(); await settle()
     const r = runner.get(); assert.equal(r.src, null, 'the frame stays unloaded'); assert.equal(r.refusedStatus, 403)
-    assert.equal(state.toasts.length, 1); assert.equal(state.toasts[0].variant, 'destructive'); assert.match(state.toasts[0].description, /edit/); assert.match(state.toasts[0].description, /403/)
+    assert.equal(state.toasts.length, 1); assert.deepEqual(state.toasts[0], { title: "This deck can't be opened for editing.", variant: 'destructive' }, 'plain title, no body line')
+    assert.ok(!/layout|\d{3}|403/i.test(JSON.stringify(state.toasts[0])), 'no service name and no status code on screen')
+    assert.equal(state.warns.length, 1, 'the status goes to the console, once'); assert.match(state.warns[0], /edit/); assert.match(state.warns[0], /403/)
     assert.deepEqual(m.clock.pending(), [], 'no retry timer'); await m.clock.tick(5_000_000)
     assert.equal(state.fetches.length, 1, 'no loop'); assert.deepEqual(state.fetches.map(f => scopeOf(f.url)), [['edit']], 'never downgraded to view'); assert.equal(state.toasts.length, 1, 'told once'); runner.unmount()
   },
   async hookRefusedRenewal(m) {
     env.NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED = 'true'; state.replies = [ticketReply('tk1'), { status: 403, body: '{}' }]
     const runner = createRunner(() => ({ src: m.hook.useLayoutViewerTicketSrc(BASE, 'deck-1') })); runner.render(); await settle(); state.frameSrc = runner.get().src
-    await m.clock.tick(450_000); assert.equal(state.fetches.length, 2); assert.equal(state.toasts.length, 1); assert.deepEqual(state.posted, [], 'no message for a refusal'); assert.deepEqual(m.clock.pending(), [])
+    await m.clock.tick(450_000); assert.equal(state.fetches.length, 2); assert.equal(state.toasts.length, 1); assert.equal(state.warns.length, 1); assert.deepEqual(state.posted, [], 'no message for a refusal'); assert.deepEqual(m.clock.pending(), [])
     await m.clock.tick(5_000_000); assert.equal(state.fetches.length, 2, 'no loop'); assert.deepEqual(state.fetches.map(f => scopeOf(f.url)), [['edit'], ['edit']]); runner.unmount()
   },
   async hookFlagOff(m) {
@@ -209,7 +212,7 @@ await check('HOOK (the editing frame\'s) with a fake clock: first request scope=
 await check('HOOK (general, scope view) with a fake clock: the same, asking view throughout', () => withFakes({}, m => SUITE.hookMintAndRenew(m, { name: 'useLayoutViewerTicket', scope: 'view' })))
 await check('HOOK renew times: 600 s -> 450 s, 100 s -> 75 s, a short life floors at 15 s, a missing life reads 600 s', () => withFakes({}, SUITE.hookRenewTimes))
 await check('HOOK a failure (503, 429) is tried again in 15 s with the same scope until a ticket comes', () => withFakes({}, SUITE.hookRetriesFailures))
-await check('HOOK a REFUSAL (403) stops it: no retry, no loop, never downgraded to view, the frame stays unloaded, the person is told once (a destructive toast naming the scope and the status)', () => withFakes({}, SUITE.hookStopsOnRefusal))
+await check('HOOK a REFUSAL (403) stops it: no retry, no loop, never downgraded to view, the frame stays unloaded, the person is told once (a destructive toast with the pinned plain title, no body, no service name or code; the status in the console only)', () => withFakes({}, SUITE.hookStopsOnRefusal))
 await check('HOOK a refusal of a RENEWAL stops it too: no message, no loop, told once', () => withFakes({}, SUITE.hookRefusedRenewal))
 await check('HOOK flag off: the base URL, no request, no timer, no toast', () => withFakes({}, SUITE.hookFlagOff))
 await check('CALLERS the editing frame\'s hook has exactly one caller, the Builder\'s one iframe (components/presentation-viewer.tsx); any other must call useLayoutViewerTicket(..., \'view\'); nothing bypasses the hooks', () => assert.deepEqual(callerFailures(), []))
@@ -234,6 +237,9 @@ const MUTANTS = [
   ['the hook retries a refusal (a loop)', { [HOOK]: real(HOOK).replace("if (outcome.kind === 'refused') {", "if (false) {") }, SUITE.hookStopsOnRefusal],
   ['the hook downgrades a refused edit to view and asks again', { [HOOK]: real(HOOK).replace("        return\n      }\n      if (outcome.kind === 'transient')", "        const again = await fetchViewerTicketOutcome(presentationId, 'view'); if (again.kind === 'ticket') setSrc(withViewerTicket(baseUrl, again.ticket.ticket))\n        return\n      }\n      if (outcome.kind === 'transient')") }, SUITE.hookStopsOnRefusal],
   ['the hook says nothing about a refusal', { [HOOK]: real(HOOK).replace(/        toast\(\{[\s\S]*?\n        \}\)\n/, '') }, SUITE.hookStopsOnRefusal],
+  ['the toast shows the service and the status again', { [HOOK]: real(HOOK).replace("          variant: 'destructive',\n", "          description: `Layout refused the ${scope} request (${outcome.status}).`,\n          variant: 'destructive',\n") }, SUITE.hookStopsOnRefusal],
+  ['the toast loses its full stop (the pinned title)', { [HOOK]: real(HOOK).replace('This deck can\'t be opened for editing."', 'This deck can\'t be opened for editing"') }, SUITE.hookStopsOnRefusal],
+  ['the status is no longer logged to the console', { [HOOK]: real(HOOK).replace(/        console\.warn\([^\n]*\n/, '') }, SUITE.hookStopsOnRefusal],
   ['the hook does not retry a failure', { [HOOK]: real(HOOK).replace("if (outcome.kind === 'transient') { timer = setTimeout(run, RETRY_MS); return }", "if (outcome.kind === 'transient') return") }, SUITE.hookRetriesFailures],
   ['the hook keeps its renewal timer after unmount', { [HOOK]: real(HOOK).replace('return () => { cancelled = true; if (timer) clearTimeout(timer) }', 'return () => { cancelled = true }') }, SUITE.hookMintAndRenew],
   ['the hook ignores the flag', { [HOOK]: real(HOOK).replace("const enabled = isStudioLayoutTicketEnabled()", "const enabled = true") }, SUITE.hookFlagOff],

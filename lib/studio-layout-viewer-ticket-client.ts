@@ -6,7 +6,7 @@
  * PL-46: a ticket is asked for with a scope. useLayoutViewerTicket(baseUrl, presentationId, scope) takes it explicitly ('edit' for the owner's
  * editing frame, 'view' for every other frame). A REFUSED answer (Layout's owner check: 403 for a deck that is not the person's or has no owner;
  * also 400, 401, 404) is never retried and never downgraded to another scope: the hook stops, the frame stays unloaded, and the person is told once
- * (a toast). A failure worth another try (network, 5xx, 408, 429) is retried as before. The same scope is used for every renewal.
+ * (a toast with a plain title and no body; the status goes to the console only). A failure worth another try (network, 5xx, 408, 429) is retried as before. The same scope is used for every renewal.
  */
 import { useEffect, useState } from 'react'
 import { toast } from '@/hooks/use-toast'
@@ -46,11 +46,12 @@ export function useLayoutViewerTicket(
       const outcome = await fetchViewerTicketOutcome(presentationId, scope)
       if (cancelled) return
       if (outcome.kind === 'refused') {
-        // Layout's answer stands: no retry, no other scope. Tell the person once.
+        // Layout's answer stands: no retry, no other scope. Tell the person once, in plain words: no service name, no status code (ARCH-PLATFORM 12:27Z);
+        // the status stays in the console. No body line: a promise of viewing would be untrue, the frame stays unloaded.
         setRefusedStatus(outcome.status)
+        console.warn(`[viewer-ticket] the ${scope} ticket was refused (${outcome.status}); not retrying`)
         toast({
-          title: scope === 'edit' ? "This deck can't be opened for editing" : "This deck can't be opened",
-          description: `Layout refused the ${scope} request (${outcome.status}).`,
+          title: scope === 'edit' ? "This deck can't be opened for editing." : "This deck can't be opened.",
           variant: 'destructive',
         })
         return
