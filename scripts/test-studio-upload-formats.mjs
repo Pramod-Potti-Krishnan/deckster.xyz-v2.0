@@ -31,6 +31,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import * as stripModule from './studio-upload-formats-strip.mjs'
 import * as registry from './studio-later-changes.mjs'
 import { stripPl42LockedCopy } from './studio-pl42-locked-copy-strip.mjs' // LATER-CHANGES: registry read (PL-42 locked research switches copy): a later change (stacked after this one) registers its lines after this change's; this proof names them as the only lines that may follow
+import { tolerateLaterChanges } from './studio-registry-tolerance.mjs' // PL-54-TOLERANCE: the generic tolerance (PL-54): whatever is registered after PL-42's lines is read out of this proof, so a later change needs no edit here
 
 const { BASE_COMMIT, UPLOAD_FORMATS_FLAGS: FLAGS, UPLOAD_FORMATS_MARKER_RE: MARKER_RE, UPLOAD_FORMATS_SUBJECT: SUBJECT, UPLOAD_FORMATS_SUBJECT_RE: SUBJECT_RE, UPLOAD_FORMATS_FIRST_SUBJECT: FIRST_SUBJECT, UPLOAD_FORMATS_FILES: APP_FILES,
   UPLOAD_FORMATS_NEW_FILES: NEW_FILES, UPLOAD_FORMATS_EDITS: EDITS, UPLOAD_FORMATS_PIN_EDITS: PIN_EDITS, UPLOAD_FORMATS_PIN_FILES: PIN_FILES, UPLOAD_FORMATS_PIN_MARK: PIN_MARK, UPLOAD_FORMATS_SCOPE_FILES: SCOPE, UPLOAD_FORMATS_ENV_BLOCK: ENV_BLOCK, UPLOAD_FORMATS_READ_FILES: READ_FILES } = stripModule
@@ -42,6 +43,7 @@ const KEPT_COMMIT = '73ce44ab69e1b705aae16585a7d36e424ebd7140' // the Codex comm
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const nodeRequire = createRequire(path.join(root, 'package.json'))
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+await tolerateLaterChanges({ registry, root, known: { files: 'studio-pl42-locked-copy-strip.mjs', env: 'studio-upload-formats-strip.mjs', strips: 'studio-pl42-locked-copy-strip.mjs' } }) // PL-54-TOLERANCE: reads everything registered after PL-42's lines out of this proof (the strips of those changes on every read, their env blocks and registry lines out, the registry arrays cut after PL-42's); the hooks below run on what is left
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000 })
 const baseCache = new Map()
 const baseText = rel => { if (!baseCache.has(rel)) baseCache.set(rel, git('show', `${BASE_COMMIT}:${rel}`)); return baseCache.get(rel) }
