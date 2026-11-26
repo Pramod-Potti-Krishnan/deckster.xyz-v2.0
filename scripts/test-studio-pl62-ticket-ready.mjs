@@ -131,6 +131,14 @@ await check('STRIP the registered strip takes the four marked lines out and puts
   assert.equal(real(VIEWER).split('\n').length - out.split('\n').length, strip.PL62_INSERTED_LINES.length); assert.equal(strip.stripPl62TicketReady('lib/x.ts', 'abc'), 'abc')
 })
 
+await check('TAUGHT each of the eight older proofs this change teaches carries its one marked line (registry read (PL-62)) and is registered in the scope; the registry names the scope files and the strip', async () => {
+  const strip = await import('./studio-pl62-ticket-ready-strip.mjs'), registry = await import('./studio-later-changes.mjs')
+  assert.equal(strip.PL62_TAUGHT_FILES.size, 8)
+  for (const rel of strip.PL62_TAUGHT_FILES) { assert.ok(strip.PL62_SCOPE_FILES.has(rel), `${rel}: in the scope`); assert.ok(/registry read \(PL-62\)|registry read \(DECK-SAVE-REFUSED-NOTICE, PL-62\)/.test(real(rel)), `${rel}: names the marker`) }
+  for (const rel of strip.PL62_SCOPE_FILES) assert.ok(registry.LATER_CHANGE_FILES.has(rel), `registered: ${rel}`)
+  assert.ok(registry.LATER_STRIPS.includes(strip.stripPl62TicketReady), 'the strip is registered'); assert.equal(registry.LATER_STRIPS.at(-1), strip.stripPl62TicketReady, 'and last (the newest change)')
+})
+
 // ---------------------------------------------------------------------------------------------------------- mutants (the sources change in memory only)
 const rep = (rel, from, to) => { const t = real(rel); assert.ok(t.includes(from), `mutation target in ${rel}: ${from.slice(0, 60)}`); return { [rel]: t.replace(from, to) } }
 const MUTANTS = [

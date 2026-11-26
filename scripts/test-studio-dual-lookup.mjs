@@ -150,7 +150,7 @@ const regDiff = git('diff', '-U0', `${BASE}..${OWN}`, '--', 'scripts/studio-late
 const mine = regDiff.filter(l => l.includes('studio-dual-lookup-strip.mjs')), moved = regDiff.filter(l => !l.includes('studio-dual-lookup-strip.mjs'))
 eq(mine.length, 3, 'registry: three lines'); ok(mine.every(l => l.startsWith('+') && l.includes('LATER-CHANGE')), 'registry: three added LATER-CHANGE lines')
 eq(moved.map(l => l.slice(1)).sort(), [...new Set(moved.map(l => l.slice(1)))].flatMap(l => [l, l]).sort(), 'registry: the only other edit is the flip-enablers strip line moved to the list end (same text, removed once, added once)')
-const strips = registry.LATER_STRIPS; eq(strips.slice(-2), [(await import('./studio-flip-enablers-strip.mjs')).stripFlipEnablers, strip.stripDualLookup], 'registry: the flip-enablers strip, then this one, at the list end (stacking order)')
+const strips = registry.LATER_STRIPS; eq(strips.slice(strips.indexOf(strip.stripDualLookup) - 1, strips.indexOf(strip.stripDualLookup) + 1), [(await import('./studio-flip-enablers-strip.mjs')).stripFlipEnablers, strip.stripDualLookup], 'registry: the flip-enablers strip, then this one, then only the strips of later changes (stacking order)') // LATER-CHANGES: registry read (PL-62): the strips of later changes follow this one
 eq(git('diff', '--name-only', `${BASE}..${OWN}`).split('\n').filter(Boolean).sort(), [...strip.DUAL_LOOKUP_SCOPE_FILES].sort(), 'scope: exactly this change\'s files')
 ok(registry.LATER_STRIPS.includes(strip.stripDualLookup) && registry.LATER_ENV_BLOCKS.includes(strip.DUAL_LOOKUP_ENV_BLOCK), 'registry: strip and block registered')
 

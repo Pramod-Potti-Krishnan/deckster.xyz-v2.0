@@ -30,7 +30,27 @@ export function stripPl62TicketReady(rel, text) {
 export const PL62_SCOPE_FILES = new Set([
   "components/presentation-viewer.tsx",
   "lib/studio-layout-viewer-ticket.ts",
+  "scripts/studio-chat-stale-viewer-guard-world.mjs",
+  "scripts/test-studio-arrange.mjs",
+  "scripts/test-studio-dual-lookup.mjs",
+  "scripts/test-studio-first-paint-viewer.mjs",
+  "scripts/test-studio-launch-wording.mjs",
+  "scripts/test-studio-phone-hints.mjs",
+  "scripts/test-studio-phone-landscape.mjs",
+  "scripts/test-studio-rail-add-slide.mjs",
   "scripts/test-studio-pl62-ticket-ready.mjs",
   "scripts/studio-pl62-ticket-ready-strip.mjs",
   "scripts/studio-later-changes.mjs"
+])
+
+/** The eight older proofs/harnesses this change teaches (registry-order pins and chains that read the viewer): each edit is one line, marked LATER-CHANGES: registry read (PL-62). */
+export const PL62_TAUGHT_FILES = new Set([
+  "scripts/studio-chat-stale-viewer-guard-world.mjs",
+  "scripts/test-studio-arrange.mjs",
+  "scripts/test-studio-dual-lookup.mjs",
+  "scripts/test-studio-first-paint-viewer.mjs",
+  "scripts/test-studio-launch-wording.mjs",
+  "scripts/test-studio-phone-hints.mjs",
+  "scripts/test-studio-phone-landscape.mjs",
+  "scripts/test-studio-rail-add-slide.mjs"
 ])
