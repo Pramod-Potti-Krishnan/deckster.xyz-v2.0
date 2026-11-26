@@ -1466,8 +1466,7 @@ export function ChatInput({
                   )}
                   {researchSettingsLocked && (
                     <div data-studio-v4-type-role="research-notice" className="mx-2 mb-1 mt-2 rounded-md bg-gray-100 px-2 py-1.5 text-[10px] leading-snug text-gray-600 dark:bg-slate-800 dark:text-slate-300">
-                      Locked for this deck — research already ran. Start a new
-                      session to change these.
+                      Locked for this deck: its outline is already written. Start a new deck to change these.
                     </div>
                   )}
                   <div data-studio-v4-type-role="research-row" className="flex items-center justify-between px-2 py-2">

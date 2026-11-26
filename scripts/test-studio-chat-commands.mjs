@@ -271,7 +271,7 @@ function libSuite(libText = read(LIB), over = {}) {
     eq([res('research', null, {}), res('web', null, {})], [{ kind: 'run', action: 'research' }, { kind: 'run', action: 'web' }], '/research and /web flip the switches')
     for (const id of ['research', 'web']) {
       const r = res(id, null, { research: { locked: true } })
-      eq([r.kind, r.title, r.body.startsWith('Research already ran'), r.button], ['decline', 'Locked for this deck', true, { label: 'Show research options', action: 'open-research-options' }], `${id}: locked once research has run, with a button to the options menu`)
+      eq([r.kind, r.title, r.body.startsWith('Locked for this deck: its outline is already written.'), r.button], ['decline', 'Locked for this deck', true, { label: 'Show research options', action: 'open-research-options' }], `${id}: locked once research has run, with a button to the options menu`)
     }
     const publish = res('publish', null, {})
     eq([publish.kind, publish.tone, publish.title, publish.body, publish.button], ['decline', 'cant-yet', "Can't do this from chat yet", "Publishing from chat isn't ready yet. The Publish button shares this deck.", { label: 'Open Publish', action: 'open-publish' }], '/publish: honest, with the button that does the real thing')
@@ -747,7 +747,7 @@ async function commandSuite(overrides = {}) {
     c.unmount()
     const locked = await mountComposer({ overrides, props: { researchSettingsLocked: true } })
     await locked.type('/research'); await locked.key('Enter')
-    eq([locked.records.calls, noteOf(locked).text.slice(0, 3)], [[], ['Locked for this deck', 'Research already ran, so these switches can no longer change. Start a new session to change them.', 'Show research options']], '/research once research has run: the lock holds, with the way to the options menu')
+    eq([locked.records.calls, noteOf(locked).text.slice(0, 3)], [[], ['Locked for this deck', 'Locked for this deck: its outline is already written. Start a new deck to change these.', 'Show research options']], '/research once research has run: the lock holds, with the way to the options menu')
     eq(locked.researchMenu().open, false, 'the options menu starts closed')
     await pressNoteButton(locked, 'data-studio-chat-commands-button'); eq([locked.researchMenu().open, locked.note()], [true, null], 'the button opens the research options')
     locked.unmount()
