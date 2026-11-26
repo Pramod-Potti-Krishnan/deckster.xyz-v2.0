@@ -40,6 +40,9 @@ export function renewDelayMs(expiresInSeconds: number): number {
   return Math.max(MIN_RENEW_MS, Math.floor(s * 1000 * VIEWER_TICKET_RENEW_FRACTION))
 }
 
+/** PL-46: what a frame shows once Layout has refused it (a terminal refusal, at the first mint or at a renewal): a blank page, so no stale document, and no edit capability, stays on screen. */
+export const VIEWER_REFUSED_FRAME_SRC = 'about:blank'
+
 /** PL-46: the scope a frame asks for. Only the owner's editing frame asks 'edit'; every other frame asks 'view' (Layout decides, by its own owner check). */
 export type ViewerTicketScope = 'edit' | 'view'
 

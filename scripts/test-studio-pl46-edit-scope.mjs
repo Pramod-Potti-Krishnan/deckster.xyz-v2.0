@@ -159,7 +159,7 @@ const SUITE = {
   async hookStopsOnRefusal(m) {
     env.NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED = 'true'; state.reply = { status: 403, body: '{}' }
     const runner = createRunner(() => ({ ...m.hook.useLayoutViewerTicket(BASE, 'deck-1', 'edit') })); runner.render(); await settle()
-    const r = runner.get(); assert.equal(r.src, null, 'the frame stays unloaded'); assert.equal(r.refusedStatus, 403)
+    const r = runner.get(); assert.equal(r.src, 'about:blank', 'the frame is cleared at the first mint'); assert.equal(r.refusedStatus, 403)
     assert.equal(state.toasts.length, 1); assert.deepEqual(state.toasts[0], { title: "This deck can't be opened for editing.", variant: 'destructive' }, 'plain title, no body line')
     assert.ok(!/layout|\d{3}|403/i.test(JSON.stringify(state.toasts[0])), 'no service name and no status code on screen')
     assert.equal(state.warns.length, 1, 'the status goes to the console, once'); assert.match(state.warns[0], /edit/); assert.match(state.warns[0], /403/)
@@ -168,9 +168,15 @@ const SUITE = {
   },
   async hookRefusedRenewal(m) {
     env.NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED = 'true'; state.replies = [ticketReply('tk1'), { status: 403, body: '{}' }]
-    const runner = createRunner(() => ({ src: m.hook.useLayoutViewerTicketSrc(BASE, 'deck-1') })); runner.render(); await settle(); state.frameSrc = runner.get().src
-    await m.clock.tick(450_000); assert.equal(state.fetches.length, 2); assert.equal(state.toasts.length, 1); assert.equal(state.warns.length, 1); assert.deepEqual(state.posted, [], 'no message for a refusal'); assert.deepEqual(m.clock.pending(), [])
+    const runner = createRunner(() => ({ src: m.hook.useLayoutViewerTicketSrc(BASE, 'deck-1') })); runner.render(); await settle(); state.frameSrc = runner.get().src; const shown = runner.get().src; assert.equal(shown, `${BASE}?t=tk1`, 'before the refusal the frame shows the deck')
+    await m.clock.tick(450_000); assert.equal(state.fetches.length, 2); assert.equal(runner.get().src, 'about:blank', 'the refused renewal CLEARS the frame (the UI state matches the words)'); assert.notEqual(runner.get().src, shown); assert.equal(state.toasts.length, 1); assert.equal(state.warns.length, 1); assert.deepEqual(state.posted, [], 'no message for a refusal'); assert.deepEqual(m.clock.pending(), [])
     await m.clock.tick(5_000_000); assert.equal(state.fetches.length, 2, 'no loop'); assert.deepEqual(state.fetches.map(f => scopeOf(f.url)), [['edit'], ['edit']]); runner.unmount()
+  },
+  async hookTransientRenewalKeepsFrame(m) {
+    env.NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED = 'true'; state.replies = [ticketReply('tk1'), { status: 503, body: '{}' }, ticketReply('tk2')]
+    const runner = createRunner(() => ({ src: m.hook.useLayoutViewerTicketSrc(BASE, 'deck-1') })); runner.render(); await settle(); const shown = runner.get().src; state.frameSrc = shown
+    await m.clock.tick(450_000); assert.equal(state.fetches.length, 2); assert.equal(runner.get().src, shown, 'a failed renewal keeps showing the current document'); assert.deepEqual(state.toasts, []); assert.deepEqual(m.clock.pending(), [15_000])
+    await m.clock.tick(15_000); assert.equal(state.fetches.length, 3); assert.equal(runner.get().src, shown); assert.equal(state.posted.at(-1)[0].ticket, 'tk2'); assert.deepEqual(state.fetches.map(f => scopeOf(f.url)), [['edit'], ['edit'], ['edit']]); runner.unmount()
   },
   async hookFlagOff(m) {
     env.NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED = undefined
@@ -213,7 +219,8 @@ await check('HOOK (general, scope view) with a fake clock: the same, asking view
 await check('HOOK renew times: 600 s -> 450 s, 100 s -> 75 s, a short life floors at 15 s, a missing life reads 600 s', () => withFakes({}, SUITE.hookRenewTimes))
 await check('HOOK a failure (503, 429) is tried again in 15 s with the same scope until a ticket comes', () => withFakes({}, SUITE.hookRetriesFailures))
 await check('HOOK a REFUSAL (403) stops it: no retry, no loop, never downgraded to view, the frame stays unloaded, the person is told once (a destructive toast with the pinned plain title, no body, no service name or code; the status in the console only)', () => withFakes({}, SUITE.hookStopsOnRefusal))
-await check('HOOK a refusal of a RENEWAL stops it too: no message, no loop, told once', () => withFakes({}, SUITE.hookRefusedRenewal))
+await check('HOOK a refusal of a RENEWAL stops it too and CLEARS the frame to about:blank (the same as at the first mint): no message, no loop, told once', () => withFakes({}, SUITE.hookRefusedRenewal))
+await check('HOOK a failed RENEWAL (503) keeps showing the current document, no toast, and retries in 15 s with the same scope', () => withFakes({}, SUITE.hookTransientRenewalKeepsFrame))
 await check('HOOK flag off: the base URL, no request, no timer, no toast', () => withFakes({}, SUITE.hookFlagOff))
 await check('CALLERS the editing frame\'s hook has exactly one caller, the Builder\'s one iframe (components/presentation-viewer.tsx); any other must call useLayoutViewerTicket(..., \'view\'); nothing bypasses the hooks', () => assert.deepEqual(callerFailures(), []))
 
@@ -240,6 +247,10 @@ const MUTANTS = [
   ['the toast shows the service and the status again', { [HOOK]: real(HOOK).replace("          variant: 'destructive',\n", "          description: `Layout refused the ${scope} request (${outcome.status}).`,\n          variant: 'destructive',\n") }, SUITE.hookStopsOnRefusal],
   ['the toast loses its full stop (the pinned title)', { [HOOK]: real(HOOK).replace('This deck can\'t be opened for editing."', 'This deck can\'t be opened for editing"') }, SUITE.hookStopsOnRefusal],
   ['the status is no longer logged to the console', { [HOOK]: real(HOOK).replace(/        console\.warn\([^\n]*\n/, '') }, SUITE.hookStopsOnRefusal],
+  ['a refusal leaves the frame showing the old document', { [HOOK]: real(HOOK).replace(/        setSrc\(VIEWER_REFUSED_FRAME_SRC\)[^\n]*\n/, '') }, SUITE.hookRefusedRenewal],
+  ['a refusal clears the frame to an empty string', { [LIB]: real(LIB).replace("VIEWER_REFUSED_FRAME_SRC = 'about:blank'", "VIEWER_REFUSED_FRAME_SRC = ''") }, SUITE.hookRefusedRenewal],
+  ['only a refused RENEWAL clears the frame (a first-mint refusal leaves it as it was)', { [HOOK]: real(HOOK).replace(/        setSrc\(VIEWER_REFUSED_FRAME_SRC\)[^\n]*\n/, '        if (!first) setSrc(VIEWER_REFUSED_FRAME_SRC)\n') }, SUITE.hookStopsOnRefusal],
+  ['a failure (503) clears the frame as well', { [HOOK]: real(HOOK).replace("if (outcome.kind === 'transient') { timer = setTimeout(run, RETRY_MS); return }", "if (outcome.kind === 'transient') { setSrc(VIEWER_REFUSED_FRAME_SRC); timer = setTimeout(run, RETRY_MS); return }") }, SUITE.hookTransientRenewalKeepsFrame],
   ['the hook does not retry a failure', { [HOOK]: real(HOOK).replace("if (outcome.kind === 'transient') { timer = setTimeout(run, RETRY_MS); return }", "if (outcome.kind === 'transient') return") }, SUITE.hookRetriesFailures],
   ['the hook keeps its renewal timer after unmount', { [HOOK]: real(HOOK).replace('return () => { cancelled = true; if (timer) clearTimeout(timer) }', 'return () => { cancelled = true }') }, SUITE.hookMintAndRenew],
   ['the hook ignores the flag', { [HOOK]: real(HOOK).replace("const enabled = isStudioLayoutTicketEnabled()", "const enabled = true") }, SUITE.hookFlagOff],
