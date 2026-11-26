@@ -26,11 +26,11 @@ const state = { fetches: [], reply: { status: 200, body: '{}' }, replies: [], to
 class FakeRes { constructor({ status, body }) { this.status = status; this.ok = status >= 200 && status < 300; this._body = body } async json() { return JSON.parse(this._body) } }
 const fakeFetch = async (url, init) => { state.fetches.push({ url: String(url), init }); const r = state.replies.length ? state.replies.shift() : state.reply; if (r instanceof Error) throw r; return new FakeRes(r) }
 let curRunner = null
-const STUBS_BASE = { '@/hooks/use-toast': { toast: t => state.toasts.push(t) } }
+const STUBS_BASE = { '@/hooks/use-toast': { toast: t => state.toasts.push(t) }, '@/lib/utils': { cn: (...parts) => parts.filter(Boolean).join(' ') } }
 const sourceOf = (rel, overrides) => (rel in overrides ? overrides[rel] : real(rel))
 function load(rel, overrides = {}, { realReact = false } = {}) {
   const cache = new Map()
-  const stubs = { ...STUBS_BASE, ...(realReact ? {} : { react: { useState: i => curRunner.useState(i), useEffect: (f, d) => curRunner.useEffect(f, d), forwardRef: fn => ({ render: fn }) } }) }
+  const stubs = { ...STUBS_BASE, ...(realReact ? {} : { react: { useState: i => curRunner.useState(i), useEffect: (f, d) => curRunner.useEffect(f, d), useRef: i => curRunner.useRef(i), forwardRef: fn => ({ render: fn }) } }) }
   const get = r => {
     if (cache.has(r)) return cache.get(r).exports
     const module = { exports: {} }; cache.set(r, module)
@@ -47,13 +47,14 @@ function fakeClock() {
   return { setTimeout: (fn, ms) => { const id = ++seq; timers.set(id, { at: now + ms, fn }); return id }, clearTimeout: id => { timers.delete(id) }, pending: () => [...timers.values()].map(t => t.at - now).sort((a, b) => a - b),
     async tick(ms) { const end = now + ms; for (;;) { const next = [...timers.entries()].filter(([, t]) => t.at <= end).sort((a, b) => a[1].at - b[1].at || a[0] - b[0])[0]; if (!next) break; now = next[1].at; timers.delete(next[0]); next[1].fn(); await settle() } now = end } }
 }
-function createRunner(callFn) {
+function createRunner(callFn, { nullRef } = {}) {
   const slots = []; let idx = 0, dirty = false, effects = [], value
   const runner = {
     useState(init) { const i = idx++; if (!(i in slots)) slots[i] = { v: typeof init === 'function' ? init() : init }; const slot = slots[i]; return [slot.v, nv => { const next = typeof nv === 'function' ? nv(slot.v) : nv; if (!Object.is(next, slot.v)) { slot.v = next; dirty = true } }] },
+    useRef(init) { const i = idx++; if (!(i in slots)) slots[i] = { v: init === null && nullRef ? nullRef : { current: init } }; return slots[i].v },
     useEffect(fn, deps) { const i = idx++; const prev = slots[i]; const changed = !prev || !deps || deps.length !== prev.deps.length || deps.some((d, k) => !Object.is(d, prev.deps[k])); if (!changed) return; const holder = { deps, cleanup: prev ? prev.cleanup : undefined }; slots[i] = holder; effects.push(() => { if (holder.cleanup) holder.cleanup(); holder.cleanup = fn() }) },
   }
-  const render = () => { for (let n = 0; n < 20; n++) { curRunner = runner; idx = 0; dirty = false; effects = []; value = callFn(); for (const e of effects) e(); curRunner = null; if (!dirty) break } return value }
+  const render = () => { const outer = curRunner; for (let n = 0; n < 20; n++) { curRunner = runner; idx = 0; dirty = false; effects = []; value = callFn(); for (const e of effects) e(); curRunner = outer; if (!dirty) break } return value }
   return { render, get: () => { if (dirty) render(); return value }, unmount: () => { for (const s of slots) if (s && typeof s.cleanup === 'function') s.cleanup() } }
 }
 const clone = x => JSON.parse(JSON.stringify(x))
@@ -73,6 +74,20 @@ async function withFakes(overrides, fn) {
 const scopeOf = url => new URL(url, 'https://studio.test').searchParams.getAll('scope')
 const FRAME_URL = 'https://layout.test/p/deck-1?viewOnly=true#/3'
 const renderWrap = (m, props) => m.wrap.ViewTicketedIframe.render(props, null)   // the forwardRef stub exposes the render function: the element it returns (or null)
+
+const PRESENT = 'components/present-view-only-frame.tsx'
+/** The REAL Present frame with the REAL ViewTicketedIframe (and hook), composed by two runners: the Present frame's iframe ref reads whether the wrapper currently draws a frame. */
+function mountPresent(overrides, flagOn) {
+  env.NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED = flagOn ? 'true' : undefined
+  const mod = load(PRESENT, overrides), ev = { failed: 0, slides: [] }, frameRef = { current: null }, frameNode = { focus() {} }
+  const sendCommand = async (iframe, action) => { if (!iframe) throw new Error('no frame'); return { success: true, action, data: { index: 4, total: 9 } } }
+  let presentRunner, wrapperRunner
+  const nullRef = { get current() { return presentRunner.get() && wrapperRunner.get() ? frameNode : null }, set current(_v) {} }
+  presentRunner = createRunner(() => mod.PresentViewOnlyFrame({ baseUrl: 'https://layout.test/p/deck-1', startIndex: 4, sendCommand, frameRef, onSlideIndex: i => ev.slides.push(i), onFailed: () => { ev.failed += 1 } }), { nullRef })
+  wrapperRunner = createRunner(() => { const tree = presentRunner.get(); if (!tree) return null; const el = tree.props.children; return el.type.render(el.props, null) })
+  presentRunner.render(); wrapperRunner.render()
+  return { ev, frameRef, frameNode, overlay: () => presentRunner.get() !== null, unmount: () => { presentRunner.unmount(); wrapperRunner.unmount() } }
+}
 
 // ---------------------------------------------------------------------------------------------------------- the suites, as functions of in-memory overrides (so the mutants reuse them)
 const SUITE = {
@@ -119,6 +134,24 @@ const SUITE = {
     const runner = createRunner(() => renderWrap(m, { src: 'https://layout.test/not-a-deck', title: 'x' })); runner.render(); await settle()
     assert.equal(runner.get().props.src, 'https://layout.test/not-a-deck'); assert.equal(state.fetches.length, 0, 'no deck id: no ticket asked'); assert.deepEqual(m.clock.pending(), []); runner.unmount()
   },
+  /** REVIEW-CX P2: a view frame that was READY and is then refused at a renewal is a failure: one failure callback, a null frame ref, no pending poll, no overlay. */
+  async presentRefusedRenewal(m, overrides) {
+    state.replies = [ticketReply('tk1')]; state.reply = { status: 403, body: '{}' }
+    const p = mountPresent(overrides, true); await settle()
+    await m.clock.tick(400); await settle()
+    assert.equal(p.frameRef.current, p.frameNode, 'ready: the frame is handed to the parent'); assert.deepEqual(p.ev.slides, [4]); assert.equal(p.ev.failed, 0)
+    await m.clock.tick(449_000); assert.equal(p.ev.failed, 0, 'before the renewal nothing fails'); assert.equal(state.fetches.length, 1)
+    await m.clock.tick(1_000); await m.clock.tick(800); await settle()
+    assert.equal(state.fetches.length, 2, 'the renewal was asked'); assert.deepEqual(scopeOf(state.fetches[1].url), ['view'])
+    assert.equal(p.ev.failed, 1, 'ONE failure callback'); assert.equal(p.frameRef.current, null, 'the parent no longer forwards keys to a detached frame'); assert.equal(p.overlay(), false, 'no overlay')
+    assert.deepEqual(m.clock.pending(), [], 'no poll left running'); await m.clock.tick(120_000); assert.equal(p.ev.failed, 1, 'still one'); assert.equal(state.fetches.length, 2, 'no loop'); p.unmount()
+  },
+  /** Flag off the frame is never unmounted: the poll runs on, the frame stays handed to the parent, nothing fails. */
+  async presentFlagOffStays(m, overrides) {
+    const p = mountPresent(overrides, false); await settle()
+    await m.clock.tick(400); await settle(); assert.equal(p.frameRef.current, p.frameNode)
+    await m.clock.tick(900_000); assert.equal(p.ev.failed, 0); assert.equal(p.frameRef.current, p.frameNode); assert.equal(p.overlay(), true); assert.equal(state.fetches.length, 0); assert.ok(m.clock.pending().length > 0, 'the poll keeps running'); p.unmount()
+  },
   async toastOnlyForEditByDefault(m) {
     env.NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED = 'true'; state.reply = { status: 403, body: '{}' }
     const run = async call => { resetState(); state.reply = { status: 403, body: '{}' }; const r = createRunner(call); r.render(); await settle(); const out = { toasts: state.toasts.length, warns: state.warns.length, src: r.get().src }; r.unmount(); return out }
@@ -155,6 +188,8 @@ await check('CLOCK flag on: asks scope=view (never edit), loads with ?t=<ticket>
 await check('REFUSAL a refused view ticket draws NOTHING (no blank page), is logged once and not toasted, never loops and never asks edit', () => withFakes({}, SUITE.viewRefusal))
 await check('NO ID a URL with no deck id asks for no ticket and loads as it is', () => withFakes({}, SUITE.noIdNoTicket))
 await check('TOAST the editing frame is still toasted on a refusal; a view frame is silent by default; the notify option turns either way', () => withFakes({}, SUITE.toastOnlyForEditByDefault))
+await check('PRESENT a view frame that was ready and is refused at a renewal ends Present\'s view cleanly: one failure callback, a null frame ref, no overlay, no poll, no loop', () => withFakes({}, m => SUITE.presentRefusedRenewal(m, {})))
+await check('PRESENT flag off the frame is never unmounted: ready stays, nothing fails, no ticket is asked, the poll runs on', () => withFakes({}, m => SUITE.presentFlagOffStays(m, {})))
 await check('IFRAMES every raw <iframe> in app/ and components/ is ticketed or on the documented exclusion list; the three call sites use the wrapper; the wrapper asks view; the id pattern is the route\'s', () => assert.deepEqual(iframeFailures(), []))
 
 // ---------------------------------------------------------------------------------------------------------- mutants (the sources change in memory only)
@@ -171,10 +206,21 @@ const MUTANTS = [
   ['the editing frame is no longer toasted by default', { [HOOK]: real(HOOK).replace("const notify = options?.notify ?? scope === 'edit'", "const notify = options?.notify ?? false") }, SUITE.toastOnlyForEditByDefault],
   ['the notify option is ignored', { [HOOK]: real(HOOK).replace("const notify = options?.notify ?? scope === 'edit'", "const notify = scope === 'edit'") }, SUITE.toastOnlyForEditByDefault],
 ]
+const PRESENT_BLOCK = real(PRESENT).match(/      \/\/ LAYOUT-TICKET \(PL-60, REVIEW-CX P2\)[\s\S]*?\n      }\n/)?.[0]
+assert.ok(PRESENT_BLOCK, 'the Present frame carries the PL-60 failure block')
+const presentMutant = text => ({ [PRESENT]: real(PRESENT).replace(PRESENT_BLOCK, text) })
+MUTANTS.push(
+  ['Present: a gone ready frame is not treated as a failure', presentMutant(''), (m, o) => SUITE.presentRefusedRenewal(m, o)],
+  ['Present: the frame ref is not cleared', presentMutant(PRESENT_BLOCK.replace('        frameRef.current = null\n', '')), (m, o) => SUITE.presentRefusedRenewal(m, o)],
+  ['Present: the failure callback is not called', presentMutant(PRESENT_BLOCK.replace('        latest.current.onFailed()\n', '')), (m, o) => SUITE.presentRefusedRenewal(m, o)],
+  ['Present: the poll is not stopped', presentMutant(PRESENT_BLOCK.replace('        return\n', '')), (m, o) => SUITE.presentRefusedRenewal(m, o)],
+  ['Present: the overlay stays up', presentMutant(PRESENT_BLOCK.replace('        setFailed(true)\n', '')), (m, o) => SUITE.presentRefusedRenewal(m, o)],
+  ['Present: a flag-off frame is failed', presentMutant(PRESENT_BLOCK.replace('isReady && !iframeRef.current', 'isReady')), (m, o) => SUITE.presentFlagOffStays(m, o)],
+)
 for (const [name, overrides, suite] of MUTANTS) await check(`MUTANT is caught: ${name}`, async () => {
   for (const [rel, text] of Object.entries(overrides)) assert.notEqual(text, real(rel), `the mutation changed ${rel}`)
   let failed = false
-  try { await withFakes(overrides, m => (suite === SUITE.flagOffIdentity ? suite(m, overrides) : suite(m))) } catch { failed = true }
+  try { await withFakes(overrides, m => suite(m, overrides)) } catch (error) { failed = true; if (process.env.PL60_DEBUG) console.log(`     caught: ${String(error?.message).split('\n')[0].slice(0, 140)}`) }
   assert.ok(failed, 'the suite did not fail')
 })
 const IFRAME_MUTANTS = [
