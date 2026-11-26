@@ -1062,14 +1062,14 @@ export function PresentationViewer({
     const isLogicalCurrent = () => slideMutationMountRef.current.active
       && slideMutationMountRef.current.generation === mount
       && studioComposeDeckOwnerRef.current.token === deck
-      && slideMutationOwnerRef.current.source === source
+      && viewerSrcMatchesApproved(source, slideMutationOwnerRef.current.source) // LAYOUT-TICKET-READY (PL-62): the raw src carries ?t=<ticket> when ticketing is on; the owner's source is the approved URL
     const isCurrent = () => {
       if (retired) return false
       const current = isLogicalCurrent() && slideMutationOwnerRef.current === owner
         && iframeRef.current === iframe && iframe.src === source && iframe.contentWindow === nativeWindow
-        && Boolean(nativeWindow && loaded && loaded.iframe === iframe && loaded.source === source
+        && Boolean(nativeWindow && loaded && loaded.iframe === iframe && viewerSrcMatchesApproved(source, loaded.source) // LAYOUT-TICKET-READY (PL-62)
           && loaded.nativeWindow === nativeWindow && loaded.revision === studioComposeLoadRevisionRef.current)
-        && studioComposeLoadedFrameRef.current === loaded && source === owner.source
+        && studioComposeLoadedFrameRef.current === loaded && viewerSrcMatchesApproved(source, owner.source) // LAYOUT-TICKET-READY (PL-62)
       if (!current) retired = true
       return current
     }
@@ -3457,9 +3457,9 @@ export function PresentationViewer({
         || slideMutationOwnerRef.current !== owner || iframeRef.current !== iframe
         || iframe.src !== source || iframe.contentWindow !== nativeWindow
         || !loadedFrame || studioComposeLoadedFrameRef.current !== loadedFrame
-        || loadedFrame.iframe !== iframe || loadedFrame.source !== source || loadedFrame.nativeWindow !== nativeWindow
+        || loadedFrame.iframe !== iframe || !viewerSrcMatchesApproved(source, loadedFrame.source) || loadedFrame.nativeWindow !== nativeWindow // LAYOUT-TICKET-READY (PL-62)
         || loadedFrame.revision !== loadRevision || studioComposeLoadRevisionRef.current !== loadRevision
-        || source !== owner.source
+        || !viewerSrcMatchesApproved(source, owner.source) // LAYOUT-TICKET-READY (PL-62)
         || studioFormatModeRef.current !== mode || mode.enabled
         || viewerInteractionIntentRef.current !== interaction || thumbnailNativeRevisionRef.current !== structure
         || studioSaveRequestRef.current !== null || !safety.ready || safety.dirty || safety.busy || safety.error) {

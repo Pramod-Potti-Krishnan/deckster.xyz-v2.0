@@ -1,7 +1,7 @@
 // PL-62 (ARCH-PLATFORM card 15:27Z, from REVIEW-CX's finding on #654): with NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED on, the editing frame's `src` carries `?t=<ticket>`, and its load handler (handleIframeLoad in
 // components/presentation-viewer.tsx) compared that real src to the approved URL with `===`: a successful mint made every load "not ready" and the waiting overlay stuck. The cure: the compare ignores ONLY the t
 // parameter (same origin, path, hash and the other query parameters), behind the same flag; flag off, exactly `===`. What readiness and the native frame's source compare afterwards is the APPROVED url.
-//   node scripts/test-studio-pl62-ticket-ready.mjs      (plain node, offline: the REAL helper transpiled and run; the REAL handleIframeLoad cut out of the component by brace matching and run against spies.)
+//   node scripts/test-studio-pl62-ticket-ready.mjs      (plain node, offline: the REAL helper transpiled and run; the REAL handleIframeLoad, the two report functions, captureStudioNativeSlideFrame and handleComposeCaptureSelectionContext cut out of the component by brace matching and run against spies.)
 // Mutants change the sources in memory only.
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -69,6 +69,22 @@ function buildReporter(overrides, name, scope, letVars) {
   const fn = new Function(...names, `${letVars}; ${js}; return ${name}`)(...Object.values(scope), lib.viewerSrcMatchesApproved, t => toasts.push(t))
   return { fn, toasts }
 }
+/** A `const NAME = useCallback(...)` of the component, cut out by brace matching and run with its free identifiers supplied (the same way as handleIframeLoad). */
+function cutCallback(text, name) {
+  const start = text.indexOf(`  const ${name} = useCallback(`)
+  assert.ok(start >= 0, `${name} is in the component`)
+  const open = text.indexOf('=> {', start) + 3
+  let depth = 0, i = open
+  for (; i < text.length; i++) { const c = text[i]; if (c === '{') depth++; else if (c === '}' && --depth === 0) break }
+  return text.slice(start, text.indexOf(')', i) + 1)
+}
+function buildCallback(overrides, name, scope) {
+  const lib = loadLib(overrides)
+  const js = ts.transpileModule(cutCallback(overrides[VIEWER] ?? real(VIEWER), name), { compilerOptions: { module: ts.ModuleKind.None, target: ts.ScriptTarget.ES2022 } }).outputText
+  const base = { useCallback: f => f, viewerSrcMatchesApproved: lib.viewerSrcMatchesApproved, ...scope }
+  const proxy = new Proxy(base, { has: (target, key) => typeof key === 'string' && (key in target || !(key in globalThis)), get: (target, key) => (key === Symbol.unscopables ? undefined : target[key]) })
+  return new Function('scope', `with (scope) { ${js}; return ${name} }`)(proxy)
+}
 const ticketed = (url = APPROVED, t = 'tk1') => { const u = new URL(url); u.searchParams.set('t', t); return u.toString() }
 const fire = (h, src) => h.handler({ currentTarget: { src, contentWindow: {} } })
 
@@ -134,6 +150,37 @@ const SUITE = {
     const other = cases('true')(ticketed(), { request: {}, studioNativeMutationIntentRef: { current: {} } }); other.unconfirmed.fn(); assert.equal(other.unconfirmed.toasts.length, 0, 'another request: no report')
     const t = cases('true')(ticketed()).unconfirmed; t.fn(); assert.deepEqual(t.toasts, [{ title: 'Check slide result', description: 'The insert result could not be confirmed. Check the slide list before trying again.', variant: 'destructive' }], 'the toast is the one it was')
   },
+  /** REVIEW-CX on #655: the native-slide frame capture and the compose selection context compared the frame's RAW src (ticketed) with the owner's and the loaded frame's APPROVED source, so a ready ticketed frame could not be captured
+   *  (Add, Delete, the element-generation lease, compose selection all refuse). They compare through the helper now; the raw src is still held equal to ITSELF over time (a re-navigated frame retires the capture). */
+  captures(overrides) {
+    const OTHER_DECK = 'https://layout.test/p/deck-2?studio_build_snapshot=4&t=tk1#/0', OTHER_ORIGIN = 'https://evil.test/p/deck-1?studio_build_snapshot=4&t=tk1#/0'
+    const mk = (src, { ownerSource = APPROVED, loadedSource = APPROVED } = {}) => {
+      const node = { src, contentWindow: { w: 1 } }
+      const owner = { source: ownerSource, presentationId: 'deck-1', userId: 'u1', sessionId: 's1', deckOwnerSessionId: 's1', activeVersion: 'final' }
+      const loaded = { iframe: node, source: loadedSource, nativeWindow: node.contentWindow, revision: 2 }
+      const scope = {
+        studioShell: true, renderSlideMutationOwner: owner, iframeRef: { current: node }, slideMutationMountRef: { current: { active: true, generation: 3 } }, slideMutationOwnerRef: { current: owner },
+        studioComposeLoadedFrameRef: { current: loaded }, studioComposeLoadRevisionRef: { current: 2 }, studioComposeDeckOwnerRef: { current: { token: {} } },
+        studioFormatModeRef: { current: { enabled: false, revision: 1 } }, viewerInteractionIntentRef: { current: 1 }, thumbnailNativeRevisionRef: { current: 1 }, studioComposeContinuationRef: { current: null },
+        getStudioIntroductionSafety: () => ({ ready: true, dirty: false, busy: false, error: null }), studioSaveRequestRef: { current: null }, introSafetyRef: { current: { presentationUrl: APPROVED } },
+      }
+      return { node, native: buildCallback(overrides, 'captureStudioNativeSlideFrame', scope)(), compose: buildCallback(overrides, 'handleComposeCaptureSelectionContext', scope)() }
+    }
+    env.NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED = 'true'
+    let m = mk(ticketed())
+    assert.ok(m.native, 'flag on: a ticketed src is a capturable native frame (this was null before the cure)'); assert.equal(m.native.iframe, m.node); assert.ok(m.native.isCurrent() && m.native.isLogicalCurrent(), 'and it stays current')
+    assert.ok(m.compose, 'flag on: a ticketed src gives a compose selection context'); assert.ok(m.compose.isCurrent(), 'and it is current')
+    m = mk(ticketed()); const c = m.native; m.node.src = ticketed(APPROVED, 'tk2')
+    assert.equal(c.isCurrent(), false, 'the raw src is still held equal to ITSELF over time: a re-navigated frame retires the capture'); assert.equal(c.isCurrent(), false, 'and it stays retired')
+    m = mk(ticketed()); const cc = m.compose; m.node.src = ticketed(APPROVED, 'tk2'); assert.equal(cc.isCurrent(), false, 'the compose context retires the same way')
+    for (const bad of [OTHER_DECK, OTHER_ORIGIN, 'https://layout.test/p/deck-1?studio_build_snapshot=9&t=tk1#/0', 'about:blank']) { m = mk(bad); assert.equal(m.native, null, `${bad}: no native capture`); assert.equal(m.compose, null, `${bad}: no compose context`) }
+    m = mk(ticketed(), { loadedSource: 'https://layout.test/p/deck-2?studio_build_snapshot=4#/0' }); assert.equal(m.native, null, 'a loaded frame of another deck: no native capture'); assert.equal(m.compose, null, 'and no compose context')
+    m = mk(ticketed(), { ownerSource: 'https://layout.test/p/deck-2?studio_build_snapshot=4#/0' }); assert.equal(m.native, null, 'an owner of another deck: no native capture'); assert.equal(m.compose, null, 'and no compose context')
+    m = mk(APPROVED); assert.ok(m.native && m.compose, 'flag on: the plain src is capturable too')
+    env.NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED = undefined
+    m = mk(ticketed()); assert.equal(m.native, null, 'flag off: a ticketed src is not the owner frame (as before)'); assert.equal(m.compose, null)
+    m = mk(APPROVED); assert.ok(m.native && m.native.isCurrent() && m.compose && m.compose.isCurrent(), 'flag off: the plain src captures as before')
+  },
   handlerShell(overrides) {
     env.NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED = 'true'
     const noop = () => {}
@@ -158,21 +205,27 @@ await check('LOAD the real handleIframeLoad, flag on: a ticketed src is READY an
 await check('LOAD the real handleIframeLoad, flag off: a ticketed src is NOT ready (as before); the plain src is', () => SUITE.handlerFlagOff({}))
 await check('LOAD the studio shell: the native frame source is the approved URL for a ticketed src; a fresh frame lifetime and the retired-request report happen as before', () => SUITE.handlerShell({}))
 await check('REPORT the two "Check slide result" reports (reportUnconfirmed, reportRetiredAdd), cut out of the component and run: a ticketed src is the owner frame with the flag on (once each); another deck/origin/snapshot or no frame is not; flag off exactly as before', () => SUITE.reporters({}))
+await check('CAPTURE the real captureStudioNativeSlideFrame and handleComposeCaptureSelectionContext (REVIEW-CX P2 on #655): a ticketed src with the flag on is capturable and current; another deck/origin/snapshot, a loaded frame or an owner of another deck is not; a re-navigated frame retires; flag off exactly as before', () => SUITE.captures({}))
 await check('SOURCE the component loads its helper from the ticket library, compares with it in the load handler and has no strict compare of the loaded src left there', () => {
   const v = real(VIEWER)
   assert.match(v, /import \{ viewerSrcMatchesApproved \} from '@\/lib\/studio-layout-viewer-ticket' \/\/ LAYOUT-TICKET-READY/)
   const handler = cutHandleIframeLoad(v)
   assert.match(handler, /!viewerSrcMatchesApproved\(loadedUrl, approvedIframeNavigationUrl\)/); assert.doesNotMatch(handler, /loadedUrl !== approvedIframeNavigationUrl/)
   assert.match(handler, /debugLog\('✅ Iframe loaded and ready'\)\n    loadedUrl = approvedIframeNavigationUrl \/\/ LAYOUT-TICKET-READY/)
-  assert.equal((v.match(/LAYOUT-TICKET-READY/g) ?? []).length, 6, 'exactly the six marked lines')
+  assert.equal((v.match(/LAYOUT-TICKET-READY/g) ?? []).length, 11, 'exactly the eleven marked lines (six at the load and report seams, five at the two capture seams)')
+  const nativeCapture = cutCallback(v, 'captureStudioNativeSlideFrame'), composeCapture = cutCallback(v, 'handleComposeCaptureSelectionContext')
+  assert.equal((nativeCapture.match(/viewerSrcMatchesApproved\(source, /g) ?? []).length, 3); assert.equal((composeCapture.match(/viewerSrcMatchesApproved\(source, /g) ?? []).length, 2)
+  assert.doesNotMatch(nativeCapture, /loaded\.source === source|source === owner\.source|owner\.source === source/, 'no strict compare of the raw src with an owner or loaded source in the native capture'); assert.doesNotMatch(composeCapture, /loadedFrame\.source !== source|source !== owner\.source/, 'nor in the compose capture')
+  assert.match(nativeCapture, /iframe\.src === source && iframe\.contentWindow === nativeWindow/, 'the raw src is still compared with ITSELF over time'); assert.match(composeCapture, /iframe\.src !== source \|\| iframe\.contentWindow !== nativeWindow/)
   assert.match(cutConst(v, 'reportUnconfirmed'), /\|\| !viewerSrcMatchesApproved\(iframeRef\.current\?\.src, owner\.source\)\) return/); assert.match(cutConst(v, 'reportRetiredAdd'), /\|\| !viewerSrcMatchesApproved\(iframeRef\.current\?\.src, expectedOwner\.source\)\) return/)
   assert.doesNotMatch(v, /iframeRef\.current\?\.src !== (owner|expectedOwner)\.source/, 'no strict compare of the frame src to an owner source is left')
 })
 
-await check('STRIP the registered strip takes the four marked lines out and puts the two rewritten lines back (the viewer is its base again); other files are untouched', async () => {
+await check('STRIP the registered strip takes the two inserted lines out and puts the nine rewritten lines back (the viewer is its base again); other files are untouched', async () => {
   const strip = await import('./studio-pl62-ticket-ready-strip.mjs')
   const out = strip.stripPl62TicketReady(VIEWER, real(VIEWER))
   assert.ok(!strip.PL62_MARKER_RE.test(out), 'no marker left'); assert.ok(out.includes('    const loadedUrl = event.currentTarget.src\n    if (!approvedIframeNavigationUrl || loadedUrl !== approvedIframeNavigationUrl) {\n'))
+  assert.equal(strip.PL62_REPLACED_LINES.length, 9); for (const [now, before] of strip.PL62_REPLACED_LINES) { assert.ok(real(VIEWER).includes(now + '\n'), `the viewer carries: ${now.trim().slice(0, 70)}`); assert.ok(out.includes(before + '\n'), `the strip puts back: ${before.trim().slice(0, 70)}`) }
   assert.equal(real(VIEWER).split('\n').length - out.split('\n').length, strip.PL62_INSERTED_LINES.length); assert.equal(strip.stripPl62TicketReady('lib/x.ts', 'abc'), 'abc')
 })
 
@@ -206,6 +259,14 @@ const MUTANTS = [
   ['the helper treats a missing src as a match', rep(LIB, '  if (!loadedUrl || !approvedUrl || !isStudioLayoutTicketEnabled()) return false\n', '  if (!approvedUrl) return true\n  if (!isStudioLayoutTicketEnabled()) return false\n'), (ov) => SUITE.helperOn(loadLib(ov))],
   ['the load handler accepts any src', rep(VIEWER, '!viewerSrcMatchesApproved(loadedUrl, approvedIframeNavigationUrl)', 'false'), (ov) => SUITE.handlerPlain(ov)],
   ['the load handler ignores the flag-off identity (always tolerant)', rep(LIB, '  if (!loadedUrl || !approvedUrl || !isStudioLayoutTicketEnabled()) return false\n  try {\n    const loaded', '  if (!loadedUrl || !approvedUrl) return false\n  try {\n    const loaded'), (ov) => SUITE.handlerFlagOff(ov)],
+  ['the native capture is back to the strict compare with the owner (isLogicalCurrent)', rep(VIEWER, 'viewerSrcMatchesApproved(source, slideMutationOwnerRef.current.source)', 'slideMutationOwnerRef.current.source === source'), (ov) => SUITE.captures(ov)],
+  ['the native capture is back to the strict compare with the loaded frame', rep(VIEWER, 'viewerSrcMatchesApproved(source, loaded.source)', 'loaded.source === source'), (ov) => SUITE.captures(ov)],
+  ['the native capture is back to the strict compare with the owner (isCurrent)', rep(VIEWER, '&& studioComposeLoadedFrameRef.current === loaded && viewerSrcMatchesApproved(source, owner.source)', '&& studioComposeLoadedFrameRef.current === loaded && source === owner.source'), (ov) => SUITE.captures(ov)],
+  ['the compose context is back to the strict compare with the loaded frame', rep(VIEWER, '!viewerSrcMatchesApproved(source, loadedFrame.source)', 'loadedFrame.source !== source'), (ov) => SUITE.captures(ov)],
+  ['the compose context is back to the strict compare with the owner', rep(VIEWER, '|| !viewerSrcMatchesApproved(source, owner.source) // LAYOUT-TICKET-READY (PL-62)', '|| source !== owner.source'), (ov) => SUITE.captures(ov)],
+  ['the native capture no longer holds the raw src equal to itself over time', rep(VIEWER, 'iframeRef.current === iframe && iframe.src === source && iframe.contentWindow === nativeWindow\n        && Boolean(nativeWindow && loaded', 'iframeRef.current === iframe && iframe.contentWindow === nativeWindow\n        && Boolean(nativeWindow && loaded'), (ov) => SUITE.captures(ov)],
+  ['the native capture takes any loaded frame of another deck', rep(VIEWER, 'viewerSrcMatchesApproved(source, loaded.source)', 'true'), (ov) => SUITE.captures(ov)],
+  ['the compose context takes any owner of another deck', rep(VIEWER, '|| !viewerSrcMatchesApproved(source, owner.source) // LAYOUT-TICKET-READY (PL-62)', '|| false'), (ov) => SUITE.captures(ov)],
 ]
 for (const [name, overrides, suite] of MUTANTS) await check(`MUTANT is caught: ${name}`, async () => {
   let failed = false

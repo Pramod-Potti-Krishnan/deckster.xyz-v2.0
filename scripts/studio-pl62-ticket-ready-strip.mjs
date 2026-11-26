@@ -1,6 +1,6 @@
 // PL-62 STUDIO-TICKET-READY (Platform card, 26 Nov 2026): with the Layout viewer ticket on, the editing frame's `src` carries ?t=<ticket>, and its load handler compared that src to the approved URL with `===`.
 // This change makes the compare ignore ONLY the t parameter (lib/studio-layout-viewer-ticket.ts viewerSrcMatchesApproved), behind NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED. Stacked on PL-60 (claude/pl60-view-tickets).
-// The only existing file whose older lines it touches is components/presentation-viewer.tsx: two pure insertions and four whole-line replacements, every one carrying the marker LAYOUT-TICKET-READY.
+// The only existing file whose older lines it touches is components/presentation-viewer.tsx: two pure insertions and nine whole-line replacements (four at the load and report seams, five at the two capture seams REVIEW-CX found), every one carrying the marker LAYOUT-TICKET-READY.
 // Strip them (the inserted lines out, the replaced lines back) and the file is its base, byte for byte. Plain node, nothing is read from disk or git here.
 
 export const PL62_BASE_COMMIT = 'a6fd96cc63' // origin/claude/pl60-view-tickets, the commit this change is cut from
@@ -19,6 +19,11 @@ export const PL62_REPLACED_LINES = [
   ["        || !viewerSrcMatchesApproved(iframeRef.current?.src, owner.source)) return // LAYOUT-TICKET-READY (PL-62): the frame's src carries ?t=<ticket> when ticketing is on", "        || iframeRef.current?.src !== owner.source) return"],
   ["        || !viewerSrcMatchesApproved(iframeRef.current?.src, expectedOwner.source)) return // LAYOUT-TICKET-READY (PL-62): the frame's src carries ?t=<ticket> when ticketing is on", "        || iframeRef.current?.src !== expectedOwner.source) return"],
   ["    if (!approvedIframeNavigationUrl || !viewerSrcMatchesApproved(loadedUrl, approvedIframeNavigationUrl)) { // LAYOUT-TICKET-READY (PL-62)", "    if (!approvedIframeNavigationUrl || loadedUrl !== approvedIframeNavigationUrl) {"],
+  ["      && viewerSrcMatchesApproved(source, slideMutationOwnerRef.current.source) // LAYOUT-TICKET-READY (PL-62): the raw src carries ?t=<ticket> when ticketing is on; the owner's source is the approved URL", "      && slideMutationOwnerRef.current.source === source"],
+  ["        && Boolean(nativeWindow && loaded && loaded.iframe === iframe && viewerSrcMatchesApproved(source, loaded.source) // LAYOUT-TICKET-READY (PL-62)", "        && Boolean(nativeWindow && loaded && loaded.iframe === iframe && loaded.source === source"],
+  ["        && studioComposeLoadedFrameRef.current === loaded && viewerSrcMatchesApproved(source, owner.source) // LAYOUT-TICKET-READY (PL-62)", "        && studioComposeLoadedFrameRef.current === loaded && source === owner.source"],
+  ["        || loadedFrame.iframe !== iframe || !viewerSrcMatchesApproved(source, loadedFrame.source) || loadedFrame.nativeWindow !== nativeWindow // LAYOUT-TICKET-READY (PL-62)", "        || loadedFrame.iframe !== iframe || loadedFrame.source !== source || loadedFrame.nativeWindow !== nativeWindow"],
+  ["        || !viewerSrcMatchesApproved(source, owner.source) // LAYOUT-TICKET-READY (PL-62)", "        || source !== owner.source"],
 ]
 
 /** The reverse hunks of the eight older proofs this change teaches: [text as it stands now, text as it was before], generated from the diff against the base (not retyped). Older pins that hold a proof to ITS base (test-studio-arrange's
