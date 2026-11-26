@@ -78,6 +78,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-director-rest-sign-strip.mjs')).DIRECTOR_REST_SIGN_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, program1 Director REST sign all (STUDIO_DIRECTOR_REST_SIGN_ALL_ENABLED)
   ...(await import('./studio-flip-enablers-strip.mjs')).FLIP_ENABLERS_SCOPE_FILES, // LATER-CHANGE: PROGRAM-1, studio flip enablers (NEXT_PUBLIC_STUDIO_RESEARCHER_PROXY_ENABLED / NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED / NEXT_PUBLIC_STUDIO_DOWNLOADS_AUTH_ENABLED)
   ...(await import('./studio-dual-lookup-strip.mjs')).DUAL_LOOKUP_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, flip enablers dual lookup: Director reads ask with the DB id, then the session's own e-mail (STUDIO_DIRECTOR_REST_SIGN_ALL_ENABLED)
+  ...(await import('./studio-pl46-edit-scope-strip.mjs')).PL46_SCOPE_FILES, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-46 Studio edit scope: the viewer-ticket route, library and hook ask Layout for a scope (edit for the owner's editing frame, view otherwise) and stop on a refusal (NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED)
   // one line per later change, above this comment
 ])
 
