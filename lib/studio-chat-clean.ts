@@ -83,7 +83,7 @@ export const CHAT_CLEAN_WORDS = Object.freeze({
   deepResearchItem: 'Deep research',
   deepResearchNote: 'Also turns on web search',
   webSearchItem: 'Web search',
-  lockedNote: 'Locked for this deck — research already ran',
+  lockedNote: 'Locked for this deck: its outline is already written. Start a new deck to change these.',
   stoppedTitle: 'Stopped',
   pausedTitle: 'Paused',
   stoppingTitle: 'Stopping',

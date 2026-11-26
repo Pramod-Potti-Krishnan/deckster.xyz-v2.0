@@ -68,7 +68,7 @@ export const CHAT_COMMANDS_WORDS = Object.freeze({
   modelNotReadyTitle: "Model choice isn't ready",
   modelNotReadyBody: 'Wait for the deck to load, then try again.',
   researchLockedTitle: 'Locked for this deck',
-  researchLockedBody: 'Research already ran, so these switches can no longer change. Start a new session to change them.',
+  researchLockedBody: 'Locked for this deck: its outline is already written. Start a new deck to change these.',
   noSlidesBody: (what: string) => `There is no slide to ${what} yet. Build or open a deck, then try again.`,
   noFiles: 'No files in this deck yet. Attach one with the paperclip.',
   noElement: 'Select an element on the slide first.',

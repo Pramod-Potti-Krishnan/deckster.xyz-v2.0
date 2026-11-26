@@ -16,7 +16,7 @@ export const STUDIO_RESEARCH_SWITCH_ENABLED = studioResearchSwitchOn(process.env
 export const RESEARCH_COPY = {
   label: 'Research',
   note: 'Gather sources before building this deck. Deep research is in the research options.',
-  lockedNote: 'Locked for this deck — research already ran',
+  lockedNote: 'Locked for this deck: its outline is already written. Start a new deck to change these.',
 } as const
 
 /** The composer's research state the switch reads: web search, deep research (which includes web search), and whether the deck's research settings are frozen (the strawman exists). */

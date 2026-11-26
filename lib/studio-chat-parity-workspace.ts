@@ -26,7 +26,7 @@ import type { ParityDeps, ParityResult, ParityRow, ParityRun } from '@/lib/studi
 export const WORKSPACE_WORDS = Object.freeze({
   noDeck: PARITY_WORDS.noDeck,
   noPage: 'Open the builder first.',
-  kgLocked: 'Locked: research already ran for this deck.',
+  kgLocked: 'Locked for this deck: its outline is already written.',
   kgPro: 'Knowledge graph is a Pro feature.',
   kgOffline: 'Knowledge graph is offline right now.',
   kgLoading: 'Checking your knowledge graph access…',
