@@ -169,6 +169,7 @@ import {
   visualTotalAfterCommit,
 } from '@/lib/studio-slide-count-sync'
 import { useLayoutViewerTicketSrc } from '@/lib/studio-layout-viewer-ticket-client' // LAYOUT-TICKET (NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED, default off)
+import { viewerSrcMatchesApproved } from '@/lib/studio-layout-viewer-ticket' // LAYOUT-TICKET-READY (PL-62): with ticketing on, the frame's src carries ?t=<ticket>; the load check ignores only that parameter
 import { STUDIO_DECK_SYNC_TRUTH_ENABLED, syncTruthSettledTotals } from '@/lib/studio-deck-sync-truth' // DECK-SYNC-TRUTH (NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH, default off): after a poll the totals are the viewer's own count, not a floor restored too high
 
 const DEFAULT_BUILD_THEME_SELECTION: BuildThemeSelection = { mode: 'auto' }
@@ -1422,8 +1423,8 @@ export function PresentationViewer({
   // Handle iframe load event
   const handleIframeLoad = useCallback((event: React.SyntheticEvent<HTMLIFrameElement>) => {
     if (studioShell && event.currentTarget !== iframeRef.current) return
-    const loadedUrl = event.currentTarget.src
-    if (!approvedIframeNavigationUrl || loadedUrl !== approvedIframeNavigationUrl) {
+    let loadedUrl = event.currentTarget.src // LAYOUT-TICKET-READY (PL-62)
+    if (!approvedIframeNavigationUrl || !viewerSrcMatchesApproved(loadedUrl, approvedIframeNavigationUrl)) { // LAYOUT-TICKET-READY (PL-62)
       if (studioShell) {
         studioComposeLoadedFrameRef.current = null
         studioNativeMutationPublicationRef.current = null
@@ -1441,6 +1442,7 @@ export function PresentationViewer({
       return
     }
     debugLog('✅ Iframe loaded and ready')
+    loadedUrl = approvedIframeNavigationUrl // LAYOUT-TICKET-READY (PL-62): what readiness and the native frame's source compare is the approved URL, not the ticketed src
     if (studioShell) {
       // Even an identical URL is a fresh native frame lifetime.
       const retiredNativeRequest = slideMutationRequestRef.current

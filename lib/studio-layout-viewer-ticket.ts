@@ -75,6 +75,25 @@ export function approvedPresentationIdFromViewerUrl(viewerUrl: string | null | u
   return evaluateLayoutViewerUrl(viewerUrl, policy).status === 'allowed' ? id : null
 }
 
+/**
+ * PL-62 (REVIEW-CX, ARCH-PLATFORM 15:27Z): does the frame's real `src` (which carries `?t=<ticket>` once a ticket is minted) count as the approved viewer URL? The editing frame's load handler
+ * compared the two with `===`, so with ticketing on a successful mint made every load "not ready". Flag off, or the same string: exactly `===` (nothing changes). Flag on: the same origin, the same
+ * path, the same hash and the same query parameters, IGNORING only `t` (a different value of another parameter, an extra one or a missing one is a different document and does not count).
+ */
+export function viewerSrcMatchesApproved(loadedUrl: string, approvedUrl: string): boolean {
+  if (loadedUrl === approvedUrl) return true
+  if (!isStudioLayoutTicketEnabled()) return false
+  try {
+    const loaded = new URL(loadedUrl)
+    const approved = new URL(approvedUrl)
+    if (loaded.origin !== approved.origin || loaded.pathname !== approved.pathname || loaded.hash !== approved.hash) return false
+    const withoutTicket = (url: URL) => Array.from(url.searchParams.entries()).filter(([key]) => key !== 't').map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`).sort().join('&')
+    return withoutTicket(loaded) === withoutTicket(approved)
+  } catch {
+    return false
+  }
+}
+
 /** PL-46: the scope a frame asks for. Only the owner's editing frame asks 'edit'; every other frame asks 'view' (Layout decides, by its own owner check). */
 export type ViewerTicketScope = 'edit' | 'view'
 
