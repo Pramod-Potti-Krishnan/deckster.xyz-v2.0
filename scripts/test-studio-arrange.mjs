@@ -25,7 +25,7 @@ import ts from 'typescript'
 import { stripDeckSyncTruth } from './studio-deck-sync-truth-strip.mjs' // LATER-CHANGES: registry read (DECK-SYNC-TRUTH)
 import { stripDeckSaveRefused } from './studio-deck-save-refused-strip.mjs' // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): the change stacked after this one marks lines in the viewer; the viewer is compared with the base past them
 const { stripFlipEnablers } = await import('./studio-flip-enablers-strip.mjs') // LATER-CHANGES: registry read (FLIP-ENABLERS): program1/studio-flip-enablers' viewer lines come out first
-const { stripPl62TicketReady } = await import('./studio-pl62-ticket-ready-strip.mjs') // LATER-CHANGES: registry read (PL-62): the viewer's four ticket-ready lines come out before the flip enablers' lines
+import { stripPl62TicketReady } from './studio-pl62-ticket-ready-strip.mjs' // LATER-CHANGES: registry read (PL-62): the viewer's four ticket-ready lines come out in read(), before every older strip below
 
 const root = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(root, 'package.json'))
@@ -48,7 +48,7 @@ const FIXTURE = 'scripts/fixtures/studio-arrange/layout-transcript.json'
 const VIEWER_ORIGIN = 'https://layout.synthetic.test'
 const STUDIO_ORIGIN = 'https://studio.synthetic.test'
 const chatParityStrip = await import('./studio-chat-parity-strip.mjs') // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): the strip of the change stacked after #522
-const read = rel => chatParityStrip.stripChatParity(rel, stripChatElementEdit(rel, fs.readFileSync(path.join(root, rel), 'utf8'))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out too, outside #522's strip
+const read = rel => chatParityStrip.stripChatParity(rel, stripChatElementEdit(rel, stripPl62TicketReady(rel, fs.readFileSync(path.join(root, rel), 'utf8')))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out too, outside #522's strip
 const sha = text => crypto.createHash('sha256').update(typeof text === 'string' ? text : JSON.stringify(text)).digest('hex')
 const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', maxBuffer: 1 << 28 })
 const plain = value => value === undefined ? undefined : JSON.parse(JSON.stringify(value))
@@ -312,7 +312,7 @@ function mountInspector(env, props, source = SRC[INSPECTOR]) {
 // ============================================================ A. strip and byte identity
 {
   for (const rel of strip.STUDIO_ARRANGE_FILES) {
-    const now = stripDeckSaveRefused(rel, stripFlipEnablers(rel, stripPl62TicketReady(rel, read(rel)))) // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE, PL-62): the lines of the change stacked after this one come out first
+    const now = stripDeckSaveRefused(rel, stripFlipEnablers(rel, read(rel))) // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): the lines of the change stacked after this one come out first
     check(assert.equal, strip.stripStudioArrange(rel, stripDeckSyncTruth(rel, now)), baseText(rel), `${rel}: without its STUDIO-ARRANGE lines it is the base's, byte for byte`) // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): the lines of the change stacked after this one come out first
     check(assert.equal, registry.stripLaterChanges(rel, now), registry.stripLaterChanges(rel, baseText(rel)), `${rel}: through the registry it is the base's`)
     const marked = now.split('\n').filter(line => strip.STUDIO_ARRANGE_MARKER_RE.test(line)).length

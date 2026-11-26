@@ -137,6 +137,7 @@ await check('TAUGHT each of the eight older proofs this change teaches carries i
   for (const rel of strip.PL62_TAUGHT_FILES) { assert.ok(strip.PL62_SCOPE_FILES.has(rel), `${rel}: in the scope`); assert.ok(/registry read \(PL-62\)|registry read \(DECK-SAVE-REFUSED-NOTICE, PL-62\)/.test(real(rel)), `${rel}: names the marker`) }
   for (const rel of strip.PL62_SCOPE_FILES) assert.ok(registry.LATER_CHANGE_FILES.has(rel), `registered: ${rel}`)
   assert.ok(registry.LATER_STRIPS.includes(strip.stripPl62TicketReady), 'the strip is registered'); assert.equal(registry.LATER_STRIPS.at(-1), strip.stripPl62TicketReady, 'and last (the newest change)')
+  for (const rel of strip.PL62_TAUGHT_FILES) { const out = strip.stripPl62TicketReady(rel, real(rel)); assert.ok(!/registry read \(PL-62\)|, PL-62\)/.test(out), `${rel}: the strip puts its taught line back`); assert.ok(strip.PL62_REVERSE_HUNKS[rel]?.length >= 1, `${rel}: has reverse hunks`) }
 })
 
 // ---------------------------------------------------------------------------------------------------------- mutants (the sources change in memory only)
