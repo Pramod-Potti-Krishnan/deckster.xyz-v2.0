@@ -147,17 +147,20 @@ const SUITE = {
     assert.equal(f('https://layout.test/p/deck-1', policyModule.createLayoutViewerUrlPolicy('')), null, 'no approved origin configured: no ticket')
     assert.equal(f('https://other.test/p/deck-1', policyModule.createLayoutViewerUrlPolicy('https://layout.test', 'https://other.test')), 'deck-1', 'an origin the environment lists is approved')
   },
-  /** With the flag on, a viewer URL that is not approved mints NOTHING: no request, no timer, loads as it is, one log line naming the origin (never the URL). */
+  /** With the flag on, a URL outside the approved origins FAILS CLOSED (ARCH-PLATFORM 16:00Z): no request, no timer, no frame, one log line naming the origin (never the URL); flag off it loads as before. */
   async unapprovedMintsNothing(m) {
     env.NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED = 'true'
-    for (const url of ['https://evil.test/p/deck-1?secret=abc#/2', 'https://layout.test.evil.test/p/deck-1?secret=abc', 'http://layout.test/p/deck-1?secret=abc', 'https://user:pw@layout.test/p/deck-1?secret=abc']) {
+    for (const url of ['https://evil.test/p/deck-1?secret=abc#/2', 'https://layout.test.evil.test/p/deck-1?secret=abc', 'http://layout.test/p/deck-1?secret=abc', 'https://user:pw@layout.test/p/deck-1?secret=abc', 'https://evil.test/not-a-deck?secret=abc', 'ftp://layout.test/p/deck-1?secret=abc']) {
       resetState()
       const runner = createRunner(() => renderWrap(m, { src: url, title: 'x' })); runner.render(); await settle(); runner.render(); await settle()
-      assert.equal(runner.get().props.src, url, `${url}: loads as it is`); assert.equal(state.fetches.length, 0, `${url}: no request`); assert.deepEqual(m.clock.pending(), [], `${url}: no timer`); assert.deepEqual(state.toasts, [])
+      assert.equal(runner.get(), null, `${url}: draws NOTHING`); assert.equal(state.fetches.length, 0, `${url}: no request`); assert.deepEqual(m.clock.pending(), [], `${url}: no timer`); assert.deepEqual(state.toasts, [])
       assert.equal(state.warns.length, 1, `${url}: logged ONCE (two renders)`); assert.match(state.warns[0], /not an approved Layout origin/); assert.ok(!/secret|abc|user:pw/.test(state.warns[0]), 'the log names the origin, never the URL'); runner.unmount()
     }
+    resetState()
+    for (const url of ['https://layout.test/p/deck-1', 'https://layout.test/not-a-deck']) { const ok = createRunner(() => renderWrap(m, { src: url, title: 'x' })); ok.render(); await settle(); assert.deepEqual(state.warns, [], `${url}: an approved origin is not logged`); ok.unmount() }
     resetState(); env.NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED = undefined
-    const off = createRunner(() => renderWrap(m, { src: 'https://evil.test/p/deck-1', title: 'x' })); off.render(); await settle(); assert.equal(off.get().props.src, 'https://evil.test/p/deck-1'); assert.deepEqual(state.warns, [], 'flag off: silent, the same iframe'); assert.equal(state.fetches.length, 0); off.unmount()
+    for (const url of ['https://evil.test/p/deck-1', 'https://evil.test/not-a-deck']) { const off = createRunner(() => renderWrap(m, { src: url, title: 'x' })); off.render(); await settle(); assert.equal(off.get().props.src, url, `${url}: flag off loads as before`); off.unmount() }
+    assert.deepEqual(state.warns, [], 'flag off: silent'); assert.equal(state.fetches.length, 0)
   },
   /** REVIEW-CX P3: the rail stays LOADING until a viewer source loads: no frame exists while the first ticket is pending (so no empty about:blank `load` can raise it), none after a refusal, and the load of the ticketed src raises it. */
   async railStaysLoading(m, overrides) {
@@ -236,7 +239,7 @@ await check('REFUSAL a refused view ticket draws NOTHING (no blank page), is log
 await check('NO ID a URL with no deck id asks for no ticket and loads as it is', () => withFakes({}, SUITE.noIdNoTicket))
 await check('TOAST the editing frame is still toasted on a refusal; a view frame is silent by default; the notify option turns either way', () => withFakes({}, SUITE.toastOnlyForEditByDefault))
 await check('ORIGIN a ticket is only for an approved Layout origin: the id comes back for the approved origin only (foreign, look-alike, subdomain, non-https, port, credentials, no policy: none)', () => withFakes({}, SUITE.approvedOrigin))
-await check('ORIGIN flag on, a foreign / look-alike / non-https / credentialed viewer URL mints nothing (no request, no timer), loads as it is, is logged once with the origin only; flag off it is silent', () => withFakes({}, SUITE.unapprovedMintsNothing))
+await check('ORIGIN flag on, a URL outside the approved origins (foreign, look-alike, non-https, credentialed, non-viewer path, other scheme) FAILS CLOSED: no request, no timer, no frame, logged once with the origin only; an approved origin is not logged; flag off it loads as before and is silent', () => withFakes({}, SUITE.unapprovedMintsNothing))
 await check('RAIL with view tickets on the rail stays loading until a viewer source loads: no frame while the first ticket is pending (so no empty about:blank load), none after a refusal, ready only after the ticketed src loads', () => withFakes({}, m => SUITE.railStaysLoading(m, {})))
 await check('PRESENT a view frame that was ready and is refused at a renewal ends Present\'s view cleanly: one failure callback, a null frame ref, no overlay, no poll, no loop', () => withFakes({}, m => SUITE.presentRefusedRenewal(m, {})))
 await check('PRESENT flag off the frame is never unmounted: ready stays, nothing fails, no ticket is asked, the poll runs on', () => withFakes({}, m => SUITE.presentFlagOffStays(m, {})))
@@ -259,10 +262,12 @@ const MUTANTS = [
 MUTANTS.push(
   ['the id helper skips the origin policy', { [LIB]: real(LIB).replace("return evaluateLayoutViewerUrl(viewerUrl, policy).status === 'allowed' ? id : null", 'return id') }, (m2) => SUITE.approvedOrigin(m2)],
   ['the id helper allows any https origin', { [LIB]: real(LIB).replace("evaluateLayoutViewerUrl(viewerUrl, policy).status === 'allowed'", "new URL(viewerUrl).protocol === 'https:'") }, (m2) => SUITE.approvedOrigin(m2)],
+  ['the wrapper draws an unapproved frame (loads it bare)', { [WRAP]: real(WRAP).replace('  if (unapproved) return null\n', '') }, (m2) => SUITE.unapprovedMintsNothing(m2)],
+  ['the wrapper only fails closed for a deck-shaped URL', { [WRAP]: real(WRAP).replace("evaluateLayoutViewerUrl(src, LAYOUT_VIEWER_URL_POLICY).status === 'blocked'", "evaluateLayoutViewerUrl(src, LAYOUT_VIEWER_URL_POLICY).status === 'blocked' && /\\/p\\//.test(src)") }, (m2) => SUITE.unapprovedMintsNothing(m2)],
+  ['the wrapper fails closed even with the flag off', { [WRAP]: real(WRAP).replace('isStudioLayoutTicketEnabled() && evaluateLayoutViewerUrl', 'evaluateLayoutViewerUrl') }, (m2) => SUITE.unapprovedMintsNothing(m2)],
   ['the wrapper takes the id without the policy (the old behaviour)', { [WRAP]: real(WRAP).replace('approvedPresentationIdFromViewerUrl(src, LAYOUT_VIEWER_URL_POLICY)', 'presentationIdFromViewerUrl(src)') }, (m2) => SUITE.unapprovedMintsNothing(m2)],
   ['the wrapper does not log an unapproved URL', { [WRAP]: real(WRAP).replace(/    if \(unapproved\) console\.warn\([^\n]*\n/, '') }, (m2) => SUITE.unapprovedMintsNothing(m2)],
   ['the wrapper logs the whole URL', { [WRAP]: real(WRAP).replace('${safeOrigin(src)}', '${src}') }, (m2) => SUITE.unapprovedMintsNothing(m2)],
-  ['the wrapper logs even with the flag off', { [WRAP]: real(WRAP).replace('&& isStudioLayoutTicketEnabled()', '') }, (m2) => SUITE.unapprovedMintsNothing(m2)],
   ['the wrapper logs on every render (no dependency list)', { [WRAP]: real(WRAP).replace('  }, [unapproved, src])', '  })') }, (m2) => SUITE.unapprovedMintsNothing(m2)],
 )
 MUTANTS.push(
