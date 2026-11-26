@@ -24,6 +24,7 @@ import ts from 'typescript'
 import { BASE_COMMIT, LAUNCH_FILES, LAUNCH_NEW_FILES, LAUNCH_PAIRS, stripLaunchWording } from './studio-launch-wording-strip.mjs'
 import { sameOrTolerant, stackScope } from './studio-stack-tolerant.mjs'
 import { sameAsBase } from './studio-env-append-tolerant.mjs'
+import { stripPl61DashboardThumbnail } from './studio-pl61-dashboard-thumbnail-strip.mjs' // LATER-CHANGES: registry read (PL-61)
 import { stripPl62TicketReady } from './studio-pl62-ticket-ready-strip.mjs' // LATER-CHANGES: registry read (PL-62)
 import { stripJobDeadlines } from './studio-job-deadlines-strip.mjs' // P3-4b (NEXT_PUBLIC_STUDIO_JOB_DEADLINES) is in the base and edits components/narration-voice-picker.tsx too: its lines come out first
 
@@ -86,6 +87,7 @@ function proveFlag({ heads }) {
 
 // ---------------------------------------------------------------- 2. flag off is the base
 function proveOff({ heads, bases }, strip = stripLaunchWording) {
+  heads = Object.fromEntries(Object.entries(heads).map(([rel, text]) => [rel, stripPl61DashboardThumbnail(rel, text)])) // LATER-CHANGES: registry read (PL-61): the Decks page's marked lines come out first
   for (const rel of LAUNCH_FILES) {
     const head = stripJobDeadlines(rel, stripPl62TicketReady(rel, heads[rel])) // LATER-CHANGES: registry read (PL-62): the viewer's four ticket-ready lines come out too;  the base's P3-4b lines out first (they change a base line in narration-voice-picker.tsx); a text without them is returned as it is
     const stripped = strip(rel, head)

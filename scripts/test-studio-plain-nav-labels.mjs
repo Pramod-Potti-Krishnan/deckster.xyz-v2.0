@@ -33,6 +33,7 @@ const React = nodeRequire('react')
 const jsxRuntime = nodeRequire('react/jsx-runtime')
 const { renderToStaticMarkup, renderToString } = nodeRequire('react-dom/server')
 const BASE_COMMIT = process.env.PLAIN_NAV_LABELS_BASE || '687b694'
+import { stripPl61DashboardThumbnail } from './studio-pl61-dashboard-thumbnail-strip.mjs' // LATER-CHANGES: registry read (PL-61)
 const read = rel => stripLaunchWording(rel, stripDeckCardThumbnail(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))) // DECK-CARD-THUMBNAIL: its lines out first
 function baseSource(rel) {
   try {
@@ -171,6 +172,7 @@ function tabComponent(snippet) {
   return module.exports
 }
 function proveDash(page, label = 'dashboard') {
+  page = stripPl61DashboardThumbnail('app/(app)/dashboard/page.tsx', page) // LATER-CHANGES: registry read (PL-61): the Decks page's marked lines come out first
   eq(page.split(DASH_CONST).length - 1, 1, `${label}: the exact-flag, Studio-shell decision, once`)
   eq(page.split(DASH_TAB).length - 1, 1, `${label}: the tab, once`)
   eq((page.match(/process\.env\.NEXT_PUBLIC_STUDIO_PLAIN_NAV_LABELS/g) ?? []).length, 1, `${label}: the flag is read once, inline`)

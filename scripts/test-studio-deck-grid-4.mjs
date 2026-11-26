@@ -33,7 +33,8 @@ const jsxRuntime = nodeRequire('react/jsx-runtime')
 const postcss = nodeRequire('postcss')
 const { renderToStaticMarkup } = nodeRequire('react-dom/server')
 const BASE_COMMIT = process.env.DECK_GRID_4_BASE || 'e9503ae'
-const read = rel => stripLaunchWording(rel, stripDeckCardThumbnail(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))) // DECK-CARD-THUMBNAIL: its lines out first
+import { stripPl61DashboardThumbnail } from './studio-pl61-dashboard-thumbnail-strip.mjs' // LATER-CHANGES: registry read (PL-61): the Decks page's marked lines come out first
+const read = rel => stripLaunchWording(rel, stripDeckCardThumbnail(rel, stripPl61DashboardThumbnail(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))) // DECK-CARD-THUMBNAIL: its lines out first; PL-61's before them (registry read)
 function baseSource(rel) {
   try {
     execFileSync('git', ['cat-file', '-e', `${BASE_COMMIT}^{commit}`], { cwd: repoRoot, stdio: 'ignore' })
@@ -78,6 +79,7 @@ const modules = {
   '@/hooks/use-session-cache': { sessionCacheKey: (o, s) => `${o}:${s}`, sessionMetadataCacheKey: (o, s) => `${o}:meta:${s}` }, '@/lib/last-builder-session': { lastBuilderSessionKey: o => `last:${o}` },
   '@/components/studio-intro-replay': { StudioIntroReplay: () => null }, '@/lib/layout-service-client': { LAYOUT_VIEWER_URL_POLICY: {} },
   '@/lib/layout-viewer-url-policy': { evaluateLayoutViewerUrl: () => ({ status: 'empty' }) }, '@/lib/present-view-only': { viewOnlyIfEnabled: url => url },
+  '@/lib/studio-layout-viewer-ticket': { isStudioLayoutTicketEnabled: () => false }, // LATER-CHANGES: registry read (PL-61): the Decks page asks whether Layout viewer tickets are on; flag off here
   '@/lib/studio-deck-title': { studioDeckShownTitle: title => title, studioDeckTitleProps: () => ({}) }, '@/lib/studio-template-display-name': { studioTemplateDisplayName: name => name }, // PASS2D T: flag NEXT_PUBLIC_STUDIO_DECK_TITLE_NAMES is off here, so the stored title is drawn
   '@/lib/studio-deck-cards': { deckCardDescription: (title, description) => description, deckCardStatusLabel: deck => deck.status }, '@/lib/studio-create-word': createWordLib,
   '@/lib/studio-deck-card-count': { studioDeckCardCountLabel: () => { throw new Error('flag off: not called') } }, // PASS2D R5: flag NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT is off here, so the label helper is never called
