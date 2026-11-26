@@ -5,7 +5,7 @@
 // Pinned exactly in the three places the card names: (1) the research-options panel notice in components/builder/chat-input.tsx; (2) the chip /
 // switch tooltip, lockedNote, in lib/studio-chat-clean.ts AND lib/studio-research-switch.ts; (3) the chat command reply, researchLockedBody, in
 // lib/studio-chat-commands.ts. And no string anywhere in app/, components/ or lib/ says "research already ran" (the one place that did and is not
-// on the card, the /kg lock in lib/studio-chat-parity-workspace.ts, is named in KNOWN_REMAINING below and is removed in its own commit).
+// on the card, the /kg lock in lib/studio-chat-parity-workspace.ts, is reworded too (ARCH-PLATFORM 09:22Z), so KNOWN_REMAINING is empty and the count is zero).
 //   node scripts/test-studio-pl42-locked-copy.mjs        (plain node, offline: the REAL modules transpiled and run; mutants change the sources in memory only)
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -16,8 +16,9 @@ import ts from 'typescript'
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
 const ONE = 'Locked for this deck: its outline is already written. Start a new deck to change these.'
-/** Strings that still say "research already ran" and are NOT on the card (path -> why). Empty once the /kg lock is reworded. */
-const KNOWN_REMAINING = { 'lib/studio-chat-parity-workspace.ts': 'the /kg lock (kgLocked), found by PL-42, ruling pending' }
+/** Strings that still say "research already ran" (path -> why). EMPTY: the /kg lock (kgLocked), found by PL-42 and ruled in by ARCH-PLATFORM 09:22Z, now says its own 53-character form. */
+const KNOWN_REMAINING = {}
+const KG_LOCKED = 'Locked for this deck: its outline is already written.'   // the /kg lock: no "start a new deck" clause, that file caps its fixed words at 60 characters
 
 let checks = 0
 const check = (name, fn) => { checks++; fn(); console.log(`PASS ${name}`) }
@@ -79,7 +80,11 @@ function failures(overrides = {}) {
   const commands = load('lib/studio-chat-commands.ts', overrides).CHAT_COMMANDS_WORDS
   if (commands.researchLockedBody !== ONE) out.push(`P3 researchLockedBody reads ${JSON.stringify(commands.researchLockedBody)}`)
   if (commands.researchLockedTitle !== 'Locked for this deck') out.push(`P3 researchLockedTitle reads ${JSON.stringify(commands.researchLockedTitle)}`)
-  // P4: no source in app/, components/ or lib/ says "research already ran" (any case), but the named remaining ones
+  // P5: the /kg lock (WORKSPACE_WORDS.kgLocked) reads its own 53-character form, inside the 60-character cap of that file's words
+  const kg = load('lib/studio-chat-parity-workspace.ts', overrides).WORKSPACE_WORDS.kgLocked
+  if (kg !== KG_LOCKED) out.push(`P5 WORKSPACE_WORDS.kgLocked reads ${JSON.stringify(kg)}`)
+  if (typeof kg === 'string' && kg.length > 60) out.push(`P5 WORKSPACE_WORDS.kgLocked is ${kg.length} characters (the cap is 60)`)
+  // P4: no source in app/, components/ or lib/ says "research already ran" (any case)
   const found = {}
   for (const rel of SOURCE_FILES) { const n = (sourceOf(rel, overrides).match(/research already ran/gi) || []).length; if (n) found[rel] = n }
   for (const rel of Object.keys(overrides)) if (!(rel in found) && /research already ran/i.test(overrides[rel])) found[rel] = (overrides[rel].match(/research already ran/gi) || []).length
@@ -92,6 +97,7 @@ check('P1 the research-options panel notice (components/builder/chat-input.tsx) 
 check('P2 the chip and switch tooltips (CHAT_CLEAN_WORDS.lockedNote, RESEARCH_COPY.lockedNote) read exactly the one wording', () => assert.deepEqual(failures().filter(x => x.startsWith('P2')), []))
 check('P3 the chat command reply (CHAT_COMMANDS_WORDS.researchLockedBody) reads exactly the one wording; its title stays "Locked for this deck"', () => assert.deepEqual(failures().filter(x => x.startsWith('P3')), []))
 check('P4 no string in app/, components/ or lib/ says "research already ran" (any case), but the ones named in KNOWN_REMAINING', () => assert.deepEqual(failures().filter(x => x.startsWith('P4')), []))
+check('P5 the /kg lock (lib/studio-chat-parity-workspace.ts kgLocked) reads its own 53-character form, inside the 60-character cap', () => assert.deepEqual(failures().filter(x => x.startsWith('P5')), []))
 check('the one wording itself: it says the outline is written (not that research ran) and names the Studio\'s own control word, "new deck"', () => {
   assert.ok(/outline is already written/.test(ONE) && /Start a new deck/.test(ONE) && !/research/i.test(ONE) && !/session/i.test(ONE))
 })
@@ -108,7 +114,9 @@ const MUTANTS = [
   ['the chat command title changes', 'P3', { 'lib/studio-chat-commands.ts': real('lib/studio-chat-commands.ts').replace("researchLockedTitle: 'Locked for this deck'", "researchLockedTitle: 'Research is locked'") }],
   ['a new string anywhere says "Research already ran"', 'P4', { 'lib/studio-chat-clean.ts': `${real('lib/studio-chat-clean.ts')}\nexport const PL42_MUTANT = 'Research already ran'\n` }],
   ['a new string says it in lower case in a component', 'P4', { 'components/builder/studio-composer-hint.tsx': "export const X = 'locked: research already ran'\n" }],
-  ['a known remaining string is reworded without updating KNOWN_REMAINING', 'P4', { 'lib/studio-chat-parity-workspace.ts': real('lib/studio-chat-parity-workspace.ts').replace('Locked: research already ran for this deck.', ONE) }],
+  ['the /kg lock goes back to the old words', 'P4', { 'lib/studio-chat-parity-workspace.ts': real('lib/studio-chat-parity-workspace.ts').replace(`kgLocked: '${KG_LOCKED}'`, "kgLocked: 'Locked: research already ran for this deck.'") }],
+  ['the /kg lock goes back to the old words (also fails its own pin)', 'P5', { 'lib/studio-chat-parity-workspace.ts': real('lib/studio-chat-parity-workspace.ts').replace(`kgLocked: '${KG_LOCKED}'`, "kgLocked: 'Locked: research already ran for this deck.'") }],
+  ['the /kg lock takes the long wording (over the 60-character cap)', 'P5', { 'lib/studio-chat-parity-workspace.ts': real('lib/studio-chat-parity-workspace.ts').replace(`kgLocked: '${KG_LOCKED}'`, `kgLocked: '${ONE}'`) }],
 ]
 for (const [name, point, overrides] of MUTANTS) check(`MUTANT is caught by ${point}: ${name}`, () => {
   for (const [rel, text] of Object.entries(overrides)) if (fs.existsSync(path.join(repoRoot, rel))) assert.notEqual(text, real(rel), `the mutation changed ${rel}`)
