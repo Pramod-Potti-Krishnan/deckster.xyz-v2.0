@@ -9,7 +9,8 @@
 import { forwardRef, useEffect, type ComponentPropsWithoutRef } from 'react'
 import { LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client'
 import { useLayoutViewerTicket } from '@/lib/studio-layout-viewer-ticket-client'
-import { approvedPresentationIdFromViewerUrl, isStudioLayoutTicketEnabled, presentationIdFromViewerUrl } from '@/lib/studio-layout-viewer-ticket'
+import { evaluateLayoutViewerUrl } from '@/lib/layout-viewer-url-policy'
+import { approvedPresentationIdFromViewerUrl, isStudioLayoutTicketEnabled } from '@/lib/studio-layout-viewer-ticket'
 
 /** The origin of a URL for the log line (never the URL itself: a query may carry a ticket). */
 function safeOrigin(url: string): string {
@@ -19,13 +20,15 @@ function safeOrigin(url: string): string {
 type ViewTicketedIframeProps = Omit<ComponentPropsWithoutRef<'iframe'>, 'src'> & { src: string }
 
 export const ViewTicketedIframe = forwardRef<HTMLIFrameElement, ViewTicketedIframeProps>(function ViewTicketedIframe({ src, ...rest }, ref) {
-  // A ticket is attached, minted and renewed ONLY for a viewer URL on the Studio's approved Layout origins (REVIEW-CX P2); any other URL loads as it is, with no ticket and no request.
+  // A ticket is attached, minted and renewed ONLY for a viewer URL on the Studio's approved Layout origins (REVIEW-CX P2). With view tickets ON the frame is a Layout viewer by contract, so a URL outside the approved
+  // origins (a misconfiguration, or an event-supplied address such as the template workspace's) FAILS CLOSED (ARCH-PLATFORM 16:00Z): no ticket, no request, no frame, one console line. Flag off: as before.
   const presentationId = approvedPresentationIdFromViewerUrl(src, LAYOUT_VIEWER_URL_POLICY)
-  const unapproved = !presentationId && isStudioLayoutTicketEnabled() && presentationIdFromViewerUrl(src) !== null
+  const unapproved = isStudioLayoutTicketEnabled() && evaluateLayoutViewerUrl(src, LAYOUT_VIEWER_URL_POLICY).status === 'blocked'
   useEffect(() => {
-    if (unapproved) console.warn(`[viewer-ticket] no view ticket: the viewer URL's origin (${safeOrigin(src)}) is not an approved Layout origin; the frame loads without one`)
+    if (unapproved) console.warn(`[viewer-ticket] no view ticket: the viewer URL's origin (${safeOrigin(src)}) is not an approved Layout origin; the frame draws nothing`)
   }, [unapproved, src])
   const { src: ticketed, refusedStatus } = useLayoutViewerTicket(src, presentationId, 'view')
+  if (unapproved) return null
   if (refusedStatus !== null) return null
   // PL-60 (REVIEW-CX P3): a frame still waiting for its FIRST ticket is not mounted at all. An iframe with no src fires `load` on its empty about:blank document, which the rail takes for "the viewer
   // has loaded" (it raises the frame's opacity), so the rail shows an empty frame; with no element there is no such load, and the frame mounts, with its ticketed src, when the ticket arrives.
