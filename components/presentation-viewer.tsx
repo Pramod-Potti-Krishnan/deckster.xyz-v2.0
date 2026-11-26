@@ -169,6 +169,7 @@ import {
   visualTotalAfterCommit,
 } from '@/lib/studio-slide-count-sync'
 import { useLayoutViewerTicketSrc } from '@/lib/studio-layout-viewer-ticket-client' // LAYOUT-TICKET (NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED, default off)
+import { viewerSrcMatchesApproved } from '@/lib/studio-layout-viewer-ticket' // LAYOUT-TICKET-READY (PL-62): with ticketing on, the frame's src carries ?t=<ticket>; the load check ignores only that parameter
 import { STUDIO_DECK_SYNC_TRUTH_ENABLED, syncTruthSettledTotals } from '@/lib/studio-deck-sync-truth' // DECK-SYNC-TRUTH (NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH, default off): after a poll the totals are the viewer's own count, not a floor restored too high
 
 const DEFAULT_BUILD_THEME_SELECTION: BuildThemeSelection = { mode: 'auto' }
@@ -1061,14 +1062,14 @@ export function PresentationViewer({
     const isLogicalCurrent = () => slideMutationMountRef.current.active
       && slideMutationMountRef.current.generation === mount
       && studioComposeDeckOwnerRef.current.token === deck
-      && slideMutationOwnerRef.current.source === source
+      && viewerSrcMatchesApproved(source, slideMutationOwnerRef.current.source) // LAYOUT-TICKET-READY (PL-62): the raw src carries ?t=<ticket> when ticketing is on; the owner's source is the approved URL
     const isCurrent = () => {
       if (retired) return false
       const current = isLogicalCurrent() && slideMutationOwnerRef.current === owner
         && iframeRef.current === iframe && iframe.src === source && iframe.contentWindow === nativeWindow
-        && Boolean(nativeWindow && loaded && loaded.iframe === iframe && loaded.source === source
+        && Boolean(nativeWindow && loaded && loaded.iframe === iframe && viewerSrcMatchesApproved(source, loaded.source) // LAYOUT-TICKET-READY (PL-62)
           && loaded.nativeWindow === nativeWindow && loaded.revision === studioComposeLoadRevisionRef.current)
-        && studioComposeLoadedFrameRef.current === loaded && source === owner.source
+        && studioComposeLoadedFrameRef.current === loaded && viewerSrcMatchesApproved(source, owner.source) // LAYOUT-TICKET-READY (PL-62)
       if (!current) retired = true
       return current
     }
@@ -1139,7 +1140,7 @@ export function PresentationViewer({
     let reported = false
     const reportUnconfirmed = (label = operation) => {
       if (reported || studioNativeMutationIntentRef.current !== request || !frame.isLogicalCurrent()
-        || iframeRef.current?.src !== owner.source) return
+        || !viewerSrcMatchesApproved(iframeRef.current?.src, owner.source)) return // LAYOUT-TICKET-READY (PL-62): the frame's src carries ?t=<ticket> when ticketing is on
       reported = true
       toast({ title: 'Check slide result',
         description: `The ${label} result could not be confirmed. Check the slide list before trying again.`,
@@ -1422,8 +1423,8 @@ export function PresentationViewer({
   // Handle iframe load event
   const handleIframeLoad = useCallback((event: React.SyntheticEvent<HTMLIFrameElement>) => {
     if (studioShell && event.currentTarget !== iframeRef.current) return
-    const loadedUrl = event.currentTarget.src
-    if (!approvedIframeNavigationUrl || loadedUrl !== approvedIframeNavigationUrl) {
+    let loadedUrl = event.currentTarget.src // LAYOUT-TICKET-READY (PL-62)
+    if (!approvedIframeNavigationUrl || !viewerSrcMatchesApproved(loadedUrl, approvedIframeNavigationUrl)) { // LAYOUT-TICKET-READY (PL-62)
       if (studioShell) {
         studioComposeLoadedFrameRef.current = null
         studioNativeMutationPublicationRef.current = null
@@ -1441,6 +1442,7 @@ export function PresentationViewer({
       return
     }
     debugLog('✅ Iframe loaded and ready')
+    loadedUrl = approvedIframeNavigationUrl // LAYOUT-TICKET-READY (PL-62): what readiness and the native frame's source compare is the approved URL, not the ticketed src
     if (studioShell) {
       // Even an identical URL is a fresh native frame lifetime.
       const retiredNativeRequest = slideMutationRequestRef.current
@@ -2122,7 +2124,7 @@ export function PresentationViewer({
     const reportRetiredAdd = () => {
       if (!studioShell || !addDispatched || reportedRetirement
         || studioNativeMutationIntentRef.current !== request || !capturedFrame?.isLogicalCurrent()
-        || iframeRef.current?.src !== expectedOwner.source) return
+        || !viewerSrcMatchesApproved(iframeRef.current?.src, expectedOwner.source)) return // LAYOUT-TICKET-READY (PL-62): the frame's src carries ?t=<ticket> when ticketing is on
       reportedRetirement = true
       toast({ title: 'Check slide result',
         description: 'The slide result could not be confirmed. Check the slide list before trying again; do not add it again merely to recover the acknowledgement.',
@@ -3455,9 +3457,9 @@ export function PresentationViewer({
         || slideMutationOwnerRef.current !== owner || iframeRef.current !== iframe
         || iframe.src !== source || iframe.contentWindow !== nativeWindow
         || !loadedFrame || studioComposeLoadedFrameRef.current !== loadedFrame
-        || loadedFrame.iframe !== iframe || loadedFrame.source !== source || loadedFrame.nativeWindow !== nativeWindow
+        || loadedFrame.iframe !== iframe || !viewerSrcMatchesApproved(source, loadedFrame.source) || loadedFrame.nativeWindow !== nativeWindow // LAYOUT-TICKET-READY (PL-62)
         || loadedFrame.revision !== loadRevision || studioComposeLoadRevisionRef.current !== loadRevision
-        || source !== owner.source
+        || !viewerSrcMatchesApproved(source, owner.source) // LAYOUT-TICKET-READY (PL-62)
         || studioFormatModeRef.current !== mode || mode.enabled
         || viewerInteractionIntentRef.current !== interaction || thumbnailNativeRevisionRef.current !== structure
         || studioSaveRequestRef.current !== null || !safety.ready || safety.dirty || safety.busy || safety.error) {

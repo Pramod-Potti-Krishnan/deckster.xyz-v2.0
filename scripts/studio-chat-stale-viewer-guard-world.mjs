@@ -254,7 +254,7 @@ export async function createGuardWorld(options) {
   })
   /** the new frame: handleIframeLoad's own code, over stand-ins for the refs it clears */
   const handleIframeLoad = evalExpression(callbackText('components/presentation-viewer.tsx', 'useCallback', "debugLog('✅ Iframe loaded and ready')", viewerTsx), {
-    studioShell: true, iframeRef, approvedIframeNavigationUrl: iframe.src, debugLog() {}, STUDIO_SLIDE_DELETE_CANVAS_REFRESH_ENABLED: false, studioSlideDeleteRefresh: { frameLoaded() {} },
+    studioShell: true, iframeRef, approvedIframeNavigationUrl: iframe.src, debugLog() {}, viewerSrcMatchesApproved: (loaded, approved) => loaded === approved /* LATER-CHANGES: registry read (PL-62): flag off the library's compare is === */, STUDIO_SLIDE_DELETE_CANVAS_REFRESH_ENABLED: false, studioSlideDeleteRefresh: { frameLoaded() {} },
     studioComposeLoadRevisionRef: { current: 0 }, studioComposeLoadedFrameRef: { current: null }, slideMutationOwnerRef: { current: { generation: 0 } }, slideMutationRequestRef: { current: null }, slideMutationPendingRef: refs.slideMutationPendingRef,
     studioNativeMutationPublicationRef: { current: null }, studioDeleteDialogRef: { current: null }, studioManualSlideNavigationRef: { current: null }, studioSaveRequestRef: { current: null },
     setIsSaving() {}, setIsSlideMutationPending() {}, setIsDeleting() {}, setShowDeleteDialog() {}, setSlidesToDelete() {}, setNativeSnapshotSafetyRevision() {}, setLoadedApprovedNavigationUrl() {}, setIframeReady() {}, setPollingFailureCount() {},
