@@ -11,6 +11,8 @@
  * Server-safe: no React here (a server route imports isStudioLayoutTicketEnabled). The hook is in
  * lib/studio-layout-viewer-ticket-client.ts ('use client').
  */
+import { evaluateLayoutViewerUrl, type LayoutViewerUrlPolicy } from '@/lib/layout-viewer-url-policy'
+
 export const VIEWER_TICKET_MESSAGE_TYPE = 'deckster:viewer-ticket'
 /** Renew at this fraction of the ticket lifetime. */
 export const VIEWER_TICKET_RENEW_FRACTION = 0.75
@@ -60,6 +62,17 @@ export function presentationIdFromViewerUrl(viewerUrl: string | null | undefined
   } catch {
     return null
   }
+}
+
+/**
+ * PL-60 (REVIEW-CX P2, ARCH-PLATFORM 15:27Z): the presentation id of a viewer URL ONLY when the FULL URL is on the Studio's approved Layout origin list (the policy the editing frame uses:
+ * exact origin, http or https, no credentials in the URL). A URL that fails gets no id, so the hook mints nothing, attaches no ticket and posts nothing to it. The policy is passed in
+ * (the caller owns the environment's policy), which keeps this module server-safe.
+ */
+export function approvedPresentationIdFromViewerUrl(viewerUrl: string | null | undefined, policy: LayoutViewerUrlPolicy): string | null {
+  const id = presentationIdFromViewerUrl(viewerUrl)
+  if (!id) return null
+  return evaluateLayoutViewerUrl(viewerUrl, policy).status === 'allowed' ? id : null
 }
 
 /** PL-46: the scope a frame asks for. Only the owner's editing frame asks 'edit'; every other frame asks 'view' (Layout decides, by its own owner check). */

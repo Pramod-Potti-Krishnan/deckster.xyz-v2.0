@@ -26,7 +26,10 @@ const state = { fetches: [], reply: { status: 200, body: '{}' }, replies: [], to
 class FakeRes { constructor({ status, body }) { this.status = status; this.ok = status >= 200 && status < 300; this._body = body } async json() { return JSON.parse(this._body) } }
 const fakeFetch = async (url, init) => { state.fetches.push({ url: String(url), init }); const r = state.replies.length ? state.replies.shift() : state.reply; if (r instanceof Error) throw r; return new FakeRes(r) }
 let curRunner = null
-const STUBS_BASE = { '@/hooks/use-toast': { toast: t => state.toasts.push(t) }, '@/lib/utils': { cn: (...parts) => parts.filter(Boolean).join(' ') } }
+// the Studio's Layout origin policy: the REAL policy module (import-free), built for one approved origin, handed to the wrapper in place of lib/layout-service-client (which reads the environment)
+const policyModule = (() => { const m = { exports: {} }; new Function('module', 'exports', ts.transpileModule(real('lib/layout-viewer-url-policy.ts'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText)(m, m.exports); return m.exports })()
+const LAYOUT_POLICY = policyModule.createLayoutViewerUrlPolicy('https://layout.test')
+const STUBS_BASE = { '@/hooks/use-toast': { toast: t => state.toasts.push(t) }, '@/lib/utils': { cn: (...parts) => parts.filter(Boolean).join(' ') }, '@/lib/layout-service-client': { LAYOUT_VIEWER_URL_POLICY: LAYOUT_POLICY } }
 const sourceOf = (rel, overrides) => (rel in overrides ? overrides[rel] : real(rel))
 function load(rel, overrides = {}, { realReact = false } = {}) {
   const cache = new Map()
@@ -134,6 +137,27 @@ const SUITE = {
     const runner = createRunner(() => renderWrap(m, { src: 'https://layout.test/not-a-deck', title: 'x' })); runner.render(); await settle()
     assert.equal(runner.get().props.src, 'https://layout.test/not-a-deck'); assert.equal(state.fetches.length, 0, 'no deck id: no ticket asked'); assert.deepEqual(m.clock.pending(), []); runner.unmount()
   },
+  /** REVIEW-CX P2: the id of a viewer URL only when its FULL URL is on the approved Layout origin list. */
+  async approvedOrigin(m) {
+    const f = m.lib.approvedPresentationIdFromViewerUrl
+    for (const url of ['https://layout.test/p/deck-1', 'https://layout.test/p/deck-1?viewOnly=true#/3', 'https://layout.test/p/deck-1?studio_build_snapshot=4&viewOnly=true#/0']) assert.equal(f(url, LAYOUT_POLICY), 'deck-1', url)
+    for (const url of ['https://evil.test/p/deck-1', 'https://layout.test.evil.test/p/deck-1', 'https://layout-test.com/p/deck-1', 'https://sub.layout.test/p/deck-1', 'https://evil.layout.test.evil/p/deck-1',
+      'http://layout.test/p/deck-1', 'ftp://layout.test/p/deck-1', 'https://layout.test:8443/p/deck-1', 'https://layout.test@evil.test/p/deck-1', 'https://user:pw@layout.test/p/deck-1', 'https://layout.test/not-a-deck', '//evil.test/p/deck-1', null, undefined, '']) assert.equal(f(url, LAYOUT_POLICY), null, String(url))
+    assert.equal(f('https://layout.test/p/deck-1', policyModule.createLayoutViewerUrlPolicy('')), null, 'no approved origin configured: no ticket')
+    assert.equal(f('https://other.test/p/deck-1', policyModule.createLayoutViewerUrlPolicy('https://layout.test', 'https://other.test')), 'deck-1', 'an origin the environment lists is approved')
+  },
+  /** With the flag on, a viewer URL that is not approved mints NOTHING: no request, no timer, loads as it is, one log line naming the origin (never the URL). */
+  async unapprovedMintsNothing(m) {
+    env.NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED = 'true'
+    for (const url of ['https://evil.test/p/deck-1?secret=abc#/2', 'https://layout.test.evil.test/p/deck-1?secret=abc', 'http://layout.test/p/deck-1?secret=abc', 'https://user:pw@layout.test/p/deck-1?secret=abc']) {
+      resetState()
+      const runner = createRunner(() => renderWrap(m, { src: url, title: 'x' })); runner.render(); await settle(); runner.render(); await settle()
+      assert.equal(runner.get().props.src, url, `${url}: loads as it is`); assert.equal(state.fetches.length, 0, `${url}: no request`); assert.deepEqual(m.clock.pending(), [], `${url}: no timer`); assert.deepEqual(state.toasts, [])
+      assert.equal(state.warns.length, 1, `${url}: logged ONCE (two renders)`); assert.match(state.warns[0], /not an approved Layout origin/); assert.ok(!/secret|abc|user:pw/.test(state.warns[0]), 'the log names the origin, never the URL'); runner.unmount()
+    }
+    resetState(); env.NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED = undefined
+    const off = createRunner(() => renderWrap(m, { src: 'https://evil.test/p/deck-1', title: 'x' })); off.render(); await settle(); assert.equal(off.get().props.src, 'https://evil.test/p/deck-1'); assert.deepEqual(state.warns, [], 'flag off: silent, the same iframe'); assert.equal(state.fetches.length, 0); off.unmount()
+  },
   /** REVIEW-CX P2: a view frame that was READY and is then refused at a renewal is a failure: one failure callback, a null frame ref, no pending poll, no overlay. */
   async presentRefusedRenewal(m, overrides) {
     state.replies = [ticketReply('tk1')]; state.reply = { status: 403, body: '{}' }
@@ -176,6 +200,7 @@ function iframeFailures(overrides = {}) {
     if (ticketed && !TICKETED.includes(rel) && rel !== WRAP) out.push(`C3 ${rel} uses <ViewTicketedIframe> but is not on the ticketed list`)
   }
   const w = sourceOf(WRAP, overrides); if (!/useLayoutViewerTicket\(src, presentationId, 'view'\)/.test(w)) out.push("C4 the wrapper does not ask the 'view' scope")
+  if (!/approvedPresentationIdFromViewerUrl\(src, LAYOUT_VIEWER_URL_POLICY\)/.test(w)) out.push('C6 the wrapper takes the deck id only from an approved Layout origin')
   if (!sourceOf(ROUTE, overrides).includes(String(sourceOf(LIB, overrides).match(/VIEWER_PRESENTATION_ID_PATTERN = (\/[^\n]*\/)\n/)?.[1]))) out.push('C5 the id pattern differs from the route\'s')
   return out
 }
@@ -188,6 +213,8 @@ await check('CLOCK flag on: asks scope=view (never edit), loads with ?t=<ticket>
 await check('REFUSAL a refused view ticket draws NOTHING (no blank page), is logged once and not toasted, never loops and never asks edit', () => withFakes({}, SUITE.viewRefusal))
 await check('NO ID a URL with no deck id asks for no ticket and loads as it is', () => withFakes({}, SUITE.noIdNoTicket))
 await check('TOAST the editing frame is still toasted on a refusal; a view frame is silent by default; the notify option turns either way', () => withFakes({}, SUITE.toastOnlyForEditByDefault))
+await check('ORIGIN a ticket is only for an approved Layout origin: the id comes back for the approved origin only (foreign, look-alike, subdomain, non-https, port, credentials, no policy: none)', () => withFakes({}, SUITE.approvedOrigin))
+await check('ORIGIN flag on, a foreign / look-alike / non-https / credentialed viewer URL mints nothing (no request, no timer), loads as it is, is logged once with the origin only; flag off it is silent', () => withFakes({}, SUITE.unapprovedMintsNothing))
 await check('PRESENT a view frame that was ready and is refused at a renewal ends Present\'s view cleanly: one failure callback, a null frame ref, no overlay, no poll, no loop', () => withFakes({}, m => SUITE.presentRefusedRenewal(m, {})))
 await check('PRESENT flag off the frame is never unmounted: ready stays, nothing fails, no ticket is asked, the poll runs on', () => withFakes({}, m => SUITE.presentFlagOffStays(m, {})))
 await check('IFRAMES every raw <iframe> in app/ and components/ is ticketed or on the documented exclusion list; the three call sites use the wrapper; the wrapper asks view; the id pattern is the route\'s', () => assert.deepEqual(iframeFailures(), []))
@@ -206,6 +233,15 @@ const MUTANTS = [
   ['the editing frame is no longer toasted by default', { [HOOK]: real(HOOK).replace("const notify = options?.notify ?? scope === 'edit'", "const notify = options?.notify ?? false") }, SUITE.toastOnlyForEditByDefault],
   ['the notify option is ignored', { [HOOK]: real(HOOK).replace("const notify = options?.notify ?? scope === 'edit'", "const notify = scope === 'edit'") }, SUITE.toastOnlyForEditByDefault],
 ]
+MUTANTS.push(
+  ['the id helper skips the origin policy', { [LIB]: real(LIB).replace("return evaluateLayoutViewerUrl(viewerUrl, policy).status === 'allowed' ? id : null", 'return id') }, (m2) => SUITE.approvedOrigin(m2)],
+  ['the id helper allows any https origin', { [LIB]: real(LIB).replace("evaluateLayoutViewerUrl(viewerUrl, policy).status === 'allowed'", "new URL(viewerUrl).protocol === 'https:'") }, (m2) => SUITE.approvedOrigin(m2)],
+  ['the wrapper takes the id without the policy (the old behaviour)', { [WRAP]: real(WRAP).replace('approvedPresentationIdFromViewerUrl(src, LAYOUT_VIEWER_URL_POLICY)', 'presentationIdFromViewerUrl(src)') }, (m2) => SUITE.unapprovedMintsNothing(m2)],
+  ['the wrapper does not log an unapproved URL', { [WRAP]: real(WRAP).replace(/    if \(unapproved\) console\.warn\([^\n]*\n/, '') }, (m2) => SUITE.unapprovedMintsNothing(m2)],
+  ['the wrapper logs the whole URL', { [WRAP]: real(WRAP).replace('${safeOrigin(src)}', '${src}') }, (m2) => SUITE.unapprovedMintsNothing(m2)],
+  ['the wrapper logs even with the flag off', { [WRAP]: real(WRAP).replace('&& isStudioLayoutTicketEnabled()', '') }, (m2) => SUITE.unapprovedMintsNothing(m2)],
+  ['the wrapper logs on every render (no dependency list)', { [WRAP]: real(WRAP).replace('  }, [unapproved, src])', '  })') }, (m2) => SUITE.unapprovedMintsNothing(m2)],
+)
 const PRESENT_BLOCK = real(PRESENT).match(/      \/\/ LAYOUT-TICKET \(PL-60, REVIEW-CX P2\)[\s\S]*?\n      }\n/)?.[0]
 assert.ok(PRESENT_BLOCK, 'the Present frame carries the PL-60 failure block')
 const presentMutant = text => ({ [PRESENT]: real(PRESENT).replace(PRESENT_BLOCK, text) })
@@ -229,6 +265,7 @@ const IFRAME_MUTANTS = [
   ['the Present frame loses its import of the wrapper', { 'components/present-view-only-frame.tsx': real('components/present-view-only-frame.tsx').replace("from '@/components/layout-viewer-ticketed-iframe'", "from '@/components/other'") }, 'C2'],
   ['a component uses the wrapper without being on the list', { 'components/pl60-new-frame.tsx': '<ViewTicketedIframe src={url} />\n' }, 'C3'],
   ['the id pattern drifts from the route\'s', { [LIB]: real(LIB).replace('{0,254}$/', '{0,200}$/') }, 'C5'],
+  ['the wrapper takes the deck id without the approved-origin policy', { [WRAP]: real(WRAP).replace('approvedPresentationIdFromViewerUrl(src, LAYOUT_VIEWER_URL_POLICY)', 'presentationIdFromViewerUrl(src)') }, 'C6'],
 ]
 for (const [name, overrides, tag] of IFRAME_MUTANTS) await check(`MUTANT is caught by ${tag}: ${name}`, () => {
   for (const [rel, text] of Object.entries(overrides)) if (fs.existsSync(path.join(repoRoot, rel))) assert.notEqual(text, real(rel), `the mutation changed ${rel}`)
