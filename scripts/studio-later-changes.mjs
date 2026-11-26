@@ -81,6 +81,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-pl46-edit-scope-strip.mjs')).PL46_SCOPE_FILES, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-46 Studio edit scope: the viewer-ticket route, library and hook ask Layout for a scope (edit for the owner's editing frame, view otherwise) and stop on a refusal (NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED)
   ...(await import('./studio-pl60-view-tickets-strip.mjs')).PL60_SCOPE_FILES, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-60 Studio view tickets: the rail live preview, the Present view-only frame and the template workspace ask Layout for a view ticket (NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED)
   ...(await import('./studio-pl62-ticket-ready-strip.mjs')).PL62_SCOPE_FILES, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-62 Studio ticket-ready compare: the editing frame's load check ignores only the viewer ticket parameter (NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED)
+  ...(await import('./studio-pl61-dashboard-thumbnail-strip.mjs')).PL61_SCOPE_FILES, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-61 Studio dashboard thumbnails: with the Layout viewer ticket flag on a deck card draws the first-slide thumbnail, never a live viewer (NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED)
   // one line per later change, above this comment
 ])
 
@@ -189,6 +190,7 @@ export const LATER_STRIPS = [
   (await import('./studio-flip-enablers-strip.mjs')).stripFlipEnablers, // LATER-CHANGE: PROGRAM-1, studio flip enablers
   (await import('./studio-dual-lookup-strip.mjs')).stripDualLookup, // LATER-CHANGE: FRONTEND-1, flip enablers dual lookup
   (await import('./studio-pl62-ticket-ready-strip.mjs')).stripPl62TicketReady, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-62 Studio ticket-ready compare (NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED; no .env.example block of its own)
+  (await import('./studio-pl61-dashboard-thumbnail-strip.mjs')).stripPl61DashboardThumbnail, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-61 Studio dashboard thumbnails (NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED; no .env.example block of its own)
   // one line per later change, above this comment
 ]
 

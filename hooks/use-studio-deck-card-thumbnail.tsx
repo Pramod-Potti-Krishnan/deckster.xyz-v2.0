@@ -2,6 +2,7 @@ import { useEffect, useReducer, useRef, useState, type ReactNode } from 'react'
 import { StudioDeckCardThumbnailImage, StudioDeckCardThumbnailPending } from '@/components/studio-deck-card-thumbnail'
 import { LAYOUT_VIEWER_URL_POLICY, getLayoutServiceUrl } from '@/lib/layout-service-client'
 import type { LayoutViewerUrlDecision } from '@/lib/layout-viewer-url-policy'
+import { isStudioLayoutTicketEnabled } from '@/lib/studio-layout-viewer-ticket' // LAYOUT-TICKET-DASHBOARD (PL-61): with Layout viewer tickets on, the Decks page draws first-slide images, never a live viewer (no ticket mint per card)
 import {
   STUDIO_DECK_CARD_THUMBNAILS_ENABLED,
   createDeckCardThumbnailStore,
@@ -23,7 +24,7 @@ const store = createDeckCardThumbnailStore()
  *  - a failed, hung or unusable read, no IntersectionObserver, an id the policy did not allow, an image that fails to load: null, so the card keeps its iframe or placeholder.
  */
 export function useStudioDeckCardThumbnail(decision: LayoutViewerUrlDecision, title: string): ReactNode | null {
-  const id = STUDIO_DECK_CARD_THUMBNAILS_ENABLED ? deckCardThumbnailTarget(decision, LAYOUT_VIEWER_URL_POLICY.configuredOrigin)?.presentationId ?? null : null
+  const id = STUDIO_DECK_CARD_THUMBNAILS_ENABLED || isStudioLayoutTicketEnabled() /* LAYOUT-TICKET-DASHBOARD (PL-61) */ ? deckCardThumbnailTarget(decision, LAYOUT_VIEWER_URL_POLICY.configuredOrigin)?.presentationId ?? null : null
   const [, refresh] = useReducer((count: number) => count + 1, 0)
   const [seen, setSeen] = useState(false)
   const [unobservable, setUnobservable] = useState(false)

@@ -21,6 +21,7 @@ import {
 } from './studio-deck-card-thumbnail-strip.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+import { stripPl61DashboardThumbnail } from './studio-pl61-dashboard-thumbnail-strip.mjs' // LATER-CHANGES: registry read (PL-61): the Decks page's marked lines come out first
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 })
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
@@ -282,7 +283,7 @@ await proveLib(libFor(libSource), 'lib')
 console.log(`PASS lib: ${checks} checks`)
 
 // =========================================================== 2. the page pin
-const pageText = read(DASHBOARD_PAGE)
+const pageText = stripPl61DashboardThumbnail(DASHBOARD_PAGE, read(DASHBOARD_PAGE)) // LATER-CHANGES: registry read (PL-61): the Decks page's marked lines come out first
 const basePage = git('show', `${BASE_COMMIT}:${DASHBOARD_PAGE}`)
 function provePage(page, label = 'page') {
   const at = text => `${label}: ${text}`
