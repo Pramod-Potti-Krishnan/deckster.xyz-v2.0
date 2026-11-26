@@ -53,6 +53,22 @@ function buildHandler(overrides, scopeExtra) {
   return { handler, calls, base }
 }
 const APPROVED = 'https://layout.test/p/deck-1?studio_build_snapshot=4#/0'
+/** One arrow function (`const NAME = (...) => {...}`) cut out of the component by brace matching, with its free identifiers supplied as parameters. */
+function cutConst(text, name) {
+  const start = text.indexOf(`    const ${name} = `)
+  assert.ok(start >= 0, `${name} is in the component`)
+  const open = text.indexOf('=> {', start) + 3
+  let depth = 0, i = open
+  for (; i < text.length; i++) { const c = text[i]; if (c === '{') depth++; else if (c === '}' && --depth === 0) break }
+  return text.slice(start, i + 1)
+}
+function buildReporter(overrides, name, scope, letVars) {
+  const lib = loadLib(overrides), toasts = []
+  const js = ts.transpileModule(cutConst(overrides[VIEWER] ?? real(VIEWER), name), { compilerOptions: { module: ts.ModuleKind.None, target: ts.ScriptTarget.ES2022 } }).outputText
+  const names = [...Object.keys(scope), 'viewerSrcMatchesApproved', 'toast']
+  const fn = new Function(...names, `${letVars}; ${js}; return ${name}`)(...Object.values(scope), lib.viewerSrcMatchesApproved, t => toasts.push(t))
+  return { fn, toasts }
+}
 const ticketed = (url = APPROVED, t = 'tk1') => { const u = new URL(url); u.searchParams.set('t', t); return u.toString() }
 const fire = (h, src) => h.handler({ currentTarget: { src, contentWindow: {} } })
 
@@ -68,6 +84,8 @@ const SUITE = {
       'https://layout.test:8443/p/deck-1?studio_build_snapshot=4&t=tk1#/0', 'https://layout.test/p/deck-1/?studio_build_snapshot=4&t=tk1#/0', 'https://layout.test/p/deck-1?studio_build_snapshot=5&t=tk1#/0', 'https://layout.test/p/deck-1?t=tk1#/0',
       'https://layout.test/p/deck-1?studio_build_snapshot=4&extra=1&t=tk1#/0', 'https://layout.test/p/deck-1?studio_build_snapshot=4&t=tk1#/1', 'https://layout.test/p/deck-1?studio_build_snapshot=4&t=tk1', 'about:blank', '', 'not a url']) assert.ok(!f(loaded, APPROVED), `does not count: ${loaded}`)
     assert.ok(!f(ticketed(), 'not a url'), 'an unparseable approved url never matches a different string'); assert.ok(f('not a url', 'not a url'), 'the same string is the same string')
+    for (const [a, b] of [[undefined, APPROVED], [null, APPROVED], [ticketed(), null], [ticketed(), undefined], [undefined, null], ['', APPROVED]]) assert.ok(!f(a, b), `no URL on either side never matches: ${String(a)} / ${String(b)}`)
+    assert.ok(f(null, null) && f(undefined, undefined), 'the same missing value is ===, as before')
   },
   /** flag off (or anything but the exact string "true"): exactly `===`. */
   helperOff(lib) {
@@ -92,6 +110,30 @@ const SUITE = {
     h = buildHandler(overrides); fire(h, APPROVED); assert.deepEqual(h.calls.ready, [true]); assert.deepEqual(h.calls.loaded, [APPROVED])
   },
   /** studio shell: the native frame's source (compared later with the owner's source, which is the approved URL) is the approved URL, even for a ticketed src. */
+  /** reportUnconfirmed and reportRetiredAdd compare the frame's REAL src to the owner's source (the approved URL): with ticketing on a ticketed src is the same frame, so the "Check slide result" toast still shows. */
+  reporters(overrides) {
+    const request = {}, SOURCE = APPROVED
+    const cases = (flag) => {
+      env.NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED = flag
+      const mk = (src, own = {}) => {
+        const unconfirmed = buildReporter(overrides, 'reportUnconfirmed', { operation: 'insert', studioNativeMutationIntentRef: { current: request }, request, frame: { isLogicalCurrent: () => true }, iframeRef: { current: src === undefined ? null : { src } }, owner: { source: SOURCE }, ...own }, 'let reported = false')
+        const retired = buildReporter(overrides, 'reportRetiredAdd', { studioShell: true, addDispatched: true, studioNativeMutationIntentRef: { current: request }, request, capturedFrame: { isLogicalCurrent: () => true }, iframeRef: { current: src === undefined ? null : { src } }, expectedOwner: { source: SOURCE }, ...own }, 'let reportedRetirement = false')
+        return { unconfirmed, retired }
+      }
+      return mk
+    }
+    const run = (flag, src) => { const m = cases(flag)(src); m.unconfirmed.fn(); m.unconfirmed.fn(); m.retired.fn(); m.retired.fn(); return [m.unconfirmed.toasts.length, m.retired.toasts.length] }
+    assert.deepEqual(run('true', ticketed()), [1, 1], 'flag on: a ticketed src is the same frame: each report fires ONCE (the second call is a no-op)')
+    assert.deepEqual(run('true', APPROVED), [1, 1], 'flag on: the plain src too')
+    assert.deepEqual(run('true', 'https://layout.test/p/deck-2?studio_build_snapshot=4&t=tk1#/0'), [0, 0], 'flag on: another deck: no report')
+    assert.deepEqual(run('true', 'https://evil.test/p/deck-1?studio_build_snapshot=4&t=tk1#/0'), [0, 0], 'flag on: another origin: no report')
+    assert.deepEqual(run('true', 'https://layout.test/p/deck-1?studio_build_snapshot=5&t=tk1#/0'), [0, 0], 'flag on: another snapshot: no report')
+    assert.deepEqual(run('true', undefined), [0, 0], 'flag on: no frame: no report')
+    assert.deepEqual(run(undefined, ticketed()), [0, 0], 'flag off: a ticketed src is not the owner frame (as before): no report')
+    assert.deepEqual(run(undefined, APPROVED), [1, 1], 'flag off: the plain src reports, as before')
+    const other = cases('true')(ticketed(), { request: {}, studioNativeMutationIntentRef: { current: {} } }); other.unconfirmed.fn(); assert.equal(other.unconfirmed.toasts.length, 0, 'another request: no report')
+    const t = cases('true')(ticketed()).unconfirmed; t.fn(); assert.deepEqual(t.toasts, [{ title: 'Check slide result', description: 'The insert result could not be confirmed. Check the slide list before trying again.', variant: 'destructive' }], 'the toast is the one it was')
+  },
   handlerShell(overrides) {
     env.NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED = 'true'
     const noop = () => {}
@@ -115,13 +157,16 @@ await check('HELPER flag off (anything but the exact "true"): exactly ===; a tic
 await check('LOAD the real handleIframeLoad, flag on: a ticketed src is READY and stores the APPROVED url; another path/origin/snapshot/blank is not ready and stores null; no approved URL is never ready', () => SUITE.handlerPlain({}))
 await check('LOAD the real handleIframeLoad, flag off: a ticketed src is NOT ready (as before); the plain src is', () => SUITE.handlerFlagOff({}))
 await check('LOAD the studio shell: the native frame source is the approved URL for a ticketed src; a fresh frame lifetime and the retired-request report happen as before', () => SUITE.handlerShell({}))
+await check('REPORT the two "Check slide result" reports (reportUnconfirmed, reportRetiredAdd), cut out of the component and run: a ticketed src is the owner frame with the flag on (once each); another deck/origin/snapshot or no frame is not; flag off exactly as before', () => SUITE.reporters({}))
 await check('SOURCE the component loads its helper from the ticket library, compares with it in the load handler and has no strict compare of the loaded src left there', () => {
   const v = real(VIEWER)
   assert.match(v, /import \{ viewerSrcMatchesApproved \} from '@\/lib\/studio-layout-viewer-ticket' \/\/ LAYOUT-TICKET-READY/)
   const handler = cutHandleIframeLoad(v)
   assert.match(handler, /!viewerSrcMatchesApproved\(loadedUrl, approvedIframeNavigationUrl\)/); assert.doesNotMatch(handler, /loadedUrl !== approvedIframeNavigationUrl/)
   assert.match(handler, /debugLog\('✅ Iframe loaded and ready'\)\n    loadedUrl = approvedIframeNavigationUrl \/\/ LAYOUT-TICKET-READY/)
-  assert.equal((v.match(/LAYOUT-TICKET-READY/g) ?? []).length, 4, 'exactly the four marked lines')
+  assert.equal((v.match(/LAYOUT-TICKET-READY/g) ?? []).length, 6, 'exactly the six marked lines')
+  assert.match(cutConst(v, 'reportUnconfirmed'), /\|\| !viewerSrcMatchesApproved\(iframeRef\.current\?\.src, owner\.source\)\) return/); assert.match(cutConst(v, 'reportRetiredAdd'), /\|\| !viewerSrcMatchesApproved\(iframeRef\.current\?\.src, expectedOwner\.source\)\) return/)
+  assert.doesNotMatch(v, /iframeRef\.current\?\.src !== (owner|expectedOwner)\.source/, 'no strict compare of the frame src to an owner source is left')
 })
 
 await check('STRIP the registered strip takes the four marked lines out and puts the two rewritten lines back (the viewer is its base again); other files are untouched', async () => {
@@ -150,13 +195,17 @@ const MUTANTS = [
   ['the helper ignores every query parameter', rep(LIB, 'return withoutTicket(loaded) === withoutTicket(approved)', 'return true'), (ov) => SUITE.helperOn(loadLib(ov))],
   ['the helper ignores only the first t (not a second one)', rep(LIB, "filter(([key]) => key !== 't')", "filter(([key], index, all) => !(key === 't' && all.findIndex(([k]) => k === 't') === index))"), (ov) => SUITE.helperOn(loadLib(ov))],
   ['the helper ignores another parameter too', rep(LIB, "filter(([key]) => key !== 't')", "filter(([key]) => key !== 't' && key !== 'studio_build_snapshot')"), (ov) => SUITE.helperOn(loadLib(ov))],
-  ['the helper does not read the flag', rep(LIB, '  if (!isStudioLayoutTicketEnabled()) return false\n  try {\n    const loaded', '  try {\n    const loaded'), (ov) => SUITE.helperOff(loadLib(ov))],
-  ['the helper reads the flag loosely', rep(LIB, '  if (!isStudioLayoutTicketEnabled()) return false\n  try {\n    const loaded', "  if (!process.env.NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED) return false\n  try {\n    const loaded"), (ov) => SUITE.helperOff(loadLib(ov))],
+  ['the helper does not read the flag', rep(LIB, '  if (!loadedUrl || !approvedUrl || !isStudioLayoutTicketEnabled()) return false\n  try {\n    const loaded', '  if (!loadedUrl || !approvedUrl) return false\n  try {\n    const loaded'), (ov) => SUITE.helperOff(loadLib(ov))],
+  ['the helper reads the flag loosely', rep(LIB, '  if (!loadedUrl || !approvedUrl || !isStudioLayoutTicketEnabled()) return false\n  try {\n    const loaded', "  if (!loadedUrl || !approvedUrl || !process.env.NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED) return false\n  try {\n    const loaded"), (ov) => SUITE.helperOff(loadLib(ov))],
   ['the load handler is back to the strict compare', rep(VIEWER, '!viewerSrcMatchesApproved(loadedUrl, approvedIframeNavigationUrl)', 'loadedUrl !== approvedIframeNavigationUrl'), (ov) => SUITE.handlerPlain(ov)],
   ['the load handler stores the ticketed src', rep(VIEWER, '    loadedUrl = approvedIframeNavigationUrl // LAYOUT-TICKET-READY (PL-62): what readiness and the native frame\'s source compare is the approved URL, not the ticketed src\n', ''), (ov) => SUITE.handlerPlain(ov)],
   ['the native frame source is the ticketed src', rep(VIEWER, '    loadedUrl = approvedIframeNavigationUrl // LAYOUT-TICKET-READY (PL-62): what readiness and the native frame\'s source compare is the approved URL, not the ticketed src\n', ''), (ov) => SUITE.handlerShell(ov)],
+  ['reportUnconfirmed is back to the strict compare', rep(VIEWER, "|| !viewerSrcMatchesApproved(iframeRef.current?.src, owner.source)) return // LAYOUT-TICKET-READY (PL-62): the frame's src carries ?t=<ticket> when ticketing is on", '|| iframeRef.current?.src !== owner.source) return'), (ov) => SUITE.reporters(ov)],
+  ['reportRetiredAdd is back to the strict compare', rep(VIEWER, "|| !viewerSrcMatchesApproved(iframeRef.current?.src, expectedOwner.source)) return // LAYOUT-TICKET-READY (PL-62): the frame's src carries ?t=<ticket> when ticketing is on", '|| iframeRef.current?.src !== expectedOwner.source) return'), (ov) => SUITE.reporters(ov)],
+  ['reportUnconfirmed reports for any frame', rep(VIEWER, "|| !viewerSrcMatchesApproved(iframeRef.current?.src, owner.source)) return // LAYOUT-TICKET-READY (PL-62): the frame's src carries ?t=<ticket> when ticketing is on", ') return'), (ov) => SUITE.reporters(ov)],
+  ['the helper treats a missing src as a match', rep(LIB, '  if (!loadedUrl || !approvedUrl || !isStudioLayoutTicketEnabled()) return false\n', '  if (!approvedUrl) return true\n  if (!isStudioLayoutTicketEnabled()) return false\n'), (ov) => SUITE.helperOn(loadLib(ov))],
   ['the load handler accepts any src', rep(VIEWER, '!viewerSrcMatchesApproved(loadedUrl, approvedIframeNavigationUrl)', 'false'), (ov) => SUITE.handlerPlain(ov)],
-  ['the load handler ignores the flag-off identity (always tolerant)', rep(LIB, '  if (!isStudioLayoutTicketEnabled()) return false\n  try {\n    const loaded', '  try {\n    const loaded'), (ov) => SUITE.handlerFlagOff(ov)],
+  ['the load handler ignores the flag-off identity (always tolerant)', rep(LIB, '  if (!loadedUrl || !approvedUrl || !isStudioLayoutTicketEnabled()) return false\n  try {\n    const loaded', '  if (!loadedUrl || !approvedUrl) return false\n  try {\n    const loaded'), (ov) => SUITE.handlerFlagOff(ov)],
 ]
 for (const [name, overrides, suite] of MUTANTS) await check(`MUTANT is caught: ${name}`, async () => {
   let failed = false

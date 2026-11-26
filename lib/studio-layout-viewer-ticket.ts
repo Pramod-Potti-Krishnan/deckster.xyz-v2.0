@@ -80,9 +80,9 @@ export function approvedPresentationIdFromViewerUrl(viewerUrl: string | null | u
  * compared the two with `===`, so with ticketing on a successful mint made every load "not ready". Flag off, or the same string: exactly `===` (nothing changes). Flag on: the same origin, the same
  * path, the same hash and the same query parameters, IGNORING only `t` (a different value of another parameter, an extra one or a missing one is a different document and does not count).
  */
-export function viewerSrcMatchesApproved(loadedUrl: string, approvedUrl: string): boolean {
+export function viewerSrcMatchesApproved(loadedUrl: string | null | undefined, approvedUrl: string | null | undefined): boolean {
   if (loadedUrl === approvedUrl) return true
-  if (!isStudioLayoutTicketEnabled()) return false
+  if (!loadedUrl || !approvedUrl || !isStudioLayoutTicketEnabled()) return false
   try {
     const loaded = new URL(loadedUrl)
     const approved = new URL(approvedUrl)

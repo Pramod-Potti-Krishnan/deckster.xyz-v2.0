@@ -1140,7 +1140,7 @@ export function PresentationViewer({
     let reported = false
     const reportUnconfirmed = (label = operation) => {
       if (reported || studioNativeMutationIntentRef.current !== request || !frame.isLogicalCurrent()
-        || iframeRef.current?.src !== owner.source) return
+        || !viewerSrcMatchesApproved(iframeRef.current?.src, owner.source)) return // LAYOUT-TICKET-READY (PL-62): the frame's src carries ?t=<ticket> when ticketing is on
       reported = true
       toast({ title: 'Check slide result',
         description: `The ${label} result could not be confirmed. Check the slide list before trying again.`,
@@ -2124,7 +2124,7 @@ export function PresentationViewer({
     const reportRetiredAdd = () => {
       if (!studioShell || !addDispatched || reportedRetirement
         || studioNativeMutationIntentRef.current !== request || !capturedFrame?.isLogicalCurrent()
-        || iframeRef.current?.src !== expectedOwner.source) return
+        || !viewerSrcMatchesApproved(iframeRef.current?.src, expectedOwner.source)) return // LAYOUT-TICKET-READY (PL-62): the frame's src carries ?t=<ticket> when ticketing is on
       reportedRetirement = true
       toast({ title: 'Check slide result',
         description: 'The slide result could not be confirmed. Check the slide list before trying again; do not add it again merely to recover the acknowledgement.',
