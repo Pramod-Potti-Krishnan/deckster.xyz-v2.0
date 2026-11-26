@@ -57,6 +57,7 @@ function load(text, { shims = {}, jsx = false, globals = {} } = {}) {
     URL,
     require(id) {
       if (id in shims) return shims[id]
+      if (id === '@/components/layout-viewer-ticketed-iframe') return { ViewTicketedIframe: 'iframe' } // PL-60: with NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED off the component IS the bare iframe, so this proof reads the tree as before
       throw new Error(`Unexpected dependency ${id}`)
     },
     ...globals,

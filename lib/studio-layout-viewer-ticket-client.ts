@@ -30,7 +30,10 @@ export function useLayoutViewerTicket(
   baseUrl: string | null,
   presentationId: string | null | undefined,
   scope: ViewerTicketScope,
+  options?: { notify?: boolean },
 ): { src: string | null; refusedStatus: number | null } {
+  // PL-60: the person is told (a toast) when the EDITING frame is refused; a background view frame (a preview, a thumbnail) is not worth a toast each, so by default it is silent: the status is in the console only.
+  const notify = options?.notify ?? scope === 'edit'
   const enabled = isStudioLayoutTicketEnabled()
   const [src, setSrc] = useState<string | null>(null)
   const [refusedStatus, setRefusedStatus] = useState<number | null>(null)
@@ -52,7 +55,7 @@ export function useLayoutViewerTicket(
         setSrc(VIEWER_REFUSED_FRAME_SRC) // the frame is CLEARED, at the first mint and at a renewal alike (ARCH-PLATFORM 13:18Z, REVIEW-CX P2): the page matches the words, no stale edit capability stays
         setRefusedStatus(outcome.status)
         console.warn(`[viewer-ticket] the ${scope} ticket was refused (${outcome.status}); not retrying`)
-        toast({
+        if (notify) toast({
           title: scope === 'edit' ? "This deck can't be opened for editing." : "This deck can't be opened.",
           variant: 'destructive',
         })
@@ -71,7 +74,7 @@ export function useLayoutViewerTicket(
     }
     void run()
     return () => { cancelled = true; if (timer) clearTimeout(timer) }
-  }, [enabled, baseUrl, presentationId, scope])
+  }, [enabled, baseUrl, presentationId, scope, notify])
 
   return { src: enabled ? src : baseUrl, refusedStatus: enabled ? refusedStatus : null }
 }

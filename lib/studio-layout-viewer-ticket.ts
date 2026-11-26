@@ -11,6 +11,8 @@
  * Server-safe: no React here (a server route imports isStudioLayoutTicketEnabled). The hook is in
  * lib/studio-layout-viewer-ticket-client.ts ('use client').
  */
+import { evaluateLayoutViewerUrl, type LayoutViewerUrlPolicy } from '@/lib/layout-viewer-url-policy'
+
 export const VIEWER_TICKET_MESSAGE_TYPE = 'deckster:viewer-ticket'
 /** Renew at this fraction of the ticket lifetime. */
 export const VIEWER_TICKET_RENEW_FRACTION = 0.75
@@ -42,6 +44,36 @@ export function renewDelayMs(expiresInSeconds: number): number {
 
 /** PL-46: what a frame shows once Layout has refused it (a terminal refusal, at the first mint or at a renewal): a blank page, so no stale document, and no edit capability, stays on screen. */
 export const VIEWER_REFUSED_FRAME_SRC = 'about:blank'
+
+/** The ids the ticket route accepts (the same pattern as app/api/presentations/[id]/viewer-ticket/route.ts). */
+export const VIEWER_PRESENTATION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,254}$/
+
+/**
+ * PL-60: the presentation id of a Layout viewer URL (`<layout>/p/{id}`, with or without ?viewOnly=true and a #/N slide), or null when the URL is not that shape
+ * or the id is one the ticket route would refuse. A frame whose id is unknown loads its URL as it is (no ticket).
+ */
+export function presentationIdFromViewerUrl(viewerUrl: string | null | undefined): string | null {
+  if (!viewerUrl) return null
+  try {
+    const match = /^\/p\/([^/]+)\/?$/.exec(new URL(viewerUrl).pathname)
+    if (!match) return null
+    const id = decodeURIComponent(match[1])
+    return VIEWER_PRESENTATION_ID_PATTERN.test(id) ? id : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * PL-60 (REVIEW-CX P2, ARCH-PLATFORM 15:27Z): the presentation id of a viewer URL ONLY when the FULL URL is on the Studio's approved Layout origin list (the policy the editing frame uses:
+ * exact origin, http or https, no credentials in the URL). A URL that fails gets no id, so the hook mints nothing, attaches no ticket and posts nothing to it. The policy is passed in
+ * (the caller owns the environment's policy), which keeps this module server-safe.
+ */
+export function approvedPresentationIdFromViewerUrl(viewerUrl: string | null | undefined, policy: LayoutViewerUrlPolicy): string | null {
+  const id = presentationIdFromViewerUrl(viewerUrl)
+  if (!id) return null
+  return evaluateLayoutViewerUrl(viewerUrl, policy).status === 'allowed' ? id : null
+}
 
 /** PL-46: the scope a frame asks for. Only the owner's editing frame asks 'edit'; every other frame asks 'view' (Layout decides, by its own owner check). */
 export type ViewerTicketScope = 'edit' | 'view'

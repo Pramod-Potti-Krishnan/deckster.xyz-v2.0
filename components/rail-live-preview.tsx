@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useEffect, useState } from 'react'
+import { ViewTicketedIframe } from '@/components/layout-viewer-ticketed-iframe' // LAYOUT-TICKET (PL-60): a view ticket for this frame when NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED is on; off: the same iframe
 import { LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client'
 import {
   RAIL_LIVE_PREVIEW_STAGE,
@@ -18,7 +19,7 @@ function LiveFrame({ src, scale }: { src: string; scale: number }) {
   // Hidden until the viewer has loaded, so the card keeps showing "No preview" instead of a blank frame.
   const [loaded, setLoaded] = useState(false)
   return (
-    <iframe
+    <ViewTicketedIframe
       src={src}
       title="Live slide preview"
       aria-hidden="true"
