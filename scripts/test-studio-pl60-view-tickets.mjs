@@ -22,14 +22,14 @@ const check = (name, fn) => { checks++; const r = fn(); return r && typeof r.the
 
 // ---------------------------------------------------------------------------------------------------------- the world (as PL-46's test): stubs, loader, fake clock, a tiny hook runner
 const env = {}
-const state = { fetches: [], reply: { status: 200, body: '{}' }, replies: [], toasts: [], warns: [], posted: [], frameSrc: null }
+const state = { fetches: [], reply: { status: 200, body: '{}' }, replies: [], toasts: [], warns: [], posted: [], frameSrc: null, gate: null }
 class FakeRes { constructor({ status, body }) { this.status = status; this.ok = status >= 200 && status < 300; this._body = body } async json() { return JSON.parse(this._body) } }
-const fakeFetch = async (url, init) => { state.fetches.push({ url: String(url), init }); const r = state.replies.length ? state.replies.shift() : state.reply; if (r instanceof Error) throw r; return new FakeRes(r) }
+const fakeFetch = async (url, init) => { state.fetches.push({ url: String(url), init }); if (state.gate) await state.gate; const r = state.replies.length ? state.replies.shift() : state.reply; if (r instanceof Error) throw r; return new FakeRes(r) }
 let curRunner = null
 // the Studio's Layout origin policy: the REAL policy module (import-free), built for one approved origin, handed to the wrapper in place of lib/layout-service-client (which reads the environment)
 const policyModule = (() => { const m = { exports: {} }; new Function('module', 'exports', ts.transpileModule(real('lib/layout-viewer-url-policy.ts'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText)(m, m.exports); return m.exports })()
 const LAYOUT_POLICY = policyModule.createLayoutViewerUrlPolicy('https://layout.test')
-const STUBS_BASE = { '@/hooks/use-toast': { toast: t => state.toasts.push(t) }, '@/lib/utils': { cn: (...parts) => parts.filter(Boolean).join(' ') }, '@/lib/layout-service-client': { LAYOUT_VIEWER_URL_POLICY: LAYOUT_POLICY } }
+const STUBS_BASE = { '@/hooks/use-toast': { toast: t => state.toasts.push(t) }, '@/lib/utils': { cn: (...parts) => parts.filter(Boolean).join(' ') }, '@/lib/layout-service-client': { LAYOUT_VIEWER_URL_POLICY: LAYOUT_POLICY }, '@/hooks/use-rail-live-preview': { useRailLivePreview: () => ({ hostRef: { current: null }, mounted: true }), useRailPendingGrace: () => true } }
 const sourceOf = (rel, overrides) => (rel in overrides ? overrides[rel] : real(rel))
 function load(rel, overrides = {}, { realReact = false } = {}) {
   const cache = new Map()
@@ -61,7 +61,7 @@ function createRunner(callFn, { nullRef } = {}) {
   return { render, get: () => { if (dirty) render(); return value }, unmount: () => { for (const s of slots) if (s && typeof s.cleanup === 'function') s.cleanup() } }
 }
 const clone = x => JSON.parse(JSON.stringify(x))
-const resetState = () => { state.fetches = []; state.reply = { status: 200, body: '{}' }; state.replies = []; state.toasts = []; state.warns = []; state.posted = []; state.frameSrc = null }
+const resetState = () => { state.fetches = []; state.reply = { status: 200, body: '{}' }; state.replies = []; state.toasts = []; state.warns = []; state.posted = []; state.frameSrc = null; state.gate = null }
 const ticketReply = (ticket, expires_in = 600) => ({ status: 200, body: JSON.stringify({ ticket, expires_in, url: `/p/deck-1?t=${ticket}` }) })
 async function withFakes(overrides, fn) {
   resetState()
@@ -79,6 +79,7 @@ const FRAME_URL = 'https://layout.test/p/deck-1?viewOnly=true#/3'
 const renderWrap = (m, props) => m.wrap.ViewTicketedIframe.render(props, null)   // the forwardRef stub exposes the render function: the element it returns (or null)
 
 const PRESENT = 'components/present-view-only-frame.tsx'
+const RAIL = 'components/rail-live-preview.tsx'
 /** The REAL Present frame with the REAL ViewTicketedIframe (and hook), composed by two runners: the Present frame's iframe ref reads whether the wrapper currently draws a frame. */
 function mountPresent(overrides, flagOn) {
   env.NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED = flagOn ? 'true' : undefined
@@ -114,7 +115,7 @@ const SUITE = {
   async flagOnMarkup(_m, overrides) {
     env.NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED = 'true'
     const Wrapper = load(WRAP, overrides, { realReact: true }).ViewTicketedIframe
-    const html = renderToStaticMarkup(React.createElement(Wrapper, { src: FRAME_URL, title: 'x' })); assert.ok(!/ src=/.test(html) && /<iframe/.test(html) && /title="x"/.test(html), `a deck frame waits for its ticket: no src yet (${html})`)
+    const html = renderToStaticMarkup(React.createElement(Wrapper, { src: FRAME_URL, title: 'x' })); assert.equal(html, '', `a deck frame is not mounted until its ticket (${html})`)
     const other = renderToStaticMarkup(React.createElement(Wrapper, { src: 'https://layout.test/not-a-deck', title: 'x' })); assert.ok(/src="https:\/\/layout\.test\/not-a-deck"/.test(other), 'a URL with no deck id loads as it is')
   },
   async viewMintAndRenew(m) {
@@ -157,6 +158,27 @@ const SUITE = {
     }
     resetState(); env.NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED = undefined
     const off = createRunner(() => renderWrap(m, { src: 'https://evil.test/p/deck-1', title: 'x' })); off.render(); await settle(); assert.equal(off.get().props.src, 'https://evil.test/p/deck-1'); assert.deepEqual(state.warns, [], 'flag off: silent, the same iframe'); assert.equal(state.fetches.length, 0); off.unmount()
+  },
+  /** REVIEW-CX P3: the rail stays LOADING until a viewer source loads: no frame exists while the first ticket is pending (so no empty about:blank `load` can raise it), none after a refusal, and the load of the ticketed src raises it. */
+  async railStaysLoading(m, overrides) {
+    env.NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED = 'true'
+    const rail = load(RAIL, overrides)
+    const mount = () => {
+      let railRunner, frameRunner, wrapperRunner
+      railRunner = createRunner(() => rail.RailLivePreview({ viewerUrl: 'https://layout.test/p/deck-1', slideIndex: 2, status: 'none' }))
+      frameRunner = createRunner(() => { const el = railRunner.get().props.children; return el.type(el.props) })
+      wrapperRunner = createRunner(() => { const el = frameRunner.get(); return el.type.render(el.props, null) })
+      railRunner.render(); frameRunner.render(); wrapperRunner.render()
+      return { iframe: () => wrapperRunner.get(), live: () => frameRunner.get(), load: () => { const f = wrapperRunner.get(); if (!f) return false; frameRunner.get().props.onLoad(); return true }, unmount: () => { railRunner.unmount(); frameRunner.unmount(); wrapperRunner.unmount() } }
+    }
+    let release; state.gate = new Promise(r => { release = r }); state.replies = [ticketReply('tk1')]
+    const a = mount(); await settle()
+    assert.equal(a.iframe(), null, 'no frame exists while the first ticket is pending'); assert.equal(a.load(), false, 'so no load can happen'); assert.equal(a.live().props['data-studio-rail-live-frame'], 'loading'); assert.equal(a.live().props.style.opacity, 0)
+    release(); await settle()
+    const f = a.iframe(); assert.ok(f && /[?&]t=tk1/.test(f.props.src) && f.props.src.startsWith('https://layout.test/p/deck-1'), 'the frame mounts with its ticketed viewer src'); assert.equal(a.live().props['data-studio-rail-live-frame'], 'loading', 'still loading until the viewer loads')
+    assert.equal(a.load(), true); assert.equal(a.live().props['data-studio-rail-live-frame'], 'ready'); assert.equal(a.live().props.style.opacity, 1); a.unmount()
+    resetState(); state.reply = { status: 403, body: '{}' }
+    const b = mount(); await settle(); assert.equal(b.iframe(), null, 'a refused first ticket: no frame'); assert.equal(b.load(), false); assert.equal(b.live().props['data-studio-rail-live-frame'], 'loading'); b.unmount()
   },
   /** REVIEW-CX P2: a view frame that was READY and is then refused at a renewal is a failure: one failure callback, a null frame ref, no pending poll, no overlay. */
   async presentRefusedRenewal(m, overrides) {
@@ -208,13 +230,14 @@ function iframeFailures(overrides = {}) {
 // ---------------------------------------------------------------------------------------------------------- the real code
 await check('ID the presentation id of a viewer URL (query and hash allowed; no id, an unaccepted id, or another path shape: null; the longest id the route accepts)', () => withFakes({}, SUITE.idFromUrl))
 await check('MARKUP flag off: the ticketed frame is BYTE FOR BYTE the bare iframe at the rail preview\'s, the Present frame\'s and the template workspace\'s own props', () => withFakes({}, m => SUITE.flagOffIdentity(m, {})))
-await check('MARKUP flag on: a deck frame has no src until its ticket (the rest of its props kept); a URL with no deck id loads as it is', () => withFakes({}, m => SUITE.flagOnMarkup(m, {})))
+await check('MARKUP flag on: a deck frame is not mounted until its ticket (no empty frame); a URL with no deck id loads as it is', () => withFakes({}, m => SUITE.flagOnMarkup(m, {})))
 await check('CLOCK flag on: asks scope=view (never edit), loads with ?t=<ticket> keeping ?viewOnly and the #/N slide, renews by message at 75% of the life (not before), same scope, not reloaded', () => withFakes({}, SUITE.viewMintAndRenew))
 await check('REFUSAL a refused view ticket draws NOTHING (no blank page), is logged once and not toasted, never loops and never asks edit', () => withFakes({}, SUITE.viewRefusal))
 await check('NO ID a URL with no deck id asks for no ticket and loads as it is', () => withFakes({}, SUITE.noIdNoTicket))
 await check('TOAST the editing frame is still toasted on a refusal; a view frame is silent by default; the notify option turns either way', () => withFakes({}, SUITE.toastOnlyForEditByDefault))
 await check('ORIGIN a ticket is only for an approved Layout origin: the id comes back for the approved origin only (foreign, look-alike, subdomain, non-https, port, credentials, no policy: none)', () => withFakes({}, SUITE.approvedOrigin))
 await check('ORIGIN flag on, a foreign / look-alike / non-https / credentialed viewer URL mints nothing (no request, no timer), loads as it is, is logged once with the origin only; flag off it is silent', () => withFakes({}, SUITE.unapprovedMintsNothing))
+await check('RAIL with view tickets on the rail stays loading until a viewer source loads: no frame while the first ticket is pending (so no empty about:blank load), none after a refusal, ready only after the ticketed src loads', () => withFakes({}, m => SUITE.railStaysLoading(m, {})))
 await check('PRESENT a view frame that was ready and is refused at a renewal ends Present\'s view cleanly: one failure callback, a null frame ref, no overlay, no poll, no loop', () => withFakes({}, m => SUITE.presentRefusedRenewal(m, {})))
 await check('PRESENT flag off the frame is never unmounted: ready stays, nothing fails, no ticket is asked, the poll runs on', () => withFakes({}, m => SUITE.presentFlagOffStays(m, {})))
 await check('IFRAMES every raw <iframe> in app/ and components/ is ticketed or on the documented exclusion list; the three call sites use the wrapper; the wrapper asks view; the id pattern is the route\'s', () => assert.deepEqual(iframeFailures(), []))
@@ -241,6 +264,10 @@ MUTANTS.push(
   ['the wrapper logs the whole URL', { [WRAP]: real(WRAP).replace('${safeOrigin(src)}', '${src}') }, (m2) => SUITE.unapprovedMintsNothing(m2)],
   ['the wrapper logs even with the flag off', { [WRAP]: real(WRAP).replace('&& isStudioLayoutTicketEnabled()', '') }, (m2) => SUITE.unapprovedMintsNothing(m2)],
   ['the wrapper logs on every render (no dependency list)', { [WRAP]: real(WRAP).replace('  }, [unapproved, src])', '  })') }, (m2) => SUITE.unapprovedMintsNothing(m2)],
+)
+MUTANTS.push(
+  ['the wrapper mounts an empty frame while the first ticket is pending', { [WRAP]: real(WRAP).replace("  if (presentationId && ticketed === null) return null\n", '') }, (m2, o) => SUITE.railStaysLoading(m2, o)],
+  ['the wrapper mounts the frame again after a refusal', { [WRAP]: real(WRAP).replace('  if (refusedStatus !== null) return null\n', '') }, (m2, o) => SUITE.railStaysLoading(m2, o)],
 )
 const PRESENT_BLOCK = real(PRESENT).match(/      \/\/ LAYOUT-TICKET \(PL-60, REVIEW-CX P2\)[\s\S]*?\n      }\n/)?.[0]
 assert.ok(PRESENT_BLOCK, 'the Present frame carries the PL-60 failure block')

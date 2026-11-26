@@ -2,7 +2,7 @@
 /**
  * PL-60: a Layout viewer iframe that asks for a VIEW ticket (NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED, default off). Every other frame of the Studio that shows a deck from Layout
  * (the rail's live preview, the Present view-only frame, the template workspace) uses this in place of a bare <iframe>; the Builder's editing frame is the one frame with the edit ticket
- * (useLayoutViewerTicketSrc). Flag off: exactly the iframe it replaces (same props, same attribute order). On: no src until the ticket is minted, then the viewer URL with ?t=<ticket>,
+ * (useLayoutViewerTicketSrc). Flag off: exactly the iframe it replaces (same props, same attribute order). On: no frame until the ticket is minted, then the viewer URL with ?t=<ticket>,
  * renewed in place; a REFUSED ticket draws nothing (never a blank page over what the place shows otherwise) and is logged to the console, not toasted. A URL that is not a deck viewer
  * URL (no presentation id) loads as it is.
  */
@@ -27,5 +27,8 @@ export const ViewTicketedIframe = forwardRef<HTMLIFrameElement, ViewTicketedIfra
   }, [unapproved, src])
   const { src: ticketed, refusedStatus } = useLayoutViewerTicket(src, presentationId, 'view')
   if (refusedStatus !== null) return null
+  // PL-60 (REVIEW-CX P3): a frame still waiting for its FIRST ticket is not mounted at all. An iframe with no src fires `load` on its empty about:blank document, which the rail takes for "the viewer
+  // has loaded" (it raises the frame's opacity), so the rail shows an empty frame; with no element there is no such load, and the frame mounts, with its ticketed src, when the ticket arrives.
+  if (presentationId && ticketed === null) return null
   return <iframe ref={ref} src={presentationId ? ticketed ?? undefined : src} {...rest} />
 })
