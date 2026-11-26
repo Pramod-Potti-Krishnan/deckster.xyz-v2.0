@@ -8,6 +8,7 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState, useSyncExterna
 import { AlertTriangle, Image as ImageIcon, LoaderCircle, Lock, Pin, Shapes, Type, BarChart3 } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { cn } from '@/lib/utils'
+import { ViewTicketedIframe } from '@/components/layout-viewer-ticketed-iframe' // LAYOUT-TICKET (PL-60): a view ticket for this frame when NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED is on; off: the same iframe
 import { templateWorkspaceStore, type TemplateFixtureDeck, type TemplateWorkspaceSnapshot, type TemplateWorkspaceStore } from '@/lib/studio-template-workspace/adapter'
 import {
   readTemplateWorkspaceRecords,
@@ -184,7 +185,7 @@ export function SlideView({ index, width, fixture, viewerUrl = null, thumb = fal
           {overlay}
         </div>
       ) : viewerUrl && !thumb ? (
-        <iframe src={viewerUrl} title={`Slide ${index + 1} of the as-is deck`} />
+        <ViewTicketedIframe src={viewerUrl} title={`Slide ${index + 1} of the as-is deck`} />
       ) : (
         <div className="stw-real-thumb">{index + 1}</div>
       )}

@@ -43,6 +43,25 @@ export function renewDelayMs(expiresInSeconds: number): number {
 /** PL-46: what a frame shows once Layout has refused it (a terminal refusal, at the first mint or at a renewal): a blank page, so no stale document, and no edit capability, stays on screen. */
 export const VIEWER_REFUSED_FRAME_SRC = 'about:blank'
 
+/** The ids the ticket route accepts (the same pattern as app/api/presentations/[id]/viewer-ticket/route.ts). */
+export const VIEWER_PRESENTATION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,254}$/
+
+/**
+ * PL-60: the presentation id of a Layout viewer URL (`<layout>/p/{id}`, with or without ?viewOnly=true and a #/N slide), or null when the URL is not that shape
+ * or the id is one the ticket route would refuse. A frame whose id is unknown loads its URL as it is (no ticket).
+ */
+export function presentationIdFromViewerUrl(viewerUrl: string | null | undefined): string | null {
+  if (!viewerUrl) return null
+  try {
+    const match = /^\/p\/([^/]+)\/?$/.exec(new URL(viewerUrl).pathname)
+    if (!match) return null
+    const id = decodeURIComponent(match[1])
+    return VIEWER_PRESENTATION_ID_PATTERN.test(id) ? id : null
+  } catch {
+    return null
+  }
+}
+
 /** PL-46: the scope a frame asks for. Only the owner's editing frame asks 'edit'; every other frame asks 'view' (Layout decides, by its own owner check). */
 export type ViewerTicketScope = 'edit' | 'view'
 

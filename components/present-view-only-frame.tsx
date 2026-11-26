@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type MutableRefObject } from 'react'
 import { cn } from '@/lib/utils'
+import { ViewTicketedIframe } from '@/components/layout-viewer-ticketed-iframe' // LAYOUT-TICKET (PL-60): a view ticket for this frame when NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED is on; off: the same iframe
 import { resolveSlideViewerNavigationInfo } from '@/lib/slide-compose-async'
 import { presentFrameUrl } from '@/lib/present-view-only'
 
@@ -102,7 +103,7 @@ export function PresentViewOnlyFrame({
 
   return (
     <div data-present-view-only-frame="true" className="absolute inset-0 z-30 bg-black">
-      <iframe
+      <ViewTicketedIframe
         ref={iframeRef}
         src={src}
         title="Presentation (view only)"
