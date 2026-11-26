@@ -1,41 +1,62 @@
 'use client'
 /**
- * Client half of the Layout viewer ticket (program1/studio-flip-enablers): the React hook only. Constants and pure helpers
+ * Client half of the Layout viewer ticket (program1/studio-flip-enablers): the React hooks only. Constants and pure helpers
  * stay in lib/studio-layout-viewer-ticket.ts, which server routes import, so no server route reaches React hooks.
+ *
+ * PL-46: a ticket is asked for with a scope. useLayoutViewerTicket(baseUrl, presentationId, scope) takes it explicitly ('edit' for the owner's
+ * editing frame, 'view' for every other frame). A REFUSED answer (Layout's owner check: 403 for a deck that is not the person's or has no owner;
+ * also 400, 401, 404) is never retried and never downgraded to another scope: the hook stops, the frame stays unloaded, and the person is told once
+ * (a toast). A failure worth another try (network, 5xx, 408, 429) is retried as before. The same scope is used for every renewal.
  */
 import { useEffect, useState } from 'react'
+import { toast } from '@/hooks/use-toast'
 import {
   VIEWER_TICKET_RETRY_MS as RETRY_MS,
-  fetchViewerTicket,
+  fetchViewerTicketOutcome,
   findViewerFrame,
   isStudioLayoutTicketEnabled,
   postViewerTicket,
   renewDelayMs,
   withViewerTicket,
+  type ViewerTicketScope,
 } from '@/lib/studio-layout-viewer-ticket'
 
 /**
- * The iframe src to use. Flag off: `baseUrl` itself. On: null until the first ticket, then the ticketed URL (stable for
- * this baseUrl/presentation; renewals go by postMessage).
+ * The iframe src to use, and the status Layout refused with (null when it did not). Flag off: `baseUrl` itself and no refusal. On: src is null until
+ * the first ticket, then the ticketed URL (stable for this baseUrl/presentation/scope; renewals go by postMessage); after a refusal it stays null.
  */
-export function useLayoutViewerTicketSrc(
+export function useLayoutViewerTicket(
   baseUrl: string | null,
   presentationId: string | null | undefined,
-): string | null {
+  scope: ViewerTicketScope,
+): { src: string | null; refusedStatus: number | null } {
   const enabled = isStudioLayoutTicketEnabled()
   const [src, setSrc] = useState<string | null>(null)
+  const [refusedStatus, setRefusedStatus] = useState<number | null>(null)
 
   useEffect(() => {
-    if (!enabled || !baseUrl || !presentationId) { setSrc(null); return }
+    if (!enabled || !baseUrl || !presentationId) { setSrc(null); setRefusedStatus(null); return }
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | null = null
     let first = true
     let loadedSrc: string | null = null
     setSrc(null)
+    setRefusedStatus(null)
     const run = async () => {
-      const minted = await fetchViewerTicket(presentationId)
+      const outcome = await fetchViewerTicketOutcome(presentationId, scope)
       if (cancelled) return
-      if (!minted) { timer = setTimeout(run, RETRY_MS); return }
+      if (outcome.kind === 'refused') {
+        // Layout's answer stands: no retry, no other scope. Tell the person once.
+        setRefusedStatus(outcome.status)
+        toast({
+          title: scope === 'edit' ? "This deck can't be opened for editing" : "This deck can't be opened",
+          description: `Layout refused the ${scope} request (${outcome.status}).`,
+          variant: 'destructive',
+        })
+        return
+      }
+      if (outcome.kind === 'transient') { timer = setTimeout(run, RETRY_MS); return }
+      const minted = outcome.ticket
       if (first) {
         first = false
         loadedSrc = withViewerTicket(baseUrl, minted.ticket)
@@ -47,7 +68,18 @@ export function useLayoutViewerTicketSrc(
     }
     void run()
     return () => { cancelled = true; if (timer) clearTimeout(timer) }
-  }, [enabled, baseUrl, presentationId])
+  }, [enabled, baseUrl, presentationId, scope])
 
-  return enabled ? src : baseUrl
+  return { src: enabled ? src : baseUrl, refusedStatus: enabled ? refusedStatus : null }
+}
+
+/**
+ * THE EDITING FRAME'S hook (components/presentation-viewer.tsx, the one iframe of the Builder): the owner's editing frame asks for the 'edit' scope.
+ * Every other frame must use useLayoutViewerTicket(baseUrl, presentationId, 'view') (scripts/test-studio-pl46-edit-scope.mjs pins that this is the only caller).
+ */
+export function useLayoutViewerTicketSrc(
+  baseUrl: string | null,
+  presentationId: string | null | undefined,
+): string | null {
+  return useLayoutViewerTicket(baseUrl, presentationId, 'edit').src
 }

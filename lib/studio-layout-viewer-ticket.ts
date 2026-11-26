@@ -40,20 +40,45 @@ export function renewDelayMs(expiresInSeconds: number): number {
   return Math.max(MIN_RENEW_MS, Math.floor(s * 1000 * VIEWER_TICKET_RENEW_FRACTION))
 }
 
-export async function fetchViewerTicket(presentationId: string, fetchImpl: typeof fetch = fetch): Promise<ViewerTicket | null> {
+/** PL-46: the scope a frame asks for. Only the owner's editing frame asks 'edit'; every other frame asks 'view' (Layout decides, by its own owner check). */
+export type ViewerTicketScope = 'edit' | 'view'
+
+/** The route's path, with the requested scope as Layout's own `scope` query parameter (omitted when none is asked). */
+export function viewerTicketPath(presentationId: string, scope?: ViewerTicketScope): string {
+  return `/api/presentations/${encodeURIComponent(presentationId)}/viewer-ticket${scope ? `?scope=${scope}` : ''}`
+}
+
+/** What one request for a ticket came to: a ticket; an answer that will not change by asking again (400, 401, 403, 404 ...); or a failure worth another try (network, 5xx, 408, 429, a body without a ticket). */
+export type ViewerTicketOutcome =
+  | { kind: 'ticket'; ticket: ViewerTicket }
+  | { kind: 'refused'; status: number }
+  | { kind: 'transient' }
+
+/** Pure: a 4xx answer other than "try later" (408, 429) is a refusal. */
+export function isTicketRefusal(status: number): boolean {
+  return status >= 400 && status < 500 && status !== 408 && status !== 429
+}
+
+export async function fetchViewerTicketOutcome(presentationId: string, scope?: ViewerTicketScope, fetchImpl: typeof fetch = fetch): Promise<ViewerTicketOutcome> {
   try {
-    const res = await fetchImpl(`/api/presentations/${encodeURIComponent(presentationId)}/viewer-ticket`, {
+    const res = await fetchImpl(viewerTicketPath(presentationId, scope), {
       method: 'POST',
       cache: 'no-store',
       credentials: 'same-origin',
     })
-    if (!res.ok) return null
+    if (!res.ok) return isTicketRefusal(res.status) ? { kind: 'refused', status: res.status } : { kind: 'transient' }
     const body = await res.json()
-    if (!body || typeof body.ticket !== 'string' || !body.ticket) return null
-    return { ticket: body.ticket, expiresIn: Number(body.expires_in) || 600, url: typeof body.url === 'string' ? body.url : '' }
+    if (!body || typeof body.ticket !== 'string' || !body.ticket) return { kind: 'transient' }
+    return { kind: 'ticket', ticket: { ticket: body.ticket, expiresIn: Number(body.expires_in) || 600, url: typeof body.url === 'string' ? body.url : '' } }
   } catch {
-    return null
+    return { kind: 'transient' }
   }
+}
+
+/** The ticket, or null when there is none (a refusal and a failure both read null here; the hook tells them apart through fetchViewerTicketOutcome). */
+export async function fetchViewerTicket(presentationId: string, fetchImpl: typeof fetch = fetch, scope?: ViewerTicketScope): Promise<ViewerTicket | null> {
+  const outcome = await fetchViewerTicketOutcome(presentationId, scope, fetchImpl)
+  return outcome.kind === 'ticket' ? outcome.ticket : null
 }
 
 /** The iframe currently showing `src` (the one this hook loaded), or null. */
