@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 import { prisma } from '@/lib/prisma'
+import { guardSessionStoreWrite } from '@/lib/studio-session-patch-guard'; // PL-70 STEP A: the named allowlist (shadow and enforce flags, both default off); off, the route is exactly what it was
 
 export async function GET(
   req: NextRequest,
@@ -114,6 +115,8 @@ export async function POST(
     const geminiFileUri = typeof body.geminiFileUri === 'string' ? body.geminiFileUri : ''
     const geminiFileName = typeof body.geminiFileName === 'string' ? body.geminiFileName : null
     const geminiStoreName = typeof body.geminiStoreName === 'string' ? body.geminiStoreName : null
+    const storeGuarded = await guardSessionStoreWrite({ prisma, userId: user.id, existing: chatSession, geminiStoreName: body.geminiStoreName }) // PL-70 STEP A: write-once, shape-checked, cross-user-checked store name; flags off returns null at once
+    if (storeGuarded) return storeGuarded // PL-70 STEP A: the one uniform 400 (enforce only)
 
     if (!fileName || !geminiFileUri) {
       return NextResponse.json(

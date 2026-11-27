@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
+import { guardSessionPatch } from '@/lib/studio-session-patch-guard'; // PL-70 STEP A: the named allowlist (shadow and enforce flags, both default off); off, the route is exactly what it was
 
 /**
  * GET /api/sessions/[id]
@@ -147,6 +148,8 @@ export async function PATCH(
 
     // Parse request body
     const body = await req.json();
+    const guarded = await guardSessionPatch({ prisma, userId: user.id, sessionId: id, existing, body }); // PL-70 STEP A: flags off, returns null before it reads anything; shadow logs refused key names only; enforce refuses a body with any other key
+    if (guarded) return guarded; // PL-70 STEP A: the one uniform 400, or the enforced write's answer
     const { stateCache, ...sessionUpdates } = body;
     const stateCacheUpdate = stateCache && typeof stateCache === 'object'
       ? {

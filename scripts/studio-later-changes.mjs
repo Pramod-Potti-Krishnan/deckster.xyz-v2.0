@@ -129,6 +129,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-upload-formats-strip.mjs')).UPLOAD_FORMATS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, Upload formats: the composer's file picker and drop take only the formats the Researcher reads today, its data and source files too with a second flag once the Researcher's switch for them is on (NEXT_PUBLIC_STUDIO_UPLOAD_FORMATS_NARROW)
   ...(await import('./studio-pl42-locked-copy-strip.mjs')).PL42_SCOPE_FILES, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-42 locked research switches: the panel notice, the tooltips and the chat reply say the outline is written, not that research ran (no flag, live at merge)
   ...(await import('./studio-pl54-registry-tolerance-strip.mjs')).PL54_SCOPE_FILES, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-54 generic registry tolerance in three older proofs (tests only: no flag, no product code)
+  ...(await import('./studio-pl70-session-patch-allowlist-strip.mjs')).PL70_SCOPE_FILES, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-70 Step A session PATCH allowlist (STUDIO_SESSION_PATCH_ALLOWLIST_SHADOW_V1_ENABLED / STUDIO_SESSION_PATCH_ALLOWLIST_V1_ENABLED)
   // one line per later change, above this comment
 ])
 
@@ -211,6 +212,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-levels-direct-live-strip.mjs')).LEVELS_DIRECT_LIVE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, wave 1 step 4.1c Best and Max live in the level picker: their words stop saying "coming soon", Max on the Max plan only (NEXT_PUBLIC_STUDIO_THINKING_LEVELS_DIRECT_LIVE / _MAX_LIVE)
   (await import('./studio-research-by-level-strip.mjs')).RESEARCH_BY_LEVEL_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, Research by level: moving the thinking-level picker to Best or Max turns web search on in a chat with no outline, and back off if this rule turned it on (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_BY_LEVEL)
   (await import('./studio-upload-formats-strip.mjs')).UPLOAD_FORMATS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, Upload formats: the composer's file picker and drop take only the formats the Researcher reads today, its data and source files too with a second flag once the Researcher's switch for them is on (NEXT_PUBLIC_STUDIO_UPLOAD_FORMATS_NARROW)
+  (await import('./studio-pl70-session-patch-allowlist-strip.mjs')).PL70_ENV_BLOCK, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-70 Step A session PATCH allowlist (STUDIO_SESSION_PATCH_ALLOWLIST_SHADOW_V1_ENABLED / STUDIO_SESSION_PATCH_ALLOWLIST_V1_ENABLED)
   // one line per later change, above this comment
 ]
 
@@ -317,6 +319,7 @@ export const LATER_STRIPS = [
   (await import('./studio-upload-formats-strip.mjs')).stripUploadFormats, // LATER-CHANGE: FRONTEND-1, Upload formats: the composer's file picker and drop take only the formats the Researcher reads today, its data and source files too with a second flag once the Researcher's switch for them is on (NEXT_PUBLIC_STUDIO_UPLOAD_FORMATS_NARROW)
   (await import('./studio-pl42-locked-copy-strip.mjs')).stripPl42LockedCopy, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-42 locked research switches: the panel notice, the tooltips and the chat reply say the outline is written, not that research ran (no flag, live at merge)
   (await import('./studio-pl54-registry-tolerance-strip.mjs')).stripPl54RegistryTolerance, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-54 generic registry tolerance in three older proofs (tests only: no flag, no product code)
+  (await import('./studio-pl70-session-patch-allowlist-strip.mjs')).stripPl70SessionPatchAllowlist, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-70 Step A session PATCH allowlist (STUDIO_SESSION_PATCH_ALLOWLIST_SHADOW_V1_ENABLED / STUDIO_SESSION_PATCH_ALLOWLIST_V1_ENABLED)
   // one line per later change, above this comment
 ]
 

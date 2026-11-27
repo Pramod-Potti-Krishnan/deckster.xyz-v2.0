@@ -58,9 +58,11 @@ export async function requireSessionOwner(
     const chatSession = sid
       ? await prisma.chatSession.findUnique({ where: { id: sid }, select: { userId: true, status: true } })
       : null
-    const presentationOwners = pid
-      ? await prisma.chatSession.findMany({
+    // PL-70 STEP A: an existence query for ANOTHER user's row, not an unordered list of 20 (a caller with 20 rows of their own could push the other owner out of it)
+    const foreignOwner = pid
+      ? await prisma.chatSession.findFirst({
           where: {
+            userId: { not: userId },
             OR: [
               { blankPresentationId: pid },
               { strawmanPresentationId: pid },
@@ -68,9 +70,9 @@ export async function requireSessionOwner(
             ],
           },
           select: { userId: true },
-          take: 20,
         })
-      : []
+      : null
+    const presentationOwners = foreignOwner ? [foreignOwner] : [] // PL-70 STEP A
     const verdict = sessionOwnershipVerdict({
       userId,
       sessionId: sid,
