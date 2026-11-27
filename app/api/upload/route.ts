@@ -24,6 +24,7 @@ import {
   KnowledgeServiceError,
 } from '@/lib/knowledge-service-client';
 import { requireApprovedUser } from '@/lib/api-hardening'
+import { guardUploadStoreBind } from '@/lib/studio-session-patch-guard' // PL-70 STEP A: enforce binds the new store only if the chat has none yet (a conditional first bind); flags off, nothing changes
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
 
@@ -142,6 +143,8 @@ export async function POST(req: NextRequest) {
 
         storeId = ksSession.session_id;
         storeName = ksSession.store_name;
+        const adopted = await guardUploadStoreBind({ prisma, userId: user.id, sessionId, storeName, storeId }) // PL-70 STEP A: enforce only; null (and nothing read) with the flags off or in shadow
+        if (adopted) { storeName = adopted.storeName; storeId = adopted.storeId } // PL-70 STEP A: a binding that won first is adopted, so the update below restates it and never overwrites it
 
         // Update chat session with store info
         await prisma.chatSession.update({

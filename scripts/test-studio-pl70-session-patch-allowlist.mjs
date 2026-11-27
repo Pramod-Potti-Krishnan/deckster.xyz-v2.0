@@ -27,7 +27,7 @@ const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8')
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000 })
 const strip = await import('./studio-pl70-session-patch-allowlist-strip.mjs')
 const registry = await import('./studio-later-changes.mjs')
-const ROUTE = 'app/api/sessions/[id]/route.ts', FILES = 'app/api/sessions/[id]/files/route.ts', HARDENING = 'lib/api-hardening.ts'
+const ROUTE = 'app/api/sessions/[id]/route.ts', FILES = 'app/api/sessions/[id]/files/route.ts', UPLOAD = 'app/api/upload/route.ts', HARDENING = 'lib/api-hardening.ts'
 const ALLOW = 'lib/studio-session-patch-allowlist.ts', GUARD = 'lib/studio-session-patch-guard.ts', POLICY = 'lib/layout-viewer-url-policy.ts'
 const ENFORCE = 'STUDIO_SESSION_PATCH_ALLOWLIST_V1_ENABLED', SHADOW = 'STUDIO_SESSION_PATCH_ALLOWLIST_SHADOW_V1_ENABLED'
 
@@ -56,8 +56,8 @@ const ID = (n) => `deck-${String(n).padStart(8, '0')}-aaaa-bbbb`
 const OWN = 'session-own-0001', OTHER_OWN = 'session-own-0002', VICTIM_SESSION = 'session-victim-0001'
 const url = (id, extra = '') => `${LAYOUT}/p/${id}${extra}`
 
-function makeWorld(rows = {}, { noFindFirst = false } = {}) {
-  const table = new Map(Object.entries(rows))
+function makeWorld(rows = {}, { noFindFirst = false, noTransaction = false, failFileCreate = false, dropRowDuringTx = false } = {}) {
+  const table = new Map(Object.entries(rows).map(([key, value]) => [key, { ...value }]))
   const world = { table, calls: [], files: [] }
   const users = new Map([[CALLER.email, CALLER], [VICTIM.email, VICTIM]])
   const matches = (row, where) => Object.entries(where).every(([key, want]) => {
@@ -65,15 +65,26 @@ function makeWorld(rows = {}, { noFindFirst = false } = {}) {
     if (want && typeof want === 'object' && 'not' in want) return row[key] !== want.not
     return row[key] === want
   })
+  const tick = () => Promise.resolve()
+  const client = (undo) => ({
+    chatSession: {
+      findUnique: async ({ where }) => { await tick(); const found = table.get(where.id); return found ? { ...found } : null },
+      update: async ({ where, data }) => { await tick(); world.calls.push(['update', { where, data }]); const found = table.get(where.id); const next = { ...found }; for (const [k, v] of Object.entries(data)) if (k !== 'stateCache') next[k] = v; undo.push(() => table.set(where.id, found)); table.set(where.id, next); return next },
+      updateMany: async ({ where, data }) => { await tick(); world.calls.push(['updateMany', { where, data }]); let count = 0; for (const [id, found] of [...table]) if (matches(found, where)) { undo.push(() => table.set(id, found)); table.set(id, { ...found, ...data }); count++ } return { count } },
+      ...(noFindFirst ? {} : { findFirst: async (args) => { await tick(); world.calls.push(['findFirst', args]); for (const found of table.values()) if (matches(found, args.where)) return { id: found.id, userId: found.userId, geminiStoreName: found.geminiStoreName, geminiStoreId: found.geminiStoreId }; return null } }),
+    },
+    uploadedFile: {
+      count: async () => 0,
+      create: async ({ data }) => { await tick(); if (failFileCreate) throw new Error('file insert failed'); const file = { id: `f${world.files.length + 1}`, uploadedAt: 'now', ...data }; world.files.push(file); undo.push(() => world.files.splice(world.files.indexOf(file), 1)); world.calls.push(['file.create', data]); return file },
+      update: async ({ where, data }) => { await tick(); const file = world.files.find((f) => f.id === where.id); Object.assign(file, data); return file },
+    },
+  })
   world.prisma = {
     user: { findUnique: async ({ where }) => users.get(where.email) ?? null },
-    chatSession: {
-      findUnique: async ({ where }) => table.get(where.id) ?? null,
-      update: async ({ where, data }) => { world.calls.push(['update', { where, data }]); const row = table.get(where.id); const next = { ...row }; for (const [k, v] of Object.entries(data)) if (k !== 'stateCache') next[k] = v; table.set(where.id, next); return next },
-      ...(noFindFirst ? {} : { findFirst: async (args) => { world.calls.push(['findFirst', args]); for (const row of table.values()) if (matches(row, args.where)) return { id: row.id, userId: row.userId }; return null } }),
-    },
-    uploadedFile: { count: async () => 0, create: async ({ data }) => { world.calls.push(['file.create', data]); world.files.push(data); return { id: 'f1', ...data } } },
+    ...client([]),
+    ...(noTransaction ? {} : { $transaction: async (fn) => { const undo = []; world.calls.push(['tx', {}]); try { return await fn(client(undo)) } catch (error) { for (const step of undo.reverse()) step(); throw error } } }),
   }
+  world.dropRowDuringTx = dropRowDuringTx
   return world
 }
 const row = (id, user, extra = {}) => ({ id, userId: user.id, title: 't', status: 'active', geminiStoreName: null, geminiStoreId: null, blankPresentationId: null, strawmanPresentationId: null, finalPresentationId: null, ...extra })
@@ -93,6 +104,7 @@ function load(overrides = {}) {
   const common = { 'next/server': { NextRequest: class {}, NextResponse: FakeResponse }, 'next-auth': { getServerSession: async () => session }, '@/lib/auth-options': { authOptions: {} }, '@/lib/prisma': { prisma: prismaProxy }, '@/lib/studio-session-patch-guard': guard }
   const route = evaluate(src(ROUTE), ROUTE, common, globals)
   const files = evaluate(src(FILES), FILES, common, globals)
+  const uploadRoute = (world, knowledge) => evaluate(src(UPLOAD), UPLOAD, { ...common, '@/lib/service-url': { ServiceUrlConfigError: class extends Error {} }, '@/lib/config': { getKnowledgeServiceUrl: () => 'https://knowledge.example' }, '@/lib/knowledge-service-client': { createSession: knowledge.createSession, uploadFile: knowledge.uploadFile, KnowledgeServiceError: class extends Error {} }, '@/lib/api-hardening': { requireApprovedUser: async () => null } }, globals)
   const core = evaluate(read('lib/api-hardening-core.ts'), 'lib/api-hardening-core.ts', {}, globals)
   const hardening = evaluate(src(HARDENING), HARDENING, { 'next/server': { NextResponse: FakeResponse }, 'next-auth': { getServerSession: async () => session }, '@/lib/auth-options': { authOptions: {} }, '@/lib/prisma': { prisma: prismaProxy }, '@/lib/api-hardening-core': core }, globals)
   return {
@@ -100,6 +112,7 @@ function load(overrides = {}) {
     flags: (state) => { delete env[ENFORCE]; delete env[SHADOW]; if (state.enforce !== undefined) env[ENFORCE] = state.enforce; if (state.shadow !== undefined) env[SHADOW] = state.shadow; logs.length = 0 },
     world: (rows, opts) => { current.world = makeWorld(rows, opts); logs.length = 0; return current.world },
     async patch(id, body) { return route.PATCH({ json: async () => body }, { params: Promise.resolve({ id }) }) },
+    upload: (world, knowledge) => { current.world = world; return uploadRoute(world, knowledge) },
     async postFile(id, body) { return files.POST({ json: async () => body }, { params: Promise.resolve({ id }) }) },
   }
 }
@@ -123,7 +136,7 @@ const REFUSALS = [
   ['userId', { userId: 'attacker' }, 'key_not_allowed', 'userId'], ['id', { id: 'x' }, 'key_not_allowed', 'id'], ['createdAt', { createdAt: NOW }, 'key_not_allowed', 'createdAt'], ['updatedAt', { updatedAt: NOW }, 'key_not_allowed', 'updatedAt'],
   ['firstMessageAt', { firstMessageAt: NOW }, 'key_not_allowed', 'firstMessageAt'], ['geminiStoreId', { geminiStoreId: 's' }, 'key_not_allowed', 'geminiStoreId'], ['geminiStoreName', { geminiStoreName: 's' }, 'key_not_allowed', 'geminiStoreName'],
   ['relation user', { user: { connect: { id: 'x' } } }, 'key_not_allowed', 'user'], ['relation messages', { messages: { deleteMany: {} } }, 'key_not_allowed', 'messages'], ['relation uploadedFiles', { uploadedFiles: { create: {} } }, 'key_not_allowed', 'uploadedFiles'],
-  ['relation publishedDeck', { publishedDeck: { delete: true } }, 'key_not_allowed', 'publishedDeck'], ['unknown key', { somethingElse: 1 }, 'key_not_allowed', 'somethingElse'], ['mixed good and bad', { title: 'ok', userId: 'x', geminiStoreName: 'y' }, 'key_not_allowed', 'userId,geminiStoreName'],
+  ['relation publishedDeck', { publishedDeck: { delete: true } }, 'key_not_allowed', 'publishedDeck'], ['unknown key', { somethingElse: 1 }, 'key_not_allowed', 'unknown(1)'], ['mixed good and bad', { title: 'ok', userId: 'x', geminiStoreName: 'y' }, 'key_not_allowed', 'userId,geminiStoreName'],
   ['status deleted', { status: 'deleted' }, 'value_invalid', 'status'], ['status draft', { status: 'draft' }, 'value_invalid', 'status'], ['array body', [{ title: 'x' }], 'body_not_object', ''], ['string body', 'title', 'body_not_object', ''], ['null body', null, 'body_not_object', ''],
   ['stateCache extra key', { stateCache: { activeVersion: 'final', extra: 1 } }, 'state_cache_invalid', 'stateCache'], ['stateCache as a Prisma op', { stateCache: { upsert: { create: {}, update: {} } } }, 'state_cache_invalid', 'stateCache'], ['stateCache a string', { stateCache: 'x' }, 'state_cache_invalid', 'stateCache'],
   ['stateCache null', { stateCache: null }, 'state_cache_invalid', 'stateCache'], ['stateCache bad version', { stateCache: { activeVersion: 'draft' } }, 'state_cache_invalid', 'stateCache'], ['stateCache too big', { stateCache: { slideStructure: 'x'.repeat(1_000_001) } }, 'state_cache_invalid', 'stateCache'],
@@ -235,6 +248,67 @@ async function suiteStore(L) {
   L.flags({ shadow: 'true' }); world = L.world(std({ geminiStoreName: 'own-store-00001' })); res = await L.postFile(OWN, { ...FILE, geminiStoreName: 'victim-store-0001' }); assert.equal(res.status, 200); assert.equal(world.table.get(OWN).geminiStoreName, 'victim-store-0001', 'shadow writes as today'); assert.deepEqual(L.logs.map((l) => l.text), ['[sessions PATCH shadow] refused reason=store_immutable keys=geminiStoreName'])
 }
 
+// ---- E2. atomic store binding + file registration (P2-1) -------------------------------------------------------------------------------------------------------------------------------------------
+async function suiteAtomic(L) {
+  const STORE_A = 'researcher-session-AAA1', STORE_B = 'researcher-session-BBB2'
+  // overlapping registrations with different stores: exactly one binds, the other is refused, one file exists and it is the winner's
+  L.flags({ enforce: 'true' }); let world = L.world(std())
+  const [one, two] = await Promise.all([L.postFile(OWN, { ...FILE, geminiStoreName: STORE_A }), L.postFile(OWN, { ...FILE, geminiStoreName: STORE_B })])
+  const statuses = [one.status, two.status].sort(); assert.deepEqual(statuses, [200, 400], 'one wins, the other is the uniform refusal')
+  const winner = world.table.get(OWN).geminiStoreName; assert.ok([STORE_A, STORE_B].includes(winner)); assert.equal(world.files.length, 1, 'exactly one file row'); assert.equal(world.files[0].geminiStoreName, winner, "the file is the winner's: the session and the accepted file never disagree")
+  assert.equal(world.table.get(OWN).geminiStoreId, winner, 'the first bind sets both columns, as the legacy route did')
+  // overlapping registrations with the SAME store: both succeed (idempotent append), two files, one binding
+  L.flags({ enforce: 'true' }); world = L.world(std())
+  const both = await Promise.all([L.postFile(OWN, { ...FILE, geminiStoreName: STORE_A }), L.postFile(OWN, { ...FILE, geminiStoreName: STORE_A })]); assert.deepEqual(both.map((r) => r.status), [200, 200]); assert.equal(world.files.length, 2); assert.equal(world.table.get(OWN).geminiStoreName, STORE_A)
+  // a binding the upload route already made (a DISTINCT store id) is kept by an idempotent append
+  L.flags({ enforce: 'true' }); world = L.world(std({ geminiStoreName: STORE_A, geminiStoreId: 'ks-session-id-9999' }))
+  let res = await L.postFile(OWN, { ...FILE, geminiStoreName: STORE_A }); assert.equal(res.status, 200); assert.equal(world.table.get(OWN).geminiStoreId, 'ks-session-id-9999', 'the store id the upload route set is preserved'); assert.equal(world.files.length, 1)
+  // the legacy conditional: the bind never matches a row that already holds another name
+  assert.ok(world.calls.some((c) => c[0] === 'updateMany' && JSON.stringify(c[1].where.OR) === JSON.stringify([{ geminiStoreName: null }, { geminiStoreName: '' }])), 'the first bind is conditional on no store yet')
+  assert.ok(world.calls.filter((c) => c[0] === 'tx').length === 1, 'one transaction per registration')
+  // the file insert fails: the session write is rolled back with it (0 file, 0 session write)
+  L.flags({ enforce: 'true' }); world = L.world(std(), { failFileCreate: true }); res = await L.postFile(OWN, { ...FILE, geminiStoreName: STORE_A })
+  assert.equal(res.status, 500, "the route's own error answer"); assert.equal(world.files.length, 0, 'no file'); assert.equal(world.table.get(OWN).geminiStoreName, null, 'and the binding is rolled back with it'); assert.equal(world.table.get(OWN).geminiStoreId, null)
+  // a refusal inside the transaction rolls back too (cross-user store, immutable store): nothing written
+  L.flags({ enforce: 'true' }); world = L.world(std({ geminiStoreName: STORE_A })); res = await L.postFile(OWN, { ...FILE, geminiStoreName: STORE_B }); assert.equal(res.status, 400); assert.equal(world.files.length, 0); assert.equal(world.table.get(OWN).geminiStoreName, STORE_A)
+  // a client without $transaction fails closed in enforce (nothing written) and never breaks a shadow or an off write
+  L.flags({ enforce: 'true' }); world = L.world(std(), { noTransaction: true }); res = await L.postFile(OWN, { ...FILE, geminiStoreName: STORE_A }); assert.equal(res.status, 500); assert.equal(world.files.length, 0); assert.equal(world.table.get(OWN).geminiStoreName, null)
+  L.flags({ shadow: 'true' }); world = L.world(std(), { noTransaction: true }); res = await L.postFile(OWN, { ...FILE, geminiStoreName: STORE_A }); assert.equal(res.status, 200); assert.equal(world.files.length, 1, 'shadow: the legacy write follows')
+  L.flags({}); world = L.world(std(), { noTransaction: true }); res = await L.postFile(OWN, { ...FILE, geminiStoreName: STORE_A }); assert.equal(res.status, 200); assert.equal(world.table.get(OWN).geminiStoreName, STORE_A, 'off: exactly the legacy route')
+  // enforce with no store name: the legacy file write, no transaction
+  L.flags({ enforce: 'true' }); world = L.world(std()); res = await L.postFile(OWN, { ...FILE }); assert.equal(res.status, 200); assert.equal(world.calls.filter((c) => c[0] === 'tx').length, 0); assert.equal(world.files.length, 1)
+}
+
+// ---- E3. the upload route never overwrites a winning binding (P2-1 b) -----------------------------------------------------------------------------------------------------------------------------
+const KS = { session_id: 'ks-session-id-0001', store_name: 'fileSearchStores/ks-0001' }
+async function runUpload(L, rows, { raceStore = null, deleteRow = false, opts } = {}) {
+  const world = L.world(rows, opts); const calls = { created: 0, uploadedTo: [] }
+  const route = L.upload(world, {
+    createSession: async () => { calls.created++; if (raceStore) { const held = world.table.get(OWN); world.table.set(OWN, { ...held, geminiStoreName: raceStore.name, geminiStoreId: raceStore.id }) } if (deleteRow) world.table.delete(OWN); return KS },
+    uploadFile: async (storeId) => { calls.uploadedTo.push(storeId); return { file_uri: 'files/u1', file_name: 'a.pdf' } },
+  })
+  const res = await route.POST({ formData: async () => ({ get: (key) => ({ file: { name: 'a.pdf', size: 10, type: 'application/pdf' }, sessionId: OWN, userId: CALLER.id })[key] }) })
+  return { res, world, calls }
+}
+async function suiteUpload(L) {
+  // no race: the new store is bound with a conditional first bind and used
+  L.flags({ enforce: 'true' }); let r = await runUpload(L, std()); assert.equal(r.res.status, 200); assert.equal(r.world.table.get(OWN).geminiStoreName, KS.store_name); assert.equal(r.world.table.get(OWN).geminiStoreId, KS.session_id); assert.deepEqual(r.calls.uploadedTo, [KS.session_id])
+  assert.ok(r.world.calls.some((c) => c[0] === 'updateMany' && JSON.stringify(c[1].where.OR) === JSON.stringify([{ geminiStoreName: null }, { geminiStoreName: '' }])), 'a conditional first bind')
+  // a binding that wins first (the files route, between the read and the write): enforce adopts it and never overwrites it
+  L.flags({ enforce: 'true' }); r = await runUpload(L, std(), { raceStore: { name: 'winner-store-0001', id: 'winner-id-000001' } })
+  assert.equal(r.res.status, 200); assert.equal(r.world.table.get(OWN).geminiStoreName, 'winner-store-0001', 'the winning binding stays'); assert.equal(r.world.table.get(OWN).geminiStoreId, 'winner-id-000001'); assert.deepEqual(r.calls.uploadedTo, ['winner-id-000001'], 'the upload goes to the adopted store'); assert.equal(r.world.files[0].geminiStoreName, 'winner-store-0001')
+  // the winner has a name and no id: the name is used for both
+  L.flags({ enforce: 'true' }); r = await runUpload(L, std(), { raceStore: { name: 'winner-store-0002', id: null } }); assert.equal(r.res.status, 200); assert.deepEqual(r.calls.uploadedTo, ['winner-store-0002'])
+  // nothing to adopt (the row is gone): fail closed, nothing uploaded
+  L.flags({ enforce: 'true' }); r = await runUpload(L, std(), { deleteRow: true }); assert.equal(r.res.status, 500); assert.deepEqual(r.calls.uploadedTo, [], 'fails closed: nothing is uploaded'); assert.equal(r.world.files.length, 0)
+  // off and shadow are the legacy route: the upload's own store overwrites (the very thing enforce prevents), no extra read or write
+  for (const mode of [{}, { shadow: 'true' }]) { L.flags(mode); r = await runUpload(L, std(), { raceStore: { name: 'winner-store-0001', id: 'winner-id-000001' } }); assert.equal(r.res.status, 200); assert.equal(r.world.table.get(OWN).geminiStoreName, KS.store_name, 'flags off or shadow: the legacy update, byte for byte'); assert.equal(r.world.calls.filter((c) => c[0] === 'updateMany').length, 0) }
+  // a chat that already has a store: no new session, no bind
+  L.flags({ enforce: 'true' }); r = await runUpload(L, std({ geminiStoreName: 'held-store-00001', geminiStoreId: 'held-id-0000001' })); assert.equal(r.res.status, 200); assert.equal(r.calls.created, 0); assert.deepEqual(r.calls.uploadedTo, ['held-id-0000001']); assert.equal(r.world.calls.filter((c) => c[0] === 'updateMany').length, 0)
+  // a client without updateMany or findFirst fails closed in enforce
+  L.flags({ enforce: 'true' }); r = await runUpload(L, std(), { raceStore: { name: 'winner-store-0001', id: 'winner-id-000001' }, opts: { noFindFirst: true } }); assert.equal(r.res.status, 500); assert.deepEqual(r.calls.uploadedTo, [])
+}
+
 // ---- F. api-hardening -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 async function suiteHardening(L) {
   L.env.STUDIO_API_HARDENING_V1_ENABLED = 'true'
@@ -262,12 +336,24 @@ async function suiteCanary(L) {
     { stateCache: { slideStructure: C.title, extra: C.deck } }, { title: C.title.repeat(40) }, { finalPresentationId: ID(1), finalPresentationUrl: url(ID(1)), title: C.title },
   ]
   for (const mode of [{ enforce: 'true' }, { shadow: 'true' }]) {
-    for (const body of bodies) { L.flags(mode); L.world(std()); await L.patch(OWN, body); const lines = L.logs.map((l) => l.text); for (const text of lines) { for (const canary of [C.deck, C.store, C.title, C.urlHost, C.user, ID(1)]) assert.ok(!text.includes(canary), `the log never carries a value: ${text}`); assert.ok(!/\n/.test(text), 'one line'); assert.match(text, /^\[sessions PATCH (shadow|enforce)\] refused reason=[a-z_]+ keys=[A-Za-z0-9_.,?-]*$/) } }
+    for (const body of bodies) { L.flags(mode); L.world(std()); await L.patch(OWN, body); const lines = L.logs.map((l) => l.text); for (const text of lines) { for (const canary of [C.deck, C.store, C.title, C.urlHost, C.user, ID(1)]) assert.ok(!text.includes(canary), `the log never carries a value: ${text}`); assert.ok(!/\n/.test(text), 'one line'); assert.match(text, /^\[sessions PATCH (shadow|enforce)\] refused reason=[a-z_]+ keys=[A-Za-z0-9_.,()-]*$/) } }
     { L.flags(mode); const rows = std(); rows[VICTIM_SESSION] = row(VICTIM_SESSION, VICTIM, { geminiStoreName: C.store }); L.world(rows); await L.postFile(OWN, { ...FILE, geminiStoreName: C.store }); assert.ok(L.logs.length >= 1, 'the cross-user store case logs'); for (const l of L.logs) assert.ok(!l.text.includes(C.store), 'the other user\'s store name is never logged') }
     for (const store of [C.store, `${C.store} bad`]) { L.flags(mode); L.world(std({ geminiStoreName: 'held-store-00001' })); await L.postFile(OWN, { ...FILE, geminiStoreName: store }); for (const l of L.logs) assert.ok(!l.text.includes(C.store), 'the store name is never logged') }
   }
-  L.flags({ enforce: 'true' }); L.world(std()); await L.patch(OWN, { [`k\n${'y'.repeat(200)}`]: 1 }); assert.match(L.logs[0].text, /keys=k\?y{62}$/, 'a key name is sanitised and cut to 64 characters')
-  const allKeys = Object.fromEntries(Array.from({ length: 30 }, (_, i) => [`bad${i}`, 1])); L.flags({ enforce: 'true' }); L.world(std()); await L.patch(OWN, allKeys); assert.equal(L.logs[0].text.split('keys=')[1].split(',').length, 10, 'at most ten names')
+  // P2-2: a client key outside the closed set of server-known labels never has one character logged, however innocent it looks
+  const UNKNOWN = ['Canary_Key.v2-abcXYZ', 'Zq8vK2mNp4Rt7WxYcanaryTwo', 'canary-0123456789-ABCDEFGHIJ-name', `k\n${'y'.repeat(200)}`, '__proto__', 'constructor']
+  for (const mode of [{ shadow: 'true' }, { enforce: 'true' }]) {
+    for (const key of UNKNOWN) {
+      L.flags(mode); L.world(std()); await L.patch(OWN, JSON.parse(`{${JSON.stringify(key)}: 1, "title": "ok"}`))
+      assert.equal(L.logs.length, 1, 'one line'); const line = L.logs[0].text
+      for (const piece of [key, key.slice(0, 6), key.slice(-6)].filter((s) => s.length >= 6 && !/\s/.test(s))) assert.ok(!line.includes(piece), `0 bytes of the unknown key appear in the log (${JSON.stringify(piece.slice(0, 8))}...): ${line}`)
+      assert.match(line, /^\[sessions PATCH (shadow|enforce)\] refused reason=key_not_allowed keys=unknown\(1\)$/, 'a fixed count label and the closed reason code')
+    }
+    L.flags(mode); L.world(std()); await L.patch(OWN, { userId: 'x', Canary_Key: 1, geminiStoreName: 'y', another_one: 2 }); assert.match(L.logs[0].text, /keys=userId,geminiStoreName,unknown\(2\)$/, 'known labels stay, the rest is counted')
+    L.flags(mode); L.world(std()); await L.patch(OWN, Object.fromEntries(Array.from({ length: 30 }, (_, i) => [`bad${i}`, 1]))); assert.match(L.logs[0].text, /keys=unknown\(30\)$/, 'thirty unknown keys are one count')
+    L.flags(mode); L.world(std()); await L.patch(OWN, Object.fromEntries(['id', 'userId', 'createdAt', 'updatedAt', 'firstMessageAt', 'geminiStoreId', 'geminiStoreName', 'user', 'messages', 'uploadedFiles', 'publishedDeck'].map((k) => [k, 1]))); assert.equal(L.logs[0].text.split('keys=')[1].split(',').length, 10, 'at most ten known labels')
+  }
+  assert.ok(L.allow.SESSION_PATCH_LOG_LABELS instanceof Set && !L.allow.SESSION_PATCH_LOG_LABELS.has('somethingElse'), 'the closed set is a static Set of server-known labels')
 }
 
 // ---- H. Class 2: partial objects, stubs, missing attributes ----------------------------------------------------------------------------------------------------------------------------------------
@@ -294,25 +380,29 @@ async function suiteClass2(L) {
 }
 
 // ---- the stack runs -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-const SUITES = { flags: suiteFlags, allowed: suiteAllowed, uniform: suiteUniform, p3: suiteP3, store: suiteStore, hardening: suiteHardening, canary: suiteCanary, class2: suiteClass2 }
+const SUITES = { flags: suiteFlags, allowed: suiteAllowed, uniform: suiteUniform, p3: suiteP3, store: suiteStore, atomic: suiteAtomic, upload: suiteUpload, hardening: suiteHardening, canary: suiteCanary, class2: suiteClass2 }
 const real = load()
 await check('A the four flag states: off and every loose spelling is today; shadow writes as today and logs names and a reason only; enforce refuses; both = enforce', () => suiteFlags(real))
 await check('B what the legitimate writers send (W1 W3 W4 W5 W6 and each key alone) is written, with the three-field stateCache upsert and a server updatedAt', () => suiteAllowed(real))
 await check('C every refusal answers the same status, body bytes and headers; no 409; no field name or "another user"; nothing written; one log line with the reason and the key names', () => suiteUniform(real))
 await check('D rule P3: a deck id another user records is refused (an existence query), the caller\'s own and an unrecorded id are not; shadow only logs', () => suiteP3(real))
 await check('E the files route: the store name is write-once, shape-checked and cross-user-checked; off, shadow and enforce', () => suiteStore(real))
+await check('E2 atomic store binding and file registration: overlapping registrations (one winner, the session and the accepted file agree), idempotent append keeps a distinct store id, a failing file insert rolls the binding back, no $transaction fails closed', () => suiteAtomic(real))
+await check('E3 the upload route binds a new store only if the chat has none (a conditional first bind), adopts a binding that won first and never overwrites it, fails closed when it cannot confirm; off and shadow are the legacy update', () => suiteUpload(real))
 await check('F lib/api-hardening.ts: the owner lookup is an existence query; 25 rows of the caller\'s own do not hide the other owner; a client without findFirst fails closed', () => suiteHardening(real))
 await check('G canary values never reach a log line; key names are sanitised, one line, at most ten', () => suiteCanary(real))
 await check('H Class 2: missing findFirst fails closed in enforce and never breaks a shadow write; missing env, boolean true, missing policy, missing row, foreign prototype, __proto__', () => suiteClass2(real))
 
 const hasPattern = (text, pattern) => (text.match(pattern) ?? []).length
 await check('I Class 1: the routes keep the spread (flag off), carry exactly three marked lines each, call the guard before the write; the strip gives the base byte for byte; env block; registry', () => {
-  const route = read(ROUTE), files = read(FILES)
+  const route = read(ROUTE), files = read(FILES), upload = read(UPLOAD)
   assert.ok(route.includes('...sessionUpdates'), "the PATCH still writes the fields it was sent when the flags are off (test-studio-deck-sync-truth reads this)")
-  for (const [rel, text] of [[ROUTE, route], [FILES, files]]) { assert.equal(hasPattern(text, /PL-70 STEP A/g), 3, `${rel}: exactly three marked lines (the import and two calls)`); assert.equal(strip.stripPl70SessionPatchAllowlist(rel, text), git('show', `${strip.PL70_BASE_COMMIT}:${rel}`), `${rel}: without the marked lines it is the base, byte for byte`); assert.equal(strip.stripPl70SessionPatchAllowlist(rel, strip.stripPl70SessionPatchAllowlist(rel, text)), git('show', `${strip.PL70_BASE_COMMIT}:${rel}`), `${rel}: twice over changes nothing more`) }
+  for (const [rel, text] of [[ROUTE, route], [FILES, files], [UPLOAD, upload]]) { assert.equal(hasPattern(text, /PL-70 STEP A/g), 3, `${rel}: exactly three marked lines (the import and two calls)`); assert.equal(strip.stripPl70SessionPatchAllowlist(rel, text), git('show', `${strip.PL70_BASE_COMMIT}:${rel}`), `${rel}: without the marked lines it is the base, byte for byte`); assert.equal(strip.stripPl70SessionPatchAllowlist(rel, strip.stripPl70SessionPatchAllowlist(rel, text)), git('show', `${strip.PL70_BASE_COMMIT}:${rel}`), `${rel}: twice over changes nothing more`) }
   for (const rel of strip.PL70_TAUGHT_TEST_FILES) { const text = read(rel); assert.equal(hasPattern(text, /PL-70 STEP A/g), 1, `${rel}: the taught older proof carries exactly one marked line`); assert.equal(strip.stripPl70SessionPatchAllowlist(rel, text), git('show', `${strip.PL70_BASE_COMMIT}:${rel}`), `${rel}: without that line it is the base, byte for byte`) }
   assert.equal(strip.PL70_TAUGHT_TEST_FILES.size, 3); for (const rel of strip.PL70_TAUGHT_TEST_FILES) assert.ok(strip.PL70_SCOPE_FILES.has(rel), `${rel}: in the scope`)
   assert.ok(route.indexOf('guardSessionPatch({') < route.indexOf('prisma.chatSession.update('), 'the guard runs before the route\'s own write'); assert.ok(files.indexOf('guardSessionStoreWrite({') < files.indexOf('prisma.uploadedFile.create('), 'the store guard runs before anything is created')
+  assert.ok(upload.indexOf('guardUploadStoreBind({') < upload.indexOf('await prisma.chatSession.update({'), "the upload route binds (conditionally) before its own session update, which then restates the adopted binding"); assert.ok(upload.indexOf('guardUploadStoreBind({') > upload.indexOf('storeName = ksSession.store_name'), 'after the new store exists')
+  assert.ok(files.indexOf('guardSessionStoreWrite({') > files.indexOf('Missing file metadata'), 'the store guard runs after the missing-metadata check')
   assert.ok(route.indexOf('guardSessionPatch({') > route.indexOf('existing.userId !== user.id'), 'after the ownership check: 401/404/403 are unchanged')
   assert.equal(strip.stripPl70SessionPatchAllowlist(HARDENING, read(HARDENING)), git('show', `${strip.PL70_BASE_COMMIT}:${HARDENING}`), 'api-hardening strips back to the base'); assert.ok(!/take: 20/.test(read(HARDENING)) && read(HARDENING).includes('findFirst'), 'no unordered list of 20 left')
   const reg = read('scripts/studio-later-changes.mjs'); assert.equal(strip.stripPl70SessionPatchAllowlist('scripts/studio-later-changes.mjs', reg), git('show', `${strip.PL70_BASE_COMMIT}:scripts/studio-later-changes.mjs`), 'the registry loses its three lines and is the base'); assert.equal(strip.PL70_REGISTRY_LINES.length, 3); for (const line of strip.PL70_REGISTRY_LINES) assert.equal(reg.split(line.trimEnd()).length - 1, 1, 'each registry line is there once')
@@ -352,10 +442,19 @@ const MUTANTS = [
   ['P3 is dropped', rep(GUARD, 'for (const { field, id } of decision.pointerIds) {', 'for (const { field, id } of [] as Array<{ field: string; id: string }>) {'), 'p3'],
   ['P3 counts the caller\'s own rows', rep(GUARD, "where: { userId: { not: args.userId }, OR: [{ blankPresentationId: id }", "where: { OR: [{ blankPresentationId: id }"), 'p3'],
   ['an enforce guard failure is swallowed (fails open)', rep(GUARD, "  // enforce: nothing in here is allowed to turn into a pass\n  const verdict = await judgePatch(args)", "  // enforce: nothing in here is allowed to turn into a pass\n  let verdict: Verdict\n  try { verdict = await judgePatch(args) } catch { return null }"), 'class2'],
-  ['the store guard fails open in enforce', rep(GUARD, "  const verdict = await judge()\n  if (verdict.refused) {\n    logRefusal('enforce', verdict.reason, verdict.keys)\n    return sessionPatchRefusal()\n  }\n  return null", "  let verdict: Verdict\n  try { verdict = await judge() } catch { return null }\n  if (verdict.refused) {\n    logRefusal('enforce', verdict.reason, verdict.keys)\n    return sessionPatchRefusal()\n  }\n  return null"), 'class2'],
-  ['the store is not write-once', rep(GUARD, "if (held !== null) return { refused: true, reason: 'store_immutable', keys: ['geminiStoreName'] }", ''), 'store'],
-  ['the store cross-user check is dropped', rep(GUARD, "if (elsewhere) return { refused: true, reason: 'store_recorded_elsewhere', keys: ['geminiStoreName'] }", ''), 'store'],
-  ['the store shape is not checked', rep(GUARD, "if (!isSessionStoreName(wanted)) return", "if (false) return"), 'store'],
+  ['the store guard fails open in enforce', rep(GUARD, "    throw error // anything else was rolled back; the route's own error answer follows and nothing was written", '    return null'), 'class2'],
+  ['a missing $transaction falls back to the legacy write (fails open)', rep(GUARD, "if (typeof run !== 'function') throw new Error('transactions are unavailable')", "if (typeof run !== 'function') return null"), 'atomic'],
+  ['the store is not write-once (an immutable binding still registers the file)', rep(GUARD, "if (same.count !== 1) throw new StoreRefusal('store_immutable')", ''), 'store'],
+  ['the store cross-user check is dropped inside the transaction', rep(GUARD, "if (elsewhere) throw new StoreRefusal('store_recorded_elsewhere')", ''), 'store'],
+  ['the store shape is not checked in enforce', rep(GUARD, "if (!isSessionStoreName(wanted)) {\n    logRefusal('enforce'", "if (false) {\n    logRefusal('enforce'"), 'store'],
+  ['the first bind is unconditional', rep(GUARD, "where: { id: args.sessionId, userId: args.userId, OR: [{ geminiStoreName: null }, { geminiStoreName: '' }] },\n        data: { geminiStoreName: wanted", "where: { id: args.sessionId, userId: args.userId },\n        data: { geminiStoreName: wanted"), 'atomic'],
+  ['the session bind is outside the transaction (no rollback with the file)', rep(GUARD, "const bound = await tx.chatSession.updateMany({", "const bound = await (args.prisma as unknown as TxClient).chatSession.updateMany({"), 'atomic'],
+  ['the idempotent append overwrites the store id the upload route set', rep(GUARD, "data: { updatedAt: now } })\n        if (same.count", "data: { geminiStoreId: wanted, updatedAt: now } })\n        if (same.count"), 'atomic'],
+  ['the upload bind is unconditional (it can overwrite a winning binding)', rep(GUARD, "OR: [{ geminiStoreName: null }, { geminiStoreName: '' }] },\n    data: { geminiStoreName: args.storeName", "},\n    data: { geminiStoreName: args.storeName"), 'upload'],
+  ['the upload does not adopt the winning binding', rep(GUARD, "return { storeName: row.geminiStoreName, storeId: typeof row.geminiStoreId", "return null as unknown as { storeName: string; storeId: string } && { storeName: row.geminiStoreName, storeId: typeof row.geminiStoreId"), 'upload'],
+  ['the upload does not fail closed when it cannot confirm the binding', rep(GUARD, "throw new Error('the store binding could not be confirmed')", 'return null'), 'upload'],
+  ['the log names an unknown key', rep(ALLOW, "} else unknown++", "} else { unknown++; known.push(String(key)) }"), 'canary'],
+  ['the closed label set admits any key', rep(ALLOW, "SESSION_PATCH_LOG_LABELS.has(key))", "true)"), 'canary'],
   ['the enforced write spreads the raw body', rep(GUARD, "data: { ...verdict.data, updatedAt: new Date() } })", "data: { ...(args.body as object), updatedAt: new Date() } })"), 'allowed'],
   ['api-hardening is back to the unordered list of 20', rep(HARDENING, 'const foreignOwner = pid\n      ? await prisma.chatSession.findFirst({', 'const foreignOwner = pid\n      ? await prisma.chatSession.findFirst({ take: 20,'), 'hardening'],
   ['api-hardening counts the caller\'s own rows', rep(HARDENING, '            userId: { not: userId },\n', ''), 'hardening'],

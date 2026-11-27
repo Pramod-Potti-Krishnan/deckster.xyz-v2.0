@@ -115,8 +115,6 @@ export async function POST(
     const geminiFileUri = typeof body.geminiFileUri === 'string' ? body.geminiFileUri : ''
     const geminiFileName = typeof body.geminiFileName === 'string' ? body.geminiFileName : null
     const geminiStoreName = typeof body.geminiStoreName === 'string' ? body.geminiStoreName : null
-    const storeGuarded = await guardSessionStoreWrite({ prisma, userId: user.id, existing: chatSession, geminiStoreName: body.geminiStoreName }) // PL-70 STEP A: write-once, shape-checked, cross-user-checked store name; flags off returns null at once
-    if (storeGuarded) return storeGuarded // PL-70 STEP A: the one uniform 400 (enforce only)
 
     if (!fileName || !geminiFileUri) {
       return NextResponse.json(
@@ -125,6 +123,8 @@ export async function POST(
       )
     }
 
+    const storeGuarded = await guardSessionStoreWrite({ prisma, userId: user.id, sessionId, existing: chatSession, geminiStoreName: body.geminiStoreName, file: { sessionId, userId: user.id, fileName, fileSize, fileType, geminiFileUri, geminiFileName, geminiStoreName, uploadStatus: 'indexed', uploadError: null } }) // PL-70 STEP A: enforce binds the store and creates the file in ONE transaction (write-once, cross-user checked); flags off returns null at once, shadow only logs
+    if (storeGuarded) return storeGuarded // PL-70 STEP A: the file's own answer, or the one uniform 400 (enforce only)
     const uploadedFile = await prisma.uploadedFile.create({
       data: {
         sessionId,

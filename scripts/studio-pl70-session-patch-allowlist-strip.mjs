@@ -8,10 +8,11 @@ export const PL70_COMMIT_SUBJECT = /^PL-70:/
 export const PL70_MARKER_RE = /PL-70 STEP A/
 export const PL70_MARK = 'PL-70 STEP A'
 
-/** The two routes that gain marked lines (every one a whole inserted line, no existing line rewritten). */
+/** The three routes that gain marked lines (every one a whole inserted line, no existing line rewritten). */
 export const PL70_ROUTE_FILES = new Set([
   'app/api/sessions/[id]/route.ts',
   'app/api/sessions/[id]/files/route.ts',
+  'app/api/upload/route.ts',
 ])
 export const PL70_API_HARDENING = 'lib/api-hardening.ts'
 

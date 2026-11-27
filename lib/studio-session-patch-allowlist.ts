@@ -210,9 +210,21 @@ export function decideSessionPatch(body: unknown, context: SessionPatchContext):
   return { ok: true, data, pointerIds }
 }
 
-/** The key names a log line may carry: the charset of a column name, at most 64 characters, at most 10 names. Never a value. */
+/**
+ * The ONLY field labels a log line may name: the allowlist's own keys and the other columns and relations of the session row, all fixed in this file.
+ * A client key outside this closed set never has a single character logged, whatever it looks like: it is counted, as `unknown(<n>)`.
+ */
+export const SESSION_PATCH_NON_WRITABLE_LABELS = ['id', 'userId', 'createdAt', 'updatedAt', 'firstMessageAt', 'geminiStoreId', 'geminiStoreName', 'user', 'messages', 'uploadedFiles', 'publishedDeck'] as const
+export const SESSION_PATCH_LOG_LABELS: ReadonlySet<string> = new Set<string>([...SESSION_PATCH_ALLOWED_KEYS, ...SESSION_PATCH_NON_WRITABLE_LABELS])
+
+/** The key part of a log line: the server-known labels (each once, at most ten), then `unknown(<n>)` when the request carried keys outside the closed set. Never a client-chosen string. */
 export function sessionPatchLogKeys(keys: readonly string[]): string {
-  return keys.slice(0, 10).map((key) => String(key).replace(/[^A-Za-z0-9_.-]/g, '?').slice(0, 64)).join(',')
+  const known: string[] = []
+  let unknown = 0
+  for (const key of keys) {
+    if (typeof key === 'string' && SESSION_PATCH_LOG_LABELS.has(key)) { if (!known.includes(key) && known.length < 10) known.push(key) } else unknown++
+  }
+  return (unknown > 0 ? [...known, `unknown(${unknown})`] : known).join(',')
 }
 
 /** The one log line a refusal writes (shadow or enforce). */
