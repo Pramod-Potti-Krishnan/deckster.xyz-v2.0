@@ -595,6 +595,7 @@ await t('secret scan: no credential-shaped literal in any line this change adds'
   for (const rel of TOUCHED) {
     for (const line of added(rel)) {
       if (line.includes(BASE_COMMIT)) continue // the pinned base commit (40 hex), as every strip module has
+      if (line.includes('STUDIO_SESSION_PATCH_ALLOWLIST_SHADOW_V1_ENABLED')) continue // PL-70 STEP A: a later change's flag NAME in .env.example (48 characters, with a digit): the shape this scan looks for, but a name, not a credential
       if (/^\s*(?:\/\/|\*|#)/.test(line) && /https?:\/\/|\/Users\//.test(line)) continue
       for (const [re, why] of patterns) if (re.test(line.replace(/\/\*\*?|\*\//g, ''))) hits.push(`${rel}: ${why}: ${line.slice(0, 60)}`)
     }
