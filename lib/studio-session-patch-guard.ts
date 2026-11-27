@@ -159,11 +159,7 @@ export async function guardSessionStoreWrite(args: {
   if (typeof run !== 'function') throw new Error('transactions are unavailable')
   try {
     const file = await run.call(args.prisma, async (tx: TxClient) => {
-      const elsewhere = await tx.chatSession.findFirst({
-        where: { userId: { not: args.userId }, OR: [{ geminiStoreName: wanted }, { geminiStoreId: wanted }] },
-        select: { id: true },
-      })
-      if (elsewhere) throw new StoreRefusal('store_recorded_elsewhere')
+      if (await findStoreRecordedElsewhere(tx, args.userId, wanted)) throw new StoreRefusal('store_recorded_elsewhere')
       const now = new Date()
       const bound = await tx.chatSession.updateMany({
         where: { id: args.sessionId, userId: args.userId, OR: [{ geminiStoreName: null }, { geminiStoreName: '' }] },
@@ -190,16 +186,19 @@ async function judgeStoreAsRead(args: { prisma: StorePrisma; userId: string; exi
   const wanted = args.geminiStoreName
   if (wanted === null || wanted === undefined || wanted === '') return { refused: false } // nothing to write: the route writes nothing either
   if (!isSessionStoreName(wanted)) return { refused: true, reason: 'value_invalid', keys: ['geminiStoreName'] }
+  // the same checks in the same order as enforce, whatever the row holds: another user's binding first (read-only), then the chat's own
+  if (await findStoreRecordedElsewhere(args.prisma, args.userId, wanted)) return { refused: true, reason: 'store_recorded_elsewhere', keys: ['geminiStoreName'] }
   const row = (args.existing && typeof args.existing === 'object' ? args.existing : {}) as Record<string, unknown>
   const held = typeof row.geminiStoreName === 'string' && row.geminiStoreName !== '' ? row.geminiStoreName : null
   if (held === wanted) return { refused: false }
   if (held !== null) return { refused: true, reason: 'store_immutable', keys: ['geminiStoreName'] }
-  const elsewhere = await args.prisma.chatSession.findFirst({
-    where: { userId: { not: args.userId }, OR: [{ geminiStoreName: wanted }, { geminiStoreId: wanted }] },
-    select: { id: true },
-  })
-  if (elsewhere) return { refused: true, reason: 'store_recorded_elsewhere', keys: ['geminiStoreName'] }
   return { refused: false }
+}
+
+/** One question, asked the same way by enforce (inside its transaction) and by shadow (read-only): does another user's session record this store as its name or its id? */
+async function findStoreRecordedElsewhere(client: { chatSession: { findFirst(args: unknown): Promise<unknown> } }, userId: string, wanted: string): Promise<boolean> {
+  const found = await client.chatSession.findFirst({ where: { userId: { not: userId }, OR: [{ geminiStoreName: wanted }, { geminiStoreId: wanted }] }, select: { id: true } })
+  return Boolean(found)
 }
 
 /**
