@@ -15,10 +15,11 @@ export const PL70_ROUTE_FILES = new Set([
 ])
 export const PL70_API_HARDENING = 'lib/api-hardening.ts'
 
-/** The two older proofs this change teaches, one pure inserted marked line each (a heuristic that read a later change's flag name or file list as its own). */
+/** The three older proofs this change teaches, one pure inserted marked line each (a heuristic that read a later change's flag name or file list as its own, and PL-54's own registry check). */
 export const PL70_TAUGHT_TEST_FILES = new Set([
   'scripts/test-studio-compose-entitlement.mjs',
   'scripts/test-studio-brand-kit.mjs',
+  'scripts/test-studio-pl54-registry-tolerance.mjs', // read by every later change: its registry check reads the registry through PL-54's own helper
 ])
 
 /** Every file this change's commits touch: what the older scope checks skip once the registry names it. */
