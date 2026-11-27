@@ -134,7 +134,8 @@ const REFUSALS = [
   ['id number', { finalPresentationId: 12345678 }, 'value_invalid', 'finalPresentationId'], ['url on another origin', { finalPresentationId: ID(40), finalPresentationUrl: `https://evil.example/p/${ID(40)}` }, 'value_invalid', 'finalPresentationUrl'],
   ['url whose id differs from the body id', { finalPresentationId: ID(41), finalPresentationUrl: url(ID(42)) }, 'value_invalid', 'finalPresentationUrl'], ['url with no id anywhere', { finalPresentationUrl: url(ID(43)) }, 'value_invalid', 'finalPresentationUrl'],
   ['url not a viewer path', { finalPresentationId: ID(44), finalPresentationUrl: `${LAYOUT}/api/presentations/${ID(44)}` }, 'value_invalid', 'finalPresentationUrl'], ['url javascript', { finalPresentationId: ID(45), finalPresentationUrl: 'javascript:alert(1)' }, 'value_invalid', 'finalPresentationUrl'],
-  ['url with credentials', { finalPresentationId: ID(46), finalPresentationUrl: ['https://', 'user', ':', 'word', '@layout.example/p/', ID(46)].join('') }, 'value_invalid', 'finalPresentationUrl'], // assembled at run time: no credential-shaped literal in the source ['url not a string', { finalPresentationId: ID(47), finalPresentationUrl: 5 }, 'value_invalid', 'finalPresentationUrl'],
+  ['url with credentials', { finalPresentationId: ID(46), finalPresentationUrl: ['https://', 'user', ':', 'word', '@layout.example/p/', ID(46)].join('') }, 'value_invalid', 'finalPresentationUrl'], // assembled at run time: no credential-shaped literal in the source
+  ['url not a string', { finalPresentationId: ID(47), finalPresentationUrl: 5 }, 'value_invalid', 'finalPresentationUrl'],
   ['url cleared id kept', { finalPresentationId: null, finalPresentationUrl: url(ID(48)) }, 'value_invalid', 'finalPresentationUrl'],
 ]
 const FORBIDDEN_WORDS = ['another', 'exist', 'belong', 'recorded', 'userId', 'geminiStore', 'finalPresentation', 'stateCache', 'reason', 'field', 'immutable', 'key_not']
@@ -183,6 +184,7 @@ async function suiteAllowed(L) {
 
 // ---- C. one uniform refusal -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 async function suiteUniform(L) {
+  assert.equal(REFUSALS.length, 50, 'the refusal table is whole (a trailing comment once swallowed a case on its own line)'); assert.equal(new Set(REFUSALS.map(([name]) => name)).size, 50, 'every case has its own name')
   let first = null
   for (const [name, body, reason, keys] of REFUSALS) {
     L.flags({ enforce: 'true' }); const world = L.world(std())

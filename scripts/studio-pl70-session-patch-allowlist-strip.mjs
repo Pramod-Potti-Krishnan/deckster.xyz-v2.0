@@ -1,6 +1,6 @@
 // PL-70 STEP A (Platform card PL-70-STEP0, CHIEF-ARCH CA-123 / CA-124 / CA-127(A), 27 Nov 2026): the named allowlist for PATCH /api/sessions/[id], and the store-name guard of POST /api/sessions/[id]/files, behind TWO
 // server-only flags that default off (STUDIO_SESSION_PATCH_ALLOWLIST_SHADOW_V1_ENABLED, STUDIO_SESSION_PATCH_ALLOWLIST_V1_ENABLED). The change touches four existing files; older proofs hold them to the base byte for byte, so it
-// registers a strip: the marked lines of the two routes (and of the two taught older proofs, one line each) come out (three each: the import and two calls, all pure insertions), the api-hardening owner lookup goes back to the unordered list (a generated reverse hunk), the
+// registers a strip: the marked lines of the two routes (and of the three taught older proofs, one line each) come out (three each: the import and two calls, all pure insertions), the api-hardening owner lookup goes back to the unordered list (a generated reverse hunk), the
 // registry takes its own three lines out, and the env block comes out through the registry's own env mechanism. Plain node, nothing is read from disk or git here.
 
 export const PL70_BASE_COMMIT = '3bfd58a5' // origin/claude/pl54-registry-tolerance (uat 7a743ed281 + the tests-only generic registry tolerance): the commit this change is cut from
