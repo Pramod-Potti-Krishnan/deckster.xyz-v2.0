@@ -824,6 +824,7 @@ function loadMint(source, { rows, userId = CALLER.id, lookupError = null, signed
     '@/lib/prisma': { prisma },
     '@/lib/quota/build-quota': { isWsBqClaimEnabled: () => false },
     '@/lib/quota/build-quota-claim': { mintBuildQuotaClaim: async () => null },
+    '@/lib/researcher-session-token': { researcherSessionTokenSecret: () => assert.fail('Researcher proof is off'), mintResearcherSessionToken: () => assert.fail('Researcher proof is off') },
     '@/lib/stripe/stripe-utils': { getUserSubscription: async () => null },
     '@/lib/api-hardening': { requireApprovedUser: async () => null },
   }, { Buffer, console: { log: quiet, warn: quiet, error: quiet, info: quiet, debug: quiet }, process: { env: { DIRECTOR_WS_AUTH_SECRET: signingKey } } })

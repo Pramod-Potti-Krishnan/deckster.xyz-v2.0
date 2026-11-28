@@ -1,14 +1,14 @@
 /**
  * KNOWLEDGE-3, the F1 follow-up (test only): Studio signs a Researcher K-06 session token (lib/researcher-session-token.ts,
- * mintResearcherSessionToken) at exactly four places. Two sign for a chat Studio has just checked belongs to the caller (the session-token route and the
+ * mintResearcherSessionToken) at exactly five places. Two sign for a chat Studio has just checked belongs to the caller (the session-token route and the
  * connector file's chat token), one signs the owner's own library id (no chat), and one, in the ingest-status route, signs a different name from the
  * chat it checked and is protected by something else (site 1 below).
  *
  * Why it is pinned: Researcher's DSB-3 (RESEARCHER_CONNECTOR_BIND_ON_LINK_ENABLED) binds a chat that has no owner record to the owner named
  * in the token, so the token is the whole proof of ownership. That holds only while nobody can get a token for a chat they do not own, and that
- * rests on there being exactly these four mint sites (KNOWLEDGE-3's F1 note streams/knowledge-3/reviews/F1-OWNER-CHECKED-CLAIM.md; REVIEW-1's
+ * rests on there being exactly these five reviewed mint sites (KNOWLEDGE-3's F1 note streams/knowledge-3/reviews/F1-OWNER-CHECKED-CLAIM.md; REVIEW-1's
  * streams/review1/uploads-v1.0-277.md, F1, closed by construction; REVIEW-1's #633 review streams/review1/deckster.xyz-v2.0-633.md, P3 1-4, which this
- * file now follows). A fifth site, or a site that moves above its check, must fail here and be read by a person.
+ * file now follows). A sixth site, or a site that moves above its check, must fail here and be read by a person.
  *
  *   1. app/api/researcher/ingest-status/[jobId]/route.ts   x1: prisma.chatSession.findUnique, then a userId !== accountId refusal, then the mint. It does NOT sign the chat it checked: it signs the
  *                                                              chat's stored Researcher session name (ChatSession.geminiStoreName), and the browser can set that name (POST /api/sessions/[id]/files).
@@ -18,12 +18,14 @@
  *   2. app/api/researcher/session-token/route.ts           x1: same order. It signs the checked chat id itself (check g). The token goes to the browser by design, for 15 minutes.
  *   3. lib/connectors-gdrive-server.ts                     x2: connectorIdentityHeader (sessionId: connectorSessionId(owner), the owner's own library token, not a chat)
  *                                                              and chatSessionIdentityHeader (chat-scoped; one caller, handleSessionLinks, after ownChatRefusal)
+ *   4. app/api/director/ws-token/route.ts                 x1: D16, ARCH-PLATFORM 2026-11-25 06:15Z. The existing Studio chat row must belong to the authenticated account and must not be deleted.
+ *                                                              A missing row still gets Director auth only. The Researcher mint also requires the exact server flag.
  *
  * Assertions: a. call sites  b. importers  c. the connector file's shape
  *   d. route order: in the two routes the lookup, the owner-mismatch refusal and the mint sit directly in one function, the exported GET handler (a mint in a helper fails), in that order
  *   e. where RESEARCHER_SESSION_TOKEN_SECRET is read
- *   f. what else could sign, as far as source can show: researcherSessionTokenSecret (the secret helper) is imported only by the same three files; every result of calling it there goes only into the
- *      minter's secret property or a truthiness test; those three files and the library never use Web Crypto's subtle; the three never call or import createHmac and take no whole crypto module
+ *   f. what else could sign, as far as source can show: researcherSessionTokenSecret (the secret helper) is imported only by the same four files; every result of calling it there goes only into the
+ *      minter's secret property or a truthiness test; those four files and the library never use Web Crypto's subtle. Only the WS route has an independent HMAC, using the Director key
  *   g. session-token route: the mint's sessionId is the same variable the lookup uses as where.id
  *   h. ingest-status route: minted.token is used once, as a header value of the one upstream fetch, and is never part of a response, a log or a return
  *   i. the library: its export list is pinned to today's names, createHmac is called once, inside the minter, and nothing but createHmac is taken from crypto
@@ -53,6 +55,7 @@ const SIGNER = 'createHmac'
 const DEFINITION = 'lib/researcher-session-token.ts'
 const INGEST_ROUTE = 'app/api/researcher/ingest-status/[jobId]/route.ts'
 const TOKEN_ROUTE = 'app/api/researcher/session-token/route.ts'
+const DIRECTOR_WS_ROUTE = 'app/api/director/ws-token/route.ts'
 const CONNECTORS = 'lib/connectors-gdrive-server.ts'
 const CHAT_HEADER = 'chatSessionIdentityHeader'
 const OWNER_GATE = 'ownChatRefusal'
@@ -63,7 +66,7 @@ const LIBRARY_EXPORTS = ['MintResearcherSessionTokenInput', 'MintedResearcherSes
   'RESEARCHER_SESSION_TOKEN_MIN_SECRET_BYTES', 'RESEARCHER_SESSION_TOKEN_VERSION', 'isTokenClaim', 'mintResearcherSessionToken', 'researcherSessionTokenSecret']
 const NOTES = 'See KNOWLEDGE-3 streams/knowledge-3/reviews/F1-OWNER-CHECKED-CLAIM.md and REVIEW-1 streams/review1/uploads-v1.0-277.md (F1) before adding or moving a mint site.'
 
-const ALLOWED_CALLS = { [INGEST_ROUTE]: 1, [TOKEN_ROUTE]: 1, [CONNECTORS]: 2 }
+const ALLOWED_CALLS = { [INGEST_ROUTE]: 1, [TOKEN_ROUTE]: 1, [CONNECTORS]: 2, [DIRECTOR_WS_ROUTE]: 1 }
 const SOURCE_EXT = /\.(?:[cm]?[jt]sx?)$/
 const SKIP_DIRS = new Set(['node_modules', '.next', '.git', '__tests__'])
 const SKIP_TOP = new Set(['scripts', 'tests'])
@@ -262,7 +265,7 @@ console.log(`Researcher K-06 mint sites, scan root ${root} (${files.length} sour
 const mintUses = usesOf(MINT)
 const chatHeaderUses = usesOf(CHAT_HEADER)
 const helperUses = usesOf(SECRET_HELPER)
-const CALL_SITE_FILES = [INGEST_ROUTE, TOKEN_ROUTE, CONNECTORS]
+const CALL_SITE_FILES = Object.keys(ALLOWED_CALLS)
 
 /** Files (outside `allowed`) that reach a whole module without naming what they take from it: a namespace or default import, import =, export * from, require(), import(). Named imports are not listed. */
 function reachWholeModule(isModule, allowed) {
@@ -285,7 +288,7 @@ const isTokenModule = (lit) => !!lit && ts.isStringLiteral(lit) && lit.text.spli
 const isCryptoModule = (lit) => !!lit && ts.isStringLiteral(lit) && (lit.text === 'crypto' || lit.text === 'node:crypto')
 
 // ---- a. call sites
-check(`a. ${MINT}( is called at exactly the four known sites, and nowhere else`, () => {
+check(`a. ${MINT}( is called at exactly the five known sites, and nowhere else`, () => {
   const calls = mintUses.calls.filter(s => s.rel !== DEFINITION)
   const got = count(calls)
   const problems = []
@@ -305,7 +308,7 @@ check(`a. ${MINT}( is called at exactly the four known sites, and nowhere else`,
 })
 
 // ---- b. importers
-check(`b. the files that import ${MINT} are exactly the three call-site files`, () => {
+check(`b. the files that import ${MINT} are exactly the four call-site files`, () => {
   const importers = mintUses.imports
   const got = count(importers)
   const want = CALL_SITE_FILES
@@ -313,9 +316,9 @@ check(`b. the files that import ${MINT} are exactly the three call-site files`, 
   for (const [rel, n] of Object.entries(got)) equal(n, 1, `${rel} imports ${MINT} ${n} times, expected once`)
   const aliased = importers.filter(s => s.aliased)
   equal(aliased.length, 0, `${MINT} is imported under another name at ${aliased.map(s => where(s.sf, s.node)).join(', ')}; an alias hides a call site from this test. ${NOTES}`)
-  // the module reached without naming the minter (a namespace or default import, export *, require(), import()) from any file outside the three: named imports of its other exports are fine
+  // the module reached without naming the minter (a namespace or default import, export *, require(), import()) from any file outside the four: named imports of its other exports are fine
   const reachedAnotherWay = reachWholeModule(isTokenModule, [DEFINITION, ...CALL_SITE_FILES])
-  equal(reachedAnotherWay.length, 0, `lib/${TOKEN_MODULE} is reached as a whole module (namespace import, export *, require or import()) outside the three: ${reachedAnotherWay.join(', ')}. ${NOTES}`)
+  equal(reachedAnotherWay.length, 0, `lib/${TOKEN_MODULE} is reached as a whole module (namespace import, export *, require or import()) outside the four: ${reachedAnotherWay.join(', ')}. ${NOTES}`)
 })
 
 // ---- c. the connector file's shape
@@ -390,6 +393,55 @@ function routeOrder(rel) {
 check(`d. ${TOKEN_ROUTE}: the lookup, the owner-mismatch refusal and the mint sit in the exported GET handler, in that order`, () => routeOrder(TOKEN_ROUTE))
 check(`d. ${INGEST_ROUTE}: the lookup, the owner-mismatch refusal and the mint sit in the exported GET handler, in that order`, () => routeOrder(INGEST_ROUTE))
 
+check(`d. ${DIRECTOR_WS_ROUTE}: the mint requires the existing, owned, nondeleted row and the exact opt-in`, () => {
+  const sf = need(parsed.get(DIRECTOR_WS_ROUTE), DIRECTOR_WS_ROUTE)
+  const mints = callsTo(sf, MINT), lookups = chatSessionLookups(sf)
+  equal(mints.length, 1, 'the WS route has one Researcher mint')
+  equal(lookups.length, 1, 'the WS route looks up one Studio chat row')
+  const [mint] = mints, [lookup] = lookups
+  const home = nearestFunction(mint)
+  assert.ok(isExportedHandler(home, 'GET') && nearestFunction(lookup) === home, 'the lookup and mint are in the exported GET')
+  assert.ok(startOf(lookup) < startOf(mint), 'the row is looked up before the mint')
+  const compact = node => node?.getText(sf).replace(/\s+/g, '')
+  const selected = objectProp(lookup.arguments[0], 'select')
+  equal(compact(selected), '{userId:true,status:true}', 'the lookup selects ownership and status')
+  const lookupId = objectProp(objectProp(lookup.arguments[0], 'where'), 'id')
+  const mintId = objectProp(mint.arguments[0], 'sessionId')
+  assert.ok(lookupId && mintId && ts.isIdentifier(lookupId) && ts.isIdentifier(mintId) && bindingOf(lookupId) && bindingOf(lookupId) === bindingOf(mintId),
+    'the mint signs the same session id the lookup checked')
+  const idDeclaration = bindingOf(lookupId).parent
+  assert.ok(ts.isVariableDeclaration(idDeclaration) && (ts.getCombinedNodeFlags(idDeclaration) & ts.NodeFlags.Const),
+    'the checked session id cannot change between lookup and signing')
+  const signedUser = objectProp(mint.arguments[0], 'userId')
+  equal(compact(signedUser), 'session.user.id', 'the mint signs the authenticated user')
+  const row = lookup.parent?.parent
+  assert.ok(row && ts.isAwaitExpression(lookup.parent) && ts.isVariableDeclaration(row) && ts.isIdentifier(row.name), 'the awaited lookup is bound to the checked row')
+
+  const declarations = nodesOf(home.body, n => ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.name.text === 'canMintResearcherProof')
+  equal(declarations.length, 1, 'there is one eligibility binding')
+  const [eligibility] = declarations
+  assert.ok(eligibility.initializer?.kind === ts.SyntaxKind.FalseKeyword, 'eligibility starts false')
+  const references = nodesOf(home.body, n => ts.isIdentifier(n) && n !== eligibility.name && n.text === eligibility.name.text && bindingOf(n) === eligibility.name)
+  equal(references.length, 2, 'eligibility has only its assignment and its guard use')
+  const assignment = references.find(n => ts.isBinaryExpression(n.parent) && n.parent.left === n && n.parent.operatorToken.kind === ts.SyntaxKind.EqualsToken)?.parent
+  assert.ok(assignment && startOf(eligibility) < startOf(lookup) && startOf(lookup) < startOf(assignment), 'the row result sets eligibility after lookup')
+  equal(compact(assignment.right), "Boolean(existingSession&&existingSession.userId===session.user.id&&existingSession.status!=='deleted')",
+    'eligibility requires an existing row owned by the authenticated user and rejects deleted rows')
+  const rowUses = nodesOf(assignment.right, n => ts.isIdentifier(n) && n.text === row.name.text && !isPropertyNameOnly(n))
+  assert.ok(rowUses.length === 3 && rowUses.every(n => bindingOf(n) === row.name), 'eligibility checks the looked-up row')
+  const checkedUser = nodesOf(assignment.right, n => ts.isIdentifier(n) && n.text === 'session' && !isPropertyNameOnly(n))[0]
+  const mintUser = nodesOf(signedUser, n => ts.isIdentifier(n) && n.text === 'session' && !isPropertyNameOnly(n))[0]
+  assert.ok(checkedUser && mintUser && bindingOf(checkedUser) && bindingOf(checkedUser) === bindingOf(mintUser), 'the eligibility and mint use the same authenticated session')
+  const authenticatedSession = bindingOf(checkedUser).parent
+  assert.ok(ts.isVariableDeclaration(authenticatedSession) && (ts.getCombinedNodeFlags(authenticatedSession) & ts.NodeFlags.Const) &&
+    compact(authenticatedSession.initializer) === 'awaitgetServerSession(authOptions)', 'eligibility uses the server-authenticated session')
+  const guards = nodesOf(home.body, n => ts.isIfStatement(n) &&
+    compact(n.expression) === "process.env.STUDIO_RESEARCHER_OWNER_PROOF_ENABLED==='true'&&canMintResearcherProof" &&
+    nodesOf(n.thenStatement, item => item === mint).length === 1)
+  equal(guards.length, 1, 'the exact flag and eligibility both guard the mint')
+  assert.ok(startOf(assignment) < startOf(guards[0]) && references.some(n => n.parent === guards[0].expression), 'the mint guard reads the assigned eligibility')
+})
+
 // ---- e. secret reads
 check(`e. process.env.${SECRET_ENV} is read in exactly one place, ${DEFINITION}`, () => {
   // every code occurrence of the name (an identifier, a string or a template piece; comments never count), so process.env.X, process.env['X'],
@@ -408,20 +460,20 @@ check(`e. process.env.${SECRET_ENV} is read in exactly one place, ${DEFINITION}`
   assert.ok(viaEnv, `the one occurrence in ${DEFINITION} (${where(hits[0].sf, n)}) is no longer process.env.${SECRET_ENV}; re-read this test before changing it`)
 })
 
-// ---- f. what else could sign, as far as source can show: the secret helper stays with the three, its result goes only into the minter, and the three sign only through the minter
-check(`f. ${SECRET_HELPER} is imported only by the same three files, and is declared in ${DEFINITION}`, () => {
+// ---- f. what else could sign, as far as source can show: the secret helper stays with the four. Its result goes only into the minter, and the independent Director signer has its own key
+check(`f. ${SECRET_HELPER} is imported only by the same four files, and is declared in ${DEFINITION}`, () => {
   deepEqual(helperUses.declarations.map(d => d.rel), [DEFINITION], `${SECRET_HELPER} must be declared once, in ${DEFINITION}; found ${fmt(count(helperUses.declarations))}. ${NOTES}`)
   const got = count(helperUses.imports)
   deepEqual(Object.keys(got).sort(), [...CALL_SITE_FILES].sort(), `${SECRET_HELPER} importers: ${fmt(got)}; expected exactly ${CALL_SITE_FILES.join(', ')}. ${NOTES}`)
   const aliased = helperUses.imports.filter(s => s.aliased)
   equal(aliased.length, 0, `${SECRET_HELPER} is imported under another name at ${aliased.map(s => where(s.sf, s.node)).join(', ')}. ${NOTES}`)
-  // any other use (a call, an alias, a value, obj['name']) outside the three and its own file; call counts inside the three are deliberately not pinned
+  // any other use (a call, an alias, a value, obj['name']) outside the four and its own file; call counts inside the four are deliberately not pinned
   const stray = [...helperUses.calls, ...helperUses.other].filter(s => s.rel !== DEFINITION && !CALL_SITE_FILES.includes(s.rel))
-  equal(stray.length, 0, `${SECRET_HELPER} is used outside the three files at ${stray.map(s => where(s.sf, s.node)).join(', ')}. ${NOTES}`)
+  equal(stray.length, 0, `${SECRET_HELPER} is used outside the four files at ${stray.map(s => where(s.sf, s.node)).join(', ')}. ${NOTES}`)
   const reached = reachWholeModule(isTokenModule, [DEFINITION, ...CALL_SITE_FILES])
-  equal(reached.length, 0, `lib/${TOKEN_MODULE} is reached as a whole module (namespace import, export *, require or import()) outside the three: ${reached.join(', ')}. ${NOTES}`)
+  equal(reached.length, 0, `lib/${TOKEN_MODULE} is reached as a whole module (namespace import, export *, require or import()) outside the four: ${reached.join(', ')}. ${NOTES}`)
 })
-check(`f. in the three files every result of calling ${SECRET_HELPER}( goes only into the minter's secret or a truthiness test`, () => {
+check(`f. in the four files every result of calling ${SECRET_HELPER}( goes only into the minter's secret or a truthiness test`, () => {
   // allowed: the call itself, or a const holding it whose every reference is one of these, as (a) the `secret` property of the object passed to ${MINT}( or (b) a truthiness test (!x, if (x), x ? a : b, an && / || operand in one)
   const problems = []
   for (const rel of CALL_SITE_FILES) {
@@ -442,7 +494,7 @@ check(`f. in the three files every result of calling ${SECRET_HELPER}( goes only
   equal(problems.length, 0, `${problems.join('\n')}\nthe secret may go only into ${MINT}({ secret, ... }) or a test such as \`!secret\`, \`secret ? a : b\`, \`if (secret)\`. ${NOTES}`)
 })
 check(`f. none of the three files calls ${SIGNER} or imports it from crypto / node:crypto: they sign only through ${MINT}`, () => {
-  for (const rel of CALL_SITE_FILES) {
+  for (const rel of CALL_SITE_FILES.filter(file => file !== DIRECTOR_WS_ROUTE)) {
     const sf = need(parsed.get(rel), rel)
     const hits = []
     walkNodes(sf, n => {
@@ -454,14 +506,28 @@ check(`f. none of the three files calls ${SIGNER} or imports it from crypto / no
   const reached = reachWholeModule(isCryptoModule, [...parsed.keys()].filter(rel => !CALL_SITE_FILES.includes(rel)))
   equal(reached.length, 0, `${reached.join(', ')} take the whole crypto module (namespace or default import, export *, require or import()); a mint site must sign only through ${MINT}. ${NOTES}`)
 })
-check(`f. none of the three files, nor ${DEFINITION}, uses Web Crypto's subtle`, () => {
+check(`f. ${DIRECTOR_WS_ROUTE} has exactly its existing Director-only HMAC`, () => {
+  const sf = need(parsed.get(DIRECTOR_WS_ROUTE), DIRECTOR_WS_ROUTE)
+  const hits = nodesOf(sf, n => (ts.isIdentifier(n) || ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) && n.text === SIGNER)
+  equal(hits.length, 2, 'the WS route names createHmac only at its import and Director call')
+  const imported = hits.find(n => ts.isImportSpecifier(n.parent))
+  assert.ok(imported && !imported.parent.propertyName && isCryptoModule(imported.parent.parent.parent.parent.moduleSpecifier), 'the WS route uses a named crypto import')
+  const [sign] = callsTo(sf, SIGNER)
+  assert.ok(sign && ts.isIdentifier(sign.expression) && sign.arguments.length === 2 && ts.isStringLiteral(sign.arguments[0]) && sign.arguments[0].text === 'sha256', 'the Director HMAC is a direct SHA-256 call')
+  const key = sign.arguments[1]
+  const declared = ts.isIdentifier(key) ? bindingOf(key)?.parent : null
+  assert.ok(declared && ts.isVariableDeclaration(declared) && declared.initializer?.getText(sf) === 'process.env.DIRECTOR_WS_AUTH_SECRET',
+    'the Director HMAC takes only the Director key')
+  assert.ok(isExportedHandler(nearestFunction(sign), 'GET'), 'the Director signer belongs to the WS GET handler')
+})
+check(`f. none of the four files, nor ${DEFINITION}, uses Web Crypto's subtle`, () => {
   for (const rel of [...CALL_SITE_FILES, DEFINITION]) {
     const sf = need(parsed.get(rel), rel)
     const hits = []
     walkNodes(sf, n => {
       if ((ts.isIdentifier(n) && n.text === 'subtle') || ((ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) && n.text === 'subtle')) hits.push(where(sf, n)) // crypto.subtle, crypto['subtle'], { subtle } = crypto
     })
-    equal(hits.length, 0, `${rel} names subtle (Web Crypto, crypto.subtle) at ${hits.join(', ')}; the three files sign only through ${MINT} and the library only with ${SIGNER}. ${NOTES}`)
+    equal(hits.length, 0, `${rel} names subtle (Web Crypto, crypto.subtle) at ${hits.join(', ')}; a mint site must not use Web Crypto. ${NOTES}`)
   }
 })
 
