@@ -256,6 +256,7 @@ function transportHarness() {
     wsRef: { current: null }, socketSessionRef: { current: null },
     WebSocket: { OPEN: 1 }, SEND_RECONNECT_TIMEOUT_MS: 12000,
     STUDIO_ONE_LIVE_TAB_ENABLED: false, reconnectStatusRef: { current: 'idle' }, // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: the send's first line is then a no-op
+    STUDIO_RESEARCHER_OWNER_PROOF: false,
     Date: { now: () => clock }, setTimeout: (callback, delay) => timers.push({ callback, delay }),
     ensureConnected: () => calls.push(['connect']),
     sendMessage: (...args) => { calls.push(['send', c.wsRef.current, ...args]); return true },
