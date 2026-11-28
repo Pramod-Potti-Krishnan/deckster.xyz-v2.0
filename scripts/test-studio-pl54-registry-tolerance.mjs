@@ -26,6 +26,7 @@ const HEAD_SHA = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encodin
 const git = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'], timeout: 120_000 })
 const baseCache = new Map()
 const baseText = rel => { if (!baseCache.has(rel)) baseCache.set(rel, git(root, 'show', `${BASE}:${rel}`)); return baseCache.get(rel) }
+await tolerance.tolerateLaterChanges({ registry, root, known: { files: 'studio-pl54-registry-tolerance-strip.mjs', env: 'studio-upload-formats-strip.mjs', strips: 'studio-pl54-registry-tolerance-strip.mjs' } }) // PL-70 STEP A: this proof is itself read by every later change: whatever is registered after PL-54's own rows is read out of it, with the helper it proves
 const lineDiff = (was, now) => { const count = new Map(); for (const line of was.split('\n')) count.set(line, (count.get(line) || 0) + 1); const added = []; for (const line of now.split('\n')) { const n = count.get(line) || 0; if (n > 0) count.set(line, n - 1); else added.push(line) } const removed = []; for (const [line, n] of count) for (let i = 0; i < n; i++) removed.push(line); return { added, removed } }
 
 let passed = 0

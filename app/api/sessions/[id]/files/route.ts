@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 import { prisma } from '@/lib/prisma'
+import { guardSessionStoreWrite } from '@/lib/studio-session-patch-guard'; // PL-70 STEP A: the named allowlist (shadow and enforce flags, both default off); off, the route is exactly what it was
 
 export async function GET(
   req: NextRequest,
@@ -122,6 +123,8 @@ export async function POST(
       )
     }
 
+    const storeGuarded = await guardSessionStoreWrite({ prisma, userId: user.id, sessionId, existing: chatSession, geminiStoreName: body.geminiStoreName, file: { sessionId, userId: user.id, fileName, fileSize, fileType, geminiFileUri, geminiFileName, geminiStoreName, uploadStatus: 'indexed', uploadError: null } }) // PL-70 STEP A: enforce binds the store and creates the file in ONE transaction (write-once, cross-user checked); flags off returns null at once, shadow only logs
+    if (storeGuarded) return storeGuarded // PL-70 STEP A: the file's own answer, or the one uniform 400 (enforce only)
     const uploadedFile = await prisma.uploadedFile.create({
       data: {
         sessionId,
