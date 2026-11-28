@@ -55,6 +55,7 @@ const SIGNER = 'createHmac'
 const DEFINITION = 'lib/researcher-session-token.ts'
 const INGEST_ROUTE = 'app/api/researcher/ingest-status/[jobId]/route.ts'
 const TOKEN_ROUTE = 'app/api/researcher/session-token/route.ts'
+const UPLOAD_PROXY_ROUTE = 'app/api/researcher/upload/[step]/route.ts'
 const DIRECTOR_WS_ROUTE = 'app/api/director/ws-token/route.ts'
 const CONNECTORS = 'lib/connectors-gdrive-server.ts'
 const CHAT_HEADER = 'chatSessionIdentityHeader'
@@ -66,7 +67,7 @@ const LIBRARY_EXPORTS = ['MintResearcherSessionTokenInput', 'MintedResearcherSes
   'RESEARCHER_SESSION_TOKEN_MIN_SECRET_BYTES', 'RESEARCHER_SESSION_TOKEN_VERSION', 'isTokenClaim', 'mintResearcherSessionToken', 'researcherSessionTokenSecret']
 const NOTES = 'See KNOWLEDGE-3 streams/knowledge-3/reviews/F1-OWNER-CHECKED-CLAIM.md and REVIEW-1 streams/review1/uploads-v1.0-277.md (F1) before adding or moving a mint site.'
 
-const ALLOWED_CALLS = { [INGEST_ROUTE]: 1, [TOKEN_ROUTE]: 1, [CONNECTORS]: 2, [DIRECTOR_WS_ROUTE]: 1 }
+const ALLOWED_CALLS = { [INGEST_ROUTE]: 1, [TOKEN_ROUTE]: 1, [UPLOAD_PROXY_ROUTE]: 1, [CONNECTORS]: 2, [DIRECTOR_WS_ROUTE]: 1 }
 const SOURCE_EXT = /\.(?:[cm]?[jt]sx?)$/
 const SKIP_DIRS = new Set(['node_modules', '.next', '.git', '__tests__'])
 const SKIP_TOP = new Set(['scripts', 'tests'])
@@ -365,7 +366,7 @@ check(`c. ${CHAT_HEADER}( has exactly one caller, inside ${LINKS_HANDLER}, after
 })
 
 // ---- d. route order, and one function
-function routeOrder(rel) {
+function routeOrder(rel, method = 'GET') {
   const sf = need(parsed.get(rel), rel)
   const mints = callsTo(sf, MINT)
   equal(mints.length, 1, `${rel} has ${mints.length} ${MINT}( calls, expected 1. ${NOTES}`)
@@ -383,15 +384,16 @@ function routeOrder(rel) {
   const refusal = refusals.find(r => startOf(r) > startOf(lookup))
   assert.ok(refusal, `${rel}: the owner-mismatch refusal (${where(sf, refusals[0])}) does not come after prisma.chatSession.findUnique( (${where(sf, lookup)}). ${NOTES}`)
   assert.ok(refusal.getEnd() <= mintAt, `${rel}: ${MINT}( (${where(sf, mint)}) comes before the owner-mismatch refusal (${where(sf, refusal)}). ${NOTES}`)
-  // the lookup, the refusal and the mint sit directly in one function (no callback, no helper between them), and it is the exported GET handler: a mint moved into a helper that GET calls, or that
+  // the lookup, the refusal and the mint sit directly in one function (no callback, no helper between them), and it is the exported handler: a mint moved into a helper that the handler calls, or that
   // a second handler calls without the check, would otherwise keep the text order above
   const home = nearestFunction(mint)
   assert.ok(nearestFunction(lookup) === home && nearestFunction(refusal) === home,
     `${rel}: the lookup (in ${describeFunction(nearestFunction(lookup))}), the owner-mismatch refusal (in ${describeFunction(nearestFunction(refusal))}) and ${MINT}( (in ${describeFunction(home)}) must sit directly in one function. ${NOTES}`)
-  assert.ok(isExportedHandler(home, 'GET'), `${rel}: the lookup, the refusal and ${MINT}( sit in ${describeFunction(home)}, expected the exported GET handler itself. ${NOTES}`)
+  assert.ok(isExportedHandler(home, method), `${rel}: the lookup, the refusal and ${MINT}( sit in ${describeFunction(home)}, expected the exported ${method} handler itself. ${NOTES}`)
 }
 check(`d. ${TOKEN_ROUTE}: the lookup, the owner-mismatch refusal and the mint sit in the exported GET handler, in that order`, () => routeOrder(TOKEN_ROUTE))
 check(`d. ${INGEST_ROUTE}: the lookup, the owner-mismatch refusal and the mint sit in the exported GET handler, in that order`, () => routeOrder(INGEST_ROUTE))
+check(`d. ${UPLOAD_PROXY_ROUTE}: the lookup, the owner-mismatch refusal and the mint sit in the exported POST handler, in that order`, () => routeOrder(UPLOAD_PROXY_ROUTE, 'POST'))
 
 check(`d. ${DIRECTOR_WS_ROUTE}: the mint requires the existing, owned, nondeleted row and the exact opt-in`, () => {
   const sf = need(parsed.get(DIRECTOR_WS_ROUTE), DIRECTOR_WS_ROUTE)

@@ -27,6 +27,7 @@ import { stripPass3PolishB } from './studio-pass3-polish-b-strip.mjs' // LATER-C
 import { stripChatParityViewer, CHAT_PARITY_VIEWER_FILES } from './studio-chat-parity-viewer-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-VIEWER): the viewer's slash commands (stacked after this change) mark lines in the viewer and the page; this proof reads them as the change before the viewer's left them
 import { stripChatParityWorkspace, CHAT_PARITY_WORKSPACE_FILES } from './studio-chat-parity-workspace-strip.mjs' // LATER-CHANGES: registry read (CHAT-PARITY-WORKSPACE): the workspace slash commands (stacked after the viewer's) mark lines in the viewer and the page; this proof reads them as the viewer's commands left them
 import { stripReplacePicture, REPLACE_PICTURE_FILES } from './studio-replace-picture-strip.mjs' // LATER-CHANGES: registry read (REPLACE-PICTURE): the Replace picture action (stacked after this change) marks lines in the viewer, the slide area and the Builder page; this proof reads them as the change before left them
+const { stripFlipEnablers } = await import('./studio-flip-enablers-strip.mjs') // LATER-CHANGES: registry read (FLIP-ENABLERS): program1/studio-flip-enablers' viewer lines come out first
 
 const require = createRequire(import.meta.url)
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -39,6 +40,7 @@ const LIB = 'lib/studio-first-paint.ts'
 const FLAG = 'NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED'
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 const chatParityStrip = await import('./studio-chat-parity-strip.mjs') // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): the strip of the change stacked after this one, so its marked lines in the viewer come out before the pins below
+import { stripPl62TicketReady, PL62_REPLACED_LINES } from './studio-pl62-ticket-ready-strip.mjs' // LATER-CHANGES: registry read (PL-62): the viewer's four ticket-ready lines come out before the byte pin below
 const read = rel => stripPass3PolishB(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // LATER-CHANGES: registry read (PASS3-POLISH-B)
 const git = args => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] })
 const baseSource = rel => {
@@ -48,7 +50,7 @@ let checks = 0
 const check = (fn, ...args) => { checks++; return fn(...args) }
 
 // =========================================================== Part 1: source pins ===========================================================
-const viewerText = chatParityStrip.stripChatParity(VIEWER, read(VIEWER)) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out before the byte pin below
+const viewerText = chatParityStrip.stripChatParity(VIEWER, stripFlipEnablers(VIEWER, stripPl62TicketReady(VIEWER, read(VIEWER)))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out before the byte pin below
 const baseViewer = baseSource(VIEWER)
 check(assert.equal, sha(stripFirstPaint(VIEWER, viewerText)), sha(baseViewer), 'flag-off identity: the viewer without this change\'s lines is the base commit\'s, byte for byte')
 check(assert.ok, !stripFirstPaint(VIEWER, viewerText).includes(FIRST_PAINT_MARKER), 'the viewer without this change\'s lines carries no marker')
@@ -58,7 +60,7 @@ check(assert.deepEqual, FIRST_PAINT_FILES, [VIEWER], 'the strip touches the view
 // every added line carries the marker, and the change removes no base line
 {
   const diff = git(['diff', '--no-color', '-U0', FIRST_PAINT_BASE_COMMIT, '--', VIEWER]).split('\n').filter(line => /^[+-](?![+-])/.test(line))
-  const added = diff.filter(line => line.startsWith('+')), removed = diff.filter(line => line.startsWith('-'))
+  const added = diff.filter(line => line.startsWith('+')), removed = diff.filter(line => line.startsWith('-') && !PL62_REPLACED_LINES.some(([, before]) => line === `-${before}`)) // LATER-CHANGES: registry read (PL-62): its two rewritten viewer lines (a later change's, not this one's) are not this change's removals
   // The diff is read against the base commit, so lines other stacked changes add are in it too; each of them must carry a marker of its own, and this change's must carry ours.
   const mine = added.filter(line => line.includes(FIRST_PAINT_MARKER))
   check(assert.equal, mine.length, 7, 'seven added viewer lines carry the marker: import, preconnect call, poll wiring, local setInterval, first-tick read, hollow-answer drop, catch guard')

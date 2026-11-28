@@ -7,6 +7,7 @@ import { validateFile } from '@/lib/file-validation'
 import { getKnowledgeServiceUrl, uploadConfig } from '@/lib/config'
 import { ingestStatusPollUrl, type IngestStatusPollIdentity } from '@/lib/researcher-ingest-status-auth'
 import { researcherUploadFetch, researcherUploadPollFetch } from '@/lib/upload-session-token' // UPLOAD-SESSION-TOKEN (NEXT_PUBLIC_STUDIO_UPLOAD_SESSION_TOKEN_ENABLED, default off): the session token on the four browser -> Researcher upload calls; off, each call is the plain fetch it was
+import { researcherUploadUrl } from '@/lib/researcher-upload-proxy' // FLIP-ENABLERS-PROXY
 import {
   getEnrichmentLabel,
   resolveEnrichmentOutcome,
@@ -154,6 +155,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
   const studio = useStudioUploadOwner(sessionId, userId, onUploadComplete)
   const uploadAdmissionLifetime = studio.admissionLifetime
   const visibleFiles = STUDIO_UPLOAD_OWNERSHIP ? files.filter(file => studio.ownerRef.current.fileIds.has(file.id)) : files
+  const proxyIdentityMapRef = useRef(new Map<string, IngestStatusPollIdentity>()) // FLIP-ENABLERS-PROXY
   const researcherSessionIdRef = useRef<string | null>(null)
   const researcherSessionPromiseRef = useRef<Promise<string> | null>(null)
 
@@ -178,6 +180,8 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
       if (owner.researcherSessionId) return owner.researcherSessionId
       if (owner.researcherSessionPromise) return owner.researcherSessionPromise
       const pending = (async () => {
+        const _createUrl = researcherUploadUrl(getResearcherBaseUrl(), 'sessions/create', { sessionId: owner.sessionId, userId: owner.userId }) // FLIP-ENABLERS-PROXY
+        const fetch: typeof globalThis.fetch = ((orig) => ((input, init) => orig(input === `${getResearcherBaseUrl()}/api/v1/sessions/create` ? _createUrl : input, init)) as typeof globalThis.fetch)(globalThis.fetch) // FLIP-ENABLERS-PROXY
         const response = await researcherUploadFetch(fetch, { sessionId: owner.sessionId, userId: owner.userId })(`${getResearcherBaseUrl()}/api/v1/sessions/create`, { // UPLOAD-SESSION-TOKEN
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -214,6 +218,8 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     }
 
     researcherSessionPromiseRef.current = (async () => {
+      const _createUrl = researcherUploadUrl(getResearcherBaseUrl(), 'sessions/create', { sessionId: currentSessionId, userId }) // FLIP-ENABLERS-PROXY
+      const fetch: typeof globalThis.fetch = ((orig) => ((input, init) => orig(input === `${getResearcherBaseUrl()}/api/v1/sessions/create` ? _createUrl : input, init)) as typeof globalThis.fetch)(globalThis.fetch) // FLIP-ENABLERS-PROXY
       const response = await researcherUploadFetch(fetch, { sessionId: currentSessionId, userId })(`${getResearcherBaseUrl()}/api/v1/sessions/create`, { // UPLOAD-SESSION-TOKEN
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -251,6 +257,8 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     contentType: string,
     tokenOwner?: string | null, // UPLOAD-SESSION-TOKEN: the owner the upload sent to sessions/create (only its kind reaches the mint route)
   ): Promise<StorageUploadUrlResponse> => {
+    const _prepUrl = researcherUploadUrl(getResearcherBaseUrl(), 'files/storage-upload-url', proxyIdentityMapRef.current.get(researcherSessionId)) // FLIP-ENABLERS-PROXY
+    const fetch: typeof globalThis.fetch = ((orig) => ((input, init) => orig(input === `${getResearcherBaseUrl()}/api/v1/files/storage-upload-url` ? _prepUrl : input, init)) as typeof globalThis.fetch)(globalThis.fetch) // FLIP-ENABLERS-PROXY
     const response = await researcherUploadFetch(fetch, { sessionId: researcherSessionId, userId: tokenOwner })(`${getResearcherBaseUrl()}/api/v1/files/storage-upload-url`, { // UPLOAD-SESSION-TOKEN
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -297,6 +305,8 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
     contentType: string,
     tokenOwner?: string | null, // UPLOAD-SESSION-TOKEN
   ): Promise<ProcessUploadedResponse> => {
+    const _procUrl = researcherUploadUrl(getResearcherBaseUrl(), 'files/process-uploaded', proxyIdentityMapRef.current.get(researcherSessionId)) // FLIP-ENABLERS-PROXY
+    const fetch: typeof globalThis.fetch = ((orig) => ((input, init) => orig(input === `${getResearcherBaseUrl()}/api/v1/files/process-uploaded` ? _procUrl : input, init)) as typeof globalThis.fetch)(globalThis.fetch) // FLIP-ENABLERS-PROXY
     const response = await researcherUploadFetch(fetch, { sessionId: researcherSessionId, userId: tokenOwner })(`${getResearcherBaseUrl()}/api/v1/files/process-uploaded`, { // UPLOAD-SESSION-TOKEN
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -514,6 +524,12 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
       const contentType = file.type || 'application/octet-stream'
       const researcherSessionId = await ensureResearcherSession(owner)
       updateFile(fileId, { uploadProgress: 10 }, owner)
+      // NEXT_PUBLIC_STUDIO_RESEARCHER_PROXY_ENABLED (off): which chat session + owner kind the same-origin proxy signs for. Unused when off.
+      const proxyIdentity: IngestStatusPollIdentity = {
+        sessionId: (STUDIO_UPLOAD_OWNERSHIP ? owner?.sessionId : sessionIdRef.current) ?? '',
+        userId: STUDIO_UPLOAD_OWNERSHIP ? owner?.userId : userId,
+      }
+      proxyIdentityMapRef.current.set(researcherSessionId, proxyIdentity) // FLIP-ENABLERS-PROXY
 
       const uploadTokenOwner = STUDIO_UPLOAD_OWNERSHIP ? owner?.userId : userId // UPLOAD-SESSION-TOKEN: the owner this upload sends to sessions/create, as the poll identity below takes it
       const uploadUrl = await requestStorageUploadUrl(researcherSessionId, file, contentType, uploadTokenOwner) // UPLOAD-SESSION-TOKEN

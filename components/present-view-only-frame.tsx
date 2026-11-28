@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type MutableRefObject } from 'react'
 import { cn } from '@/lib/utils'
+import { ViewTicketedIframe } from '@/components/layout-viewer-ticketed-iframe' // LAYOUT-TICKET (PL-60): a view ticket for this frame when NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED is on; off: the same iframe
 import { resolveSlideViewerNavigationInfo } from '@/lib/slide-compose-async'
 import { presentFrameUrl } from '@/lib/present-view-only'
 
@@ -54,6 +55,7 @@ export function PresentViewOnlyFrame({
 }) {
   const [src] = useState(() => presentFrameUrl(baseUrl, startIndex))
   const [ready, setReady] = useState(false)
+  const [failed, setFailed] = useState(false)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const latest = useRef({ sendCommand, onSlideIndex, onFailed })
   latest.current = { sendCommand, onSlideIndex, onFailed }
@@ -85,6 +87,16 @@ export function PresentViewOnlyFrame({
         // Viewer still loading, or a slow read: try again.
       }
       if (cancelled) return
+      // LAYOUT-TICKET (PL-60, REVIEW-CX P2): with view tickets on, a refused renewal makes ViewTicketedIframe draw nothing, so a frame that WAS ready is gone. That is a failure like the
+      // one below: the parent stops forwarding audience keys to a detached frame (frameRef cleared), `onFailed` fires once (Present falls back to the editing frame), the overlay comes
+      // down and the poll stops. Flag off the frame is never unmounted, so this never runs.
+      if (isReady && !iframeRef.current) {
+        isReady = false
+        frameRef.current = null
+        setFailed(true)
+        latest.current.onFailed()
+        return
+      }
       if (!isReady && Date.now() - startedAt > READY_TIMEOUT_MS) {
         latest.current.onFailed()
         return
@@ -100,9 +112,11 @@ export function PresentViewOnlyFrame({
     }
   }, [frameRef])
 
+  if (failed) return null
+
   return (
     <div data-present-view-only-frame="true" className="absolute inset-0 z-30 bg-black">
-      <iframe
+      <ViewTicketedIframe
         ref={iframeRef}
         src={src}
         title="Presentation (view only)"
