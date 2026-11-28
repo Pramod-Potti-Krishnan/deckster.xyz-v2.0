@@ -34,6 +34,7 @@ import { studioTemplateDisplayName } from "@/lib/studio-template-display-name"
 // FRONTEND-2 Pass 3 (NEXT_PUBLIC_STUDIO_DUPLICATE_DECK, default off): the deck list can copy a deck. Everything below is behind the flag; off, the Duplicate item stays disabled as it was.
 import { toast } from "@/hooks/use-toast"
 import { duplicateTargetFor, runDuplicateDeck } from "@/lib/studio-duplicate-deck"
+import { isStudioLayoutTicketEnabled } from "@/lib/studio-layout-viewer-ticket" // LAYOUT-TICKET-DASHBOARD (PL-61): with Layout viewer tickets on, a deck card never draws a live viewer
 import { useStudioDeckCardThumbnail } from "@/hooks/use-studio-deck-card-thumbnail" // DECK-CARD-THUMBNAIL (NEXT_PUBLIC_STUDIO_DECK_CARD_THUMBNAILS_ENABLED, default off): a card shows its first-slide image instead of the live viewer
 import { STUDIO_DECK_TABS_HONEST_ENABLED, deckBuiltTabLabel } from "@/lib/studio-deck-tabs-honest" // AUDIT-CONSOLE
 import { useStudioDeckCardRehome, useStudioDeckRehomeVersion, studioDeckRehomeDecision } from "@/hooks/use-studio-deck-card-rehome" // AUDIT-PREVIEWS (NEXT_PUBLIC_STUDIO_DECK_CARD_REHOME, default off): a card whose saved viewer URL is another environment's uses this one when the deck exists here
@@ -83,8 +84,9 @@ function PresentationPreview({ presentation }: { presentation: Presentation }) {
   const decision = rehome.url ? evaluateLayoutViewerUrl(rehome.url, LAYOUT_VIEWER_URL_POLICY) : savedDecision // AUDIT-PREVIEWS
   const deckCardThumbnail = useStudioDeckCardThumbnail(decision, deckTitle(presentation)) // DECK-CARD-THUMBNAIL: null with the flag off, and whenever today's preview is to be drawn
   if (deckCardThumbnail) return deckCardThumbnail // DECK-CARD-THUMBNAIL
+  const liveFrameAllowed = !isStudioLayoutTicketEnabled() // LAYOUT-TICKET-DASHBOARD (PL-61): flag on, a card whose thumbnail is unavailable shows the placeholder, never a live viewer
 
-  if (decision.status === 'allowed') {
+  if (decision.status === 'allowed' && liveFrameAllowed) { // LAYOUT-TICKET-DASHBOARD (PL-61)
     return (
       <iframe
         src={viewOnlyIfEnabled(decision.url)}

@@ -98,7 +98,7 @@ function tabsChecks(libText = read(TABS_LIB)) {
 // 2. The two files' marked lines
 // ============================================================================================================================================
 function fileChecks(texts = TEXTS) {
-  const layout = texts[LAYOUT], dash = texts[DASH]
+  const layout = laterStrips(LAYOUT, texts[LAYOUT]), dash = texts[DASH]
   assert.equal(layout.split('\n').filter(line => MARKER_RE.test(line)).length, 3, 'the layout carries the marker on three lines: the renamed component import, the gate import and the gated alias')
   assert.equal((layout.match(/<Analytics \/>/g) || []).length, 1, 'the layout renders <Analytics /> once')
   assert.ok(layout.includes("\n        <Analytics />\n"), 'and that element line is the base\'s, byte for byte (older proofs pin the lines around it)')

@@ -9,6 +9,7 @@
 
 import { requireServiceUrl } from '@/lib/service-url';
 import { withExportViewOnly } from '@/lib/export-view-only';
+import { downloadAuthHeaders } from '@/lib/downloads-auth-client'; // DOWNLOADS-AUTH
 
 export const getDownloadServiceUrl = () => requireServiceUrl('Downloads service', [
   { name: 'NEXT_PUBLIC_DOWNLOAD_SERVICE_URL', value: process.env.NEXT_PUBLIC_DOWNLOAD_SERVICE_URL },
@@ -77,6 +78,7 @@ export async function downloadPDF(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(await downloadAuthHeaders()), // DOWNLOADS-AUTH (NEXT_PUBLIC_STUDIO_DOWNLOADS_AUTH_ENABLED, default off): Bearer access token; off adds nothing
         'Accept': 'application/pdf'
       },
       body: JSON.stringify(request),
@@ -155,6 +157,7 @@ export async function downloadPPTX(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(await downloadAuthHeaders()), // DOWNLOADS-AUTH (NEXT_PUBLIC_STUDIO_DOWNLOADS_AUTH_ENABLED, default off): Bearer access token; off adds nothing
         'Accept': 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
       },
       body: JSON.stringify(request),

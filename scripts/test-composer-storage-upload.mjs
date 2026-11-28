@@ -21,6 +21,7 @@ async function upload(options, failAt) {
     module, exports: module.exports,
     require: name => {
       if (name === '@/lib/service-url') return serviceUrl
+      if (name === '@/lib/researcher-upload-proxy') return { researcherUploadUrl: (base, step) => `${base}/api/v1/${step}` } // program1/studio-flip-enablers, flag off
       assert.equal(name, '@/lib/config')
       return { getKnowledgeServiceUrl: () => 'https://researcher.synthetic.invalid' }
     },
