@@ -115,6 +115,7 @@ function loadCard(pageSource, libSource, env) {
     '@/lib/layout-service-client': { LAYOUT_VIEWER_URL_POLICY: {} },
     '@/lib/layout-viewer-url-policy': { evaluateLayoutViewerUrl: url => (typeof url === 'string' && url.startsWith(LAYOUT) ? { status: 'allowed', url } : { status: 'empty' }) },
     '@/lib/present-view-only': { viewOnlyIfEnabled: url => url },
+    '@/lib/studio-layout-viewer-ticket': { isStudioLayoutTicketEnabled: () => false }, // LATER-CHANGES: registry read (PL-61): the Decks page asks whether Layout viewer tickets are on; flag off here
     '@/lib/studio-deck-cards': loadModule(CARDS_SOURCE, CARDS),
     '@/lib/studio-template-display-name': loadModule(CLEANER_SOURCE, CLEANER, { fallback: false }),
     '@/lib/studio-deck-title': loadModule(libSource, LIB, { fallback: false }),
