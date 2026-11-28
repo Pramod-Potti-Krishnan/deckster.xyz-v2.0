@@ -338,6 +338,7 @@ export const LATER_STRIPS = [
   (await import('./studio-flip-enablers-strip.mjs')).stripFlipEnablers, // LATER-CHANGE: PROGRAM-1, studio flip enablers
   (await import('./studio-dual-lookup-strip.mjs')).stripDualLookup, // LATER-CHANGE: FRONTEND-1, flip enablers dual lookup
   (await import('./studio-pl62-ticket-ready-strip.mjs')).stripPl62TicketReady, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-62 Studio ticket-ready compare (NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED; no .env.example block of its own)
+  (await import('./studio-pl60-view-tickets-strip.mjs')).stripPl60ViewTickets, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-GEMINI), PL-60 / #661 taught proof put-backs (tests only; no .env.example block)
   // one line per later change, above this comment
 ]
 

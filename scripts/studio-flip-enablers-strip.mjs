@@ -189,6 +189,10 @@ export const FLIP_ENABLERS_EDITS = {
       ""
     ],
     [
+      "// =========================================================== Part 1: source pins ===========================================================\nconst viewerText = chatParityStrip.stripChatParity(VIEWER, stripFlipEnablers(VIEWER, stripPl62TicketReady(VIEWER, read(VIEWER)))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out before the byte pin below\n",
+      "// =========================================================== Part 1: source pins ===========================================================\nconst viewerText = chatParityStrip.stripChatParity(VIEWER, stripPl62TicketReady(VIEWER, read(VIEWER))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out before the byte pin below\n"
+    ],
+    [
       "// =========================================================== Part 1: source pins ===========================================================\nconst viewerText = chatParityStrip.stripChatParity(VIEWER, stripFlipEnablers(VIEWER, read(VIEWER))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out before the byte pin below\n",
       "// =========================================================== Part 1: source pins ===========================================================\nconst viewerText = chatParityStrip.stripChatParity(VIEWER, read(VIEWER)) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out before the byte pin below\n"
     ]
@@ -205,6 +209,10 @@ export const FLIP_ENABLERS_EDITS = {
       ""
     ],
     [
+      "await check('the marked lines are where they should be: the page has two imports and one line of JSX (after PR 1\\'s), every one names the marker as a whole token and none names PR 1\\'s (neither strip can take out the other\\'s lines); the viewer is not touched at all and still answers the key the swipe presses', () => {\n  const page = read(PAGE), viewer = stripFlipEnablers(VIEWER, stripPl62TicketReady(VIEWER, read(VIEWER)))\n",
+      "await check('the marked lines are where they should be: the page has two imports and one line of JSX (after PR 1\\'s), every one names the marker as a whole token and none names PR 1\\'s (neither strip can take out the other\\'s lines); the viewer is not touched at all and still answers the key the swipe presses', () => {\n  const page = read(PAGE), viewer = stripPl62TicketReady(VIEWER, read(VIEWER))\n"
+    ],
+    [
       "await check('the marked lines are where they should be: the page has two imports and one line of JSX (after PR 1\\'s), every one names the marker as a whole token and none names PR 1\\'s (neither strip can take out the other\\'s lines); the viewer is not touched at all and still answers the key the swipe presses', () => {\n  const page = read(PAGE), viewer = stripFlipEnablers(VIEWER, read(VIEWER))\n",
       "await check('the marked lines are where they should be: the page has two imports and one line of JSX (after PR 1\\'s), every one names the marker as a whole token and none names PR 1\\'s (neither strip can take out the other\\'s lines); the viewer is not touched at all and still answers the key the swipe presses', () => {\n  const page = read(PAGE), viewer = read(VIEWER)\n"
     ]
@@ -213,6 +221,10 @@ export const FLIP_ENABLERS_EDITS = {
     [
       "const { stripFlipEnablers } = await import('./studio-flip-enablers-strip.mjs') // LATER-CHANGES: registry read (FLIP-ENABLERS)\n",
       ""
+    ],
+    [
+      "await check('the marked lines are where they should be: the page has three imports, the workspace clamp\\'s call and one line of JSX (five), every one names the marker as a whole token, no existing line is rewritten; the viewer is not touched at all, and the two lines of it the stage\\'s CSS relies on are still there (its 16 px padding, and the fit that takes 32 px off what it measures)', () => {\n  const page = read(PAGE), viewer = stripFlipEnablers(VIEWER, stripPl62TicketReady(VIEWER, read(VIEWER))) // LATER-CHANGES: registry read (FLIP-ENABLERS): program1/studio-flip-enablers' viewer lines come out first\n",
+      "await check('the marked lines are where they should be: the page has three imports, the workspace clamp\\'s call and one line of JSX (five), every one names the marker as a whole token, no existing line is rewritten; the viewer is not touched at all, and the two lines of it the stage\\'s CSS relies on are still there (its 16 px padding, and the fit that takes 32 px off what it measures)', () => {\n  const page = read(PAGE), viewer = stripPl62TicketReady(VIEWER, read(VIEWER))\n"
     ],
     [
       "await check('the marked lines are where they should be: the page has three imports, the workspace clamp\\'s call and one line of JSX (five), every one names the marker as a whole token, no existing line is rewritten; the viewer is not touched at all, and the two lines of it the stage\\'s CSS relies on are still there (its 16 px padding, and the fit that takes 32 px off what it measures)', () => {\n  const page = read(PAGE), viewer = stripFlipEnablers(VIEWER, read(VIEWER)) // LATER-CHANGES: registry read (FLIP-ENABLERS): program1/studio-flip-enablers' viewer lines come out first\n",

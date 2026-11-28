@@ -117,6 +117,10 @@ export const RESOLVE_ID_ROUTE_EDITS = {
    "import { composeEntitlementHeaders } from '@/lib/studio-compose-entitlement'\n"
   ],
   [
+   "import { COMPOSE_BODY_KEYS, isApiHardeningEnabled, pickAllowedKeys, requireApprovedUser, requireSessionOwner } from '@/lib/api-hardening'\nimport { resolveDirectorUserId } from '@/lib/studio-director-rest-sign'\n",
+   "import { COMPOSE_BODY_KEYS, isApiHardeningEnabled, pickAllowedKeys, requireApprovedUser, requireSessionOwner } from '@/lib/api-hardening'\n"
+  ],
+  [
    "  const sessionUser = session?.user as SessionUserWithId | undefined\n  const userId = await resolveDirectorUserId(sessionUser?.id || sessionUser?.email)\n",
    "  const sessionUser = session?.user as SessionUserWithId | undefined\n  const userId = sessionUser?.id || sessionUser?.email\n"
   ]

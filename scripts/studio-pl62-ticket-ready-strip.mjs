@@ -61,6 +61,10 @@ export const PL62_REVERSE_HUNKS = {
       "const viewerText = chatParityStrip.stripChatParity(VIEWER, stripFlipEnablers(VIEWER, read(VIEWER))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out before the byte pin below\n"
     ],
     [
+      "const viewerText = chatParityStrip.stripChatParity(VIEWER, stripPl62TicketReady(VIEWER, read(VIEWER))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out before the byte pin below\n",
+      "const viewerText = chatParityStrip.stripChatParity(VIEWER, read(VIEWER)) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out before the byte pin below\n"
+    ],
+    [
       "  const added = diff.filter(line => line.startsWith('+')), removed = diff.filter(line => line.startsWith('-') && !PL62_REPLACED_LINES.some(([, before]) => line === `-${before}`)) // LATER-CHANGES: registry read (PL-62): its two rewritten viewer lines (a later change's, not this one's) are not this change's removals\n",
       "  const added = diff.filter(line => line.startsWith('+')), removed = diff.filter(line => line.startsWith('-'))\n"
     ]
@@ -83,6 +87,10 @@ export const PL62_REVERSE_HUNKS = {
     [
       "  const page = read(PAGE), viewer = stripFlipEnablers(VIEWER, stripPl62TicketReady(VIEWER, read(VIEWER)))\n",
       "  const page = read(PAGE), viewer = stripFlipEnablers(VIEWER, read(VIEWER))\n"
+    ],
+    [
+      "  const page = read(PAGE), viewer = stripPl62TicketReady(VIEWER, read(VIEWER))\n",
+      "  const page = read(PAGE), viewer = read(VIEWER)\n"
     ]
   ],
   "scripts/test-studio-phone-landscape.mjs": [
@@ -93,6 +101,10 @@ export const PL62_REVERSE_HUNKS = {
     [
       "  const page = read(PAGE), viewer = stripFlipEnablers(VIEWER, stripPl62TicketReady(VIEWER, read(VIEWER))) // LATER-CHANGES: registry read (FLIP-ENABLERS): program1/studio-flip-enablers' viewer lines come out first\n",
       "  const page = read(PAGE), viewer = stripFlipEnablers(VIEWER, read(VIEWER)) // LATER-CHANGES: registry read (FLIP-ENABLERS): program1/studio-flip-enablers' viewer lines come out first\n"
+    ],
+    [
+      "  const page = read(PAGE), viewer = stripPl62TicketReady(VIEWER, read(VIEWER))\n",
+      "  const page = read(PAGE), viewer = read(VIEWER)\n"
     ]
   ],
   "scripts/test-studio-rail-add-slide.mjs": [
