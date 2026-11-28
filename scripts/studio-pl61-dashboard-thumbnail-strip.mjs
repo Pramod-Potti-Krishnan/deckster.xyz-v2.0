@@ -54,8 +54,8 @@ export const PL61_REVERSE_HUNKS = {
       ""
     ],
     [
-      "const pageText = stripAuditConsole(DASHBOARD_PAGE, stripAuditPreviews(DASHBOARD_PAGE, stripPl61DashboardThumbnail(DASHBOARD_PAGE, read(DASHBOARD_PAGE)))) // LATER-CHANGES: registry read (AUDIT-CONSOLE); LATER-CHANGES: registry read (AUDIT-PREVIEWS); LATER-CHANGES: registry read (PL-61): the Decks page's marked lines come out first\n",
-      "const pageText = stripAuditConsole(DASHBOARD_PAGE, stripAuditPreviews(DASHBOARD_PAGE, read(DASHBOARD_PAGE))) // LATER-CHANGES: registry read (AUDIT-CONSOLE); LATER-CHANGES: registry read (AUDIT-PREVIEWS): this change's lines come out first\n"
+      "const read = rel => (rel === DASHBOARD_PAGE ? stripPl61DashboardThumbnail(rel, fs.readFileSync(path.join(root, rel), 'utf8')) : fs.readFileSync(path.join(root, rel), 'utf8')) // LATER-CHANGES: registry read (PL-61): the Decks page's marked lines come out first\n",
+      "const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')\n"
     ]
   ],
   "scripts/test-studio-deck-cards-v2.mjs": [

@@ -407,7 +407,7 @@ function insertionChecks(texts = TEXTS, strip = STRIP_FN, edits = EDITS) {
   assert.ok(replacePictureStrip.REPLACE_PICTURE_MARKER_RE.test('// REPLACE-PICTURE') && !replacePictureStrip.REPLACE_PICTURE_MARKER_RE.test('// REPLACE-PICTURE-HERO-ONLY'), 'and the Replace picture marker does not match this one')
   // the files this change does not touch are dev's: the viewer, the slide area, the Builder page, the Replace picture css, the viewer bridge
   for (const rel of [VIEWER, AREA, PAGE]) assert.equal(registry.stripLaterChanges(rel, texts[rel]), registry.stripLaterChanges(rel, baseText(rel)), `${rel}: through the registry it is dev's`)
-  for (const rel of [VIEWER, AREA, PAGE, CSS_OLD]) assert.equal(read(rel), baseText(rel), `${rel}: not touched by this change (byte for byte dev's)`)
+  for (const rel of [VIEWER, AREA, PAGE, CSS_OLD]) assert.equal(laterStrips(rel, texts[rel] ?? read(rel)), baseText(rel), `${rel}: not touched by this change (byte for byte dev's)`) // LATER-CHANGES: registry read (PL-60): later registered strips come out first
   // the older proofs this change teaches: each gains only marked lines and loses none, and is dev's without them
   for (const rel of PIN_FILES) {
     const now = laterStrips(rel, texts[rel]), diff = lineDiff(baseText(rel), now), gained = PIN_EDITS[rel].length

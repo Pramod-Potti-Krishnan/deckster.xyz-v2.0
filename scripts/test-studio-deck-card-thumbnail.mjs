@@ -24,7 +24,7 @@ import { stripAuditPreviews } from './studio-audit-previews-strip.mjs' // LATER-
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 import { stripPl61DashboardThumbnail } from './studio-pl61-dashboard-thumbnail-strip.mjs' // LATER-CHANGES: registry read (PL-61): the Decks page's marked lines come out first
-const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const read = rel => (rel === DASHBOARD_PAGE ? stripPl61DashboardThumbnail(rel, fs.readFileSync(path.join(root, rel), 'utf8')) : fs.readFileSync(path.join(root, rel), 'utf8')) // LATER-CHANGES: registry read (PL-61): the Decks page's marked lines come out first
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 })
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 const LIB = 'lib/studio-deck-card-thumbnail.ts'
@@ -285,7 +285,7 @@ await proveLib(libFor(libSource), 'lib')
 console.log(`PASS lib: ${checks} checks`)
 
 // =========================================================== 2. the page pin
-const pageText = stripAuditConsole(DASHBOARD_PAGE, stripAuditPreviews(DASHBOARD_PAGE, stripPl61DashboardThumbnail(DASHBOARD_PAGE, read(DASHBOARD_PAGE)))) // LATER-CHANGES: registry read (AUDIT-CONSOLE); LATER-CHANGES: registry read (AUDIT-PREVIEWS); LATER-CHANGES: registry read (PL-61): the Decks page's marked lines come out first
+const pageText = stripAuditConsole(DASHBOARD_PAGE, stripAuditPreviews(DASHBOARD_PAGE, read(DASHBOARD_PAGE))) // LATER-CHANGES: registry read (AUDIT-CONSOLE); LATER-CHANGES: registry read (AUDIT-PREVIEWS): this change's lines come out first
 const basePage = git('show', `${BASE_COMMIT}:${DASHBOARD_PAGE}`)
 function provePage(page, label = 'page') {
   const at = text => `${label}: ${text}`

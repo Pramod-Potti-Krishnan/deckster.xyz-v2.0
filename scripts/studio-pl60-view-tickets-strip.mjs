@@ -17,6 +17,33 @@ export const PL60_SCOPE_FILES = new Set([
   "scripts/test-studio-pl46-edit-scope.mjs",
   "scripts/test-studio-pl60-view-tickets.mjs",
   "scripts/test-studio-rail-live-preview.mjs",
+  "scripts/test-studio-replace-picture-hero-only.mjs",
   "scripts/studio-pl60-view-tickets-strip.mjs",
   "scripts/studio-later-changes.mjs"
 ])
+
+/** Reverse hunks for older proofs taught by PL-60 and the #661 restack. */
+export const PL60_REVERSE_HUNKS = {
+  "scripts/test-present-view-only.mjs": [
+    [
+      "      if (id === '@/components/layout-viewer-ticketed-iframe') return { ViewTicketedIframe: 'iframe' } // PL-60: with NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED off the component IS the bare iframe, so this proof reads the tree as before\n",
+      ""
+    ]
+  ],
+  "scripts/test-studio-replace-picture-hero-only.mjs": [
+    [
+      "  for (const rel of [VIEWER, AREA, PAGE, CSS_OLD]) assert.equal(laterStrips(rel, texts[rel] ?? read(rel)), baseText(rel), `${rel}: not touched by this change (byte for byte dev's)`) // LATER-CHANGES: registry read (PL-60): later registered strips come out first\n",
+      "  for (const rel of [VIEWER, AREA, PAGE, CSS_OLD]) assert.equal(read(rel), baseText(rel), `${rel}: not touched by this change (byte for byte dev's)`)\n"
+    ]
+  ],
+}
+
+/** Put back PL-60 / #661 taught proof lines so older strip-contract checks see their base byte for byte. */
+export function stripPl60ViewTickets(rel, text) {
+  if (typeof text !== 'string') return text
+  const hunks = PL60_REVERSE_HUNKS[rel]
+  if (!hunks) return text
+  let out = text
+  for (const [now, before] of hunks) { const at = out.indexOf(now); if (at >= 0) out = out.slice(0, at) + before + out.slice(at + now.length) }
+  return out
+}
