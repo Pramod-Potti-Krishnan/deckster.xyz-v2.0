@@ -32,6 +32,7 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { BASE_COMMIT, P2_FILES, P2_NEW_FILES, P2_PAIRS, stripP2Publish } from './studio-p2-publish-strip.mjs'
 import { stripP2Polish } from './studio-p2-polish-strip.mjs'
+import { stripStudioLocalFonts } from './studio-local-fonts-strip.mjs' // PL-1-LOCAL-FONTS
 import { stripAuditConsole } from './studio-audit-console-strip.mjs' // LATER-CHANGES: registry read (AUDIT-CONSOLE)
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -367,7 +368,8 @@ function sameAsBase(rel, text, baseText) {
   return next === want.length && extras.every(line => line === '' || kind.test(line)) && !extras.some(line => /P2_PUBLISH|test:studio-p2-publish/.test(line))
 }
 
-function stripChecks(sources, base = baseSources) {
+function stripChecks(rawSources, base = baseSources) {
+  const sources = { ...rawSources, [LAYOUT]: stripStudioLocalFonts(LAYOUT, rawSources[LAYOUT]) } // PL-1-LOCAL-FONTS
   for (const rel of P2_FILES) {
     const stripped = stripP2Publish(rel, stripAuditConsole(rel, sources[rel])) // LATER-CHANGES: registry read (AUDIT-CONSOLE): this change's lines (the layout's gated <Analytics />) come out first
     check(assert.ok, sameAsBase(rel, stripped, base[rel]), `${rel}: stripping this change gives back the base's file, byte for byte`)
@@ -1072,6 +1074,7 @@ async function inboxChecks(sources, base = baseSources) {
 async function themeChecks(sources, base = baseSources) {
   const layoutStubs = { 'next/font/google': { Inter: () => ({ className: 'inter' }) }, '@vercel/analytics/next': { Analytics: 'Analytics' }, '@/components/providers/session-provider': { SessionProvider: 'SessionProvider' },
     '@/components/theme-provider': { ThemeProvider: 'ThemeProvider' }, '@/components/ui/toaster': { Toaster: 'Toaster' }, '@/components/studio-viewer-theme-provider': { StudioViewerThemeProvider: 'StudioViewerThemeProvider' } }
+  layoutStubs['next/font/local'] = { __esModule: true, default: layoutStubs['next/font/google'].Inter } // PL-1-LOCAL-FONTS
   const layoutOf = (src, env) => createLoader({ sources: src, env, stubs: { ...layoutStubs, react: reactStub, 'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' } }, globals: {} }).load(LAYOUT).default({ children: 'kid' })
   for (const env of pickEnvs(OFF_ENVS)) check(assert.equal, sha(ser(canon(layoutOf(sources, env)))), once(`layout|${ser(env)}`, () => sha(ser(canon(layoutOf({ ...sources, [LAYOUT]: base[LAYOUT] }, env))))), `flag off ${ser(env)}: the root layout is the base's`)
   const provider = tree => flat(tree).find(node => node.type === 'ThemeProvider' || node.type === 'StudioViewerThemeProvider')

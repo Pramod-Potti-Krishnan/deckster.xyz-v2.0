@@ -1,4 +1,6 @@
 import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
+import { directorRestSignHeaders } from '@/lib/studio-director-rest-sign' // DIRECTOR-REST-SIGN
+import { resolveDirectorUserId } from '@/lib/studio-director-rest-sign'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
@@ -11,7 +13,7 @@ function directorBaseUrl(): string {
 async function resolveUserId(): Promise<string | null> {
   const session = await getServerSession(authOptions)
   const uid = (session?.user as { id?: string } | undefined)?.id || session?.user?.email
-  return uid ?? null
+  return resolveDirectorUserId(uid)
 }
 
 export async function PUT(
@@ -24,7 +26,9 @@ export async function PUT(
   try {
     const r = await fetch(
       `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes/${encodeURIComponent(id)}/standard`,
+      ((_b: RequestInit, _h: Record<string, string>) => Object.keys(_h).length ? { ..._b, headers: { ...(_b.headers as Record<string, string> | undefined), ..._h } } : _b)( // DIRECTOR-REST-SIGN
       { method: 'PUT', ...brandKitSignedInit(userId, 'PUT') }, // BRAND-KIT-CALLER
+      await directorRestSignHeaders(userId, 'PUT', { path: `/api/users/${encodeURIComponent(userId)}/themes/${encodeURIComponent(id)}/standard` })), // DIRECTOR-REST-SIGN
     )
     const body = await r.json()
     return NextResponse.json(body, { status: r.status })

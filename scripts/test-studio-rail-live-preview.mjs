@@ -62,6 +62,7 @@ function createWorld({ env = {}, overrides = {}, stubs = {}, globals = {} } = {}
     const source = rel in overrides ? overrides[rel] : read(rel)
     const require = spec => {
       if (spec in stubs) return stubs[spec]
+      if (spec === '@/components/layout-viewer-ticketed-iframe') return { ViewTicketedIframe: 'iframe' } // PL-60: with NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED off the component IS the bare iframe, so this proof renders the same markup as before
       if (spec.endsWith('.css')) return {}
       if (spec.startsWith('@/') || spec.startsWith('.')) return load(resolve(spec, rel))
       return nodeRequire(spec)

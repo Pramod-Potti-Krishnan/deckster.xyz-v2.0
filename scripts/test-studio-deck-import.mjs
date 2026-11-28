@@ -34,7 +34,7 @@ import { stripChatThemeExport } from './studio-chat-theme-export-strip.mjs' // N
 import { sameAsBase } from './studio-env-append-tolerant.mjs'
 import { sameOrTolerant, stackMutants, stackScope } from './studio-stack-tolerant.mjs'
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
-import { stripLaterChanges } from './studio-later-changes.mjs' // stacked: the later-changes registry (a change stacked after this one registers its files, its .env.example block and its strip there; every read of an app file goes through it first)
+import { stripLaterChanges, LATER_CHANGE_FILES } from './studio-later-changes.mjs' // stacked: the later-changes registry (a change stacked after this one registers its files, its .env.example block and its strip there; every read of an app file goes through it first) // LATER-CHANGES: registry read (DUAL-LOOKUP): the registered later-change files
 
 const BASE_COMMIT = process.env.DECK_IMPORT_BASE || '8d5c494a7abcbfaf3d1b69eda257a5100013cb18'
 const read = rel => stripLaunchWording(rel, stripLaterChanges(rel, fs.readFileSync(path.join(root, rel), 'utf8'))) // stacked: a later change's lines (scripts/studio-later-changes.mjs) come out first
@@ -1309,6 +1309,8 @@ async function secStatic() {
   text.delete('lib/studio-compose-entitlement.ts') // stacked after #475: Add Slide compose signs its user (STUDIO_COMPOSE_ENTITLEMENT_ENABLED) also reaches the minter, from one server-only lib that the compose route alone imports (scripts/test-studio-compose-entitlement.mjs proves it); the closure walk above already ran over it
   text.delete('lib/studio-brand-kit-server.ts') // LATER-CHANGES: registry read (BRAND-KIT-CALLER): the Brand Kit's server-only lib (it signs the eight theme proxy fetches) also reaches the minter; scripts/test-studio-brand-kit.mjs proves it, and the closure walk above already ran over it
   text.delete('app/api/themes/[id]/brand/route.ts') // LATER-CHANGES: registry read (BRAND-KIT-CALLER): the Brand Kit's brand record route signs its Director calls with the same helper (proved by scripts/test-studio-brand-kit.mjs)
+  text.delete('lib/studio-director-rest-sign.ts') // stacked after #475 (#577): Director REST sign all (STUDIO_DIRECTOR_REST_SIGN_ALL_ENABLED) also reaches the minter, from one server-only lib that the 13 Director proxy routes alone import (scripts/test-studio-director-rest-sign.mjs proves it: no client module imports it); the closure walk above already ran over it
+  text.delete('lib/studio-director-email-fallback.ts') // LATER-CHANGES: registry read (DUAL-LOOKUP): dual lookup's server-only fallback lib signs legacy e-mail reads with the same helper (proved by scripts/test-studio-dual-lookup.mjs)
   deepEq([...text.keys()].filter(rel => rel !== HELPER && /director-rest-entitlement/.test(text.get(rel))).sort(), [JOBS, START].sort(), 'the minter is imported by the two import routes only')
   for (const rel of [START, JOBS]) { ok(!isClient(rel), `${rel} is server code`); match(text.get(rel), /from '@\/lib\/director-rest-entitlement'/); eq((text.get(rel).match(/restEntitlementHeaders\(/g) ?? []).length, 1, `${rel}: one signed call`); eq((text.get(rel).match(/\bfetch\(/g) ?? []).length, 1, `${rel}: one Director fetch`) }
   match(text.get(START), /restEntitlementHeaders\(userId, 'POST'\)/); match(text.get(JOBS), /restEntitlementHeaders\(userId, 'GET'\)/)

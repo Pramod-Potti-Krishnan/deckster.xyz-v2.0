@@ -50,6 +50,7 @@ export interface MintRestEntitlementInput {
    * build-quota-claim.ts). Once that lands, pass the live-DB claim there.
    */
   bq?: object | null
+  /** The Director path of the call (no host, no query), bound as the claim `path`; Director's verifier ignores claims it does not read. */ path?: string // DIRECTOR-REST-SIGN
   /** Seconds since epoch; tests only. Defaults to now. */
   nowSeconds?: number
 }
@@ -80,6 +81,7 @@ export function mintRestEntitlement(input: MintRestEntitlementInput): string | n
       exp: iat + REST_ENTITLEMENT_TTL_SECONDS,
       m: input.method.toUpperCase(),
       ...(input.bq ? { bq: input.bq } : {}),
+      ...(typeof input.path === 'string' && input.path ? { path: input.path } : {}), // DIRECTOR-REST-SIGN
     }),
     'utf8',
   ).toString('base64url')

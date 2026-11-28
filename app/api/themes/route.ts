@@ -1,4 +1,7 @@
 import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
+import { directorRestSignHeaders } from '@/lib/studio-director-rest-sign' // DIRECTOR-REST-SIGN
+import { resolveDirectorUserId } from '@/lib/studio-director-rest-sign'
+import { directorEmailFallbackRead, missOnEmpty } from '@/lib/studio-director-email-fallback' // DUAL-LOOKUP
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
@@ -12,7 +15,7 @@ function directorBaseUrl(): string {
 async function resolveUserId(): Promise<string | null> {
   const session = await getServerSession(authOptions)
   const uid = (session?.user as { id?: string } | undefined)?.id || session?.user?.email
-  return uid ?? null
+  return resolveDirectorUserId(uid)
 }
 
 export async function GET() {
@@ -21,8 +24,12 @@ export async function GET() {
   try {
     const r = await fetch(
       `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes`,
+      ((_b: RequestInit, _h: Record<string, string>) => Object.keys(_h).length ? { ..._b, headers: { ...(_b.headers as Record<string, string> | undefined), ..._h } } : _b)( // DIRECTOR-REST-SIGN
       { cache: 'no-store', ...brandKitSignedInit(userId, 'GET') }, // BRAND-KIT-CALLER
+      await directorRestSignHeaders(userId, 'GET', { path: `/api/users/${encodeURIComponent(userId)}/themes` })), // DIRECTOR-REST-SIGN
     )
+    const legacy = await directorEmailFallbackRead(r, userId, (id, headers) => fetch(`${directorBaseUrl()}/api/users/${encodeURIComponent(id)}/themes`, { cache: 'no-store', headers }), missOnEmpty('themes')) // DUAL-LOOKUP
+    if (legacy) return NextResponse.json(await legacy.json(), { status: legacy.status }) // DUAL-LOOKUP
     const body = await r.json()
     return NextResponse.json(body, { status: r.status })
   } catch (error) {
@@ -51,7 +58,9 @@ export async function POST(req: NextRequest) {
       `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes`,
       {
         method: 'POST',
+        ...((_b: { headers: Record<string, string> }, _h: Record<string, string>) => Object.keys(_h).length ? { headers: { ..._b.headers, ..._h } } : _b)({ // DIRECTOR-REST-SIGN
         headers: { 'Content-Type': 'application/json', ...brandKitSignedHeaders(userId, 'POST') }, // BRAND-KIT-CALLER
+        }, await directorRestSignHeaders(userId, 'POST', { path: `/api/users/${encodeURIComponent(userId)}/themes` })), // DIRECTOR-REST-SIGN
         body: JSON.stringify(payload),
       },
     )

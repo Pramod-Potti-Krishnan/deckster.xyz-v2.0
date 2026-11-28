@@ -10,6 +10,7 @@
  */
 
 import { getKnowledgeServiceUrl } from '@/lib/config'
+import { researcherUploadUrl } from '@/lib/researcher-upload-proxy'
 import { requireServiceUrl } from '@/lib/service-url'
 import { researcherUploadFetch } from '@/lib/upload-session-token' // UPLOAD-SESSION-TOKEN (NEXT_PUBLIC_STUDIO_UPLOAD_SESSION_TOKEN_ENABLED, default off): the session token on the three Researcher calls below; off, each is the plain fetch it was
 
@@ -73,6 +74,13 @@ export async function uploadFileToResearcher(options: ResearcherUploadOptions): 
   // Preserve this pipeline's existing single-slash normalization.
   const researcherBaseUrl = getKnowledgeServiceUrl().replace(/\/$/, '')
   const contentType = file.type || 'application/octet-stream'
+  // NEXT_PUBLIC_STUDIO_RESEARCHER_PROXY_ENABLED (off): same-origin proxy adds X-API-Key + session token. Off: direct URLs as before.
+  const proxyIdentity = { sessionId, userId }
+  const _sessionUrl = researcherUploadUrl(researcherBaseUrl, 'sessions/create', proxyIdentity) // FLIP-ENABLERS-PROXY
+  const _prepareUrl = researcherUploadUrl(researcherBaseUrl, 'files/storage-upload-url', proxyIdentity) // FLIP-ENABLERS-PROXY
+  const _processUrl = researcherUploadUrl(researcherBaseUrl, 'files/process-uploaded', proxyIdentity) // FLIP-ENABLERS-PROXY
+  const _proxyMap: Record<string, string> = { [`${researcherBaseUrl}/api/v1/sessions/create`]: _sessionUrl, [`${researcherBaseUrl}/api/v1/files/storage-upload-url`]: _prepareUrl, [`${researcherBaseUrl}/api/v1/files/process-uploaded`]: _processUrl } // FLIP-ENABLERS-PROXY
+  const fetch: typeof globalThis.fetch = ((orig) => ((input, init) => orig(typeof input === 'string' && input in _proxyMap ? _proxyMap[input] : input, init)) as typeof globalThis.fetch)(globalThis.fetch) // FLIP-ENABLERS-PROXY
 
   // 1) Ensure a Researcher session exists for this frontend session.
   onProgress?.({ percent: 5, stage: 'session' })

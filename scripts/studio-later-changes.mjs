@@ -130,6 +130,14 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-pl42-locked-copy-strip.mjs')).PL42_SCOPE_FILES, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-42 locked research switches: the panel notice, the tooltips and the chat reply say the outline is written, not that research ran (no flag, live at merge)
   ...(await import('./studio-pl54-registry-tolerance-strip.mjs')).PL54_SCOPE_FILES, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-54 generic registry tolerance in three older proofs (tests only: no flag, no product code)
   ...(await import('./studio-pl70-session-patch-allowlist-strip.mjs')).PL70_SCOPE_FILES, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-70 Step A session PATCH allowlist (STUDIO_SESSION_PATCH_ALLOWLIST_SHADOW_V1_ENABLED / STUDIO_SESSION_PATCH_ALLOWLIST_V1_ENABLED)
+  ...(await import('./studio-local-fonts-strip.mjs')).LOCAL_FONT_SCOPE_FILES, // LATER-CHANGE: Platform PL-1, vendored Studio build fonts
+  ...(await import('./studio-researcher-owner-proof-strip.mjs')).SCOPE_FILES, // LATER-CHANGE: Platform, D16 Studio WS owner proof (STUDIO_RESEARCHER_OWNER_PROOF_ENABLED / NEXT_PUBLIC_STUDIO_RESEARCHER_OWNER_PROOF)
+  ...(await import('./studio-director-rest-sign-strip.mjs')).DIRECTOR_REST_SIGN_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, program1 Director REST sign all (STUDIO_DIRECTOR_REST_SIGN_ALL_ENABLED)
+  ...(await import('./studio-flip-enablers-strip.mjs')).FLIP_ENABLERS_SCOPE_FILES, // LATER-CHANGE: PROGRAM-1, studio flip enablers (NEXT_PUBLIC_STUDIO_RESEARCHER_PROXY_ENABLED / NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED / NEXT_PUBLIC_STUDIO_DOWNLOADS_AUTH_ENABLED)
+  ...(await import('./studio-dual-lookup-strip.mjs')).DUAL_LOOKUP_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, flip enablers dual lookup: Director reads ask with the DB id, then the session's own e-mail (STUDIO_DIRECTOR_REST_SIGN_ALL_ENABLED)
+  ...(await import('./studio-pl46-edit-scope-strip.mjs')).PL46_SCOPE_FILES, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-46 Studio edit scope: the viewer-ticket route, library and hook ask Layout for a scope (edit for the owner's editing frame, view otherwise) and stop on a refusal (NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED)
+  ...(await import('./studio-pl60-view-tickets-strip.mjs')).PL60_SCOPE_FILES, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-60 Studio view tickets: the rail live preview, the Present view-only frame and the template workspace ask Layout for a view ticket (NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED)
+  ...(await import('./studio-pl62-ticket-ready-strip.mjs')).PL62_SCOPE_FILES, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-62 Studio ticket-ready compare: the editing frame's load check ignores only the viewer ticket parameter (NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED)
   // one line per later change, above this comment
 ])
 
@@ -213,6 +221,10 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-research-by-level-strip.mjs')).RESEARCH_BY_LEVEL_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, Research by level: moving the thinking-level picker to Best or Max turns web search on in a chat with no outline, and back off if this rule turned it on (NEXT_PUBLIC_STUDIO_RESEARCH_DEFAULT_BY_LEVEL)
   (await import('./studio-upload-formats-strip.mjs')).UPLOAD_FORMATS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, Upload formats: the composer's file picker and drop take only the formats the Researcher reads today, its data and source files too with a second flag once the Researcher's switch for them is on (NEXT_PUBLIC_STUDIO_UPLOAD_FORMATS_NARROW)
   (await import('./studio-pl70-session-patch-allowlist-strip.mjs')).PL70_ENV_BLOCK, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-70 Step A session PATCH allowlist (STUDIO_SESSION_PATCH_ALLOWLIST_SHADOW_V1_ENABLED / STUDIO_SESSION_PATCH_ALLOWLIST_V1_ENABLED)
+  (await import('./studio-researcher-owner-proof-strip.mjs')).ENV_BLOCK, // LATER-CHANGE: Platform, D16 Studio WS owner proof (STUDIO_RESEARCHER_OWNER_PROOF_ENABLED / NEXT_PUBLIC_STUDIO_RESEARCHER_OWNER_PROOF)
+  (await import('./studio-director-rest-sign-strip.mjs')).DIRECTOR_REST_SIGN_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, program1 Director REST sign all (STUDIO_DIRECTOR_REST_SIGN_ALL_ENABLED)
+  (await import('./studio-flip-enablers-strip.mjs')).FLIP_ENABLERS_ENV_BLOCK, // LATER-CHANGE: PROGRAM-1, studio flip enablers
+  (await import('./studio-dual-lookup-strip.mjs')).DUAL_LOOKUP_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, flip enablers dual lookup
   // one line per later change, above this comment
 ]
 
@@ -320,6 +332,12 @@ export const LATER_STRIPS = [
   (await import('./studio-pl42-locked-copy-strip.mjs')).stripPl42LockedCopy, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-42 locked research switches: the panel notice, the tooltips and the chat reply say the outline is written, not that research ran (no flag, live at merge)
   (await import('./studio-pl54-registry-tolerance-strip.mjs')).stripPl54RegistryTolerance, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-54 generic registry tolerance in three older proofs (tests only: no flag, no product code)
   (await import('./studio-pl70-session-patch-allowlist-strip.mjs')).stripPl70SessionPatchAllowlist, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-70 Step A session PATCH allowlist (STUDIO_SESSION_PATCH_ALLOWLIST_SHADOW_V1_ENABLED / STUDIO_SESSION_PATCH_ALLOWLIST_V1_ENABLED)
+  (await import('./studio-local-fonts-strip.mjs')).stripStudioLocalFonts, // LATER-CHANGE: Platform PL-1, vendored Studio build fonts
+  (await import('./studio-researcher-owner-proof-strip.mjs')).stripResearcherOwnerProof, // LATER-CHANGE: Platform, D16 Studio WS owner proof (STUDIO_RESEARCHER_OWNER_PROOF_ENABLED / NEXT_PUBLIC_STUDIO_RESEARCHER_OWNER_PROOF)
+  (await import('./studio-director-rest-sign-strip.mjs')).stripDirectorRestSign, // LATER-CHANGE: FRONTEND-1, program1 Director REST sign all (STUDIO_DIRECTOR_REST_SIGN_ALL_ENABLED)
+  (await import('./studio-flip-enablers-strip.mjs')).stripFlipEnablers, // LATER-CHANGE: PROGRAM-1, studio flip enablers
+  (await import('./studio-dual-lookup-strip.mjs')).stripDualLookup, // LATER-CHANGE: FRONTEND-1, flip enablers dual lookup
+  (await import('./studio-pl62-ticket-ready-strip.mjs')).stripPl62TicketReady, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-62 Studio ticket-ready compare (NEXT_PUBLIC_STUDIO_LAYOUT_TICKET_ENABLED; no .env.example block of its own)
   // one line per later change, above this comment
 ]
 
