@@ -130,6 +130,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-pl42-locked-copy-strip.mjs')).PL42_SCOPE_FILES, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-42 locked research switches: the panel notice, the tooltips and the chat reply say the outline is written, not that research ran (no flag, live at merge)
   ...(await import('./studio-pl54-registry-tolerance-strip.mjs')).PL54_SCOPE_FILES, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-54 generic registry tolerance in three older proofs (tests only: no flag, no product code)
   ...(await import('./studio-pl70-session-patch-allowlist-strip.mjs')).PL70_SCOPE_FILES, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-70 Step A session PATCH allowlist (STUDIO_SESSION_PATCH_ALLOWLIST_SHADOW_V1_ENABLED / STUDIO_SESSION_PATCH_ALLOWLIST_V1_ENABLED)
+  ...(await import('./studio-local-fonts-strip.mjs')).LOCAL_FONT_SCOPE_FILES, // LATER-CHANGE: Platform PL-1, vendored Studio build fonts
   // one line per later change, above this comment
 ])
 
@@ -320,6 +321,7 @@ export const LATER_STRIPS = [
   (await import('./studio-pl42-locked-copy-strip.mjs')).stripPl42LockedCopy, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-42 locked research switches: the panel notice, the tooltips and the chat reply say the outline is written, not that research ran (no flag, live at merge)
   (await import('./studio-pl54-registry-tolerance-strip.mjs')).stripPl54RegistryTolerance, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-54 generic registry tolerance in three older proofs (tests only: no flag, no product code)
   (await import('./studio-pl70-session-patch-allowlist-strip.mjs')).stripPl70SessionPatchAllowlist, // LATER-CHANGE: PLATFORM (LEAD-PLATFORM-CLAUDE), PL-70 Step A session PATCH allowlist (STUDIO_SESSION_PATCH_ALLOWLIST_SHADOW_V1_ENABLED / STUDIO_SESSION_PATCH_ALLOWLIST_V1_ENABLED)
+  (await import('./studio-local-fonts-strip.mjs')).stripStudioLocalFonts, // LATER-CHANGE: Platform PL-1, vendored Studio build fonts
   // one line per later change, above this comment
 ]
 

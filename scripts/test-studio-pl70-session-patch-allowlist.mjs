@@ -27,6 +27,7 @@ const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8')
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000 })
 const strip = await import('./studio-pl70-session-patch-allowlist-strip.mjs')
 const registry = await import('./studio-later-changes.mjs')
+await (await import('./studio-registry-tolerance.mjs')).tolerateLaterChanges({ registry, root, known: { files: 'studio-pl70-session-patch-allowlist-strip.mjs', env: 'studio-pl70-session-patch-allowlist-strip.mjs', strips: 'studio-pl70-session-patch-allowlist-strip.mjs' } }) // PL-1-LOCAL-FONTS
 const ROUTE = 'app/api/sessions/[id]/route.ts', FILES = 'app/api/sessions/[id]/files/route.ts', UPLOAD = 'app/api/upload/route.ts', HARDENING = 'lib/api-hardening.ts'
 const ALLOW = 'lib/studio-session-patch-allowlist.ts', GUARD = 'lib/studio-session-patch-guard.ts', POLICY = 'lib/layout-viewer-url-policy.ts'
 const ENFORCE = 'STUDIO_SESSION_PATCH_ALLOWLIST_V1_ENABLED', SHADOW = 'STUDIO_SESSION_PATCH_ALLOWLIST_SHADOW_V1_ENABLED'
